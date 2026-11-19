@@ -7,7 +7,14 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub(super) struct Types<'a> {
+    runtime_indices: HashSet<(&'a DeclarationId, usize)>,
+    pub specializations: crate::deferred_indices::Specializations,
+    pub operator_tokens: HashSet<&'a str>,
+    pub deferred_sites: std::cell::RefCell<HashSet<super::Site>>,
+    pub integer_program: crate::static_program::IntegerProgram,
+    pub formations: std::cell::RefCell<HashMap<DeclarationId, HashMap<super::Site, ValueType>>>,
     pub open_indices: std::cell::RefCell<HashMap<super::Site, (usize, ValueType)>>,
+    pub mathematical: HashMap<&'a DeclarationId, ValueType>,
     pub evaluator: Option<&'a dyn super::StaticIntegerEvaluator>,
     pub evaluations: std::cell::RefCell<HashMap<super::StaticIntegerRequest, (usize, num_bigint::BigInt)>>,
     pub bounds: HashMap<(&'a DeclarationId, usize), crate::Multiplicity>,
@@ -99,7 +106,7 @@ impl<'a> Unit<'a> {
                         f.nodes[p].words().next()
                     }
                     NodeKind::KindedParam => f.nodes[p].words().next(),
-                    NodeKind::ConstParam => f.nodes[p].words().nth(1),
+                    NodeKind::ConstParam | NodeKind::MachineParam => f.nodes[p].words().nth(1),
                     NodeKind::LifetimeParam => {
                         types.lifetimes.insert((owner, index));
                         f.nodes[p].words().next()
@@ -186,12 +193,19 @@ impl<'a> Unit<'a> {
             let Some(Symbol::Declaration(owner)) = self.names.get(&span).copied() else {
                 return Err(TypeError::at(f, section, "unresolved type application owner"));
             };
-            let values = f.nodes[section]
-                .children
-                .iter()
-                .enumerate()
-                .map(|(i, &a)| self.raw_argument(a, types, owner, i, candidate))
-                .collect::<Result<Vec<_>, _>>()?;
+            let mut substitutions = types.formals(owner);
+            let mut values = Vec::with_capacity(f.nodes[section].children.len());
+            for (index, &arg) in f.nodes[section].children.iter().enumerate() {
+                if index >= substitutions.len() {
+                    return Err(TypeError::at(f, section, "excess generic arguments"));
+                }
+                let bound = types
+                    .bound(owner, index)
+                    .map(|t| t.substitute(owner, &substitutions));
+                let value = self.raw_bound_argument(arg, types, owner, index, candidate, bound.as_ref())?;
+                substitutions[index] = value.clone();
+                values.push(value);
+            }
             let values = types
                 .solve_arguments(owner, values)
                 .map_err(|m| TypeError::at(f, section, m))?;
@@ -287,8 +301,19 @@ impl<'a> Unit<'a> {
             } else {
                 self.raw_type(annotation, None, types)?
             };
-            if !matches!(carrier, ValueType::Integer { .. } | ValueType::Callable(_) | ValueType::Evidence(_)) {
+            if !matches!(
+                carrier,
+                ValueType::Integer { .. }
+                    | ValueType::Callable(_)
+                    | ValueType::Evidence(_)
+                    | ValueType::LevelKind
+                    | ValueType::Universe { .. }
+                    | ValueType::Function(..)
+            ) {
                 return Err(TypeError::unsupported(&self.file, n));
+            }
+            if node.kind == NodeKind::KindedParam && matches!(carrier, ValueType::Integer { .. }) {
+                types.runtime_indices.insert((owner, index));
             }
             types.const_carriers.insert((owner, index), carrier);
         }
@@ -314,6 +339,17 @@ impl<'a> Unit<'a> {
         index: usize,
         candidate: Option<&DeclarationId>,
     ) -> Result<ValueType, TypeError> {
+        self.raw_bound_argument(n, types, owner, index, candidate, types.bound(owner, index))
+    }
+    fn raw_bound_argument(
+        &self,
+        n: usize,
+        types: &Types<'_>,
+        owner: &DeclarationId,
+        index: usize,
+        candidate: Option<&DeclarationId>,
+        bound: Option<&ValueType>,
+    ) -> Result<ValueType, TypeError> {
         if types.lifetimes.contains(&(owner, index)) {
             if self.file.nodes[n].kind != NodeKind::Lifetime {
                 return Err(TypeError::at(&self.file, n, "expected a lifetime argument"));
@@ -323,7 +359,7 @@ impl<'a> Unit<'a> {
         if self.file.nodes[n].kind == NodeKind::Lifetime {
             return Err(TypeError::at(&self.file, n, "unexpected lifetime argument"));
         }
-        let Some(carrier) = types.const_carriers.get(&(owner, index)) else {
+        let Some(carrier) = bound else {
             return self.raw_type(n, candidate, types);
         };
         let symbol = match self.symbol(n) {
@@ -333,6 +369,53 @@ impl<'a> Unit<'a> {
                 .and_then(|o| o.target.as_deref()),
             other => other,
         };
+        if carrier == &ValueType::LevelKind {
+            return self.universe_level(n, types);
+        }
+        if matches!(carrier, ValueType::Universe { .. }) {
+            return self.raw_type(n, candidate, types);
+        }
+        if matches!(carrier, ValueType::LogicalRequirement(_)) {
+            if matches!(self.file.nodes[n].kind, NodeKind::FieldAccess | NodeKind::Call)
+                || matches!(
+                    symbol,
+                    Some(Symbol::Binding {
+                        kind: NodeKind::Param | NodeKind::BindingPattern,
+                        ..
+                    })
+                )
+            {
+                return Ok(ValueType::ProofTerm(super::Site::at(&self.file, n)));
+            }
+            return match symbol {
+                Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine => Ok(ValueType::ProofCitation(Box::new(id.clone()))),
+                Some(Symbol::Binding {
+                    span,
+                    kind: NodeKind::MachineParam | NodeKind::Hypothesis,
+                }) => self
+                    .hypotheses
+                    .get(span)
+                    .cloned()
+                    .map(ValueType::LogicalRequirement)
+                    .ok_or_else(|| TypeError::at(&self.file, n, "unbound logical hypothesis")),
+                _ => Err(TypeError::at(&self.file, n, "expected explicitly supplied logical evidence")),
+            };
+        }
+        if let Some(Symbol::Binding { span, kind: NodeKind::Param }) = symbol
+            && self.file.nodes[n].kind != NodeKind::Call
+        {
+            if !types.runtime_indices.contains(&(owner, index)) && !matches!(carrier, ValueType::Function(..)) {
+                return Err(TypeError::at(&self.file, n, "const index needs a static argument"));
+            }
+            let annotation = self
+                .binding_annotations
+                .get(span)
+                .ok_or_else(|| TypeError::unsupported(&self.file, n))?;
+            if &self.raw_type(*annotation, None, types)? != carrier {
+                return Err(TypeError::at(&self.file, n, "index subject has the wrong carrier"));
+            }
+            return Ok(self.term_subject(n, carrier, None));
+        }
         if matches!(carrier, ValueType::Evidence(_))
             && let Some(Symbol::Declaration(id)) = symbol
             && id.kind == NodeKind::Conformance
@@ -395,12 +478,17 @@ impl<'a> Unit<'a> {
         carrier: &ValueType,
     ) -> Result<(ValueType, Option<ValueType>), TypeError> {
         let f = &self.file;
-        let needs_evaluation = (n..f.nodes[n].end)
-            .any(|i| matches!(f.nodes[i].kind, NodeKind::Call | NodeKind::PathExpression | NodeKind::PathType | NodeKind::Cast))
-            || f.nodes[n].kind != NodeKind::Literal
-                && (n..f.nodes[n].end).any(|i| f.nodes[i].kind == NodeKind::Literal && super::numeric::literal(f, i).is_ok_and(|(_, s)| s.is_some()));
+        let needs_evaluation =
+            (n..f.nodes[n].end).any(|i| matches!(f.nodes[i].kind, NodeKind::Call | NodeKind::PathExpression | NodeKind::PathType | NodeKind::Cast));
         if !needs_evaluation {
-            return super::numeric::static_number(f, n);
+            let value = super::numeric::static_number(f, n)?;
+            if f.nodes[n].kind != NodeKind::Literal && value.1.is_some() {
+                types
+                    .open_indices
+                    .borrow_mut()
+                    .insert(super::Site::at(f, n), (n, carrier.clone()));
+            }
+            return Ok(value);
         }
         if (n..f.nodes[n].end).any(|i| matches!(self.symbol(i), Some(Symbol::Binding { .. }))) {
             return Err(TypeError::at(f, n, "static expression needs specialization before evaluation"));
@@ -413,12 +501,17 @@ impl<'a> Unit<'a> {
         let value = if let Some((_, value)) = cached {
             value
         } else {
-            let evaluator = types
-                .evaluator
-                .ok_or_else(|| TypeError::at(f, n, format!("static expression requires evaluation as {carrier}")))?;
-            let value = evaluator
-                .evaluate(&request)
-                .map_err(|m| TypeError::at(f, n, m))?;
+            let value = if let Some(evaluator) = types.evaluator {
+                evaluator
+                    .evaluate(&request)
+                    .map_err(|m| TypeError::at(f, n, m))?
+            } else {
+                match types.integer_program.expression(self, n, types, carrier)? {
+                    crate::IntegerIndex::Value(value) => value,
+                    crate::IntegerIndex::Invalid(message) => return Err(TypeError::at(f, n, message)),
+                    _ => return Err(TypeError::at(f, n, "static expression has unresolved subjects")),
+                }
+            };
             types
                 .evaluations
                 .borrow_mut()
@@ -486,6 +579,36 @@ impl<'a> Unit<'a> {
         }
         Ok(())
     }
+    fn universe_level(
+        &self,
+        n: usize,
+        types: &Types<'_>,
+    ) -> Result<ValueType, TypeError> {
+        let f = &self.file;
+        if let Some(Symbol::Binding {
+            span,
+            kind: NodeKind::KindedParam,
+        }) = self.symbol(n)
+            && let Some(value) = self.parameters.get(span)
+            && types.parameter_carrier(value) == Some(&ValueType::LevelKind)
+        {
+            return Ok(value.clone());
+        }
+        if f.nodes[n].kind == NodeKind::Literal
+            && let (
+                ValueType::Exact {
+                    value,
+                    fractional_origin: None,
+                },
+                None,
+            ) = crate::numeric::literal(f, n)?
+            && value.is_integer()
+            && let Some(level) = value.to_integer().to_biguint()
+        {
+            return Ok(ValueType::Level(level));
+        }
+        Err(TypeError::at(f, n, "expected a universe level binder or a nonnegative level literal"))
+    }
     pub fn index_aliases(
         &self,
         types: &mut Types<'a>,
@@ -544,10 +667,70 @@ impl<'a> Unit<'a> {
                 let [input, out] = *node.children.as_slice() else {
                     return Err(TypeError::unsupported(f, n));
                 };
-                Ok(ValueType::Function(
-                    Box::new(self.raw_type(input, candidate, types)?),
-                    Box::new(self.raw_type(out, candidate, types)?),
-                ))
+                let codomain = self.raw_type(out, candidate, types)?;
+                if f.nodes[input].kind == Param {
+                    let name = f.nodes[input]
+                        .words()
+                        .next()
+                        .ok_or_else(|| TypeError::unsupported(f, input))?;
+                    Ok(ValueType::Function(
+                        Box::new(self.raw_type(self.single_child(input)?, candidate, types)?),
+                        Box::new(codomain.bind_subject(&self.binder_site(name.span))),
+                    ))
+                } else {
+                    Ok(ValueType::Function(Box::new(self.raw_type(input, candidate, types)?), Box::new(codomain)))
+                }
+            }
+            FamilyApplication => {
+                let [head, args] = *node.children.as_slice() else {
+                    return Err(TypeError::unsupported(f, n));
+                };
+                let (family, mut ty) = match self.symbol(head) {
+                    Some(Symbol::Declaration(id)) if id.kind == MathLet => {
+                        let signature = types
+                            .mathematical
+                            .get(id)
+                            .ok_or_else(|| TypeError::at(f, head, "mathematical family signature is unresolved"))?;
+                        (ValueType::MathematicalDefinition(Box::new(id.clone())), signature.clone())
+                    }
+                    Some(Symbol::Binding { span, .. }) => {
+                        if let Some(param) = self.parameters.get(span) {
+                            (
+                                param.clone(),
+                                types
+                                    .parameter_carrier(param)
+                                    .cloned()
+                                    .ok_or_else(|| TypeError::at(f, head, "untyped mathematical family"))?,
+                            )
+                        } else {
+                            let annotation = self
+                                .binding_annotations
+                                .get(span)
+                                .ok_or_else(|| TypeError::unsupported(f, head))?;
+                            (
+                                self.term_subject(head, &ValueType::NoResult, None),
+                                self.raw_type(*annotation, candidate, types)?,
+                            )
+                        }
+                    }
+                    _ => return Err(TypeError::at(f, head, "expected a mathematical family")),
+                };
+                let mut subjects = Vec::new();
+                for &arg in &f.nodes[args].children {
+                    let ValueType::Function(input, out) = ty else {
+                        return Err(TypeError::at(f, arg, "excess type-family arguments"));
+                    };
+                    let subject = self.mathematical_subject(arg, &input, types, None)?;
+                    ty = out.apply_subject(&subject);
+                    subjects.push(subject);
+                }
+                if !matches!(ty, ValueType::Universe { .. }) {
+                    return Err(TypeError::at(f, n, "type family must return a universe"));
+                }
+                Ok(ValueType::FamilyApplication {
+                    family: Box::new(family),
+                    subjects,
+                })
             }
             MachineType => {
                 let mut params = Vec::new();
@@ -647,6 +830,23 @@ impl<'a> Unit<'a> {
                         .and_then(|o| o.target.as_deref()),
                     other => other,
                 };
+                if matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash") {
+                    let section = self.single_child(n)?;
+                    let argument = self.single_child(section)?;
+                    return Ok(ValueType::Squash(Box::new(self.raw_type(argument, candidate, types)?)));
+                }
+                if let Some(Symbol::Builtin(name)) = symbol
+                    && matches!(name.as_str(), "core::Type" | "core::Strict")
+                {
+                    let section = self
+                        .single_child(n)
+                        .map_err(|_| TypeError::at(f, n, "universe requires one level"))?;
+                    let level = self.universe_level(self.single_child(section)?, types)?;
+                    return Ok(ValueType::Universe {
+                        strict: name == "core::Strict",
+                        level: Box::new(level),
+                    });
+                }
                 if let Some(Symbol::Builtin(name)) = symbol
                     && matches!(name.as_str(), "u" | "i")
                     && node.children.len() == 1
@@ -733,6 +933,16 @@ impl<'a> Unit<'a> {
                     } else {
                         ValueType::Applied(Box::new(id.clone()), args)
                     }),
+                    Some(Symbol::Binding { span, kind: KindedParam })
+                        if args.is_empty()
+                            && self
+                                .parameters
+                                .get(span)
+                                .and_then(|p| types.parameter_carrier(p))
+                                .is_some_and(|t| matches!(t, ValueType::Universe { .. })) =>
+                    {
+                        Ok(self.parameters[span].clone())
+                    }
                     Some(Symbol::Binding {
                         span,
                         kind: TypeParam | SomeParam,
@@ -742,6 +952,8 @@ impl<'a> Unit<'a> {
                         .cloned()
                         .ok_or_else(|| TypeError::at(f, n, "unknown type parameter")),
                     Some(Symbol::Builtin(name)) if args.is_empty() => match name.as_str() {
+                        "core::Level" if node.parent.is_some_and(|p| f.nodes[p].kind == KindedParam) => Ok(ValueType::LevelKind),
+                        "core::Level" => Err(TypeError::at(f, n, "core::Level is a universe binder kind")),
                         "addr" => Ok(ValueType::Address),
                         "bool" => Ok(ValueType::Bool),
                         "f32" => Ok(ValueType::Float32),
@@ -1019,6 +1231,10 @@ impl ValueType {
         let mut pending = vec![self];
         while let Some(t) = pending.pop() {
             match t {
+                StaticFormula {
+                    term: crate::IntegerIndex::Invalid(message),
+                    ..
+                } => return Err(message.clone()),
                 StaticInteger { carrier, value }
                     if !(Exact {
                         value: num_rational::BigRational::from_integer(value.clone()),
@@ -1065,6 +1281,10 @@ impl ValueType {
     }
     pub(super) fn contains_parameter(&self) -> bool {
         match self {
+            Self::MathematicalValue { subjects, .. } => subjects.iter().any(Self::contains_parameter),
+            Self::FamilyApplication { family, subjects } => family.contains_parameter() || subjects.iter().any(Self::contains_parameter),
+            Self::Squash(t) | Self::LevelOf(t) => t.contains_parameter(),
+            Self::Universe { level, .. } => level.contains_parameter(),
             Self::Parameter { .. } | Self::StaticFormula { .. } => true,
             Self::Array(t, _) | Self::Reference(_, t) | Self::Slice(t) | Self::IndexedInteger { width: t, .. } => t.contains_parameter(),
             Self::Qualified(t, ds) => {
@@ -1094,6 +1314,20 @@ impl ValueType {
     ) -> Self {
         use ValueType::*;
         match self {
+            MathematicalValue { definition, subjects } => MathematicalValue {
+                definition: definition.clone(),
+                subjects: subjects.iter().map(|s| s.substitute(owner, args)).collect(),
+            },
+            FamilyApplication { family, subjects } => FamilyApplication {
+                family: Box::new(family.substitute(owner, args)),
+                subjects: subjects.iter().map(|s| s.substitute(owner, args)).collect(),
+            },
+            Squash(t) => Squash(Box::new(t.substitute(owner, args))),
+            LevelOf(t) => LevelOf(Box::new(t.substitute(owner, args))),
+            Universe { strict, level } => Universe {
+                strict: *strict,
+                level: Box::new(level.substitute(owner, args)),
+            },
             Parameter { owner: b, index } if b.as_ref() == owner => args[*index].clone(),
             Evidence(slot) => Evidence(Box::new(crate::RequirementSlot {
                 declaration: slot.declaration.clone(),
@@ -1181,6 +1415,7 @@ impl ValueType {
                     true
                 }
             },
+            (Universe { strict: a, level: x }, Universe { strict: b, level: y }) => a == b && x.infer(y, owner, args),
             (Tuple(left), Tuple(right)) => left.len() == right.len() && left.iter().zip(right).all(|(a, b)| a.infer(b, owner, args)),
             (IndexedInteger { signed: a, width }, Integer { signed: b, width: Some(n) }) if a == b => width.infer(&Self::static_size(*n), owner, args),
             (IndexedInteger { signed: a, width: x }, IndexedInteger { signed: b, width: y }) if a == b => x.infer(y, owner, args),

@@ -24,6 +24,28 @@ impl Access {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum ValueType {
     Bool,
+    LevelKind,
+    Squash(Box<ValueType>),
+    LevelOf(Box<ValueType>),
+    Subject {
+        declaration: Site,
+        version: Option<Site>,
+    },
+    BoundSubject(usize),
+    MathematicalDefinition(Box<DeclarationId>),
+    MathematicalValue {
+        definition: Box<DeclarationId>,
+        subjects: Vec<ValueType>,
+    },
+    FamilyApplication {
+        family: Box<ValueType>,
+        subjects: Vec<ValueType>,
+    },
+    Level(num_bigint::BigUint),
+    Universe {
+        strict: bool,
+        level: Box<ValueType>,
+    },
     Integer {
         signed: bool,
         width: Option<u64>,
@@ -54,6 +76,9 @@ pub enum ValueType {
     },
     Callable(Box<CallableType>),
     MachineSelection(Box<DeclarationId>),
+    LogicalRequirement(Site),
+    ProofCitation(Box<DeclarationId>),
+    ProofTerm(Site),
     Evidence(Box<RequirementSlot>),
     Implementation(Box<DeclarationId>),
     StaticFormula {
@@ -82,6 +107,42 @@ impl fmt::Display for ValueType {
             Self::IndexedInteger { signed, width } => write!(f, "{}<{width}>", if *signed { "i" } else { "u" }),
             Self::Address => write!(f, "addr"),
             Self::Bool => write!(f, "bool"),
+            Self::Subject { declaration, version } => write!(
+                f,
+                "subject {}@{}{}",
+                declaration.file,
+                declaration.span.get_start_offset(),
+                version
+                    .as_ref()
+                    .map_or(String::new(), |s| format!("/{}", s.span.get_start_offset()))
+            ),
+            Self::BoundSubject(index) => write!(f, "bound[{index}]"),
+            Self::MathematicalValue { definition, subjects } => write!(
+                f,
+                "{}::{}({})",
+                definition.package,
+                definition.path,
+                subjects
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::MathematicalDefinition(id) => write!(f, "{}::{}", id.package, id.path),
+            Self::FamilyApplication { family, subjects } => write!(
+                f,
+                "{family}({})",
+                subjects
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Squash(ty) => write!(f, "core::Squash<{ty}>"),
+            Self::LevelOf(ty) => write!(f, "level({ty})"),
+            Self::LevelKind => write!(f, "core::Level"),
+            Self::Level(level) => write!(f, "{level}"),
+            Self::Universe { strict, level } => write!(f, "core::{}<{level}>", if *strict { "Strict" } else { "Type" }),
             Self::Float32 => write!(f, "f32"),
             Self::Tuple(items) => write!(
                 f,
@@ -121,6 +182,9 @@ impl fmt::Display for ValueType {
             ),
             Self::Evidence(slot) => write!(f, "evidence for {}::{}", slot.declaration.package, slot.declaration.path),
             Self::Implementation(id) => write!(f, "{}::{}", id.package, id.path),
+            Self::LogicalRequirement(site) => write!(f, "hypothesis at {}:{}", site.file, site.span.get_start_offset()),
+            Self::ProofTerm(site) => write!(f, "evidence at {}:{}", site.file, site.span.get_start_offset()),
+            Self::ProofCitation(id) => write!(f, "proof {}::{}", id.package, id.path),
             Self::MachineSelection(id) => write!(f, "{}::{}", id.package, id.path),
             Self::StaticFormula { term, .. } => write!(f, "{term}"),
             Self::StaticInteger { value, .. } => write!(f, "{value}"),
@@ -232,8 +296,16 @@ pub struct TypedSignature {
     pub parameters: Vec<(SourceSpan, ValueType)>,
     pub result: ValueType,
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallUse {
+    Execution,
+    Fact,
+    StaticArgument,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct TypedCall {
+    pub use_site: CallUse,
     pub site: Site,
     pub machine: DeclarationId,
     pub type_arguments: Vec<ValueType>,
@@ -273,6 +345,29 @@ pub struct MachineEffects {
     pub reach: Vec<ServiceApplication>,
     pub crash_ceiling: Option<Vec<CrashCause>>,
     pub terminates: bool,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SlotDirection {
+    EnvironmentToProgram,
+    ProgramToProvider,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BoundarySlot {
+    pub requirement: RequirementSlot,
+    pub arguments: Vec<ValueType>,
+    pub direction: SlotDirection,
+}
+#[derive(Debug, Eq, PartialEq)]
+pub struct GuardedCall {
+    pub call: Site,
+    pub specialization: Option<Site>,
+    pub caller: DeclarationId,
+    pub guard_contract: Site,
+    pub guard: Option<Site>,
+    pub cause: CrashCause,
+    pub operands: Vec<Site>,
+    pub generic_arguments: Vec<ValueType>,
+    pub entry: Option<InvocationTarget>,
 }
 #[derive(Debug, Eq, PartialEq)]
 pub struct CrashRoute {
@@ -318,6 +413,10 @@ pub enum ObligationKind {
         implementation: DeclarationId,
     },
     EstablishDomain(DomainApplication),
+    RefineMathematicalCitation {
+        machine: DeclarationId,
+        expected: ValueType,
+    },
     RefineCallableValue {
         source: Site,
         destination: Site,
@@ -329,6 +428,31 @@ pub enum ObligationKind {
     PositiveWidth(ValueType),
     Termination(DeclarationId),
     TotalCrashGuard,
+    AdmitMathematicalAssumption(DeclarationId),
+    ProveGuarantee {
+        machine: DeclarationId,
+        predicate: Site,
+    },
+    FormSquash {
+        source: ValueType,
+        level: ValueType,
+    },
+    MathematicalFact {
+        sort: ValueType,
+    },
+    UniverseMembership {
+        subject: ValueType,
+        sort: ValueType,
+    },
+    SupplyHypothesis {
+        requirement: Site,
+        evidence: ValueType,
+        substitutions: Vec<ValueType>,
+    },
+    ApplyHypothesis {
+        requirement: Site,
+        operands: Vec<Site>,
+    },
     CleanupContract(DeclarationId),
     EvaluateAccessPlan {
         domain: DeclarationId,
@@ -402,8 +526,21 @@ impl<F: Fn(&StaticIntegerRequest) -> Result<BigInt, String>> StaticIntegerEvalua
         self(request)
     }
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LogicalHypothesis {
+    pub site: Site,
+    pub parent: Option<Site>,
+    pub owner: DeclarationId,
+    pub name: String,
+    pub parameters: Vec<(SourceSpan, ValueType)>,
+    pub result: ValueType,
+    pub premises: Vec<Site>,
+    pub conclusions: Vec<Site>,
+}
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct TypedStage {
+    pub mathematical_interfaces: Vec<(DeclarationId, ValueType, Vec<DeclarationId>)>,
+    pub logical_hypotheses: Vec<LogicalHypothesis>,
     pub expressions: Vec<TypedExpression>,
     pub evaluated_indices: Vec<(StaticIntegerRequest, BigInt)>,
     pub constants: Vec<(DeclarationId, ValueType)>,
@@ -420,6 +557,8 @@ pub struct TypedStage {
     pub access_policies: Vec<AccessPolicySelection>,
     pub ranking_witnesses: Vec<RankingWitness>,
     pub crash_routes: Vec<CrashRoute>,
+    pub guarded_calls: Vec<GuardedCall>,
+    pub boundary_calls: Vec<(Site, BoundarySlot)>,
     pub invocation_ceilings: Vec<(DeclarationId, Site, InvocationTarget)>,
     pub refinements: Vec<TraitRefinement>,
     pub indirect_calls: Vec<IndirectCall>,
@@ -509,6 +648,8 @@ impl CallableType {
 }
 #[derive(Debug, Eq, PartialEq)]
 pub struct IndirectCall {
+    pub use_site: CallUse,
+    pub operands: Vec<Site>,
     pub entry: InvocationTarget,
     pub site: Site,
     pub callee: Site,
@@ -556,13 +697,30 @@ pub struct RankingWitness {
     pub bounds: Vec<Site>,
     pub inclusive_upper: bool,
 }
+/// L4 evaluates the indicated source operation after applying the owner's static arguments.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SpecializedIndexValue {
+    pub expression: Site,
+    pub arguments: Vec<ValueType>,
+    pub value: BigInt,
+}
+/// The result of an admitted, closed invocation, in this stage's evaluation context.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EvaluatedIntegerCall {
+    pub machine: DeclarationId,
+    pub inputs: Vec<BigInt>,
+    pub result: BigInt,
+}
 /// Declarations and capabilities admitted by the Build for this exact stage.
 #[derive(Default)]
 pub struct TypingEnvironment<'a> {
     pub target: Option<&'a AssemblyTypes>,
     pub integer_evaluator: Option<&'a dyn StaticIntegerEvaluator>,
+    pub evaluated_integer_calls: &'a [EvaluatedIntegerCall],
+    pub specialized_indices: &'a [SpecializedIndexValue],
     pub access_plan_requirement: Option<&'a DeclarationId>,
     pub ranking_views: &'a [RankingView],
+    pub boundary_slots: &'a [BoundarySlot],
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TraitRefinement {

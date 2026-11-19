@@ -7,9 +7,18 @@ mod conformance;
 mod constants;
 pub use collections::collection_contracts;
 mod cleanup;
+mod dependent;
 mod domains;
 mod effects;
+mod hypotheses;
+mod standard;
+pub use standard::{resolve_source_package, type_source_package};
+mod static_program;
+pub use static_program::IntegerRoutine;
+mod deferred_indices;
+pub use deferred_indices::StaticTemplate;
 mod index_terms;
+mod integers;
 mod invocations;
 pub use index_terms::IntegerIndex;
 mod model;
@@ -55,13 +64,17 @@ struct Catalog<'a> {
     trait_parents: HashMap<&'a DeclarationId, RequirementSlot>,
     token_bindings: HashMap<&'a str, Vec<&'a omega_resolver::OperatorDeclaration>>,
     predicates: HashSet<&'a DeclarationId>,
-    mathematical: HashMap<&'a DeclarationId, ValueType>,
+    hypotheses: HashMap<Site, LogicalHypothesis>,
+    assumptions: HashMap<DeclarationId, Vec<DeclarationId>>,
+
     constants: HashMap<&'a DeclarationId, ValueType>,
 }
 struct Unit<'a> {
     file: IndexedSource<'a>,
     names: Names<'a>,
     parameters: HashMap<SourceSpan, ValueType>,
+    hypotheses: HashMap<SourceSpan, Site>,
+    binding_annotations: HashMap<SourceSpan, usize>,
     definitions: HashMap<SourceSpan, &'a DeclarationId>,
 }
 impl<'a> Unit<'a> {
@@ -82,6 +95,50 @@ impl<'a> Unit<'a> {
             [child] => Ok(*child),
             _ => Err(TypeError::unsupported(&self.file, n)),
         }
+    }
+    fn index_mathematical(
+        &self,
+        n: usize,
+        types: &mut types::Types<'a>,
+    ) -> Result<(), TypeError> {
+        use NodeKind::*;
+        let f = &self.file;
+        let node = &f.nodes[n];
+        let id = self.declaration(n)?;
+        let mut parameters = Vec::new();
+        let mut result = None;
+        let equal = node
+            .leaves
+            .iter()
+            .find(|l| l.text == "=")
+            .map(|l| l.span.get_start_offset());
+        for &part in &node.children {
+            if equal.is_some_and(|offset| f.span(part).get_start_offset() > offset) {
+                continue;
+            }
+            match f.nodes[part].kind {
+                GenericParams => {}
+                Params => {
+                    for &p in &f.nodes[part].children {
+                        let binder = f.nodes[p]
+                            .words()
+                            .next()
+                            .ok_or_else(|| TypeError::unsupported(f, p))?;
+                        parameters.push((self.binder_site(binder.span), self.annotation(self.single_child(p)?, types)?));
+                    }
+                }
+                _ => result = Some(self.annotation(part, types)?),
+            }
+        }
+        let ty = parameters
+            .into_iter()
+            .rev()
+            .fold(result.ok_or_else(|| TypeError::unsupported(f, n))?, |out, (binder, p)| {
+                ValueType::Function(Box::new(p), Box::new(out.bind_subject(&binder)))
+            });
+        types.mathematical.insert(id, ty);
+
+        Ok(())
     }
     fn collect(
         &self,
@@ -187,37 +244,7 @@ impl<'a> Unit<'a> {
                         }
                     }
                 }
-                MathLet => {
-                    let id = self.declaration(n)?;
-                    let mut parameters = Vec::new();
-                    let mut result = None;
-                    let equal = node
-                        .leaves
-                        .iter()
-                        .find(|l| l.text == "=")
-                        .map(|l| l.span.get_start_offset());
-                    for &part in &node.children {
-                        if equal.is_some_and(|offset| f.span(part).get_start_offset() > offset) {
-                            continue;
-                        }
-                        match f.nodes[part].kind {
-                            GenericParams => {}
-                            Params => {
-                                for &p in &f.nodes[part].children {
-                                    parameters.push(self.annotation(self.single_child(p)?, &catalog.types)?);
-                                }
-                            }
-                            _ => result = Some(self.annotation(part, &catalog.types)?),
-                        }
-                    }
-                    let ty = parameters
-                        .into_iter()
-                        .rev()
-                        .fold(result.ok_or_else(|| TypeError::unsupported(f, n))?, |out, p| {
-                            ValueType::Function(Box::new(p), Box::new(out))
-                        });
-                    catalog.mathematical.insert(id, ty);
-                }
+                MathLet => {}
                 Const => {
                     if node.children.len() == 2 {
                         continue;
@@ -292,7 +319,7 @@ impl<'a> Unit<'a> {
                     for &section in &f.nodes[n].children {
                         match f.nodes[section].kind {
                             Path | Body | GenericParams | Requires | Ensures | OperatorToken | Blocks | Suspends | Reaches => {}
-                            Crashes => {}
+                            Crashes | Hypothesis => {}
                             Terminates | Invokes => {}
                             Registers | Clobbers | Instruction | AsmTransition | AsmMachine if node.kind == AsmMachine => {}
                             Satisfies => {}
@@ -336,7 +363,7 @@ impl<'a> Unit<'a> {
                                 .filter(|&&c| f.nodes[c].kind == Satisfies)
                                 .map(|&c| callback_bounds::slot(self, self.single_child(c)?, &catalog.types))
                                 .collect::<std::result::Result<_, _>>()?,
-                            requires: f.child(n, Requires).is_some(),
+                            requires: f.child(n, Requires).is_some() || f.child(n, Hypothesis).is_some(),
                             terminates: f.child(n, Terminates).is_some(),
                             public: node.words().any(|w| w.text == "public")
                                 || node
@@ -422,11 +449,19 @@ fn type_admitted(
             return Err(TypeError::at(&f, 0, "package identity reserved for the toolchain"));
         }
         by_path.insert((f.package, f.path), units.len());
+        let binding_annotations = f
+            .nodes
+            .iter()
+            .filter(|node| node.kind == NodeKind::Param)
+            .filter_map(|p| Some((p.words().next()?.span, *p.children.first()?)))
+            .collect();
         units.push(Unit {
+            binding_annotations,
             file: f,
             names: HashMap::new(),
             parameters: HashMap::new(),
             definitions: HashMap::new(),
+            hypotheses: HashMap::new(),
         });
     }
     for u in &resolved.uses {
@@ -445,7 +480,21 @@ fn type_admitted(
         ranking_views: environment.ranking_views,
         ..Default::default()
     };
+    catalog.types.specializations = deferred_indices::Specializations::build(&units, environment.specialized_indices)?;
+    catalog.types.operator_tokens = resolved
+        .operator_declarations
+        .iter()
+        .map(|o| o.token.as_str())
+        .collect();
     catalog.types.evaluator = environment.integer_evaluator;
+    if units.iter().any(|unit| {
+        unit.file
+            .nodes
+            .iter()
+            .any(|n| matches!(n.kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs | NodeKind::ArrayType))
+    }) {
+        catalog.types.integer_program = static_program::IntegerProgram::build(&units, environment.evaluated_integer_calls)?;
+    }
     for unit in &mut units {
         unit.index_types(&mut catalog.types)?;
     }
@@ -491,9 +540,14 @@ fn type_admitted(
     for unit in &units {
         unit.index_equations(&mut catalog.types)?;
     }
-    for unit in &units {
-        unit.collect(&mut catalog, sealed)?;
+    hypotheses::index_interfaces(&units, &mut catalog.types)?;
+    for unit in &mut units {
+        hypotheses::index(unit, &mut catalog, &mut output)?;
     }
+    for unit in &units {
+        unit.collect(&mut catalog, sealed && unit.file.package == collections::PACKAGE)?;
+    }
+    hypotheses::assumptions(&units, &mut catalog, &mut output)?;
     callback_bounds::finish(&units, &mut catalog)?;
     for binding in &resolved.operator_declarations {
         let sig = catalog
@@ -660,8 +714,27 @@ fn type_admitted(
         bodies::check_static_argument(unit, &catalog, n, &request.carrier, &mut output)?;
         output.evaluated_indices.push((request, value));
     }
+    // Recheck every authored intermediate at a closed call, even when a canonical
+    // rewrite or a surrounding operation makes the final index representable.
+    for call in &output.calls {
+        if let Some(formations) = catalog.types.formations.borrow().get(&call.machine) {
+            let mut ordered: Vec<_> = formations.iter().collect();
+            ordered.sort_by_key(|(site, _)| (&site.package, &site.file, site.span.get_start_offset(), site.span.get_end_offset()));
+            for (_, term) in ordered {
+                term.substitute(&call.machine, &call.type_arguments)
+                    .validate_closed_indices()
+                    .map_err(|message| TypeError {
+                        package: call.site.package.clone(),
+                        file: call.site.file.clone(),
+                        span: call.site.span,
+                        message,
+                    })?;
+            }
+        }
+    }
     effects::validate(&catalog, &mut output)?;
-    invocations::compose(&units, &catalog, &mut output)?;
+    invocations::compose(&units, &catalog, environment.boundary_slots, &mut output)?;
+    effects::guarded_calls(&units, &catalog, &mut output)?;
     cleanup::check(&units, &catalog, &mut output)?;
     refinements::finish(&catalog, &mut output)?;
     cleanup::access_policies(&units, &catalog, environment, &mut output)?;

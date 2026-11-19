@@ -66,6 +66,19 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
 }
 
 #[test]
+fn types_a_computed_width_and_reports_the_overflowing_specialization() {
+    let fixtures = application_directory().join("../layers/03-typer/fixtures");
+    let ok = invoke(&fixtures.join("accept"), &["source", "type", "computed_width.omg"]);
+    let error = invoke(&fixtures.join("reject"), &["source", "type", "computed_width.omg"]);
+    assert!(ok.status.success() && ok.stdout.is_empty() && ok.stderr.is_empty());
+    assert_eq!(error.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&error.stderr).trim(),
+        "computed_width.omg:4:22: typer: static index 256 exceeds u8"
+    );
+}
+
+#[test]
 fn reports_layer_refusals_at_the_original_file_position() {
     for (path, diagnostic) in [
         (

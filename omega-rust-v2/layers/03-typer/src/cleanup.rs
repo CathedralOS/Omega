@@ -55,12 +55,12 @@ pub(super) fn check(
             {
                 return Err(TypeError::at(f, n, "cleanup cannot publish a crash route"));
             }
-            if stage
+            let effects = stage
                 .machine_effects
                 .iter()
                 .find(|e| e.machine == *machine)
-                .is_some_and(|e| e.pause.block || e.pause.suspend)
-            {
+                .ok_or_else(|| TypeError::at(f, n, "missing cleanup machine effects"))?;
+            if effects.pause.block || effects.pause.suspend {
                 return Err(TypeError::at(f, n, "cleanup cannot block or suspend"));
             }
             stage.cleanups.push(CleanupSelection {
@@ -178,11 +178,19 @@ pub(super) fn access_policies(
             if args.len() != catalog.types.arities[policy] {
                 return Err(TypeError::at(f, head, "incomplete access policy application"));
             }
-            if out
+            let effects = out
                 .machine_effects
                 .iter()
                 .find(|e| e.machine == *machine)
-                .is_some_and(|e| e.pause.suspend || e.pause.block || !e.reach.is_empty())
+                .ok_or_else(|| TypeError::at(f, head, "missing access plan machine effects"))?;
+            if effects.pause.suspend
+                || effects.pause.block
+                || !effects.reach.is_empty()
+                || !effects.invokes.is_empty()
+                || effects
+                    .crash_ceiling
+                    .as_ref()
+                    .is_some_and(|causes| !causes.is_empty())
             {
                 return Err(TypeError::at(f, head, "access plan computation must be effect-free"));
             }

@@ -45,7 +45,7 @@ pub struct EnclosingMachine {
     pub signature_owners: Vec<(String, String)>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Symbol {
     Declaration(DeclarationId),
     Candidates(Vec<DeclarationId>),
@@ -74,7 +74,7 @@ pub enum Symbol {
 
 /// L3 validates the interpretation for the chosen overload. A missing name in one
 /// role cannot steer overload selection toward the other role.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ArgumentAlternative {
     pub candidate: DeclarationId,
     pub binder: Option<NodeKind>,

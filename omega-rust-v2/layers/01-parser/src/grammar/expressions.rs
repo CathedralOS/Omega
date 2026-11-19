@@ -366,7 +366,7 @@ impl SyntaxParser<'_> {
     }
 
     /// `'(' ( expression % ',' )? ')'`
-    fn parse_args(&mut self) -> Parsed {
+    pub(super) fn parse_args(&mut self) -> Parsed {
         let args = self.open();
 
         self.bump();

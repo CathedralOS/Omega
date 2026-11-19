@@ -106,6 +106,8 @@ impl Body<'_, '_> {
             self.admit_argument(arg, &ty, p)?;
         }
         self.output.indirect_calls.push(IndirectCall {
+            use_site: self.call_use(n),
+            operands: f.nodes[args].children.iter().map(|&a| Site::at(f, a)).collect(),
             entry: self.invocation_target(callee),
             site: Site::at(f, n),
             callee: Site::at(f, callee),
@@ -117,7 +119,7 @@ impl Body<'_, '_> {
             },
             guarantee,
         });
-        if !guarantee {
+        if !guarantee && self.call_use(n) == crate::CallUse::Execution {
             self.version = Some(Site::at(f, n));
             self.cases.clear();
         }

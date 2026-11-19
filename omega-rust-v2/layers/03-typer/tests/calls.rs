@@ -57,6 +57,222 @@ fn refuses_wrong_arity_ambiguous_calls_and_unsupported_forms() {
         assert!(err.message.contains(message), "{err:?}");
     }
 }
+#[test]
+fn specialized_callback_crash_retains_the_selected_guard_and_its_argument() {
+    let code = "machine guarded(x:u8)->u8 crashes Trap x == 0 {x} machine relay<const F:machine(x:u8)->u8>(v:u8)->u8{F(v)} machine forward<const H:machine(x:u8)->u8>(q:u8)->u8{relay::<H>(q)} machine outer(a:u8)->u8{forward::<guarded>(a)}";
+    let stage = check(&[("guarded.omg", code)]).unwrap();
+    let guard = stage
+        .guarded_calls
+        .iter()
+        .find(|c| c.specialization.is_some())
+        .unwrap();
+    let spelling = |s: &omega_typer::Site| s.span.slice(code.as_bytes()).unwrap();
+    assert_eq!(spelling(guard.guard.as_ref().unwrap()), b"x == 0");
+    assert_eq!(spelling(&guard.operands[0]), b"v");
+    assert_eq!(spelling(guard.specialization.as_ref().unwrap()), b"forward::<guarded>(a)");
+}
+#[test]
+fn runtime_indices_at_calls_bind_the_actual_subject() {
+    let code = "data B<K:u8>{} machine keep(n:u8,b:B<n>)->B<n>{b} machine use_it(x:u8,b:B<x>)->B<x>{keep(x,b)} machine fixed(b:B<8>)->B<8>{keep(8,b)}";
+    check(&[("subjects.omg", code)]).unwrap();
+    assert!(
+        check(&[("subjects.omg", &code.replace("keep(8,b)", "keep(9,b)"))])
+            .unwrap_err()
+            .message
+            .contains("no matching overload")
+    );
+}
+#[test]
+fn boundary_mathematics_retains_assumption_closure_through_private_helpers() {
+    let definitions = "boundary let trusted(x:u8):u8; let wrap(x:u8):u8=trusted(x);";
+    let stage = check(&[("math.omg", &format!("{definitions} machine proof(x:u8) ensures wrap(x)==x {{}}"))]).unwrap();
+    let row = stage
+        .mathematical_interfaces
+        .iter()
+        .find(|(id, ..)| id.path == "wrap")
+        .unwrap();
+    assert_eq!(row.2[0].path, "trusted");
+    assert!(
+        check(&[("math.omg", &format!("{definitions} machine execute(x:u8)->u8 {{wrap(x)}}"))])
+            .unwrap_err()
+            .message
+            .contains("cannot supply executable")
+    );
+}
+#[test]
+fn witness_theorem_preserves_its_strict_goal_without_claiming_a_proof() {
+    let witness = "data Witness<u:core::Level,v:core::Level,A:core::Type<u>,P:A->core::Strict<v>> requires P(value){value:A;}";
+    let theorem = "machine follows<u:core::Level,v:core::Level,w:core::Level,A:core::Type<u>,machine Step>(P:A->core::Strict<v>,Q:A->core::Strict<w>,present:core::Squash<Witness<u,v,A,P>>) requires machine Step(value:A) requires P(value) ensures Q(value); ensures core::Squash::<Witness<u,w,A,Q>> {}";
+    let code = format!("{witness} {theorem}");
+    let stage = check(&[("theorem.omg", &code)]).unwrap();
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::ProveGuarantee{machine,..} if machine.path=="follows"))
+    );
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind, omega_typer::ObligationKind::FormSquash { .. }))
+    );
+    assert!(stage.indirect_calls.is_empty());
+}
+#[test]
+fn projected_evidence_keeps_the_conclusion_to_check() {
+    let code = "data Bundle<P:u8->core::Strict<0>> { evidence:(x:u8)->P(x); } machine theorem<machine Step>(x:u8) requires machine Step(y:u8) ensures y==y; {} machine forward<P:u8->core::Strict<0>>(p:Bundle<P>,v:u8){theorem::<p.evidence>(v)}";
+    let stage = check(&[("evidence.omg", code)]).unwrap();
+    assert!(stage.obligations.iter().any(|o|matches!(&o.kind,omega_typer::ObligationKind::SupplyHypothesis{evidence:ValueType::ProofTerm(site),..} if site.span.slice(code.as_bytes())==Some(&b"p.evidence"[..]))));
+    let initializer = format!(
+        "{code} machine lemma(y:u8) requires y>0 ensures y==y {{}} machine bundle<P:u8->core::Strict<0>>()->Bundle<P>{{Bundle::<P>{{evidence:lemma}}}}"
+    );
+    let supplied = check(&[("citation.omg", &initializer)]).unwrap();
+    assert!(
+        supplied
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::RefineMathematicalCitation{machine,..} if machine.path=="lemma"))
+    );
+    assert!(!supplied.calls.iter().any(|c| c.machine.path == "lemma"));
+    let wrong = code.replace("(x:u8)->P(x)", "(x:u8)->bool");
+    assert!(
+        check(&[("evidence.omg", &wrong)])
+            .unwrap_err()
+            .message
+            .contains("expected evidence")
+    );
+}
+
+#[test]
+fn a_named_family_checks_nested_mathematical_subjects_in_declaration_order() {
+    let code = "let keep(x:u8,p:predicate(inc(x))):predicate(inc(x))=p; let inc(x:u8):u8=x+1; let predicate(x:u8):core::Strict<0> = x>0;";
+    check(&[("family.omg", code)]).unwrap();
+    let wrong = code.replace("inc(x))=p", "inc(1u16))=p");
+    assert!(
+        check(&[("family.omg", &wrong)])
+            .unwrap_err()
+            .message
+            .contains("wrong type")
+    );
+}
+#[test]
+fn dependent_arrows_apply_to_exact_subjects_and_ignore_binder_spelling() {
+    let source = "let apply<A,F:A->core::Type<0>>(f:(x:A)->F(x),y:A):F(y)=f(y); let rename<A,F:A->core::Type<0>>(f:(x:A)->F(x)):(z:A)->F(z)=f;";
+    check(&[("dependent.omg", source)]).unwrap();
+    let bad = "let wrong<A,F:A->core::Type<0>>(f:(x:A)->F(x),a:A,b:A):F(b)=f(a);";
+    assert!(
+        check(&[("dependent.omg", bad)])
+            .unwrap_err()
+            .message
+            .contains("expected")
+    );
+    let runtime = "data Buf<N:u8>{} let named(n:u8,b:Buf<n>):Buf<n>=b;";
+    check(&[("dependent.omg", &runtime.replace("<n>=", "<n> ="))]).unwrap();
+}
+#[test]
+fn source_static_calls_keep_the_machine_identity_until_the_arguments_close() {
+    let defs = "const base:u8=3; machine twice(n:u8)->u8 reaches none crashes none terminates {let factor:u8=2; let doubled=n*factor; doubled} machine width(n:u8)->u8{twice(n)+base} ";
+    let prefix = "data B<const K:u8>{} ";
+    let program = format!(
+        "{prefix}{defs} machine buffer<const N:u8>()->B<width(N)>{{B::<width(N)>{{}}}} machine f(x:B<width(4)>)->B<11>{{x}} machine g()->B<11>{{buffer::<4>()}}"
+    );
+    let stage = check(&[("static.omg", &program)]).unwrap();
+    assert!(
+        stage
+            .calls
+            .iter()
+            .any(|c| c.machine.path == "buffer" && c.result.to_string() == "game::B<11>")
+    );
+    let overflow = program.replace("buffer::<4>()", "buffer::<128>()");
+    assert!(
+        check(&[("static.omg", &overflow)])
+            .unwrap_err()
+            .message
+            .contains("exceeds u8")
+    );
+    let wrong = program.replace("f(x:B<width(4)>)->B<11>", "f(x:B<width(4)>)->B<12>");
+    assert!(
+        check(&[("static.omg", &wrong)])
+            .unwrap_err()
+            .message
+            .contains("expected")
+    );
+}
+#[test]
+fn mathematical_telescope_preserves_distinct_levels_and_strict_propositions() {
+    let code = "let compose<u:core::Level,v:core::Level,w:core::Level,A:core::Type<u>,B:core::Type<v>,C:core::Type<w>>(f:B->C,g:A->B,value:A):C=f(g(value)); let positive(value:i32):core::Strict<0>=value>0; machine theorem(x:i32) requires positive(x) {}";
+    let code = code.replace("<0>=", "<0> =");
+    let stage = check(&[("math.omg", &code)]).unwrap();
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind,omega_typer::ObligationKind::MathematicalFact{sort} if sort.to_string()=="core::Strict<0>"))
+    );
+    assert!(
+        check(&[("math.omg", "machine f(x:core::Level){}")])
+            .unwrap_err()
+            .message
+            .contains("binder kind")
+    );
+    assert!(
+        check(&[("math.omg", "let bad<const N:u64>(x:u8):core::Strict<N> = x == 0;")])
+            .unwrap_err()
+            .message
+            .contains("universe level")
+    );
+}
+#[test]
+fn a_machine_shaped_hypothesis_keeps_its_premises_and_cannot_be_executed() {
+    let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine use_theorem(x:u8){theorem::<lemma>(x)}";
+    let stage = check(&[("proof.omg", source)]).unwrap();
+    assert_eq!(stage.logical_hypotheses.len(), 1);
+    assert_eq!(stage.logical_hypotheses[0].premises.len(), 1);
+    assert_eq!(stage.logical_hypotheses[0].conclusions.len(), 1);
+    assert!(stage.indirect_calls.is_empty());
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(o.kind, omega_typer::ObligationKind::SupplyHypothesis { .. }))
+    );
+    for (from, to, reason) in [
+        ("ensures Step::ensures(x) {}", "{Step(x)}", "logical evidence cannot be executed"),
+        ("machine lemma(y:u8)", "machine lemma(y:u16)", "incompatible logical evidence signature"),
+        ("ensures y > 0;", "ensures 5u8;", "expected bool"),
+    ] {
+        let bad = source.replace(from, to);
+        let error = check(&[("proof.omg", &bad)]).unwrap_err();
+        assert!(error.message.contains(reason), "{error:?}");
+    }
+}
+#[test]
+fn specializing_an_index_checks_an_intermediate_even_when_the_final_value_fits() {
+    let bad = "data B<const K:u8>{} machine value<const N:u8>()->B<(N+1)*0>{B::<(N+1)*0>{}} machine f(){_=value::<255>();}";
+    assert!(
+        check(&[("i.omg", bad)])
+            .unwrap_err()
+            .message
+            .contains("256 exceeds u8")
+    );
+    check(&[("i.omg", &bad.replace("255", "254"))]).unwrap();
+}
+#[test]
+fn wrapping_and_saturating_indices_keep_their_arithmetic_policy() {
+    let head = "data B<const K:i8>{} ";
+    for (expr, n, expected) in [
+        ("N +% 100", "100", "-56"),
+        ("N +| 100", "100", "127"),
+        ("N - 2", "4", "2"),
+        ("(N +| 100) +| -100", "100", "27"),
+        ("N +| (100i8 +| -100)", "100", "100"),
+    ] {
+        let source = format!("{head} machine value<const N:i8>()->B<{expr}>{{B::<{expr}>{{}}}} machine call()->B<{expected}>{{value::<{n}>()}}");
+        let product = check(&[("index.omg", &source)]).unwrap();
+        assert_eq!(product.calls.last().unwrap().result.to_string(), format!("game::B<{expected}>"));
+    }
+}
 
 #[test]
 fn range_is_checked_after_call_selection() {
@@ -539,12 +755,7 @@ fn evaluated_indices_check_the_source_type_and_key_only_on_the_value() {
     };
     let head = "data Buf<const N:u64>{array:[u8;N];} ";
     let source = format!("{head} const size:u64=8; machine f(b:Buf<size>)->Buf<8>{{b}}");
-    assert!(
-        check(&[("calc.omg", &source)])
-            .unwrap_err()
-            .message
-            .contains("requires evaluation")
-    );
+    assert_eq!(check(&[("calc.omg", &source)]).unwrap().evaluated_indices.len(), 1);
     let stage = run(&source, 8).unwrap();
     assert_eq!(stage.evaluated_indices.len(), 1);
     assert_eq!(stage.signatures[0].parameters[0].1, stage.signatures[0].result);

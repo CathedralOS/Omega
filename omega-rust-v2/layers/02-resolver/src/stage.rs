@@ -21,7 +21,22 @@ fn qualify(
 fn builtin(name: &str) -> bool {
     matches!(
         name,
-        "bool" | "addr" | "f32" | "f64" | "Slice" | "SyscallResult" | "Terminal" | "UInt" | "Int" | "AtomicBool" | "AtomicU32" | "AtomicU64"
+        "core::Level"
+            | "core::Type"
+            | "core::Strict"
+            | "core::Squash"
+            | "bool"
+            | "addr"
+            | "f32"
+            | "f64"
+            | "Slice"
+            | "SyscallResult"
+            | "Terminal"
+            | "UInt"
+            | "Int"
+            | "AtomicBool"
+            | "AtomicU32"
+            | "AtomicU64"
     ) || name
         .strip_prefix(['i', 'u'])
         .is_some_and(|s| s.bytes().all(|b| b.is_ascii_digit()))

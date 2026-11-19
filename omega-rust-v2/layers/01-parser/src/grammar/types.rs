@@ -16,6 +16,21 @@ impl SyntaxParser<'_> {
     ) -> Parsed<ClosedNode> {
         self.enter_nesting()?;
 
+        if type_position != TypePosition::Cast && self.at(Punctuation::LeftParenthesis) && self.nth_at_word(1) && self.nth_at(2, Punctuation::Colon) {
+            let function = self.open();
+            self.bump();
+            let binder = self.open();
+            self.expect_word("a mathematical parameter name")?;
+            self.expect(Punctuation::Colon, "`:`")?;
+            self.parse_type(TypePosition::Plain)?;
+            self.close(binder, NodeKind::Param);
+            self.expect(Punctuation::RightParenthesis, "`)`")?;
+            self.expect(Punctuation::Arrow, "`->`")?;
+            self.parse_type(type_position)?;
+            let function = self.close(function, NodeKind::FunctionType);
+            self.leave_nesting();
+            return Ok(function);
+        }
         let mut parsed_type = self.parse_type_operand(type_position)?;
 
         if type_position != TypePosition::Cast && self.at(Punctuation::Arrow) {
@@ -109,7 +124,13 @@ impl SyntaxParser<'_> {
         }
 
         if self.at_word() {
-            return self.parse_path_type();
+            let head = self.parse_path_type()?;
+            if type_position != TypePosition::Cast && self.at(Punctuation::LeftParenthesis) {
+                let application = self.open_before(head);
+                self.parse_args()?;
+                return Ok(self.close(application, NodeKind::FamilyApplication));
+            }
+            return Ok(head);
         }
 
         Err(self.error("a type"))

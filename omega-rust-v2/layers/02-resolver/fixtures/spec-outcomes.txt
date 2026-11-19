@@ -117,10 +117,10 @@ packages/topology.md:113  unavailable import build_support::deployment
 proofs/contracts.md:54  unresolved name T
 proofs/contracts.md:406  unresolved name Valid
 proofs/contracts.md:826  accepted
-proofs/mathematical_bindings.md:63  unresolved name core::Strict
-proofs/mathematical_bindings.md:199  unresolved name core::Level
-proofs/mathematical_bindings.md:226  unresolved name core::Level
-proofs/mathematical_bindings.md:263  unresolved name core::Level
+proofs/mathematical_bindings.md:63  accepted
+proofs/mathematical_bindings.md:199  accepted
+proofs/mathematical_bindings.md:226  unresolved name Witness
+proofs/mathematical_bindings.md:263  accepted
 proofs/quotients.md:196  unresolved name ConvergenceEvidence
 resources/access.md:20  unresolved name Controller
 resources/access.md:54  unresolved name reflect::CallableInfo
