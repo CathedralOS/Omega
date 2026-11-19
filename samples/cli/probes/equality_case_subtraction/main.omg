@@ -11,7 +11,7 @@ data Main { interval: Interval; width: u64; }
 machine Main::main(main: @mut Main) {
     main.interval = Interval::Point { lo: 4, hi: 4 };
     transition main.interval {
-        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Point { lo, hi } -> take(lo, hi, main),
         Interval::Empty -> done()
     }
     machine take(lo: u64, hi: u64, main: @mut Main) {

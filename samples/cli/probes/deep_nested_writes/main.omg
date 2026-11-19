@@ -13,13 +13,13 @@ machine Main::main(main: @mut Main) {
     transition { _ -> read_nested(main) }
     machine read_nested(main: @mut Main) {
         transition main.nested.second.b == 5 && main.pair[1].a == 9 {
-            true -> read_sum(main)
+            true -> read_sum(main),
             false -> bad(main)
         }
     }
     machine read_sum(main: @mut Main) {
         transition main.holder.msg {
-            Msg::Pong { y, z } -> done(main, y)
+            Msg::Pong { y, z } -> done(main, y),
             Msg::Ping { x } -> bad(main)
         }
     }

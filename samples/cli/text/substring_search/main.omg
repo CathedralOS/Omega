@@ -41,13 +41,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine outer(main: @mut Main) {
         transition main.found < 0 {
-            true -> block outer_pos(main)
+            true -> block outer_pos(main),
             false -> block done(main)
         }
     }
     machine outer_pos(main: @mut Main) {
         transition main.i < main.text.len {
-            true -> block start_inner(main)
+            true -> block start_inner(main),
             false -> block done(main)
         }
     }
@@ -58,13 +58,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine inner(main: @mut Main) {
         transition main.j < main.pat.len {
-            true -> block check_bound(main)
+            true -> block check_bound(main),
             false -> block matched(main)
         }
     }
     machine check_bound(main: @mut Main) {
         transition main.k < main.text.len {
-            true -> block compare(main)
+            true -> block compare(main),
             false -> block mismatch(main)
         }
     }
@@ -72,7 +72,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.tb = main.text[main.k] as u8 in Wrapping;
         main.pb = main.pat[main.j] as u8 in Wrapping;
         transition main.tb == main.pb {
-            true -> block adv_inner(main)
+            true -> block adv_inner(main),
             false -> block mismatch(main)
         }
     }

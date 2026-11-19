@@ -141,7 +141,7 @@ public machine open_machine(checks: @mut Checks) {
 
 public machine checks_reject(checks: @mut Checks, code: CheckDiagnosticCode, source_span: SourceSpan) {
     transition checks.machine_accepted {
-        true -> first(checks, code, source_span)
+        true -> first(checks, code, source_span),
         _ -> done()
     }
 
@@ -150,7 +150,7 @@ public machine checks_reject(checks: @mut Checks, code: CheckDiagnosticCode, sou
         checks.machine_accepted = false;
         let index: u64 = checks.diagnostic_count;
         transition index < 64 {
-            true -> recorded(checks, code, source_span, index)
+            true -> recorded(checks, code, source_span, index),
             _ -> done()
         }
     }
@@ -170,7 +170,7 @@ public machine diagnostic(checks: @Checks, index: u64 in Trapping) -> CheckDiagn
 crashes Trap
 {
     transition index < checks.diagnostic_count && index < 64 {
-        true -> read(checks, index)
+        true -> read(checks, index),
         _ -> invalid()
     }
 
@@ -189,7 +189,7 @@ public machine checks_routes(checks: @Checks, machine: u64 in Trapping) -> Crash
 crashes Trap
 {
     transition machine < checks.machine_count {
-        true -> read(checks, machine)
+        true -> read(checks, machine),
         _ -> invalid()
     }
 
@@ -206,7 +206,7 @@ public machine set_routes(checks: @mut Checks, machine: u64 in Trapping, routes:
 crashes Trap
 {
     transition machine < checks.machine_count {
-        true -> write(checks, machine, routes)
+        true -> write(checks, machine, routes),
         _ -> invalid()
     }
 
@@ -233,7 +233,7 @@ crashes Trap
 {
     let index: u64 = checks.slot_origin_count;
     transition index < 64 {
-        true -> write(checks, kind, parameter_index, index)
+        true -> write(checks, kind, parameter_index, index),
         _ -> full()
     }
 
@@ -254,7 +254,7 @@ public machine slot_origin(checks: @Checks, index: u64 in Trapping) -> SlotRetur
 crashes Trap
 {
     transition index < checks.slot_origin_count && index < 64 {
-        true -> read(checks, index)
+        true -> read(checks, index),
         _ -> invalid()
     }
 
@@ -278,7 +278,7 @@ crashes Trap
 {
     let index: u64 = checks.slot_qualification_count;
     transition index < 64 {
-        true -> write(checks, parameter_index, domain_item, index)
+        true -> write(checks, parameter_index, domain_item, index),
         _ -> full()
     }
 
@@ -307,7 +307,7 @@ public machine slot_qualification(checks: @Checks, index: u64 in Trapping) -> Sl
 crashes Trap
 {
     transition index < checks.slot_qualification_count && index < 64 {
-        true -> read(checks, index)
+        true -> read(checks, index),
         _ -> invalid()
     }
 

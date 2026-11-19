@@ -59,7 +59,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: @mut Main) {
-        transition main.gen < 60 { true -> block clear_init(main) _ -> block finish(main) }
+        transition main.gen < 60 { true -> block clear_init(main), _ -> block finish(main) }
     }
 
     // --- clear the grid ---
@@ -68,7 +68,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block clear_loop(main) }
     }
     machine clear_loop(main: @mut Main) {
-        transition main.k >= 0 && main.k < 200 { true -> block clear_cell(main) _ -> block plot_init(main) }
+        transition main.k >= 0 && main.k < 200 { true -> block clear_cell(main), _ -> block plot_init(main) }
     }
     machine clear_cell(main: @mut Main) {
         main.grid[main.k] = 0 as +Wrapping;
@@ -82,12 +82,12 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block plot_loop(main) }
     }
     machine plot_loop(main: @mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> block plot_cell(main) _ -> block render_init(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block plot_cell(main), _ -> block render_init(main) }
     }
     machine plot_cell(main: @mut Main) {
         main.a = main.ps[main.pi].x;
         main.b = main.ps[main.pi].y;
-        transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> block plot_set(main) _ -> block bad(main) }
+        transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 { true -> block plot_set(main), _ -> block bad(main) }
     }
     machine plot_set(main: @mut Main) {
         main.grid[main.b * 20 + main.a] = 1 as +Wrapping;
@@ -102,21 +102,21 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block render_row(main) }
     }
     machine render_row(main: @mut Main) {
-        transition main.ry >= 0 && main.ry < 10 { true -> block render_col_init(main) _ -> block after_render(main) }
+        transition main.ry >= 0 && main.ry < 10 { true -> block render_col_init(main), _ -> block after_render(main) }
     }
     machine render_col_init(main: @mut Main) {
         main.cx = 0 as +Wrapping;
         transition { _ -> block render_col(main) }
     }
     machine render_col(main: @mut Main) {
-        transition main.cx >= 0 && main.cx < 20 { true -> block render_cell(main) _ -> block emit_row(main) }
+        transition main.cx >= 0 && main.cx < 20 { true -> block render_cell(main), _ -> block emit_row(main) }
     }
     machine render_cell(main: @mut Main) {
-        transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> block render_read(main) _ -> block bad(main) }
+        transition main.ry * 20 + main.cx >= 0 && main.ry * 20 + main.cx < 200 { true -> block render_read(main), _ -> block bad(main) }
     }
     machine render_read(main: @mut Main) {
         main.a = main.grid[main.ry * 20 + main.cx];
-        transition main.a >= 0 && main.a < 2 { true -> block render_put(main) _ -> block bad(main) }
+        transition main.a >= 0 && main.a < 2 { true -> block render_put(main), _ -> block bad(main) }
     }
     machine render_put(main: @mut Main) {
         main.glyph = main.chars[main.a];
@@ -140,13 +140,13 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block update_loop(main) }
     }
     machine update_loop(main: @mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> block integ_x(main) _ -> block frame_next(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block integ_x(main), _ -> block frame_next(main) }
     }
     machine integ_x(main: @mut Main) {
         main.a = main.ps[main.pi].x;
         main.b = main.ps[main.pi].vx;
         main.n = main.a + main.b;
-        transition main.n < 0 { true -> block x_lo(main) _ -> block x_hi_check(main) }
+        transition main.n < 0 { true -> block x_lo(main), _ -> block x_hi_check(main) }
     }
     machine x_lo(main: @mut Main) {
         main.n = 0 as +Wrapping;
@@ -154,7 +154,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block store_x(main) }
     }
     machine x_hi_check(main: @mut Main) {
-        transition main.n > 19 { true -> block x_hi(main) _ -> block store_x(main) }
+        transition main.n > 19 { true -> block x_hi(main), _ -> block store_x(main) }
     }
     machine x_hi(main: @mut Main) {
         main.n = 19 as +Wrapping;
@@ -162,7 +162,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block store_x(main) }
     }
     machine store_x(main: @mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_x(main) _ -> block bad(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_x(main), _ -> block bad(main) }
     }
     machine do_store_x(main: @mut Main) {
         main.ps[main.pi].x = main.n;
@@ -173,7 +173,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         main.a = main.ps[main.pi].y;
         main.b = main.ps[main.pi].vy;
         main.n = main.a + main.b;
-        transition main.n < 0 { true -> block y_lo(main) _ -> block y_hi_check(main) }
+        transition main.n < 0 { true -> block y_lo(main), _ -> block y_hi_check(main) }
     }
     machine y_lo(main: @mut Main) {
         main.n = 0 as +Wrapping;
@@ -181,7 +181,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block store_y(main) }
     }
     machine y_hi_check(main: @mut Main) {
-        transition main.n > 9 { true -> block y_hi(main) _ -> block store_y(main) }
+        transition main.n > 9 { true -> block y_hi(main), _ -> block store_y(main) }
     }
     machine y_hi(main: @mut Main) {
         main.n = 9 as +Wrapping;
@@ -189,7 +189,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block store_y(main) }
     }
     machine store_y(main: @mut Main) {
-        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_y(main) _ -> block bad(main) }
+        transition main.pi >= 0 && main.pi < 4 { true -> block do_store_y(main), _ -> block bad(main) }
     }
     machine do_store_y(main: @mut Main) {
         main.ps[main.pi].y = main.n;

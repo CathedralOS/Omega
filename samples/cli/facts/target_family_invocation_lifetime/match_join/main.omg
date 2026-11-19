@@ -34,11 +34,11 @@ requires machine Action<'use>(context: Captured, value: @'use u64) -> @'use u64;
 
 
 machine relay<'call>(context: Holder<'call>, item: @'call u64) -> @'call u64 {
-    SelectedApply::apply<Holder<'call>, pick<Holder<'call>>>(context, item)
+    SelectedApply::apply::<Holder<'call>, pick<Holder<'call>>>(context, item)
 }
 machine choose<'call>(choice: bool, context: Holder<'call>, item: @'call u64, alternate: @'call u64) -> @'call u64 {
     match choice {
-        true -> relay(context, item)
+        true -> relay(context, item),
         false -> relay(context, alternate)
     }
 }
@@ -52,5 +52,5 @@ machine main() crashes Trap {
     let result: @u64 = choose(true, context, @right, @alternate);
     let other_context: Holder = Holder { reference: @left };
     let other: @u64 = choose(false, other_context, @right, @alternate);
-    transition result == 42 && other == 73 { true -> done() false -> wrong() }
+    transition result == 42 && other == 73 { true -> done(), false -> wrong() }
 }

@@ -10,7 +10,7 @@ use omega::language::core::CLayout;
 data Record [copy] { first: u8; second: u64; last: u16; }
 OtherPolicy satisfies FixedLayout<Record> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
-        CAbiPolicy<Record>::plan(schema, target)
+        CAbiPolicy::<Record>::plan(schema, target)
     }
 }
 data Holder [copy] { value: CLayout<Record>; }
@@ -29,8 +29,8 @@ machine main() crashes Trap {
     words[1] = 42u64;
     words[2] = 9u64;
     let mapped: @CLayout<Record> = @words as @CLayout<Record>;
-    transition holder.value.first == 17u8 && holder.value.second == 42u64 && holder.value.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of<CLayout<Record>>() == 24u64 && align_of<CLayout<Record>>() == 8u64 {
-        true -> done()
+    transition holder.value.first == 17u8 && holder.value.second == 42u64 && holder.value.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of::<CLayout<Record>>() == 24u64 && align_of::<CLayout<Record>>() == 8u64 {
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -10,7 +10,7 @@ use omega::language::core::narrow_u64_to_i64_wrapping;
 machine windows_metadata_error() -> WindowsMetadataResult {
     let code: u32 = windows_filesystem_native_last_error();
     transition code != 0 {
-        true -> (WindowsMetadataResult::Error { code: code })
+        true -> (WindowsMetadataResult::Error { code: code }),
         false -> (WindowsMetadataResult::Error { code: 31 })
     }
 }
@@ -19,7 +19,7 @@ machine windows_filesystem_native_metadata(handle: u64) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
     let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
     transition duplicate != 0 {
-        true -> block query(duplicate)
+        true -> block query(duplicate),
         false -> (windows_metadata_error())
     }
     machine query(duplicate: u64) -> WindowsMetadataResult {
@@ -33,12 +33,12 @@ reaches FilesystemMetadataQuery {
     let count: i64 = windows_wide_path(path as -Path, @mut wide);
     wide[4095] = 0;
     transition count > 0 {
-        true -> block select(wide as +WindowsNativePath, no_follow)
+        true -> block select(wide as +WindowsNativePath, no_follow),
         false -> (WindowsMetadataResult::Error { code: 87 })
     }
     machine select(wide: [u16; 4096] in WindowsNativePath, no_follow: bool) -> WindowsMetadataResult {
         transition no_follow {
-            true -> block open(wide, 36700160)
+            true -> block open(wide, 36700160),
             false -> block open(wide, 34603008)
         }
     }
@@ -47,7 +47,7 @@ reaches FilesystemMetadataQuery {
         let raw: i64 = block WindowsFilesystemMetadataIo::open_attributes(@wide, 128, 7, 0, 3, flags, 0);
         let handle: u64 = windows_filesystem_native_normalize_handle(raw);
         transition handle != 0 {
-            true -> block query(handle)
+            true -> block query(handle),
             false -> (windows_metadata_error())
         }
     }
@@ -65,12 +65,12 @@ reaches FilesystemMetadataQuery {
 
 machine windows_metadata_completion(outcome: WindowsMetadataResult, released: i32) -> WindowsMetadataResult {
     transition outcome {
-        WindowsMetadataResult::Error { code } -> (WindowsMetadataResult::Error { code: code })
+        WindowsMetadataResult::Error { code } -> (WindowsMetadataResult::Error { code: code }),
         WindowsMetadataResult::Value { metadata } -> checked(metadata, released)
     }
     machine checked(metadata: WindowsFileMetadata, released: i32) -> WindowsMetadataResult {
         transition released == 0 {
-            true -> (WindowsMetadataResult::Value { metadata: metadata })
+            true -> (WindowsMetadataResult::Value { metadata: metadata }),
             false -> (windows_metadata_error())
         }
     }
@@ -93,7 +93,7 @@ ensures result != -1
 reaches FilesystemMetadataQuery {
     let raw: i64 = narrow_u64_to_i64_wrapping(handle);
     transition raw != 0 && raw != -1 {
-        true -> block classify(raw)
+        true -> block classify(raw),
         false -> refused(6)
     }
     machine classify(handle: i64) -> i64
@@ -102,7 +102,7 @@ reaches FilesystemMetadataQuery {
         WindowsFilesystemIo::c_set_last_error(0);
         let kind: u32 = block WindowsFilesystemMetadataIo::file_type(handle);
         transition kind == 1 {
-            true -> (handle)
+            true -> (handle),
             false -> other(kind)
         }
     }
@@ -110,7 +110,7 @@ reaches FilesystemMetadataQuery {
     ensures result != -1
     {
         transition kind == 0 {
-            true -> unknown()
+            true -> unknown(),
             false -> refused(50)
         }
     }
@@ -119,7 +119,7 @@ reaches FilesystemMetadataQuery {
     {
         let code: u32 = WindowsFilesystemIo::c_get_last_error();
         transition code != 0 {
-            true -> refused(code)
+            true -> refused(code),
             false -> refused(50)
         }
     }
@@ -135,14 +135,14 @@ machine windows_query_metadata(handle: u64) -> WindowsMetadataResult
 reaches FilesystemMetadataQuery {
     let classified: i64 in WindowsDiskFileOrAbsent = block windows_classify_metadata_disk_file(handle);
     transition (classified as -WindowsDiskFileOrAbsent) != 0 {
-        true -> block basic(classified)
+        true -> block basic(classified),
         false -> (windows_metadata_error())
     }
     machine basic(handle: i64 in WindowsDiskFileOrAbsent) -> WindowsMetadataResult requires (handle as -WindowsDiskFileOrAbsent) != 0 {
         let mut basic: WindowsNativeFileBasicInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::basic(handle, 0, @mut basic, 40);
         transition succeeded != 0 {
-            true -> block standard(handle, basic)
+            true -> block standard(handle, basic),
             false -> (windows_metadata_error())
         }
     }
@@ -150,7 +150,7 @@ reaches FilesystemMetadataQuery {
         let mut standard: WindowsNativeFileStandardInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::standard(handle, 1, @mut standard, 24);
         transition succeeded != 0 {
-            true -> block attributes(handle, basic, standard)
+            true -> block attributes(handle, basic, standard),
             false -> (windows_metadata_error())
         }
     }
@@ -158,7 +158,7 @@ reaches FilesystemMetadataQuery {
         let mut tag: WindowsNativeFileAttributeTagInfo;
         let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(handle, 9, @mut tag, 8);
         transition succeeded != 0 {
-            true -> value(basic, standard, tag)
+            true -> value(basic, standard, tag),
             false -> (windows_metadata_error())
         }
     }

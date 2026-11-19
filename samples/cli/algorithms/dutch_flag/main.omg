@@ -70,7 +70,7 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
     // Loop head: partition until the white cursor meets the blue fence.
     machine head(context: @mut Partition) {
         transition context.w < context.b {
-            true -> block w_guard(context)
+            true -> block w_guard(context),
             _ -> block check0(context)
         }
     }
@@ -79,22 +79,22 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
     // (classify and both swaps -- no state between rewrites w).
     machine w_guard(context: @mut Partition) {
         transition context.w < 3 {
-            true -> block classify(context)
+            true -> block classify(context),
             _ -> block confused(96)
         }
     }
 
     machine classify(context: @mut Partition) {
         transition context.items[context.w] {
-            Color::Red -> block r_guard(context)
-            Color::White -> block w_bump_guard(context)
+            Color::Red -> block r_guard(context),
+            Color::White -> block w_bump_guard(context),
             _ -> block b_guard(context)
         }
     }
 
     machine r_guard(context: @mut Partition) {
         transition context.r < 3 {
-            true -> block red_swap(context)
+            true -> block red_swap(context),
             _ -> block confused(97)
         }
     }
@@ -117,7 +117,7 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
     // white arms both join here.
     machine w_bump_guard(context: @mut Partition) {
         transition context.w < 3 {
-            true -> block w_bump(context)
+            true -> block w_bump(context),
             _ -> block confused(95)
         }
     }
@@ -131,7 +131,7 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
 
     machine b_guard(context: @mut Partition) {
         transition context.b > 0 {
-            true -> block blue_swap(context)
+            true -> block blue_swap(context),
             _ -> block confused(98)
         }
     }
@@ -143,7 +143,7 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
     machine blue_swap(context: @mut Partition) {
         context.bp = context.b - 1;
         transition context.bp < 3 {
-            true -> block blue_put(context)
+            true -> block blue_put(context),
             _ -> block confused(99)
         }
     }
@@ -161,19 +161,19 @@ machine sort(context: @mut Partition) reaches ProcessExit + Console {
     // Verify [Red, White, Blue] element by element via case dispatch.
     machine check0(context: @mut Partition) {
         transition context.items[0] {
-            Color::Red -> block check1(context)
+            Color::Red -> block check1(context),
             _ -> block bad(71)
         }
     }
     machine check1(context: @mut Partition) {
         transition context.items[1] {
-            Color::White -> block check2(context)
+            Color::White -> block check2(context),
             _ -> block bad(72)
         }
     }
     machine check2(context: @mut Partition) {
         transition context.items[2] {
-            Color::Blue -> block good()
+            Color::Blue -> block good(),
             _ -> block bad(73)
         }
     }

@@ -79,14 +79,14 @@ machine step3(main: @mut Main, l: i32, m: i32, r: i32)
     requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
 {
     transition m == 4 {
-        true -> s_store(main, (((l + 1) % 26) << 10) | (((m + 1) % 26) << 5) | ((r + 1) % 26))
+        true -> s_store(main, (((l + 1) % 26) << 10) | (((m + 1) % 26) << 5) | ((r + 1) % 26)),
         _ -> s_chk(main, l, m, r)
     }
     machine s_chk(main: @mut Main, l: i32, m: i32, r: i32)
         requires 0 <= l && l < 26 && 0 <= m && m < 26 && 0 <= r && r < 26
     {
         transition r == 21 {
-            true -> s_store(main, (l << 10) | (((m + 1) % 26) << 5) | ((r + 1) % 26))
+            true -> s_store(main, (l << 10) | (((m + 1) % 26) << 5) | ((r + 1) % 26)),
             _ -> s_store(main, (l << 10) | (m << 5) | ((r + 1) % 26))
         }
     }
@@ -115,7 +115,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = (v + r) % 26;
         let w: i32 = main.fwd_right[j];
         transition w >= 0 && w < 26 {
-            true -> pf_m(main, w, l, m, r)
+            true -> pf_m(main, w, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -125,7 +125,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = ((w - r + 26) % 26 + m) % 26;
         let w2: i32 = main.fwd_mid[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pf_l(main, w2, l, m, r)
+            true -> pf_l(main, w2, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -135,7 +135,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = ((w - m + 26) % 26 + l) % 26;
         let w2: i32 = main.fwd_left[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pf_b(main, w2, l, m, r)
+            true -> pf_b(main, w2, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -145,7 +145,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = (w - l + 26) % 26;
         let w2: i32 = main.refl[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pb_l(main, w2, l, m, r)
+            true -> pb_l(main, w2, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -155,7 +155,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = (w + l) % 26;
         let w2: i32 = main.inv_left[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pb_m(main, w2, l, m, r)
+            true -> pb_m(main, w2, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -165,7 +165,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = ((w - l + 26) % 26 + m) % 26;
         let w2: i32 = main.inv_mid[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pb_r(main, w2, l, m, r)
+            true -> pb_r(main, w2, l, m, r),
             _ -> pdone(main)
         }
     }
@@ -175,7 +175,7 @@ machine core_perm(main: @mut Main, v: i32, l: i32, m: i32, r: i32)
         let j: i32 = ((w - m + 26) % 26 + r) % 26;
         let w2: i32 = main.inv_right[j];
         transition w2 >= 0 && w2 < 26 {
-            true -> pstore(main, (w2 - r + 26) % 26)
+            true -> pstore(main, (w2 - r + 26) % 26),
             _ -> pdone(main)
         }
     }
@@ -198,7 +198,7 @@ machine enc_char(main: @mut Main, key: i32, l: i32, m: i32, r: i32)
     {
         let pin: i32 = main.plug[key];
         transition pin >= 0 && pin < 26 {
-            true -> e_mid(main, pin, l, m, r)
+            true -> e_mid(main, pin, l, m, r),
             _ -> edone(main)
         }
     }
@@ -208,7 +208,7 @@ machine enc_char(main: @mut Main, key: i32, l: i32, m: i32, r: i32)
         core_perm(main, pin, l, m, r);
         let mid: i32 = main.pout;
         transition mid >= 0 && mid < 26 {
-            true -> e_out(main, mid)
+            true -> e_out(main, mid),
             _ -> edone(main)
         }
     }
@@ -217,7 +217,7 @@ machine enc_char(main: @mut Main, key: i32, l: i32, m: i32, r: i32)
     {
         let q: i32 = main.plug[mid];
         transition q >= 0 && q < 26 {
-            true -> estore(main, q)
+            true -> estore(main, q),
             _ -> edone(main)
         }
     }
@@ -241,7 +241,7 @@ machine derive_tables(main: @mut Main) reaches ProcessExit + Console {
     machine dt_loop(main: @mut Main) {
         let x: i32 = main.x;
         transition x >= 0 && x < 26 {
-            true -> dt_read(main, x)
+            true -> dt_read(main, x),
             _ -> dt_done(main)
         }
     }
@@ -253,7 +253,7 @@ machine derive_tables(main: @mut Main) reaches ProcessExit + Console {
         let im: i32 = main.fwd_mid[x];
         let ir: i32 = main.fwd_right[x];
         transition il >= 0 && il < 26 && im >= 0 && im < 26 && ir >= 0 && ir < 26 {
-            true -> dt_write(main, x, il, im, ir)
+            true -> dt_write(main, x, il, im, ir),
             _ -> dt_bad(main)
         }
     }
@@ -281,7 +281,7 @@ machine press_all(main: @mut Main) reaches ProcessExit + Console {
     machine pa_loop(main: @mut Main) {
         let i: i32 = main.i;
         transition i >= 0 && i < 5 {
-            true -> pa_press(main, i)
+            true -> pa_press(main, i),
             _ -> pa_done(main)
         }
     }
@@ -293,7 +293,7 @@ machine press_all(main: @mut Main) reaches ProcessExit + Console {
         let m: i32 = main.pos_mid;
         let r: i32 = main.pos_right;
         transition k >= 0 && k < 26 && l >= 0 && l < 26 && m >= 0 && m < 26 && r >= 0 && r < 26 {
-            true -> pa_step(main, i, k, l, m, r)
+            true -> pa_step(main, i, k, l, m, r),
             _ -> pa_bad_char(main)
         }
     }
@@ -313,7 +313,7 @@ machine press_all(main: @mut Main) reaches ProcessExit + Console {
         let m: i32 = main.pos_mid;
         let r: i32 = main.pos_right;
         transition l >= 0 && l < 26 && m >= 0 && m < 26 && r >= 0 && r < 26 {
-            true -> pa_enc_call(main, i, k, l, m, r)
+            true -> pa_enc_call(main, i, k, l, m, r),
             _ -> pa_bad_index(main)
         }
     }
@@ -323,7 +323,7 @@ machine press_all(main: @mut Main) reaches ProcessExit + Console {
         enc_char(main, k, l, m, r);
         let c: i32 = main.eout;
         transition c >= 0 && c < 26 {
-            true -> pa_emit(main, i, c)
+            true -> pa_emit(main, i, c),
             _ -> pa_bad_index(main)
         }
     }
@@ -359,7 +359,7 @@ machine compare_all(main: @mut Main) reaches ProcessExit + Console {
     machine ca_loop(main: @mut Main) {
         let i: i32 = main.i;
         transition i >= 0 && i < 5 {
-            true -> ca_one(main, i)
+            true -> ca_one(main, i),
             _ -> ca_done(main)
         }
     }
@@ -369,7 +369,7 @@ machine compare_all(main: @mut Main) reaches ProcessExit + Console {
         let c: i32 = main.cipher[i];
         let e: i32 = main.expect[i];
         transition c == e {
-            true -> ca_next(main, i)
+            true -> ca_next(main, i),
             _ -> ca_fail(main)
         }
     }

@@ -7,7 +7,7 @@ machine same<T>(left: T, right: T) -> bool {
 }
 
 machine compare<T>(left: T, right: T) -> bool {
-    same<T>(left, right)
+    same::<T>(left, right)
 }
 
 machine hold(direct: bool) -> bool
@@ -17,7 +17,7 @@ requires direct == false
 }
 
 machine observe(left: u64, right: u64) -> bool {
-    compare<u64>(left, right)
+    compare::<u64>(left, right)
 }
 
 machine relay(left: u64, right: u64) -> bool {
@@ -27,7 +27,7 @@ machine relay(left: u64, right: u64) -> bool {
 machine main() crashes Trap {
     let direct: bool = relay(1u64, 1u64);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let local_xored: u64 = xored;
     let check: i32 = verify_xored(local_xored);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

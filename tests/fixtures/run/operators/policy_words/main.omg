@@ -36,7 +36,7 @@ machine main() crashes Trap {
     transition exact == 72u8 && wrapped == 2u32
         && (high as -Saturating) == 127i8 && (low as -Saturating) == -128i8
         && (right as -Saturating) == -3i8 && (bits as -Trapping) == 248u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
 }

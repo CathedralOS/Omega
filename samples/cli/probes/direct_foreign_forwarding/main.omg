@@ -48,7 +48,7 @@ machine main() reaches ProcessProbe crashes Trap {
     let forwarded: u32 = observed_process();
     let wrapped: u32 = ProcessProbe::identity();
     transition direct > 0 && forwarded == direct && wrapped == 23 {
-        true -> accepted()
+        true -> accepted(),
         _ -> rejected()
     }
     machine accepted() {}

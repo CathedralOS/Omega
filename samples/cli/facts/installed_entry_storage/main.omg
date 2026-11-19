@@ -95,7 +95,7 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 
 machine start(view: @mut Access<RegPlacement, Registers>) crashes Trap {
     let observed: u32 = view.status.read(@view.status);
-    transition observed == 41u32 { true -> write(view) _ -> bad() }
+    transition observed == 41u32 { true -> write(view), _ -> bad() }
     machine write(view: @mut Access<RegPlacement, Registers>) {
         view.transmit.write(@mut view.transmit, 9);
     }

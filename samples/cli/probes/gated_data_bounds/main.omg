@@ -33,7 +33,7 @@ requires
 
 machine wound(player: @mut Player) {
     transition player.health > 30 {
-        true -> subtracted(player)
+        true -> subtracted(player),
         _ -> done()
     }
 
@@ -50,7 +50,7 @@ machine gated_data_bounds() {
     wound(@mut champion);
     let strength: i32 = champion.health;
     transition strength == 20 && gauge.level == 3 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

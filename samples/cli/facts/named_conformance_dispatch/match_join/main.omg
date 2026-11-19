@@ -37,12 +37,12 @@ ensures result == a + b
 {
     let left: i32 = match flag { true -> a, false -> a };
     let right: i32 = match flag { true -> b, false -> b };
-    block apply<Selected>(left, right)
+    block apply::<Selected>(left, right)
 }
 
 machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22, true);
-    transition result == 42 { true -> done() _ -> bad() }
+    transition result == 42 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

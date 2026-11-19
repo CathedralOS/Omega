@@ -33,7 +33,7 @@ machine probe() -> u8 reaches SelectedComputation {
 
 machine main() reaches SelectedComputation crashes Trap {
     transition probe() == 30 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

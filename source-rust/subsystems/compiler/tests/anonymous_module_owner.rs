@@ -142,8 +142,14 @@ fn scratch_library(name: &str, extra: bool) -> PathBuf {
     fs::create_dir(&root).unwrap();
     let source = fixture_package_inputs::repo_root()
         .join("samples/cli/facts/nominal_declaration_owner/library");
-    for file in ["library.omg", "copied.omg"] {
-        fs::copy(source.join(file), root.join(file)).unwrap();
+    // Both entry files belong to the anonymous package root. Their imports
+    // load otherwise identical declarations from distinct namespaces.
+    for namespace in ["library", "copied"] {
+        let file = format!("{namespace}.omg");
+        let relative = Path::new(namespace).join(&file);
+        fs::create_dir(root.join(namespace)).unwrap();
+        fs::copy(source.join(&relative), root.join(relative)).unwrap();
+        fs::write(root.join(file), format!("use {namespace};\n")).unwrap();
     }
     if extra {
         fs::write(root.join("semantic-input.omg"), "const CHANGED: u8 = 1;\n").unwrap();

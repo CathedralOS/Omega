@@ -11,7 +11,7 @@ machine fill(grid: @mut Grid) -> u64 {
 
     machine check(grid: @mut Grid, at: u64) -> u64 {
         transition at < 4 {
-            true -> write(grid, at)
+            true -> write(grid, at),
             _ -> grid.cells[3]
         }
     }
@@ -22,7 +22,7 @@ machine fill(grid: @mut Grid) -> u64 {
         grid.cells[at] = 9;
         let seen: u64 = observe(view);
         transition seen == 9 {
-            true -> check(grid, at + 1)
+            true -> check(grid, at + 1),
             _ -> 0
         }
     }
@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let mut grid: Grid = Grid { cells: [0, 0, 0, 0], total: 9 };
     let last: u64 = fill(@mut grid);
     transition last == 9 && grid.cells[0] == 9 {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

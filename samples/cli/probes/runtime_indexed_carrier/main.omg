@@ -32,7 +32,7 @@ machine Main::main(context: @mut Main) reaches ProcessExit + Console {
     let second: u32 = preserve(13, 39);
     let control: u32 = static_control(9);
     transition first == 31 && second == 39 && control == 9 {
-        true -> accepted()
+        true -> accepted(),
         _ -> rejected()
     }
     machine accepted() { ProcessExit::exit_process(70); }

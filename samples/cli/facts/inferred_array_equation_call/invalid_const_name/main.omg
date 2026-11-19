@@ -5,7 +5,7 @@ machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
 requires Length == [u8; Capacity]
 { Capacity }
 machine main() crashes Trap {
-    let observed: u64 = capacity<[u8; 2], 3>(ITEMS);
-    transition observed == 2 { true -> done() _ -> bad() }
+    let observed: u64 = capacity::<[u8; 2], 3>(ITEMS);
+    transition observed == 2 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

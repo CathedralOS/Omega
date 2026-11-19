@@ -9,7 +9,7 @@ machine exercise() -> i32 {
     let diff1: u64 = 90000u64 - wide;
     let diff2: u64 = wide - 70000u64;
     transition diff1 == 10000u64 && diff2 == 10000u64 {
-        true -> 0i32
+        true -> 0i32,
         _ -> 1i32
     }
 }
@@ -17,7 +17,7 @@ machine exercise() -> i32 {
 machine main() crashes Trap {
     let exit_code: i32 = exercise();
     transition exit_code == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

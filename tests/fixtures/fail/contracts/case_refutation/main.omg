@@ -14,9 +14,9 @@ data Record [copy] {
 
 public machine evaluate(record: @Record) -> u64 {
     transition record.choice in Choice::First {
-        true -> 11u64
+        true -> 11u64,
         false -> (match record.choice in Choice::First {
-            true -> 17u64
+            true -> 17u64,
             false -> record.choice.amount
         })
     }
@@ -30,7 +30,7 @@ machine main() crashes Trap {
     let b: u64 = evaluate(@second);
     let c: u64 = evaluate(@third);
     transition a == 11u64 && b == 17u64 && c == 67u64 && third.left == 31u64 && third.right == 53u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

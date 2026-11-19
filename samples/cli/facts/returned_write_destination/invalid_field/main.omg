@@ -7,6 +7,6 @@ machine main() crashes Trap {
  let neighbor: i32 = 19;
  let mut destination: Destination = Destination { loan: lend_write(@write value) };
  destination.loan = destination.loan;
- transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
+ transition value == 42 && neighbor == 19 { true -> done(), false -> wrong() }
  machine done() {} machine wrong() { crash Trap; }
 }

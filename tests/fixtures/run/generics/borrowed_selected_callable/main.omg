@@ -14,7 +14,7 @@ machine invoke() -> u32 {
 
 machine main() {
     let observed: u32 = invoke();
-    transition observed == 1u32 { true -> done() false -> wrong() }
+    transition observed == 1u32 { true -> done(), false -> wrong() }
     machine done() { }
     machine wrong() { crash Trap; }
 }

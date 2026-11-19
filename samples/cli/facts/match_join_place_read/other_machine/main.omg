@@ -18,7 +18,7 @@ requires place.kept == 17
 
 machine apply(chosen: @Pair, spare: @Pair) -> i64 {
     let joined: @Pair = match choose() {
-        true -> chosen
+        true -> chosen,
         false -> spare
     };
     read_field(joined)
@@ -33,7 +33,7 @@ machine main() crashes Trap {
     let spare: Pair = Pair { kept: 0, other: 8 };
     let observed: i64 = forward(@chosen, @spare);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

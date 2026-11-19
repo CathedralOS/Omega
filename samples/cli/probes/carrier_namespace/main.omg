@@ -34,7 +34,7 @@ machine Main::main(main: @mut Main) {
     main.buf[0] = 1;
     Main::bump(@mut main.reward);
     transition count(@main.buf) == 8 && main.reward.gold == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

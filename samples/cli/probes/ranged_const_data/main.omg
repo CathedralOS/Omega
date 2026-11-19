@@ -23,7 +23,7 @@ machine Main::main(main: @mut Main) {
     main.small.items[1] = 30;
     main.large.items[63] = 40;
     transition main.small.items[0] == 0 && main.large.items[62] == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -17,7 +17,7 @@ machine main() reaches MachineControl crashes Trap {
             nop
     }
     transition (saved & FLAG_BIT) == FLAG_BIT {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

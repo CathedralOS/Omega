@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) crashes Trap {
         main.k = 3;
         let second: i32 in Wrapping = read(main);
         transition first == 40 && second == 50 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

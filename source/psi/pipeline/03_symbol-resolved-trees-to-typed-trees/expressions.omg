@@ -15,7 +15,7 @@ crashes Trap
 
     machine next(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         transition index <= root && typer.output.accepted {
-            true -> node(typer, sources, syntax, resolution, root, index)
+            true -> node(typer, sources, syntax, resolution, root, index),
             _ -> done()
         }
     }
@@ -23,7 +23,7 @@ crashes Trap
     machine node(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, index: u64 in Trapping) {
         let typed: bool = is_typed(typer, index);
         transition typed {
-            true -> next(typer, sources, syntax, resolution, root, index + 1)
+            true -> next(typer, sources, syntax, resolution, root, index + 1),
             _ -> untyped(typer, sources, syntax, resolution, root, index)
         }
     }
@@ -39,7 +39,7 @@ crashes Trap
 
 machine lesser(left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping {
     transition left < right {
-        true -> first(left)
+        true -> first(left),
         _ -> first(right)
     }
 
@@ -53,23 +53,23 @@ crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, index);
     transition expression.kind {
-        ExpressionKind::Name -> named(typer, syntax, resolution, index, expression)
-        ExpressionKind::Path -> named(typer, syntax, resolution, index, expression)
-        ExpressionKind::Integer -> integer(typer, syntax, index, expression)
-        ExpressionKind::Boolean -> boolean(typer, index)
-        ExpressionKind::String -> string(typer, sources, index, expression)
-        ExpressionKind::Field -> field(typer, sources, syntax, index, expression)
-        ExpressionKind::Index -> indexed(typer, syntax, index, expression)
-        ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression)
-        ExpressionKind::Binary -> binary(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Cast -> cast(typer, sources, syntax, index, expression)
-        ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Apply -> application()
-        ExpressionKind::Membership -> membership(typer, syntax, resolution, index, expression)
-        ExpressionKind::Match -> matched(typer, sources, syntax, resolution, index, expression)
-        ExpressionKind::Float -> float_literal(typer, index)
-        ExpressionKind::Range -> range(typer, syntax, index, expression)
+        ExpressionKind::Name -> named(typer, syntax, resolution, index, expression),
+        ExpressionKind::Path -> named(typer, syntax, resolution, index, expression),
+        ExpressionKind::Integer -> integer(typer, syntax, index, expression),
+        ExpressionKind::Boolean -> boolean(typer, index),
+        ExpressionKind::String -> string(typer, sources, index, expression),
+        ExpressionKind::Field -> field(typer, sources, syntax, index, expression),
+        ExpressionKind::Index -> indexed(typer, syntax, index, expression),
+        ExpressionKind::Unary -> unary(typer, syntax, resolution, index, expression),
+        ExpressionKind::Binary -> binary(typer, sources, syntax, resolution, index, expression),
+        ExpressionKind::Cast -> cast(typer, sources, syntax, index, expression),
+        ExpressionKind::Call -> call(typer, sources, syntax, resolution, index, expression),
+        ExpressionKind::Construct -> construct(typer, sources, syntax, resolution, index, expression),
+        ExpressionKind::Apply -> application(),
+        ExpressionKind::Membership -> membership(typer, syntax, resolution, index, expression),
+        ExpressionKind::Match -> matched(typer, sources, syntax, resolution, index, expression),
+        ExpressionKind::Float -> float_literal(typer, index),
+        ExpressionKind::Range -> range(typer, syntax, index, expression),
         ExpressionKind::Array -> array(typer, syntax, index, expression)
     }
 
@@ -109,7 +109,7 @@ crashes Trap
         let value: LiteralValue = literal_value(syntax, expression.literal);
         let anonymous: ExactInteger = ExactInteger { negative: false, magnitude: value.magnitude };
         transition value.valid {
-            true -> integer_valid(typer, index, expression, value, anonymous)
+            true -> integer_valid(typer, index, expression, value, anonymous),
             _ -> literal_rejected(typer, expression)
         }
     }
@@ -117,7 +117,7 @@ crashes Trap
     machine integer_valid(typer: @mut Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
         typing_set_value(@mut typer.output, index, anonymous);
         transition value.has_suffix {
-            true -> suffixed(typer, index, expression, value, anonymous)
+            true -> suffixed(typer, index, expression, value, anonymous),
             _ -> unsuffixed(typer, index)
         }
     }
@@ -133,7 +133,7 @@ crashes Trap
         let mut row: TypeRow = type_row_of(TypeKind::Builtin);
         row.builtin = value.suffix;
         transition fits {
-            true -> suffixed_type(typer, index, expression, row)
+            true -> suffixed_type(typer, index, expression, row),
             _ -> out_of_range(typer, expression)
         }
     }
@@ -186,7 +186,7 @@ crashes Trap
 
     machine cast(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {
         transition expression.flag {
-            true -> domain_cast(typer, sources, syntax, index, expression)
+            true -> domain_cast(typer, sources, syntax, index, expression),
             _ -> carrier_cast(typer, index, expression)
         }
     }
@@ -230,17 +230,17 @@ crashes Trap
 {
     let binding: ValueBinding = value_binding(resolution, index);
     transition binding {
-        ValueBinding::Local { statement } -> local(typer, syntax, statement)
-        ValueBinding::Parameter { parameter } -> parameter(typer, syntax, parameter)
-        ValueBinding::PatternBinder { field } -> binder(typer, field)
-        ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case)
-        ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter)
-        ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant)
-        ValueBinding::Field { field } -> field(typer, syntax, field)
-        ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine)
-        ValueBinding::ContractReturnedValue { contract } -> contract_returned(typer, syntax, contract)
-        ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain)
-        ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item)
+        ValueBinding::Local { statement } -> local(typer, syntax, statement),
+        ValueBinding::Parameter { parameter } -> parameter(typer, syntax, parameter),
+        ValueBinding::PatternBinder { field } -> binder(typer, field),
+        ValueBinding::DataCase { item, data_case } -> data_case(typer, syntax, index, item, data_case),
+        ValueBinding::GenericParameter { parameter } -> generic_value(typer, syntax, parameter),
+        ValueBinding::Constant { constant } -> constant_value(typer, syntax, constant),
+        ValueBinding::Field { field } -> field(typer, syntax, field),
+        ValueBinding::ReturnedValue { machine } -> returned(typer, syntax, machine),
+        ValueBinding::ContractReturnedValue { contract } -> contract_returned(typer, syntax, contract),
+        ValueBinding::DomainSubject { domain } -> subject(typer, syntax, domain),
+        ValueBinding::DataSubject { item } -> data_subject(typer, syntax, index, item),
         _ -> absent()
     }
 
@@ -255,7 +255,7 @@ crashes Trap
 
         machine argument(typer: @mut Typer, syntax: @SyntaxTrees, item: u64 in Trapping, expression: Expression, declared: DataItem, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
             transition offset < declared.generic_parameter_count {
-                true -> push(typer, syntax, item, expression, declared, first, offset)
+                true -> push(typer, syntax, item, expression, declared, first, offset),
                 _ -> applied(typer, item, expression, declared, first)
             }
         }
@@ -267,7 +267,7 @@ crashes Trap
             let argument: u64 in Trapping = typer_intern(typer, argument_row, expression.source_span);
             let kept: bool = type_table_push_argument(@mut typer.output.types, argument);
             transition kept && argument > 0 {
-                true -> argument(typer, syntax, item, expression, declared, first, offset + 1)
+                true -> argument(typer, syntax, item, expression, declared, first, offset + 1),
                 _ -> zero()
             }
         }
@@ -324,7 +324,7 @@ crashes Trap
     machine generic_value(typer: @mut Typer, syntax: @SyntaxTrees, parameter: u64 in Trapping) -> u64 in Trapping {
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
         transition generic.has_type_reference {
-            true -> annotated(typer, generic)
+            true -> annotated(typer, generic),
             _ -> absent()
         }
     }
@@ -356,7 +356,7 @@ crashes Trap
         let mut row: TypeRow = type_row_of(TypeKind::Data);
         row.item = item;
         transition declared.payload_field_count == 0 {
-            true -> data_type(typer, row, expression)
+            true -> data_type(typer, row, expression),
             _ -> absent()
         }
     }
@@ -379,7 +379,7 @@ crashes Trap
 {
     let receiver: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
     transition receiver > 0 {
-        true -> projected(typer, sources, syntax, index, expression, receiver)
+        true -> projected(typer, sources, syntax, index, expression, receiver),
         _ -> not_a_value(typer, syntax, expression.left)
     }
 
@@ -387,7 +387,7 @@ crashes Trap
         let base: u64 in Trapping = typer_referent(typer, receiver);
         let row: TypeRow = type_table_row(@typer.output.types, base);
         transition row.kind == TypeKind::Data {
-            true -> data(typer, sources, syntax, index, expression, row)
+            true -> data(typer, sources, syntax, index, expression, row),
             _ -> collection(typer, sources, index, expression, row)
         }
     }
@@ -397,7 +397,7 @@ crashes Trap
     machine collection(typer: @mut Typer, sources: @SourceSet, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         let length: bool = span_spells(sources, expression.name.source_span, "len");
         transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array) && length {
-            true -> counted(typer, index, expression)
+            true -> counted(typer, index, expression),
             _ -> not_data(typer, expression)
         }
     }
@@ -417,7 +417,7 @@ crashes Trap
 
     machine candidate(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.field_count {
-            true -> compare(typer, sources, syntax, index, expression, row, item, offset)
+            true -> compare(typer, sources, syntax, index, expression, row, item, offset),
             _ -> payload_case(typer, sources, syntax, index, expression, row, item, 0)
         }
     }
@@ -426,7 +426,7 @@ crashes Trap
     // The Rust producer still checks the preceding case conjunct before use.
     machine payload_case(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.case_count {
-            true -> payload_open(typer, sources, syntax, index, expression, row, item, offset)
+            true -> payload_open(typer, sources, syntax, index, expression, row, item, offset),
             _ -> unknown(typer, expression)
         }
     }
@@ -438,7 +438,7 @@ crashes Trap
 
     machine payload_field(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, item: DataItem, offset: u64 in Trapping, declared: DataCase, field_offset: u64 in Trapping) {
         transition field_offset < declared.payload_field_count {
-            true -> payload_compare(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset)
+            true -> payload_compare(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset),
             _ -> payload_case(typer, sources, syntax, index, expression, row, item, offset + 1)
         }
     }
@@ -447,7 +447,7 @@ crashes Trap
         let field: DataField = syntax_trees_payload_field(syntax, declared.first_payload_field + field_offset);
         let spelled: bool = spans_equal(sources, field.name.source_span, expression.name.source_span);
         transition spelled {
-            true -> payload_found(typer, syntax, index, expression, row, field)
+            true -> payload_found(typer, syntax, index, expression, row, field),
             _ -> payload_field(typer, sources, syntax, index, expression, row, item, offset, declared, field_offset + 1)
         }
     }
@@ -462,7 +462,7 @@ crashes Trap
         let declared: DataField = syntax_trees_field(syntax, item.first_field + offset);
         let spelled: bool = spans_equal(sources, declared.name.source_span, expression.name.source_span);
         transition spelled {
-            true -> found(typer, syntax, index, expression, row, item.first_field + offset, declared)
+            true -> found(typer, syntax, index, expression, row, item.first_field + offset, declared),
             _ -> candidate(typer, sources, syntax, index, expression, row, item, offset + 1)
         }
     }
@@ -500,14 +500,14 @@ crashes Trap
     let selector: u64 in Trapping = typer_read_type(typer, written_selector);
     let operand: Expression = syntax_trees_expression(syntax, expression.right);
     transition collection > 0 && selector > 0 && operand.kind == ExpressionKind::Range {
-        true -> sliced(typer, index, expression, collection)
+        true -> sliced(typer, index, expression, collection),
         _ -> single(typer, syntax, index, expression, collection, selector)
     }
 
     machine single(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, collection: u64 in Trapping, selector: u64 in Trapping) {
         record_scalar_read(typer, expression.right, selector);
         transition collection > 0 && selector > 0 {
-            true -> typed(typer, syntax, index, expression, collection, selector)
+            true -> typed(typer, syntax, index, expression, collection, selector),
             _ -> not_a_value(typer, expression)
         }
     }
@@ -520,14 +520,14 @@ crashes Trap
         let base: u64 in Trapping = typer_referent(typer, collection);
         let row: TypeRow = type_table_row(@typer.output.types, base);
         transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
-            true -> slice_qualification(typer, index, expression, row)
+            true -> slice_qualification(typer, index, expression, row),
             _ -> not_collection(typer, expression)
         }
     }
 
     machine slice_qualification(typer: @mut Typer, index: u64 in Trapping, expression: Expression, row: TypeRow) {
         transition row.domain == DomainBinding::Unqualified {
-            true -> view(typer, index, expression, row)
+            true -> view(typer, index, expression, row),
             _ -> qualified_index(typer, expression)
         }
     }
@@ -544,7 +544,7 @@ crashes Trap
         let base: u64 in Trapping = typer_referent(typer, collection);
         let row: TypeRow = type_table_row(@typer.output.types, base);
         transition row.kind == TypeKind::Array || row.kind == TypeKind::Slice {
-            true -> element(typer, syntax, index, expression, row, selector)
+            true -> element(typer, syntax, index, expression, row, selector),
             _ -> not_collection(typer, expression)
         }
     }
@@ -552,7 +552,7 @@ crashes Trap
     machine element(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, row: TypeRow, selector: u64 in Trapping) {
         let selected: TypeRow = type_table_row(@typer.output.types, selector);
         transition row.domain == DomainBinding::Unqualified && selected.domain == DomainBinding::Unqualified {
-            true -> unqualified(typer, syntax, index, expression, row, selector)
+            true -> unqualified(typer, syntax, index, expression, row, selector),
             _ -> qualified_index(typer, expression)
         }
     }
@@ -562,7 +562,7 @@ crashes Trap
         let anonymous: bool = selector == typer.output.anonymous;
         set_expression_type(@mut typer.output, index, row.inner);
         transition integer {
-            true -> done()
+            true -> done(),
             _ -> anonymous_index(typer, syntax, expression, anonymous)
         }
     }
@@ -573,7 +573,7 @@ crashes Trap
 
     machine anonymous_index(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, anonymous: bool) {
         transition anonymous {
-            true -> land(typer, syntax, expression)
+            true -> land(typer, syntax, expression),
             _ -> not_integer(typer, syntax, expression)
         }
     }
@@ -610,7 +610,7 @@ crashes Trap
     let unit: u64 in Trapping = typer.output.unit;
     set_expression_type(@mut typer.output, index, unit);
     transition expression.first == 1 {
-        true -> start(typer, syntax, expression)
+        true -> start(typer, syntax, expression),
         _ -> end(typer, syntax, expression)
     }
 
@@ -621,7 +621,7 @@ crashes Trap
 
     machine end(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression) {
         transition expression.count == 1 && typer.output.accepted {
-            true -> ended(typer, syntax, expression)
+            true -> ended(typer, syntax, expression),
             _ -> done()
         }
     }
@@ -642,14 +642,14 @@ crashes Trap
     let typed: u64 in Trapping = typing_expression_type(@typer.output, endpoint);
     let integer: bool = integer_type(typer, typed);
     transition integer {
-        true -> qualified(typer, syntax, endpoint, typed)
+        true -> qualified(typer, syntax, endpoint, typed),
         _ -> other(typer, syntax, endpoint, typed == typer.output.anonymous)
     }
 
     machine qualified(typer: @mut Typer, syntax: @SyntaxTrees, endpoint: u64 in Trapping, typed: u64 in Trapping) {
         let row: TypeRow = type_table_row(@typer.output.types, typed);
         transition row.domain == DomainBinding::Unqualified {
-            true -> done()
+            true -> done(),
             _ -> unsupported(typer, syntax, endpoint)
         }
     }
@@ -661,7 +661,7 @@ crashes Trap
 
     machine other(typer: @mut Typer, syntax: @SyntaxTrees, endpoint: u64 in Trapping, anonymous: bool) {
         transition anonymous {
-            true -> land(typer, syntax, endpoint)
+            true -> land(typer, syntax, endpoint),
             _ -> not_integer(typer, syntax, endpoint)
         }
     }
@@ -690,8 +690,8 @@ crashes Trap
     let expression: Expression = syntax_trees_expression(syntax, place);
     let typed: u64 in Trapping = typing_expression_type(@typer.output, place);
     transition expression.kind {
-        ExpressionKind::Index -> indexed(typer, expression)
-        ExpressionKind::Name -> named(typer, typed)
+        ExpressionKind::Index -> indexed(typer, expression),
+        ExpressionKind::Name -> named(typer, typed),
         _ -> result(typed)
     }
 
@@ -701,7 +701,7 @@ crashes Trap
     machine named(typer: @Typer, typed: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(@typer.output.types, typed);
         transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
-            true -> result(row.inner)
+            true -> result(row.inner),
             _ -> result(typed)
         }
     }
@@ -724,7 +724,7 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);
     transition row.kind == TypeKind::Builtin {
-        true -> builtin(row)
+        true -> builtin(row),
         _ -> no()
     }
 
@@ -757,7 +757,7 @@ crashes Trap
 {
     let operand: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
     transition operand > 0 {
-        true -> typed(typer, syntax, resolution, index, expression, operand)
+        true -> typed(typer, syntax, resolution, index, expression, operand),
         _ -> not_a_value(typer, expression)
     }
 
@@ -765,12 +765,12 @@ crashes Trap
     machine typed(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let read: u64 in Trapping = typer_read_type(typer, operand);
         transition expression.operator {
-            OperatorKind::Not -> scalar_operator(typer, index, expression, read)
-            OperatorKind::Negate -> scalar_operator(typer, index, expression, read)
-            OperatorKind::BitNot -> scalar_operator(typer, index, expression, read)
-            OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared)
-            OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand)
-            OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand)
+            OperatorKind::Not -> scalar_operator(typer, index, expression, read),
+            OperatorKind::Negate -> scalar_operator(typer, index, expression, read),
+            OperatorKind::BitNot -> scalar_operator(typer, index, expression, read),
+            OperatorKind::Borrow -> borrow(typer, index, expression, operand, ReferenceAccess::Shared),
+            OperatorKind::BorrowMutable -> borrow_mutable(typer, syntax, resolution, index, expression, operand),
+            OperatorKind::BorrowWrite -> borrow_write(typer, syntax, resolution, index, expression, operand),
             _ -> acknowledged(typer, syntax, index, expression, operand)
         }
     }
@@ -780,16 +780,16 @@ crashes Trap
     machine scalar_operator(typer: @mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let row: TypeRow = type_table_row(@typer.output.types, operand);
         transition row.domain == DomainBinding::Unqualified {
-            true -> scalar_builtin(typer, index, expression, operand)
+            true -> scalar_builtin(typer, index, expression, operand),
             _ -> unsupported(typer, expression)
         }
     }
 
     machine scalar_builtin(typer: @mut Typer, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         transition expression.operator {
-            OperatorKind::Not -> not(typer, index, expression, operand)
-            OperatorKind::Negate -> negate(typer, index, expression, operand)
-            OperatorKind::BitNot -> complement(typer, index, expression, operand)
+            OperatorKind::Not -> not(typer, index, expression, operand),
+            OperatorKind::Negate -> negate(typer, index, expression, operand),
+            OperatorKind::BitNot -> complement(typer, index, expression, operand),
             _ -> unsupported(typer, expression)
         }
     }
@@ -802,7 +802,7 @@ crashes Trap
         record_scalar_read(typer, expression.left, operand);
         set_expression_type(@mut typer.output, index, operand);
         transition operand == typer.output.boolean {
-            true -> done()
+            true -> done(),
             _ -> not_boolean(typer, expression)
         }
     }
@@ -814,7 +814,7 @@ crashes Trap
         let signed: bool = signed_integer || float;
         set_expression_type(@mut typer.output, index, operand);
         transition operand == typer.output.anonymous {
-            true -> negate_anonymous(typer, index, expression)
+            true -> negate_anonymous(typer, index, expression),
             _ -> negate_typed(typer, expression, signed)
         }
     }
@@ -831,7 +831,7 @@ crashes Trap
 
     machine negate_typed(typer: @mut Typer, expression: Expression, signed: bool) {
         transition signed {
-            true -> done()
+            true -> done(),
             _ -> mismatch(typer, expression)
         }
     }
@@ -841,7 +841,7 @@ crashes Trap
         let integer: bool = integer_type(typer, operand);
         set_expression_type(@mut typer.output, index, operand);
         transition integer {
-            true -> done()
+            true -> done(),
             _ -> mismatch(typer, expression)
         }
     }
@@ -854,7 +854,7 @@ crashes Trap
         row.access = access;
         row.inner = referent;
         transition operand == typer.output.anonymous {
-            true -> not_a_place(typer, expression)
+            true -> not_a_place(typer, expression),
             _ -> borrowed(typer, index, expression, row)
         }
     }
@@ -871,14 +871,14 @@ crashes Trap
         let place: bool = is_place(typer, syntax, resolution, expression.left);
         let shared: bool = through_shared(typer, syntax, expression.left);
         transition place {
-            true -> exclusive_source(typer, syntax, index, expression, operand, shared)
+            true -> exclusive_source(typer, syntax, index, expression, operand, shared),
             _ -> not_a_place(typer, expression)
         }
     }
 
     machine exclusive_source(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping, shared: bool) {
         transition shared {
-            true -> immutable_source(typer, syntax, expression)
+            true -> immutable_source(typer, syntax, expression),
             _ -> borrow(typer, index, expression, operand, ReferenceAccess::Mutable)
         }
     }
@@ -889,7 +889,7 @@ crashes Trap
     machine borrow_write(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let place: bool = is_place(typer, syntax, resolution, expression.left);
         transition place {
-            true -> write_source(typer, syntax, resolution, index, expression, operand)
+            true -> write_source(typer, syntax, resolution, index, expression, operand),
             _ -> not_a_place(typer, expression)
         }
     }
@@ -897,7 +897,7 @@ crashes Trap
     machine write_source(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
         let writable: bool = writable_place(typer, syntax, resolution, expression.left);
         transition writable {
-            true -> borrow(typer, index, expression, operand, ReferenceAccess::WriteOnly)
+            true -> borrow(typer, index, expression, operand, ReferenceAccess::WriteOnly),
             _ -> immutable_source(typer, syntax, expression)
         }
     }
@@ -911,7 +911,7 @@ crashes Trap
         let operand_expression: Expression = syntax_trees_expression(syntax, expression.left);
         set_expression_type(@mut typer.output, index, operand);
         transition operand_expression.kind == ExpressionKind::Call {
-            true -> done()
+            true -> done(),
             _ -> mismatch(typer, expression)
         }
     }
@@ -947,7 +947,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typer.output.types, handle);
         let expression: Expression = syntax_trees_expression(syntax, index);
         transition row.kind == TypeKind::Reference {
-            true -> yes()
+            true -> yes(),
             _ -> written(typer, syntax, resolution, index, expression)
         }
     }
@@ -957,7 +957,7 @@ crashes Trap
     // still establishes the exact backing and loan before any write.
     machine written(typer: @Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression) -> bool {
         transition expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index {
-            true -> step(typer, syntax, resolution, expression.left)
+            true -> step(typer, syntax, resolution, expression.left),
             _ -> root(resolution, index)
         }
     }
@@ -965,9 +965,9 @@ crashes Trap
     machine root(resolution: @NameResolution, index: u64 in Trapping) -> bool {
         let binding: ValueBinding = value_binding(resolution, index);
         transition binding {
-            ValueBinding::Local { statement } -> yes()
-            ValueBinding::Parameter { parameter } -> yes()
-            ValueBinding::PatternBinder { field } -> yes()
+            ValueBinding::Local { statement } -> yes(),
+            ValueBinding::Parameter { parameter } -> yes(),
+            ValueBinding::PatternBinder { field } -> yes(),
             _ -> no()
         }
     }
@@ -991,14 +991,14 @@ crashes Trap
         let shared: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared;
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
         transition shared {
-            true -> answer(true)
+            true -> answer(true),
             _ -> deeper(typer, syntax, expression.left, walked, projected)
         }
     }
 
     machine deeper(typer: @Typer, syntax: @SyntaxTrees, base: u64 in Trapping, walked: u64 in Trapping, projected: bool) -> bool {
         transition projected && walked < 64 {
-            true -> step(typer, syntax, base, walked + 1)
+            true -> step(typer, syntax, base, walked + 1),
             _ -> answer(false)
         }
     }
@@ -1026,21 +1026,21 @@ crashes Trap
         let projected: bool = expression.kind == ExpressionKind::Field || expression.kind == ExpressionKind::Index;
         let shared: bool = row.kind == TypeKind::Reference && row.access == ReferenceAccess::Shared;
         transition shared {
-            true -> answer(false)
+            true -> answer(false),
             _ -> access(typer, syntax, resolution, handle, expression, projected, exclusive)
         }
     }
 
     machine access(typer: @Typer, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool, exclusive: bool) -> bool {
         transition exclusive {
-            true -> answer(true)
+            true -> answer(true),
             _ -> inner(typer, syntax, resolution, handle, expression, projected)
         }
     }
 
     machine inner(typer: @Typer, syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping, expression: Expression, projected: bool) -> bool {
         transition projected {
-            true -> step(typer, syntax, resolution, expression.left)
+            true -> step(typer, syntax, resolution, expression.left),
             _ -> root(syntax, resolution, handle)
         }
     }
@@ -1048,8 +1048,8 @@ crashes Trap
     machine root(syntax: @SyntaxTrees, resolution: @NameResolution, handle: u64 in Trapping) -> bool {
         let binding: ValueBinding = value_binding(resolution, handle);
         transition binding {
-            ValueBinding::Local { statement } -> local(syntax, statement)
-            ValueBinding::Parameter { parameter } -> parameter(syntax, parameter)
+            ValueBinding::Local { statement } -> local(syntax, statement),
+            ValueBinding::Parameter { parameter } -> parameter(syntax, parameter),
             _ -> answer(false)
         }
     }
@@ -1092,7 +1092,7 @@ crashes Trap
     let left: u64 in Trapping = typer_read_type(typer, written_left);
     let right: u64 in Trapping = typer_read_type(typer, written_right);
     transition left > 0 && right > 0 {
-        true -> typed(typer, sources, syntax, resolution, index, expression, left, right)
+        true -> typed(typer, sources, syntax, resolution, index, expression, left, right),
         _ -> not_a_value(typer, expression)
     }
 
@@ -1113,7 +1113,7 @@ crashes Trap
         let left_data: bool = typer_data_type(typer, left);
         let right_data: bool = typer_data_type(typer, right);
         transition token != OperatorToken::None && (left_data || right_data) {
-            true -> declared(typer, sources, syntax, resolution, index, expression)
+            true -> declared(typer, sources, syntax, resolution, index, expression),
             _ -> qualification(typer, syntax, index, expression, left, right)
         }
     }
@@ -1124,7 +1124,7 @@ crashes Trap
         let left_row: TypeRow = qualified_row(@typer.output.types, left_outer);
         let right_row: TypeRow = qualified_row(@typer.output.types, right_outer);
         transition left_row.domain == DomainBinding::Unqualified && right_row.domain == DomainBinding::Unqualified {
-            true -> builtin(typer, syntax, index, expression, left, right)
+            true -> builtin(typer, syntax, index, expression, left, right),
             // Only authorized scalar reads may reach a policy declaration.
             // A remaining reference (notably &write) is not its referent.
             _ -> policy_side(typer, syntax, index, expression, left, right, left_outer, right_outer)
@@ -1136,7 +1136,7 @@ crashes Trap
     // A qualified comparison cannot borrow mixed-width builtin order laws.
     machine policy_side(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_row: TypeRow, right_row: TypeRow) {
         transition left_row.domain != DomainBinding::Unqualified {
-            true -> policy_shape(typer, syntax, index, expression, left, left_row, expression.right, right, right_row)
+            true -> policy_shape(typer, syntax, index, expression, left, left_row, expression.right, right, right_row),
             _ -> policy_shape(typer, syntax, index, expression, right, right_row, expression.left, left, left_row)
         }
     }
@@ -1148,24 +1148,24 @@ crashes Trap
         let same: bool = peer_row.kind == TypeKind::Builtin && peer_row.builtin == row.builtin
             && (peer_row.domain == DomainBinding::Unqualified || peer_row.domain == row.domain);
         transition fixed && supported && (same || peer == typer.output.anonymous) {
-            true -> policy_operator(typer, syntax, index, expression, policy, row, peer_expression, peer)
+            true -> policy_operator(typer, syntax, index, expression, policy, row, peer_expression, peer),
             _ -> unsupported_policy(typer, expression)
         }
     }
 
     machine policy_operator(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, policy: u64 in Trapping, row: TypeRow, peer_expression: u64 in Trapping, peer: u64 in Trapping) {
         transition expression.operator {
-            OperatorKind::Add -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
-            OperatorKind::Subtract -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
-            OperatorKind::Multiply -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
-            OperatorKind::Divide -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
-            OperatorKind::Modulo -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer)
-            OperatorKind::Equal -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
-            OperatorKind::NotEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
-            OperatorKind::Less -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
-            OperatorKind::LessEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
-            OperatorKind::Greater -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
-            OperatorKind::GreaterEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer)
+            OperatorKind::Add -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer),
+            OperatorKind::Subtract -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer),
+            OperatorKind::Multiply -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer),
+            OperatorKind::Divide -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer),
+            OperatorKind::Modulo -> policy_selected(typer, syntax, index, expression, policy, row, peer_expression, peer),
+            OperatorKind::Equal -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
+            OperatorKind::NotEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
+            OperatorKind::Less -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
+            OperatorKind::LessEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
+            OperatorKind::Greater -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
+            OperatorKind::GreaterEqual -> policy_comparison(typer, syntax, index, expression, row, peer_expression, peer),
             _ -> unsupported_policy(typer, expression)
         }
     }
@@ -1184,7 +1184,7 @@ crashes Trap
         record_scalar_read(typer, expression.left, left_read);
         record_scalar_read(typer, expression.right, right_read);
         transition peer == typer.output.anonymous {
-            true -> policy_literal(typer, syntax, expression, row, peer_expression)
+            true -> policy_literal(typer, syntax, expression, row, peer_expression),
             _ -> done()
         }
     }
@@ -1209,16 +1209,16 @@ crashes Trap
         record_scalar_read(typer, expression.left, left);
         record_scalar_read(typer, expression.right, right);
         transition expression.operator {
-            OperatorKind::Or -> logical(typer, index, expression, left, right)
-            OperatorKind::And -> logical(typer, index, expression, left, right)
-            OperatorKind::Equal -> equality(typer, syntax, index, expression, left, right)
-            OperatorKind::NotEqual -> equality(typer, syntax, index, expression, left, right)
-            OperatorKind::Less -> order(typer, syntax, index, expression, left, right)
-            OperatorKind::LessEqual -> order(typer, syntax, index, expression, left, right)
-            OperatorKind::Greater -> order(typer, syntax, index, expression, left, right)
-            OperatorKind::GreaterEqual -> order(typer, syntax, index, expression, left, right)
-            OperatorKind::ShiftLeft -> shift(typer, syntax, index, expression, left, right)
-            OperatorKind::ShiftRight -> shift(typer, syntax, index, expression, left, right)
+            OperatorKind::Or -> logical(typer, index, expression, left, right),
+            OperatorKind::And -> logical(typer, index, expression, left, right),
+            OperatorKind::Equal -> equality(typer, syntax, index, expression, left, right),
+            OperatorKind::NotEqual -> equality(typer, syntax, index, expression, left, right),
+            OperatorKind::Less -> order(typer, syntax, index, expression, left, right),
+            OperatorKind::LessEqual -> order(typer, syntax, index, expression, left, right),
+            OperatorKind::Greater -> order(typer, syntax, index, expression, left, right),
+            OperatorKind::GreaterEqual -> order(typer, syntax, index, expression, left, right),
+            OperatorKind::ShiftLeft -> shift(typer, syntax, index, expression, left, right),
+            OperatorKind::ShiftRight -> shift(typer, syntax, index, expression, left, right),
             _ -> arithmetic(typer, syntax, index, expression, left, right)
         }
     }
@@ -1227,7 +1227,7 @@ crashes Trap
         let boolean_type: u64 in Trapping = typer.output.boolean;
         set_expression_type(@mut typer.output, index, boolean_type);
         transition left == typer.output.boolean && right == typer.output.boolean {
-            true -> done()
+            true -> done(),
             _ -> not_boolean(typer, expression)
         }
     }
@@ -1238,7 +1238,7 @@ crashes Trap
         let comparable: bool = intrinsic_equality(typer, syntax, left);
         let sequences: bool = byte_sequence(typer, left) && byte_sequence(typer, right);
         transition (left == right && comparable) || sequences {
-            true -> compared(typer, index)
+            true -> compared(typer, index),
             _ -> order(typer, syntax, index, expression, left, right)
         }
     }
@@ -1249,7 +1249,7 @@ crashes Trap
         let boolean_type: u64 in Trapping = typer.output.boolean;
         set_expression_type(@mut typer.output, index, boolean_type);
         transition left_integer && right_integer {
-            true -> integer_order(typer, syntax, expression, left, right)
+            true -> integer_order(typer, syntax, expression, left, right),
             _ -> float_comparison(typer, syntax, expression, left, right)
         }
     }
@@ -1262,21 +1262,21 @@ crashes Trap
         let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
         let right_anonymous: bool = right == typer.output.anonymous || right == typer.output.anonymous_float;
         transition (left_float || left_anonymous) && (right_float || right_anonymous) && (left_float || right_float) {
-            true -> float_operands(typer, syntax, expression, left, right, left_anonymous, right_anonymous)
+            true -> float_operands(typer, syntax, expression, left, right, left_anonymous, right_anonymous),
             _ -> unsupported_comparison(typer, expression)
         }
     }
 
     machine float_operands(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool, right_anonymous: bool) {
         transition left_anonymous && right_anonymous {
-            true -> done()
+            true -> done(),
             _ -> float_landing(typer, syntax, expression, left, right, left_anonymous)
         }
     }
 
     machine float_landing(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
         transition left_anonymous {
-            true -> admit_left(typer, syntax, expression, right)
+            true -> admit_left(typer, syntax, expression, right),
             _ -> admit_right(typer, syntax, expression, left)
         }
     }
@@ -1285,14 +1285,14 @@ crashes Trap
     // operands compare exactly.
     machine integer_order(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition left == typer.output.anonymous {
-            true -> land_left(typer, syntax, expression, left, right)
+            true -> land_left(typer, syntax, expression, left, right),
             _ -> land_right(typer, syntax, expression, left, right)
         }
     }
 
     machine land_left(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition right == typer.output.anonymous {
-            true -> done()
+            true -> done(),
             _ -> admit_left(typer, syntax, expression, right)
         }
     }
@@ -1303,7 +1303,7 @@ crashes Trap
 
     machine land_right(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, left: u64 in Trapping, right: u64 in Trapping) {
         transition right == typer.output.anonymous {
-            true -> admit_right(typer, syntax, expression, left)
+            true -> admit_right(typer, syntax, expression, left),
             _ -> done()
         }
     }
@@ -1324,7 +1324,7 @@ crashes Trap
         let right_integer: bool = integer_like(typer, right);
         set_expression_type(@mut typer.output, index, left);
         transition left_integer && right_integer {
-            true -> land_right(typer, syntax, expression, left, right)
+            true -> land_right(typer, syntax, expression, left, right),
             _ -> mismatch(typer, expression)
         }
     }
@@ -1333,7 +1333,7 @@ crashes Trap
         let left_anonymous: bool = left == typer.output.anonymous || left == typer.output.anonymous_float;
         let right_anonymous: bool = right == typer.output.anonymous || right == typer.output.anonymous_float;
         transition left == typer.output.anonymous && right == typer.output.anonymous {
-            true -> fold(typer, index, expression)
+            true -> fold(typer, index, expression),
             _ -> mixed_arithmetic(typer, syntax, index, expression, left, right, left_anonymous, right_anonymous)
         }
     }
@@ -1351,7 +1351,7 @@ crashes Trap
         right_anonymous: bool
     ) {
         transition left_anonymous && right_anonymous {
-            true -> anonymous_float_result(typer, index)
+            true -> anonymous_float_result(typer, index),
             _ -> typed_arithmetic(typer, syntax, index, expression, left, right, left_anonymous)
         }
     }
@@ -1363,7 +1363,7 @@ crashes Trap
 
     machine typed_arithmetic(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, left: u64 in Trapping, right: u64 in Trapping, left_anonymous: bool) {
         transition left_anonymous {
-            true -> typed_carrier(typer, syntax, index, expression, right)
+            true -> typed_carrier(typer, syntax, index, expression, right),
             _ -> typed_carrier(typer, syntax, index, expression, left)
         }
     }
@@ -1372,7 +1372,7 @@ crashes Trap
         let numeric: bool = numeric_type(typer, carrier);
         set_expression_type(@mut typer.output, index, carrier);
         transition numeric {
-            true -> operands(typer, syntax, expression, carrier)
+            true -> operands(typer, syntax, expression, carrier),
             _ -> mismatch(typer, expression)
         }
     }
@@ -1380,7 +1380,7 @@ crashes Trap
     machine operands(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, carrier: u64 in Trapping) {
         let left_admitted: bool = typer_admit(typer, syntax, carrier, expression.left, false);
         transition left_admitted {
-            true -> right_operand(typer, syntax, expression, carrier)
+            true -> right_operand(typer, syntax, expression, carrier),
             _ -> done()
         }
     }
@@ -1403,11 +1403,11 @@ crashes Trap
         let anonymous_type: u64 in Trapping = typer.output.anonymous;
         set_expression_type(@mut typer.output, index, anonymous_type);
         transition expression.operator {
-            OperatorKind::Add -> folded(typer, index, expression, sum)
-            OperatorKind::Subtract -> folded(typer, index, expression, difference)
-            OperatorKind::Multiply -> folded(typer, index, expression, product)
-            OperatorKind::Divide -> divided(typer, index, expression, quotient, right)
-            OperatorKind::Modulo -> remainder(typer, expression)
+            OperatorKind::Add -> folded(typer, index, expression, sum),
+            OperatorKind::Subtract -> folded(typer, index, expression, difference),
+            OperatorKind::Multiply -> folded(typer, index, expression, product),
+            OperatorKind::Divide -> divided(typer, index, expression, quotient, right),
+            OperatorKind::Modulo -> remainder(typer, expression),
             _ -> mismatch(typer, expression)
         }
     }
@@ -1416,7 +1416,7 @@ crashes Trap
         let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
         set_rational(@mut typer.output, index, result.value, origin);
         transition result.valid {
-            true -> done()
+            true -> done(),
             _ -> out_of_range(typer, expression)
         }
     }
@@ -1425,14 +1425,14 @@ crashes Trap
         let origin: u64 in Trapping = binary_fractional_origin(typer, expression);
         set_rational(@mut typer.output, index, result.value, origin);
         transition result.valid {
-            true -> done()
+            true -> done(),
             _ -> undivided(typer, expression, divisor)
         }
     }
 
     machine undivided(typer: @mut Typer, expression: Expression, divisor: Rational) {
         transition divisor.numerator.magnitude == 0 {
-            true -> fraction(typer, expression)
+            true -> fraction(typer, expression),
             _ -> out_of_range(typer, expression)
         }
     }
@@ -1508,7 +1508,7 @@ crashes Trap
     let row: TypeRow = type_table_row(@typer.output.types, referent);
     transition (row.kind == TypeKind::Slice || row.kind == TypeKind::Array)
         && row.domain == DomainBinding::Unqualified {
-        true -> elements(typer, row)
+        true -> elements(typer, row),
         _ -> answer(false)
     }
 
@@ -1529,9 +1529,9 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);
     transition row.kind {
-        TypeKind::Builtin -> builtin(row)
-        TypeKind::Data -> data(syntax, row)
-        TypeKind::AnonymousInteger -> exact()
+        TypeKind::Builtin -> builtin(row),
+        TypeKind::Data -> data(syntax, row),
+        TypeKind::AnonymousInteger -> exact(),
         _ -> no()
     }
 
@@ -1548,14 +1548,14 @@ crashes Trap
     machine data(syntax: @SyntaxTrees, row: TypeRow) -> bool {
         let item: DataItem = syntax_trees_data_item(syntax, row.item);
         transition item.field_count == 0 && item.case_count > 0 {
-            true -> cases(syntax, item, 0)
+            true -> cases(syntax, item, 0),
             _ -> no()
         }
     }
 
     machine cases(syntax: @SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
         transition offset < item.case_count {
-            true -> payload(syntax, item, offset)
+            true -> payload(syntax, item, offset),
             _ -> yes()
         }
     }
@@ -1563,7 +1563,7 @@ crashes Trap
     machine payload(syntax: @SyntaxTrees, item: DataItem, offset: u64 in Trapping) -> bool {
         let declared: DataCase = syntax_trees_data_case(syntax, item.first_case + offset);
         transition declared.payload_field_count == 0 {
-            true -> cases(syntax, item, offset + 1)
+            true -> cases(syntax, item, offset + 1),
             _ -> no()
         }
     }
@@ -1597,20 +1597,20 @@ crashes Trap
     let target_qualification: TypeRow = qualified_row(@typer.output.types, target_row);
     transition source_qualification.domain == DomainBinding::Unqualified
         && target_qualification.domain == DomainBinding::Unqualified {
-        true -> carrier(typer, index, expression, written, source, target, source_integer, target_integer, target_row)
+        true -> carrier(typer, index, expression, written, source, target, source_integer, target_integer, target_row),
         _ -> invalid(typer, expression)
     }
 
     machine carrier(typer: @mut Typer, index: u64 in Trapping, expression: Expression, written: u64 in Trapping, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool, target_row: TypeRow) {
         transition target_row.kind == TypeKind::Reference {
-            true -> recast(typer, expression, written, target_row)
+            true -> recast(typer, expression, written, target_row),
             _ -> plain(typer, index, expression, source, target, source_integer, target_integer)
         }
     }
 
     machine plain(typer: @mut Typer, index: u64 in Trapping, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, source_integer: bool, target_integer: bool) {
         transition source == target {
-            true -> done()
+            true -> done(),
             _ -> converted(typer, index, expression, source, target, source_integer, target_integer)
         }
     }
@@ -1621,7 +1621,7 @@ crashes Trap
     machine recast(typer: @mut Typer, expression: Expression, written: u64 in Trapping, target_row: TypeRow) {
         let given: TypeRow = type_table_row(@typer.output.types, written);
         transition given.kind == TypeKind::Reference {
-            true -> recast_referents(typer, expression, given, target_row)
+            true -> recast_referents(typer, expression, given, target_row),
             _ -> invalid(typer, expression)
         }
     }
@@ -1634,7 +1634,7 @@ crashes Trap
         let polarity: bool = target_row.access == given.access;
         let scalar: bool = source_width > 0 && source_width == target_width;
         transition polarity && (scalar || given.inner == target_row.inner) {
-            true -> done()
+            true -> done(),
             _ -> invalid(typer, expression)
         }
     }
@@ -1649,7 +1649,7 @@ crashes Trap
         target_integer: bool
     ) {
         transition target_integer && (source_integer || source == typer.output.boolean) {
-            true -> done()
+            true -> done(),
             _ -> requalified(typer, expression, source, target, target_integer)
         }
     }
@@ -1659,14 +1659,14 @@ crashes Trap
         let target_row: TypeRow = type_table_row(@typer.output.types, target);
         let same: bool = same_carrier(@typer.output.types, source_row, target_row);
         transition same {
-            true -> done()
+            true -> done(),
             _ -> anonymous(typer, expression, source, target, target_integer)
         }
     }
 
     machine anonymous(typer: @mut Typer, expression: Expression, source: u64 in Trapping, target: u64 in Trapping, target_integer: bool) {
         transition target_integer && source == typer.output.anonymous {
-            true -> land(typer, expression, target)
+            true -> land(typer, expression, target),
             _ -> invalid(typer, expression)
         }
     }
@@ -1677,14 +1677,14 @@ crashes Trap
         let row: TypeRow = type_table_row(@typer.output.types, target);
         let fits: bool = exact_integer_fits(row.builtin, value);
         transition denominator == 1 {
-            true -> integral(typer, expression, target, fits)
+            true -> integral(typer, expression, target, fits),
             _ -> fractional(typer, expression)
         }
     }
 
     machine integral(typer: @mut Typer, expression: Expression, target: u64 in Trapping, fits: bool) {
         transition fits {
-            true -> landed(typer, expression, target)
+            true -> landed(typer, expression, target),
             _ -> out_of_range(typer, expression)
         }
     }
@@ -1718,7 +1718,7 @@ crashes Trap
 {
     let path: NamePath = syntax_trees_name_path(syntax, expression.first);
     transition expression.count == 1 && path.member_count == 1 {
-        true -> named(typer, sources, syntax, index, expression, path)
+        true -> named(typer, sources, syntax, index, expression, path),
         _ -> unsupported(typer, expression)
     }
 
@@ -1730,7 +1730,7 @@ crashes Trap
         let policy: bool = domain == DomainBinding::Trapping || domain == DomainBinding::Wrapping
             || domain == DomainBinding::Saturating;
         transition policy {
-            true -> operand(typer, index, expression, domain)
+            true -> operand(typer, index, expression, domain),
             _ -> unsupported(typer, expression)
         }
     }
@@ -1742,37 +1742,37 @@ crashes Trap
         let integer: bool = row.kind == TypeKind::Builtin && fixed_integer(row.builtin);
         let collection: bool = row.kind == TypeKind::Array || row.kind == TypeKind::Slice;
         transition integer || collection {
-            true -> account(typer, index, expression, domain, outer, row)
+            true -> account(typer, index, expression, domain, outer, row),
             _ -> unsupported(typer, expression)
         }
     }
 
     machine account(typer: @mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
         transition expression.operator {
-            OperatorKind::Add -> addition(typer, index, expression, domain, outer, row)
-            OperatorKind::Subtract -> removal(typer, index, expression, domain, outer, row)
-            OperatorKind::Equal -> retention(typer, index, expression, domain, outer, row)
+            OperatorKind::Add -> addition(typer, index, expression, domain, outer, row),
+            OperatorKind::Subtract -> removal(typer, index, expression, domain, outer, row),
+            OperatorKind::Equal -> retention(typer, index, expression, domain, outer, row),
             _ -> invalid(typer, expression)
         }
     }
 
     machine addition(typer: @mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
         transition row.domain == DomainBinding::Unqualified {
-            true -> result(typer, index, expression, domain, outer, row)
+            true -> result(typer, index, expression, domain, outer, row),
             _ -> invalid(typer, expression)
         }
     }
 
     machine removal(typer: @mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
         transition row.domain == domain {
-            true -> result(typer, index, expression, DomainBinding::Unqualified, outer, row)
+            true -> result(typer, index, expression, DomainBinding::Unqualified, outer, row),
             _ -> invalid(typer, expression)
         }
     }
 
     machine retention(typer: @mut Typer, index: u64 in Trapping, expression: Expression, domain: DomainBinding, outer: TypeRow, row: TypeRow) {
         transition row.domain == domain {
-            true -> result(typer, index, expression, domain, outer, row)
+            true -> result(typer, index, expression, domain, outer, row),
             _ -> invalid(typer, expression)
         }
     }
@@ -1783,7 +1783,7 @@ crashes Trap
         qualified.domain_item = 0 as u64 +Trapping;
         let inner: u64 in Trapping = typer_intern(typer, qualified, expression.source_span);
         transition outer.kind == TypeKind::Reference {
-            true -> reference(typer, index, expression, outer, inner)
+            true -> reference(typer, index, expression, outer, inner),
             _ -> value(typer, index, inner)
         }
     }
@@ -1817,7 +1817,7 @@ crashes Trap
 {
     let written: u64 in Trapping = typing_expression_type(@typer.output, expression);
     transition written != read {
-        true -> recorded(typer, expression)
+        true -> recorded(typer, expression),
         _ -> done()
     }
 
@@ -1836,7 +1836,7 @@ crashes Trap
     let row: TypeRow = type_table_row(@typer.output.types, target);
     let read: u64 in Trapping = typer_read_type(typer, written);
     transition row.kind == TypeKind::Reference {
-        true -> answer(written)
+        true -> answer(written),
         _ -> answer(read)
     }
 
@@ -1852,7 +1852,7 @@ public machine substitute(typer: @mut Typer, syntax: @SyntaxTrees, handle: u64 i
 crashes Trap
 {
     transition owner.argument_count > 0 {
-        true -> applied(typer, syntax, handle, owner, source_span)
+        true -> applied(typer, syntax, handle, owner, source_span),
         _ -> unchanged(handle)
     }
 
@@ -1875,7 +1875,7 @@ crashes Trap
 {
     let left: u64 in Trapping = typing_fractional_origin(@typer.output, expression.left);
     transition left > 0 {
-        true -> found(left)
+        true -> found(left),
         _ -> right(typer, expression)
     }
     machine found(origin: u64 in Trapping) -> u64 in Trapping { origin }

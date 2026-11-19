@@ -15,13 +15,13 @@ machine Main::main(main: @mut Main) {
     main.counter.value = 5;
     main.double = true;
     transition main.double {
-        (true) -> run(main, Double as dyn Step<Counter>)
+        (true) -> run(main, Double as dyn Step<Counter>),
         _ -> run(main, Increment as dyn Step<Counter>)
     }
     machine run(main: @mut Main, step: dyn Step<Counter>) {
         Step::apply(step, @mut main.counter);
         transition main.counter.value == 10 {
-            (true) -> good(main)
+            (true) -> good(main),
             _ -> bad(main)
         }
     }

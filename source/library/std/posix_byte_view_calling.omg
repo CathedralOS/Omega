@@ -8,7 +8,7 @@ public LinuxArm64ByteViewCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = posix_byte_view_linux_arm64_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected {
                 reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
@@ -21,7 +21,7 @@ public LinuxX86ByteViewCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = posix_byte_view_linux_x86_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected {
                 reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
@@ -36,7 +36,7 @@ public SystemVByteViewCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = posix_byte_view_system_v_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected {
                 reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
@@ -49,7 +49,7 @@ public DarwinArm64ByteViewCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected {
                 reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
             }
@@ -62,13 +62,13 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mut Bou
         && signature.parameter_count <= 6
         && signature.callback_binder_count == 0 && signature.callback_demand_count == 0
         {
-        true -> completion(signature, plan)
+        true -> completion(signature, plan),
         _ -> false
     }
     machine completion(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool
     requires signature.parameter_count <= 6 {
         transition signature.has_result {
-            true -> result_index(signature, plan)
+            true -> result_index(signature, plan),
             _ -> unit(signature, plan)
         }
     }
@@ -81,7 +81,7 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mut Bou
     }
     machine result_index(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
-            true -> result(signature, plan, @signature.shapes[signature.result])
+            true -> result(signature, plan, @signature.shapes[signature.result]),
             _ -> false
         }
     }
@@ -89,7 +89,7 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mut Bou
     requires signature.parameter_count <= 32
     {
         transition shape.class {
-            ValueClass::Integer -> result_size(signature, plan, shape)
+            ValueClass::Integer -> result_size(signature, plan, shape),
             _ -> false
         }
     }
@@ -98,7 +98,7 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mut Bou
     {
         transition (shape.byte_size == 4 && shape.alignment == 4)
             || (shape.byte_size == 8 && shape.alignment == 8) {
-            true -> result_place(signature, plan, shape)
+            true -> result_place(signature, plan, shape),
             _ -> false
         }
     }
@@ -125,9 +125,9 @@ terminates by remaining
 {
     let next_word: u64 = posix_byte_view_parameter(signature, plan, ordinal, word);
     transition {
-        ordinal == signature.parameter_count -> (next_word <= 6)
+        ordinal == signature.parameter_count -> (next_word <= 6),
         ordinal < 6 && remaining > 0 && next_word <= 6 ->
-            posix_byte_view_parameters_from(signature, plan, ordinal + 1, next_word, remaining - 1)
+            posix_byte_view_parameters_from(signature, plan, ordinal + 1, next_word, remaining - 1),
         _ -> false
     }
 }
@@ -135,15 +135,15 @@ terminates by remaining
 machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
 {
         transition {
-            ordinal == signature.parameter_count -> word
-            ordinal < signature.parameter_count && ordinal < 6 && ordinal < 32 -> root(signature, plan, ordinal, word, signature.parameters[ordinal])
+            ordinal == signature.parameter_count -> word,
+            ordinal < signature.parameter_count && ordinal < 6 && ordinal < 32 -> root(signature, plan, ordinal, word, signature.parameters[ordinal]),
             _ -> 7
         }
     machine root(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan, ordinal: u64, word: u64, root: u64) -> u64
     requires ordinal < 6
     {
         transition root < signature.shape_count && root < 256 {
-            true -> shape(signature, plan, ordinal, word, @signature.shapes[root])
+            true -> shape(signature, plan, ordinal, word, @signature.shapes[root]),
             _ -> 7
         }
     }
@@ -151,8 +151,8 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
     requires ordinal < 6
     {
         transition shape.class {
-            ValueClass::Reference -> reference(signature, plan, ordinal, word, shape)
-            ValueClass::Integer -> scalar(signature, plan, ordinal, word, shape)
+            ValueClass::Reference -> reference(signature, plan, ordinal, word, shape),
+            ValueClass::Integer -> scalar(signature, plan, ordinal, word, shape),
             _ -> 7
         }
     }
@@ -160,8 +160,8 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
     requires ordinal < 6
     {
         transition {
-            shape.byte_size == 16 && shape.alignment == 8 && word <= 4 -> place(signature, plan, ordinal, word, shape, true)
-            shape.byte_size == 8 && shape.alignment == 8 && word < 6 -> place(signature, plan, ordinal, word, shape, false)
+            shape.byte_size == 16 && shape.alignment == 8 && word <= 4 -> place(signature, plan, ordinal, word, shape, true),
+            shape.byte_size == 8 && shape.alignment == 8 && word < 6 -> place(signature, plan, ordinal, word, shape, false),
             _ -> 7
         }
     }
@@ -170,7 +170,7 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
     {
         transition word < 6 && ((shape.byte_size == 4 && shape.alignment == 4)
             || (shape.byte_size == 8 && shape.alignment == 8)) {
-            true -> place(signature, plan, ordinal, word, shape, false)
+            true -> place(signature, plan, ordinal, word, shape, false),
             _ -> 7
         }
     }
@@ -181,7 +181,7 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
             class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
         };
         transition pair {
-            true -> pair(signature, plan, ordinal, word)
+            true -> pair(signature, plan, ordinal, word),
             _ -> single(signature, plan, ordinal, word, shape.byte_size)
         }
     }
@@ -189,7 +189,7 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
     requires ordinal < 6, word < 6
     {
         transition word <= 4 {
-            true -> pair_place(signature, plan, ordinal, word)
+            true -> pair_place(signature, plan, ordinal, word),
             _ -> 7
         }
     }
@@ -218,25 +218,25 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mut Boun
 
 machine posix_byte_view_argument_register(word: u64, convention: @CallingConvention) -> MachineRegister {
     transition convention {
-        CallingConvention::LinuxSyscallX86_64 -> x86(word, MachineRegister::X86R10)
-        CallingConvention::SystemVAMD64 -> x86(word, MachineRegister::X86Rcx)
+        CallingConvention::LinuxSyscallX86_64 -> x86(word, MachineRegister::X86R10),
+        CallingConvention::SystemVAMD64 -> x86(word, MachineRegister::X86Rcx),
         _ -> MachineRegister::Aarch64X { index: word }
     }
     machine x86(word: u64, fourth: MachineRegister) -> MachineRegister {
         transition word {
-            0 -> MachineRegister::X86Rdi
-            1 -> MachineRegister::X86Rsi
-            2 -> MachineRegister::X86Rdx
-            3 -> fourth
-            4 -> MachineRegister::X86R8
+            0 -> MachineRegister::X86Rdi,
+            1 -> MachineRegister::X86Rsi,
+            2 -> MachineRegister::X86Rdx,
+            3 -> fourth,
+            4 -> MachineRegister::X86R8,
             _ -> MachineRegister::X86R9
         }
     }
 }
 machine posix_byte_view_result_register(convention: @CallingConvention) -> MachineRegister {
     transition convention {
-        CallingConvention::LinuxSyscallX86_64 -> MachineRegister::X86Rax
-        CallingConvention::SystemVAMD64 -> MachineRegister::X86Rax
+        CallingConvention::LinuxSyscallX86_64 -> MachineRegister::X86Rax,
+        CallingConvention::SystemVAMD64 -> MachineRegister::X86Rax,
         _ -> MachineRegister::Aarch64X { index: 0 }
     }
 }

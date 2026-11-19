@@ -8,7 +8,7 @@ requires value >= 40u64 && value <= 63u64
     let headroom: u64 = 63u64 - value;
     let margin: u64 = value - 40u64;
     transition headroom == 11u64 && margin == 12u64 {
-        true -> 0u64
+        true -> 0u64,
         _ -> 1u64
     }
 }
@@ -18,12 +18,12 @@ requires true
 {
     let masked: u64 = raw & 127u64;
     transition masked >= 40u64 && masked <= 64u64 {
-        true -> step(masked, true)
+        true -> step(masked, true),
         _ -> bad()
     }
     machine step(m: u64, flag: bool) -> u64 {
         let joined: u64 = match flag {
-            true -> m
+            true -> m,
             false -> m
         };
         verify_masked(joined)
@@ -34,7 +34,7 @@ requires true
 machine main() crashes Trap {
     let rc: u64 = exercise(116u64);
     transition rc == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

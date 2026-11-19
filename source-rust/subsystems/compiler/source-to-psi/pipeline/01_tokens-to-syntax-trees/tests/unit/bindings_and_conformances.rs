@@ -376,7 +376,7 @@ fn parses_zero_value_of_nested_generic_type_without_spacing_closes() {
 
         machine zero_is_none<T>()
         ensures
-            zero_value<Optional<T>>() == Optional::None
+            zero_value::<Optional<T>>() == Optional::None
         {
         }
     "#;

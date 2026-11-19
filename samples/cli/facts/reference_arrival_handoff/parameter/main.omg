@@ -8,7 +8,7 @@ machine main() crashes Trap {
     write(original);
     let observed: i64 = backing;
     transition observed == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

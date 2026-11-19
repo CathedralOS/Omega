@@ -9,7 +9,7 @@ requires position < cells.bytes.len
 {
     cells.bytes[position] = 7;
     transition position + 1 < cells.bytes.len {
-        true -> fill_field(cells, position + 1)
+        true -> fill_field(cells, position + 1),
         _ -> (position + 1)
     }
 }
@@ -20,7 +20,7 @@ requires position < bytes.len
 {
     bytes[position] = 5;
     transition position + 1 < bytes.len {
-        true -> fill_array(bytes, position + 1)
+        true -> fill_array(bytes, position + 1),
         _ -> (position + 1)
     }
 }
@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let slice_count: u64 = fill_slice(@mut bytes[..], 0);
     transition field_count == 8 && cells.bytes[0] == 7 && cells.bytes[7] == 7
         && array_count == 4 && array_filled && slice_count == 4 && bytes[0] == 3 && bytes[3] == 3 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -47,7 +47,7 @@ requires position < bytes.len
 {
     bytes[position] = 3;
     transition position + 1 < bytes.len {
-        true -> fill_slice(bytes, position + 1)
+        true -> fill_slice(bytes, position + 1),
         _ -> (position + 1)
     }
 }

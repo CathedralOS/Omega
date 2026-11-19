@@ -11,7 +11,7 @@ machine main() crashes Trap {
         grid[i][j] = grid[i][j] + 1;
         let got: i32 in Wrapping = grid[1][2];
         transition got == 42 {
-            true -> prepare_rows()
+            true -> prepare_rows(),
             false -> bad()
         }
     }
@@ -27,7 +27,7 @@ machine main() crashes Trap {
         rows[i].data[rj] = rows[i].data[rj] + 1;
         let got: i32 in Wrapping = rows[2].data[1] + rows[2].tag;
         transition got == 49 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

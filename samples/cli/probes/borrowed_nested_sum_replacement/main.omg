@@ -11,7 +11,7 @@ machine clear(choice: @mut OuterChoice) {
 
 machine consume_inner(choice: InnerChoice) -> u64 {
     transition choice {
-        InnerChoice::Empty {} -> 1
+        InnerChoice::Empty {} -> 1,
         InnerChoice::Value { token } -> consume_token(token)
     }
 }
@@ -24,7 +24,7 @@ machine consume_token(token: Token) -> u64 {
 
 machine consume_outer(choice: OuterChoice) -> u64 {
     transition choice {
-        OuterChoice::Absent {} -> 0
+        OuterChoice::Absent {} -> 0,
         OuterChoice::Present { inner } -> consume_inner(inner)
     }
 }
@@ -48,7 +48,7 @@ machine main() crashes Trap {
     let second: u64 = consume_outer(empty.choice);
     let third: u64 = consume_outer(populated.choice);
     transition first == 0 && second == 0 && third == 0 && absent.marker == 30 && empty.marker == 40 && populated.marker == 50 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -26,12 +26,12 @@ machine widen(value: i8) -> i32 {
 
 machine two_hop(value: i32) -> u8 {
     transition value >= 0 {
-        true -> upper(value)
+        true -> upper(value),
         _ -> (0)
     }
     machine upper(value: i32) -> u8 {
         transition value <= 255 {
-            true -> (value as u8)
+            true -> (value as u8),
             _ -> (0)
         }
     }
@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main) {
     let chained: u8 = two_hop(200);
     let widened: i32 = widen(-5i8);
     transition narrowed == 200 && chained == 200 && widened == -5 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -17,10 +17,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.reader.consumed = 0;
     let mut input: Input;
     let valid: bool = block read_input(@mut main.reader, @mut input);
-    transition valid { true -> rows(main, @input, 6) _ -> invalid(main) }
+    transition valid { true -> rows(main, @input, 6), _ -> invalid(main) }
     machine rows(main: @mut Main, input: @Input, position: i32 in Wrapping) {
         transition position >= 6 && position < 22 && position < input.count {
-            true -> row(main, input, position)
+            true -> row(main, input, position),
             _ -> done(main)
         }
     }

@@ -19,21 +19,21 @@ LinuxArmDistance satisfies Distance {
 
 machine native_entry() crashes Trap reaches Distance {
     let seen: i32 = Distance::absolute(-73);
-    transition seen == 73 { true -> done() false -> bad() }
+    transition seen == 73 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
 
 machine macos_entry() crashes Trap reaches Distance {
     let seen: i32 = Distance::absolute(-73);
-    transition seen == 1073 { true -> done() false -> bad() }
+    transition seen == 1073 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
 
 machine linux_arm_entry() crashes Trap reaches Distance {
     let seen: i32 = Distance::absolute(-73);
-    transition seen == 2073 { true -> done() false -> bad() }
+    transition seen == 2073 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

@@ -1,4 +1,4 @@
-//! A call such as `relay<u8>(3u8, 4)` reaches typed preparation naming the
+//! A call such as `relay::<u8>(3u8, 4)` reaches typed preparation naming the
 //! generic machine `relay` and carrying `u8` only as written. This pass
 //! pairs each static argument with the parameter it is for, and where the
 //! arguments are closed it generates the machine the application selects,
@@ -276,7 +276,7 @@ enum Site {
 /// call is selected some other way, which is not this pass's request: a
 /// Build selection, or a requirement dispatch that does not enter the
 /// machine realizing the requirement. A dispatched call that does enter it
-/// (`Selected::value<7>(7)` once `Selected` is known) applies that machine
+/// (`Selected::value::<7>(7)` once `Selected` is known) applies that machine
 /// like any authored call. Declaration-query ownership is read before
 /// specializing.
 struct Applied {
@@ -985,7 +985,7 @@ fn bound_arguments(
 }
 
 /// A call through an implementation parameter to a requirement that takes
-/// value parameters, `Implementation::value<7>(7)`: nothing is generated for
+/// value parameters, `Implementation::value::<7>(7)`: nothing is generated for
 /// it, because the machine it enters is known only once the implementation
 /// is. Its arguments are bound to the requirement's parameters, so the
 /// requirement's contract can be read at them, and the call is served as an
@@ -1042,7 +1042,7 @@ fn bind_requirement(
 }
 
 /// A call that names a trait's requirement and applies the requirement's own
-/// parameters, `Probe::take<Reading>(reading)`. A requirement has no body to
+/// parameters, `Probe::take::<Reading>(reading)`. A requirement has no body to
 /// copy, so what the application selects is the requirement's signature and
 /// contract with each parameter replaced: one closed requirement per
 /// application, which the call then names. generics.md, "Closed applications
@@ -3032,7 +3032,7 @@ fn substitute_record_receivers(
 /// holder, so it is bound and served from its new arguments like an
 /// authored one.
 ///
-/// A Build selection, `Build::select_provider<Reading<Tag>, Provider<Tag>>(..)`
+/// A Build selection, `Build::select_provider::<Reading<Tag>, Provider<Tag>>(..)`
 /// in a helper generic in `Tag`, is left exactly as written. Its operands
 /// are not static arguments of a machine to generate: they are the request
 /// the call was authored with, which names the helper's parameters by their

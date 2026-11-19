@@ -13,7 +13,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 128 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -57,7 +57,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 8 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -95,7 +95,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 16 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -133,7 +133,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 24 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -170,7 +170,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 64 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }

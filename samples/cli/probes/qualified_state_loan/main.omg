@@ -7,7 +7,7 @@ machine main() crashes Trap {
     transition { _ -> inspect(@mut resource) }
 
     machine inspect(resource: @mut Resource in Open) {
-        transition resource.identity == 73 { true -> done() false -> wrong() }
+        transition resource.identity == 73 { true -> done(), false -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }

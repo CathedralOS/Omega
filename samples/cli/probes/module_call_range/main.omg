@@ -28,7 +28,7 @@ machine Main::main(main: @mut Main) {
     check_good();
     main.hits = 0;
     transition GOOD == 2 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

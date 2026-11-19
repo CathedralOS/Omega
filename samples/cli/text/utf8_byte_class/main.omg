@@ -27,25 +27,25 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.byte = 226 as +Wrapping; // 0xE2 = 11100010, a 3-byte-sequence lead
 
     // High bit clear -> ASCII (0xxxxxxx). Unsigned `>>` in a guard subject.
-    transition main.byte >> 7 == 0 { true -> block ascii(main) _ -> block high_bit_set(main) }
+    transition main.byte >> 7 == 0 { true -> block ascii(main), _ -> block high_bit_set(main) }
 
     // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
     // in a guard subject confirms the branch we are on before classifying further.
     machine high_bit_set(main: @mut Main) {
         transition narrow_u8_to_i8_wrapping(main.byte as u8) < 0 {
-            true -> block multibyte(main)
+            true -> block multibyte(main),
             _ -> block unreachable(main)
         }
     }
 
     // 10xxxxxx is a continuation byte; otherwise it is a sequence lead.
     machine multibyte(main: @mut Main) {
-        transition main.byte >> 6 == 2 { true -> block continuation(main) _ -> block lead(main) }
+        transition main.byte >> 6 == 2 { true -> block continuation(main), _ -> block lead(main) }
     }
 
     // 1110xxxx leads a 3-byte sequence; otherwise 110xxxxx leads a 2-byte one.
     machine lead(main: @mut Main) {
-        transition main.byte >> 4 == 14 { true -> block lead3(main) _ -> block lead2(main) }
+        transition main.byte >> 4 == 14 { true -> block lead3(main), _ -> block lead2(main) }
     }
 
     machine ascii(main: @mut Main) {

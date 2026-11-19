@@ -29,7 +29,7 @@ const SECOND_HOST: u32 = 513;
 machine observe() -> bool reaches AddressParts { consume(AddressParts::make(10, FIRST_HOST), AddressParts::make(44048, SECOND_HOST)) }
 
 machine main() reaches AddressParts crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

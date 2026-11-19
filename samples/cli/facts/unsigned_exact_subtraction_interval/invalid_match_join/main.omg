@@ -6,7 +6,7 @@ machine subtract_match_join(minuend: u64, subtrahend: u64, flag: bool) -> i32
 {
     let diff: u64 = minuend - subtrahend;
     let joined: u64 = match flag {
-        true -> diff
+        true -> diff,
         false -> diff
     };
     let lower: u64 = joined - 50;
@@ -22,7 +22,7 @@ machine evaluate() -> i32 {
 machine main() crashes Trap {
     let res: i32 = evaluate();
     transition res == 30 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

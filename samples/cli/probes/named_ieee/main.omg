@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
     transition inv < 0.0 && m1 == 1.0 && m2 != m2 && m3 == neg_zero && x1 == 0.0
         && r64 > 1.4142135623730950 && r64 < 1.4142135623730952
         && r32 > 1.4142135f32 && r32 < 1.4142136f32 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

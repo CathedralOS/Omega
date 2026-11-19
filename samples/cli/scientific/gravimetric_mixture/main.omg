@@ -40,7 +40,7 @@ machine emit_positive(main: @mut Main, value: f64) reaches Console {
 
 machine emit(main: @mut Main, value: f64) reaches ProcessExit + Console {
     transition value < 0.0 {
-        true -> negative(main, value)
+        true -> negative(main, value),
         false -> positive(main, value)
     }
     machine negative(main: @mut Main, value: f64) {
@@ -53,42 +53,42 @@ machine emit(main: @mut Main, value: f64) reaches ProcessExit + Console {
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let observed: LineReadResult = block Console::read_line(@mut main.input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> length(main, count)
+        LineReadResult::LineComplete { count } -> length(main, count),
         _ -> malformed(main)
     }
     machine length(main: @mut Main, count: u64) {
         transition count == 14 && main.input[13] == 10 {
-            true -> units(main)
+            true -> units(main),
             false -> malformed(main)
         }
     }
     machine units(main: @mut Main) {
         transition main.input[0] == main.input[4] && main.input[0] == main.input[8] {
-            true -> unit_kind(main)
+            true -> unit_kind(main),
             false -> bad_units(main)
         }
     }
     machine unit_kind(main: @mut Main) {
         transition main.input[0] == 103 || main.input[0] == 109 {
-            true -> digits(main)
+            true -> digits(main),
             false -> bad_units(main)
         }
     }
     machine digits(main: @mut Main) {
         transition main.input[1] >= 48 && main.input[1] <= 57 && main.input[2] >= 48 && main.input[2] <= 57 && main.input[3] >= 48 && main.input[3] <= 57 && main.input[5] >= 48 && main.input[5] <= 57 && main.input[6] >= 48 && main.input[6] <= 57 && main.input[7] >= 48 && main.input[7] <= 57 && main.input[9] >= 48 && main.input[9] <= 57 && main.input[10] >= 48 && main.input[10] <= 57 && main.input[11] >= 48 && main.input[11] <= 57 {
-            true -> model(main)
+            true -> model(main),
             false -> malformed(main)
         }
     }
     machine model(main: @mut Main) {
         transition main.input[12] == 49 || main.input[12] == 50 {
-            true -> scale(main)
+            true -> scale(main),
             false -> bad_model(main)
         }
     }
     machine scale(main: @mut Main) {
         transition main.input[0] == 103 {
-            true -> calculate(main, 1.0)
+            true -> calculate(main, 1.0),
             false -> calculate(main, 0.001)
         }
     }
@@ -97,8 +97,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             reading(main.input[5], main.input[6], main.input[7]),
             reading(main.input[9], main.input[10], main.input[11]), scale, main.input[12] == 49);
         transition main.result.status {
-            3 -> negative(main)
-            4 -> near_zero(main)
+            3 -> negative(main),
+            4 -> near_zero(main),
             _ -> report(main)
         }
     }
@@ -131,7 +131,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let interval_upper_ppm: f64 = main.result.upper * 1000000.0;
         Console::write("interval_upper_ppm="); emit(main, interval_upper_ppm);
         transition main.result.status == 0 {
-            true -> accepted(main)
+            true -> accepted(main),
             false -> rejected(main)
         }
     }

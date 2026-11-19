@@ -28,7 +28,7 @@ machine Main::main(main: @mut Main) {
     let converted: i32 in Trapping = I32::from_f64(main.value);
     let small: u8 in Trapping = U8::from_f64(200.9);
     transition (converted as i32) == 0 && small == 200u8 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

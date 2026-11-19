@@ -42,7 +42,7 @@ machine init(t: @mut Topo) {
 
     machine loop_(t: @mut Topo, index: u64) {
         transition index < 8 {
-            true -> body(t, index)
+            true -> body(t, index),
             _ -> done()
         }
     }
@@ -62,7 +62,7 @@ machine compute_indeg(t: @mut Topo, g: @Graph) {
 
     machine loop_(t: @mut Topo, g: @Graph, e: u64, edge_count: u64) {
         transition e < edge_count && e < 16 {
-            true -> step(t, g, e, edge_count)
+            true -> step(t, g, e, edge_count),
             _ -> done()
         }
     }
@@ -71,7 +71,7 @@ machine compute_indeg(t: @mut Topo, g: @Graph) {
     requires e < 16 {
         let v: u64 = g.targets[e];
         transition v < 8 {
-            true -> inc(t, g, e, edge_count, v)
+            true -> inc(t, g, e, edge_count, v),
             _ -> done()
         }
     }
@@ -93,14 +93,14 @@ machine sort(t: @mut Topo, g: @Graph) {
 
     machine pass(t: @mut Topo, g: @Graph, pass_index: u64) {
         transition pass_index < 8 && t.emitted_count < 8 {
-            true -> scan(t, g, pass_index, 0, 0)
+            true -> scan(t, g, pass_index, 0, 0),
             _ -> done()
         }
     }
 
     machine scan(t: @mut Topo, g: @Graph, pass_index: u64, n: u64, progress: u64) {
         transition n < 8 {
-            true -> consider(t, g, pass_index, n, progress)
+            true -> consider(t, g, pass_index, n, progress),
             _ -> check_progress(t, g, pass_index, progress)
         }
     }
@@ -108,7 +108,7 @@ machine sort(t: @mut Topo, g: @Graph) {
     machine consider(t: @mut Topo, g: @Graph, pass_index: u64, n: u64, progress: u64)
     requires n < 8 {
         transition n < g.node_count && t.emitted[n] == 0 && t.indeg[n] == 0 {
-            true -> emit(t, g, pass_index, n)
+            true -> emit(t, g, pass_index, n),
             _ -> scan(t, g, pass_index, n + 1, progress)
         }
     }
@@ -116,7 +116,7 @@ machine sort(t: @mut Topo, g: @Graph) {
     machine emit(t: @mut Topo, g: @Graph, pass_index: u64, n: u64)
     requires n < 8 {
         transition t.emitted_count < 8 {
-            true -> record(t, g, pass_index, n)
+            true -> record(t, g, pass_index, n),
             _ -> scan(t, g, pass_index, n + 1, 1)
         }
     }
@@ -132,7 +132,7 @@ machine sort(t: @mut Topo, g: @Graph) {
     machine edges(t: @mut Topo, g: @Graph, pass_index: u64, n: u64, e: u64, stop: u64)
     requires n < 8 {
         transition e < stop && e < 16 {
-            true -> dec(t, g, pass_index, n, e, stop)
+            true -> dec(t, g, pass_index, n, e, stop),
             _ -> scan(t, g, pass_index, n + 1, 1)
         }
     }
@@ -141,7 +141,7 @@ machine sort(t: @mut Topo, g: @Graph) {
     requires n < 8 && e < 16 {
         let v: u64 = g.targets[e];
         transition v < 8 {
-            true -> dec_target(t, g, pass_index, n, e, stop, v)
+            true -> dec_target(t, g, pass_index, n, e, stop, v),
             _ -> scan(t, g, pass_index, n + 1, 1)
         }
     }
@@ -154,7 +154,7 @@ machine sort(t: @mut Topo, g: @Graph) {
 
     machine check_progress(t: @mut Topo, g: @Graph, pass_index: u64, progress: u64) {
         transition progress == 1 && pass_index < 8 {
-            true -> pass(t, g, pass_index + 1)
+            true -> pass(t, g, pass_index + 1),
             _ -> done()
         }
     }
@@ -167,7 +167,7 @@ machine build_positions(t: @Topo, positions: @mut Positions) {
 
     machine loop_(t: @Topo, positions: @mut Positions, i: u64) {
         transition i < 8 {
-            true -> step(t, positions, i)
+            true -> step(t, positions, i),
             _ -> done()
         }
     }
@@ -176,7 +176,7 @@ machine build_positions(t: @Topo, positions: @mut Positions) {
     requires i < 8 {
         let node: u64 = t.order[i];
         transition node < 8 {
-            true -> record(t, positions, i, node)
+            true -> record(t, positions, i, node),
             _ -> done()
         }
     }
@@ -195,7 +195,7 @@ machine order_matches(t: @Topo, expected: @[u64; 8]) -> bool {
 
     machine loop_(t: @Topo, expected: @[u64; 8], i: u64) -> bool {
         transition i < 8 {
-            true -> check(t, expected, i)
+            true -> check(t, expected, i),
             _ -> (true)
         }
     }
@@ -203,7 +203,7 @@ machine order_matches(t: @Topo, expected: @[u64; 8]) -> bool {
     machine check(t: @Topo, expected: @[u64; 8], i: u64) -> bool
     requires i < 8 {
         transition t.order[i] == expected[i] {
-            true -> loop_(t, expected, i + 1)
+            true -> loop_(t, expected, i + 1),
             _ -> (false)
         }
     }
@@ -215,7 +215,7 @@ machine edges_ordered(g: @Graph, positions: @Positions) -> bool {
 
     machine nodes(g: @Graph, positions: @Positions, u: u64) -> bool {
         transition u < 8 && u < g.node_count {
-            true -> edges(g, positions, u, g.offsets[u], g.offsets[u + 1])
+            true -> edges(g, positions, u, g.offsets[u], g.offsets[u + 1]),
             _ -> (true)
         }
     }
@@ -223,7 +223,7 @@ machine edges_ordered(g: @Graph, positions: @Positions) -> bool {
     machine edges(g: @Graph, positions: @Positions, u: u64, e: u64, stop: u64) -> bool
     requires u < 8 {
         transition e < stop && e < 16 {
-            true -> check(g, positions, u, e, stop)
+            true -> check(g, positions, u, e, stop),
             _ -> nodes(g, positions, u + 1)
         }
     }
@@ -232,7 +232,7 @@ machine edges_ordered(g: @Graph, positions: @Positions) -> bool {
     requires u < 8 && e < 16 {
         let v: u64 = g.targets[e];
         transition v < 8 {
-            true -> compare(g, positions, u, e, stop, v)
+            true -> compare(g, positions, u, e, stop, v),
             _ -> (false)
         }
     }
@@ -240,7 +240,7 @@ machine edges_ordered(g: @Graph, positions: @Positions) -> bool {
     machine compare(g: @Graph, positions: @Positions, u: u64, e: u64, stop: u64, v: u64) -> bool
     requires u < 8 && e < 16 && v < 8 {
         transition positions.at[u] < positions.at[v] {
-            true -> edges(g, positions, u, e + 1, stop)
+            true -> edges(g, positions, u, e + 1, stop),
             _ -> (false)
         }
     }
@@ -248,7 +248,7 @@ machine edges_ordered(g: @Graph, positions: @Positions) -> bool {
 
 machine verify(t: @Topo, g: @Graph, positions: @mut Positions) -> bool {
     transition t.emitted_count == 8 {
-        true -> build(t, g, positions)
+        true -> build(t, g, positions),
         _ -> (false)
     }
 
@@ -256,7 +256,7 @@ machine verify(t: @Topo, g: @Graph, positions: @mut Positions) -> bool {
         let expected: [u64; 8] = [0, 5, 2, 4, 1, 6, 3, 7];
         build_positions(t, positions);
         transition order_matches(t, @expected) && edges_ordered(g, positions) {
-            true -> (true)
+            true -> (true),
             _ -> (false)
         }
     }
@@ -296,7 +296,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let cyc_ok: bool = main.topo_cyc.emitted_count == 1 && main.topo_cyc.order[0] == 3;
 
     transition dag_ok && cyc_ok {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
 

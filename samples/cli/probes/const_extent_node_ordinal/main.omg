@@ -36,11 +36,11 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
     let paired: i64 in Wrapping = coordinate(@roadmap, 1) + coordinate(@roadmap, 3);
-    let start: u64 = origin<4>();
-    let roadmap_origin: u64 = origin<6>();
+    let start: u64 = origin::<4>();
+    let roadmap_origin: u64 = origin::<6>();
     let opened: i64 in Wrapping = from_call(@quad, start) + coordinate(@quad, 2);
     transition paired == 17 && opened == 4 && roadmap_origin == 0 {
-        true -> report(main, paired)
+        true -> report(main, paired),
         false -> ProcessExit::exit_process(1)
     }
     machine report(main: @mut Main, paired: i64 in Wrapping) {
@@ -52,12 +52,12 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
 machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 100 {
-        true -> tens(main, value, value / 10)
+        true -> tens(main, value, value / 10),
         false -> ProcessExit::exit_process(1)
     }
     machine tens(main: @mut Main, value: i64 in Wrapping, ten: i64 in Wrapping) {
         transition ten > 0 {
-            true -> emit(main, value, ten + 48)
+            true -> emit(main, value, ten + 48),
             false -> ones(main, value)
         }
     }
@@ -70,7 +70,7 @@ machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Co
     machine ones(main: @mut Main, value: i64 in Wrapping) {
         let byte: i64 in Wrapping = value % 10 + 48;
         transition byte >= 48 && byte <= 57 {
-            true -> finish(main, byte)
+            true -> finish(main, byte),
             false -> ProcessExit::exit_process(1)
         }
     }

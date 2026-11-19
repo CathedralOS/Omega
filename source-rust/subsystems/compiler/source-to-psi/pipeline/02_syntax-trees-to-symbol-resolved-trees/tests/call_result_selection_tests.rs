@@ -86,7 +86,7 @@ fn call_results_keep_nested_calls_and_preceding_locals_without_runtime_body_rows
         machine caller(value: u64) -> u64 {
             let first: u64 = value + 2;
             let second: u64 = first + 3;
-            identity<u64>(increment(second))
+            identity::<u64>(increment(second))
         }
     "#,
     );
@@ -105,7 +105,7 @@ fn call_results_retain_match_capture_around_selected_payload_calls() {
         machine store(cell: @mut Cell) -> bool { cell.value == 41 }
         machine caller(envelope: Envelope) -> bool {
             match envelope {
-                Envelope::Active { cell } -> store(@mut cell)
+                Envelope::Active { cell } -> store(@mut cell),
                 Envelope::Empty -> false
             }
         }
@@ -151,8 +151,8 @@ fn structural_equation_calls_keep_their_callee_occurrence() {
         machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64
         requires Kind == Buffer<Element, N> { 1u64 }
         machine caller(value: @Buffer<u8, 2>) -> u64 {
-            inspect<Buffer<u8, 2>, u8, 2>(value);
-            inspect<Buffer<u8, 2>, u8, 2>(value)
+            inspect::<Buffer<u8, 2>, u8, 2>(value);
+            inspect::<Buffer<u8, 2>, u8, 2>(value)
         }
     "#;
     compare(text);

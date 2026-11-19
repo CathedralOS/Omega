@@ -10,7 +10,7 @@ machine main() crashes Trap {
     let words: @[i32] = @backing[..];
     let length: u64 = bytes_of(words);
     transition length == 12 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

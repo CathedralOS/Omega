@@ -8,7 +8,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -16,7 +16,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -62,7 +62,7 @@ machine probe() -> u64 crashes Trap {
 machine main() crashes Trap {
     let slack: u64 = probe();
     transition slack == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -73,7 +73,7 @@ machine main() crashes Trap {
 // subtraction's static range obligation.
 machine verify(alignment: u64, tag_alignment: u64, slack: u64) crashes Trap {
     transition alignment == 8u64 && tag_alignment == 1u64 && slack == 0u64 {
-        true -> {}
+        true -> {},
         _ -> bad()
     }
     machine bad() { crash Trap; }

@@ -20,7 +20,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console {
     let risk_limit: Parsed = block read_number();
     transition count.valid && budget.valid && deadline.valid && risk_limit.valid
         && count.value <= 12 && budget.value > 0 && deadline.value > 0 && risk_limit.value <= 100 {
-        true -> block configure(application, count.value, budget.value, deadline.value, risk_limit.value)
+        true -> block configure(application, count.value, budget.value, deadline.value, risk_limit.value),
         false -> invalid(application)
     }
     machine configure(application: @mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
@@ -32,7 +32,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console {
     }
     machine load(application: @mut Application, index: u64) {
         transition index < application.count && index < 12 {
-            true -> block read_row(application, index)
+            true -> block read_row(application, index),
             false -> block trailing(application)
         }
     }
@@ -47,7 +47,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console {
         let repeated: bool = duplicate(application, identifier.value, index);
         transition identifier.valid && provenance.valid && cost.valid && days.valid && gain.valid && risk.valid
             && identifier.value > 0 && provenance.value > 0 && days.value > 0 && risk.value <= 100 && !repeated {
-            true -> block store(application, index, identifier.value, provenance.value, cost.value, days.value, gain.value, risk.value)
+            true -> block store(application, index, identifier.value, provenance.value, cost.value, days.value, gain.value, risk.value),
             false -> invalid(application)
         }
     }
@@ -59,7 +59,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console {
     }
     machine trailing(application: @mut Application) {
         let clean: bool = block only_whitespace();
-        transition clean { true -> accepted(application) false -> invalid(application) }
+        transition clean { true -> accepted(application), false -> invalid(application) }
     }
     machine accepted(application: @mut Application) {
         report(application);

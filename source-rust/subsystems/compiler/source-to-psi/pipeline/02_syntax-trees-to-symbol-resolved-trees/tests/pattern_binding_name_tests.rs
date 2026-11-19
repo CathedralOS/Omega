@@ -30,7 +30,7 @@ fn accepts(body: &str) {
 #[test]
 fn a_match_arm_binding_may_not_reuse_a_parameter_name() {
     let positive = "machine pick(limit: u32, r: Reading) -> u32 { \
-             match r { Reading::Sample { value } -> value  Reading::Idle -> limit } }";
+             match r { Reading::Sample { value } -> value,  Reading::Idle -> limit } }";
     accepts(positive);
     let message = refusal(&positive.replace("limit", "value"));
     assert!(
@@ -42,7 +42,7 @@ fn a_match_arm_binding_may_not_reuse_a_parameter_name() {
 #[test]
 fn a_match_arm_binding_may_not_reuse_an_earlier_local_name() {
     let positive = "machine pick(r: Reading) -> u32 { let base: u32 = 1; \
-             match r { Reading::Sample { value } -> value  Reading::Idle -> base } }";
+             match r { Reading::Sample { value } -> value,  Reading::Idle -> base } }";
     accepts(positive);
     let message = refusal(&positive.replace("base", "value"));
     assert!(
@@ -54,7 +54,7 @@ fn a_match_arm_binding_may_not_reuse_an_earlier_local_name() {
 #[test]
 fn a_transition_arm_binding_may_not_reuse_a_parameter_name() {
     let positive = "machine pick(limit: u32, r: Reading) -> u32 { \
-             transition r { Reading::Sample { value } -> value  Reading::Idle -> limit } }";
+             transition r { Reading::Sample { value } -> value,  Reading::Idle -> limit } }";
     accepts(positive);
     let message = refusal(&positive.replace("limit", "value"));
     assert!(
@@ -67,7 +67,7 @@ fn a_transition_arm_binding_may_not_reuse_a_parameter_name() {
 fn a_nested_arm_binding_may_not_reuse_its_enclosing_arm_binding() {
     let positive = "machine pick(r: Reading, s: Reading) -> u32 { \
              match r { Reading::Sample { value } -> match s { \
-             Reading::Sample { value as inner } -> inner  Reading::Idle -> value } \
+             Reading::Sample { value as inner } -> inner,  Reading::Idle -> value }, \
              Reading::Idle -> 0 } }";
     accepts(positive);
     let message = refusal(&positive.replace("value as inner } -> inner", "value } -> value"));
@@ -81,7 +81,7 @@ fn a_nested_arm_binding_may_not_reuse_its_enclosing_arm_binding() {
 fn different_arms_of_one_match_may_reuse_a_binding_name() {
     accepts(
         "machine pick(a: Reading, b: Reading) -> u32 { \
-             let first: u32 = match a { Reading::Sample { value } -> value  Reading::Idle -> 0 }; \
-             match b { Reading::Sample { value } -> value + first  Reading::Idle -> first } }",
+             let first: u32 = match a { Reading::Sample { value } -> value,  Reading::Idle -> 0 }; \
+             match b { Reading::Sample { value } -> value + first,  Reading::Idle -> first } }",
     );
 }

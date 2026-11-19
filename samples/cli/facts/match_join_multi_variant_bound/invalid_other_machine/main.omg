@@ -11,8 +11,8 @@ data Mode [copy]
 
 machine compute_joined(mode: Mode) -> u64 {
     transition mode {
-        Mode::Low { val } -> val
-        Mode::Mid { val } -> val
+        Mode::Low { val } -> val,
+        Mode::Mid { val } -> val,
         Mode::High { val } -> val
     }
 }
@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let m: Mode = Mode::Mid { val: 40 };
     let sum: u64 = runner(m);
     transition sum == 40 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

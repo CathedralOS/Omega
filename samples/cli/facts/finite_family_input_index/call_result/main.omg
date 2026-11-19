@@ -18,7 +18,7 @@ Selected satisfies Family {
     requires Width == 16 || Width == 32
     {
         observations[0] = 31;
-        produce<Width>(first, limit, observations)
+        produce::<Width>(first, limit, observations)
     }
 }
 Other satisfies Family {
@@ -26,7 +26,7 @@ Other satisfies Family {
     requires Width == 16 || Width == 32
     {
         observations[0] = 47;
-        produce<Width>(first, limit, observations)
+        produce::<Width>(first, limit, observations)
     }
 }
 machine input(slot: @mut u32, observations: @mut [u32; 5]) -> u32
@@ -39,12 +39,12 @@ requires width == 16 || width == 32
 {
     let mut limit: u32 = 16;
     let saved: u32 = limit;
-    let item: Indexed<saved> = Family::row<width>(selected, input(@mut limit, observations), limit, observations);
+    let item: Indexed<saved> = Family::row::<width>(selected, input(@mut limit, observations), limit, observations);
     item
 }
 machine check(item: Indexed<16>) crashes Trap {
     transition item.value == 7 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -55,7 +55,7 @@ machine forward(item: Indexed<16>) -> Indexed<16> { item }
 machine check_observations(observed: @[u32; 5], expected_marker: u32, expected_width: u32, expected_branch: u32) crashes Trap {
     transition observed[0] == expected_marker && observed[1] == expected_width
         && observed[2] == 16 && observed[3] == expected_branch && observed[4] == 1 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

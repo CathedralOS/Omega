@@ -2243,6 +2243,98 @@ pub(crate) fn classify_type_equations(
         .collect()
 }
 
+/// Prepare the type side of a declaration equation before either argument
+/// recovery or machine-body lowering reads it. The same applied path in a
+/// value expression remains a declaration reference.
+pub(super) fn normalize_applied_operands(syntax: &mut SyntaxTrees) -> Result<(), Diagnostic> {
+    let mut items = syntax.root_item_handles().to_vec();
+    let mut operands = Vec::new();
+    while let Some(handle) = items.pop() {
+        let item = syntax.items.item(handle);
+        let (parameters, facts) = match item {
+            syntax_trees::item::Item::Data(data) if !data.type_parameters.is_empty() => (
+                data.type_parameters,
+                syntax.items.proof_facts(data.requires_facts).to_vec(),
+            ),
+            syntax_trees::item::Item::Machine(machine) => {
+                items.extend(
+                    (0..machine.nested_machines.count())
+                        .map(|i| machine.nested_machines.handle_at(i)),
+                );
+                if machine.type_parameters.is_empty() {
+                    continue;
+                }
+                (
+                    machine.type_parameters,
+                    syntax.items.requirement_facts(machine.contracts),
+                )
+            }
+            _ => continue,
+        };
+        let parameters = syntax.items.type_parameters(parameters);
+        let mut pending: Vec<_> = facts
+            .iter()
+            .filter_map(|fact| match fact {
+                ProofFact::Expression(expression) => Some(*expression),
+                _ => None,
+            })
+            .collect();
+        while let Some(expression) = pending.pop() {
+            match syntax.expressions.expression(expression) {
+                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+                    pending.push(unary.operand)
+                }
+                ExpressionNode::Binary(binary)
+                    if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+                {
+                    pending.extend([binary.left, binary.right])
+                }
+                ExpressionNode::Binary(binary)
+                    if matches!(
+                        binary.operator,
+                        BinaryOperator::Equal | BinaryOperator::NotEqual
+                    ) =>
+                {
+                    for (operand, opposite) in
+                        [(binary.left, binary.right), (binary.right, binary.left)]
+                    {
+                        if let ExpressionNode::Name {
+                            members,
+                            application: Some(application),
+                        } = syntax.expressions.expression(operand)
+                            && !application.member.is_valid()
+                            && matches!(
+                                classify_side(syntax, parameters, opposite),
+                                Side::TypeBinder(_)
+                            )
+                        {
+                            operands.push((
+                                operand,
+                                syntax_trees::expression::StaticMachineArgument {
+                                    path: syntax
+                                        .expressions
+                                        .identifier_path_members(*members)
+                                        .into(),
+                                    application: Some(application.clone()),
+                                    ..Default::default()
+                                },
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    for (operand, path) in operands {
+        let reference = super::callable_types::argument_type(syntax, &path)?;
+        syntax
+            .expressions
+            .replace_expression(operand, ExpressionNode::TypeExpression(reference));
+    }
+    Ok(())
+}
+
 fn classify_side(
     syntax: &SyntaxTrees,
     parameters: &[TypeParameter],

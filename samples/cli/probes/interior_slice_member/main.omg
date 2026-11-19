@@ -17,7 +17,7 @@ machine Main::main(main: @mut Main) {
         TelemetrySample { readings: main.source[1..4] };
     Telemetry::encode(@sample, @mut main.buffer, @mut main.written);
     transition main.written == 8 {
-        true -> done(main)
+        true -> done(main),
         false -> bad(main)
     }
     machine done(main: @mut Main) { }

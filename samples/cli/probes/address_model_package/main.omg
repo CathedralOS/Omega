@@ -12,7 +12,7 @@ requires addr::Bound == 18446744073709551616
     let bytes: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0];
     let word: u64 = read_word(@bytes, 8);
     transition address == 4096 && echoed == 17 && declared == 17 && word == 42 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

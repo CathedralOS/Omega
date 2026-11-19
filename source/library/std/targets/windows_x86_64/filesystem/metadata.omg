@@ -13,28 +13,28 @@ machine windows_filesystem_seconds(ticks: u64) -> i64 {
 
 machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {
     transition (attributes & 1024) != 0 {
-        true -> reparse(reparse_tag)
+        true -> reparse(reparse_tag),
         false -> ordinary(attributes)
     }
     machine reparse(tag: u32) -> FileKind {
         transition tag == 2684354572 || tag == 2684354563 {
-            true -> FileKind::Symlink
+            true -> FileKind::Symlink,
             false -> FileKind::Other
         }
     }
     machine ordinary(attributes: u32) -> FileKind {
-        transition (attributes & 16) != 0 { true -> FileKind::Directory false -> FileKind::File }
+        transition (attributes & 16) != 0 { true -> FileKind::Directory, false -> FileKind::File }
     }
 }
 
 machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> MetadataResult {
     transition outcome {
-        WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: windows_filesystem_error(code) })
+        WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: windows_filesystem_error(code) }),
         WindowsMetadataResult::Value { metadata } -> value(metadata)
     }
     machine value(metadata: WindowsFileMetadata) -> MetadataResult {
         transition metadata.length >= 0 {
-            true -> valid(metadata)
+            true -> valid(metadata),
             false -> (MetadataResult::Error { kind: ErrorKind::Other })
         }
     }
@@ -57,7 +57,7 @@ machine windows_filesystem_metadata(file: File) -> MetadataResult
 reaches FilesystemMetadataQuery
 {
     transition file.handle != 0 {
-        true -> block query(file)
+        true -> block query(file),
         false -> (MetadataResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine query(file: File) -> MetadataResult {
@@ -77,7 +77,7 @@ machine windows_filesystem_exists(path: @[u8] in Path) -> bool
 reaches FilesystemMetadataQuery
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
-    transition outcome { MetadataResult::Ok { meta } -> true _ -> false }
+    transition outcome { MetadataResult::Ok { meta } -> true, _ -> false }
 }
 
 machine windows_filesystem_try_exists(path: @[u8] in Path) -> ExistsResult
@@ -85,12 +85,12 @@ reaches FilesystemMetadataQuery
 {
     let outcome: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition outcome {
-        MetadataResult::Ok { meta } -> ExistsResult::Yes
+        MetadataResult::Ok { meta } -> ExistsResult::Yes,
         MetadataResult::Error { kind } -> failed(kind)
     }
     machine failed(kind: ErrorKind) -> ExistsResult {
         transition kind {
-            ErrorKind::NotFound -> ExistsResult::No
+            ErrorKind::NotFound -> ExistsResult::No,
             _ -> (ExistsResult::Error { kind: kind })
         }
     }
@@ -107,12 +107,12 @@ data WindowsTimestampEncoding {
 // https://learn.microsoft.com/windows/win32/api/fileapi/nf-fileapi-setfiletime
 machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEncoding {
     transition seconds == -11644473600 {
-        true -> (WindowsTimestampEncoding::Error { kind: ErrorKind::Unsupported })
+        true -> (WindowsTimestampEncoding::Error { kind: ErrorKind::Unsupported }),
         false -> range(seconds)
     }
     machine range(seconds: i64) -> WindowsTimestampEncoding {
         transition seconds > -11644473600 && seconds <= 1833029933770 {
-            true -> encode(seconds)
+            true -> encode(seconds),
             false -> (WindowsTimestampEncoding::Error { kind: ErrorKind::InvalidInput })
         }
     }
@@ -128,20 +128,20 @@ machine windows_filesystem_set_times(file: File, accessed: i64, modified: i64) -
 reaches FilesystemMetadataMutation
 {
     transition file.handle != 0 {
-        true -> block access_time(file, accessed, modified)
+        true -> block access_time(file, accessed, modified),
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine access_time(file: File, accessed: i64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(accessed);
         transition encoded {
-            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
+            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind }),
             WindowsTimestampEncoding::Ticks { value } -> block write_time(file, value, modified)
         }
     }
     machine write_time(file: File, accessed: u64, modified: i64) -> UnitResult {
         let encoded: WindowsTimestampEncoding = windows_filesystem_encode_timestamp(modified);
         transition encoded {
-            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind })
+            WindowsTimestampEncoding::Error { kind } -> (UnitResult::Error { kind: kind }),
             WindowsTimestampEncoding::Ticks { value } -> block update(file, accessed, value)
         }
     }
@@ -157,8 +157,8 @@ machine windows_filesystem_set_permissions(path: @[u8] in Path, permissions: Per
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 {
     transition permissions {
-        Permissions::Default -> block update(path, false)
-        Permissions::Readonly { value } -> block update(path, value)
+        Permissions::Default -> block update(path, false),
+        Permissions::Readonly { value } -> block update(path, value),
         Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
     }
     machine update(path: @[u8] in Path, readonly: bool) -> UnitResult {
@@ -171,13 +171,13 @@ machine windows_filesystem_set_file_permissions(file: File, permissions: Permiss
 reaches FilesystemMetadataQuery + FilesystemMetadataMutation
 {
     transition file.handle != 0 {
-        true -> block select(file, permissions)
+        true -> block select(file, permissions),
         false -> (UnitResult::Error { kind: ErrorKind::BadDescriptor })
     }
     machine select(file: File, permissions: Permissions) -> UnitResult {
         transition permissions {
-            Permissions::Default -> block update(file, false)
-            Permissions::Readonly { value } -> block update(file, value)
+            Permissions::Default -> block update(file, false),
+            Permissions::Readonly { value } -> block update(file, value),
             Permissions::Posix { mode } -> (UnitResult::Error { kind: ErrorKind::Unsupported })
         }
     }

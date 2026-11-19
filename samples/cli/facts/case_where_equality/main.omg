@@ -34,13 +34,13 @@ machine run_main(main: @mut Main) crashes Trap {
 machine guarded_width(main: @mut Main) crashes Trap {
 
     transition main.interval {
-        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Point { lo, hi } -> take(lo, hi, main),
         Interval::Empty -> fail(main)
     }
     machine take(lo: u64, hi: u64, main: @mut Main) {
         main.width = hi - lo;
         transition main.width == 0 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }
@@ -54,7 +54,7 @@ machine entry_start() crashes Trap {
     let mut entry_storage: Main = Main { interval: Interval::Empty {}, left_guard: 101, width: 99, right_guard: 107, hits: 31 };
     run_main(@mut entry_storage);
     transition entry_storage.width == 0 && entry_storage.left_guard == 101 && entry_storage.right_guard == 107 && entry_storage.hits == 1 {
-        true -> observed()
+        true -> observed(),
         false -> writeback_failed()
     }
     machine observed() {}

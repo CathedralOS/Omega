@@ -17,7 +17,7 @@ requires
 
 machine Main::classify(text: @[u8] in Utf8) -> u64 in Wrapping {
     transition text == "quit" {
-        true -> Main::matched(text)
+        true -> Main::matched(text),
         _ -> Main::other(text)
     }
     machine matched(text: @[u8] in Utf8) -> u64 in Wrapping {
@@ -35,7 +35,7 @@ data Main {
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition Main::classify("quit") == 70 {
-        true -> Main::pass(main)
+        true -> Main::pass(main),
         _ -> Main::fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

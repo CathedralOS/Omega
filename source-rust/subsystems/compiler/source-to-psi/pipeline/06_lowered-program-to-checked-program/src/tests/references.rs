@@ -328,7 +328,7 @@ machine done() {{ }}
         )
     };
     let selected = program(
-        "transition source { Source::Path { location } -> consume(location) Source::Empty -> done() }",
+        "transition source { Source::Path { location } -> consume(location), Source::Empty -> done() }",
     );
     let verdict = super::build_purpose::judge_build(&selected).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -714,7 +714,7 @@ machine relay<Chosen satisfies Handoff>(source: @mut i64) crashes none {
 }
 machine entry() crashes none {
     let mut backing: i64 = 17;
-    relay<Direct>(@mut backing);
+    relay::<Direct>(@mut backing);
 }
 "#;
     let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -1760,7 +1760,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let verdict = returned_relay(
         "machine entry() -> i64 crashes none {
     let mut backing: i64 = 17;
-    let child: @mut i64 = relay<Direct>(@mut backing);
+    let child: @mut i64 = relay::<Direct>(@mut backing);
     child = 41;
     backing
 }",
@@ -1791,7 +1791,7 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let verdict = returned_relay(
         "machine entry() crashes none {
     let mut backing: i64 = 17;
-    let child: @mut i64 = relay<Direct>(@mut backing);
+    let child: @mut i64 = relay::<Direct>(@mut backing);
     backing = 5;
     child = 41;
 }",

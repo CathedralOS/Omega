@@ -32,7 +32,7 @@ The build says what implements each boundary trait:
 
 ```omega
 machine build(builder: @mut Build) {
-    Build::select_provider<selected_target::Console, TestConsole>(builder);
+    Build::select_provider::<selected_target::Console, TestConsole>(builder);
 }
 ```
 
@@ -99,8 +99,8 @@ boundary trait SteadyClock: ClockOps<NoState> {}
 
 ```omega
 machine build(builder: @mut Build) {
-    Build::select_provider<WallClock, HostWallClock>(builder);
-    Build::select_provider<SteadyClock, HostSteadyClock>(builder);
+    Build::select_provider::<WallClock, HostWallClock>(builder);
+    Build::select_provider::<SteadyClock, HostSteadyClock>(builder);
 }
 ```
 
@@ -127,8 +127,8 @@ Simulated satisfies ClockOps<SimClock>
     }
 }
 
-stamp<NoState, WallClock>(@mut none, @mut entry);    // the real clock
-stamp<SimClock, Simulated>(@mut sim, @mut entry);    // the fake
+stamp::<NoState, WallClock>(@mut none, @mut entry);    // the real clock
+stamp::<SimClock, Simulated>(@mut sim, @mut entry);    // the fake
 ```
 
 A boundary trait can be passed wherever an implementation of a trait it
@@ -156,7 +156,7 @@ public machine apply<const F: machine(value: u32)>(value: u32) {
 }
 
 public machine start_motor() reaches MotorControl {
-    apply<command_motor>(42);
+    apply::<command_motor>(42);
 }
 ```
 
@@ -180,7 +180,7 @@ public machine local(value: u32) -> u32 {
 }
 
 public machine example() -> u32 {
-    apply<local>(42)          // local cannot suspend, so no marker is needed
+    apply::<local>(42)          // local cannot suspend, so no marker is needed
 }
 ```
 

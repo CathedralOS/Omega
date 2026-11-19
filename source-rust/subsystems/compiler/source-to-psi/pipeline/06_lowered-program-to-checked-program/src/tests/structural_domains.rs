@@ -217,7 +217,7 @@ data Plan { cells: [Cell; 2]; convention: u64; }
 machine reg(word: u64, convention: @u64) -> u64 {
     let observed: u64 = convention;
     transition observed == 9u64 {
-        true -> (word)
+        true -> (word),
         false -> (0u64)
     }
 }
@@ -232,7 +232,7 @@ machine entry() -> u64 {
     single(@mut plan, 1u64, 7u64);
     transition plan.cells[1u64].count == 1u64
         && plan.cells[0u64].count == 0u64 && plan.cells[0u64].location == 0u64 {
-        true -> (plan.cells[1u64].location)
+        true -> (plan.cells[1u64].location),
         false -> (0u64)
     }
 }
@@ -520,7 +520,7 @@ machine entry() -> u32 crashes Trap {
     let first_word: u32 = scalar_value(7u32);
     let second_word: u32 = scalar_value(11u32);
     transition first == 7u32 && second == 11u32 && first_word == 7u32 && second_word == 11u32 {
-        true -> 0u32
+        true -> 0u32,
         false -> wrong()
     }
     machine wrong() -> u32 crashes Trap { crash Trap; }

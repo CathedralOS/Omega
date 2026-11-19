@@ -9,7 +9,7 @@ data Packet [copy]
 
 machine fetch(flag: bool) -> Packet {
     transition flag {
-        true -> (Packet::Bounded { payload: 24u64 })
+        true -> (Packet::Bounded { payload: 24u64 }),
         false -> (Packet::Empty {})
     }
 }
@@ -17,17 +17,17 @@ machine fetch(flag: bool) -> Packet {
 machine eval(flag: bool) -> u64
     ensures result <= 64u64
 {
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
+    let s: u64 = size_of::<Packet>();
+    let a: u64 = align_of::<Packet>();
     let geometry_diff: u64 = (s + a) - 24u64;
     let packet: Packet = fetch(flag);
     transition geometry_diff == 0 {
-        true -> inspect(packet)
+        true -> inspect(packet),
         _ -> 0u64
     }
     machine inspect(p: Packet) -> u64 {
         transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
+            Packet::Bounded { payload } -> (64u64 - payload),
             Packet::Empty {} -> 0u64
         }
     }
@@ -35,7 +35,7 @@ machine eval(flag: bool) -> u64
 
 machine main() crashes Trap {
     transition eval(true) == 40u64 && eval(false) == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

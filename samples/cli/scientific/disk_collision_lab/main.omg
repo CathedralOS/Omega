@@ -25,21 +25,21 @@ use data::expectations::expected_contact;
 data Main {lab:Lab; choice:i32;}
 machine main(main:@mut Main) reaches ProcessExit + Console {
  let input:ByteRead=block Console::read_byte();
- transition input {ByteRead::Byte{value} -> choice(main,value) _ -> invalid(main)}
+ transition input {ByteRead::Byte{value} -> choice(main,value), _ -> invalid(main)}
  machine choice(main:@mut Main,value:i32) {
-  transition value >= 48 && value <= 57 {true -> newline(main,value) _ -> invalid(main)}
+  transition value >= 48 && value <= 57 {true -> newline(main,value), _ -> invalid(main)}
  }
  machine newline(main:@mut Main,value:i32) requires value >= 48 && value <= 57 {
   main.choice=value-48;
   let ending:ByteRead=block Console::read_byte();
-  transition ending {ByteRead::Byte{value} -> ending(main,value) _ -> invalid(main)}
+  transition ending {ByteRead::Byte{value} -> ending(main,value), _ -> invalid(main)}
  }
  machine ending(main:@mut Main,value:i32) {
-  transition value == 10 {true -> initialize(main) _ -> invalid(main)}
+  transition value == 10 {true -> initialize(main), _ -> invalid(main)}
  }
  machine initialize(main:@mut Main) {
   fixture(@mut main.lab,main.choice);validate(@mut main.lab);
-  transition main.lab.valid {true -> start(main) _ -> invalid_model(main)}
+  transition main.lab.valid {true -> start(main), _ -> invalid_model(main)}
  }
  machine start(main:@mut Main) {
   totals(@mut main.lab);main.lab.initial_x=main.lab.momentum_x;
@@ -50,10 +50,10 @@ machine main(main:@mut Main) reaches ProcessExit + Console {
  }
  machine next(main:@mut Main) {
   select_event(@mut main.lab);
-  transition main.lab.selected {true -> budget(main) _ -> finish_time(main)}
+  transition main.lab.selected {true -> budget(main), _ -> finish_time(main)}
  }
  machine budget(main:@mut Main) {
-  transition main.lab.events < main.lab.budget {true -> event(main) _ -> exhausted(main)}
+  transition main.lab.events < main.lab.budget {true -> event(main), _ -> exhausted(main)}
  }
  machine event(main:@mut Main) {
   let delay:f64=main.lab.delay;advance(@mut main.lab,delay);resolve(@mut main.lab);totals(@mut main.lab);
@@ -62,19 +62,19 @@ machine main(main:@mut Main) reaches ProcessExit + Console {
    && abs_f64(main.lab.momentum_y-main.lab.initial_y) <= 0.000000001
    && abs_f64(main.lab.energy+main.lab.loss-main.lab.initial_energy) <= 0.000000001
    && abs_f64(main.lab.contact_error) <= 0.000000001 {
-   true -> next(main) _ -> failed(main)
+   true -> next(main), _ -> failed(main)
   }
  }
  machine finish_time(main:@mut Main) {
   let remaining:f64=main.lab.horizon-main.lab.time;advance(@mut main.lab,remaining);totals(@mut main.lab);
-  transition expected_result(@main.lab,main.choice) {true -> complete(main) _ -> failed(main)}
+  transition expected_result(@main.lab,main.choice) {true -> complete(main), _ -> failed(main)}
  }
  machine complete(main:@mut Main) {
   totals_row(@main.lab);disk_rows(@main.lab);
   Console::write_line("status complete");ProcessExit::exit_process(0);
  }
  machine exhausted(main:@mut Main) {
-  transition expected_result(@main.lab,main.choice) {true -> report_exhausted(main) _ -> failed(main)}
+  transition expected_result(@main.lab,main.choice) {true -> report_exhausted(main), _ -> failed(main)}
  }
  machine report_exhausted(main:@mut Main) {
   disk_rows(@main.lab);Console::write_line("status event_budget_exhausted");

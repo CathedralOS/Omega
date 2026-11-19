@@ -6,8 +6,8 @@ machine Inspector::check(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: 
     let after: u32 = cells.selected.load(NoOrdering);
     let sibling: u32 = cells.untouched.load(NoOrdering);
     transition outcome {
-        AtomicCompareExchangeOnceOutcome::Exchanged -> (want_success && after == 99 && sibling == 17)
-        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (!want_success && observed == 10 && after == 10 && sibling == 17)
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (want_success && after == 99 && sibling == 17),
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (!want_success && observed == 10 && after == 10 && sibling == 17),
         AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (want_success && observed == 10 && after == 10 && sibling == 17)
     }
 }
@@ -19,7 +19,7 @@ machine probe(cells: @Cells, expected: u32, want_success: bool) -> bool {
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells, 10, true) && probe(@cells, 9, false) { true -> done() _ -> bad() }
+    transition probe(@cells, 10, true) && probe(@cells, 9, false) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

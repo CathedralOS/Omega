@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) {
         && selected(main.flag).value == 2
         && read_match() == 7
         && main.indexed.value == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

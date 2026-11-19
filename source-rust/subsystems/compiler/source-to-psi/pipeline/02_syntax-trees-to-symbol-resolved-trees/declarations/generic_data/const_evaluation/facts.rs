@@ -813,7 +813,7 @@ fn evaluate_named_const_domain(
             index_parameters.len(),
         ));
     }
-    let domain_key = module_domain_key(syntax, domain);
+    let domain_key = module_domain_key(syntax, domain, selection);
     evaluate_selected_domain_facts(
         syntax,
         domain,
@@ -832,8 +832,8 @@ fn evaluate_named_const_domain(
     declared name. This label alone is not declaration identity: distinct
     packages can publish identical logical paths.
 */
-fn module_domain_key(syntax: &SyntaxTrees, domain: &DomainDefinition) -> String {
-    match module_path(syntax, domain.name.source_span().source_id) {
+fn module_domain_key(syntax: &SyntaxTrees, domain: &DomainDefinition, selection: Option<&crate::resolution::declarations::declaration_selection::ConstantSelection>) -> String {
+    match module_path(selection, domain.name.source_span().source_id) {
         Some(module) => format!("{module}::{}", domain.name.as_str(syntax)),
         None => domain.name.as_str(syntax).to_owned(),
     }
@@ -997,7 +997,7 @@ fn evaluate_selected_domain_facts(
             };
             if !holds {
                 return Ok(Some(DomainFactProof::Refuted {
-                    domain: module_domain_key(syntax, domain),
+                    domain: module_domain_key(syntax, domain, selection),
                 }));
             }
         }
@@ -1096,7 +1096,7 @@ fn evaluate_indexed_const_domain(
                 Some(domain)
                     if matches.next().is_none()
                         && !domain.type_parameters.is_empty()
-                        && module_path(syntax, domain.name.source_span().source_id).is_none() =>
+                        && module_path(selection, domain.name.source_span().source_id).is_none() =>
                 {
                     Some(domain)
                 }
@@ -1107,7 +1107,7 @@ fn evaluate_indexed_const_domain(
     let Some(domain) = domain else {
         return Ok(None);
     };
-    let domain_key = module_domain_key(syntax, domain);
+    let domain_key = module_domain_key(syntax, domain, selection);
     let Some(index_parameters) = domain_index_parameters(syntax, domain) else {
         return Ok(None);
     };

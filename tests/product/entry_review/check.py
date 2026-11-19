@@ -33,8 +33,8 @@ def check(omega, repository, workspace, mode):
     standard = repository / "source/library/std"
     contract = (standard / "targets/uefi_x86_64/entry.omg").read_text(encoding="utf-8")
     contract = contract.replace("use calling;", "use std::calling;")
-    contract = contract.replace("pub boundary data EfiSystemTable;", "pub data EfiSystemTable { signature: u64; }")
-    contract = contract.replace("\nUefiX86_64CallingPolicy satisfies", "\npub UefiX86_64CallingPolicy satisfies")
+    contract = contract.replace("public boundary data EfiSystemTable;", "public data EfiSystemTable { signature: u64; }")
+    contract = contract.replace("\nUefiX86_64CallingPolicy satisfies", "\npublic UefiX86_64CallingPolicy satisfies")
     for name, package in (("selected", selected), ("alternative", alternative)):
         extra = dependency("selected", selected) if name == "alternative" and mode == "shared_requirement" else ""
         write(package / "build.omg", f'''machine build(builder: @mut Build) {{
@@ -49,10 +49,10 @@ def check(omega, repository, workspace, mode):
             body = '''use omega::language::core::extent;
 use std::calling;
 use selected::entry;
-boundary trait UefiApplication: ProgramStorageEntry + selected::UefiPhysicalEntry + Calling<selected::UefiX86_64CallingPolicy> { }
+boundary trait UefiApplication: ProgramStorageEntry + selected::entry::UefiPhysicalEntry + Calling<selected::entry::UefiX86_64CallingPolicy> { }
 '''
-        write(package / "entry.omg", body)
-    selection = "" if mode == "no_selection" else "Build::select_provider<selected::UefiPhysicalEntry, Adapter>(builder);"
+        write(package / "entry" / "contract.omg", body)
+    selection = "" if mode == "no_selection" else "Build::select_provider::<selected::entry::UefiPhysicalEntry, Adapter>(builder);"
     write(application / "build.omg", f'''machine build(builder: @mut Build) {{
     Build::application(builder, "entry_review");
     {dependency("std", standard)}

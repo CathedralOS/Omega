@@ -23,7 +23,7 @@ requires kept == true
 
 machine main() crashes Trap {
     transition observe(true) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -21,9 +21,9 @@ machine main() -> u64 in Wrapping {
         let mut line: [u8; 64];
         let result: ReadOutcome = receive(@mut line);
         transition result {
-            ReadOutcome::Complete { count } -> observe(application, @line, count)
-            ReadOutcome::End { count } -> observe(application, @line, count)
-            ReadOutcome::Full { count } -> (0)
+            ReadOutcome::Complete { count } -> observe(application, @line, count),
+            ReadOutcome::End { count } -> observe(application, @line, count),
+            ReadOutcome::Full { count } -> (0),
             ReadOutcome::Invalid -> (0)
         }
     }

@@ -20,7 +20,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read_next_byte(count: i32 in Wrapping) {
         let read_result: ByteRead = block Console::read_byte();
         transition read_result {
-            ByteRead::Byte { value } -> block stop_at_dot_or_classify(count, value)
+            ByteRead::Byte { value } -> block stop_at_dot_or_classify(count, value),
             _ -> exit_with_count(count)
         }
     }
@@ -29,14 +29,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires value >= 0 && value <= 0xFF {
         let byte: i32 in Wrapping = value as i32 in Wrapping;
         transition byte == 0x2E {
-            true -> exit_with_count(count)
+            true -> exit_with_count(count),
             _ -> block branch_on_lowercase(count, byte)
         }
     }
 
     machine branch_on_lowercase(count: i32 in Wrapping, byte: i32 in Wrapping) {
         transition byte >= 0x61 && byte <= 0x7A {
-            true -> block write_uppercase_byte(count + 1, byte)
+            true -> block write_uppercase_byte(count + 1, byte),
             _ -> block write_unchanged_byte(count + 1, byte)
         }
     }

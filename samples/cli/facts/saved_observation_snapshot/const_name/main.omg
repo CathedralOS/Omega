@@ -12,9 +12,9 @@ requires observed == current && observed == MARK
 machine main() crashes Trap {
     let mut marker: u64 = 0;
     let mut items: [u64; 2] = [MARK, 1];
-    let saved: u64 = capture<@u64>(@items[0], @mut marker, 11);
+    let saved: u64 = capture::<@u64>(@items[0], @mut marker, 11);
     items[1] = 4;
-    transition agree(saved, items[0]) == MARK && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
+    transition agree(saved, items[0]) == MARK && items[1] == 4 && marker == 11 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
     Main::accept(5);
     transition exact_sum() == 7 && bounded(true, 200u16) == 200
         && bounded(false, 200u16 % 256u16) <= 200 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

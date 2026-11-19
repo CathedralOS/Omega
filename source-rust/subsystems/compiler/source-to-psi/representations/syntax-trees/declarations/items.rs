@@ -39,7 +39,6 @@ pub enum Item {
     Data(DataDefinition),
     Domain(DomainDefinition),
     Measure(MeasureDefinition),
-    Module(ModuleDeclaration),
     Operator(OperatorDefinition),
     Package(PackageDeclaration),
     Proposition(PropositionDefinition),
@@ -110,20 +109,6 @@ impl Default for Item {
     record_storage::Record,
 )]
 pub struct UseItem {
-    pub path: HandleSpan<Identifier>,
-}
-
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Default,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    record_storage::Record,
-)]
-pub struct ModuleDeclaration {
     pub path: HandleSpan<Identifier>,
 }
 

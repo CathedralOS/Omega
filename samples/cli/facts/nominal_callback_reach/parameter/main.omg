@@ -23,8 +23,8 @@ machine consume(observed: u64) -> u64 {
 }
 
 machine main() crashes Trap {
-    transition consume(walk<bump>(35)) == 42u64 {
-        true -> done()
+    transition consume(walk::<bump>(35)) == 42u64 {
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -34,7 +34,7 @@ machine probe(q: Quartet) -> u64 {
 
 machine main() crashes Trap {
     transition probe(make_quartet()) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

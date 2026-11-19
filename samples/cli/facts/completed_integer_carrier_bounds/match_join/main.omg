@@ -2,14 +2,14 @@
 // Expected exit: 0.
 data Bound [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
 machine probe(value: u8, selected: bool) -> Bound {
-    let joined: u8 = match selected { true -> value false -> 0 };
+    let joined: u8 = match selected { true -> value, false -> 0 };
     Bound { value: joined as i32 }
 }
 machine main() crashes Trap {
     let low: Bound = probe(0, false);
     let high: Bound = probe(255, true);
     transition low.value == 0 && high.value == 255 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

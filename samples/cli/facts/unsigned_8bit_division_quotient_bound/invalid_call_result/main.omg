@@ -18,7 +18,7 @@ machine divide_call_result(dividend: u8, divisor: u8) -> i32
     let quotient: u8 = compute_quotient(dividend, divisor);
     let check: u8 = quotient - 30u8;
     transition quotient == 30u8 && check == 0u8 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() -> i32 { 0 }
@@ -28,7 +28,7 @@ machine divide_call_result(dividend: u8, divisor: u8) -> i32
 machine main() crashes Trap {
     let res: i32 = divide_call_result(120u8, 4u8);
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

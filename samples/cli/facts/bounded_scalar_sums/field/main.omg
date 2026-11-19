@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let sample: Pair = Pair { left: 30, right: 40 };
     let upper: Pair = Pair { left: 50, right: 50 };
     transition add(sample) == 70 && add(upper) == 100 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

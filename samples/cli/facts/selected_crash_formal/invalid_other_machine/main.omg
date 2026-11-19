@@ -12,11 +12,11 @@ crashes Trap value < Zero
 { Implementation::read(value) }
 public machine safe<Implementation satisfies Reader<Zero>>(value: i32) -> i32
 requires value >= 0
-{ forward<Implementation>(value) }
+{ forward::<Implementation>(value) }
 machine main() crashes Trap {
     let input: i32 = 7;
-    let observed: i32 = safe<Provider<Zero>>(input);
-    transition observed == 7 { true -> done() _ -> bad() }
+    let observed: i32 = safe::<Provider<Zero>>(input);
+    transition observed == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

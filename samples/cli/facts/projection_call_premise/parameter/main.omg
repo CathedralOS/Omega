@@ -25,7 +25,7 @@ requires mark.kept
 machine main() crashes Trap {
     let direct: bool = observe(Mark { kept: true });
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

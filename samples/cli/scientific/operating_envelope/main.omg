@@ -17,13 +17,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut envelope: geometry::Envelope;
     let admitted: bool = geometry::load(@mut envelope, @packet);
     transition admitted {
-        true -> calculate(main, @mut envelope)
+        true -> calculate(main, @mut envelope),
         _ -> invalid(main)
     }
     machine calculate(main: @mut Main, envelope: @mut geometry::Envelope) {
         geometry::solve(envelope);
         transition envelope.valid {
-            true -> emit(main, envelope)
+            true -> emit(main, envelope),
             _ -> failure(main)
         }
     }

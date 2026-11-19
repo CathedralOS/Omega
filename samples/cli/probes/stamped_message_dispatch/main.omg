@@ -10,14 +10,14 @@ data Message<'input> {
 
 machine receive<'input>(cell: @'input Cell, present: bool) -> Message<'input> {
     transition present {
-        true -> Message::Received { stamp: 73, cell: cell }
+        true -> Message::Received { stamp: 73, cell: cell },
         false -> Message::Missing { stamp: 41 }
     }
 }
 
 machine read(message: @Message) -> u64 {
     transition message {
-        Message::Missing -> 0
+        Message::Missing -> 0,
         Message::Received { cell, .. } -> cell.value
     }
 }
@@ -29,14 +29,14 @@ machine inspect(present: bool) -> bool {
     let stamp: u64 = message.stamp;
     cell.value = 23;
     transition present {
-        true -> (value == 19 && stamp == 73 && cell.value == 23)
+        true -> (value == 19 && stamp == 73 && cell.value == 23),
         false -> (value == 0 && stamp == 41 && cell.value == 23)
     }
 }
 
 machine main() crashes Trap {
     transition inspect(true) && inspect(false) {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

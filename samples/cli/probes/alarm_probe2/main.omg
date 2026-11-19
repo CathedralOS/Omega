@@ -21,11 +21,11 @@ data Main {
 
 machine Main::dispatch(main: @mut Main, event: AlarmEvent) {
     transition event {
-        AlarmEvent::Trigger -> do_trigger(main)
-        AlarmEvent::Dismiss -> do_dismiss()
-        AlarmEvent::Cancel -> do_cancel()
-        AlarmEvent::Set { hour, minute } -> do_set(hour, minute)
-        AlarmEvent::Snooze { minutes } -> do_snooze(minutes)
+        AlarmEvent::Trigger -> do_trigger(main),
+        AlarmEvent::Dismiss -> do_dismiss(),
+        AlarmEvent::Cancel -> do_cancel(),
+        AlarmEvent::Set { hour, minute } -> do_set(hour, minute),
+        AlarmEvent::Snooze { minutes } -> do_snooze(minutes),
         _ -> done()
     }
 
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Main::dispatch(main, AlarmEvent::Trigger);
 
     transition main.fire_count == 2 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
     machine good(main: @mut Main) {

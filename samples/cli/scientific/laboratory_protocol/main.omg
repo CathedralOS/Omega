@@ -22,20 +22,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read(main: @mut Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> block character(main, value)
+            ByteRead::Byte { value } -> block character(main, value),
             ByteRead::Eof -> block end(main)
         }
     }
     machine character(main: @mut Main, character: i32) {
         transition character == 10 {
-            true -> block commit(main, false)
+            true -> block commit(main, false),
             false -> block collect(main, character)
         }
     }
     machine collect(main: @mut Main, character: i32) {
         transition main.length {
-            0 -> block first(main, character)
-            1 -> block second(main, character)
+            0 -> block first(main, character),
+            1 -> block second(main, character),
             _ -> block overflow(main)
         }
     }
@@ -55,13 +55,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine end(main: @mut Main) {
         transition main.length > 0 {
-            true -> block commit(main, true)
+            true -> block commit(main, true),
             false -> done(main)
         }
     }
     machine commit(main: @mut Main, final: bool) {
         transition main.commands < 64 {
-            true -> block grammar(main, final)
+            true -> block grammar(main, final),
             false -> exhausted(main)
         }
     }
@@ -69,7 +69,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.commands = main.commands + 1;
         main.decision = 12;
         transition main.length == 2 && main.second >= 48 && main.second <= 57 {
-            true -> block interpret(main, final)
+            true -> block interpret(main, final),
             false -> block report(main, final)
         }
     }
@@ -82,7 +82,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         protocol::report::row(@main.laboratory, main.decision);
         main.length = 0;
         transition final {
-            true -> done(main)
+            true -> done(main),
             false -> block read(main)
         }
     }

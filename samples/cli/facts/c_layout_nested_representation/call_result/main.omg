@@ -43,8 +43,8 @@ machine main() crashes Trap {
     words[5] = 9u64;
     words[6] = 11u64;
     let mapped: @CLayout<Record> = @words as @CLayout<Record>;
-    transition value.first == 17u8 && value.child.first == 23u8 && value.child.second == 42u64 && value.child.last == 9u16 && value.last == 11u16 && mapped.first == 17u8 && mapped.child.first == 23u8 && mapped.child.second == 42u64 && mapped.child.last == 9u16 && mapped.last == 11u16 && size_of<CLayout<Record>>() == 56u64 && align_of<CLayout<Record>>() == 8u64 {
-        true -> done()
+    transition value.first == 17u8 && value.child.first == 23u8 && value.child.second == 42u64 && value.child.last == 9u16 && value.last == 11u16 && mapped.first == 17u8 && mapped.child.first == 23u8 && mapped.child.second == 42u64 && mapped.child.last == 9u16 && mapped.last == 11u16 && size_of::<CLayout<Record>>() == 56u64 && align_of::<CLayout<Record>>() == 8u64 {
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

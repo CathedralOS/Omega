@@ -26,13 +26,13 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.tally.calls = 40;
     transition Main::roll(@mut main.tally) {
-        true -> first(main)
+        true -> first(main),
         false -> second(main)
     }
     machine first(main: @mut Main) { main.hits = 1; }
     machine second(main: @mut Main) {
         transition main.tally.calls == 41 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad(main)
         }
     }

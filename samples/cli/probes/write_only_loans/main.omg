@@ -27,7 +27,7 @@ machine Main::main(main: @mut Main) {
     let mut destination: i32 = 0;
     forward(@write destination, 42);
     transition destination == 42 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

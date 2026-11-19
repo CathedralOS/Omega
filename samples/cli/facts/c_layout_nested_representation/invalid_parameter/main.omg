@@ -22,7 +22,7 @@ Spread satisfies FixedLayout<Payload> {
 data Record [copy] { first: u8; child: Payload; last: u16; }
 machine observe(value: LayoutStorage<Record, CAbiPolicy<Record>>, words: @[u64; 7]) -> bool {
     let mapped: @CLayout<Record> = words as @CLayout<Record>;
-    value.first == 17u8 && value.child.first == 23u8 && value.child.last == 9u16 && value.child.second == 42u64 && value.last == 11u16 && mapped.first == 17u8 && mapped.child.first == 23u8 && mapped.child.last == 9u16 && mapped.child.second == 42u64 && mapped.last == 11u16 && size_of<CLayout<Record>>() == 56u64 && align_of<CLayout<Record>>() == 8u64
+    value.first == 17u8 && value.child.first == 23u8 && value.child.last == 9u16 && value.child.second == 42u64 && value.last == 11u16 && mapped.first == 17u8 && mapped.child.first == 23u8 && mapped.child.last == 9u16 && mapped.child.second == 42u64 && mapped.last == 11u16 && size_of::<CLayout<Record>>() == 56u64 && align_of::<CLayout<Record>>() == 8u64
 }
 machine main() crashes Trap {
     let mut record: CLayout<Record>;
@@ -40,7 +40,7 @@ machine main() crashes Trap {
     words[5] = 9u64;
     words[6] = 11u64;
     let observed: bool = observe(record, @words);
-    transition observed { true -> done() _ -> bad() }
+    transition observed { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

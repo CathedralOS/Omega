@@ -53,7 +53,7 @@ machine Main::main(main: @mut Main) reaches Writer crashes Trap {
     let second_value: u64 = second.value;
     drop(first);
     drop(second);
-    transition first_observed == 73 && second_observed == 73 && first_value == 73 && second_value == 73 && original == 37 { true -> done() _ -> bad() }
+    transition first_observed == 73 && second_observed == 73 && first_value == 73 && second_value == 73 && original == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

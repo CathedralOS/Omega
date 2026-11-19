@@ -23,26 +23,26 @@ data Clearance {
 machine main(clearance: @mut Clearance) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(@mut clearance.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> newline(clearance, count)
-        LineReadResult::EndOfInput { count } -> eof(clearance, count)
+        LineReadResult::LineComplete { count } -> newline(clearance, count),
+        LineReadResult::EndOfInput { count } -> eof(clearance, count),
         _ -> invalid(clearance)
     }
     machine newline(clearance: @mut Clearance, count: u64) {
         transition count == 11 && clearance.input[10] == 10 {
-            true -> decode(clearance)
+            true -> decode(clearance),
             false -> invalid(clearance)
         }
     }
     machine eof(clearance: @mut Clearance, count: u64) {
         transition count == 10 {
-            true -> decode(clearance)
+            true -> decode(clearance),
             false -> invalid(clearance)
         }
     }
     machine decode(clearance: @mut Clearance) {
         let valid: bool = parse(@clearance.input, @mut clearance.plan);
         transition valid {
-            true -> route(clearance)
+            true -> route(clearance),
             false -> invalid(clearance)
         }
     }

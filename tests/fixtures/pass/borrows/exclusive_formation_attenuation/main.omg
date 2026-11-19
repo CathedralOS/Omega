@@ -51,7 +51,7 @@ machine main() crashes Trap {
     let descriptor_result: bool = through_descriptor(@mut pair);
     let byte_result: bool = array_view();
     transition before == 7 && after == 7 && result && descriptor_result && byte_result {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

@@ -42,13 +42,13 @@ machine Main::main(main: @mut Main) {
     Bits::go(@mut main.bits);
     let bits: @u32 = @main.value as @u32;
     transition bits == 4294967294 && (@main.small as @u8) == 200 && main.k <= 4 && main.bits.y == 65535 {
-        true -> region(main, main.k)
+        true -> region(main, main.k),
         _ -> fail(main)
     }
     machine region(main: @mut Main, offset: u32) {
         let pair: @i16 = @main.bytes[offset] as @i16;
         transition pair == -2 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

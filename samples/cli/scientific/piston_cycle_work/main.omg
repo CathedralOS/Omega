@@ -31,12 +31,12 @@ crashes Trap
     let mut application: Application;
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> block select(@mut application, value)
+        ByteRead::Byte { value } -> block select(@mut application, value),
         _ -> invalid()
     }
     machine select(application: @mut Application, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> block delimiter(application, value)
+            true -> block delimiter(application, value),
             _ -> invalid()
         }
     }
@@ -45,14 +45,14 @@ crashes Trap
         application.selection = (wrapped - 48) as i32;
         let tail: ByteRead = block Console::read_byte();
         transition tail {
-            ByteRead::Eof -> start(application)
-            ByteRead::Byte { value: 10 } -> block finish_input(application)
+            ByteRead::Eof -> start(application),
+            ByteRead::Byte { value: 10 } -> block finish_input(application),
             _ -> invalid()
         }
     }
     machine finish_input(application: @mut Application) {
         let tail: ByteRead = block Console::read_byte();
-        transition tail { ByteRead::Eof -> start(application) _ -> invalid() }
+        transition tail { ByteRead::Eof -> start(application), _ -> invalid() }
     }
     machine start(application: @mut Application) {
         Console::write_line("piston_cycle_work: kPa,L,J; work by piston");
@@ -62,11 +62,11 @@ crashes Trap
     machine stage(application: @mut Application, index: u32) requires index <= 3 {
         load(application.selection, index, @mut application.stage);
         let valid: bool = evaluate(@mut application.stage);
-        transition valid { true -> boundary(application, index) _ -> invalid_stage() }
+        transition valid { true -> boundary(application, index), _ -> invalid_stage() }
     }
     machine boundary(application: @mut Application, index: u32) requires index <= 3 {
         transition index == 0 {
-            true -> first(application, index)
+            true -> first(application, index),
             _ -> continuity(application, index)
         }
     }
@@ -78,7 +78,7 @@ crashes Trap
     machine continuity(application: @mut Application, index: u32) requires index <= 3 {
         transition near(application.previous_volume, application.stage.volume)
             && near(application.previous_pressure, application.stage.pressure) {
-            true -> history(application, index)
+            true -> history(application, index),
             _ -> discontinuity()
         }
     }
@@ -86,7 +86,7 @@ crashes Trap
         row(index as i32, 0, application.stage.volume, application.stage.pressure);
         let volume: f64 = (application.stage.volume + application.stage.end_volume) / 2.0;
         transition application.stage.isochoric {
-            true -> hold_middle(application, index, volume)
+            true -> hold_middle(application, index, volume),
             _ -> model_middle(application, index, volume)
         }
     }
@@ -106,7 +106,7 @@ crashes Trap
         application.previous_volume = application.stage.end_volume;
         application.previous_pressure = application.stage.end_pressure;
         transition application.stage.work >= 0.0 {
-            true -> expansion(application, index)
+            true -> expansion(application, index),
             _ -> compression(application, index)
         }
     }
@@ -121,7 +121,7 @@ crashes Trap
     machine next(application: @mut Application, index: u32) requires index <= 3 {
         let count: u32 = count(application.selection);
         transition index + 1 < count && index < 3 {
-            true -> stage(application, index + 1)
+            true -> stage(application, index + 1),
             _ -> balance(application)
         }
     }
@@ -130,20 +130,20 @@ crashes Trap
         number(application.compression); Console::write(","); number(application.total);
         Console::write_line("");
         transition near(application.total, application.expansion + application.compression) {
-            true -> closure(application)
+            true -> closure(application),
             _ -> bad_balance()
         }
     }
     machine closure(application: @mut Application) {
         transition application.selection == 0 || application.selection == 1 {
-            true -> closed(application)
+            true -> closed(application),
             _ -> open()
         }
     }
     machine closed(application: @mut Application) {
         transition near(application.previous_volume, application.first_volume)
             && near(application.previous_pressure, application.first_pressure) {
-            true -> complete()
+            true -> complete(),
             _ -> bad_balance()
         }
     }

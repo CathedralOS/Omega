@@ -42,7 +42,7 @@ machine main() crashes Trap {
     transition rows[2].data[1] == 42 && rows[2].data[0] == 0
         && rows[0].data[0] == 0 && rows[1].data[1] == 5
         && rows[2].tag == 7 && cursor.calls == 3 && cursor.trace == 123 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -8,7 +8,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -16,7 +16,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -48,13 +48,13 @@ ArmShiftLeft satisfies SelectedShiftLeft {
 machine main() crashes Trap {
     let val: i64 = 25i64;
     transition val >= 25i64 && val <= 25i64 {
-        true -> shift_step(val)
+        true -> shift_step(val),
         _ -> bad()
     }
     machine shift_step(v: i64) {
         let shifted: i64 = SelectedShiftLeft::shift_left(v);
         transition shifted >= 100i64 && shifted <= 100i64 {
-            true -> done(shifted)
+            true -> done(shifted),
             _ -> bad()
         }
     }

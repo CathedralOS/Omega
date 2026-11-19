@@ -5,7 +5,7 @@ data Window<'input> { values: @'input mut [Reading]; }
 
 machine advance(window: @mut Window, consumed: u64) -> bool {
     transition consumed <= window.values.len {
-        true -> valid(window, consumed)
+        true -> valid(window, consumed),
         false -> false
     }
     machine valid(window: @mut Window, consumed: u64) -> bool
@@ -17,7 +17,7 @@ machine advance(window: @mut Window, consumed: u64) -> bool {
 
 machine verify(values: @[Reading]) -> bool {
     transition values.len == 2 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Reading]) -> bool requires values.len == 2 {
@@ -43,7 +43,7 @@ machine main() crashes Trap {
     let exhausted: bool = window.values.len == 0;
     transition advanced && first && retained && second && emptied && exhausted
         && readings[0].value == 99 && readings[4].value == 88 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

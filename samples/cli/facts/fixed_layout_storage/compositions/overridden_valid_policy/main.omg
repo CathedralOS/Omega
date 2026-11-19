@@ -29,11 +29,11 @@ DefaultRead satisfies ReadValue {
 OverrideRead satisfies ReadValue { machine read() -> u64 { 7u64 } }
 data Defaults {}
 macos_arm64 machine Defaults::provider_defaults(defaults: @mut Defaults) {
-    Defaults::select_provider<ReadValue, DefaultRead>(defaults);
+    Defaults::select_provider::<ReadValue, DefaultRead>(defaults);
 }
 machine main() reaches ReadValue crashes Trap {
     let value: u64 = ReadValue::read();
-    transition value == 7u64 { true -> done() _ -> bad() }
+    transition value == 7u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

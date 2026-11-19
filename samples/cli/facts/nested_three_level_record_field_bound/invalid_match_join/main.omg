@@ -20,7 +20,7 @@ requires first.mid.inner.val >= 40 && first.mid.inner.val <= 81
 ensures result.mid.inner.val >= 40 && result.mid.inner.val <= 81
 {
     match flag {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -40,7 +40,7 @@ machine main() crashes Trap {
     let o1: Outer = Outer { mid: Middle { inner: Inner { val: 60u64 } } };
     let o2: Outer = Outer { mid: Middle { inner: Inner { val: 50u64 } } };
     transition probe(o1, o2, true) == 40 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

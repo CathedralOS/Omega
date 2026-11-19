@@ -30,7 +30,7 @@ SelectedFloatObservation satisfies FloatObservation {
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
-    transition FloatObservation::observe(@item) == 7.0 { true -> done() _ -> bad() }
+    transition FloatObservation::observe(@item) == 7.0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

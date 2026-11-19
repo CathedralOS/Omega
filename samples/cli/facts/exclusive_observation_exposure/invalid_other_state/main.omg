@@ -8,7 +8,7 @@ machine main() crashes Trap {
     machine check(observed: u64, current: u64, held: u64)
     requires observed == current && observed == 7
     {
-        transition observed == 7 && held == held { true -> done() _ -> bad() }
+        transition observed == 7 && held == held { true -> done(), _ -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

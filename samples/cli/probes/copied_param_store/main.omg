@@ -22,7 +22,7 @@ data Item [copy] {
 
 machine Kind::tag(kind: Kind) -> u64 in Trapping {
     transition kind {
-        Kind::First -> one()
+        Kind::First -> one(),
         _ -> two()
     }
 
@@ -46,7 +46,7 @@ machine Main::main(main: @mut Main) {
     transition original.kind == Kind::First
         && lifted.kind == Kind::Second
         && lifted.count == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

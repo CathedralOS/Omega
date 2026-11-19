@@ -59,7 +59,7 @@ data SmallResult {
 
 machine classify(value: u16) -> SmallResult {
     transition value <= 10 {
-        true -> SmallResult::Accepted { value: value as +Small }
+        true -> SmallResult::Accepted { value: value as +Small },
         false -> SmallResult::TooLarge
     }
 }
@@ -167,8 +167,8 @@ let ready: Config = Config { rank: 1 as +Rank, .. };
 ```omega
 machine status(player: @Player) -> u32 {
     transition player {
-        Player::Dead -> 0
-        Player::Alive -> 1
+        Player::Dead -> 0,
+        Player::Alive -> 1,
         _ -> 2
     }
 }

@@ -7,7 +7,7 @@ the program that depends on it (`omega --check`).
 `Reading<const Tag: u64>` is one requirement per tag, and an implementation
 `FirstReading<T, const Tag: u64>` satisfies `Reading<Tag>` for whatever tag it
 is applied to. So a choice has to say which application it means:
-`Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>`,
+`Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>`,
 written once in a helper generic in `Tag` and called with `(8u64 + 9u64)`,
 chooses `FirstReading<[Holder<u64>; 2], 17>` for `Reading<17>` and for no
 other tag.
@@ -22,8 +22,7 @@ tag written as a literal of another integer type.
 
 use std::process::Command;
 
-const PACKAGE: &str = "module main;
-public boundary trait Reading<const Tag: u64> {
+const PACKAGE: &str = "public boundary trait Reading<const Tag: u64> {
     machine total() -> u64 reaches none crashes none ensures result >= 1000u64;
 }
 FirstReading<T, const Tag: u64> satisfies Reading<Tag> {
@@ -50,7 +49,7 @@ fn check(name: &str, choice: &str) -> (bool, String) {
         format!(
             "machine build(builder: @mut Build) {{
     Build::package(builder, \"reading\");
-    configure<(8u64 + 9u64)>(builder);
+    configure::<(8u64 + 9u64)>(builder);
 }}
 machine configure<const Tag: u64>(builder: @mut Build) {{
     {choice}
@@ -87,7 +86,7 @@ machine configure<const Tag: u64>(builder: @mut Build) {{
 fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() {
     let (compiled, stderr) = check(
         "chosen",
-        "Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(compiled, "{stderr}");
 }
@@ -96,7 +95,7 @@ fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() 
 fn a_provider_applied_to_another_tag_than_its_slot_is_rejected() {
     let (compiled, stderr) = check(
         "crossed",
-        "Build::select_provider<Reading<Tag>, FirstReading<[Holder<u64>; 2], 29u64>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], 29u64>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(
@@ -111,7 +110,7 @@ fn a_provider_applied_to_another_tag_than_its_slot_is_rejected() {
 fn an_application_with_the_wrong_number_of_arguments_is_rejected() {
     let (compiled, stderr) = check(
         "excess",
-        "Build::select_provider<Reading<Tag, Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<Tag, Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(
@@ -124,7 +123,7 @@ fn an_application_with_the_wrong_number_of_arguments_is_rejected() {
 fn a_tag_stated_in_another_integer_type_is_rejected() {
     let (compiled, stderr) = check(
         "narrow",
-        "Build::select_provider<Reading<17u32>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<17u32>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(!compiled);
     assert!(

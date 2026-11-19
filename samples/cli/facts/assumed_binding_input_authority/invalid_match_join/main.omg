@@ -16,9 +16,9 @@ machine pick(flag: bool) -> Index {
 machine main() reaches Required crashes Trap {
     let first: u32 = Required::get(pick(true));
     let observed: u32 = Required::get(pick(false));
-    transition first == 11 { true -> verify(observed) false -> bad() }
+    transition first == 11 { true -> verify(observed), false -> bad() }
     machine verify(observed: u32) {
-    transition observed == 11 { true -> done() false -> bad() }
+    transition observed == 11 { true -> done(), false -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

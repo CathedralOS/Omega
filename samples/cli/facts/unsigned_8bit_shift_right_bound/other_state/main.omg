@@ -17,13 +17,13 @@ machine main() crashes Trap {
     let val: u8 = 160;
     let shifted: u8 = compute_shift(val);
     transition true {
-        true -> step(shifted)
+        true -> step(shifted),
         _ -> bad()
     }
     machine step(forwarded: u8) {
         let check: u8 = verify_shifted(forwarded);
         transition check == 0 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

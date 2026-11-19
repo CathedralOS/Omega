@@ -34,14 +34,14 @@ machine decode<'backing>(backing: @'backing mut [u64; 7]) -> Optional<Decoded<'b
     // The scalar field itself admits every bit pattern. Its comparison must
     // establish the whole payload predicate before a valid view can escape.
     transition view.second >= 42u64 {
-        true -> Optional::Some { value: Decoded { value: @view } }
+        true -> Optional::Some { value: Decoded { value: @view } },
         false -> Optional::None
     }
 }
 machine consume(value: @LayoutStorage<Payload, Spread>) -> u64 {
     let difference: u64 = value.second - 42u64;
     transition value.first == 23u8 && value.last == 9u16 && difference == 0u64 {
-        true -> 1u64
+        true -> 1u64,
         false -> 0u64
     }
 }
@@ -51,7 +51,7 @@ machine roundtrip(payload: u64) -> u64 crashes Trap {
     // Every word, including both padding regions, is initialized. Only the
     // five interior words belong to the representation footprint.
     let source: [u64; 7] = match payload == 42u64 {
-        true -> VALID_SOURCE
+        true -> VALID_SOURCE,
         false -> INVALID_SOURCE
     };
     let mut destination: [u64; 7] = [29u64, 0u64, 0u64, 0u64, 0u64, 0u64, 71u64];
@@ -61,11 +61,11 @@ machine roundtrip(payload: u64) -> u64 crashes Trap {
     let saved: Optional<Decoded> = decode(@mut destination);
     let holder: Saved = Saved { value: saved };
     let observed: u64 = match holder.value {
-        Optional::Some { value as decoded } -> consume(decoded.value)
+        Optional::Some { value as decoded } -> consume(decoded.value),
         Optional::None -> 0u64
     };
     transition source[0] == 17u64 && source[6] == 53u64 && destination[0] == 29u64 && destination[6] == 71u64 {
-        true -> done(observed)
+        true -> done(observed),
         false -> bad()
     }
     machine done(observed: u64) -> u64 { observed }
@@ -76,7 +76,7 @@ machine main() crashes Trap {
     let valid: u64 = roundtrip(42u64);
     let rejected: u64 = roundtrip(41u64);
     transition valid == 1u64 && rejected == 0u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -208,7 +208,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::EqualityProtocol,
     ),
     row(
-        "indexing.omg",
+        "indexing/indexing.omg",
         "read",
         BundledFile::CoreIndexing,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
@@ -216,7 +216,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "indexing.omg",
+        "indexing/indexing.omg",
         "range",
         BundledFile::CoreIndexing,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
@@ -224,7 +224,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "indexing.omg",
+        "indexing/indexing.omg",
         "view",
         BundledFile::CoreIndexing,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
@@ -232,13 +232,13 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "atomic.omg",
+        "Atomic/atomic.omg",
         "fence",
         BundledFile::CoreAtomic,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::AtomicFence),
     ),
     row(
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         "valid_utf8",
         BundledFile::CoreByteObservation,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
@@ -246,7 +246,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         "no_nul",
         BundledFile::CoreByteObservation,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
@@ -254,7 +254,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         "ascii_only",
         BundledFile::CoreByteObservation,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
@@ -262,7 +262,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
         )),
     ),
     row(
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         "non_empty",
         BundledFile::CoreByteObservation,
         SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::ByteObservation(
@@ -420,43 +420,43 @@ const ROWS: &[SealedIntrinsicRow] = &[
         SealedIntrinsic::PlacedPrimitive(PlacedPrimitiveOperation::Write),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::view",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::view_mut",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::view_resident_mut",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::initialize_from_profile",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::Initialize, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::extract_resident",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::MoveOut, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::view_from_profile",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),
     ),
     row(
-        "access.omg",
+        "access/access.omg",
         "access::view_mut_from_profile",
         BundledFile::CoreAccess,
         lifecycle(PlacementOperation::View, PlacementContent::Resident),

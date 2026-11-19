@@ -21,7 +21,7 @@ machine main() crashes Trap {
     rows[2].tag = 7;
     visit(@mut rows, @mut cursor);
     transition rows[2].data[1] == 42 && rows[2].data[0] == 0 && rows[2].tag == 7 && cursor.calls == 3 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

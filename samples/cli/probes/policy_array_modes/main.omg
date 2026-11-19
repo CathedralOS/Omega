@@ -30,12 +30,12 @@ machine Table::weigh(table: @Table, index: u64 in Trapping) -> u64
 crashes Trap
 {
     transition index < table.count {
-        true -> classify(table, index)
+        true -> classify(table, index),
         _ -> absent()
     }
     machine classify(table: @Table, index: u64 in Trapping) -> u64 {
         transition table.modes[index] {
-            Mode::Idle -> idle()
+            Mode::Idle -> idle(),
             Mode::Busy -> occupied()
         }
     }
@@ -57,7 +57,7 @@ machine Main::main(main: @mut Main) {
     let idle: u64 = Table::weigh(@main.table, 2) as u64;
     let absent: u64 = Table::weigh(@main.table, 3) as u64;
     transition busy == 2 && idle == 1 && absent == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

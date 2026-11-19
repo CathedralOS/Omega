@@ -58,13 +58,13 @@ blocks
 requires 0 <= a && a <= 50
 requires 0 <= b && b <= 50
 {
-    block apply<Selected>(supply_left(a), supply_right(b))
+    block apply::<Selected>(supply_left(a), supply_right(b))
 }
 
 machine main() blocks crashes Trap {
     let wide: i32 = block probe(20, 22);
     let narrow: i32 = block probe(10, 12);
-    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+    transition wide == 42 && narrow == 22 { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

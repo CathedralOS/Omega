@@ -46,7 +46,7 @@ machine main() -> u32 crashes Trap {
         && flag_seen && received == 77 && republished == 77
         && cas_relaxed_failure == 55 && cas_relaxed == 1
         && counter.load(NoOrdering) == 2 && wide.load(NoOrdering) == 30 {
-        true -> ((observed + prior + displaced + cas_prior + received + republished + cas_relaxed_failure + cas_relaxed) as u32)
+        true -> ((observed + prior + displaced + cas_prior + received + republished + cas_relaxed_failure + cas_relaxed) as u32),
         _ -> bad()
     }
     machine bad() -> u32 crashes Trap { crash Trap; }
@@ -55,7 +55,7 @@ machine main() -> u32 crashes Trap {
 // The entry also checks the original returned sum.
 machine global_order_entry() crashes Trap {
     let total: u32 = main();
-    transition total == 265 { true -> done() _ -> bad() }
+    transition total == 265 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

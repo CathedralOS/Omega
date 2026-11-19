@@ -3,16 +3,16 @@ machine build(builder: @mut Build) {
     let driver_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../driver" }));
     configure(builder);
     transition false {
-        true -> unselected(builder)
+        true -> unselected(builder),
         false -> done()
     }
     machine unselected(builder: @mut Build) {
-        Build::audit_service<audit_driver::Untaken>(builder);
+        Build::audit_service::<audit_driver::Untaken>(builder);
     }
     machine done() {}
 }
 
 machine configure(builder: @mut Build) {
-    Build::audit_service<audit_driver::MotorControl>(builder);
-    Build::audit_service<audit_driver::MotorControl>(builder);
+    Build::audit_service::<audit_driver::MotorControl>(builder);
+    Build::audit_service::<audit_driver::MotorControl>(builder);
 }

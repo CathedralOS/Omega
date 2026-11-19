@@ -1391,16 +1391,12 @@ mod modules {
                         && self
                             .symbol_provenance_source_span(*candidate)
                             .is_some_and(|span| {
-                                if current_module.is_valid() {
-                                    self.same_source_package(reference, span)
-                                } else {
-                                    span.source_id == reference.source_id
-                                        || (shared_extension
-                                            && self.same_source_package(reference, span)
-                                            && self.sources.as_deref().is_some_and(|sources| {
-                                                !sources.resolution_strata_separate(reference, span)
-                                            }))
-                                }
+                                span.source_id == reference.source_id
+                                    || (shared_extension
+                                        && self.same_source_package(reference, span)
+                                        && self.sources.as_deref().is_some_and(|sources| {
+                                            !sources.resolution_strata_separate(reference, span)
+                                        }))
                             })
                 })
                 .collect::<Vec<_>>();
@@ -1462,18 +1458,14 @@ mod modules {
             if !imported.is_empty() {
                 return imported;
             }
-            if !current_module.is_valid() {
-                let package = candidates.iter().copied().filter(|candidate| {
-                    self.name(*candidate) == name
-                        && !self.symbol_module(*candidate).is_valid()
-                        && self
-                            .symbol_provenance_source_span(*candidate)
-                            .is_some_and(|span| self.same_source_package(reference, span))
-                });
-                let package = package.collect::<Vec<_>>();
-                if !package.is_empty() {
-                    return package;
-                }
+            let siblings = candidates.iter().copied().filter(|candidate| {
+                self.name(*candidate) == name
+                    && self.symbol_module(*candidate) == current_module
+                    && self.symbol_provenance_source_span(*candidate)
+                        .is_some_and(|span| self.same_source_package(reference, span))
+            }).collect::<Vec<_>>();
+            if !siblings.is_empty() {
+                return siblings;
             }
             candidates
                 .iter()
@@ -2032,28 +2024,8 @@ mod source_queries {
             self.symbol_provenance_source_span(symbol)
                 .and_then(|span| self.source_file(span))
                 .is_some_and(|file| {
-                    // The producer emits root data/protocol declarations and
-                    // ordinary code modules as one virtual-source bundle.
-                    let mut components = file.path.components();
-                    let unit = match components.next() {
-                        Some(std::path::Component::Normal(unit)) if components.next().is_none() => {
-                            unit.to_str()
-                        }
-                        _ => None,
-                    };
                     file.origin == source_admission::SourceOrigin::Toolchain
-                        && unit.is_some_and(|unit| {
-                            unit == "<build-prelude>"
-                                || unit
-                                    .strip_prefix("<build-prelude:")
-                                    .and_then(|module| module.strip_suffix('>'))
-                                    .is_some_and(|module| {
-                                        !module.is_empty()
-                                            && module.bytes().all(|byte| {
-                                                byte.is_ascii_alphanumeric() || byte == b'_'
-                                            })
-                                    })
-                        })
+                        && source_admission::source_identity::is_build_prelude_path(&file.path)
                 })
         }
 
@@ -3787,15 +3759,8 @@ impl SymbolTable {
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
             return true;
         }
-        // Files that declare no module form one logical module, yet each
-        // file's own declarations take precedence over a sibling's
-        // same-spelled one (`select_namespace_candidates`), so two such files
-        // each select their own declaration. Files of a shared activation
-        // extension see each other's declarations as local and stay one scope.
-        if !self.source_module(left_span.source_id).is_valid()
-            && !self.shares_activation_extension(left_span)
-            && !self.shares_activation_extension(right_span)
-        {
+        // A file sees its own declarations before same-spelled siblings, in every directory.
+        if !self.shares_activation_extension(left_span) && !self.shares_activation_extension(right_span) {
             return true;
         }
         if self

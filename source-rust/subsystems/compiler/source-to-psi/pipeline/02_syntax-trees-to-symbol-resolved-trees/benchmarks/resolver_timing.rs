@@ -29,7 +29,15 @@ impl Package {
         let mut sources = SourceMap::default();
         let mut syntax = SyntaxTrees::default();
         let mut add = |path: &str, text: &str| {
-            let id = sources.add(path.into(), text.into()).source_id;
+            let id = sources
+                .add_with_metadata(
+                    path.into(),
+                    text.into(),
+                    "pkg".into(),
+                    None,
+                    source_admission::SourceOrigin::User,
+                )
+                .source_id;
             let tokens = frontend::Lexer::new(text)
                 .tokenize()
                 .map_err(|e| e.message)?;
@@ -61,9 +69,9 @@ impl Package {
             }
             "imports" => {
                 let kit = add(
-                    "pkg/kit.omg",
+                    "pkg/kit/kit.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/kit.omg"
+                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/kit/kit.omg"
                     ),
                 )?;
                 let main = add(

@@ -268,10 +268,12 @@ impl LogicalSourceInventory {
         };
         for (path, unit) in paths.into_iter().zip(parsed) {
             let source_compiler::SourceDeclarations {
-                module,
                 declares_operator_family,
                 declared,
-            } = unit.declarations(&path)?;
+            } = unit.declarations();
+            let module = source_admission::directory_namespace(&path, root)
+                .map_err(|message| vec![Diagnostic::error(message)])?
+                .into_iter().map(str::to_owned).collect();
             result.units.push(LogicalSourceUnit {
                 path,
                 module,
@@ -357,12 +359,12 @@ mod tests {
     }
 
     #[test]
-    fn logical_membership_comes_from_headers_not_filenames() {
+    fn logical_membership_comes_from_directories_not_filenames() {
         let filesystem = captured(&[
             ("odd.omg", "public data Record {}"),
             ("another.omg", "public machine read() -> u8 { 7 }"),
-            ("Record.omg", "module unrelated; public data Hidden {}"),
-            ("renamed.omg", "module api; public data Export {}"),
+            ("unrelated/Record.omg", "public data Hidden {}"),
+            ("api/renamed.omg", "public data Export {}"),
             ("build.omg", "not product source syntax"),
         ]);
         let mut discovery = Vec::<RegisteredPackageRoot>::new();
@@ -391,7 +393,7 @@ mod tests {
                     &filesystem
                 )
                 .unwrap()
-                .contains(&capture_root().join("renamed.omg"))
+                .contains(&capture_root().join("api/renamed.omg"))
         );
     }
 
@@ -402,19 +404,16 @@ mod tests {
     fn discovery_retains_each_unit_parse_for_admission() {
         let filesystem = captured(&[
             ("odd.omg", "public data Record {}"),
-            ("renamed.omg", "module api; public data Export {}"),
+            ("api/renamed.omg", "public data Export {}"),
             ("build.omg", "not product source syntax"),
         ]);
         let mut discovery = Vec::<RegisteredPackageRoot>::new();
         discovery
             .select(&capture_root(), &["api".into()], &filesystem)
             .unwrap();
-        let retained = retained_unit(&discovery, &capture_root().join("renamed.omg"))
+        let retained = retained_unit(&discovery, &capture_root().join("api/renamed.omg"))
             .expect("discovery retained the unit it parsed");
-        let declarations = retained
-            .declarations(&capture_root().join("renamed.omg"))
-            .unwrap();
-        assert_eq!(declarations.module, ["api"]);
+        let declarations = retained.declarations();
         assert_eq!(declarations.declared, ["Export"]);
         assert!(!declarations.declares_operator_family);
         assert!(retained_unit(&discovery, &capture_root().join("odd.omg")).is_some());
@@ -433,12 +432,12 @@ mod tests {
             ("main.omg", "public machine entry() -> u8 { 7 }"),
             ("other.omg", "machine helper() -> u8 { 7 }"),
             (
-                "support.omg",
-                "module build_support; public machine generated() -> u8 { 7 }",
+                "build_support/support.omg",
+                "public machine generated() -> u8 { 7 }",
             ),
             (
-                "tables.omg",
-                "module build_support::tables; public data Table {}",
+                "build_support/tables/tables.omg",
+                "public data Table {}",
             ),
         ]);
         let root = &capture_root();
@@ -461,11 +460,11 @@ mod tests {
         );
         assert_eq!(
             select(&["build_support"]),
-            ["support.omg", "tables.omg"].map(|path| root.join(path))
+            ["build_support/support.omg", "build_support/tables/tables.omg"].map(|path| root.join(path))
         );
         assert_eq!(
             select(&["build_support", "generated"]),
-            [root.join("support.omg")]
+            [root.join("build_support/support.omg")]
         );
         // The twin: the acquisition a Product source gets takes every
         // enclosing namespace, the module-less units included.
@@ -479,19 +478,19 @@ mod tests {
     fn root_import_acquires_descendants_for_qualified_namespace_lookup() {
         let filesystem = captured(&[
             ("root.omg", "public data Root {}"),
-            ("child.omg", "module child; public data Child {}"),
-            ("deep.omg", "module child::deep; public data Deep {}"),
+            ("child/child.omg", "public data Child {}"),
+            ("child/deep/deep.omg", "public data Deep {}"),
         ]);
         let mut owners = Vec::<RegisteredPackageRoot>::new();
         assert_eq!(
             owners.select(&capture_root(), &[], &filesystem).unwrap(),
-            ["child.omg", "deep.omg", "root.omg"].map(|path| capture_root().join(path))
+            ["child/child.omg", "child/deep/deep.omg", "root.omg"].map(|path| capture_root().join(path))
         );
         assert_eq!(
             owners
                 .select(&capture_root(), &["child".into()], &filesystem)
                 .unwrap(),
-            ["child.omg", "deep.omg", "root.omg"].map(|path| capture_root().join(path))
+            ["child/child.omg", "child/deep/deep.omg", "root.omg"].map(|path| capture_root().join(path))
         );
     }
 
@@ -499,15 +498,15 @@ mod tests {
     fn product_declaration_inventory_includes_unimported_operator_homes() {
         let filesystem = captured(&[
             ("root.omg", "machine main() {}"),
-            ("units.omg", "module units; public domain u32::Distance;"),
+            ("units/units.omg", "public domain u32::Distance;"),
             (
-                "operators.omg",
-                "module operations; use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }",
+                "operations/operators.omg",
+                "use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }",
             ),
-            ("ordinary.omg", "module unrelated; machine helper() {}"),
+            ("unrelated/ordinary.omg", "machine helper() {}"),
             (
-                "child/foreign.omg",
-                "module foreign; public machine + Unknown::add(value: u32) {}",
+                "child/foreign/foreign.omg",
+                "public machine + Unknown::add(value: u32) {}",
             ),
             ("build.omg", "not Product syntax"),
         ]);
@@ -517,12 +516,12 @@ mod tests {
             owners
                 .siblings(
                     &root,
-                    &root.join("units.omg"),
+                    &root.join("units/units.omg"),
                     &filesystem,
                     vec![root.join("child")]
                 )
                 .unwrap(),
-            ["operators.omg", "units.omg"].map(|path| root.join(path)),
+            ["operations/operators.omg", "units/units.omg"].map(|path| root.join(path)),
             "family declarations must enter normal Product admission even without a namespace import",
         );
         assert_eq!(owners.len(), 1, "reuse the actual owner's cached inventory");
@@ -530,16 +529,16 @@ mod tests {
 
     #[test]
     fn named_parent_namespace_can_be_introduced_only_by_a_descendant_unit() {
-        let filesystem = captured(&[("renamed.omg", "module outer::inner; public data Item {}")]);
+        let filesystem = captured(&[("outer/inner/renamed.omg", "public data Item {}")]);
         let mut owners = Vec::<RegisteredPackageRoot>::new();
         let root = &capture_root();
         assert_eq!(
             owners.select(root, &[], &filesystem).unwrap(),
-            [root.join("renamed.omg")]
+            [root.join("outer/inner/renamed.omg")]
         );
         assert_eq!(
             owners.select(root, &["outer".into()], &filesystem).unwrap(),
-            [root.join("renamed.omg")]
+            [root.join("outer/inner/renamed.omg")]
         );
     }
 
@@ -547,7 +546,7 @@ mod tests {
     fn owner_inventory_refreshes_when_capture_or_exclusions_change() {
         let first = captured(&[("one.omg", "public data One {}")]);
         let second = captured(&[
-            ("one.omg", "module hidden; public data One {}"),
+            ("hidden/one.omg", "public data One {}"),
             ("two.omg", "public data Two {}"),
             ("child/three.omg", "public data Three {}"),
         ]);
@@ -559,7 +558,7 @@ mod tests {
         );
         assert_eq!(
             owners.select(root, &["Two".into()], &second).unwrap(),
-            [root.join("child/three.omg"), root.join("two.omg")]
+            [root.join("two.omg")]
         );
         assert_eq!(
             owners
@@ -569,7 +568,7 @@ mod tests {
         );
         assert_eq!(
             owners.select(root, &["Two".into()], &second).unwrap(),
-            [root.join("child/three.omg"), root.join("two.omg")]
+            [root.join("two.omg")]
         );
         assert_eq!(
             owners.len(),

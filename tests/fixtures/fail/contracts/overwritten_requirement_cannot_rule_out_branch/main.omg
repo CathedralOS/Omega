@@ -6,7 +6,7 @@ requires start >= 10
     let mut count: u64 = start;
     count = 0u64;
     transition count < 5 {
-        true -> (count - 100u64)
+        true -> (count - 100u64),
         false -> (count)
     }
 }

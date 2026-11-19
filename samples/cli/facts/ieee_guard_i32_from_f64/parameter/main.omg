@@ -3,7 +3,7 @@
 use omega::language::core::I32::from_f64;
 machine bounded(value: f64) -> i32 {
     transition value == value && value >= 0.0 && value < 1000000000.0 {
-        true -> finish(I32::from_f64(value))
+        true -> finish(I32::from_f64(value)),
         false -> zero()
     }
     machine finish(observed: i32) -> i32 { observed }
@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let zero_f64: f64 = 0.0;
     let unordered: i32 = bounded(zero_f64 / zero_f64);
     transition inside == 123 && above == 0 && below == 0 && unordered == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

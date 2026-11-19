@@ -27,13 +27,13 @@ requires premise(kept)
 }
 
 machine observe(kept: bool) -> bool {
-    apply<witness>(kept)
+    apply::<witness>(kept)
 }
 
 machine main() crashes Trap {
     let direct: bool = observe(true);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

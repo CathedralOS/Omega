@@ -11,15 +11,15 @@ machine probe(cells: @Cells, expected: u32, want_success: bool) -> bool {
         let after: u32 = cells.selected.load(NoOrdering);
         let sibling: u32 = cells.untouched.load(NoOrdering);
         transition outcome {
-            AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && want_success && after == 99 && sibling == 17)
-            AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (!want_success && proposed == 99 && after == 10 && sibling == 17)
+            AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && want_success && after == 99 && sibling == 17),
+            AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (!want_success && proposed == 99 && after == 10 && sibling == 17),
             AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (want_success && proposed == 99 && after == 10 && sibling == 17)
         }
     }
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells, 10, true) && probe(@cells, 9, false) { true -> done() _ -> bad() }
+    transition probe(@cells, 10, true) && probe(@cells, 9, false) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

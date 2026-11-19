@@ -28,7 +28,7 @@ data Pair { left: Receipt; right: Receipt; }
 
 machine pack(first: i32, second: i32, swap: bool) -> Pair {
     transition swap {
-        true -> left_first(first, second)
+        true -> left_first(first, second),
         _ -> right_first(first, second)
     }
 
@@ -45,7 +45,7 @@ data Main { hits: i32 in Wrapping; }
 
 machine verify(correct: bool) crashes Trap {
     transition correct {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

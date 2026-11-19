@@ -751,7 +751,7 @@ data Shape [copy] { case Dot(at: u32); case Pair(left: u32, right: u32); }
 machine build_entry() { let total: u32 = weigh(Shape::Dot { at: 1 }); }
 machine weigh(shape: Shape) -> u32 {
     transition shape {
-        Shape::Dot { at } -> at
+        Shape::Dot { at } -> at,
         Shape::Pair { left, right } -> left
     }
 }

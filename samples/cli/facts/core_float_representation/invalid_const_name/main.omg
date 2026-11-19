@@ -14,8 +14,8 @@ machine probe() -> u32 { consume(VALUE) }
 machine main() crashes Trap {
 
     let presented: f32 = float::from_bits(0xFF80_0123u32);
-    let quieted: u32 = float::to_bits(float::quiet<f32>(presented));
-    transition probe() == 0u32 && float::is_signaling_nan<f32>(presented) && quieted == 0xFFC0_0123u32 { true -> done() _ -> wrong() }
+    let quieted: u32 = float::to_bits(float::quiet::<f32>(presented));
+    transition probe() == 0u32 && float::is_signaling_nan::<f32>(presented) && quieted == 0xFFC0_0123u32 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

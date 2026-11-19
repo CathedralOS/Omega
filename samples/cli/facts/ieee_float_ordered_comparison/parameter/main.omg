@@ -21,7 +21,7 @@ requires value >= 1.5 && value <= 2.5
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 2.0 };
     transition probe(reading.value) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -16,7 +16,7 @@ machine inspect() -> u64 {
 const OBSERVED: u64 = inspect();
 machine main() crashes Trap {
     let observed: u64 = OBSERVED;
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

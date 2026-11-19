@@ -22,8 +22,8 @@ data Signal {
 
 machine Signal::apply(signal: Signal) -> i32 {
     transition signal {
-        Signal::Hop { dx as step, .. } if step == 30 -> step
-        Signal::Hop { dx, dy } -> (dx + dy)
+        Signal::Hop { dx as step, .. } if step == 30 -> step,
+        Signal::Hop { dx, dy } -> (dx + dy),
         Signal::Stop { code } -> code
     }
 }
@@ -33,7 +33,7 @@ machine arm_rest_guards() {
     let summed: i32 = Signal::apply(Signal::Hop { dx: 12, dy: 40 });
     let stopped: i32 = Signal::apply(Signal::Stop { code: 7 });
     transition guarded == 30 && summed == 52 && stopped == 7 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

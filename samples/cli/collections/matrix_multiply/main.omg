@@ -39,7 +39,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let next_k: u64 = k + 1;
         let accumulated: i32 in Wrapping = acc + matrices.a[i][k] * matrices.b[k][j];
         transition next_k <= 2 {
-            true -> dot(context, matrices, i, j, next_k, accumulated)
+            true -> dot(context, matrices, i, j, next_k, accumulated),
             false -> store(context, matrices, i, j, accumulated)
         }
     }
@@ -49,14 +49,14 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         matrices.c[i][j] = acc;
         let next_j: u64 = j + 1;
         transition next_j <= 2 {
-            true -> col(context, matrices, i, next_j)
+            true -> col(context, matrices, i, next_j),
             false -> row_step(context, matrices, i)
         }
     }
     machine row_step(context: @mut Main, matrices: @mut Matrices, i: u64) requires i <= 2 {
         let next_i: u64 = i + 1;
         transition next_i <= 2 {
-            true -> col(context, matrices, next_i, 0)
+            true -> col(context, matrices, next_i, 0),
             false -> checksum(context, matrices)
         }
     }

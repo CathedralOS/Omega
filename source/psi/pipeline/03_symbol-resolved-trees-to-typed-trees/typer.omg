@@ -33,14 +33,14 @@ crashes Trap
     typer_clear(typer, syntax);
     type_references(typer, sources, syntax, resolution);
     transition typer.output.accepted {
-        true -> constants(typer, sources, syntax, resolution)
+        true -> constants(typer, sources, syntax, resolution),
         _ -> done()
     }
 
     machine constants(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_constants(typer, sources, syntax, resolution);
         transition typer.output.accepted {
-            true -> bodies(typer, sources, syntax, resolution)
+            true -> bodies(typer, sources, syntax, resolution),
             _ -> done()
         }
     }
@@ -48,7 +48,7 @@ crashes Trap
     machine bodies(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_bodies(typer, sources, syntax, resolution);
         transition typer.output.accepted {
-            true -> facts(typer, sources, syntax, resolution)
+            true -> facts(typer, sources, syntax, resolution),
             _ -> done()
         }
     }
@@ -56,7 +56,7 @@ crashes Trap
     machine facts(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_facts(typer, sources, syntax, resolution);
         transition typer.output.accepted {
-            true -> clauses(typer, sources, syntax, resolution)
+            true -> clauses(typer, sources, syntax, resolution),
             _ -> done()
         }
     }
@@ -100,7 +100,7 @@ crashes Trap
 
     machine expression(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.expression_count {
-            true -> clear_expression(typer, index)
+            true -> clear_expression(typer, index),
             _ -> binder(typer, 0)
         }
     }
@@ -117,7 +117,7 @@ crashes Trap
 
     machine binder(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.binder_count {
-            true -> clear_binder(typer, index)
+            true -> clear_binder(typer, index),
             _ -> construct(typer, 0)
         }
     }
@@ -130,7 +130,7 @@ crashes Trap
 
     machine construct(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.construct_count {
-            true -> clear_construct(typer, index)
+            true -> clear_construct(typer, index),
             _ -> done()
         }
     }
@@ -152,7 +152,7 @@ crashes Trap
 
     machine next(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < syntax.constant_count && typer.output.accepted {
-            true -> value(typer, sources, syntax, resolution, index)
+            true -> value(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
@@ -162,7 +162,7 @@ crashes Trap
         type_tree(typer, sources, syntax, resolution, item.value);
         let declared: u64 in Trapping = reference_type(@typer.output, item.type_reference);
         transition typer.output.accepted {
-            true -> admit(typer, sources, syntax, resolution, index, declared, item.value)
+            true -> admit(typer, sources, syntax, resolution, index, declared, item.value),
             _ -> done()
         }
     }
@@ -184,7 +184,7 @@ crashes Trap
 
     machine next_machine(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
-            true -> entry(typer, sources, syntax, resolution, index)
+            true -> entry(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
@@ -205,7 +205,7 @@ public machine declared_result(typer: @Typer, has_type: bool, reference: u64 in 
 crashes Trap
 {
     transition has_type {
-        true -> declared(typer, reference)
+        true -> declared(typer, reference),
         _ -> fallback(otherwise)
     }
 
@@ -226,14 +226,14 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);
     transition row.kind == TypeKind::Reference {
-        true -> inner(typer, row.inner)
+        true -> inner(typer, row.inner),
         _ -> result(handle)
     }
 
     machine inner(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition row.kind == TypeKind::Reference {
-            true -> inner(typer, row.inner)
+            true -> inner(typer, row.inner),
             _ -> result(handle)
         }
     }
@@ -257,21 +257,21 @@ crashes Trap
     machine referenced(typer: @Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
         let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition row.kind == TypeKind::Reference {
-            true -> layer(typer, original, row, remaining)
+            true -> layer(typer, original, row, remaining),
             _ -> scalar(original, handle, row)
         }
     }
 
     machine layer(typer: @Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
         transition row.access != ReferenceAccess::WriteOnly && remaining > 0 {
-            true -> referenced(typer, original, row.inner, remaining - 1)
+            true -> referenced(typer, original, row.inner, remaining - 1),
             _ -> result(original)
         }
     }
 
     machine scalar(original: u64 in Trapping, handle: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
         transition row.kind == TypeKind::Builtin {
-            true -> result(handle)
+            true -> result(handle),
             _ -> result(original)
         }
     }
@@ -288,7 +288,7 @@ crashes Trap
 {
     let handle: u64 in Trapping = type_table_intern(@mut typer.output.types, row);
     transition handle > 0 {
-        true -> result(handle)
+        true -> result(handle),
         _ -> full(typer, source_span)
     }
 
@@ -308,7 +308,7 @@ public machine is_typed(typer: @Typer, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition index < 131072 {
-        true -> read(typer, index)
+        true -> read(typer, index),
         _ -> invalid()
     }
 
@@ -325,7 +325,7 @@ public machine mark_typed(typer: @mut Typer, index: u64 in Trapping, typed: bool
 crashes Trap
 {
     transition index < 131072 {
-        true -> write(typer, index, typed)
+        true -> write(typer, index, typed),
         _ -> invalid()
     }
 

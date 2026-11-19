@@ -37,7 +37,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.total = a1 + a2 + a3;
 
     transition main.total == 70 {
-        true -> block good(main)
+        true -> block good(main),
         _ -> block bad(main)
     }
 

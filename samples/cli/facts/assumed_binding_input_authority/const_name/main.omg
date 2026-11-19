@@ -13,7 +13,7 @@ Actual satisfies Supplied {
 const SLOT: u32 = 1;
 machine main() reaches Required crashes Trap {
     let observed: u32 = Required::get(Index { value: SLOT });
-    transition observed == 11 { true -> done() false -> bad() }
+    transition observed == 11 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

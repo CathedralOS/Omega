@@ -14,7 +14,7 @@ Counting satisfies Mark {
 machine notify<T>(left: @T, right: @T, pick: bool, hits: @mut u64) {
     let chosen: @T = match pick { true -> left, _ -> right };
     let label: u64 = match pick { true -> 9, _ -> 5 };
-    Mark::record<T>(@label, label, hits);
+    Mark::record::<T>(@label, label, hits);
 }
 
 machine main() crashes Trap {
@@ -24,9 +24,9 @@ machine main() crashes Trap {
     let right_b: u8 = 4;
     let mut first: u64 = 0;
     let mut second: u64 = 0;
-    notify<i32>(@left_i, @right_i, true, @mut first);
-    notify<u8>(@left_b, @right_b, false, @mut second);
-    transition first == 9 && second == 5 { true -> done() false -> bad() }
+    notify::<i32>(@left_i, @right_i, true, @mut first);
+    notify::<u8>(@left_b, @right_b, false, @mut second);
+    transition first == 9 && second == 5 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

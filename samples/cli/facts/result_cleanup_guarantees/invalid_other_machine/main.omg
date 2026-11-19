@@ -10,7 +10,7 @@ machine forward() -> Seed ensures result.ready == false { Seed { ready: false } 
 machine across() -> u64 { let seed: Seed = forward(); read(@make_token(@seed)) }
 machine main() crashes Trap {
     let answer: u64 = across();
-    transition answer == 7 { true -> done() false -> bad() }
+    transition answer == 7 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

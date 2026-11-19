@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
     let b: leaf::outcomes::Outcome = bare();
     let br: leaf::outcomes::Outcome = braces();
     transition is_empty(@b) && is_empty(@br) && !has_value(@b) {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

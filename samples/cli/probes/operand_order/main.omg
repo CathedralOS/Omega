@@ -48,11 +48,11 @@ machine Main::main(main: @mut Main) {
         second: tick(@mut main.count),
         first: tick(@mut main.count),
     }, tick(@mut main.count)) {
-        true -> Main::pass(main)
+        true -> Main::pass(main),
         _ -> Main::fail(main)
     }
     machine pass(main: @mut Main) {
-        main.total = forward<u64>(main.count) as u64 in Wrapping;
+        main.total = forward::<u64>(main.count) as u64 in Wrapping;
         main.hits = 1;
     }
     machine fail(main: @mut Main) { main.hits = -1; }

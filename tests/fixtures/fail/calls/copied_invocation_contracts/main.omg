@@ -13,10 +13,10 @@ reaches none crashes none invokes Other
     Registrar::execute(value)
 }
 machine main() crashes Trap {
-    let first: u32 = relay<1>(19u32);
-    let second: u32 = relay<2>(23u32);
+    let first: u32 = relay::<1>(19u32);
+    let second: u32 = relay::<2>(23u32);
     transition first == 19u32 && second == 23u32 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

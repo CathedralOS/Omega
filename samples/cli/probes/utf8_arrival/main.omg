@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) {
     main.result = 0;
     let view: @[u8] = main.buffer[0..1];
     transition valid_utf8(view) {
-        true -> checked(main, view)
+        true -> checked(main, view),
         false -> bad()
     }
     machine checked(main: @mut Main, view: @[u8])

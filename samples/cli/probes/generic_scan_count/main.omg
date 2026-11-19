@@ -12,7 +12,7 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
     requires position <= values.len
     {
         transition position < values.len {
-            true -> inspect(values, context, position)
+            true -> inspect(values, context, position),
             false -> Optional::None
         }
     }
@@ -20,7 +20,7 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
     requires position < values.len
     {
         transition Predicate(@values[position], context) {
-            true -> Optional::Some { value: @values[position] }
+            true -> Optional::Some { value: @values[position] },
             false -> next(values, context, position + 1)
         }
     }
@@ -34,7 +34,7 @@ requires machine Predicate(value: @T) -> bool;
     requires matched <= position && position <= values.len
     {
         transition position < values.len {
-            true -> inspect(values, position, matched)
+            true -> inspect(values, position, matched),
             false -> (matched)
         }
     }
@@ -42,7 +42,7 @@ requires machine Predicate(value: @T) -> bool;
     requires matched <= position && position < values.len
     {
         transition Predicate(@values[position]) {
-            true -> next(values, position + 1, matched + 1)
+            true -> next(values, position + 1, matched + 1),
             false -> next(values, position + 1, matched)
         }
     }
@@ -59,7 +59,7 @@ data Batch<T, const Capacity: u64> { values: [T; Capacity]; }
 machine count_batch<T, const Capacity: u64, machine Predicate>(batch: @Batch<T, Capacity>) -> u64
 requires machine Predicate(value: @T) -> bool;
 {
-    count<Predicate>(@batch.values)
+    count::<Predicate>(@batch.values)
 }
 
 machine count_with_context<T, Context, machine Predicate>(values: @[T], context: @Context) -> u64
@@ -70,7 +70,7 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
     requires matched <= position && position <= values.len
     {
         transition position < values.len {
-            true -> inspect(values, context, position, matched)
+            true -> inspect(values, context, position, matched),
             false -> (matched)
         }
     }
@@ -78,7 +78,7 @@ requires machine Predicate(value: @T, context: @Context) -> bool;
     requires matched <= position && position < values.len
     {
         transition Predicate(@values[position], context) {
-            true -> next(values, context, position + 1, matched + 1)
+            true -> next(values, context, position + 1, matched + 1),
             false -> next(values, context, position + 1, matched)
         }
     }
@@ -91,7 +91,7 @@ machine within(value: @i32, context: @Selection<i32>) -> bool {
 
 machine value_or_missing(found: Optional<@i32>) -> i32 {
     transition found {
-        Optional::Some { value } -> (value)
+        Optional::Some { value } -> (value),
         Optional::None -> -100
     }
 }
@@ -104,20 +104,20 @@ machine main() crashes Trap {
         Record { key: 18446744073709551615, selected: false },
         Record { key: 7, selected: true }
     ];
-    let positives: u64 = count<positive>(@signed);
-    let nonzeros: u64 = count<nonzero>(@bytes);
-    let selections: u64 = count<selected>(@records);
-    let empty: u64 = count<positive>(signed[..0]);
-    let suffix: u64 = count<positive>(signed[2..]);
+    let positives: u64 = count::<positive>(@signed);
+    let nonzeros: u64 = count::<nonzero>(@bytes);
+    let selections: u64 = count::<selected>(@records);
+    let empty: u64 = count::<positive>(signed[..0]);
+    let suffix: u64 = count::<positive>(signed[2..]);
     let batch: Batch<i32, 3> = Batch { values: [0, 1, 2] };
-    let batched: u64 = count_batch<positive>(@batch);
+    let batched: u64 = count_batch::<positive>(@batch);
     let limits: Selection<i32> = Selection { minimum: -1, maximum: 7 };
-    let bounded: u64 = count_with_context<within>(@signed, @limits);
-    let first: Optional<@i32> = find<within>(@signed, @limits);
+    let bounded: u64 = count_with_context::<within>(@signed, @limits);
+    let first: Optional<@i32> = find::<within>(@signed, @limits);
     let first_value: i32 = value_or_missing(first);
     transition positives == 2 && nonzeros == 2 && selections == 2
         && empty == 0 && suffix == 1 && batched == 2 && bounded == 3 && first_value == 7 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

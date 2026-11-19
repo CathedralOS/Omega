@@ -490,10 +490,10 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     >
     reaches ResourceProfileSupply
     {
-        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+        let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access::initialize_from_profile<P, T, Storage, Role>(storage, value, @profile)
+        access::initialize_from_profile::<P, T, Storage, Role>(storage, value, @profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -502,10 +502,10 @@ public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     {
         // Resident preserves the value and backing, not permission to read
         // every byte. Reobserve the same grant's admitted supply before decode.
-        let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+        let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
             @storage as @Extent in Granted
         );
-        access::extract_resident<P, T, Storage, Role>(storage, @profile)
+        access::extract_resident::<P, T, Storage, Role>(storage, @profile)
     }
 }
 

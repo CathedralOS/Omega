@@ -104,7 +104,7 @@ machine choose<'a>(left: @'a mut Access<RegPlacement, Registers>,
                    right: @'a mut Access<RegPlacement, Registers>,
                    first: bool) -> @'a mut Access<RegPlacement, Registers> {
     transition first {
-        true -> left
+        true -> left,
         _ -> right
     }
 }
@@ -112,16 +112,16 @@ machine choose<'a>(left: @'a mut Access<RegPlacement, Registers>,
 machine exercise(first: bool) crashes Trap {
     let mut left: Registers = Registers { status: 41, transmit: 3 };
     let mut right: Registers = Registers { status: 73, transmit: 5 };
-    let left_view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut left);
-    let right_view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut right);
+    let left_view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut left);
+    let right_view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut right);
     let selected: @mut Access<RegPlacement, Registers> = choose(left_view, right_view, first);
     let observed: u32 = mutate(selected);
     transition first {
-        true -> check(observed == 41 && left.transmit == 9 && right.transmit == 5)
+        true -> check(observed == 41 && left.transmit == 9 && right.transmit == 5),
         _ -> check(observed == 73 && left.transmit == 3 && right.transmit == 9)
     }
     machine check(correct: bool) {
-        transition correct { true -> done() _ -> wrong() }
+        transition correct { true -> done(), _ -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }
@@ -131,10 +131,10 @@ machine main() crashes Trap {
     exercise(true);
     exercise(false);
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = mutate(view);
     transition observed == 41 && registers.transmit == 9 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

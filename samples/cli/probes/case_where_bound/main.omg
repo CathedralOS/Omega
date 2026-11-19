@@ -25,7 +25,7 @@ data Main { interval: Interval; }
 machine Main::main(main: @mut Main) {
     main.interval = Interval::Range { lo: 3, hi: 7 };
     transition main.interval {
-        Interval::Range { lo, hi } -> take(lo, hi)
+        Interval::Range { lo, hi } -> take(lo, hi),
         Interval::Empty -> done()
     }
     machine take(lo: u64, hi: u64)

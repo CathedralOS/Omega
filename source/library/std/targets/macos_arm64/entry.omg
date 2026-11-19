@@ -21,8 +21,8 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
-        4 -> physical(signature)
-        2 -> semantic(signature)
+        4 -> physical(signature),
+        2 -> semantic(signature),
         _ -> reject()
     }
 
@@ -30,7 +30,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.parameters[1], signature.parameters[2],
-                signature.parameters[3], signature.result)
+                signature.parameters[3], signature.result),
             _ -> reject()
         }
     }
@@ -44,7 +44,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
             && apple < signature.shape_count && result < signature.shape_count
         {
             true -> physical_shapes(signature.shapes[argc], signature.shapes[argv],
-                signature.shapes[envp], signature.shapes[apple], signature.shapes[result])
+                signature.shapes[envp], signature.shapes[apple], signature.shapes[result]),
             _ -> reject()
         }
     }
@@ -58,7 +58,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
             && hosted_entry_integer_shape(@apple, 8)
             && hosted_entry_integer_shape(@result, 4)
         {
-            true -> build_physical()
+            true -> build_physical(),
             _ -> reject()
         }
     }
@@ -78,7 +78,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
 
     machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
-            false -> semantic_indices(signature, signature.parameters[0], signature.parameters[1])
+            false -> semantic_indices(signature, signature.parameters[0], signature.parameters[1]),
             _ -> reject()
         }
     }
@@ -89,14 +89,14 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         transition image < 256 && storage < 256
             && image < signature.shape_count && storage < signature.shape_count
         {
-            true -> semantic_shapes(signature.shapes[image], signature.shapes[storage], signature)
+            true -> semantic_shapes(signature.shapes[image], signature.shapes[storage], signature),
             _ -> reject()
         }
     }
 
     machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
         transition hosted_entry_extent_shape(image, @signature) && hosted_entry_extent_shape(storage, @signature) {
-            true -> build_semantic()
+            true -> build_semantic(),
             _ -> reject()
         }
     }

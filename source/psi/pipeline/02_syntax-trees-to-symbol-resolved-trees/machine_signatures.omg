@@ -17,7 +17,7 @@ crashes Trap
 
     machine next_machine(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
-            true -> machine_parameters(resolver, sources, syntax, index)
+            true -> machine_parameters(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -27,7 +27,7 @@ crashes Trap
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> machine_parameter_names(resolver, sources, syntax, index, item)
+            true -> machine_parameter_names(resolver, sources, syntax, index, item),
             _ -> done()
         }
     }
@@ -35,7 +35,7 @@ crashes Trap
     machine machine_parameter_names(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem) {
         check_parameter_names(resolver, sources, syntax, item.first_parameter, item.parameter_count);
         transition resolver.output.accepted {
-            true -> overloads(resolver, sources, syntax, index, item, 0)
+            true -> overloads(resolver, sources, syntax, index, item, 0),
             _ -> done()
         }
     }
@@ -49,7 +49,7 @@ crashes Trap
         prior: u64 in Trapping
     ) {
         transition prior < index {
-            true -> overload_compare(resolver, sources, syntax, index, item, prior)
+            true -> overload_compare(resolver, sources, syntax, index, item, prior),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
@@ -67,7 +67,7 @@ crashes Trap
         let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as u64 in Trapping,
             prior_item.name.source_span.source.value as u64 in Trapping);
         transition same && same_module {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateMachine, item.name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateMachine, item.name),
             _ -> overloads(resolver, sources, syntax, index, item, prior + 1)
         }
     }
@@ -100,7 +100,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < parameter_count {
-            true -> named(resolver, sources, syntax, first_parameter, parameter_count, offset)
+            true -> named(resolver, sources, syntax, first_parameter, parameter_count, offset),
             _ -> done()
         }
     }
@@ -128,7 +128,7 @@ crashes Trap
         earlier: u64 in Trapping
     ) {
         transition earlier < offset {
-            true -> compare(resolver, sources, syntax, first_parameter, parameter_count, offset, name, earlier)
+            true -> compare(resolver, sources, syntax, first_parameter, parameter_count, offset, name, earlier),
             _ -> next(resolver, sources, syntax, first_parameter, parameter_count, offset + 1)
         }
     }
@@ -148,7 +148,7 @@ crashes Trap
             earlier_parameter.name.source_span
         );
         transition equal {
-            true -> duplicate(resolver, name)
+            true -> duplicate(resolver, name),
             _ -> prior(resolver, sources, syntax, first_parameter, parameter_count, offset, name, earlier + 1)
         }
     }
@@ -183,7 +183,7 @@ crashes Trap
         right_owner.owner.source_span
     );
     transition left.parent == right.parent && same_name && left_owner.has_owner == right_owner.has_owner && (!left_owner.has_owner || same_owner) {
-        true -> parameters(resolver, sources, syntax, left_handle, right_handle, left, right)
+        true -> parameters(resolver, sources, syntax, left_handle, right_handle, left, right),
         _ -> different()
     }
 
@@ -198,7 +198,7 @@ crashes Trap
     ) -> bool {
         let same: bool = same_parameters(resolver, sources, syntax, left_handle, right_handle);
         transition same {
-            true -> targets(sources, left, right)
+            true -> targets(sources, left, right),
             _ -> different()
         }
     }
@@ -207,7 +207,7 @@ crashes Trap
     machine targets(sources: @SourceSet, left: MachineItem, right: MachineItem) -> bool {
         let same_target: bool = spans_equal(sources, left.target.source_span, right.target.source_span);
         transition left.has_target && right.has_target && !same_target {
-            true -> different()
+            true -> different(),
             _ -> same()
         }
     }
@@ -237,7 +237,7 @@ crashes Trap
     let left: MachineItem = machine_item(syntax, left_handle);
     let right: MachineItem = machine_item(syntax, right_handle);
     transition left.parameter_count == right.parameter_count && left.generic_parameter_count == right.generic_parameter_count {
-        true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, 0)
+        true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, 0),
         _ -> different()
     }
 
@@ -252,7 +252,7 @@ crashes Trap
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.generic_parameter_count {
-            true -> generic_kind(resolver, sources, syntax, left_handle, right_handle, left, right, offset)
+            true -> generic_kind(resolver, sources, syntax, left_handle, right_handle, left, right, offset),
             _ -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, 0)
         }
     }
@@ -270,7 +270,7 @@ crashes Trap
         let left_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, left.first_generic_parameter + offset);
         let right_parameter: GenericParameter = syntax_trees_generic_parameter(syntax, right.first_generic_parameter + offset);
         transition left_parameter.kind == right_parameter.kind {
-            true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1)
+            true -> generic(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1),
             _ -> different()
         }
     }
@@ -286,7 +286,7 @@ crashes Trap
         offset: u64 in Trapping
     ) -> bool {
         transition offset < left.parameter_count {
-            true -> compare(resolver, sources, syntax, left_handle, right_handle, left, right, offset)
+            true -> compare(resolver, sources, syntax, left_handle, right_handle, left, right, offset),
             _ -> same()
         }
     }
@@ -309,7 +309,7 @@ crashes Trap
             right_scope, right_parameter.type_reference
         );
         transition equal {
-            true -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1)
+            true -> parameter(resolver, sources, syntax, left_handle, right_handle, left, right, offset + 1),
             _ -> different()
         }
     }
@@ -343,7 +343,7 @@ crashes Trap
     let left_root: TypeReference = syntax_trees_type_reference(syntax, left);
     let right_root: TypeReference = syntax_trees_type_reference(syntax, right);
     transition left - left_root.first_row == right - right_root.first_row {
-        true -> rows(resolver, sources, syntax, left_scope, left_root.first_row, right_scope, right_root.first_row, left)
+        true -> rows(resolver, sources, syntax, left_scope, left_root.first_row, right_scope, right_root.first_row, left),
         _ -> different()
     }
 
@@ -358,7 +358,7 @@ crashes Trap
         left_root: u64 in Trapping
     ) -> bool {
         transition left_row <= left_root {
-            true -> row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row, left_root)
+            true -> row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row, left_root),
             _ -> equal()
         }
     }
@@ -375,7 +375,7 @@ crashes Trap
     ) -> bool {
         let same: bool = same_type_row(resolver, sources, syntax, left_scope, left_row, right_scope, right_row);
         transition same {
-            true -> rows(resolver, sources, syntax, left_scope, left_row + 1, right_scope, right_row + 1, left_root)
+            true -> rows(resolver, sources, syntax, left_scope, left_row + 1, right_scope, right_row + 1, left_root),
             _ -> different()
         }
     }
@@ -404,7 +404,7 @@ crashes Trap
     let right_row: TypeReference = syntax_trees_type_reference(syntax, right);
     transition left_row.kind == right_row.kind && left_row.access == right_row.access
         && left_row.argument_count == right_row.argument_count {
-        true -> spelling(resolver, sources, left_scope, left, right_scope, right, left_row, right_row)
+        true -> spelling(resolver, sources, left_scope, left, right_scope, right, left_row, right_row),
         _ -> different()
     }
 
@@ -419,7 +419,7 @@ crashes Trap
         right_row: TypeReference
     ) -> bool {
         transition left_row.kind {
-            TypeReferenceKind::Literal -> literal(resolver, sources, left_scope, left, right_scope, right, left_row, right_row)
+            TypeReferenceKind::Literal -> literal(resolver, sources, left_scope, left, right_scope, right, left_row, right_row),
             _ -> bounded(resolver, left_scope, left, right_scope, right)
         }
     }
@@ -438,14 +438,14 @@ crashes Trap
             right_row.name.source_span
         );
         transition same {
-            true -> bounded(resolver, left_scope, left, right_scope, right)
+            true -> bounded(resolver, left_scope, left, right_scope, right),
             _ -> different()
         }
     }
 
     machine bounded(resolver: @Resolver, left_scope: TypeScope, left: u64 in Trapping, right_scope: TypeScope, right: u64 in Trapping) -> bool {
         transition left < 65536 && right < 65536 {
-            true -> compare(resolver, left_scope, left, right_scope, right)
+            true -> compare(resolver, left_scope, left, right_scope, right),
             _ -> different()
         }
     }
@@ -456,7 +456,7 @@ crashes Trap
         let left_item: u64 = resolver.output.domain_items[left];
         let right_item: u64 = resolver.output.domain_items[right];
         transition left_domain == right_domain && left_item == right_item {
-            true -> same_binding(left_scope, resolver.output.type_bindings[left], right_scope, resolver.output.type_bindings[right])
+            true -> same_binding(left_scope, resolver.output.type_bindings[left], right_scope, resolver.output.type_bindings[right]),
             _ -> different()
         }
     }
@@ -464,42 +464,42 @@ crashes Trap
     // TypeBinding carries payloads, so its cases are matched pairwise.
     machine same_binding(left_scope: TypeScope, left: TypeBinding, right_scope: TypeScope, right: TypeBinding) -> bool {
         transition left {
-            TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right)
-            TypeBinding::Data { item } -> data_binding(item, right)
-            TypeBinding::GenericParameter { parameter } -> generic_binding(left_scope, parameter, right_scope, right)
-            TypeBinding::Trait { item } -> trait_binding(item, right)
-            TypeBinding::Conformance { item } -> conformance_binding(item, right)
-            TypeBinding::Machine { handle } -> machine_binding(handle, right)
-            TypeBinding::Unresolved -> different()
-            TypeBinding::Ambiguous -> different()
+            TypeBinding::Builtin { builtin } -> builtin_binding(builtin, right),
+            TypeBinding::Data { item } -> data_binding(item, right),
+            TypeBinding::GenericParameter { parameter } -> generic_binding(left_scope, parameter, right_scope, right),
+            TypeBinding::Trait { item } -> trait_binding(item, right),
+            TypeBinding::Conformance { item } -> conformance_binding(item, right),
+            TypeBinding::Machine { handle } -> machine_binding(handle, right),
+            TypeBinding::Unresolved -> different(),
+            TypeBinding::Ambiguous -> different(),
             _ -> formed()
         }
     }
 
     machine trait_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::Trait { item } -> same_handle(left_item, item)
+            TypeBinding::Trait { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
     machine conformance_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::Conformance { item } -> same_handle(left_item, item)
+            TypeBinding::Conformance { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
     machine machine_binding(left_handle: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::Machine { handle } -> same_handle(left_handle, handle)
+            TypeBinding::Machine { handle } -> same_handle(left_handle, handle),
             _ -> different()
         }
     }
 
     machine builtin_binding(left_builtin: BuiltinType, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin)
+            TypeBinding::Builtin { builtin } -> same_builtin(left_builtin, builtin),
             _ -> different()
         }
     }
@@ -510,14 +510,14 @@ crashes Trap
 
     machine data_binding(left_item: u64 in Trapping, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::Data { item } -> same_handle(left_item, item)
+            TypeBinding::Data { item } -> same_handle(left_item, item),
             _ -> different()
         }
     }
 
     machine generic_binding(left_scope: TypeScope, left_parameter: u64 in Trapping, right_scope: TypeScope, right: TypeBinding) -> bool {
         transition right {
-            TypeBinding::GenericParameter { parameter } -> same_position(left_scope, left_parameter, right_scope, parameter)
+            TypeBinding::GenericParameter { parameter } -> same_position(left_scope, left_parameter, right_scope, parameter),
             _ -> different()
         }
     }

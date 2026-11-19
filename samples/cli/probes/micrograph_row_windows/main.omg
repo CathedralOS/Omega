@@ -9,7 +9,7 @@ machine half<'row>(image: @'row mut Image, which: i64) -> @'row mut [i32]
 ensures result.len == 2
 {
     match which {
-        0 -> @mut image.labels[0..2]
+        0 -> @mut image.labels[0..2],
         _ -> @mut image.labels[2..4]
     }
 }
@@ -33,7 +33,7 @@ machine main() crashes Trap {
         let held: Held = Held { values: view };
         write_pair(held.values);
         transition image.labels[0] == 9 && image.labels[1] == 8 && image.labels[2] == 3 && image.labels[3] == 4 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

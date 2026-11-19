@@ -17,12 +17,12 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let unsigned: u64 = 12u64 / 4u64;
     transition unsigned == 3u64 {
-        true -> finish(main, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32)
+        true -> finish(main, (0i32 - 17) / 5i32 + (0i32 - 17) % 5i32),
         false -> fail(main)
     }
     machine finish(main: @mut Main, value: i32) {
         transition value == (0i32 - 5) {
-            true -> pass(main)
+            true -> pass(main),
             false -> fail(main)
         }
     }

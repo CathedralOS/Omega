@@ -11,7 +11,7 @@ machine remainder_const(dividend: u32, divisor: u32) -> i32
     let rem: u32 = dividend % divisor;
     let headroom: u32 = MAX_REMAINDER - rem;
     transition rem == 11u32 && headroom == 4u32 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() -> i32 { 0 }
@@ -21,7 +21,7 @@ machine remainder_const(dividend: u32, divisor: u32) -> i32
 machine main() crashes Trap {
     let res: i32 = remainder_const(43u32, 16u32);
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

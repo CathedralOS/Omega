@@ -157,7 +157,7 @@ machine unit_delegate(view: @mut Access<RegPlacement, Registers>) -> u32 {
 // Runtime acceptance is 41 with transmit changed to 9 in the same backing.
 machine ram_borrow() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = mutate(view);
     observed
 }
@@ -165,7 +165,7 @@ machine ram_borrow() -> u32 {
 machine ram_descriptor() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let source: @mut Registers = @mut registers;
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(source);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(source);
     mutate(view)
 }
 
@@ -186,7 +186,7 @@ machine ram_indexed() -> u64 {
         Registers { status: 73, transmit: 5 }
     ];
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers[choose_register(@mut counter)]);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers[choose_register(@mut counter)]);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (counter.count as u64)
 }
@@ -195,7 +195,7 @@ machine ram_indexed() -> u64 {
 // Frozen interpreter result: 41 from the original storage after retirement.
 machine ram_capture_only() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     registers.status
 }
 
@@ -218,7 +218,7 @@ ensures counter.count <= 1
 machine ram_capture_helper() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     retain_ram(view, @mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -226,7 +226,7 @@ machine ram_capture_helper() -> u64 {
 machine ram_capture_return() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let returned: @mut Access<RegPlacement, Registers> = return_ram(view, @mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -234,7 +234,7 @@ machine ram_capture_return() -> u64 {
 // Frozen result4109 observes the original RAM after the write/read pair.
 machine ram_original_backing() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
@@ -245,14 +245,14 @@ data SavedView<'a> { view: @'a mut Access<RegPlacement, Registers>; }
 machine extract<'a>(saved: SavedView<'a>) -> @'a mut Access<RegPlacement, Registers> { saved.view }
 machine ram_stored_return() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let saved: SavedView = SavedView { view: Access::view_mut<RegPlacement, Registers>(@mut registers) };
+    let saved: SavedView = SavedView { view: Access::view_mut::<RegPlacement, Registers>(@mut registers) };
     let returned: @mut Access<RegPlacement, Registers> = extract(saved);
     let observed: u32 = mutate(returned);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_stored_access() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let mut saved: SavedView = SavedView { view: Access::view_mut<RegPlacement, Registers>(@mut registers) };
+    let mut saved: SavedView = SavedView { view: Access::view_mut::<RegPlacement, Registers>(@mut registers) };
     saved.view.transmit.write(@mut saved.view.transmit, 9);
     let observed: u32 = saved.view.status.read(@saved.view.status);
     (observed as u64) * 100 + (registers.transmit as u64)
@@ -260,26 +260,26 @@ machine ram_stored_access() -> u64 {
 machine ram_return_access() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let returned: @mut Access<RegPlacement, Registers> = return_ram(view, @mut counter);
     let observed: u32 = mutate(returned);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_forwarded() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = forward(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_state_access() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = later(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }
 machine ram_unit_write() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut Access<RegPlacement, Registers> = Access::view_mut<RegPlacement, Registers>(@mut registers);
+    let view: @mut Access<RegPlacement, Registers> = Access::view_mut::<RegPlacement, Registers>(@mut registers);
     let observed: u32 = unit_delegate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }

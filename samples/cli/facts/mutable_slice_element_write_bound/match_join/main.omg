@@ -37,7 +37,7 @@ machine main() crashes Trap {
         && backing.guard == 18446744073709551615
         && backing.items[0] == 10u64 && backing.items[2] == 30u64;
     transition ok1 && ok2 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() {}

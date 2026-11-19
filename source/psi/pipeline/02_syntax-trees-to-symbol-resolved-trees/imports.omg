@@ -42,7 +42,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.use_count {
-            true -> import(resolver, sources, syntax, index)
+            true -> import(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -52,7 +52,7 @@ crashes Trap
         let target: ImportTarget = import_target(sources, syntax, use_item);
         let named: bool = names_some_unit(sources, syntax, use_item, target, 0);
         transition named {
-            true -> next(resolver, sources, syntax, index + 1)
+            true -> next(resolver, sources, syntax, index + 1),
             _ -> unresolved(resolver, sources, syntax, use_item, target)
         }
     }
@@ -60,7 +60,7 @@ crashes Trap
     machine unresolved(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget) {
         let undeclared: bool = undeclared_dependency(sources, syntax, use_item, target);
         transition undeclared {
-            true -> reject(resolver, ResolveDiagnosticCode::UndeclaredDependency, use_item)
+            true -> reject(resolver, ResolveDiagnosticCode::UndeclaredDependency, use_item),
             _ -> reject(resolver, ResolveDiagnosticCode::UnresolvedImport, use_item)
         }
     }
@@ -79,13 +79,13 @@ crashes Trap
     let requester: u64 in Trapping = unit_package(sources, use_item.source_span.source.value as u64 in Trapping);
     let mounted: bool = names_toolchain_mount(sources, syntax, use_item);
     transition mounted {
-        true -> toolchain(sources, 0)
+        true -> toolchain(sources, 0),
         _ -> first(sources, syntax, use_item, requester)
     }
 
     machine toolchain(sources: @SourceSet, package: u64 in Trapping) -> ImportTarget {
         transition package < sources.package_count {
-            true -> toolchain_candidate(sources, package)
+            true -> toolchain_candidate(sources, package),
             _ -> missing()
         }
     }
@@ -93,7 +93,7 @@ crashes Trap
     machine toolchain_candidate(sources: @SourceSet, package: u64 in Trapping) -> ImportTarget {
         let row: PackageRow = package_row(sources, package);
         transition row.toolchain {
-            true -> selected(package, 3)
+            true -> selected(package, 3),
             _ -> toolchain(sources, package + 1)
         }
     }
@@ -106,7 +106,7 @@ crashes Trap
 
     machine alias(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> ImportTarget {
         transition index < sources.dependency_count {
-            true -> alias_candidate(sources, requester, spelling, index)
+            true -> alias_candidate(sources, requester, spelling, index),
             _ -> own(sources, requester, spelling)
         }
     }
@@ -115,7 +115,7 @@ crashes Trap
         let edge: DependencyRow = dependency_row(sources, index);
         let named: bool = edge_names(sources, edge, requester, DependencyScope::Product, spelling);
         transition named {
-            true -> selected(edge.target, 1)
+            true -> selected(edge.target, 1),
             _ -> alias(sources, requester, spelling, index + 1)
         }
     }
@@ -124,7 +124,7 @@ crashes Trap
         let row: PackageRow = package_row(sources, requester);
         let named: bool = span_names(sources, spelling, row.name);
         transition named {
-            true -> selected(requester, 1)
+            true -> selected(requester, 1),
             _ -> selected(requester, 0)
         }
     }
@@ -144,7 +144,7 @@ machine names_toolchain_mount(sources: @SourceSet, syntax: @SyntaxTrees, use_ite
 crashes Trap
 {
     transition use_item.member_count >= 3 {
-        true -> member(sources, syntax, use_item, 0)
+        true -> member(sources, syntax, use_item, 0),
         _ -> no()
     }
 
@@ -154,14 +154,14 @@ crashes Trap
         let language: bool = span_spells(sources, spelling.source_span, "language");
         let core: bool = span_spells(sources, spelling.source_span, "core");
         transition (offset == 0 && omega) || (offset == 1 && language) || (offset == 2 && core) {
-            true -> spelled(sources, syntax, use_item, offset)
+            true -> spelled(sources, syntax, use_item, offset),
             _ -> no()
         }
     }
 
     machine spelled(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, offset: u64 in Trapping) -> bool {
         transition offset < 2 {
-            true -> member(sources, syntax, use_item, offset + 1)
+            true -> member(sources, syntax, use_item, offset + 1),
             _ -> yes()
         }
     }
@@ -187,7 +187,7 @@ machine edge_names(
 crashes Trap
 {
     transition edge.requester == requester && edge.scope == scope {
-        true -> spelled(sources, edge, spelling)
+        true -> spelled(sources, edge, spelling),
         _ -> no()
     }
 
@@ -211,13 +211,13 @@ crashes Trap
     let member: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member);
     let spelling: SourceSpan = member.source_span;
     transition target.found && target.selector_count == 0 {
-        true -> named_package(sources, requester, spelling, 0)
+        true -> named_package(sources, requester, spelling, 0),
         _ -> no()
     }
 
     machine named_package(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
         transition index < sources.package_count {
-            true -> package_candidate(sources, requester, spelling, index)
+            true -> package_candidate(sources, requester, spelling, index),
             _ -> build_alias(sources, requester, spelling, 0)
         }
     }
@@ -226,14 +226,14 @@ crashes Trap
         let row: PackageRow = package_row(sources, index);
         let named: bool = span_names(sources, spelling, row.name);
         transition named && index != requester {
-            true -> yes()
+            true -> yes(),
             _ -> named_package(sources, requester, spelling, index + 1)
         }
     }
 
     machine build_alias(sources: @SourceSet, requester: u64 in Trapping, spelling: SourceSpan, index: u64 in Trapping) -> bool {
         transition index < sources.dependency_count {
-            true -> build_alias_candidate(sources, requester, spelling, index)
+            true -> build_alias_candidate(sources, requester, spelling, index),
             _ -> no()
         }
     }
@@ -242,7 +242,7 @@ crashes Trap
         let edge: DependencyRow = dependency_row(sources, index);
         let named: bool = edge_names(sources, edge, requester, DependencyScope::Build, spelling);
         transition named {
-            true -> yes()
+            true -> yes(),
             _ -> build_alias(sources, requester, spelling, index + 1)
         }
     }
@@ -268,21 +268,21 @@ machine names_some_unit(
 crashes Trap
 {
     transition unit < sources.unit_count {
-        true -> candidate(sources, syntax, use_item, target, unit)
+        true -> candidate(sources, syntax, use_item, target, unit),
         _ -> none()
     }
 
     machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
         let named: bool = use_names_unit(sources, syntax, use_item, target, unit);
         transition named {
-            true -> some()
+            true -> some(),
             _ -> next(sources, syntax, use_item, target, unit + 1)
         }
     }
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, use_item: UseItem, target: ImportTarget, unit: u64 in Trapping) -> bool {
         transition unit < sources.unit_count {
-            true -> candidate(sources, syntax, use_item, target, unit)
+            true -> candidate(sources, syntax, use_item, target, unit),
             _ -> none()
         }
     }
@@ -307,20 +307,20 @@ crashes Trap
     let same_module: bool = resolver_same_module(sources, from_unit, declared_unit);
     let same_package: bool = resolver_same_package(sources, from_unit, declared_unit);
     transition from_unit == declared_unit || same_module {
-        true -> seen()
+        true -> seen(),
         _ -> exposed(sources, syntax, from, declared_unit, is_public || same_package)
     }
 
     machine exposed(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, open: bool) -> bool {
         transition open {
-            true -> imported(sources, syntax, from, declared_unit, 0)
+            true -> imported(sources, syntax, from, declared_unit, 0),
             _ -> unseen()
         }
     }
 
     machine imported(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.use_count {
-            true -> use_row(sources, syntax, from, declared_unit, index)
+            true -> use_row(sources, syntax, from, declared_unit, index),
             _ -> unseen()
         }
     }
@@ -328,7 +328,7 @@ crashes Trap
     machine use_row(sources: @SourceSet, syntax: @SyntaxTrees, from: SourceId, declared_unit: u64 in Trapping, index: u64 in Trapping) -> bool {
         let use_item: UseItem = syntax_trees_use_item(syntax, index);
         transition use_item.source_span.source.value == from.value {
-            true -> own_use(sources, syntax, from, declared_unit, index, use_item)
+            true -> own_use(sources, syntax, from, declared_unit, index, use_item),
             _ -> imported(sources, syntax, from, declared_unit, index + 1)
         }
     }
@@ -344,7 +344,7 @@ crashes Trap
         let target: ImportTarget = import_target(sources, syntax, use_item);
         let named: bool = use_names_unit(sources, syntax, use_item, target, declared_unit);
         transition named {
-            true -> seen()
+            true -> seen(),
             _ -> imported(sources, syntax, from, declared_unit, index + 1)
         }
     }
@@ -373,7 +373,7 @@ crashes Trap
     let right_length: u64 in Trapping = path_length(sources, right);
     let same_package: bool = resolver_same_package(sources, left, right);
     transition same_package && left_length == right_length {
-        true -> compare(sources, left, right, left_length, 0)
+        true -> compare(sources, left, right, left_length, 0),
         _ -> different()
     }
 
@@ -381,14 +381,14 @@ crashes Trap
         let left_byte: u8 = path_byte_or_nul(sources, left, index);
         let right_byte: u8 = path_byte_or_nul(sources, right, index);
         transition index < length {
-            true -> byte(sources, left, right, length, index, left_byte == right_byte)
+            true -> byte(sources, left, right, length, index, left_byte == right_byte),
             _ -> same()
         }
     }
 
     machine byte(sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping, length: u64 in Trapping, index: u64 in Trapping, equal: bool) -> bool {
         transition equal {
-            true -> compare(sources, left, right, length, index + 1)
+            true -> compare(sources, left, right, length, index + 1),
             _ -> different()
         }
     }
@@ -417,7 +417,7 @@ crashes Trap
     let length: u64 in Trapping = path_length(sources, unit);
     let package: u64 in Trapping = unit_package(sources, unit);
     transition target.found && package == target.package && target.selector_count < use_item.member_count {
-        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0)
+        true -> member(sources, syntax, use_item, unit, length, target.selector_count, 0),
         _ -> different()
     }
 
@@ -434,7 +434,7 @@ crashes Trap
         let spelling: IdentifierSpan = syntax_trees_member(syntax, use_item.first_member + member);
         let width: u64 in Trapping = spelling.source_span.span.end - spelling.source_span.span.start;
         transition position + width <= length {
-            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0)
+            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling.source_span, 0),
             _ -> different()
         }
     }
@@ -453,7 +453,7 @@ crashes Trap
         let source_byte: u8 = source_set_byte_or_nul(sources, spelling.source, spelling.span.start + offset);
         let path_byte: u8 = path_byte_or_nul(sources, unit, position + offset);
         transition offset < spelling.span.end - spelling.span.start {
-            true -> spelled_byte(sources, syntax, use_item, unit, length, member, position, spelling, offset, source_byte == path_byte)
+            true -> spelled_byte(sources, syntax, use_item, unit, length, member, position, spelling, offset, source_byte == path_byte),
             _ -> member_end(sources, syntax, use_item, unit, length, member, position + offset)
         }
     }
@@ -471,7 +471,7 @@ crashes Trap
         equal: bool
     ) -> bool {
         transition equal {
-            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling, offset + 1)
+            true -> spell(sources, syntax, use_item, unit, length, member, position, spelling, offset + 1),
             _ -> different()
         }
     }
@@ -487,7 +487,7 @@ crashes Trap
         position: u64 in Trapping
     ) -> bool {
         transition member + 1 < use_item.member_count {
-            true -> separator(sources, syntax, use_item, unit, length, member, position)
+            true -> separator(sources, syntax, use_item, unit, length, member, position),
             _ -> ended(length, position)
         }
     }
@@ -504,7 +504,7 @@ crashes Trap
         let first: u8 = path_byte_or_nul(sources, unit, position);
         let second: u8 = path_byte_or_nul(sources, unit, position + 1);
         transition first == 58 && second == 58 {
-            true -> member(sources, syntax, use_item, unit, length, member + 1, position + 2)
+            true -> member(sources, syntax, use_item, unit, length, member + 1, position + 2),
             _ -> different()
         }
     }
@@ -549,10 +549,10 @@ public data DeclarationPath [copy] {
 
 public machine declaration_count(syntax: @SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
     transition kind {
-        DeclarationKind::Data -> count(syntax.data_count as u64 in Trapping)
-        DeclarationKind::Trait -> count(syntax.trait_count as u64 in Trapping)
-        DeclarationKind::Conformance -> count(syntax.conformance_count as u64 in Trapping)
-        DeclarationKind::Constant -> count(syntax.constant_count as u64 in Trapping)
+        DeclarationKind::Data -> count(syntax.data_count as u64 in Trapping),
+        DeclarationKind::Trait -> count(syntax.trait_count as u64 in Trapping),
+        DeclarationKind::Conformance -> count(syntax.conformance_count as u64 in Trapping),
+        DeclarationKind::Constant -> count(syntax.constant_count as u64 in Trapping),
         DeclarationKind::Proposition -> count(syntax.proposition_count as u64 in Trapping)
     }
 
@@ -565,10 +565,10 @@ public machine declaration_path(syntax: @SyntaxTrees, kind: DeclarationKind, ind
 crashes Trap
 {
     transition kind {
-        DeclarationKind::Data -> data(syntax, index)
-        DeclarationKind::Trait -> trait_name(syntax, index)
-        DeclarationKind::Conformance -> conformance(syntax, index)
-        DeclarationKind::Constant -> constant(syntax, index)
+        DeclarationKind::Data -> data(syntax, index),
+        DeclarationKind::Trait -> trait_name(syntax, index),
+        DeclarationKind::Conformance -> conformance(syntax, index),
+        DeclarationKind::Constant -> constant(syntax, index),
         DeclarationKind::Proposition -> proposition(syntax, index)
     }
 
@@ -635,7 +635,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> Lookup {
         transition index < count {
-            true -> candidate(sources, syntax, kind, owned, owner, name, count, index)
+            true -> candidate(sources, syntax, kind, owned, owner, name, count, index),
             _ -> absent()
         }
     }
@@ -654,7 +654,7 @@ crashes Trap
         let named: bool = path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
-            true -> rival(sources, syntax, kind, owned, owner, name, count, index, index + 1)
+            true -> rival(sources, syntax, kind, owned, owner, name, count, index, index + 1),
             _ -> next(sources, syntax, kind, owned, owner, name, count, index + 1)
         }
     }
@@ -671,7 +671,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> Lookup {
         transition index < count {
-            true -> rival_candidate(sources, syntax, kind, owned, owner, name, count, found, index)
+            true -> rival_candidate(sources, syntax, kind, owned, owner, name, count, found, index),
             _ -> unique(found)
         }
     }
@@ -691,7 +691,7 @@ crashes Trap
         let named: bool = path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
-            true -> ambiguous()
+            true -> ambiguous(),
             _ -> rival(sources, syntax, kind, owned, owner, name, count, found, index + 1)
         }
     }
@@ -726,7 +726,7 @@ crashes Trap
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> u64 in Trapping {
         transition index < syntax.machine_count {
-            true -> candidate(sources, syntax, owner, name, index)
+            true -> candidate(sources, syntax, owner, name, index),
             _ -> absent()
         }
     }
@@ -737,7 +737,7 @@ crashes Trap
             && spans_equal(sources, item.name.source_span, name)
             && spans_equal(sources, item.owner.source_span, owner);
         transition named {
-            true -> found(index)
+            true -> found(index),
             _ -> next(sources, syntax, owner, name, index + 1)
         }
     }
@@ -763,7 +763,7 @@ public machine visible_if(
 crashes Trap
 {
     transition named {
-        true -> test(sources, syntax, from, declared, is_public)
+        true -> test(sources, syntax, from, declared, is_public),
         _ -> hidden()
     }
 

@@ -3,7 +3,7 @@
 use leaf::choices;
 machine inspect(value: leaf::choices::Chosen<u64>) -> u64 {
     transition value {
-        leaf::choices::Chosen::Some { value } -> (value)
+        leaf::choices::Chosen::Some { value } -> (value),
         leaf::choices::Chosen::Empty -> (17u64)
     }
 }
@@ -14,7 +14,7 @@ machine main() crashes Trap {
     let explicit: leaf::choices::Choice<u64> = via_alias;
     let alias_again: leaf::choices::Chosen<u64> = explicit;
     transition inspect(alias_again) == 42u64 && inspect(leaf::choices::Chosen::Empty) == 17u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

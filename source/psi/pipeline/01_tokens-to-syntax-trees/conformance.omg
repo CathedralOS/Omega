@@ -19,7 +19,7 @@ crashes Trap
     parser.declaration_start = item_start;
     parser.declaration_is_public = is_public;
     transition parser.output.conformance_count < 256 {
-        true -> implementation_name(parser, input)
+        true -> implementation_name(parser, input),
         _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
     }
 
@@ -30,7 +30,7 @@ crashes Trap
         parser.declaration_name_end = parser.token_end;
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
-            true -> generics(parser, input)
+            true -> generics(parser, input),
             _ -> satisfies_word(parser, input)
         }
     }
@@ -38,7 +38,7 @@ crashes Trap
     machine generics(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         transition parser.output.accepted {
-            true -> satisfies_word(parser, input)
+            true -> satisfies_word(parser, input),
             _ -> done()
         }
     }
@@ -47,7 +47,7 @@ crashes Trap
         parser.declaration_generic_count = (parser.output.generic_parameter_count as u64 in Trapping) - parser.declaration_first_generic;
         let relation: bool = at_word(parser, input, "satisfies");
         transition relation {
-            true -> trait_application(parser, input)
+            true -> trait_application(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceSatisfies)
         }
     }
@@ -57,7 +57,7 @@ crashes Trap
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedConformanceTrait);
         parser.declaration_type = parser.type_result;
         transition parser.output.accepted {
-            true -> body(parser, input)
+            true -> body(parser, input),
             _ -> done()
         }
     }
@@ -66,7 +66,7 @@ crashes Trap
         expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedConformanceBody);
         parser.declaration_first_machine = parser.output.machine_count as u64 in Trapping;
         transition parser.output.accepted {
-            true -> member(parser, input)
+            true -> member(parser, input),
             _ -> done()
         }
     }
@@ -74,7 +74,7 @@ crashes Trap
     machine member(parser: @mut Parser, input: @TokenStream) {
         let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
         transition closing {
-            true -> close(parser, input)
+            true -> close(parser, input),
             _ -> machine_member(parser, input)
         }
     }
@@ -82,7 +82,7 @@ crashes Trap
     machine machine_member(parser: @mut Parser, input: @TokenStream) {
         let checked: bool = at_keyword(parser, input, KeywordKind::Machine);
         transition checked {
-            true -> checked_member(parser, input)
+            true -> checked_member(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedConformanceMember)
         }
     }
@@ -92,7 +92,7 @@ crashes Trap
         let head: MachineHead = member_machine_head(token.start, MachineContainer::Conformance);
         parse_machine(parser, input, head);
         transition parser.output.accepted {
-            true -> checked_body(parser, input)
+            true -> checked_body(parser, input),
             _ -> done()
         }
     }
@@ -103,7 +103,7 @@ crashes Trap
         let handle: u64 in Trapping = parser.machine_result;
         let checked: MachineItem = machine_item(@parser.output, handle);
         transition checked.has_body {
-            true -> member(parser, input)
+            true -> member(parser, input),
             _ -> bodyless(parser)
         }
     }
@@ -116,14 +116,14 @@ crashes Trap
     machine close(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         transition parser.output.conformance_count < 256 {
-            true -> root_capacity(parser, input)
+            true -> root_capacity(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ConformanceCapacityExceeded)
         }
     }
 
     machine root_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.root_count < 4096 {
-            true -> retain(parser)
+            true -> retain(parser),
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
     }

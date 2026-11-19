@@ -7,8 +7,8 @@ arms in order, run only the first that matches, and must cover every case.
 
 ```omega
 let category: i32 = match code {
-    2 -> 10
-    13 -> 20
+    2 -> 10,
+    13 -> 20,
     _ -> 0
 };
 ```
@@ -19,8 +19,8 @@ The subject is evaluated once. Each arm produces the same type.
 
 ```omega
 transition navigation.choice {
-    NavigationChoice::Quit -> finished()
-    NavigationChoice::Look -> look()
+    NavigationChoice::Quit -> finished(),
+    NavigationChoice::Look -> look(),
     NavigationChoice::Invalid -> invalid_command()
 }
 ```
@@ -43,7 +43,7 @@ data Command {
 }
 
 match command.op {
-    Command::Operation::GetUser { user_id } -> lookup(user_id)
+    Command::Operation::GetUser { user_id } -> lookup(user_id),
     Command::Operation::CountUsers -> count()
 }
 ```
@@ -52,7 +52,7 @@ A record pattern binds or tests fields:
 
 ```omega
 transition header {
-    Header { ok: 0, version } -> accept(version)
+    Header { ok: 0, version } -> accept(version),
     Header { ok as _, version as _ } -> reject()
 }
 ```
@@ -74,18 +74,19 @@ Put them in a tuple:
 
 ```omega
 match (command.command_id, command.op) {
-    (0, _) -> reject()
-    (_, Command::Operation::GetUser { user_id }) -> lookup(user_id)
+    (0, _) -> reject(),
+    (_, Command::Operation::GetUser { user_id }) -> lookup(user_id),
     (_, Command::Operation::CountUsers) -> count()
 }
 
 transition (player_defeated, enemy_defeated) {
-    (true, _) -> player_died()
-    (false, true) -> enemy_died()
+    (true, _) -> player_died(),
+    (false, true) -> enemy_died(),
     (false, false) -> exchange_blows()
 }
 ```
 
+Separate arms with commas. The comma after the final arm is optional.
 Arms are tried top to bottom, so `(true, _)` wins when both are true.
 
 ## Irrefutable bindings
@@ -106,7 +107,7 @@ Inside an arm, the compiler knows what the pattern established:
 ```omega
 let empty: bool = items.len == 0;
 transition empty {
-    true -> no_items()
+    true -> no_items(),
     false -> inspect_first(items)     // here: items.len != 0
 }
 ```
@@ -121,8 +122,8 @@ belongs to its arm and is lost if the subject is modified.
 
 ```omega
 transition command {
-    Command::Look -> look()
-    Command::Quit -> finished()
+    Command::Look -> look(),
+    Command::Quit -> finished(),
     Command::Invalid -> invalid_command()
 }
 ```
@@ -138,7 +139,7 @@ runtime test:
 
 ```omega
 transition player {
-    Player::Dead -> game_over()
+    Player::Dead -> game_over(),
     _ -> continue_game()
 }
 ```

@@ -30,13 +30,13 @@ requires idx < 4 && row.cells[idx] <= 81
 machine main() crashes Trap {
     let row: Row = Row { cells: [10, 20, 50, 80] };
     transition row.cells[2] <= 80 {
-        true -> run(row)
+        true -> run(row),
         _ -> bad()
     }
     machine run(r: Row) {
         let spare: u64 = probe(r, 2);
         transition spare == 30 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

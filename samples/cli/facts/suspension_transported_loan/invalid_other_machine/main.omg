@@ -6,7 +6,7 @@ data Cell [carry(suspension: forbidden, cpu: any, thread: any, address: movable)
 data Message<'view> { left: i32; body: @'view Cell; right: i32; }
 // The canaries beside the transported descriptor must survive with it.
 machine read(message: Message) -> i32 {
-    transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
+    transition message.left == 5 && message.right == 9 { true -> message.body.value, _ -> 0 }
 }
 machine transport() -> i32 suspends reaches Scheduler {
     let cell: Cell = Cell { value: 73 };
@@ -17,7 +17,7 @@ machine transport() -> i32 suspends reaches Scheduler {
 }
 machine main() reaches Scheduler crashes Trap {
     let observed: i32 = suspend transport();
-    transition observed == 73 { true -> done() _ -> bad() }
+    transition observed == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

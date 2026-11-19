@@ -29,8 +29,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.command = Command::SetLevel { level: 65 };
 
     transition main.command {
-        Command::SetLevel { level } -> apply(main, level)
-        Command::Dim { amount }     -> apply(main, amount * 10)
+        Command::SetLevel { level } -> apply(main, level),
+        Command::Dim { amount }     -> apply(main, amount * 10),
         Command::Off                -> apply(main, 0)
     }
 

@@ -20,7 +20,7 @@ ensures
     result.left.end == cut,
     result.right.start == cut,
     result.right.end == whole.end,
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         Owned::content(old(@whole)),
         separate(
             Owned::content(@result.left), Owned::content(@result.right))
@@ -41,7 +41,7 @@ machine main() crashes Trap {
     drop(left);
     drop(second.left);
     drop(second.right);
-    transition correct { true -> done() false -> wrong() }
+    transition correct { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

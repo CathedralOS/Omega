@@ -29,7 +29,7 @@ public machine compose<Source, Intermediate, Destination, Error,
     (source: Source) -> Result<Destination, Error>
 {
     transition First::try_from(source) {
-        Result::Err { error as failure } -> Result::Err { error: failure }
+        Result::Err { error as failure } -> Result::Err { error: failure },
         Result::Ok { value as value } -> Second::try_from(value)
     }
 }

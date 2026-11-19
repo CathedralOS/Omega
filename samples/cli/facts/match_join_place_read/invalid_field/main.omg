@@ -24,12 +24,12 @@ machine main() crashes Trap {
         spare: Pair { kept: 0, other: 8 }
     };
     let joined: @Pair = match choose() {
-        true -> @holder.chosen
+        true -> @holder.chosen,
         false -> @holder.spare
     };
     let observed: i64 = read_field(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

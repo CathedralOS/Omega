@@ -20,7 +20,7 @@ machine Main::main(main: @mut Main) {
     Main::middle(main);
     let mut result: u32 = stable + 1;
     transition result == 6 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -10,7 +10,7 @@ machine main() crashes Trap {
     held = 7;
     let observed: i64 = backing;
     transition observed == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

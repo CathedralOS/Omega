@@ -11,12 +11,12 @@ requires count == 1 && count < items.len
 {
     let copy: u32 = count;
     let index: u32 = match flag { true -> count, false -> copy };
-    read_at<index>(items)
+    read_at::<index>(items)
 }
 
 machine main() crashes Trap {
     let bytes: [u8; 4] = [9, 8, 7, 6];
-    transition indexed(@bytes[..], 1, true) == 8 { true -> done() _ -> bad() }
+    transition indexed(@bytes[..], 1, true) == 8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

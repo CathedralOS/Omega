@@ -19,12 +19,12 @@ machine store(flag: bool) -> Outcome crashes Trap {
     };
     let mut visits: u64 = 0;
     let selected: @write i64 = match choose(@mut visits, flag) {
-        true -> @write pair.chosen.value
+        true -> @write pair.chosen.value,
         false -> @write pair.other.value
     };
     selected = 41;
     transition visits == 1 && pair.chosen.before == 3 && pair.chosen.after == 5 && pair.other.before == 7 && pair.other.after == 9 {
-        true -> report(Outcome { chosen: pair.chosen.value, other: pair.other.value })
+        true -> report(Outcome { chosen: pair.chosen.value, other: pair.other.value }),
         false -> wrong()
     }
     machine report(outcome: Outcome) -> Outcome { outcome }
@@ -35,7 +35,7 @@ machine main() crashes Trap {
     let taken: Outcome = store(true);
     let fallback: Outcome = store(false);
     transition taken.chosen == 41 && taken.other == 23 && fallback.chosen == 17 && fallback.other == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

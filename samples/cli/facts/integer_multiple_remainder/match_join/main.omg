@@ -10,10 +10,10 @@ machine joined(count: u64, choose: bool) -> u16 requires count > 0 && count < 40
 machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
     let left: u16 = joined(count, true);
     let right: u16 = joined(count, false);
-    transition left == right { true -> (left) false -> (right) }
+    transition left == right { true -> (left), false -> (right) }
 }
 machine main() crashes Trap {
-    transition probe(7) == 14 { true -> done() _ -> bad() }
+    transition probe(7) == 14 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

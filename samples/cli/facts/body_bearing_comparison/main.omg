@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let direct: bool = compare(value, value);
     let matched: u64 = choose(value, value);
     transition direct == false && matched == 11 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

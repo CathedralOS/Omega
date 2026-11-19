@@ -19,7 +19,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read_next_byte(count: i32 in Wrapping) {
         let read_result: ByteRead = block Console::read_byte();
         transition read_result {
-            ByteRead::Byte { value } -> block write_incremented_byte(count, value)
+            ByteRead::Byte { value } -> block write_incremented_byte(count, value),
             _ -> exit_with_count(count)
         }
     }

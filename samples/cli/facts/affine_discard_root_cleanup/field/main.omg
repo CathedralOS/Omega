@@ -36,7 +36,7 @@ machine main() crashes Trap {
     let result: u64 = exercise(@mut dropped);
     let diff: u64 = 50u64 - result;
     transition diff == 20u64 && dropped.value == 1u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -14,14 +14,14 @@ requires limit <= 10
 ensures result <= 10
 crashes none
 {
-    forward<T>(item, limit) + 1
+    forward::<T>(item, limit) + 1
 }
 machine main() crashes Trap {
     let small_item: u8 = 3u8;
     let flag_item: bool = true;
-    let small: u32 = relay<u8>(@small_item, 4);
-    let flagged: u32 = relay<bool>(@flag_item, 9);
-    transition small == 5 && flagged == 10 { true -> done() false -> wrong() }
+    let small: u32 = relay::<u8>(@small_item, 4);
+    let flagged: u32 = relay::<bool>(@flag_item, 9);
+    transition small == 5 && flagged == 10 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

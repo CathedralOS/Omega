@@ -14,7 +14,7 @@ terminates by remaining.values[slot] -> Remaining::Complement in -128..=127
 requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 7
 {
     transition remaining.values[slot] < 7 {
-        true -> forward(remaining, slot, counter)
+        true -> forward(remaining, slot, counter),
         false -> finish(remaining.canary)
     }
     machine forward(pending: @mut Remaining, selected: u64, counter: @mut u64) crashes Trap
@@ -27,23 +27,23 @@ requires slot < 2 && remaining.values[slot] >= 4 && remaining.values[slot] <= 7
         transition { _ -> count(counter, pending, selected) }
     }
     machine finish(canary: u64) crashes Trap {
-        transition canary == 641 { true -> done() false -> bad() }
+        transition canary == 641 { true -> done(), false -> bad() }
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }
 HostedIndexedBody satisfies HostedIndexed {
     machine perform(counter: @mut u64, active: bool, second: bool) crashes Trap {
-        let amount: u64 = match active { true -> 4 false -> 7 };
-        let slot: u64 = match second { true -> 1 false -> 0 };
+        let amount: u64 = match active { true -> 4, false -> 7 };
+        let slot: u64 = match second { true -> 1, false -> 0 };
         let mut remaining: Remaining = Remaining { canary: 641, values: [amount, amount] };
         count(counter, @mut remaining, slot);
         let preserved: bool = match second {
-            true -> remaining.values[0] == amount && remaining.values[1] == 7
+            true -> remaining.values[0] == amount && remaining.values[1] == 7,
             false -> remaining.values[0] == 7 && remaining.values[1] == amount
         };
         transition preserved && remaining.canary == 641 {
-            true -> done() false -> bad()
+            true -> done(), false -> bad()
         }
         machine done() {}
         machine bad() crashes Trap { crash Trap; }
@@ -53,7 +53,7 @@ machine check_rank(value: u64, expected: i64) crashes Trap
 requires value <= 7
 {
     let observed: i64 = rank(value) as i64;
-    transition observed == expected { true -> done() false -> bad() }
+    transition observed == expected { true -> done(), false -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }
 machine main() crashes Trap {
@@ -70,7 +70,7 @@ machine main() crashes Trap {
     let second: bool = second_count == 6;
     HostedIndexed::perform(@mut second_count, false, true);
     transition first && second && first_count == 6 && second_count == 6 {
-        true -> done() false -> bad()
+        true -> done(), false -> bad()
     }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

@@ -25,7 +25,7 @@ machine main() crashes Trap {
     let chosen: Slot = Slot::Present { value: 7 };
     let observed: u64 = apply(chosen);
     transition observed == 7 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}
@@ -35,7 +35,7 @@ machine main() crashes Trap {
 // Observe the activation that owns the later replacement, after the payload read.
 machine observe_replacement(observed: u64, after: Slot) -> u64 {
     match after in Slot::Absent {
-        true -> observed
+        true -> observed,
         false -> 99
     }
 }

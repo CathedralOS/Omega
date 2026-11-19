@@ -53,7 +53,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     Countdown::arm(@mut main.timer, 4);
     let remaining: u32 in Wrapping = Countdown::tick(@mut main.timer);
     transition remaining == 4 && forward() == 70 {
-        true -> done(main)
+        true -> done(main),
         _ -> bad(main)
     }
     machine done(main: @mut Main) { main.hits = 1; }

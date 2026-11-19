@@ -14,10 +14,10 @@ SharedApply satisfies CallbackApply {
         requires value <= 64 ensures result <= 64
     { Action(value) }
 }
-const RESULT: u64 = CallbackApply::apply<identity>(42);
+const RESULT: u64 = CallbackApply::apply::<identity>(42);
 machine main() crashes Trap {
     let remaining: u64 = 64u64 - RESULT;
-    transition remaining == 22 { true -> done() false -> bad() }
+    transition remaining == 22 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

@@ -16,7 +16,7 @@ const FORMED: Value<bool> = Value::Boolean { value: true };
 const OTHER: Value<bool> = Value::Boolean { value: false };
 machine main() crashes Trap {
     transition payload(FORMED) == true && payload(OTHER) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -7,7 +7,7 @@ crashes Trap
     transition { _ -> clear(resolver, sources, syntax, 0u64 as +Trapping) }
     machine clear(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition (index as -Trapping) < syntax.machine_count && index < 10240 {
-            true -> clear_one(resolver, sources, syntax, index)
+            true -> clear_one(resolver, sources, syntax, index),
             false -> next(resolver, sources, syntax, 0u64 as +Trapping)
         }
     }
@@ -20,7 +20,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition (index as -Trapping) < syntax.expression_count && index < 131072 {
-            true -> inspect(resolver, sources, syntax, index)
+            true -> inspect(resolver, sources, syntax, index),
             false -> done()
         }
     }
@@ -29,7 +29,7 @@ crashes Trap
     {
         let binding: ValueBinding = resolver.output.value_bindings[index as -Trapping];
         transition binding {
-            ValueBinding::Machine { handle } -> bind(resolver, sources, syntax, index, handle)
+            ValueBinding::Machine { handle } -> bind(resolver, sources, syntax, index, handle),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -52,7 +52,7 @@ crashes Trap
     let seen: bool = resolver_visible(sources, syntax, from, declared, true);
     let local: bool = resolver_same_package(sources, overload_unit_index(from), overload_unit_index(declared));
     transition seen && representative < 10240 {
-        true -> family(resolver, sources, syntax, representative, item, local)
+        true -> family(resolver, sources, syntax, representative, item, local),
         _ -> VisibleOverloads { first: 0u64 as +Trapping, public_only: false }
     }
 
@@ -61,7 +61,7 @@ crashes Trap
     {
         let heads: OverloadLinks = resolver.overload_heads[representative as -Trapping];
         transition heads.all > 0 {
-            true -> selected(heads, local)
+            true -> selected(heads, local),
             _ -> build(resolver, sources, syntax, representative, item, local)
         }
     }
@@ -71,7 +71,7 @@ crashes Trap
         let empty: OverloadLinks = OverloadLinks { all: 0u64 as +Trapping, exported: 0u64 as +Trapping };
         let heads: OverloadLinks = link_overloads(resolver, sources, syntax, item, path, syntax.machine_count as +Trapping, empty);
         transition representative < 10240 {
-            true -> cache(resolver, representative, heads, local)
+            true -> cache(resolver, representative, heads, local),
             _ -> invalid()
         }
     }
@@ -83,7 +83,7 @@ crashes Trap
     }
     machine selected(heads: OverloadLinks, local: bool) -> VisibleOverloads {
         transition local {
-            true -> VisibleOverloads { first: heads.all, public_only: false }
+            true -> VisibleOverloads { first: heads.all, public_only: false },
             false -> VisibleOverloads { first: heads.exported, public_only: true }
         }
     }
@@ -96,7 +96,7 @@ machine link_overloads(resolver: @mut Resolver, sources: @SourceSet, syntax: @Sy
 crashes Trap
 {
     transition end > 0 {
-        true -> candidate(resolver, sources, syntax, named, path, end - 1, heads)
+        true -> candidate(resolver, sources, syntax, named, path, end - 1, heads),
         false -> heads
     }
 
@@ -104,7 +104,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         let same: bool = machine_spells(@resolver.output, sources, item, index, path.has_owner, path.owner.source_span, named.name.source_span);
         transition same && item.parent == named.parent {
-            true -> owner(resolver, sources, syntax, named, path, index, item, heads)
+            true -> owner(resolver, sources, syntax, named, path, index, item, heads),
             false -> link_overloads(resolver, sources, syntax, named, path, index, heads)
         }
     }
@@ -112,7 +112,7 @@ crashes Trap
     machine owner(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, named: MachineItem, path: MachineOwner, index: u64 in Trapping, item: MachineItem, heads: OverloadLinks) -> OverloadLinks {
         let same: bool = resolver_same_module(sources, overload_unit_index(named.name.source_span.source), overload_unit_index(item.name.source_span.source));
         transition same {
-            true -> prepend(resolver, sources, syntax, named, path, index, item, heads)
+            true -> prepend(resolver, sources, syntax, named, path, index, item, heads),
             false -> link_overloads(resolver, sources, syntax, named, path, index, heads)
         }
     }
@@ -149,7 +149,7 @@ crashes Trap
 
     machine next(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.machine_count {
-            true -> candidate(resolution, sources, syntax, owned, owner, name, index)
+            true -> candidate(resolution, sources, syntax, owned, owner, name, index),
             _ -> absent()
         }
     }
@@ -159,7 +159,7 @@ crashes Trap
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
         transition visible {
-            true -> rival(resolution, sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1)
+            true -> rival(resolution, sources, syntax, owned, owner, name, index, item.name.source_span.source, index + 1),
             _ -> next(resolution, sources, syntax, owned, owner, name, index + 1)
         }
     }
@@ -176,7 +176,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> Lookup {
         transition index < syntax.machine_count {
-            true -> rival_candidate(resolution, sources, syntax, owned, owner, name, found, family, index)
+            true -> rival_candidate(resolution, sources, syntax, owned, owner, name, found, family, index),
             _ -> unique(found)
         }
     }
@@ -198,7 +198,7 @@ crashes Trap
         let overload: bool = resolver_same_module(sources, family.value as u64 in Trapping,
             item.name.source_span.source.value as u64 in Trapping);
         transition visible && !overload {
-            true -> ambiguous()
+            true -> ambiguous(),
             _ -> rival(resolution, sources, syntax, owned, owner, name, found, family, index + 1)
         }
     }
@@ -249,7 +249,7 @@ public machine machine_visible_if(
 crashes Trap
 {
     transition named {
-        true -> test(resolution, sources, syntax, from, item, handle)
+        true -> test(resolution, sources, syntax, from, item, handle),
         _ -> hidden()
     }
 
@@ -270,10 +270,10 @@ crashes Trap
 {
     let owner: MachineOwner = machine_owner(resolution, handle);
     transition owner.container {
-        MachineContainer::Root -> answer(item.is_public)
-        MachineContainer::Measure -> answer(false)
-        MachineContainer::Trait -> trait_container(syntax, owner.item)
-        MachineContainer::Refinement -> trait_container(syntax, owner.item)
+        MachineContainer::Root -> answer(item.is_public),
+        MachineContainer::Measure -> answer(false),
+        MachineContainer::Trait -> trait_container(syntax, owner.item),
+        MachineContainer::Refinement -> trait_container(syntax, owner.item),
         MachineContainer::Conformance -> conformance_container(syntax, owner.item)
     }
 

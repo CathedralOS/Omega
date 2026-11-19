@@ -11,7 +11,7 @@ public data UnrelatedLookup {}
 machine main() reaches LookupService crashes Trap {
     let observed: u32 = LookupService::read();
     transition observed == 37u32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

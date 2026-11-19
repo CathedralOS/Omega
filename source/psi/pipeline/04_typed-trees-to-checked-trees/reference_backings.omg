@@ -14,13 +14,13 @@ crashes Trap
     let type_handle: u64 in Trapping = typing_expression_type(typing, node);
     let retained: bool = holds_references(syntax, typing, type_handle);
     transition retained {
-        true -> opened(checker, syntax, resolution, typing, node, expression, type_handle)
+        true -> opened(checker, syntax, resolution, typing, node, expression, type_handle),
         false -> {}
     }
     machine opened(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, node: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
         let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
         transition place > 0 && place <= 256 && checker.reference_view_count < 256 {
-            true -> group(checker, syntax, resolution, typing, expression, place, checker.reference_view_count)
+            true -> group(checker, syntax, resolution, typing, expression, place, checker.reference_view_count),
             false -> full(checker, expression.source_span)
         }
     }
@@ -40,7 +40,7 @@ crashes Trap
     {
         let count: u64 in Trapping = operand_count(expression);
         transition offset < count {
-            true -> argument(checker, syntax, resolution, typing, expression, place, group, offset)
+            true -> argument(checker, syntax, resolution, typing, expression, place, group, offset),
             false -> home(checker, typing, expression, place, group + 1)
         }
     }
@@ -60,7 +60,7 @@ crashes Trap
         let entry: Place = place_at(checker, place - 1);
         let home: u64 in Trapping = checker_place(checker, typing, PlaceKind::View, backing, 0, entry.type_handle);
         transition home > 0 && home <= 256 {
-            true -> publish(checker, place - 1, home - 1, backing)
+            true -> publish(checker, place - 1, home - 1, backing),
             false -> full(checker, expression.source_span)
         }
     }
@@ -85,7 +85,7 @@ crashes Trap
 {
     let adaptation: Adaptation = typing_adaptation(typing, handle);
     transition adaptation == Adaptation::Read {
-        true -> {}
+        true -> {},
         false -> typed(checker, syntax, resolution, typing, call, group, handle)
     }
     machine typed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
@@ -94,7 +94,7 @@ crashes Trap
         let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
         let row: TypeRow = type_table_row(@typing.types, type_handle);
         transition row.kind == TypeKind::Reference || typing_adaptation(typing, handle) == Adaptation::SharedLend {
-            true -> reference(checker, syntax, resolution, typing, call, group, handle)
+            true -> reference(checker, syntax, resolution, typing, call, group, handle),
             false -> carrier(checker, syntax, typing, call, group, handle, type_handle)
         }
     }
@@ -103,7 +103,7 @@ crashes Trap
     {
         let value: Value = value_at(checker, handle);
         transition value.place > 0 {
-            true -> placed(checker, call, group, value.place)
+            true -> placed(checker, call, group, value.place),
             false -> footprint(checker, syntax, resolution, typing, call, group, handle)
         }
     }
@@ -118,7 +118,7 @@ crashes Trap
     {
         let place: u64 in Trapping = written_origin(checker, syntax, resolution, typing, handle);
         transition place > 0 {
-            true -> located(checker, call, group, place)
+            true -> located(checker, call, group, place),
             false -> unknown(checker, call, group)
         }
     }
@@ -132,7 +132,7 @@ crashes Trap
     {
         let retained: bool = holds_references(syntax, typing, type_handle);
         transition retained {
-            true -> carried(checker, call, group, handle)
+            true -> carried(checker, call, group, handle),
             false -> {}
         }
     }
@@ -142,7 +142,7 @@ crashes Trap
         let value: Value = value_at(checker, handle);
         let backing: u64 in Trapping = reference_view_backing(checker, value.place);
         transition backing > 0 {
-            true -> inherited(checker, call, group, value.place, backing)
+            true -> inherited(checker, call, group, value.place, backing),
             false -> unknown(checker, call, group)
         }
     }
@@ -167,7 +167,7 @@ requires group < 256
 crashes Trap
 {
     transition checker.reference_backing_count < 256 {
-        true -> write(checker, group, origin, checker.reference_backing_count)
+        true -> write(checker, group, origin, checker.reference_backing_count),
         false -> full(checker, source_span)
     }
     machine write(checker: @mut Checker, group: u64 in Trapping, origin: ReferenceOrigin, index: u64 in Trapping)

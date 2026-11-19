@@ -26,7 +26,7 @@ machine exercise_case(initial_cleanup: u64, expected_cleanup: u64, choose: bool,
     let mut buffer: Buffer = Buffer { marker: 91, route: expected_route, cells: @mut cells, cleanup: @mut cleanup_slots };
     let observed: Observation = consume_nested(buffer);
     let after: u64 = observe_cell(@cells[1]);
-    transition before == 37 && observed.value == 37 && observed.marker == 91 && observed.route == expected_route && after == 37 && original == 37 && cells[0].value == 305419896 && cells[1].value == 37 && cells[2].value == 1515863100 && cleanup_slots[0] == 287454020 && cleanup_slots[1] == expected_cleanup && cleanup_slots[2] == 1432778632 { true -> done() _ -> bad() }
+    transition before == 37 && observed.value == 37 && observed.marker == 91 && observed.route == expected_route && after == 37 && original == 37 && cells[0].value == 305419896 && cells[1].value == 37 && cells[2].value == 1515863100 && cleanup_slots[0] == 287454020 && cleanup_slots[1] == expected_cleanup && cleanup_slots[2] == 1432778632 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
     machine consume_nested<'cells, 'cleanup>(buffer: Buffer<'cells, 'cleanup>) -> Observation {

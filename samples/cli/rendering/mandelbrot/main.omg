@@ -41,14 +41,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block row_loop(main) }
 
     machine row_loop(main: @mut Main) {
-        transition main.y < 28 { true -> block col_init(main) _ -> block done(main) }
+        transition main.y < 28 { true -> block col_init(main), _ -> block done(main) }
     }
     machine col_init(main: @mut Main) {
         main.x = 0;
         transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> block pixel_init(main) _ -> block emit_row(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block pixel_init(main), _ -> block emit_row(main) }
     }
     machine pixel_init(main: @mut Main) {
         main.cr = (F64::from_i32(main.x) / 64.0) * 3.5 - 2.5;
@@ -59,20 +59,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block iter_loop(main) }
     }
     machine iter_loop(main: @mut Main) {
-        transition main.k < 28 { true -> block iter_test(main) _ -> block pixel_done(main) }
+        transition main.k < 28 { true -> block iter_test(main), _ -> block pixel_done(main) }
     }
     machine iter_test(main: @mut Main) {
         main.zr2 = main.zr * main.zr;
         main.zi2 = main.zi * main.zi;
         main.mag = main.zr2 + main.zi2;
-        transition main.mag > 4.0 { true -> block pixel_done(main) _ -> block iter_step(main) }
+        transition main.mag > 4.0 { true -> block pixel_done(main), _ -> block iter_step(main) }
     }
     // Re-guard so the increment's direct edge proves `k + 1` lands in
     // [1..=28] -- we only get here with k < 28, so always true.
     machine iter_step(main: @mut Main) {
         main.zi = 2.0 * main.zr * main.zi + main.ci;
         main.zr = main.zr2 - main.zi2 + main.cr;
-        transition main.k >= 0 && main.k < 28 { true -> block iter_advance(main) _ -> block pixel_done(main) }
+        transition main.k >= 0 && main.k < 28 { true -> block iter_advance(main), _ -> block pixel_done(main) }
     }
     machine iter_advance(main: @mut Main) {
         main.k = main.k + 1;
@@ -81,12 +81,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Re-guard `0 <= k <= 28` so the shade arithmetic `k * 7 / 28` is exact --
     // k only counts up to the 28-step cap, so always true.
     machine pixel_done(main: @mut Main) {
-        transition main.k >= 0 && main.k <= 28 { true -> block pixel_shade(main) _ -> block bad(main) }
+        transition main.k >= 0 && main.k <= 28 { true -> block pixel_shade(main), _ -> block bad(main) }
     }
     machine pixel_shade(main: @mut Main) {
         main.idx = main.k * 7 / 28;
         transition main.idx >= 0 && main.idx < 8 && main.x >= 0 && main.x < 64 {
-            true -> block write_pixel(main)
+            true -> block write_pixel(main),
             _ -> block bad(main)
         }
     }
@@ -100,7 +100,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // [1..=28] under the standing owner domain.
     machine emit_row(main: @mut Main) {
         Console::write_line(@main.row[..]);
-        transition main.y >= 0 && main.y < 28 { true -> block row_advance(main) _ -> block done(main) }
+        transition main.y >= 0 && main.y < 28 { true -> block row_advance(main), _ -> block done(main) }
     }
     machine row_advance(main: @mut Main) {
         main.y = main.y + 1;

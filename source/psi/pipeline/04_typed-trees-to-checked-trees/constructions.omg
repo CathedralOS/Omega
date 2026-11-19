@@ -36,14 +36,14 @@ crashes Trap
     let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
     let binding: ValueBinding = value_binding(resolution, expression.left);
     transition binding {
-        ValueBinding::Data { item as _ } -> data(checker, syntax, typing, handle, expression, type_handle)
+        ValueBinding::Data { item as _ } -> data(checker, syntax, typing, handle, expression, type_handle),
         _ -> typed(checker, handle, row)
     }
 
     machine data(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
         let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Construction, handle, 0, type_handle);
         transition place > 0 {
-            true -> placed(checker, syntax, typing, handle, expression, place)
+            true -> placed(checker, syntax, typing, handle, expression, place),
             _ -> unplaced(checker, handle)
         }
     }
@@ -56,7 +56,7 @@ crashes Trap
 
     machine next_field(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, handle: u64 in Trapping, expression: Expression, place: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < expression.count {
-            true -> written(checker, syntax, typing, handle, expression, place, offset)
+            true -> written(checker, syntax, typing, handle, expression, place, offset),
             _ -> valued(checker, handle, place)
         }
     }
@@ -66,7 +66,7 @@ crashes Trap
         let target: MemberTarget = construct_target(typing, expression.first + offset);
         let value: Value = value_at(checker, written.value);
         transition target {
-            MemberTarget::Common { field } -> common(checker, syntax, typing, handle, expression, place, offset, field, value)
+            MemberTarget::Common { field } -> common(checker, syntax, typing, handle, expression, place, offset, field, value),
             _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1)
         }
     }
@@ -87,7 +87,7 @@ crashes Trap
         let carrier: BuiltinType = checker_carrier(typing, field_type);
         let integer: bool = has_subject(carrier);
         transition integer {
-            true -> pending(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
+            true -> pending(checker, syntax, typing, handle, expression, place, offset, field, field_type, value),
             _ -> held(checker, syntax, typing, handle, expression, place, offset, field, field_type, value)
         }
     }
@@ -124,7 +124,7 @@ crashes Trap
         value: Value
     ) {
         transition value.place > 0 {
-            true -> adopted(checker, syntax, typing, handle, expression, place, offset, field, field_type, value.place)
+            true -> adopted(checker, syntax, typing, handle, expression, place, offset, field, field_type, value.place),
             _ -> next_field(checker, syntax, typing, handle, expression, place, offset + 1)
         }
     }
@@ -171,14 +171,14 @@ crashes Trap
     let carrier: BuiltinType = checker_carrier(typing, type_handle);
     let integer: bool = has_subject(carrier);
     transition integer {
-        true -> located(checker, parent, field, type_handle, value)
+        true -> located(checker, parent, field, type_handle, value),
         _ -> done()
     }
 
     machine located(checker: @mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         let existing: u64 in Trapping = find_place(checker, PlaceKind::Field, field, parent);
         transition existing > 0 {
-            true -> bound(checker, existing, value)
+            true -> bound(checker, existing, value),
             _ -> pending(checker, parent, field, type_handle, value)
         }
     }
@@ -190,7 +190,7 @@ crashes Trap
 
     machine pending(checker: @mut Checker, parent: u64 in Trapping, field: u64 in Trapping, type_handle: u64 in Trapping, value: Value) {
         transition checker.pending_count < 32 {
-            true -> stored(checker, PendingField { parent: parent, field: field, type_handle: type_handle, value: value }, checker.pending_count)
+            true -> stored(checker, PendingField { parent: parent, field: field, type_handle: type_handle, value: value }, checker.pending_count),
             _ -> done()
         }
     }
@@ -210,13 +210,13 @@ public machine take_pending(checker: @mut Checker, entry: Place)
 crashes Trap
 {
     transition entry.kind == PlaceKind::Field && entry.subject > 0 {
-        true -> next(checker, entry, 0)
+        true -> next(checker, entry, 0),
         _ -> done()
     }
 
     machine next(checker: @mut Checker, entry: Place, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
-            true -> candidate(checker, entry, index)
+            true -> candidate(checker, entry, index),
             _ -> done()
         }
     }
@@ -226,7 +226,7 @@ crashes Trap
     {
         let pending: PendingField = checker.pending[index];
         transition pending.parent == entry.parent && pending.field == entry.handle {
-            true -> taken(checker, entry, index, pending.value)
+            true -> taken(checker, entry, index, pending.value),
             _ -> next(checker, entry, index + 1)
         }
     }
@@ -245,7 +245,7 @@ public machine equate_subject(checker: @mut Checker, subject: u64 in Trapping, v
 crashes Trap
 {
     transition subject > 0 {
-        true -> equated(checker, subject, value)
+        true -> equated(checker, subject, value),
         _ -> done()
     }
 
@@ -265,7 +265,7 @@ machine remove_pending(checker: @mut Checker, index: u64 in Trapping)
 crashes Trap
 {
     transition checker.pending_count > 0 && checker.pending_count <= 32 && index < 32 {
-        true -> moved(checker, index, checker.pending_count - 1)
+        true -> moved(checker, index, checker.pending_count - 1),
         _ -> done()
     }
 
@@ -289,7 +289,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
-            true -> candidate(checker, typing, place, index)
+            true -> candidate(checker, typing, place, index),
             _ -> done()
         }
     }
@@ -300,7 +300,7 @@ crashes Trap
         let pending: PendingField = checker.pending[index];
         let below: bool = checker_within(checker, pending.parent, place);
         transition below {
-            true -> dropped(checker, typing, place, index)
+            true -> dropped(checker, typing, place, index),
             _ -> sourced(checker, typing, place, index, pending)
         }
     }
@@ -315,7 +315,7 @@ crashes Trap
         let owner: u64 in Trapping = subject_place(checker, pending.value.subject);
         let reads: bool = pending.value.known && owner > 0 && checker_within(checker, owner, place);
         transition reads {
-            true -> entered(checker, typing, place, index, pending)
+            true -> entered(checker, typing, place, index, pending),
             _ -> next(checker, typing, place, index + 1)
         }
     }
@@ -337,7 +337,7 @@ crashes Trap
 {
     let field: u64 in Trapping = checker_place(checker, typing, PlaceKind::Field, pending.field, pending.parent, pending.type_handle);
     transition field > 0 {
-        true -> entered(checker, field, pending.value)
+        true -> entered(checker, field, pending.value),
         _ -> done()
     }
 
@@ -356,14 +356,14 @@ public machine copy_pending(checker: @mut Checker, typing: @Typing, target: u64 
 crashes Trap
 {
     transition target > 0 && source > 0 && target != source {
-        true -> next(checker, typing, target, source, 0, checker.pending_count)
+        true -> next(checker, typing, target, source, 0, checker.pending_count),
         _ -> done()
     }
 
     // Entries the copy appends lie past `end`.
     machine next(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64) {
         transition index < end && index < 32 {
-            true -> candidate(checker, typing, target, source, index, end)
+            true -> candidate(checker, typing, target, source, index, end),
             _ -> done()
         }
     }
@@ -378,7 +378,7 @@ crashes Trap
         let owned: bool = owned_below(checker, typing, source, pending.parent)
             && (pending.parent == source || row.kind != TypeKind::Reference);
         transition owned && (pending.parent == source || path.depth > 0) {
-            true -> copied(checker, typing, target, source, index, end, pending, path)
+            true -> copied(checker, typing, target, source, index, end, pending, path),
             _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
@@ -386,7 +386,7 @@ crashes Trap
     machine copied(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64, pending: PendingField, path: ArrivalPath) {
         let parent: u64 in Trapping = enter_path(checker, typing, target, path);
         transition parent > 0 {
-            true -> written(checker, typing, target, source, index, end, pending, parent)
+            true -> written(checker, typing, target, source, index, end, pending, parent),
             _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
@@ -422,7 +422,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, typing: @Typing, parent: u64 in Trapping, written_only: bool, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.pending_count && index < 32 {
-            true -> candidate(checker, typing, parent, written_only, callee, index)
+            true -> candidate(checker, typing, parent, written_only, callee, index),
             _ -> done()
         }
     }
@@ -434,7 +434,7 @@ crashes Trap
         let below: bool = pending.parent == parent || (written_only && checker_within(checker, pending.parent, parent));
         let selected: bool = !written_only || writes_field(checker, callee, pending.field);
         transition below && selected {
-            true -> entered(checker, typing, parent, written_only, callee, index, pending)
+            true -> entered(checker, typing, parent, written_only, callee, index, pending),
             _ -> next(checker, typing, parent, written_only, callee, index + 1)
         }
     }

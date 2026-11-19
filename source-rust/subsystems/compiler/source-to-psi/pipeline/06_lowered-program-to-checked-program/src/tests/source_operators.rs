@@ -221,13 +221,13 @@ data FixedVec<Element, const Capacity: u64> {{ items: [Element; Capacity]; lengt
 machine == header_values(left: RoomHeader, right: RoomHeader) -> bool {{ false }}
 machine policy_kind<Kind>() -> bool {{
     transition {{
-        Kind == u32 || Kind == i32 || Kind == bool -> false
-        Kind == RoomHeader -> true
-        Kind == FixedVec<i32, 4> -> true
+        Kind == u32 || Kind == i32 || Kind == bool -> false,
+        Kind == RoomHeader -> true,
+        Kind == FixedVec<i32, 4> -> true,
         _ -> false
     }}
 }}
-machine entry() -> bool {{ policy_kind<{kind}>() }}
+machine entry() -> bool {{ policy_kind::<{kind}>() }}
 "#
         ));
         let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -259,7 +259,7 @@ fn declared_value_comparisons_under_disjunctive_guards_keep_their_selected_meani
          machine entry() -> bool {\n\
              let kind: Kind = Kind::On;\n\
              transition {\n\
-                 kind == Kind::On || kind == Kind::Off -> true\n\
+                 kind == Kind::On || kind == Kind::Off -> true,\n\
                  _ -> false\n\
              }\n\
          }",
@@ -301,7 +301,7 @@ requires info.position < 4u64
 machine entry() -> bool {
     let mut capture: Capture;
     let info: Info = Info { position: 1u64 };
-    describe<bool>(@mut capture, @info);
+    describe::<bool>(@mut capture, @info);
     capture.schema.fields[1u64].value == 7u32
 }
 "#,
@@ -499,8 +499,8 @@ fn static_completion_keeps_later_guard_answers_without_assuming_the_result() {
         ensures result
         {
             transition {
-                Kind == bool -> true
-                Kind == u8 || Kind == u16 -> false
+                Kind == bool -> true,
+                Kind == u8 || Kind == u16 -> false,
                 _ -> false
             }
         }
@@ -540,7 +540,7 @@ fn mixed_contracts_keep_static_guard_answers_and_runtime_obligations() {
 machine bounded<Kind>(value: u32) -> u32
 requires value <= 10u32 && (Kind == u32 || Kind == u64)
 { value }
-machine entry() -> bool { bounded<u32>(7u32) == 7u32 }
+machine entry() -> bool { bounded::<u32>(7u32) == 7u32 }
 "#;
     let prepared = |text: &str| {
         crate::preparation::prepare_typed_trees(
@@ -552,7 +552,7 @@ machine entry() -> bool { bounded<u32>(7u32) == 7u32 }
     };
     assert_operator_value(operator_program(&prepared(source)), true);
     let rejected = operator_program(&prepared(
-        &source.replace("bounded<u32>(7u32)", "bounded<u32>(11u32)"),
+        &source.replace("bounded::<u32>(7u32)", "bounded::<u32>(11u32)"),
     ))
     .expect("the closed type guard must not hide the remaining value contract");
     assert!(
@@ -705,18 +705,18 @@ machine choose<Kind>() -> u8
 requires Kind == u8 || Kind == u16
 ensures result == 7u8
 {
-    transition Kind == u8 { true -> (7u8) _ -> (7u8) }
+    transition Kind == u8 { true -> (7u8), _ -> (7u8) }
 }
 machine unary_first<Kind>() -> bool
 requires Kind == u8
 ensures result
 {
     transition {
-        !(Kind == u8) -> false
+        !(Kind == u8) -> false,
         _ -> true
     }
 }
-machine entry() -> bool { choose<u16>() == 7u8 && unary_first<u8>() }
+machine entry() -> bool { choose::<u16>() == 7u8 && unary_first::<u8>() }
 "#;
 
 fn copied_static_pattern() -> (

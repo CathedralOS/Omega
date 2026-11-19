@@ -12,12 +12,12 @@ data GeometryCarrier {
 }
 
 machine main() crashes Trap {
-    let s: u64 = size_of<Pair>();
-    let a: u64 = align_of<Pair>();
+    let s: u64 = size_of::<Pair>();
+    let a: u64 = align_of::<Pair>();
     let carrier: GeometryCarrier = GeometryCarrier { size: s, align: a };
     let diff: u64 = carrier.size - (carrier.align * 2u64);
     transition diff == 0 && carrier.size == 16u64 && carrier.align == 8u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -26,20 +26,20 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     block tokens_read(@mut context.tokens);
     load(@mut context.data, @context.tokens);
     transition context.data.valid {
-        true -> solve(context)
+        true -> solve(context),
         _ -> invalid(context)
     }
     machine solve(context: @mut Main) {
         allocation_solve(@mut context.allocation, @context.data);
         transition context.allocation.found {
-            true -> audit(context)
+            true -> audit(context),
             _ -> infeasible(context)
         }
     }
     machine audit(context: @mut Main) {
         check(@mut context.audit, @context.data, @context.allocation);
         transition context.audit.valid {
-            true -> output(context)
+            true -> output(context),
             _ -> corrupt(context)
         }
     }

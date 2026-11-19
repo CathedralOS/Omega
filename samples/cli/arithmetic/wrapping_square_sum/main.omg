@@ -25,13 +25,13 @@ machine main() crashes Trap {
     transition { _ -> loop_(0 as +Wrapping, 1 as +Wrapping) }
 
     machine loop_(acc: u64 in Wrapping, i: u64 in Wrapping) {
-        transition i <= 2000000 { true -> step(acc, i) _ -> done(acc) }
+        transition i <= 2000000 { true -> step(acc, i), _ -> done(acc) }
     }
     machine step(acc: u64 in Wrapping, i: u64 in Wrapping) {
         transition { _ -> loop_(acc + i * i, i + 1) }
     }
     machine done(acc: u64 in Wrapping) {
-        transition acc == 2666668666667000000 { true -> passed() _ -> failed() }
+        transition acc == 2666668666667000000 { true -> passed(), _ -> failed() }
     }
     machine passed() {}
     machine failed() { crash Trap; }

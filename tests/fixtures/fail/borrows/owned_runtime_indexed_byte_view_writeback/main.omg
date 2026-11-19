@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let index: u64 = 1;
     settings[index].identifier = "omega";
     transition settings[0].identifier.len == 6 && settings[1].identifier.len == 5 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

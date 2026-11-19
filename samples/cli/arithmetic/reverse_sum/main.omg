@@ -44,7 +44,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Loop head: walk down until every element has been added.
     machine scan(main: @mut Main) {
         transition main.i >= 0 {
-            true -> block add(main)
+            true -> block add(main),
             _ -> block done(main)
         }
     }

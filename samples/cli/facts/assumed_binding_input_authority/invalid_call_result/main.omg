@@ -13,7 +13,7 @@ Actual satisfies Supplied {
 machine make() -> Index { Index { value: 1 } }
 machine main() reaches Required crashes Trap {
     let observed: u32 = Required::get(make());
-    transition observed == 11 { true -> done() false -> bad() }
+    transition observed == 11 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

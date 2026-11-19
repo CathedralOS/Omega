@@ -4,7 +4,7 @@ public boundary trait Text {
     machine length(text: @u8) -> u64 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
-    transition result { true -> done() false -> bad() }
+    transition result { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -20,7 +20,7 @@ CountingMeasuring satisfies Measuring {
         let measured: u64 = Text::length(selected);
         let rest: u64 = Text::length(@text[2]);
         demand(text[6] == 120 && text[7] == 121);
-        transition measured < 16 && rest < 16 { true -> (measured * 16 + rest) _ -> (0) }
+        transition measured < 16 && rest < 16 { true -> (measured * 16 + rest), _ -> (0) }
     }
 }
 machine start() crashes Trap {

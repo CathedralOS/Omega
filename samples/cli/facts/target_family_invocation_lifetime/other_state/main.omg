@@ -34,7 +34,7 @@ requires machine Action<'use>(context: Captured, value: @'use u64) -> @'use u64;
 
 
 machine relay<'call>(context: Holder<'call>, item: @'call u64) -> @'call u64 {
-    SelectedApply::apply<Holder<'call>, pick<Holder<'call>>>(context, item)
+    SelectedApply::apply::<Holder<'call>, pick<Holder<'call>>>(context, item)
 }
 machine done() {}
 machine wrong() crashes Trap { crash Trap; }
@@ -45,6 +45,6 @@ machine main() crashes Trap {
     let result: @u64 = relay(context, @right);
     verify(result);
     machine verify(value: @u64) crashes Trap {
-        transition value == 42 { true -> done() false -> wrong() }
+        transition value == 42 { true -> done(), false -> wrong() }
     }
 }

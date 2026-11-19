@@ -219,6 +219,21 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// Separates consecutive match or transition arms and leaves the closing
+    /// brace for the enclosing dispatch, with or without a trailing comma.
+    pub(crate) fn after_dispatch_arm(self) -> Result<Self, ParseError> {
+        if self.at_punctuation(PunctuationKind::RightBrace) {
+            return Ok(self);
+        }
+        let Some(next) = self.take_comma()? else {
+            return Err(self.error_here("expected `,` between arms or `}` after the final arm"));
+        };
+        if next.at_punctuation(PunctuationKind::Comma) {
+            return Err(next.error_here("expected an arm or `}` after `,`"));
+        }
+        Ok(next)
+    }
+
     pub(crate) fn leading_paren_group_has_top_level_comma(&self) -> bool {
         let mut paren = 0usize;
         let mut bracket = 0usize;
@@ -369,6 +384,15 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         actual == Some(punctuation)
             || (punctuation == PunctuationKind::Greater
                 && actual == Some(PunctuationKind::GreaterGreater))
+    }
+
+    pub(crate) fn at_expression_arguments(&self) -> bool {
+        self.at_punctuation(PunctuationKind::ColonColon)
+            && self.peek_semantic(1).and_then(Token::punctuation) == Some(PunctuationKind::Less)
+    }
+
+    pub(crate) fn at_path_member(&self) -> bool {
+        self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments()
     }
 
     pub(crate) fn at_contextual(&self, name: &str) -> bool {
@@ -564,7 +588,7 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     let mut path = arena::HandleSpan::empty();
     path.push_contiguous(append_member(first));
 
-    while rest.at_punctuation(PunctuationKind::ColonColon) {
+    while rest.at_path_member() {
         rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (member, next) = rest.take_identifier()?;
         path.push_contiguous(append_member(member));

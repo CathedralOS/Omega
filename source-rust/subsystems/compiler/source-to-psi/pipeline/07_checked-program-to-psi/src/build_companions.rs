@@ -269,7 +269,7 @@ pub(crate) fn produce(
     }
     // scoped_execution.md, "Two checked contexts": a Build entry and its
     // helpers reach "exact static provider slots installed through
-    // `Build::await_provider<R, Backing>`". Such a call is served by the
+    // `Build::await_provider::<R, Backing>`". Such a call is served by the
     // provider the host installs for the awaited requirement, so it is
     // inside the Build's authority. Whether a provider is installed before
     // the call runs is the host's to enforce where the call parks.

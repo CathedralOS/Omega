@@ -12,7 +12,7 @@ machine bump(value: u64) -> u64
 satisfies StepContract::step
 {
     transition value == 35u64 {
-        true -> hit()
+        true -> hit(),
         _ -> miss()
     }
     machine hit() -> u64 { 42 }
@@ -26,8 +26,8 @@ requires machine Step satisfies StepContract::step;
 }
 
 machine main() crashes Trap {
-    transition walk<bump>(BASE) == 42u64 {
-        true -> done()
+    transition walk::<bump>(BASE) == 42u64 {
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

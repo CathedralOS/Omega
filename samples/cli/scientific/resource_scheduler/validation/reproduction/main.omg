@@ -6,8 +6,8 @@ data Main { choice: i32; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 4] = "TEST";
     transition main.choice {
-        0 -> show(main, @bytes)
-        1 -> show(main, @bytes)
+        0 -> show(main, @bytes),
+        1 -> show(main, @bytes),
         _ -> show(main, @bytes)
     }
     machine show(main: @mut Main, bytes: @[u8; 4]) {

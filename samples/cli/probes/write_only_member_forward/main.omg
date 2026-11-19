@@ -19,7 +19,7 @@ machine replace(destination: @write i32, value: i32) {
 
 machine forward(destination: @write Pair, choose_left: bool, value: i32) {
     transition choose_left {
-        true -> left(@write destination, value)
+        true -> left(@write destination, value),
         false -> right(@write destination, value)
     }
     machine left(destination: @write Pair, value: i32) {
@@ -38,7 +38,7 @@ machine Main::main(main: @mut Main) {
     main.pair.right = 19;
     forward(@write main.pair, true, 42);
     transition main.pair.left == 42 && main.pair.right == 19 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

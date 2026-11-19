@@ -54,7 +54,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let called: i32 = through_call(0, 7);
     let field: i32 = from_field(@reading);
     transition rounded == 5 && other == 5 && near == 5 && called == 0 && field == 5 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

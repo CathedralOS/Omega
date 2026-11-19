@@ -6,7 +6,7 @@ requires bytes.len >= 1 && bytes[0] >= 10
 {
     zero(@mut bytes[0]);
     transition bytes[0] < 5 {
-        true -> (bytes[0] - 100u8)
+        true -> (bytes[0] - 100u8),
         false -> (bytes[0])
     }
 }

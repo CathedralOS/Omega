@@ -17,7 +17,7 @@ machine eval(holder: Holder) -> u64
 {
     let outcome: Outcome = holder.outcome;
     transition outcome {
-        Outcome::Ready { value } -> (value + 10)
+        Outcome::Ready { value } -> (value + 10),
         Outcome::Empty {} -> 0
     }
 }
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let a: Holder = Holder { outcome: Outcome::Ready { value: 32 } };
     let b: Holder = Holder { outcome: Outcome::Empty {} };
     transition eval(a) == 42 && eval(b) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

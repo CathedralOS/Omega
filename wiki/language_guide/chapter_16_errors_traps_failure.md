@@ -14,14 +14,14 @@ data ParseResult {
 
 machine parse_digit(byte: u8) -> ParseResult {
     transition byte >= 48 && byte <= 57 {
-        true -> ParseResult::Parsed { value: (byte - 48) as u32 }
+        true -> ParseResult::Parsed { value: (byte - 48) as u32 },
         false -> ParseResult::BadDigit { byte: byte }
     }
 }
 
 machine digit_or_zero(byte: u8) -> u32 {
     transition parse_digit(byte) {
-        ParseResult::Parsed { value } -> value
+        ParseResult::Parsed { value } -> value,
         ParseResult::BadDigit { byte } -> 0
     }
 }
@@ -43,7 +43,7 @@ data SettingResult {
 
 machine parse_level(byte: u8) -> SettingResult {
     transition parse_digit(byte) {
-        ParseResult::Parsed { value } -> SettingResult::Level { value: value }
+        ParseResult::Parsed { value } -> SettingResult::Level { value: value },
         ParseResult::BadDigit { byte } -> SettingResult::Invalid
     }
 }
@@ -78,7 +78,7 @@ data Division {
 
 machine try_divide(numerator: u32, denominator: u32) -> Division {
     transition denominator {
-        0 -> Division::ZeroDivisor
+        0 -> Division::ZeroDivisor,
         _ -> Division::Quotient { value: numerator / denominator }
     }
 }
@@ -99,7 +99,7 @@ machine require_ready(ready: bool)
 crashes Abort
 {
     transition ready {
-        true -> {}
+        true -> {},
         false -> abort()
     }
 
@@ -130,7 +130,7 @@ public machine fail() -> Never crashes Abort {
 
 machine port_or_fail(parsed: bool, port: u16) -> u16 crashes Abort {
     transition parsed {
-        true -> port
+        true -> port,
         false -> fail()
     }
 }

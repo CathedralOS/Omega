@@ -103,9 +103,6 @@ pub enum ItemSnapshot {
     Operator {
         operator: OperatorSnapshot,
     },
-    Module {
-        path: Vec<IdentifierSnapshot>,
-    },
     Package {
         path: Vec<IdentifierSnapshot>,
     },
@@ -598,12 +595,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
         },
         Item::Operator(value) => ItemSnapshot::Operator {
             operator: snapshot_operator(syntax_trees, value),
-        },
-        Item::Module(value) => ItemSnapshot::Module {
-            path: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees.items.identifier_path_members(value.path),
-            ),
         },
         Item::Package(value) => ItemSnapshot::Package {
             path: snapshot_identifier_slice(

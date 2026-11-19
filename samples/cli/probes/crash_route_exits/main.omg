@@ -16,7 +16,7 @@
 machine inspect(n: i32) -> bool
 crashes Trap {
     transition n < 0 {
-        true -> bad()
+        true -> bad(),
         _ -> good()
     }
 
@@ -37,7 +37,7 @@ crashes Trap {
 machine crash_route_exits() crashes Trap {
     let flagged: bool = probe(5);
     transition flagged {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

@@ -27,7 +27,7 @@ requires premise(kept)
 }
 
 machine observe(kept: bool) -> bool {
-    apply<witness>(kept)
+    apply::<witness>(kept)
 }
 
 machine relay(kept: bool) -> bool {
@@ -38,7 +38,7 @@ machine main() crashes Trap {
     let kept: bool = true;
     let direct: bool = relay(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -5,17 +5,17 @@ use omega::language::core::Equivalence;
 
 data Representative [copy] { value: i32; }
 
-proposition equivalent(a: Representative, b: Representative) = core::Identity<Representative>(a, b);
+proposition equivalent(a: Representative, b: Representative) = core::Identity::<Representative>(a, b);
 
 machine equivalent_reflexive(a: Representative)
-ensures core::Identity<Representative>(a, a)
+ensures core::Identity::<Representative>(a, a)
 {
 }
 
 machine equivalent_symmetric(a: Representative, b: Representative)
 requires
-    core::Identity<Representative>(a, b)
-ensures core::Identity<Representative>(b, a)
+    core::Identity::<Representative>(a, b)
+ensures core::Identity::<Representative>(b, a)
 {
 }
 
@@ -25,9 +25,9 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    core::Identity<Representative>(a, b)
-    core::Identity<Representative>(b, c)
-ensures core::Identity<Representative>(a, c)
+    core::Identity::<Representative>(a, b)
+    core::Identity::<Representative>(b, c)
+ensures core::Identity::<Representative>(a, c)
 {
 }
 
@@ -55,7 +55,7 @@ ensures representative(left, amount) == representative(right, amount)
 {}
 
 machine lifted(value: EquivalenceClass) -> i32 {
-    Quotient::lift<representative, representative_respects>(value, 3i32)
+    Quotient::lift::<representative, representative_respects>(value, 3i32)
 }
 
 machine observe(value: EquivalenceClass) -> i32 {
@@ -66,7 +66,7 @@ machine observe(value: EquivalenceClass) -> i32 {
 
 machine main() crashes Trap {
     let item: EquivalenceClass = Representative { value: 11 } as EquivalenceClass;
-    transition observe(item) == 3 { true -> done() _ -> bad() }
+    transition observe(item) == 3 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

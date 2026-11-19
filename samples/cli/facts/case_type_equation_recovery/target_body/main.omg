@@ -9,7 +9,7 @@ public data Value<T> [copy]
 }
 machine extract<T>(v: Value<T>) -> T {
     match v {
-        Value::Integer { value } -> value
+        Value::Integer { value } -> value,
         Value::Boolean { value } -> value
     }
 }
@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let other_flag: Value<bool> = ValueProvider::other_flag();
     transition extract(number) == 7 && extract(other_number) == 9
         && extract(flag) == true && extract(other_flag) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

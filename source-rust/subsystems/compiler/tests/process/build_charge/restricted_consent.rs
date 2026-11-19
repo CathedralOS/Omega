@@ -38,7 +38,7 @@ machine build(builder: @mut Build) crashes Trap {
     let count: i64 = BuildSource::read(@builder.source, reader, @mut bytes, 4);
     _ = BuildSource::close(@builder.source, reader);
     transition count == 4 && bytes[0] == 108 && bytes[1] == 105 && bytes[2] == 118 && bytes[3] == 101 {
-        true -> done(builder) _ -> bad(builder)
+        true -> done(builder), _ -> bad(builder)
     }
     machine done(builder: @mut Build) {}
     machine bad(builder: @mut Build) { crash Trap; }

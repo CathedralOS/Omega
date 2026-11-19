@@ -7,7 +7,7 @@ requires value >= 40u64 && value <= 63u64
     let headroom: u64 = 63u64 - value;
     let margin: u64 = value - 40u64;
     transition headroom == 11u64 && margin == 12u64 {
-        true -> 0u64
+        true -> 0u64,
         _ -> 1u64
     }
 }
@@ -18,7 +18,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -26,7 +26,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -46,7 +46,7 @@ X86Probe satisfies SelectedProbe {
         SelectedBodyCheck::require_tag(17u64);
         let masked: u64 = raw & 63u64;
         transition masked >= 40u64 && masked <= 63u64 {
-            true -> step(masked)
+            true -> step(masked),
             _ -> bad()
         }
         machine step(m: u64) -> u64 {
@@ -64,7 +64,7 @@ ArmProbe satisfies SelectedProbe {
         SelectedBodyCheck::require_tag(29u64);
         let masked: u64 = raw & 63u64;
         transition masked >= 40u64 && masked <= 63u64 {
-            true -> step(masked)
+            true -> step(masked),
             _ -> bad()
         }
         machine step(m: u64) -> u64 {
@@ -88,7 +88,7 @@ machine main()
 {
     let rc: u64 = SelectedProbe::exercise(116u64);
     transition rc == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

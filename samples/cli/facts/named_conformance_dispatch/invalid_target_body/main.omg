@@ -34,14 +34,14 @@ boundary trait SelectedBodyCheck {
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
 }
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -57,7 +57,7 @@ X86Probe satisfies SelectedProbe {
     requires 0 <= a && a <= 50
     {
         SelectedBodyCheck::require_tag(17u64);
-        block apply<Selected>(a, b)
+        block apply::<Selected>(a, b)
     }
 }
 ArmProbe satisfies SelectedProbe {
@@ -66,14 +66,14 @@ ArmProbe satisfies SelectedProbe {
     requires 0 <= a && a <= 50
     {
         SelectedBodyCheck::require_tag(29u64);
-        block apply<Selected>(a, b)
+        block apply::<Selected>(a, b)
     }
 }
 
 
 machine main() blocks crashes Trap {
     let result: i32 = block SelectedProbe::probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
+    transition result == 42 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

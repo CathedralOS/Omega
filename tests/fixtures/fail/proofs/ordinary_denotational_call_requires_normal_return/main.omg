@@ -13,7 +13,7 @@ ensures partial(value) == partial(value) {
 machine main() crashes Trap {
     let observed: u8 in Saturating = 0u8 as u8 in Saturating;
     transition observed == 0u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

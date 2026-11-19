@@ -8,7 +8,7 @@ machine start() crashes Trap {
     transition { _ -> inspect(initial) }
     machine inspect(value: Gate<2>) {
         let code: u8 = Gate::read(@value);
-        transition code == 0u8 { true -> done() _ -> bad() }
+        transition code == 0u8 { true -> done(), _ -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

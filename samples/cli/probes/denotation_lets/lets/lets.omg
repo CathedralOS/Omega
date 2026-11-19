@@ -1,0 +1,4 @@
+public let reflexive(value: u8): core::Strict<0> = value == value;
+
+public let wrapping_reflexive(value: u8 in Wrapping): core::Strict<0> =
+    (value * value) == (value * value);

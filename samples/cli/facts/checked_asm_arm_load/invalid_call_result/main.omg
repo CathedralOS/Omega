@@ -15,7 +15,7 @@ X86Main satisfies SelectedMain {
             mov loaded, [source]
         }
         transition loaded == 37 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
         machine done() {}
@@ -31,7 +31,7 @@ ArmMain satisfies SelectedMain {
             ldr loaded, [source]
         }
         transition loaded == 37 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
         machine done() {}

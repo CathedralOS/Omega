@@ -6,7 +6,7 @@ data Store { records: [Record; 3]; }
 machine select(store: @mut Store, second: bool) -> @mut Record {
     let records: @mut [Record] = @mut store.records[..];
     transition second {
-        true -> @mut records[1]
+        true -> @mut records[1],
         false -> @mut records[0]
     }
 }
@@ -36,7 +36,7 @@ machine main() crashes Trap {
         && store.records[0].observed == 29 && store.records[1].observed == 29
         && store.records[2].marker == 17 && store.records[2].value == 19
         && store.records[2].observed == 23 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

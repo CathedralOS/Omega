@@ -28,7 +28,7 @@ ensures result >= 0 && result <= 99
     ensures result >= 0 && result <= 99
     {
         transition exponent == 0 {
-            true -> (accumulator)
+            true -> (accumulator),
             _ -> classify(accumulator, base, exponent)
         }
     }
@@ -41,7 +41,7 @@ ensures result >= 0 && result <= 99
     {
         let bit: i32 = exponent % 2;
         transition bit == 1 {
-            true -> accumulate(accumulator, base, exponent)
+            true -> accumulate(accumulator, base, exponent),
             _ -> square(accumulator, base, exponent)
         }
     }

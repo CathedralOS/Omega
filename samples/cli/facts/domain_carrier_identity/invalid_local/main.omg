@@ -10,12 +10,12 @@ machine headroom(value: u8) -> u8 requires value in Small {
 machine main() crashes Trap {
     let level: u8 = 7;
     transition level in Small {
-        true -> measured(level)
+        true -> measured(level),
         _ -> bad()
     }
     machine measured(level: u8) crashes Trap requires level in Small {
         transition headroom(level) == 3 && headroom(2) == 8 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

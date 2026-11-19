@@ -29,7 +29,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let forwarded: f64 = forward(0.25);
     let literal: f64 = admit(0.125);
     transition forwarded == 0.25 && literal == 0.125 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

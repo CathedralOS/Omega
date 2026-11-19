@@ -24,7 +24,7 @@ machine entry_start() reaches ProcessExit + Console + TimeHost {
     let elapsed: Duration = elapsed_since(start);
     let long_enough: bool = elapsed.seconds > 0 || elapsed.subsecond_nanoseconds >= 50000000;
     transition slept == 50 && long_enough {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() { ProcessExit::exit_process(70); }

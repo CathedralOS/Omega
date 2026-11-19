@@ -49,7 +49,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: @mut Main) {
-        transition main.frame < 12 { true -> block frame_init(main) _ -> block finish(main) }
+        transition main.frame < 12 { true -> block frame_init(main), _ -> block finish(main) }
     }
     machine frame_init(main: @mut Main) {
         Console::write(@main.home[..]);
@@ -57,11 +57,11 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block row_loop(main) }
     }
     machine row_loop(main: @mut Main) {
-        transition main.y < 22 { true -> block col_init(main) _ -> block frame_end(main) }
+        transition main.y < 22 { true -> block col_init(main), _ -> block frame_end(main) }
     }
     machine col_init(main: @mut Main) { main.x = 0; transition { _ -> block col_loop(main) } }
     machine col_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 48 { true -> block pixel_init(main) _ -> block emit_row(main) }
+        transition main.x >= 0 && main.x < 48 { true -> block pixel_init(main), _ -> block emit_row(main) }
     }
     machine pixel_init(main: @mut Main) {
         main.cr = (F64::from_i32(main.x) / 48.0 - 0.5) * main.span - 0.743644;
@@ -72,19 +72,19 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block iter_loop(main) }
     }
     machine iter_loop(main: @mut Main) {
-        transition main.k < 40 { true -> block iter_test(main) _ -> block pixel_done(main) }
+        transition main.k < 40 { true -> block iter_test(main), _ -> block pixel_done(main) }
     }
     machine iter_test(main: @mut Main) {
         main.zr2 = main.zr * main.zr;
         main.zi2 = main.zi * main.zi;
         main.mag = main.zr2 + main.zi2;
-        transition main.mag > 4.0 { true -> block pixel_done(main) _ -> block iter_step(main) }
+        transition main.mag > 4.0 { true -> block pixel_done(main), _ -> block iter_step(main) }
     }
     // Re-guard so the increment's direct edge proves `k + 1` lands in [1..=40].
     machine iter_step(main: @mut Main) {
         main.zi = 2.0 * main.zr * main.zi + main.ci;
         main.zr = main.zr2 - main.zi2 + main.cr;
-        transition main.k >= 0 && main.k < 40 { true -> block iter_advance(main) _ -> block pixel_done(main) }
+        transition main.k >= 0 && main.k < 40 { true -> block iter_advance(main), _ -> block pixel_done(main) }
     }
     machine iter_advance(main: @mut Main) {
         main.k = main.k + 1;
@@ -93,12 +93,12 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // Re-guard `0 <= k <= 40` so the shade arithmetic `k * 7 / 40` is exact --
     // k only counts up to the 40-step cap, so always true.
     machine pixel_done(main: @mut Main) {
-        transition main.k >= 0 && main.k <= 40 { true -> block pixel_shade(main) _ -> block bad(main) }
+        transition main.k >= 0 && main.k <= 40 { true -> block pixel_shade(main), _ -> block bad(main) }
     }
     machine pixel_shade(main: @mut Main) {
         main.idx = main.k * 7 / 40;
         transition main.idx >= 0 && main.idx < 8 && main.x >= 0 && main.x < 48 {
-            true -> block write_pixel(main)
+            true -> block write_pixel(main),
             _ -> block bad(main)
         }
     }
@@ -112,7 +112,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // [1..=22] under the standing owner domain.
     machine emit_row(main: @mut Main) {
         Console::write_line(@main.row[..]);
-        transition main.y >= 0 && main.y < 22 { true -> block row_advance(main) _ -> block frame_end(main) }
+        transition main.y >= 0 && main.y < 22 { true -> block row_advance(main), _ -> block frame_end(main) }
     }
     machine row_advance(main: @mut Main) {
         main.y = main.y + 1;
@@ -123,7 +123,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     machine frame_end(main: @mut Main) {
         block Clock::sleep(70);
         main.span = main.span * 0.62;
-        transition main.frame >= 0 && main.frame < 12 { true -> block frame_advance(main) _ -> block finish(main) }
+        transition main.frame >= 0 && main.frame < 12 { true -> block frame_advance(main), _ -> block finish(main) }
     }
     machine frame_advance(main: @mut Main) {
         main.frame = main.frame + 1;

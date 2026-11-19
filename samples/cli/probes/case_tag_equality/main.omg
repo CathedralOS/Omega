@@ -31,7 +31,7 @@ machine Main::main(main: @mut Main) {
     main.cmd = Command::Move { dx: 3 };
     equal = main.cmd != Command::None;
     transition equal {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

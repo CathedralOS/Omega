@@ -19,7 +19,7 @@ machine computed(left: u32, right: u32) -> bool crashes Trap {
 machine main() crashes Trap {
     let unused: u32 = added(3, 4);
     transition computed(3, 4) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

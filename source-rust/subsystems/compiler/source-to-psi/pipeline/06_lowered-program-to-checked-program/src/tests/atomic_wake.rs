@@ -45,7 +45,7 @@ public machine record_and_publish(
 public machine claim_pending(wake: @TimerRootWakeState) -> TimerRootWakeClaim {
     let prior_pending: u32 = wake.wake_pending.fetch_and(0, Receive);
     transition (prior_pending & 1) == 1 {
-        true -> claimed(wake)
+        true -> claimed(wake),
         _ -> idle(wake)
     }
 
@@ -100,7 +100,7 @@ machine build_entry() crashes Trap {
     let next_cleared: bool = is_idle(@storage.wake);
     transition initially_idle && first && first_cleared && latest && latest_cleared
         && next_round && next_cleared && storage.before == 101 && storage.after == 103 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}
@@ -160,7 +160,7 @@ fn projected_atomic_events_return_prior_bits_and_keep_neighbor_storage() {
         let next: u64 = cell.value.load(NoOrdering);
         transition idle == 0 && pending == 1 && observed == 97 && cleared == 0
             && later == 1 && next == 113 && cell.before == 101 && cell.after == 103 {
-            true -> done()
+            true -> done(),
             _ -> wrong()
         }
         machine done() {}
@@ -263,7 +263,7 @@ fn computed_subject_is_evaluated_once_and_transfers_its_owned_payload() {
             let mut counter: Counter;
             let result: Owner = take(@mut counter);
             transition counter.value == 1 && result.value == 97 {
-                true -> done()
+                true -> done(),
                 _ -> wrong()
             }
             machine done() {}
@@ -299,7 +299,7 @@ fn computed_subject_is_retired_on_a_normal_value_continuation() {
         machine make() -> Reply { Reply::Ready { owner: Owner { value: 97 } } }
         machine build_entry() crashes Trap {
             let result: Owner = match make() { Reply::Ready { owner } -> owner };
-            transition result.value == 97 { true -> done() _ -> wrong() }
+            transition result.value == 97 { true -> done(), _ -> wrong() }
             machine done() {}
             machine wrong() { crash Trap; }
         }
@@ -316,13 +316,13 @@ fn computed_subject_is_retired_on_a_real_backedge() {
         machine walk(input: u32) -> u32 {
             match make(input) { Reply::Ready { value } -> step(value) }
             machine step(value: u32) -> u32 {
-                transition value < 2 { true -> walk(value + 1) _ -> done(value) }
+                transition value < 2 { true -> walk(value + 1), _ -> done(value) }
                 machine done(value: u32) -> u32 { value }
             }
         }
         machine build_entry() crashes Trap {
             let result: u32 = walk(0);
-            transition result == 2 { true -> done() _ -> wrong() }
+            transition result == 2 { true -> done(), _ -> wrong() }
             machine done() {}
             machine wrong() { crash Trap; }
         }

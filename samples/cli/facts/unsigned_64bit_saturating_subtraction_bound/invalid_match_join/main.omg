@@ -17,7 +17,7 @@ machine compute_match_join(lhs: u64, rhs: u64, flag: bool) -> u64
     let sat: u64 in Saturating = a - b;
     let diff: u64 = sat as u64;
     let joined: u64 = match flag {
-        true -> diff
+        true -> diff,
         false -> diff
     };
     verify_diff(joined)
@@ -30,7 +30,7 @@ machine evaluate() -> u64 {
 machine main() crashes Trap {
     let res: u64 = evaluate();
     transition res == 60 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

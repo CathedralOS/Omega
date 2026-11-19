@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     LabelMessage::encode(@msg, @mut main.buffer, @mut main.written);
     transition main.written == 7 && main.buffer[2] == 7 && main.buffer[4] == 2
         && main.buffer[5] == 104 && main.buffer[6] == 105 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

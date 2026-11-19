@@ -38,5 +38,3 @@ impl BuildSourceSelection {
         Self { source_id, ..self }
     }
 }
-
-pub(super) const BUILD_PRELUDE_PATH: &str = "<build-prelude>";

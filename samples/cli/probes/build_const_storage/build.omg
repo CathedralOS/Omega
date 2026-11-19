@@ -14,7 +14,7 @@ machine build(builder: @mut Build) {
     Build::application(builder, "build_const_storage");
     let result: ComputedStorage;
     transition result.buffer.slots.len == 4 {
-        true -> good(builder)
+        true -> good(builder),
         _ -> bad(builder)
     }
     machine good(builder: @mut Build) {

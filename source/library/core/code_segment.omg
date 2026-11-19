@@ -24,7 +24,7 @@ public X86CodeSegmentControl satisfies CodeSegmentControl {
     requires Entries >= 1 && Entries <= 8192
     reaches MachineControl {
         let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        reload_code_segment<Entries>(gdt, selector, @mut observed) == 1
+        reload_code_segment::<Entries>(gdt, selector, @mut observed) == 1
     }
 
     machine selector() -> u16 reaches MachineControl { read_code_selector() }

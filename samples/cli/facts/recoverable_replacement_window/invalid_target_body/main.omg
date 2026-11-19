@@ -6,7 +6,7 @@ data Outcome { case Success(token: Token); case Failure(token: Token); }
 data Holder { token: Token; sibling: u64; }
 machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {
     transition succeed {
-        true -> success(token)
+        true -> success(token),
         _ -> Outcome::Failure { token: token }
     }
     machine success(token: Token) -> Outcome {
@@ -17,7 +17,7 @@ machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {
 }
 machine recover(outcome: Outcome) -> Token {
     transition outcome {
-        Outcome::Success { token } -> token
+        Outcome::Success { token } -> token,
         Outcome::Failure { token } -> token
     }
 }
@@ -28,7 +28,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -36,7 +36,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -55,7 +55,7 @@ X86Repair satisfies SelectedRepair {
         let alias: @mut Token = @mut holder.token;
         let first: Outcome = attempt(alias, succeed, observe(@mut holder.sibling));
         alias = match first {
-            Outcome::Success { token } -> token
+            Outcome::Success { token } -> token,
             Outcome::Failure { token } -> token
         };
         let detached: Token = alias;
@@ -72,7 +72,7 @@ ArmRepair satisfies SelectedRepair {
         let alias: @mut Token = @mut holder.token;
         let first: Outcome = attempt(alias, succeed, observe(@mut holder.sibling));
         alias = match first {
-            Outcome::Success { token } -> token
+            Outcome::Success { token } -> token,
             Outcome::Failure { token } -> token
         };
         let detached: Token = alias;
@@ -88,7 +88,7 @@ machine main() crashes Trap {
     SelectedRepair::repair(@mut holder, true);
     let correct: bool = holder.token.value == 44 && holder.sibling == 19;
     drop(holder.token);
-    transition correct { true -> done() _ -> bad() }
+    transition correct { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

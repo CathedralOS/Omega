@@ -6,14 +6,14 @@ use std::sync::Arc;
 
 const INDEXING: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../source/library/core/indexing.omg"
+    "/../../../../../../source/library/core/indexing/indexing.omg"
 ));
 
 fn typed(
     text: &str,
     origin: source_admission::SourceOrigin,
 ) -> Result<crate::source_state::TypedTrees, Vec<diagnostics::Diagnostic>> {
-    typed_at(text, "indexing.omg", origin)
+    typed_at(text, "indexing/indexing.omg", origin)
 }
 
 fn typed_at(
@@ -115,12 +115,12 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
 fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
     ));
     use language_core::byte_predicates::ByteSequencePredicate;
     let program = typed_at(
         SOURCE,
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         source_admission::SourceOrigin::Toolchain,
     )
     .expect("the real observation source must resolve and type");
@@ -218,7 +218,7 @@ ensures result.len == items.len { items }
 fn copied_or_edited_byte_observation_headers_cannot_acquire_catalog_supply() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
     ));
     let edited = SOURCE.replace("reaches none", "reaches none\nsuspends true");
     for (source, origin) in [
@@ -226,7 +226,7 @@ fn copied_or_edited_byte_observation_headers_cannot_acquire_catalog_supply() {
         (edited.as_str(), source_admission::SourceOrigin::Toolchain),
     ] {
         assert!(
-            typed_at(source, "byte_observation.omg", origin).is_err(),
+            typed_at(source, "byte_observation/byte_observation.omg", origin).is_err(),
             "a copied or changed header cannot nominate compiler supply"
         );
     }
@@ -238,11 +238,11 @@ fn observed_typed(text: &str) -> crate::source_state::TypedTrees {
         "machine build_entry() {}",
         source_provenance::DependencyScope::Product,
         &[(
-            "byte_observation.omg",
+            "byte_observation/byte_observation.omg",
             "byte_observation",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../../source/library/core/byte_observation.omg"
+                "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
             )),
         )],
     )
@@ -301,7 +301,7 @@ ensures result == byte_observation::ascii_only(bytes)
 machine main() crashes Trap {
     let valid: bool = checked("Room A1");
     let invalid: bool = checked("é");
-    transition valid && !invalid { true -> {} false -> bad() }
+    transition valid && !invalid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#,
@@ -470,7 +470,7 @@ machine main() crashes Trap {
     let mut bytes: [u8; 2] in Utf8 = plain as +Utf8;
     bytes[0] = 65u8;
     let valid: bool = byte_observation::valid_utf8(@bytes[..]);
-    transition valid { true -> {} false -> bad() }
+    transition valid { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#;
@@ -546,7 +546,7 @@ requires bytes.len >= 1
 }
 machine main() crashes Trap {
     let bytes: @[u8] in Utf8 = whole("é" as +Utf8);
-    transition bytes.len == 2 { true -> {} false -> bad() }
+    transition bytes.len == 2 { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#;
@@ -668,7 +668,7 @@ machine main() crashes Trap {
     let mut bytes: [u8; 2] in Ascii = [65u8, 90u8] as +Ascii;
     put(@mut bytes, 1, 66u8);
     transition bytes[0] == 65u8 && bytes[1] == 66u8 {
-        true -> {} false -> bad()
+        true -> {}, false -> bad()
     }
     machine bad() crashes Trap { crash Trap; }
 }

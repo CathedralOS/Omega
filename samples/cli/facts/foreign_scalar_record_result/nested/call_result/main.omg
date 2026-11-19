@@ -19,7 +19,7 @@ machine produce() -> Division reaches IntegerDivision { IntegerDivision::divide(
 machine observe() -> bool reaches IntegerDivision { receive(produce()) }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }
 }

@@ -246,7 +246,7 @@ fn generated_source_custody_path(
     package_root: &Path,
     source: &build_output::PackageGeneratedSource,
 ) -> Result<std::path::PathBuf, std::str::Utf8Error> {
-    let mut path = package_root.join(".omega/generated");
+    let mut path = package_root.join(source_admission::GENERATED_SOURCE_DIRECTORY);
     for component in source.relative_path().split(|byte| *byte == b'/') {
         path.push(std::str::from_utf8(component)?);
     }

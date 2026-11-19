@@ -11,10 +11,10 @@ machine capture<'borrow, 'view>(receipt: @'borrow CapturedReceipt<'view>) -> Cap
     CapturedView { receipt: receipt }
 }
 machine read_captured(receipt: @CapturedReceipt) -> u64 {
-    transition receipt.counter[0] == 0 { true -> (receipt.code) false -> (0) }
+    transition receipt.counter[0] == 0 { true -> (receipt.code), false -> (0) }
 }
 machine verify_captured(code: u64, counter: @[u64; 1]) crashes Trap {
-    transition code == 7 && counter[0] == 1 { true -> done() false -> bad() }
+    transition code == 7 && counter[0] == 1 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -43,7 +43,7 @@ machine issue_next(counter: @mut u64) -> Receipt {
 machine inspect(receipt: @Receipt) -> u64 { receipt.code }
 machine observe(receipt: @Receipt, expected: u64) crashes Trap {
     transition receipt.code == expected {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -73,7 +73,7 @@ machine main() crashes Trap {
         Receipt { code: 29 }, Receipt { code: 31 }
     ][1]);
     transition counter == 41 && constructed == 7 && returned == 23 && indexed == 31 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

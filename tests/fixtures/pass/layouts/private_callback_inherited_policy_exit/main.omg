@@ -32,7 +32,7 @@ public DescriptorCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == 1 && signature.native_parameter_count == 1
             && signature.has_result && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1 {
-            true -> accepted(signature)
+            true -> accepted(signature),
             _ -> rejected()
         }
         machine accepted(signature: BoundarySignature) -> BoundaryPlanResult
@@ -61,7 +61,7 @@ public UnusedDescriptorCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == 1 && signature.native_parameter_count == 1
             && signature.has_result && signature.callback_demand_count <= 1 && signature.callback_binder_count <= 1 {
-            true -> accepted(signature)
+            true -> accepted(signature),
             _ -> rejected()
         }
         machine accepted(signature: BoundarySignature) -> BoundaryPlanResult {
@@ -178,11 +178,11 @@ public TimerGateLayout satisfies FixedLayout<TimerGate> {
         entries[2] = FieldEntry { key: schema.fields[2].key, representation: FieldPlan::At { offset: 5 } };
         entries[3] = FieldEntry { key: schema.fields[3].key, representation: FieldPlan::At { offset: 12 } };
         let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 4, size_fixed: 16, size_is_dynamic: false, align: 8 };
-        let low: LayoutPlan = layout_plan_place_private_field<TimerGateEntry>(plan,
+        let low: LayoutPlan = layout_plan_place_private_field::<TimerGateEntry>(plan,
             FieldPlan::Bits { container: 0, container_width: 16, destination_lsb: 0, source_lsb: 0, width: 16 });
-        let middle: LayoutPlan = layout_plan_place_private_field<TimerGateEntry>(low,
+        let middle: LayoutPlan = layout_plan_place_private_field::<TimerGateEntry>(low,
             FieldPlan::Bits { container: 6, container_width: 16, destination_lsb: 0, source_lsb: 16, width: 16 });
-        layout_plan_place_private_field<TimerGateEntry>(middle,
+        layout_plan_place_private_field::<TimerGateEntry>(middle,
             FieldPlan::Bits { container: 8, container_width: 32, destination_lsb: 0, source_lsb: 32, width: 32 })
     }
 }
@@ -196,10 +196,10 @@ machine start() reaches Registrar crashes Trap {
     gate.ist = 5u8;
     gate.attributes = 142u8;
     gate.reserved = 2309737967u32;
-    let result: u64 = Registrar::register<TimerHandler::call>(@gate);
+    let result: u64 = Registrar::register::<TimerHandler::call>(@gate);
     transition result == 0u64 && gate.selector == 4660u16 && gate.ist == 5u8
         && gate.attributes == 142u8 && gate.reserved == 2309737967u32 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

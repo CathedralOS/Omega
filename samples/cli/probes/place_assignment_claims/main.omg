@@ -42,7 +42,7 @@ machine Main::main(main: @mut Main) {
     let d: i32 = consume(spare);
     let e: i32 = consume(held);
     transition a == 1 && b == 5 && c == 2 && d == 3 && e == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

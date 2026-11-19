@@ -24,14 +24,14 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
-        0 -> physical(signature)
-        2 -> semantic(signature)
+        0 -> physical(signature),
+        2 -> semantic(signature),
         _ -> reject()
     }
 
     machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
-            true -> physical_index(signature, signature.result)
+            true -> physical_index(signature, signature.result),
             _ -> reject()
         }
     }
@@ -40,14 +40,14 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
         -> BoundaryPlanResult
     {
         transition result < 256 && result < signature.shape_count {
-            true -> physical_shape(signature.shapes[result])
+            true -> physical_shape(signature.shapes[result]),
             _ -> reject()
         }
     }
 
     machine physical_shape(result: ValueShape) -> BoundaryPlanResult {
         transition hosted_entry_integer_shape(@result, 4) {
-            true -> build_physical()
+            true -> build_physical(),
             _ -> reject()
         }
     }
@@ -66,7 +66,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
     machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0],
-                signature.parameters[1])
+                signature.parameters[1]),
             _ -> reject()
         }
     }
@@ -78,7 +78,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
             && image < signature.shape_count && storage < signature.shape_count
         {
             true -> semantic_shapes(signature.shapes[image],
-                signature.shapes[storage], signature)
+                signature.shapes[storage], signature),
             _ -> reject()
         }
     }
@@ -89,7 +89,7 @@ machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanR
         transition hosted_entry_extent_shape(image, @signature)
             && hosted_entry_extent_shape(storage, @signature)
         {
-            true -> build_semantic()
+            true -> build_semantic(),
             _ -> reject()
         }
     }

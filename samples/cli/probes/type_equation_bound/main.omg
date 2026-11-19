@@ -6,12 +6,12 @@ domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
 machine capacity<Length, const Capacity: u64>() -> u64
 requires Length == u64::AtMost<Capacity>
 { Capacity }
-machine recovered() -> u64 { capacity<u64 in AtMost<257> >() }
+machine recovered() -> u64 { capacity::<u64 in AtMost<257> >() }
 data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     let n: u64 = recovered();
     transition n == 257 {
-        true -> done(main)
+        true -> done(main),
         _ -> done(main)
     }
     machine done(main: @mut Main) {

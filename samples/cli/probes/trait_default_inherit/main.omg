@@ -49,7 +49,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     Counter::reset(@mut main.counter);
     transition main.counter.value == 30 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

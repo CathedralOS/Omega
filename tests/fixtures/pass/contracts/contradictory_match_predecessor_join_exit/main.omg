@@ -8,7 +8,7 @@ requires count >= 10 && count <= 1000u64
     chosen - 100u64
 }
 machine main() crashes Trap {
-    transition pick(12) == 12 && pick(700) == 700 { true -> done() _ -> bad() }
+    transition pick(12) == 12 && pick(700) == 700 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -4,7 +4,7 @@
 
 machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -53,7 +53,7 @@ machine exercise(flag: bool, expected_path: u64) crashes Trap {
     let index: u64 = joined_index(other, flag, @write path);
     let indexed: u8 = items[index];
     transition (marker as u64) == 1 && chosen == 9 && path == expected_path && indexed == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -27,12 +27,12 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let third: Parsed = block read_set();
     let ended: bool = block end_input();
     transition ended && universe.valid && query.valid && first.valid && second.valid && third.valid {
-        true -> validate(context, universe, query, first, second, third)
+        true -> validate(context, universe, query, first, second, third),
         false -> reject(context)
     }
     machine validate(context: @mut Main, universe: Parsed, query: Parsed, first: Parsed, second: Parsed, third: Parsed) {
         transition universe.mask != 0 && universe.duplicates == 0 && intersection(query.mask, universe.mask) == query.mask && intersection(first.mask, universe.mask) == first.mask && intersection(second.mask, universe.mask) == second.mask && intersection(third.mask, universe.mask) == third.mask {
-            true -> analyze(context, universe, query, first, second, third)
+            true -> analyze(context, universe, query, first, second, third),
             false -> reject(context)
         }
     }
@@ -64,12 +64,12 @@ machine ranking(value: Fraction, other: Fraction, last: Fraction, identifier: u6
     transition { _ -> first(value, other, last, identifier, 1) }
     machine first(value: Fraction, other: Fraction, last: Fraction, identifier: u64 in Wrapping, rank: u64 in Wrapping) -> u64 in Wrapping {
         transition less(other, value) || (!less(value, other) && identifier > 1) {
-            true -> second(value, last, identifier, rank + 1)
+            true -> second(value, last, identifier, rank + 1),
             false -> second(value, last, identifier, rank)
         }
     }
     machine second(value: Fraction, last: Fraction, identifier: u64 in Wrapping, rank: u64 in Wrapping) -> u64 in Wrapping {
-        transition less(last, value) || (!less(value, last) && identifier == 3) { true -> (rank + 1)
+        transition less(last, value) || (!less(value, last) && identifier == 3) { true -> (rank + 1),
  false -> rank
  }
     }
@@ -77,12 +77,12 @@ machine ranking(value: Fraction, other: Fraction, last: Fraction, identifier: u6
 
 machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, other_rank: u64 in Wrapping, last: Fraction, last_rank: u64 in Wrapping) -> Fraction {
     let initial: Fraction = scaled(value, rank);
-    transition other_rank > rank { true -> finish(initial, last, rank, last_rank, scaled(other, other_rank))
+    transition other_rank > rank { true -> finish(initial, last, rank, last_rank, scaled(other, other_rank)),
  false -> finish(initial, last, rank, last_rank, initial)
  }
     machine finish(initial: Fraction, last: Fraction, rank: u64 in Wrapping, last_rank: u64 in Wrapping, candidate: Fraction) -> Fraction {
         let current: Fraction = minimum(initial, candidate);
-        transition last_rank > rank { true -> minimum(current, scaled(last, last_rank))
+        transition last_rank > rank { true -> minimum(current, scaled(last, last_rank)),
  false -> current
  }
     }

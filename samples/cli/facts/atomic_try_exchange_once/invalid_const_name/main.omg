@@ -11,8 +11,8 @@ machine probe(cells: @Cells) -> bool {
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MATCH, REPLACEMENT, ReceivePublish, Receive);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == EXPECTED_MATCH && cells.selected.load(NoOrdering) == REPLACEMENT && cells.untouched.load(NoOrdering) == SIBLING_INIT)
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false)
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == EXPECTED_MATCH && cells.selected.load(NoOrdering) == REPLACEMENT && cells.untouched.load(NoOrdering) == SIBLING_INIT),
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == REPLACEMENT && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT)
     }
 }
@@ -21,14 +21,14 @@ machine mismatch(cells: @Cells) -> bool {
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MISMATCH, REPLACEMENT, ReceivePublish, Receive);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == REPLACEMENT && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT)
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false)
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == REPLACEMENT && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT),
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
     }
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

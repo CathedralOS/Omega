@@ -145,7 +145,7 @@ machine main() crashes Trap {
         unsigned == 255u8 &&
         total == 1u32 &&
         signed_count_result == 2147483648u32 &&
-        exact == 2147483648u32 { true -> done() false -> failed() }
+        exact == 2147483648u32 { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

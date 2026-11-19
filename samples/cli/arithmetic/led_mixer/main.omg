@@ -19,19 +19,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let source_a: u8 in Saturating = 180 as +Saturating;
     let source_b: u8 in Saturating = 140 as +Saturating;
     let channel: u8 in Saturating = source_a + source_b;
-    transition channel == 255 { true -> dim() _ -> wrong_mix() }
+    transition channel == 255 { true -> dim(), _ -> wrong_mix() }
 
     machine dim() {
         // Dimming below zero stays off, never wraps to bright.
         let mut channel: u8 in Saturating = 40 as +Saturating;
         channel = channel - 90;
-        transition channel == 0 { true -> gamma() _ -> wrong_dim() }
+        transition channel == 0 { true -> gamma(), _ -> wrong_dim() }
     }
     machine gamma() {
         // Gamma boost: 100 * 3 = 300 -> clamps at full brightness.
         let mut channel: u8 in Saturating = 100 as +Saturating;
         channel = channel * 3;
-        transition channel == 255 { true -> ambient_mix() _ -> wrong_gamma() }
+        transition channel == 255 { true -> ambient_mix(), _ -> wrong_gamma() }
     }
     machine ambient_mix() {
         // A plain (exact) sensor reading joins saturating math via the S2
@@ -40,7 +40,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let channel: u8 in Saturating = 200 as +Saturating;
         let ambient: u8 = 100;
         transition ((ambient as u8 in Saturating) + channel == 255) {
-            true -> frame_roll()
+            true -> frame_roll(),
             _ -> wrong_ambient()
         }
     }
@@ -48,7 +48,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         // The frame counter WRAPS by design: 250 + 10 rolls to 4.
         let mut frames: u8 in Wrapping = 250 as +Wrapping;
         frames = frames + 10;
-        transition frames == 4 { true -> done() _ -> wrong_roll() }
+        transition frames == 4 { true -> done(), _ -> wrong_roll() }
     }
 
     machine done() {

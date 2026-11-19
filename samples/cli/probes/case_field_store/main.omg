@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main) {
     reseat(Fmt::Octal);
     let point: Point = Main::make(main, 10);
     transition point.x == 10 && point.y == 20 && main.calls == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

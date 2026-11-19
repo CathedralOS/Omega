@@ -15,13 +15,13 @@ machine exercise() -> bool {
     let mut message: Message = Message { body: @mut backing };
     let carrier: Carrier = Carrier { envelope: Envelope::Active { message: @message } };
     let written: bool = match carrier.envelope {
-        Envelope::Active { message } -> store(@mut message.body, 41)
+        Envelope::Active { message } -> store(@mut message.body, 41),
         Envelope::Empty -> false
     };
     written && backing.value == 41 && sibling.value == 19
 }
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

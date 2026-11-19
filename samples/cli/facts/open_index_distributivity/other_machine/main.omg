@@ -64,13 +64,13 @@ machine rearrange<const A: u64, const B: u64, const C: u64, Algebra satisfies In
 machine relay<const A: u64, const B: u64, const C: u64, Algebra satisfies IndexSemiring>(
     raw: i64
 ) -> i64 {
-    rearrange<A, B, C, Algebra>(raw)
+    rearrange::<A, B, C, Algebra>(raw)
 }
 
 machine main() crashes Trap {
-    let moved: i64 = relay<2, 3, 4, Canonical>(41);
+    let moved: i64 = relay::<2, 3, 4, Canonical>(41);
     transition moved == 41 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

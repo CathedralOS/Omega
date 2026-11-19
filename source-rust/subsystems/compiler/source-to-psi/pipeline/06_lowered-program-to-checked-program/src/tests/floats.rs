@@ -52,7 +52,7 @@ machine build_entry(value: f32) {
 }
 machine use(value: f32) { }",
         "machine build_entry(flag: bool, left: f32, right: f32, values: @[f32; 2]) {
-    use(match flag { true -> left false -> right }, values[0]);
+    use(match flag { true -> left, false -> right }, values[0]);
 }
 machine use(chosen: f32, first: f32) { }",
         "data Calibration { magnitude: f32; }

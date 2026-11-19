@@ -49,7 +49,7 @@ machine sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
-        true -> sum(s[1..], acc + s[0])
+        true -> sum(s[1..], acc + s[0]),
         false -> acc
     }
 }
@@ -59,7 +59,7 @@ machine sum_sq(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
-        true -> sum_sq(s[1..], acc + s[0] * s[0])
+        true -> sum_sq(s[1..], acc + s[0] * s[0]),
         false -> acc
     }
 }
@@ -83,7 +83,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify sum = 15.
     transition sum_result == 15 {
-        true -> check_sum_sq(main, sum_sq_result, sum_result)
+        true -> check_sum_sq(main, sum_sq_result, sum_result),
         _ -> bad_sum(main)
     }
 
@@ -97,7 +97,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine check_sum_sq(main: @mut Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
         // Verify sum_sq = 55.
         transition sum_sq_result == 55 {
-            true -> compute_final(main, sum_result, sum_sq_result)
+            true -> compute_final(main, sum_result, sum_sq_result),
             _ -> bad_sum_sq(main)
         }
     }
@@ -112,7 +112,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine compute_final(main: @mut Main, sum_result: i32 in Wrapping, sum_sq_result: i32 in Wrapping) {
         // Re-check sum_result is still 15 in this state.
         transition sum_result == 15 {
-            true -> check_sq_in_final(main, sum_sq_result, sum_result)
+            true -> check_sq_in_final(main, sum_sq_result, sum_result),
             _ -> bad_final_sum(main)
         }
     }
@@ -127,7 +127,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine check_sq_in_final(main: @mut Main, sum_sq_result: i32 in Wrapping, sum_result: i32 in Wrapping) {
         // Re-check sum_sq_result is still 55 in this state.
         transition sum_sq_result == 55 {
-            true -> do_total(main, sum_result, sum_sq_result)
+            true -> do_total(main, sum_result, sum_sq_result),
             _ -> bad_final_sq(main)
         }
     }
@@ -145,7 +145,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         // binary sum yields the wrong result here.
         let total: i32 in Wrapping = sum_result + sum_sq_result;
         transition total == 70 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad_final(main)
         }
     }

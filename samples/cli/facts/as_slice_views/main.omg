@@ -17,7 +17,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let view: @[Entry] = @main.entries[..];
     let whole: u64 = view.len;
     transition whole == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

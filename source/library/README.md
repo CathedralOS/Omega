@@ -120,7 +120,7 @@ instantiated from the supplied implementation. A service-free requirement writes
 `reaches none`, not a bare `reaches` clause. Broader callback behavior follows
 [published operational dependencies](../../wiki/spec/language/effects.md#static-callback-operational-dependencies).
 
-Hollow's [input routing](../../samples/gui/dungeon_crawler/engine/control/routing.omg)
+Hollow's [input routing](../../samples/gui/dungeon_crawler/engine/control/routing/routing.omg)
 is a consumer, not proof that every callback combination runs. Existing callback
 and iteration tasks own remaining coverage. Wrappers may use the
 [forwarded callback rule](../../wiki/spec/language/generics.md#forwarded-callback-requirements)

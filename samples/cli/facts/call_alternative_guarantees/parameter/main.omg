@@ -6,7 +6,7 @@ machine select(left: u8, right: u8) -> u8
 requires left <= 60 || right <= 60
 ensures result <= 60
 {
-    transition left <= 60 { true -> bounded(left) false -> bounded(right) }
+    transition left <= 60 { true -> bounded(left), false -> bounded(right) }
     machine bounded(value: u8) -> u8
     requires value <= 60
     ensures result <= 60
@@ -21,7 +21,7 @@ machine verify(left: Choice, right: Choice) crashes Trap {
     let first: Counter = make(left);
     let second: Counter = make(right);
     transition total(first) == 212 && total(second) == 238 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

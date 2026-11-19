@@ -17,35 +17,35 @@ use omega::language::core::F64::negate;
 
 machine main() crashes Trap {
     let additive_exact32: ReferenceAdditiveTolerance32 = ReferenceAdditiveTolerance32 { atol: 0.0f32, rtol: 0.0f32 };
-    let additive_nan32: f32 = float::quiet_nan<f32>();
-    let additive_infinity32: f32 = float::infinity<f32>();
+    let additive_nan32: f32 = float::quiet_nan::<f32>();
+    let additive_infinity32: f32 = float::infinity::<f32>();
     let additive_exact64: ReferenceAdditiveTolerance64 = ReferenceAdditiveTolerance64 { atol: 0.0f64, rtol: 0.0f64 };
-    let additive_nan64: f64 = float::quiet_nan<f64>();
-    let additive_infinity64: f64 = float::infinity<f64>();
+    let additive_nan64: f64 = float::quiet_nan::<f64>();
+    let additive_infinity64: f64 = float::infinity::<f64>();
     transition classify_f32(float::from_bits(0x0000_0000u32)) == NumericClass::PositiveZero
         && classify_f32(float::from_bits(0x8000_0000u32)) == NumericClass::NegativeZero
-        && classify_f32(float::infinity<f32>()) == NumericClass::PositiveInfinity
-        && classify_f32(float::negative_infinity<f32>()) == NumericClass::NegativeInfinity
-        && classify_f32(float::quiet_nan<f32>()) == NumericClass::NaN
+        && classify_f32(float::infinity::<f32>()) == NumericClass::PositiveInfinity
+        && classify_f32(float::negative_infinity::<f32>()) == NumericClass::NegativeInfinity
+        && classify_f32(float::quiet_nan::<f32>()) == NumericClass::NaN
         && classify_f32(float::from_bits(0xFFC0_0000u32)) == NumericClass::NaN
-        && classify_f32(float::min_positive_subnormal<f32>()) == NumericClass::Finite
+        && classify_f32(float::min_positive_subnormal::<f32>()) == NumericClass::Finite
         && classify_f32(float::from_bits(0x8000_0001u32)) == NumericClass::Finite
         && classify_f32(3.5f32) == NumericClass::Finite
         && classify_f32(-3.5f32) == NumericClass::Finite
         && classify_f64(float::from_bits(0x0000_0000_0000_0000u64)) == NumericClass::PositiveZero
         && classify_f64(float::from_bits(0x8000_0000_0000_0000u64)) == NumericClass::NegativeZero
-        && classify_f64(float::infinity<f64>()) == NumericClass::PositiveInfinity
-        && classify_f64(float::negative_infinity<f64>()) == NumericClass::NegativeInfinity
-        && classify_f64(float::quiet_nan<f64>()) == NumericClass::NaN
+        && classify_f64(float::infinity::<f64>()) == NumericClass::PositiveInfinity
+        && classify_f64(float::negative_infinity::<f64>()) == NumericClass::NegativeInfinity
+        && classify_f64(float::quiet_nan::<f64>()) == NumericClass::NaN
         && classify_f64(float::from_bits(0xFFF8_0000_0000_0000u64)) == NumericClass::NaN
-        && classify_f64(float::min_positive_subnormal<f64>()) == NumericClass::Finite
+        && classify_f64(float::min_positive_subnormal::<f64>()) == NumericClass::Finite
         && classify_f64(float::from_bits(0x8000_0000_0000_0001u64)) == NumericClass::Finite
         && classify_f64(3.5f64) == NumericClass::Finite
         && classify_f64(-3.5f64) == NumericClass::Finite
         && classify_f64(widen_f32_to_f64(float::from_bits(0x8000_0000u32))) == NumericClass::NegativeZero
-        && classify_f32(round_f64_to_f32(float::infinity<f64>())) == NumericClass::PositiveInfinity
-        && classify_f64(widen_f32_to_f64(float::quiet_nan<f32>())) == NumericClass::NaN
-        && classify_f32(round_f64_to_f32(float::quiet_nan<f64>())) == NumericClass::NaN
+        && classify_f32(round_f64_to_f32(float::infinity::<f64>())) == NumericClass::PositiveInfinity
+        && classify_f64(widen_f32_to_f64(float::quiet_nan::<f32>())) == NumericClass::NaN
+        && classify_f32(round_f64_to_f32(float::quiet_nan::<f64>())) == NumericClass::NaN
         && widen_f32_to_f64(round_i32_to_f32(1i32)) == 1.0f64
         && round_i32_to_f64(1i32) == 1.0f64
         && round_i32_to_f32(16777217i32) == 16777216.0f32
@@ -85,7 +85,7 @@ machine main() crashes Trap {
         && compare_reference_additive_f64(1.0f64, 1.0f64, ReferenceAdditiveTolerance64 { atol: 0.0f64, rtol: additive_infinity64 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f64(additive_nan64, additive_nan64, ReferenceAdditiveTolerance64 { atol: -1.0f64, rtol: 0.0f64 }) == AccuracyComparison::InvalidTolerance
         && compare_reference_additive_f64(0.0f64, 0.0f64, ReferenceAdditiveTolerance64 { atol: F64::negate(0.0f64), rtol: F64::negate(0.0f64) }) == AccuracyComparison::Close {
-        true -> done()
+        true -> done(),
         _ -> incorrect()
     }
     machine done() {}

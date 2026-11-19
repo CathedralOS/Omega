@@ -31,7 +31,7 @@ machine probe(outer: @Outer) -> u64 {
     let via_machine: u64 in Wrapping = Inner::inspect(@outer.inner);
     let via_ref: @u64 = Inner::read_value(@outer.inner);
     transition (via_machine + (via_ref as u64 in Wrapping)) as u64 == 14 {
-        true -> finish(outer)
+        true -> finish(outer),
         _ -> finish(outer)
     }
     machine finish(forwarded: @Outer) -> u64 {
@@ -48,7 +48,7 @@ machine Main::main(main: @mut Main) {
     let outer: Outer = Outer { inner: Inner { value: 7 }, extra: 10 };
     let answer: u64 = probe(@outer);
     transition answer == 17 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

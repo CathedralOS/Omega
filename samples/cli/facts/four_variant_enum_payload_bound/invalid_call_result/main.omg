@@ -21,9 +21,9 @@ machine extract_payload(packet: Packet) -> u64
     ensures result >= 40u64 && result <= 80u64
 {
     transition packet {
-        Packet::Alpha { v } -> v
-        Packet::Beta { v } -> v
-        Packet::Gamma { v } -> v
+        Packet::Alpha { v } -> v,
+        Packet::Beta { v } -> v,
+        Packet::Gamma { v } -> v,
         Packet::Delta { v } -> v
     }
 }
@@ -37,7 +37,7 @@ machine main() crashes Trap {
     let p: Packet = Packet::Gamma { v: 60u64 };
     let combined: u64 = probe(p);
     transition combined == 40u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

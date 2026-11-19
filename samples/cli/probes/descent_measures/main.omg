@@ -21,7 +21,7 @@ ensures
     result * 2 == acc * 2 + n * (n + 1)
 {
     transition n > 0 {
-        true -> countdown(n - 1, acc + n)
+        true -> countdown(n - 1, acc + n),
         false -> acc
     }
 }
@@ -36,7 +36,7 @@ ensures
     embed(result) >= embed(acc) + embed(limit) - embed(index)
 {
     transition index < limit {
-        true -> climb(limit, index + 1, acc + 1)
+        true -> climb(limit, index + 1, acc + 1),
         false -> acc
     }
 }
@@ -44,14 +44,14 @@ ensures
 machine descent_measures() {
     let down: u64 in Wrapping = countdown(4, 0);
     transition down == 10 {
-        true -> check_climb()
+        true -> check_climb(),
         _ -> done(71)
     }
 
     machine check_climb {
         let up: u64 = climb(4, 0, 0);
         transition up == 4 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(72)
         }
     }

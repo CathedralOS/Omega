@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let v21: u64 in Wrapping = v20 + 1;
     let v22: u64 in Wrapping = v21 + 1;
     let total: u64 in Wrapping = v22 + v21 + v20 + v19 + v18 + v17 + v16 + v15 + v14 + v13 + v12 + v11 + v10 + v9 + v8 + v7 + v6 + v5 + v4 + v3 + v2 + v1 + 0;
-    transition total == 253 { true -> done() _ -> bad() }
+    transition total == 253 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

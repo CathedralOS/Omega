@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
 
     machine loop(main: @mut Main) {
         transition main.i >= 0 && main.i < 3 {
-            true -> compute(main)
+            true -> compute(main),
             _ -> verify(main)
         }
     }
@@ -47,7 +47,7 @@ machine Main::main(main: @mut Main) {
         main.a = main.aa[main.i] as i32 in Wrapping;
         main.b = main.bb[main.i] as i32 in Wrapping;
         transition main.b != 0 {
-            true -> ok(main)
+            true -> ok(main),
             _ -> err(main)
         }
     }
@@ -61,7 +61,7 @@ machine Main::main(main: @mut Main) {
     }
     machine handle(main: @mut Main) {
         transition main.result {
-            DivResult::Ok { value } -> h_ok(main, value)
+            DivResult::Ok { value } -> h_ok(main, value),
             DivResult::Err { code } -> h_err(main)
         }
     }
@@ -77,7 +77,7 @@ machine Main::main(main: @mut Main) {
     }
     machine verify(main: @mut Main) {
         transition main.acc == 10 && main.errs == 1 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

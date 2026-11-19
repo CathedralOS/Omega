@@ -10,7 +10,7 @@ machine main(entry: @mut Invalid) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     let observed: ByteRead = block Console::read_byte();
     transition observed {
-        ByteRead::Byte { value } -> index(entry, @input, value as u64)
+        ByteRead::Byte { value } -> index(entry, @input, value as u64),
         ByteRead::Eof -> done(entry)
     }
     machine index(entry: @mut Invalid, input: @[u8; 8], position: u64) {

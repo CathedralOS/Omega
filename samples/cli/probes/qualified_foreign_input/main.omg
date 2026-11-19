@@ -22,12 +22,12 @@ machine Main::main(main: @mut Main) reaches Magnitude crashes Trap {
     let from_field: i32 = Magnitude::absolute(main.value);
     let forwarded: i32 = forward(main, -122);
     transition direct == 128 && from_local == 126 && from_field == 124 && forwarded == 122 {
-        true -> later(main, -120)
+        true -> later(main, -120),
         false -> wrong()
     }
     machine later(main: @mut Main, value: i32 in RepresentableMagnitude) {
         let result: i32 = Magnitude::absolute(value);
-        transition result == 120 { true -> done() false -> wrong() }
+        transition result == 120 { true -> done(), false -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }

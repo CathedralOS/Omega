@@ -950,7 +950,7 @@ impl<'t> Program<'t> {
                 return Ok(read);
             }
             // A call of another generic machine at this body's own type
-            // parameters, `same<T>(left, right)`: held to that machine's
+            // parameters, `same::<T>(left, right)`: held to that machine's
             // contract at them.
             let invocation = self.static_invocation(StaticArgumentCall::Expression(handle, call));
             if let Some(read) = self.generic_application_call(id, slots, &invocation, source)? {
@@ -1091,7 +1091,7 @@ impl<'t> Program<'t> {
         self.retain_static_reach(id, read, static_reach_binding)
     }
 
-    /// `size_of<T>()` and `align_of<T>()` (layouts/plans.md, "These forms
+    /// `size_of::<T>()` and `align_of::<T>()` (layouts/plans.md, "These forms
     /// take data types") measure the operand's existing physical storage.
     /// Records keep their selected layout; primitive carriers use their
     /// registered builtin storage. Forming a qualified type for this query
@@ -1488,7 +1488,7 @@ impl<'t> Program<'t> {
             return unserved("requirement dispatch with no requirement");
         }
         // The member's value parameters, bound by this call's static
-        // arguments (`Implementation::value<7>(x)`).
+        // arguments (`Implementation::value::<7>(x)`).
         let declared =
             self.declared_requirement(id, dispatch.declaring_trait, dispatch.requirement)?;
         let binders = self.requirement_binders(id, declared)?;

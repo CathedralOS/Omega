@@ -1,0 +1,1 @@
+public data Padded<const Count: u64> = [u8; Count + 1u64];

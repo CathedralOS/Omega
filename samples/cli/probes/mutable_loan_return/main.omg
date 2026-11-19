@@ -17,7 +17,7 @@ data Level [copy] { rooms: [Room; 3]; start: u64; counter: u64; }
 
 machine choose(level: @mut Level, first: bool) -> @mut Room {
     transition first {
-        true -> @mut level.rooms[0]
+        true -> @mut level.rooms[0],
         false -> @mut level.rooms[1]
     }
 }
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) {
         && main.level.rooms[1].value == 37
         && main.level.rooms[0].flag
         && !main.level.rooms[1].flag {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

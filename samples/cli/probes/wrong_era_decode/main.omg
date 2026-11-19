@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) {
     };
     CounterMessage::decode(@mut decoded, @buffer, @mut main.read, @mut main.verdict);
     transition main.verdict {
-        WireVerdict::Sound -> bad(main)
+        WireVerdict::Sound -> bad(main),
         WireVerdict::Invalid -> good(main)
     }
     machine good(main: @mut Main) { }

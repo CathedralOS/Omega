@@ -13,14 +13,14 @@ machine main() crashes Trap {
     let mut pair: Pair = Pair { left: 17, right: 0 };
     let mut visits: u64 = 0;
     let selected: @mut i64 = match choose(@mut visits) {
-        true -> @mut pair.left
+        true -> @mut pair.left,
         false -> @mut pair.right
     };
     pair.left = 7;
     selected = 41;
     let observed: i64 = selected;
     transition observed == 41 && pair.left == 41 && pair.right == 0 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

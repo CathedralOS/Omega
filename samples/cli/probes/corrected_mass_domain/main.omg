@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let through_call: f64 in NonnegativeMass = carried(mass);
     transition mass == 2.0 && through_field == 2.0 && through_parameter == 2.0 / 6.0
         && through_call == 2.0 {
-        true -> ok(main)
+        true -> ok(main),
         false -> bad(main)
     }
     machine ok(main: @mut Main) {

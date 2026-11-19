@@ -29,7 +29,7 @@ requires kept == true
 
 machine main() crashes Trap {
     transition relay(true) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

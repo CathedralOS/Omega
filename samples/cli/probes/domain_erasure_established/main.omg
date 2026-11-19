@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) {
     let token: Token = Token::issue(41);
     let degrees: i32 = (9 as i32 in Degrees) as i32;
     transition consume(token) == 41 && degrees == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -17,11 +17,11 @@ use super::*;
 use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
 
 const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
-    "byte_observation.omg",
+    "byte_observation/byte_observation.omg",
     "byte_observation",
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
     )),
 )];
 
@@ -426,7 +426,7 @@ domain [u8]::Text requires byte_observation::no_nul(@self[..]);
 data Choice { case First; case Second; }
 machine same<'a>(text: @'a [u8] in Text, choice: Choice) -> @'a [u8] in Text {
     match choice {
-        Choice::First -> text
+        Choice::First -> text,
         Choice::Second -> text
     }
 }
@@ -740,7 +740,7 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
     for source in [
         "domain [u8]::Text requires missing_byte_predicate(self); machine build_entry() {}"
             .to_owned(),
-        "domain [u8]::Text requires valid_utf8<u8>(self); machine build_entry() {}".to_owned(),
+        "domain [u8]::Text requires valid_utf8::<u8>(self); machine build_entry() {}".to_owned(),
         "domain u64::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
         "domain [u16; 2]::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
         "machine build_entry(bytes: @[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
@@ -901,7 +901,7 @@ requires end <= text.len {
     let prefix: @[u8] = @text[0..end];
     let measured: u64 = length(prefix as +Text);
     transition remaining > 0 {
-        true -> prefix_length(text, end, remaining - 1)
+        true -> prefix_length(text, end, remaining - 1),
         false -> measured
     }
 }
@@ -1168,7 +1168,7 @@ machine build_entry() crashes Trap {
     let packet: Packet = Packet { before: 11, bytes: [65u8, 66u8, 67u8], after: 37 };
     let view: @[u8] = (@packet.bytes)[..];
     transition view.len == 3 && view[1] == 66 && packet.before == 11 && packet.after == 37 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

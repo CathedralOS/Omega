@@ -22,7 +22,7 @@ machine evaluate() -> i32 {
 machine main() crashes Trap {
     let res: i32 = evaluate();
     transition res == 30 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

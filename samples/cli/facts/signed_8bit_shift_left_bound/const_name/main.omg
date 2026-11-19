@@ -9,7 +9,7 @@ requires s >= 100i8 && s <= 100i8
 {
     let diff: i8 = s - 100i8;
     transition diff == 0i8 {
-        true -> 0i32
+        true -> 0i32,
         _ -> 1i32
     }
 }
@@ -23,7 +23,7 @@ machine exercise() -> i32 {
 machine main() crashes Trap {
     let exit_code: i32 = exercise();
     transition exit_code == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

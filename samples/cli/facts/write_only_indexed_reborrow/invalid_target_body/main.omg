@@ -11,7 +11,7 @@ machine verify(storage: @Storage) crashes Trap {
     transition storage.cells[0].value == -43 && storage.cells[1].value == 9
         && storage.cells[0].padding == 11 && storage.cells[1].padding == 23
         && storage.position == 0 {
-        true -> success()
+        true -> success(),
         _ -> failure()
     }
 }
@@ -21,7 +21,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -29,7 +29,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }

@@ -51,7 +51,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let reduced: i64 = product / previous;
         let echoed: i64 = main.extra[0] * 2;
         transition reduced == 6 && echoed == 12 {
-            true -> report()
+            true -> report(),
             _ -> bad()
         }
     }

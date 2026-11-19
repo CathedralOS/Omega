@@ -20,7 +20,7 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let request: Request = block read_request();
     transition request.valid {
-        true -> start(request.identifier, request.horizon)
+        true -> start(request.identifier, request.horizon),
         false -> invalid()
     }
     machine start(identifier: u64 in Saturating, horizon: u64 in Saturating) {
@@ -31,7 +31,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine simulate(tree: @mut ReflectionTree, model: @LineModel, tick: u64 in Saturating, horizon: u64 in Saturating) {
         transition tick < horizon && tick < 24 {
-            true -> step(tree, model, tick, horizon)
+            true -> step(tree, model, tick, horizon),
             false -> finish()
         }
     }
@@ -40,7 +40,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     {
         let okay: bool = propagate(tree, model, tick as u64);
         transition okay {
-            true -> emit(tree, model, tick, horizon)
+            true -> emit(tree, model, tick, horizon),
             false -> failed()
         }
     }
@@ -50,7 +50,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         report(tick as u64, tree);
         let residual: f64 = tree.supplied - tree.source_heat - tree.load_heat - tree.travelling;
         transition residual >= -0.000000001 && residual <= 0.000000001 {
-            true -> simulate(tree, model, tick + 1, horizon)
+            true -> simulate(tree, model, tick + 1, horizon),
             false -> failed()
         }
     }

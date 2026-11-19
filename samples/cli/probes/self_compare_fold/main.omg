@@ -11,7 +11,7 @@
 
 machine decide(value: i64) -> i64 {
     transition value < value {
-        true -> taken()
+        true -> taken(),
         _ -> untaken()
     }
 
@@ -27,7 +27,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let decided: i64 = decide(7);
     transition decided == 43 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

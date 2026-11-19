@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) {
     let mut migrated: Counter;
     counter_v1_to_current(old, @mut migrated);
     transition migrated.counter == 9 && migrated.timestamp == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

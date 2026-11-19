@@ -826,10 +826,10 @@ fn copy_build_and_entry_source(source: &Path, directory: &Path) -> PathBuf {
 }
 
 fn select_historical_linux_answer(project: &Path, original_build: &str, provider: Option<&str>) {
-    let original = "Build::select_provider<Answer, Small>(builder, linux_x86_64);";
+    let original = "Build::select_provider::<Answer, Small>(builder, linux_x86_64);";
     assert_eq!(original_build.matches(original).count(), 1);
     let statement = provider.map_or_else(String::new, |provider| {
-        format!("Build::select_provider<Answer, {provider}>(builder, linux_x86_64);")
+        format!("Build::select_provider::<Answer, {provider}>(builder, linux_x86_64);")
     });
     std::fs::write(
         project.with_file_name("build.omg"),
@@ -1167,7 +1167,7 @@ fn rootless_package_reviews_its_explicit_provider_without_an_entry() {
         source.path().join("build.omg"),
         "machine build(builder: @mut Build) {\n\
          Build::package(builder, \"rootless_selected\");\n\
-         Build::select_provider<Answer, SelectedAnswer>(builder, uefi_x86_64);\n\
+         Build::select_provider::<Answer, SelectedAnswer>(builder, uefi_x86_64);\n\
          }\n",
     )
     .unwrap();
@@ -1432,15 +1432,15 @@ boundary trait Probe {
     crashes none;
 }
 machine entry() -> u32 crashes none {
-    let first: u32 = Probe::take<4>(3);
-    let second: u32 = Probe::take<8>(7);
+    let first: u32 = Probe::take::<4>(3);
+    let second: u32 = Probe::take::<8>(7);
     first
 }
 
 machine entry_start() crashes Trap {
     let observed: u32 = entry();
-    let other: u32 = Probe::take<8>(7);
-    transition observed == 3 && other == 7 { true -> done() _ -> bad() }
+    let other: u32 = Probe::take::<8>(7);
+    transition observed == 3 && other == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -1455,12 +1455,12 @@ machine build(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-    Build::bind<Probe::take<4>>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind::<Probe::take<4>>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
         },
     });
-    Build::bind<Probe::take<8>>(builder, macos_arm64, ForeignBinding::DllImport {
+    Build::bind::<Probe::take<8>>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/OmegaReviewFixtures/libclosed_requirement_identity.dylib", symbol: "_omega_identity_u32",
         },

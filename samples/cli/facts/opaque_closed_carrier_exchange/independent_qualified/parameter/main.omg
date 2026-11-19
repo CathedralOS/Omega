@@ -16,7 +16,7 @@ machine receive(first: InternetAddress in Classified) -> bool reaches AddressPar
 machine observe() -> bool reaches AddressParts, AddressBridge { receive(classify(AddressBridge::make(10, 66051))) }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

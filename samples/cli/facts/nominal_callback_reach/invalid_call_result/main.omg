@@ -25,12 +25,12 @@ requires machine Step satisfies StepContract::step;
 }
 
 machine produce() -> u64 {
-    walk<noise>(35)
+    walk::<noise>(35)
 }
 
 machine main() crashes Trap {
     transition produce() == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -1,0 +1,5 @@
+public data Packet { value: u64; }
+public boundary trait Reader { machine read() -> u64 reaches crashes none; }
+public Provider satisfies Reader {
+    machine read() -> u64 { 7 }
+}

@@ -14,7 +14,7 @@ crashes Trap
 
     machine origins(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_origin_count && index < 64 {
-            true -> origin(review, checks, index)
+            true -> origin(review, checks, index),
             _ -> qualifications(review, checks, 0)
         }
     }
@@ -22,7 +22,7 @@ crashes Trap
     machine origin(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         let row: SlotReturnedBorrowOrigin = slot_origin(checks, index);
         transition row.kind == SlotOriginKind::Parameter {
-            true -> origin_index(review, checks, index, row.parameter_index)
+            true -> origin_index(review, checks, index, row.parameter_index),
             _ -> origins(review, checks, index + 1)
         }
     }
@@ -34,14 +34,14 @@ crashes Trap
         parameter_index: u64 in Trapping
     ) -> bool {
         transition parameter_index < 1024 {
-            true -> origins(review, checks, index + 1)
+            true -> origins(review, checks, index + 1),
             _ -> refuse()
         }
     }
 
     machine qualifications(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_qualification_count && index < 64 {
-            true -> qualification(review, checks, index)
+            true -> qualification(review, checks, index),
             _ -> paired(review, checks)
         }
     }
@@ -49,21 +49,21 @@ crashes Trap
     machine qualification(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         let row: SlotParameterQualification = slot_qualification(checks, index);
         transition row.domain_item < 1024 && row.parameter_index < 1024 {
-            true -> qualifications(review, checks, index + 1)
+            true -> qualifications(review, checks, index + 1),
             _ -> refuse()
         }
     }
 
     machine paired(review: @SlotReview, checks: @Checks) -> bool {
         transition checks.slot_qualification_count > 0 && checks.slot_origin_count > 0 {
-            true -> seek(review, checks, 0)
+            true -> seek(review, checks, 0),
             _ -> admit()
         }
     }
 
     machine seek(review: @SlotReview, checks: @Checks, index: u64 in Trapping) -> bool {
         transition index < checks.slot_qualification_count {
-            true -> find(review, checks, index, 0)
+            true -> find(review, checks, index, 0),
             _ -> admit()
         }
     }
@@ -75,7 +75,7 @@ crashes Trap
         origin_index: u64 in Trapping
     ) -> bool {
         transition origin_index < checks.slot_origin_count {
-            true -> compare(review, checks, index, origin_index)
+            true -> compare(review, checks, index, origin_index),
             _ -> refuse()
         }
     }
@@ -91,7 +91,7 @@ crashes Trap
         let matched: bool = origin.kind == SlotOriginKind::Parameter
             && origin.parameter_index == qualification.parameter_index;
         transition matched {
-            true -> seek(review, checks, index + 1)
+            true -> seek(review, checks, index + 1),
             _ -> find(review, checks, index, origin_index + 1)
         }
     }

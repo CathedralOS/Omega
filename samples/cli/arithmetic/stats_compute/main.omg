@@ -112,7 +112,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify mean: should be 5.0.
     transition main.s.mean > 4.9 {
-        true -> block check_mean_upper(main)
+        true -> block check_mean_upper(main),
         _ -> block bad_mean_low(main)
     }
 
@@ -125,7 +125,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_mean_upper(main: @mut Main) {
         transition main.s.mean < 5.1 {
-            true -> block check_var_low(main)
+            true -> block check_var_low(main),
             _ -> block bad_mean_high(main)
         }
     }
@@ -140,7 +140,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Verify variance: should be 4.0.
     machine check_var_low(main: @mut Main) {
         transition main.s.variance > 3.9 {
-            true -> block check_var_high(main)
+            true -> block check_var_high(main),
             _ -> block bad_var_low(main)
         }
     }
@@ -154,7 +154,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_var_high(main: @mut Main) {
         transition main.s.variance < 4.1 {
-            true -> block check_weighted(main)
+            true -> block check_weighted(main),
             _ -> block bad_var_high(main)
         }
     }
@@ -169,7 +169,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Verify weighted sum: should be 82.5.
     machine check_weighted(main: @mut Main) {
         transition main.s.weighted_sum > 82.0 {
-            true -> block check_weighted_high(main)
+            true -> block check_weighted_high(main),
             _ -> block bad_weighted_low(main)
         }
     }
@@ -183,7 +183,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_weighted_high(main: @mut Main) {
         transition main.s.weighted_sum < 83.0 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_weighted_high(main)
         }
     }

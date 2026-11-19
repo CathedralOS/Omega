@@ -11,7 +11,7 @@ public Writer satisfies Lending {
     reaches Observation suspends crashes Trap {
         Observation::seen(token);
         transition address_of(value) == original && address_of(@value.count) == member {
-            true -> store(value)
+            true -> store(value),
             _ -> bad()
         }
         machine store(value: @mut Word) -> u64 { value.count = 73; 73 }
@@ -28,7 +28,7 @@ public Reader satisfies Reading {
     machine read(left: @Word, right: @Word, token: @Token, same_token: @Token, original: addr, member: addr) -> u64
     reaches none suspends crashes Trap {
         transition left.count == 73 && right.count == 73 && address_of(left) == original && address_of(right) == original && address_of(@left.count) == member && address_of(@right.count) == member && address_of(token) == address_of(same_token) {
-            true -> left.count
+            true -> left.count,
             _ -> bad()
         }
         machine bad() -> u64 { crash Trap; }

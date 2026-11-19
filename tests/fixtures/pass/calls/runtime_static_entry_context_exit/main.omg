@@ -8,7 +8,7 @@ machine main(context: @mut Context) crashes Trap {
     write(context);
     let result: u64 = read(context);
     transition initial == 0 && result == 43 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

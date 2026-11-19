@@ -10,7 +10,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     let hit: Lookup<u64> = Lookup::Found { value: 3 };
     transition hit {
-        Lookup::Found { value } -> good(main, value)
+        Lookup::Found { value } -> good(main, value),
         Lookup::Missing -> bad(main)
     }
     machine good(main: @mut Main, value: u64) {

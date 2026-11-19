@@ -17,7 +17,7 @@ machine compute_match_join(lhs: i64, rhs: i64, flag: bool) -> i64
     let sat: i64 in Saturating = a * b;
     let prod: i64 = sat as i64;
     let joined: i64 = match flag {
-        true -> prod
+        true -> prod,
         false -> prod
     };
     verify_prod(joined)
@@ -30,7 +30,7 @@ machine evaluate() -> i64 {
 machine main() crashes Trap {
     let res: i64 = evaluate();
     transition res == 150 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

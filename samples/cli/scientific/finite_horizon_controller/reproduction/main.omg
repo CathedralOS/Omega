@@ -8,12 +8,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     let observed: LineReadResult = block Console::read_line(@mut input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> inspect(main, @input, count)
+        LineReadResult::LineComplete { count } -> inspect(main, @input, count),
         _ -> bad(main)
     }
     machine inspect(main: @mut Main, input: @[u8; 8], count: u64) {
         transition count == 2 && input[0] == 48 && input[1] == 10 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad(main)
         }
     }

@@ -12,9 +12,9 @@ machine main() crashes Trap {
     let mut values: [u16; 4];
     initialize(@mut values);
     values[3] = 0;
-    transition true { true -> accept(values) false -> bad() }
+    transition true { true -> accept(values), false -> bad() }
     machine accept(captured: [u16; 4] in ZeroTail) {
-        transition consume(captured) == 65535u16 { true -> done() false -> bad() }
+        transition consume(captured) == 65535u16 { true -> done(), false -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

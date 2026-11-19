@@ -22,10 +22,10 @@ data Bytes { four: [u8; 4]; two: [u8; 2]; }
 
 machine main() crashes Trap {
     let bytes: Bytes = Bytes { four: [1u8, 2u8, 3u8, 4u8], two: [5u8, 6u8] };
-    let first: u64 = apply<FOUR, measure>(@bytes.four);
-    let second: u64 = apply<TWO, measure>(@bytes.two);
+    let first: u64 = apply::<FOUR, measure>(@bytes.four);
+    let second: u64 = apply::<TWO, measure>(@bytes.two);
     transition hold(first, second) && first == 4 && second == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

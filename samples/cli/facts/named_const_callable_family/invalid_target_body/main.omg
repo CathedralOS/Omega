@@ -24,7 +24,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -32,7 +32,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -50,8 +50,8 @@ X86Observe satisfies SelectedObserve {
         SelectedBodyCheck::require_tag(17u64);
         let four: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
         let two: [u8; 2] = [5u8, 6u8];
-        let first: u64 = apply<FOUR, measure>(@four);
-        let second: u64 = apply<TWO, measure>(@two);
+        let first: u64 = apply::<FOUR, measure>(@four);
+        let second: u64 = apply::<TWO, measure>(@two);
         hold(first, second) && first == 4 && second == 2
     }
 }
@@ -63,15 +63,15 @@ ArmObserve satisfies SelectedObserve {
         SelectedBodyCheck::require_tag(29u64);
         let four: [u8; 4] = [1u8, 2u8, 3u8, 4u8];
         let two: [u8; 2] = [5u8, 6u8];
-        let first: u64 = apply<FOUR, measure>(@four);
-        let second: u64 = apply<TWO, measure>(@two);
+        let first: u64 = apply::<FOUR, measure>(@four);
+        let second: u64 = apply::<TWO, measure>(@two);
         hold(first, second) && first == 4 && second == 2
     }
 }
 
 machine main() crashes Trap {
     transition SelectedObserve::observe() {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

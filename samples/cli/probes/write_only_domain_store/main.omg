@@ -32,7 +32,7 @@ machine Main::main(main: @mut Main) {
     retag(@write tagged, "omega600");
     let copy: [u8; 8] = tagged.label;
     transition copy[0] == 111 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

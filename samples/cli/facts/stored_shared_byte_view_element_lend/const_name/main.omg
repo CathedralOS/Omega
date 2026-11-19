@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let b: u8 = read(windows[SECOND]);
     let observed: bool = a == 11 && b == 29;
     transition observed {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

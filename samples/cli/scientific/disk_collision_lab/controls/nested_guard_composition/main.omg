@@ -4,7 +4,7 @@ data Measurements { reading:f64; initial:f64; }
 data Probe { lab:Measurements; choice:i32; observed:i32; }
 machine observe(lab:@mut Measurements) {lab.reading=lab.reading+0.0;}
 machine accepted(lab:@Measurements,choice:i32)->bool {
- transition choice {0 -> test(lab) _ -> rejected()}
+ transition choice {0 -> test(lab), _ -> rejected()}
  machine test(lab:@Measurements)->bool {abs_f64(lab.reading-1.0) <= 0.000000001}
  machine rejected()->bool {false}
 }
@@ -14,7 +14,7 @@ machine main(probe:@mut Probe) {
  machine check(probe:@mut Probe) {
   observe(@mut probe.lab);
   transition accepted(@probe.lab,probe.choice) && abs_f64(probe.lab.reading-probe.lab.initial) <= 0.000000001 {
-   true -> passed(probe) _ -> failed(probe)
+   true -> passed(probe), _ -> failed(probe)
   }
  }
  machine passed(probe:@mut Probe) {probe.observed=1;}

@@ -10,7 +10,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -18,7 +18,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -37,7 +37,7 @@ X86Probe satisfies SelectedProbe {
         let view: @mut [u8] = @mut bytes[0..1];
         let saved: bool = ascii_only(view);
         other[0] = 255u8;
-        transition saved { true -> inspect(view) false -> 0u8 }
+        transition saved { true -> inspect(view), false -> 0u8 }
     }
 }
 
@@ -49,7 +49,7 @@ ArmProbe satisfies SelectedProbe {
         let view: @mut [u8] = @mut bytes[0..1];
         let saved: bool = ascii_only(view);
         other[0] = 255u8;
-        transition saved { true -> inspect(view) false -> 0u8 }
+        transition saved { true -> inspect(view), false -> 0u8 }
     }
 }
 
@@ -58,7 +58,7 @@ machine main() crashes Trap {
     let mut bytes: [u8; 1] = [65u8];
     let mut other: [u8; 1] = [65u8];
     transition SelectedProbe::probe(@mut bytes[..], @mut other[..]) == 65u8 && other[0] == 255u8 {
-        true -> done() false -> bad()
+        true -> done(), false -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }

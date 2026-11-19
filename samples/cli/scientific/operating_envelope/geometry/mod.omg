@@ -1,4 +1,3 @@
-module geometry;
 use omega::language::core::F64::from_i32;
 use input;
 
@@ -16,7 +15,7 @@ public data Envelope {
 }
 public machine load(envelope: @mut Envelope, packet: @input::Packet) -> bool {
     transition packet.valid && packet.count >= 2 {
-        true -> header(envelope, packet)
+        true -> header(envelope, packet),
         _ -> false
     }
     machine header(envelope: @mut Envelope, packet: @input::Packet) -> bool {
@@ -24,7 +23,7 @@ public machine load(envelope: @mut Envelope, packet: @input::Packet) -> bool {
         let count: i32 in Wrapping = packet.values[1] as i32 in Wrapping;
         transition bound > 0 && bound <= 100 && count >= 0 && count <= 8
                 && packet.count == 2 + count * 3 {
-            true -> initialize(envelope, packet, bound, count)
+            true -> initialize(envelope, packet, bound, count),
             _ -> false
         }
     }
@@ -45,14 +44,14 @@ public machine load(envelope: @mut Envelope, packet: @input::Packet) -> bool {
     machine constraint(envelope: @mut Envelope, packet: @input::Packet,
                      index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < envelope.constraints && index < 8 {
-            true -> offsets(envelope, packet, index, 2 + index * 3)
+            true -> offsets(envelope, packet, index, 2 + index * 3),
             _ -> true
         }
     }
     machine offsets(envelope: @mut Envelope, packet: @input::Packet,
                   index: i32 in Wrapping, offset: i32 in Wrapping) -> bool {
         transition offset >= 0 && offset < 24 && index >= 0 && index < 8 {
-            true -> coefficients(envelope, packet, index, offset)
+            true -> coefficients(envelope, packet, index, offset),
             _ -> false
         }
     }
@@ -62,7 +61,7 @@ public machine load(envelope: @mut Envelope, packet: @input::Packet) -> bool {
         let b: i32 = packet.values[offset + 1];
         let limit: i32 = packet.values[offset + 2];
         transition a >= -100 && a <= 100 && b >= -100 && b <= 100 && (a != 0 || b != 0) {
-            true -> assign(envelope, packet, index, a, b, limit)
+            true -> assign(envelope, packet, index, a, b, limit),
             _ -> false
         }
     }
@@ -77,7 +76,7 @@ public machine load(envelope: @mut Envelope, packet: @input::Packet) -> bool {
 
 machine append(envelope: @mut Envelope, x: f64, y: f64) {
     transition envelope.scratch_count >= 0 && envelope.scratch_count < 32 {
-        true -> write(envelope, x, y)
+        true -> write(envelope, x, y),
         _ -> overflow(envelope)
     }
     machine write(envelope: @mut Envelope, x: f64, y: f64) {
@@ -92,7 +91,7 @@ public machine solve(envelope: @mut Envelope) {
     transition { _ -> constraint(envelope, 0) }
     machine constraint(envelope: @mut Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.constraints && index < 8 {
-            true -> begin(envelope, index)
+            true -> begin(envelope, index),
             _ -> measure(envelope, 0, 0.0)
         }
     }
@@ -103,21 +102,21 @@ public machine solve(envelope: @mut Envelope) {
     machine edge(envelope: @mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
         transition vertex >= 0 && vertex < envelope.count && vertex < 32
                    && index >= 0 && index < 8 {
-            true -> successor(envelope, index, vertex, vertex + 1)
+            true -> successor(envelope, index, vertex, vertex + 1),
             _ -> copy(envelope, index, 0)
         }
     }
     machine successor(envelope: @mut Envelope, index: i32 in Wrapping,
                     vertex: i32 in Wrapping, next: i32 in Wrapping) {
         transition next < envelope.count {
-            true -> endpoints(envelope, index, vertex, next)
+            true -> endpoints(envelope, index, vertex, next),
             _ -> endpoints(envelope, index, vertex, 0)
         }
     }
     machine endpoints(envelope: @mut Envelope, index: i32 in Wrapping,
                     vertex: i32 in Wrapping, next: i32 in Wrapping) {
         transition vertex >= 0 && vertex < 32 && next >= 0 && next < 32 && index >= 0 && index < 8 {
-            true -> classify(envelope, index, vertex, next)
+            true -> classify(envelope, index, vertex, next),
             _ -> failure(envelope)
         }
     }
@@ -128,14 +127,14 @@ public machine solve(envelope: @mut Envelope) {
         let start_distance: f64 = envelope.a[index] * start_x + envelope.b[index] * start_y - envelope.limit[index];
         let end_distance: f64 = envelope.a[index] * end_x + envelope.b[index] * end_y - envelope.limit[index];
         transition (start_distance <= 0.000000001) == (end_distance <= 0.000000001) {
-            true -> same(envelope, index, vertex, end_x, end_y, end_distance)
+            true -> same(envelope, index, vertex, end_x, end_y, end_distance),
             _ -> intersect(envelope, index, vertex, start_x, start_y, end_x, end_y, start_distance, end_distance)
         }
     }
     machine same(envelope: @mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping,
                end_x: f64, end_y: f64, end_distance: f64) {
         transition end_distance <= 0.000000001 {
-            true -> keep(envelope, index, vertex, end_x, end_y)
+            true -> keep(envelope, index, vertex, end_x, end_y),
             _ -> edge(envelope, index, vertex + 1)
         }
     }
@@ -147,7 +146,7 @@ public machine solve(envelope: @mut Envelope) {
         let fraction: f64 = (start_distance - 0.000000001) / (start_distance - end_distance);
         append(envelope, start_x + fraction * (end_x - start_x), start_y + fraction * (end_y - start_y));
         transition end_distance <= 0.000000001 {
-            true -> keep(envelope, index, vertex, end_x, end_y)
+            true -> keep(envelope, index, vertex, end_x, end_y),
             _ -> edge(envelope, index, vertex + 1)
         }
     }
@@ -157,7 +156,7 @@ public machine solve(envelope: @mut Envelope) {
     }
     machine copy(envelope: @mut Envelope, index: i32 in Wrapping, vertex: i32 in Wrapping) {
         transition vertex >= 0 && vertex < envelope.scratch_count && vertex < 32 {
-            true -> copy_vertex(envelope, index, vertex)
+            true -> copy_vertex(envelope, index, vertex),
             _ -> next_constraint(envelope, index)
         }
     }
@@ -172,21 +171,21 @@ public machine solve(envelope: @mut Envelope) {
     }
     machine measure(envelope: @mut Envelope, vertex: i32 in Wrapping, twice_area: f64) {
         transition vertex >= 0 && vertex < envelope.count && vertex < 32 {
-            true -> area_successor(envelope, vertex, vertex + 1, twice_area)
+            true -> area_successor(envelope, vertex, vertex + 1, twice_area),
             _ -> finish(envelope, twice_area)
         }
     }
     machine area_successor(envelope: @mut Envelope, vertex: i32 in Wrapping,
                          next: i32 in Wrapping, twice_area: f64) {
         transition next < envelope.count {
-            true -> area_bounds(envelope, vertex, next, twice_area)
+            true -> area_bounds(envelope, vertex, next, twice_area),
             _ -> area_bounds(envelope, vertex, 0, twice_area)
         }
     }
     machine area_bounds(envelope: @mut Envelope, vertex: i32 in Wrapping,
                       next: i32 in Wrapping, twice_area: f64) {
         transition vertex >= 0 && vertex < 32 && next >= 0 && next < 32 {
-            true -> area_edge(envelope, vertex, next, twice_area)
+            true -> area_edge(envelope, vertex, next, twice_area),
             _ -> failure(envelope)
         }
     }
@@ -196,7 +195,7 @@ public machine solve(envelope: @mut Envelope) {
         let cross: f64 = x * envelope.y[next] - y * envelope.x[next];
         transition x <= 0.0 - envelope.bound + 0.000000001 || x >= envelope.bound - 0.000000001
                 || y <= 0.0 - envelope.bound + 0.000000001 || y >= envelope.bound - 0.000000001 {
-            true -> at_window(envelope, vertex, twice_area + cross)
+            true -> at_window(envelope, vertex, twice_area + cross),
             _ -> measure(envelope, vertex + 1, twice_area + cross)
         }
     }

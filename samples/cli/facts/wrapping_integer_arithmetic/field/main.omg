@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let c: Carrier = Carrier { masked: val & 63u64 };
     let diff: u64 = 63u64 - c.masked;
     transition diff == 27u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

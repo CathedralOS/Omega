@@ -44,7 +44,7 @@ machine Main::main(main: @mut Main) suspends reaches Scheduler {
     let message: Message = Message { body: @main.cell };
     let value: i32 = read(message.body);
     transition value == 5 {
-        true -> park_last(main)
+        true -> park_last(main),
         _ -> fail(main)
     }
     machine park_last(main: @mut Main) {

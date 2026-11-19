@@ -23,14 +23,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.reader.exhausted = false;
     let ready: bool = baseline_ready();
     transition ready {
-        true -> block parse(main)
+        true -> block parse(main),
         _ -> window_failed(main)
     }
     machine parse(main: @mut Main) {
         let mut chromatogram: Chromatogram;
         let valid: bool = block read_input(@mut main.reader, @mut chromatogram);
         transition valid {
-            true -> fit(main, @chromatogram)
+            true -> fit(main, @chromatogram),
             _ -> invalid(main)
         }
     }
@@ -38,7 +38,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut result: Fit;
         let valid: bool = fit_components(chromatogram, @mut result);
         transition valid {
-            true -> output(main, @result)
+            true -> output(main, @result),
             _ -> invalid_profile(main)
         }
     }

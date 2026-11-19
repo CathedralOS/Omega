@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let forwarded: [u8; 4] = leaf::buffers::carry(represented);
     let alias_again: leaf::buffers::Padded<3u64> = forwarded;
     transition observe(@alias_again) == 42u8 && represented[0u64] == 17u8 && Count == 17u64 && Bias == 9u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let prior: u32 = mutate(@cell, 63);
     let observed: u32 = consume(cell.value.load(NoOrdering));
     let remaining: u32 = 100 - observed;
-    transition prior == 99 && observed == 35 && remaining == 65 { true -> done() _ -> bad() }
+    transition prior == 99 && observed == 35 && remaining == 65 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

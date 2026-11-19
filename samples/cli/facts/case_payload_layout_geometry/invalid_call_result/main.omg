@@ -7,17 +7,17 @@ data Packet {
 }
 
 machine get_size() -> u64 {
-    size_of<Packet>()
+    size_of::<Packet>()
 }
 
 machine get_align() -> u64 {
-    align_of<Packet>()
+    align_of::<Packet>()
 }
 
 machine main() crashes Trap {
     let diff: u64 = get_size() - (get_align() * 2u64);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -10,7 +10,7 @@ machine main() crashes Trap {
     let slack: u64 = alignment - REQUIRED_ALIGNMENT;
     let tag_alignment: u64 = align_of(tag);
     transition alignment == 8u64 && slack == 0u64 && tag_alignment == 1u64 && cell == 41u32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

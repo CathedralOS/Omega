@@ -11,7 +11,7 @@ machine through_parameter(value: Bonus) -> bool
 requires value.value == 2 { consume(value) }
 machine main() crashes Trap {
     let accepted: bool = through_parameter(Bonus { value: 2 });
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

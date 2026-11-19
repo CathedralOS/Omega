@@ -20,7 +20,7 @@ const KEPT: bool = true;
 machine main() crashes Trap {
     let direct: bool in Held = KEPT as +Held;
     transition hold(direct as -Held) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

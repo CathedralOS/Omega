@@ -14,7 +14,7 @@ requires packet.len >= 4
 crashes Trap {
     let bytes: @[u8] = decoder(packet);
     transition bytes.len == 2 {
-        true -> read(bytes)
+        true -> read(bytes),
         false -> bad()
     }
     machine read(bytes: @[u8]) -> u8
@@ -33,7 +33,7 @@ machine run(main: @mut Main) crashes Trap {
     decoder = trailer_window;
     let trailer: u8 = read_first(decoder, @main.packet[..]);
     transition header == 11 && trailer == 29 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

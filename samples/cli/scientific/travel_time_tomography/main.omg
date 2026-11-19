@@ -17,7 +17,7 @@ use io::report::report;
 data Main { input: Input; output: Output; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     block read_input(@mut main.input);
-    transition main.input.valid { true -> compute(main) false -> invalid(main) }
+    transition main.input.valid { true -> compute(main), false -> invalid(main) }
     machine compute(main: @mut Main) {
         let problem: Problem = problem_from_input(@main.input);
         let fit: Fit = solve(@problem);

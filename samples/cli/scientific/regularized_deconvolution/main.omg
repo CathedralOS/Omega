@@ -25,7 +25,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     let width: Number = block number(@mut application.reader);
     let regularization: Number = block number(@mut application.reader);
     transition length.valid && width.valid && regularization.valid && length.value >= 8.0 && length.value <= 32.0 && (width.value == 1.0 || width.value == 3.0 || width.value == 5.0) && regularization.value >= 0.0001 && regularization.value <= 100.0 {
-        true -> block configure(application, length.value, width.value, regularization.value)
+        true -> block configure(application, length.value, width.value, regularization.value),
         _ -> invalid(application)
     }
     machine configure(application: @mut Application, length: f64, width: f64, regularization: f64) {
@@ -34,14 +34,14 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         application.length = count as i32 in Wrapping; application.width = taps as i32 in Wrapping; application.regularization = regularization;
         application.index = 0; application.kernel_sum = 0.0;
         let recovered: f64 = F64::from_i32(count as i32);
-        transition recovered == length { true -> block kernel(application) _ -> invalid(application) }
+        transition recovered == length { true -> block kernel(application), _ -> invalid(application) }
     }
     machine kernel(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.width && application.index < 5 { true -> block read_kernel(application) _ -> block normalized(application) }
+        transition application.index >= 0 && application.index < application.width && application.index < 5 { true -> block read_kernel(application), _ -> block normalized(application) }
     }
     machine read_kernel(application: @mut Application) {
         let value: Number = block number(@mut application.reader);
-        transition value.valid && value.value >= 0.0 && value.value <= 1.0 { true -> block store_kernel(application, value.value) _ -> invalid(application) }
+        transition value.valid && value.value >= 0.0 && value.value <= 1.0 { true -> block store_kernel(application, value.value), _ -> invalid(application) }
     }
     machine store_kernel(application: @mut Application, value: f64) {
         application.kernel[application.index] = value; application.kernel_sum = application.kernel_sum + value; application.index = application.index + 1;
@@ -49,14 +49,14 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     }
     machine normalized(application: @mut Application) {
         application.index = 0; application.sum = 0.0;
-        transition application.kernel_sum >= 0.999999999999 && application.kernel_sum <= 1.000000000001 { true -> block measurement(application) _ -> invalid(application) }
+        transition application.kernel_sum >= 0.999999999999 && application.kernel_sum <= 1.000000000001 { true -> block measurement(application), _ -> invalid(application) }
     }
     machine measurement(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> block read_measurement(application) _ -> block complete(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> block read_measurement(application), _ -> block complete(application) }
     }
     machine read_measurement(application: @mut Application) {
         let value: Number = block number(@mut application.reader);
-        transition value.valid && value.value >= 0.0 { true -> block store_measurement(application, value.value) _ -> invalid(application) }
+        transition value.valid && value.value >= 0.0 { true -> block store_measurement(application, value.value), _ -> invalid(application) }
     }
     machine store_measurement(application: @mut Application, value: f64) {
         application.measurements[application.index] = value;
@@ -65,7 +65,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     }
     machine complete(application: @mut Application) {
         let end: bool = block ended(@mut application.reader);
-        transition end { true -> prepare(application) _ -> invalid(application) }
+        transition end { true -> prepare(application), _ -> invalid(application) }
     }
     machine prepare(application: @mut Application) {
         convolve(@application.measurements, @mut application.right, @application.kernel, application.length, application.width, true);
@@ -73,7 +73,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> initialize(application) }
     }
     machine initialize(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> initial_value(application) _ -> iterate_start(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> initial_value(application), _ -> iterate_start(application) }
     }
     machine initial_value(application: @mut Application) {
         let mean: f64 = application.sum / F64::from_i32(application.length as i32) / (application.kernel_sum * application.kernel_sum);
@@ -87,7 +87,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> iterate(application) }
     }
     machine iterate(application: @mut Application) {
-        transition application.squared > 0.00000000000000000000000001 * application.scale && application.iterations < 256 { true -> apply(application) _ -> reconstruction(application) }
+        transition application.squared > 0.00000000000000000000000001 * application.scale && application.iterations < 256 { true -> apply(application), _ -> reconstruction(application) }
     }
     machine apply(application: @mut Application) {
         convolve(@application.direction, @mut application.temporary, @application.kernel, application.length, application.width, false);
@@ -96,13 +96,13 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> penalty(application) }
     }
     machine penalty(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 && application.length >= 8 && application.length <= 32 { true -> neighbors(application) _ -> step(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 && application.length >= 8 && application.length <= 32 { true -> neighbors(application), _ -> step(application) }
     }
     machine neighbors(application: @mut Application)
     requires application.length >= 8 && application.length <= 32 {
         let before: i32 in Wrapping = (application.index + application.length - 1) % application.length;
         let after: i32 in Wrapping = (application.index + 1) % application.length;
-        transition before >= 0 && before < 32 && after >= 0 && after < 32 { true -> laplacian(application, before, after) _ -> failed(application) }
+        transition before >= 0 && before < 32 && after >= 0 && after < 32 { true -> laplacian(application, before, after), _ -> failed(application) }
     }
     machine laplacian(application: @mut Application, before: i32 in Wrapping, after: i32 in Wrapping)
     requires before >= 0 && before < 32 && after >= 0 && after < 32 {
@@ -112,14 +112,14 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> penalty(application) }
     }
     machine step(application: @mut Application) {
-        transition application.previous > 0.0 { true -> update_start(application, application.squared / application.previous) _ -> failed(application) }
+        transition application.previous > 0.0 { true -> update_start(application, application.squared / application.previous), _ -> failed(application) }
     }
     machine update_start(application: @mut Application, alpha: f64) {
         application.index = 0; application.previous = application.squared; application.squared = 0.0;
         transition { _ -> update(application, alpha) }
     }
     machine update(application: @mut Application, alpha: f64) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> updated(application, alpha) _ -> direction_start(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> updated(application, alpha), _ -> direction_start(application) }
     }
     machine updated(application: @mut Application, alpha: f64) {
         application.solution[application.index] = application.solution[application.index] + alpha * application.direction[application.index];
@@ -132,14 +132,14 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> direction(application, application.squared / application.previous) }
     }
     machine direction(application: @mut Application, beta: f64) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> directed(application, beta) _ -> iterate(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 { true -> directed(application, beta), _ -> iterate(application) }
     }
     machine directed(application: @mut Application, beta: f64) {
         application.direction[application.index] = application.residual[application.index] + beta * application.direction[application.index];
         application.index = application.index + 1; transition { _ -> direction(application, beta) }
     }
     machine reconstruction(application: @mut Application) {
-        transition application.iterations < 256 { true -> reconvolve(application) _ -> failed(application) }
+        transition application.iterations < 256 { true -> reconvolve(application), _ -> failed(application) }
     }
     machine reconvolve(application: @mut Application) {
         convolve(@application.solution, @mut application.temporary, @application.kernel, application.length, application.width, false);
@@ -147,12 +147,12 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> report(application) }
     }
     machine report(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.length && application.index < 32 && application.length >= 8 && application.length <= 32 { true -> report_position(application) _ -> totals(application) }
+        transition application.index >= 0 && application.index < application.length && application.index < 32 && application.length >= 8 && application.length <= 32 { true -> report_position(application), _ -> totals(application) }
     }
     machine report_position(application: @mut Application)
     requires application.length >= 8 && application.length <= 32 {
         let after: i32 in Wrapping = (application.index + 1) % application.length;
-        transition after >= 0 && after < 32 { true -> report_value(application, after) _ -> failed(application) }
+        transition after >= 0 && after < 32 { true -> report_value(application, after), _ -> failed(application) }
     }
     machine report_value(application: @mut Application, after: i32 in Wrapping)
     requires after >= 0 && after < 32 {

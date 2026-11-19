@@ -14,7 +14,7 @@ machine apply(chosen: @mut Slot, other: @mut Slot, visits: @mut u64) -> i64
 requires chosen in Slot::Present, other in Slot::Present, visits == 0
 {
     let selected: @mut [i64] = match choose(visits) {
-        true -> @mut chosen.value[0..2]
+        true -> @mut chosen.value[0..2],
         false -> @mut other.value[2..4]
     };
     chosen = Slot::Present { value: [7, 0, 7, 0] };
@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let mut visits: u64 = 0;
     let observed: i64 = forward(@mut chosen, @mut other, @mut visits);
     transition observed == 41 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

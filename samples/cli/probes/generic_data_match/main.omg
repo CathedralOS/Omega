@@ -39,21 +39,21 @@ machine generic_data_match() {
     let p: Pair<u64, i32> = Pair { first: 20, second: 1 };
     let q: Pair<i32, u64> = swap(p);
     transition q.second == 20 {
-        true -> check_match(q.first)
+        true -> check_match(q.first),
         _ -> done(71)
     }
 
     machine check_match(n: i32) {
         let v: Verdict = classify(7);
         transition v {
-            Verdict::Fresh { value } -> judge(n, value)
+            Verdict::Fresh { value } -> judge(n, value),
             Verdict::Stale -> done(72)
         }
     }
 
     machine judge(n: i32, value: u64) {
         transition n == 1 && value == 7 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(73)
         }
     }

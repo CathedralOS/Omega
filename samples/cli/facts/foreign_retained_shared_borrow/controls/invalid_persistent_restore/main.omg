@@ -58,7 +58,7 @@ machine main() reaches Reader crashes Trap {
     let second_value: u64 = second_buffer.value;
     drop(first_buffer);
     drop(second_buffer);
-    transition first_value == 37 && second_value == 99 && observed == 37 { true -> good() _ -> bad() }
+    transition first_value == 37 && second_value == 99 && observed == 37 { true -> good(), _ -> bad() }
     machine good() {}
     machine bad() { crash Trap; }
 }

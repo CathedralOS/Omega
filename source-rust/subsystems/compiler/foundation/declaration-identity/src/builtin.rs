@@ -47,6 +47,16 @@ pub enum BuiltinTypeAtom {
 }
 
 impl BuiltinTypeAtom {
+    pub fn is_builtin_type_spelling(name: &str) -> bool {
+        let integer_family = name
+            .strip_prefix(['i', 'u'])
+            .is_some_and(|digits| digits.bytes().all(|byte| byte.is_ascii_digit()));
+        integer_family
+            || Self::SPELLINGS
+                .iter()
+                .any(|(_, _, symbol_name)| *symbol_name == name)
+    }
+
     pub const ALL: [Self; BUILTIN_TYPE_COUNT] = [
         Self::Bool,
         Self::Integer(FixedInteger::signed(8)),
@@ -275,7 +285,7 @@ pub enum FixedCoreDeclaration {
     Strict,
     /* `core::Squash` — the witness-hiding proposition squash. */
     Squash,
-    /// `core::Identity<T>(left, right)` — proof-relevant kernel identity.
+    /// `core::Identity::<T>(left, right)` — proof-relevant kernel identity.
     Identity,
 }
 

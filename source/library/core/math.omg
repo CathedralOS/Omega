@@ -13,14 +13,14 @@ public machine min_i8(left: i8, right: i8) -> i8
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_i8(left: i8, right: i8) -> i8
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_i8(value: i8, lower: i8, upper: i8) -> i8
@@ -31,8 +31,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -42,21 +42,21 @@ requires value > -128
 ensures result >= 0 &&
     ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
 {
-    transition { value < 0 -> (0 - value) _ -> (value) }
+    transition { value < 0 -> (0 - value), _ -> (value) }
 }
 
 public machine min_i16(left: i16, right: i16) -> i16
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_i16(left: i16, right: i16) -> i16
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_i16(value: i16, lower: i16, upper: i16) -> i16
@@ -67,8 +67,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -78,21 +78,21 @@ requires value > -32768
 ensures result >= 0 &&
     ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
 {
-    transition { value < 0 -> (0 - value) _ -> (value) }
+    transition { value < 0 -> (0 - value), _ -> (value) }
 }
 
 public machine min_i32(left: i32, right: i32) -> i32
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_i32(left: i32, right: i32) -> i32
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_i32(value: i32, lower: i32, upper: i32) -> i32
@@ -103,8 +103,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -114,21 +114,21 @@ requires value > -2147483648
 ensures result >= 0 &&
     ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
 {
-    transition { value < 0 -> (0 - value) _ -> (value) }
+    transition { value < 0 -> (0 - value), _ -> (value) }
 }
 
 public machine min_i64(left: i64, right: i64) -> i64
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_i64(left: i64, right: i64) -> i64
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_i64(value: i64, lower: i64, upper: i64) -> i64
@@ -139,8 +139,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -150,21 +150,21 @@ requires value > -9223372036854775808
 ensures result >= 0 &&
     ((value < 0 && result == 0 - value) || (value >= 0 && result == value))
 {
-    transition { value < 0 -> (0 - value) _ -> (value) }
+    transition { value < 0 -> (0 - value), _ -> (value) }
 }
 
 public machine min_u8(left: u8, right: u8) -> u8
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_u8(left: u8, right: u8) -> u8
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_u8(value: u8, lower: u8, upper: u8) -> u8
@@ -175,8 +175,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -191,14 +191,14 @@ public machine min_u16(left: u16, right: u16) -> u16
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_u16(left: u16, right: u16) -> u16
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_u16(value: u16, lower: u16, upper: u16) -> u16
@@ -209,8 +209,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -225,14 +225,14 @@ public machine min_u32(left: u32, right: u32) -> u32
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_u32(left: u32, right: u32) -> u32
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_u32(value: u32, lower: u32, upper: u32) -> u32
@@ -243,8 +243,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -259,14 +259,14 @@ public machine min_u64(left: u64, right: u64) -> u64
 ensures result <= left && result <= right &&
     ((left < right && result == left) || (left >= right && result == right))
 {
-    transition { left < right -> (left) _ -> (right) }
+    transition { left < right -> (left), _ -> (right) }
 }
 
 public machine max_u64(left: u64, right: u64) -> u64
 ensures result >= left && result >= right &&
     ((left > right && result == left) || (left <= right && result == right))
 {
-    transition { left > right -> (left) _ -> (right) }
+    transition { left > right -> (left), _ -> (right) }
 }
 
 public machine clamp_u64(value: u64, lower: u64, upper: u64) -> u64
@@ -277,8 +277,8 @@ ensures result >= lower && result <= upper &&
      (value >= lower && value <= upper && result == value))
 {
     transition {
-        value < lower -> (lower)
-        value > upper -> (upper)
+        value < lower -> (lower),
+        value > upper -> (upper),
         _ -> (value)
     }
 }
@@ -296,7 +296,7 @@ ensures result == value
 // NaN value selects lower, while unordered bounds fail its precondition.
 
 public machine min_f32(left: f32, right: f32) -> f32
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::minimum(F32::meaning(left), F32::meaning(right)))
 {
@@ -304,7 +304,7 @@ ensures core::Identity<FloatMeaning>(
 }
 
 public machine max_f32(left: f32, right: f32) -> f32
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::maximum(F32::meaning(left), F32::meaning(right)))
 {
@@ -313,7 +313,7 @@ ensures core::Identity<FloatMeaning>(
 
 public machine clamp_f32(value: f32, lower: f32, upper: f32) -> f32
 requires lower <= upper
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::minimum(
         FloatSemantics::maximum(F32::meaning(value), F32::meaning(lower)),
@@ -323,7 +323,7 @@ ensures core::Identity<FloatMeaning>(
 }
 
 public machine sqrt_f32(value: f32) -> f32
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F32::meaning(result),
     FloatSemantics::square_root(FloatFormat::BINARY32, F32::meaning(value)))
 {
@@ -332,23 +332,23 @@ ensures core::Identity<FloatMeaning>(
 
 public machine abs_f32(value: f32) -> f32
 ensures
-    (value == 0.0 && core::Identity<FloatMeaning>(
+    (value == 0.0 && core::Identity::<FloatMeaning>(
         F32::meaning(result), F32::meaning(0.0))) ||
-    (value < 0.0 && core::Identity<FloatMeaning>(
+    (value < 0.0 && core::Identity::<FloatMeaning>(
         F32::meaning(result),
         FloatSemantics::negate(FloatFormat::BINARY32, F32::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && core::Identity<FloatMeaning>(
+    (value != 0.0 && !(value < 0.0) && core::Identity::<FloatMeaning>(
         F32::meaning(result), F32::meaning(value)))
 {
     transition {
-        value == 0.0 -> (0.0)
-        value < 0.0 -> (F32::negate(value))
+        value == 0.0 -> (0.0),
+        value < 0.0 -> (F32::negate(value)),
         _ -> (value)
     }
 }
 
 public machine min_f64(left: f64, right: f64) -> f64
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::minimum(F64::meaning(left), F64::meaning(right)))
 {
@@ -356,7 +356,7 @@ ensures core::Identity<FloatMeaning>(
 }
 
 public machine max_f64(left: f64, right: f64) -> f64
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::maximum(F64::meaning(left), F64::meaning(right)))
 {
@@ -365,7 +365,7 @@ ensures core::Identity<FloatMeaning>(
 
 public machine clamp_f64(value: f64, lower: f64, upper: f64) -> f64
 requires lower <= upper
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::minimum(
         FloatSemantics::maximum(F64::meaning(value), F64::meaning(lower)),
@@ -378,7 +378,7 @@ ensures core::Identity<FloatMeaning>(
 // zero and positive infinity; negative inputs and NaNs produce NaN. The
 // selected ordinary boundary operator owns this meaning on every target.
 public machine sqrt_f64(value: f64) -> f64
-ensures core::Identity<FloatMeaning>(
+ensures core::Identity::<FloatMeaning>(
     F64::meaning(result),
     FloatSemantics::square_root(FloatFormat::BINARY64, F64::meaning(value)))
 {
@@ -389,17 +389,17 @@ ensures core::Identity<FloatMeaning>(
 // positive values and NaNs are returned unchanged, retaining NaN payloads.
 public machine abs_f64(value: f64) -> f64
 ensures
-    (value == 0.0 && core::Identity<FloatMeaning>(
+    (value == 0.0 && core::Identity::<FloatMeaning>(
         F64::meaning(result), F64::meaning(0.0))) ||
-    (value < 0.0 && core::Identity<FloatMeaning>(
+    (value < 0.0 && core::Identity::<FloatMeaning>(
         F64::meaning(result),
         FloatSemantics::negate(FloatFormat::BINARY64, F64::meaning(value)))) ||
-    (value != 0.0 && !(value < 0.0) && core::Identity<FloatMeaning>(
+    (value != 0.0 && !(value < 0.0) && core::Identity::<FloatMeaning>(
         F64::meaning(result), F64::meaning(value)))
 {
     transition {
-        value == 0.0 -> (0.0)
-        value < 0.0 -> (F64::negate(value))
+        value == 0.0 -> (0.0),
+        value < 0.0 -> (F64::negate(value)),
         _ -> (value)
     }
 }
@@ -428,9 +428,9 @@ public machine sin(x: f64) -> f64 {
         let mut step: f64 = 6.28318530717958623;
         step = step * k;
         transition {
-            k < 1.0 -> fold(x)
-            x > hi -> reduce(x - step, k)
-            x < lo -> reduce(x + step, k)
+            k < 1.0 -> fold(x),
+            x > hi -> reduce(x - step, k),
+            x < lo -> reduce(x + step, k),
             _ -> reduce(x, k * 0.5)
         }
     }
@@ -438,8 +438,8 @@ public machine sin(x: f64) -> f64 {
     // Quadrant fold: sin(x) = sin(pi - x) on (pi/2, pi]; mirrored below.
     machine fold(x: f64) -> f64 {
         transition {
-            x > 1.57079632679489656 -> poly(3.14159265358979312 - x)
-            x < 0.0 - 1.57079632679489656 -> poly(0.0 - 3.14159265358979312 - x)
+            x > 1.57079632679489656 -> poly(3.14159265358979312 - x),
+            x < 0.0 - 1.57079632679489656 -> poly(0.0 - 3.14159265358979312 - x),
             _ -> poly(x)
         }
     }
@@ -492,7 +492,7 @@ public machine is_finite(x: f64) -> bool {
     // expressions), same as sin's ladder locals above. Exercised natively by
     // tests/omega/pass/float/runtime_std_is_finite_exit (finite/inf/NaN legs).
     let d: f64 = x - x;
-    transition d == 0.0 { true -> yes() _ -> no() }
+    transition d == 0.0 { true -> yes(), _ -> no() }
     machine yes() -> bool { true }
     machine no() -> bool { false }
 }

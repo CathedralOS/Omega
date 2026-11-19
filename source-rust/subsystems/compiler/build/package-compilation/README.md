@@ -36,24 +36,22 @@ application, deployment, optimization and privileged-service settings. The
 compiler keeps this result whole, apart from provider, root and trust
 receipts; the interpreter runs elsewhere.
 
-[source_imports.rs](src/source/source_imports.rs) resolves authored imports by
-logical declaration and module identity, not by source filename.
-`package_selection` checks requester-local aliases and Build/Product dependency
-permission. Each registered source owner keeps an inventory derived from its
-immutable captured tree; `logical` parses that inventory with the ordinary
-parser in a private syntax forest and records which modules exist, leaving
-out the Build entry and package roots owned by others. None of those private
-parser positions or declarations enter the checked program.
+[source_imports.rs](src/source/source_imports.rs) resolves imports by logical
+declaration and module identity. `package_selection` checks requester-local
+aliases and Build/Product dependency permissions. The [inventory](src/source/source_imports/logical.rs)
+groups each package’s captured files by their parent directory relative to
+the package root. Files directly under that root share the root namespace.
+See [directory namespaces](../../../../../wiki/spec/language/modules.md#directory-namespaces).
 
-A selected namespace pulls in its module groups, including descendants that
-qualified references need. Today the [inventory](src/source/source_imports/logical.rs)
-reads module headers and puts every headerless unit at the package root. The
-[directory namespace rule](../../../../wiki/spec/language/modules.md#directory-namespaces)
-requires it to group units by their package-relative parent directories.
-Only root-level units then share the package root. Ordinary Product sources
-also pull in siblings of their own logical module; Build sources keep staged
-discovery and pull in namespaces only
-through explicit imports. The inventory refreshes when the captured
+Discovery runs the ordinary parser on each unit and retains its syntax page.
+When admission selects the same bytes, it adopts that page under the admitted
+source identity. Admission assigns the owner, scope and bindings. Discovery
+excludes the Build entry and directories owned by other packages.
+
+A selected namespace pulls in its module groups, including descendants used
+by qualified references. Ordinary Product sources also pull in siblings from
+their own module. Build sources discover namespaces through explicit imports.
+The inventory refreshes when the captured
 filesystem or excluded roots change. Discovery currently parses every
 owned source unit in full before selecting groups.
 

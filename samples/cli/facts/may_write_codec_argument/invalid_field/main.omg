@@ -8,7 +8,7 @@ data Blob<'view> {
 
 machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let sample: Blob = Blob { bytes: source[0..2] };
     Blob::encode(@sample, @mut buffer, choose(@mut bounds.chosen, @mut bounds.other, false));
     transition bounds.chosen == 5 && items[bounds.other] == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

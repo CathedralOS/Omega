@@ -1290,7 +1290,7 @@ fn append_default_build(
 ) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from("<default-build>"),
+            path: PathBuf::from(source_admission::source_identity::DEFAULT_BUILD_PATH),
             source: Arc::from(build_declarations::default_build_source()),
             scope: source_provenance::DependencyScope::Build,
         },
@@ -1338,7 +1338,7 @@ fn append_build_prelude(
     };
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
+            path: PathBuf::from(source_admission::source_identity::BUILD_PRELUDE_ROOT),
             source: Arc::from(prelude.source.declarations),
             scope: source_provenance::DependencyScope::Build,
         },
@@ -1362,7 +1362,9 @@ fn append_build_prelude(
     for (namespace, text) in prelude.source.modules {
         let admitted = storage.admit_source(
             SourceContents {
-                path: PathBuf::from(format!("<build-prelude:{namespace}>")),
+                path: Path::new(source_admission::source_identity::BUILD_PRELUDE_ROOT)
+                    .join(namespace)
+                    .join("mod.omg"),
                 source: Arc::from(text),
                 scope: source_provenance::DependencyScope::Build,
             },
@@ -1434,7 +1436,7 @@ fn seed_core_vocabulary(
     core_root: &Path,
     scope: source_provenance::DependencyScope,
 ) {
-    for file in ["code_layout.omg", "indexing.omg"] {
+    for file in ["code_layout.omg", "indexing/indexing.omg"] {
         imports.seed(core_root.join(file), scope);
     }
 }
@@ -1493,7 +1495,7 @@ mod requirement_preparation_tests {
             .canonicalize()
             .expect("the existing scalar fixture's exact source path");
         let core = crate::source::source_imports::bundled_core_root().unwrap();
-        let indexing = core.join("indexing.omg");
+        let indexing = core.join("indexing/indexing.omg");
         let collection_source = |assembled: &AssembledSyntax, scope| {
             let files = assembled
                 .sources
@@ -1510,7 +1512,7 @@ mod requirement_preparation_tests {
                 file.source.as_ref(),
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/indexing.omg"
+                    "/../../../../../source/library/core/indexing/indexing.omg"
                 ))
             );
             file.source_id

@@ -8,9 +8,9 @@ machine establish() -> u64 in Small {
     value
 }
 machine choose(flag: bool) -> u64 { let value: u64 in Small = match flag { true -> establish(), false -> establish() }; 5u64 - value }
-machine probe() -> u64 { let left: u64 = choose(true); let right: u64 = choose(false); transition left == right { true -> left _ -> 0 } }
+machine probe() -> u64 { let left: u64 = choose(true); let right: u64 = choose(false); transition left == right { true -> left, _ -> 0 } }
 machine main() crashes Trap {
-    transition probe() == 2 { true -> done() _ -> bad() }
+    transition probe() == 2 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

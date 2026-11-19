@@ -93,7 +93,7 @@ pub(crate) fn desugar_generic_data_instances_in(
         if matches!(
             definition.name.as_str(syntax),
             "IntervalSet" | "CountedQuantity"
-        ) && module_path(syntax, definition.name.source_span().source_id).is_none()
+        ) && module_path(selection, definition.name.source_span().source_id).is_none()
         {
             continue;
         }

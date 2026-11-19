@@ -36,7 +36,7 @@ LinuxArmOverwrite satisfies SelectedOverwrite {
 machine main() crashes Trap {
     let mut original: Original = Original { value: 0 };
     SelectedOverwrite::overwrite(@write original);
-    transition original.value == 73 { true -> done() _ -> bad() }
+    transition original.value == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

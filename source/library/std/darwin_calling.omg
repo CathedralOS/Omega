@@ -10,7 +10,7 @@ public DarwinArm64ScalarCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = darwin_arm64_entry();
         let accepted: bool = darwin_arm64_scalar_signature(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
                 reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks" as +Utf8
             } }
@@ -23,33 +23,33 @@ machine darwin_arm64_scalar_signature(signature: @BoundarySignature,
     transition signature.parameter_count == signature.native_parameter_count
         && signature.parameter_count <= 32 && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
-        true -> result(signature, plan)
+        true -> result(signature, plan),
         _ -> false
     }
     machine result(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
         plan.call.parameter_count = signature.parameter_count;
         transition signature.has_result {
-            true -> result_index(signature, plan)
+            true -> result_index(signature, plan),
             _ -> darwin_arm64_scalar_parameters(signature, plan, 0, 0, 32)
         }
     }
     machine result_index(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
-            true -> result_shape(signature, plan, @signature.shapes[signature.result])
+            true -> result_shape(signature, plan, @signature.shapes[signature.result]),
             _ -> false
         }
     }
     machine result_shape(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition shape.class {
-            ValueClass::Integer -> result_integer(signature, plan, shape)
+            ValueClass::Integer -> result_integer(signature, plan, shape),
             _ -> false
         }
     }
     machine result_integer(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
-            true -> result_place(signature, plan, shape)
+            true -> result_place(signature, plan, shape),
             _ -> false
         }
     }
@@ -79,9 +79,9 @@ terminates by remaining
 {
     let next_stack: u64 = darwin_arm64_scalar_parameter(signature, plan, ordinal, stack);
     transition {
-        ordinal == signature.parameter_count -> (next_stack <= 256)
+        ordinal == signature.parameter_count -> (next_stack <= 256),
         ordinal < 32 && remaining > 0 && next_stack <= 256 ->
-            darwin_arm64_scalar_parameters(signature, plan, ordinal + 1, next_stack, remaining - 1)
+            darwin_arm64_scalar_parameters(signature, plan, ordinal + 1, next_stack, remaining - 1),
         _ -> false
     }
 }
@@ -93,9 +93,9 @@ machine darwin_arm64_scalar_parameter(signature: @BoundarySignature,
 requires stack <= 256
 {
     transition {
-        ordinal == signature.parameter_count -> stack
+        ordinal == signature.parameter_count -> stack,
         ordinal < signature.parameter_count && ordinal < 32 ->
-            root(signature, plan, ordinal, stack, signature.parameters[ordinal])
+            root(signature, plan, ordinal, stack, signature.parameters[ordinal]),
         _ -> 257
     }
     machine root(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
@@ -103,7 +103,7 @@ requires stack <= 256
     requires ordinal < 32, stack <= 256
     {
         transition root < signature.shape_count && root < 256 {
-            true -> shape(plan, ordinal, stack, @signature.shapes[root])
+            true -> shape(plan, ordinal, stack, @signature.shapes[root]),
             _ -> 257
         }
     }
@@ -112,8 +112,8 @@ requires stack <= 256
     requires ordinal < 32, stack <= 256
     {
         transition shape.class {
-            ValueClass::Integer -> integer(plan, ordinal, stack, shape)
-            ValueClass::Reference -> reference(plan, ordinal, stack, shape)
+            ValueClass::Integer -> integer(plan, ordinal, stack, shape),
+            ValueClass::Reference -> reference(plan, ordinal, stack, shape),
             _ -> 257
         }
     }
@@ -122,7 +122,7 @@ requires stack <= 256
     requires ordinal < 32, stack <= 256
     {
         transition darwin_arm64_integer_shape(shape) {
-            true -> place(plan, ordinal, stack, shape)
+            true -> place(plan, ordinal, stack, shape),
             _ -> 257
         }
     }
@@ -131,7 +131,7 @@ requires stack <= 256
     requires ordinal < 32, stack <= 256
     {
         transition shape.byte_size == 8 && shape.alignment == 8 {
-            true -> place(plan, ordinal, stack, shape)
+            true -> place(plan, ordinal, stack, shape),
             _ -> 257
         }
     }
@@ -144,7 +144,7 @@ requires stack <= 256
         };
         plan.call.parameters[ordinal].location_count = 1;
         transition ordinal < 8 {
-            true -> register_shape(plan, ordinal, stack, shape)
+            true -> register_shape(plan, ordinal, stack, shape),
             _ -> stack_shape(plan, ordinal, stack, shape)
         }
     }
@@ -153,7 +153,7 @@ requires stack <= 256
     requires ordinal < 8
     {
         transition shape.byte_size == 4 || shape.byte_size == 8 {
-            true -> register(plan, ordinal, stack, shape.byte_size)
+            true -> register(plan, ordinal, stack, shape.byte_size),
             _ -> 257
         }
     }
@@ -171,7 +171,7 @@ requires stack <= 256
     requires ordinal < 32, stack <= 256
     {
         transition shape.alignment > 0 && shape.alignment <= 8 && shape.byte_size <= 8 {
-            true -> stack_place(plan, ordinal, stack, shape.byte_size, shape.alignment)
+            true -> stack_place(plan, ordinal, stack, shape.byte_size, shape.alignment),
             _ -> 257
         }
     }

@@ -47,7 +47,7 @@ machine exercise_pair() -> bool {
 machine main() crashes Trap {
     let mut envelope: Envelope;
     transition exercise(@mut envelope) && exercise_composed(@mut envelope) && exercise_pair() {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

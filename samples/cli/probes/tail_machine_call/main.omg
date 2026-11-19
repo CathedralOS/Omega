@@ -27,7 +27,7 @@ machine Main::with_argument(main: @mut Main, value: i32)
 requires 0 <= value && value <= 100
 {
     transition value == 7 && main.stored == 5 {
-        true -> again(main)
+        true -> again(main),
         _ -> Main::finish(main)
     }
     machine again(main: @mut Main) {
@@ -38,7 +38,7 @@ requires 0 <= value && value <= 100
 
 machine Main::finish(main: @mut Main) {
     transition main.marks == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

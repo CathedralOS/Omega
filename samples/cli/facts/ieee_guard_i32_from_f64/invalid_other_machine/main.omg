@@ -7,7 +7,7 @@ requires value == value && value >= 0.0
 { I32::from_f64(value) }
 machine bounded(value: f64) -> i32 {
     transition value == value && value >= 0.0 {
-        true -> convert(value)
+        true -> convert(value),
         false -> zero()
     }
     machine zero() -> i32 { 0 }
@@ -16,7 +16,7 @@ machine bounded(value: f64) -> i32 {
 machine main() crashes Trap {
     let inside: i32 = bounded(123.75);
     transition inside == 123 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

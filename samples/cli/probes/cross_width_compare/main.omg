@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) {
     main.tiny = 44;
     transition main.small != main.big && main.mid < main.far
         && main.tiny == main.small {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

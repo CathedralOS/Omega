@@ -1,0 +1,2 @@
+public data Envelope<T [copy]> { other: T; }
+public machine Envelope::read<T [copy]>(envelope: @Envelope<T>) -> T { envelope.other }

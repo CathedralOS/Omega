@@ -26,7 +26,7 @@ machine complete_jobs(selected: Job, waiting: Job) -> u32 {
     transition (number == 9 && label == 10 && worker == 1)
         || (number == 8 && label == 20 && worker == 2) {
         true -> (((number as u32 in Wrapping) + (label as u32 in Wrapping))
-            + (worker as u32 in Wrapping)) as u32
+            + (worker as u32 in Wrapping)) as u32,
         false -> 0
     }
 }
@@ -42,7 +42,7 @@ requires remaining <= 5
     {
         let returned: Job = hand_over(current);
         transition left > 0 {
-            true -> cycle(waiting, returned, left - 1)
+            true -> cycle(waiting, returned, left - 1),
             false -> (complete_jobs(returned, waiting))
         }
     }
@@ -59,7 +59,7 @@ requires remaining > 0 && remaining <= 5
     {
         current.last_round = left;
         transition left > 1 {
-            true -> cycle(waiting, current, left - 1)
+            true -> cycle(waiting, current, left - 1),
             false -> done()
         }
     }
@@ -83,7 +83,7 @@ machine main() crashes Trap {
         Job { ticket: Ticket { number: 8 }, label: Label { number: 20 }, worker: @workers.second }, 4);
     transition zero == 20 && odd == 30 && even == 20
         && workers.first.last_round == 1 && workers.second.last_round == 2 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

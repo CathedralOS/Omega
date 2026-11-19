@@ -838,7 +838,7 @@ terminates by (tickets.len - position) -> Nat::Descending
 requires position <= tickets.len
 {{
     transition position < tickets.len {{
-        true -> {next}
+        true -> {next},
         false -> position
     }}
 }}

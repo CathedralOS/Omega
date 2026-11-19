@@ -23,7 +23,7 @@ requires ready == false
     let first: bool = ready && bump(@mut counter);
     let kept: u64 = untouched(counter);
     transition first {
-        true -> (11u64)
+        true -> (11u64),
         false -> (kept + counter)
     }
 }
@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let ready: bool = false;
     let observed: u64 = evaluate(ready);
     transition observed == 0u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -4,7 +4,7 @@ public boundary trait Text {
     machine length(text: @u8) -> u64 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
-    transition result { true -> done() false -> bad() }
+    transition result { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

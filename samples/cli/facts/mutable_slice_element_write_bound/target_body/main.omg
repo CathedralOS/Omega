@@ -16,7 +16,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -24,7 +24,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -65,7 +65,7 @@ machine main() crashes Trap {
     let diff: u64 = SelectedMutateTarget::mutate_target(storage_view(@mut backing));
     transition backing.items[1] == 45u64 && diff == 1u64 && backing.guard == 18446744073709551615
         && backing.items[0] == 10u64 && backing.items[2] == 30u64 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() {}

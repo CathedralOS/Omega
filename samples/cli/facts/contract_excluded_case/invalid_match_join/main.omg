@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let other_flag: Value<bool> = Value::Boolean { value: false };
     transition join_int(true, number, other_number) == 7 && join_int(false, number, other_number) == 9
         && join_flag(true, flag, other_flag) == true && join_flag(false, flag, other_flag) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

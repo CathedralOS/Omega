@@ -12,7 +12,7 @@ machine inspect(flag: bool) -> bool {
 }
 machine probe() -> bool { inspect(true) && inspect(false) }
 machine main() crashes Trap {
-    transition probe() { true -> done() false -> bad() }
+    transition probe() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

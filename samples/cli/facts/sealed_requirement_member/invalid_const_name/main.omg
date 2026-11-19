@@ -45,13 +45,13 @@ requires 0 <= a && a <= CEILING
 requires 0 <= b && b <= CEILING
 ensures 0 <= result && result <= 100
 {
-    block apply<Selected>(a, b)
+    block apply::<Selected>(a, b)
 }
 
 machine main() blocks crashes Trap {
     let wide: i32 = block probe(20, 22);
     let narrow: i32 = block probe(10, 12);
-    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+    transition wide == 42 && narrow == 22 { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

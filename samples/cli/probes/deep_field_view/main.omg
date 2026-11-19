@@ -20,7 +20,7 @@ data Packet {
 
 machine read(values: @[i32]) -> i32 {
     transition values.len >= 4 {
-        true -> (values[0])
+        true -> (values[0]),
         _ -> (0)
     }
 }
@@ -41,7 +41,7 @@ machine Main::main(main: @mut Main) {
         let observed: i32 = read(view);
         transition observed == 70 && packet.samples.items[3] == 5
             && packet.marker == 9 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

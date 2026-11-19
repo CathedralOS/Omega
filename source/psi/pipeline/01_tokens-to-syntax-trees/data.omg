@@ -24,13 +24,13 @@ crashes Trap
     parser.data_is_public = is_public;
     parser.data_is_boundary = is_boundary;
     transition parser.output.root_count < 4096 {
-        true -> capacity(parser, input)
+        true -> capacity(parser, input),
         _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
     }
 
     machine capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.data_count < 256 {
-            true -> keyword(parser, input)
+            true -> keyword(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::DataCapacityExceeded)
         }
     }
@@ -44,7 +44,7 @@ crashes Trap
         parser.data_multiplicity = DataMultiplicity::Affine;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDataName);
         transition parser.output.accepted {
-            true -> named(parser, input)
+            true -> named(parser, input),
             _ -> done()
         }
     }
@@ -54,7 +54,7 @@ crashes Trap
         parser.data_name_end = parser.name_end;
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
-            true -> generics(parser, input)
+            true -> generics(parser, input),
             _ -> properties(parser, input)
         }
     }
@@ -62,7 +62,7 @@ crashes Trap
     machine generics(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         transition parser.output.accepted {
-            true -> properties(parser, input)
+            true -> properties(parser, input),
             _ -> done()
         }
     }
@@ -70,7 +70,7 @@ crashes Trap
     machine properties(parser: @mut Parser, input: @TokenStream) {
         let bracket: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition bracket {
-            true -> property_list(parser, input)
+            true -> property_list(parser, input),
             _ -> representation(parser, input)
         }
     }
@@ -79,14 +79,14 @@ crashes Trap
         parse_properties(parser, input);
         parser.data_multiplicity = parser.property_multiplicity;
         transition parser.output.accepted {
-            true -> representation(parser, input)
+            true -> representation(parser, input),
             _ -> done()
         }
     }
 
     machine representation(parser: @mut Parser, input: @TokenStream) {
         transition parser.data_is_boundary {
-            true -> boundary_end(parser, input)
+            true -> boundary_end(parser, input),
             _ -> clauses(parser, input)
         }
     }
@@ -98,7 +98,7 @@ crashes Trap
             ParseDiagnosticCode::ExpectedBoundaryDataEnd
         );
         transition parser.output.accepted {
-            true -> retain_capacity(parser, input)
+            true -> retain_capacity(parser, input),
             _ -> done()
         }
     }
@@ -106,7 +106,7 @@ crashes Trap
     machine clauses(parser: @mut Parser, input: @TokenStream) {
         parse_clauses(parser, input, ClauseOwner::Data);
         transition parser.output.accepted {
-            true -> body(parser, input)
+            true -> body(parser, input),
             _ -> done()
         }
     }
@@ -116,7 +116,7 @@ crashes Trap
         parser.data_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedDataBody);
         transition parser.output.accepted {
-            true -> member(parser, input)
+            true -> member(parser, input),
             _ -> done()
         }
     }
@@ -124,7 +124,7 @@ crashes Trap
     machine member(parser: @mut Parser, input: @TokenStream) {
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
         transition close {
-            true -> close(parser, input)
+            true -> close(parser, input),
             _ -> retirement(parser, input)
         }
     }
@@ -132,7 +132,7 @@ crashes Trap
     machine retirement(parser: @mut Parser, input: @TokenStream) {
         let retired: bool = at_word(parser, input, "retired");
         transition retired {
-            true -> retired(parser, input)
+            true -> retired(parser, input),
             _ -> member_identity(parser, input)
         }
     }
@@ -142,7 +142,7 @@ crashes Trap
         parse_retired_identity(parser, input, RetiredIdentityOwner::Declaration,
             owner, true);
         transition parser.output.accepted {
-            true -> member(parser, input)
+            true -> member(parser, input),
             _ -> done()
         }
     }
@@ -155,7 +155,7 @@ crashes Trap
         parse_stable_identity(parser, input);
         retain_member_identity(parser);
         transition parser.output.accepted {
-            true -> member_kind(parser, input)
+            true -> member_kind(parser, input),
             _ -> done()
         }
     }
@@ -163,7 +163,7 @@ crashes Trap
     machine member_kind(parser: @mut Parser, input: @TokenStream) {
         let alternative: bool = at_keyword(parser, input, KeywordKind::Case);
         transition alternative {
-            true -> case_word(parser, input)
+            true -> case_word(parser, input),
             _ -> field_capacity(parser, input)
         }
     }
@@ -176,28 +176,28 @@ crashes Trap
         let field: bool = at_punctuation(parser, input, PunctuationKind::Colon)
             || at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition field {
-            true -> case_field_capacity(parser, input)
+            true -> case_field_capacity(parser, input),
             _ -> case_capacity(parser, input)
         }
     }
 
     machine case_field_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
-            true -> field_marker(parser, input)
+            true -> field_marker(parser, input),
             _ -> field_full(parser, input)
         }
     }
 
     machine field_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
-            true -> field_name(parser, input)
+            true -> field_name(parser, input),
             _ -> field_full(parser, input)
         }
     }
 
     machine field_full(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.field_count < 1024 {
-            true -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded)
+            true -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded),
             _ -> reject(parser, input, ParseDiagnosticCode::DataFieldCapacityExceeded)
         }
     }
@@ -207,7 +207,7 @@ crashes Trap
         parser.member_name_start = parser.name_start;
         parser.member_name_end = parser.name_end;
         transition parser.output.accepted {
-            true -> field_marker(parser, input)
+            true -> field_marker(parser, input),
             _ -> done()
         }
     }
@@ -215,7 +215,7 @@ crashes Trap
     machine field_marker(parser: @mut Parser, input: @TokenStream) {
         parse_erased_marker(parser, input);
         transition parser.output.accepted {
-            true -> field_colon(parser, input)
+            true -> field_colon(parser, input),
             _ -> done()
         }
     }
@@ -223,7 +223,7 @@ crashes Trap
     machine field_colon(parser: @mut Parser, input: @TokenStream) {
         expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedDataFieldColon);
         transition parser.output.accepted {
-            true -> field_type(parser, input)
+            true -> field_type(parser, input),
             _ -> done()
         }
     }
@@ -231,7 +231,7 @@ crashes Trap
     machine field_type(parser: @mut Parser, input: @TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataFieldType);
         transition parser.output.accepted {
-            true -> field_end(parser, input, parser.type_result)
+            true -> field_end(parser, input, parser.type_result),
             _ -> done()
         }
     }
@@ -239,14 +239,14 @@ crashes Trap
     machine field_end(parser: @mut Parser, input: @TokenStream, type_reference: u64 in Trapping) {
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDataFieldEnd);
         transition parser.output.accepted {
-            true -> field_retained(parser, input, type_reference)
+            true -> field_retained(parser, input, type_reference),
             _ -> done()
         }
     }
 
     machine field_retained(parser: @mut Parser, input: @TokenStream, type_reference: u64 in Trapping) {
         transition parser.output.field_count < 1024 && parser.output.data_member_count < 2048 {
-            true -> field_stored(parser, input, type_reference)
+            true -> field_stored(parser, input, type_reference),
             _ -> field_full(parser, input)
         }
     }
@@ -280,14 +280,14 @@ crashes Trap
 
     machine case_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.case_count < 1536 && parser.output.data_member_count < 2048 {
-            true -> case_named(parser, input)
+            true -> case_named(parser, input),
             _ -> case_full(parser, input)
         }
     }
 
     machine case_full(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.case_count < 1536 {
-            true -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded)
+            true -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded),
             _ -> reject(parser, input, ParseDiagnosticCode::DataCaseCapacityExceeded)
         }
     }
@@ -298,7 +298,7 @@ crashes Trap
         parser.member_name_end = parser.name_end;
         parser.case_first_payload_field = parser.output.payload_field_count as u64 in Trapping;
         transition parser.output.accepted {
-            true -> case_payload(parser, input)
+            true -> case_payload(parser, input),
             _ -> done()
         }
     }
@@ -306,7 +306,7 @@ crashes Trap
     machine case_payload(parser: @mut Parser, input: @TokenStream) {
         let payload: bool = at_punctuation(parser, input, PunctuationKind::LeftParen);
         transition payload {
-            true -> payload_open(parser, input)
+            true -> payload_open(parser, input),
             _ -> case_clauses(parser, input)
         }
     }
@@ -319,7 +319,7 @@ crashes Trap
     machine payload_field(parser: @mut Parser, input: @TokenStream) {
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition close {
-            true -> payload_close(parser, input)
+            true -> payload_close(parser, input),
             _ -> payload_retirement(parser, input)
         }
     }
@@ -327,7 +327,7 @@ crashes Trap
     machine payload_retirement(parser: @mut Parser, input: @TokenStream) {
         let retired: bool = at_word(parser, input, "retired");
         transition retired {
-            true -> payload_retired(parser, input)
+            true -> payload_retired(parser, input),
             _ -> payload_capacity(parser, input)
         }
     }
@@ -337,7 +337,7 @@ crashes Trap
         parse_retired_identity(parser, input, RetiredIdentityOwner::Payload,
             owner, false);
         transition parser.output.accepted {
-            true -> payload_retired_separator(parser, input)
+            true -> payload_retired_separator(parser, input),
             _ -> done()
         }
     }
@@ -345,7 +345,7 @@ crashes Trap
     machine payload_retired_separator(parser: @mut Parser, input: @TokenStream) {
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
-            true -> payload_retired_comma(parser, input)
+            true -> payload_retired_comma(parser, input),
             _ -> payload_retired_end(parser, input)
         }
     }
@@ -358,14 +358,14 @@ crashes Trap
     machine payload_retired_end(parser: @mut Parser, input: @TokenStream) {
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition close {
-            true -> payload_close(parser, input)
+            true -> payload_close(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd)
         }
     }
 
     machine payload_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.payload_field_count < 1024 {
-            true -> payload_identity(parser, input)
+            true -> payload_identity(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded)
         }
     }
@@ -376,7 +376,7 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         parse_stable_identity(parser, input);
         transition parser.output.accepted {
-            true -> payload_name(parser, input, token.start)
+            true -> payload_name(parser, input, token.start),
             _ -> done()
         }
     }
@@ -384,7 +384,7 @@ crashes Trap
     machine payload_name(parser: @mut Parser, input: @TokenStream, field_start: u64 in Trapping) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadField);
         transition parser.output.accepted {
-            true -> payload_marker(parser, input, field_start, parser.name_start, parser.name_end)
+            true -> payload_marker(parser, input, field_start, parser.name_start, parser.name_end),
             _ -> done()
         }
     }
@@ -398,7 +398,7 @@ crashes Trap
     ) {
         parse_erased_marker(parser, input);
         transition parser.output.accepted {
-            true -> payload_colon(parser, input, field_start, start, end)
+            true -> payload_colon(parser, input, field_start, start, end),
             _ -> done()
         }
     }
@@ -414,7 +414,7 @@ crashes Trap
             ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon
         );
         transition parser.output.accepted {
-            true -> payload_type(parser, input, field_start, start, end)
+            true -> payload_type(parser, input, field_start, start, end),
             _ -> done()
         }
     }
@@ -429,7 +429,7 @@ crashes Trap
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadFieldType);
         parser.payload_field_start = field_start;
         transition parser.output.accepted {
-            true -> payload_separator(parser, input, start, end, parser.type_result)
+            true -> payload_separator(parser, input, start, end, parser.type_result),
             _ -> done()
         }
     }
@@ -445,7 +445,7 @@ crashes Trap
     ) {
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition comma {
-            true -> payload_comma(parser, input, start, end, type_reference)
+            true -> payload_comma(parser, input, start, end, type_reference),
             _ -> payload_last(parser, input, start, end, type_reference)
         }
     }
@@ -470,7 +470,7 @@ crashes Trap
     ) {
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightParen);
         transition close {
-            true -> payload_stored(parser, input, start, end, type_reference, parser.type_end, false)
+            true -> payload_stored(parser, input, start, end, type_reference, parser.type_end, false),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd)
         }
     }
@@ -485,7 +485,7 @@ crashes Trap
         more: bool
     ) {
         transition parser.output.payload_field_count < 1024 {
-            true -> payload_retained(parser, input, start, end, type_reference, field_end, more)
+            true -> payload_retained(parser, input, start, end, type_reference, field_end, more),
             _ -> reject(parser, input, ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded)
         }
     }
@@ -512,7 +512,7 @@ crashes Trap
         };
         parser.output.payload_field_count = (payload + 1) as u64;
         transition more {
-            true -> payload_field(parser, input)
+            true -> payload_field(parser, input),
             _ -> payload_close(parser, input)
         }
     }
@@ -525,7 +525,7 @@ crashes Trap
     machine case_clauses(parser: @mut Parser, input: @TokenStream) {
         parse_clauses(parser, input, ClauseOwner::DataCase);
         transition parser.output.accepted {
-            true -> case_end(parser, input)
+            true -> case_end(parser, input),
             _ -> done()
         }
     }
@@ -535,7 +535,7 @@ crashes Trap
         let clause_count: u64 in Trapping = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDataCaseEnd);
         transition parser.output.accepted {
-            true -> case_retained(parser, input, first_clause, clause_count)
+            true -> case_retained(parser, input, first_clause, clause_count),
             _ -> done()
         }
     }
@@ -547,7 +547,7 @@ crashes Trap
         clause_count: u64 in Trapping
     ) {
         transition parser.output.case_count < 1536 && parser.output.data_member_count < 2048 {
-            true -> case_stored(parser, input, first_clause, clause_count)
+            true -> case_stored(parser, input, first_clause, clause_count),
             _ -> case_full(parser, input)
         }
     }
@@ -588,7 +588,7 @@ crashes Trap
 
     machine retain_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.data_count < 256 && parser.output.root_count < 4096 {
-            true -> retain(parser)
+            true -> retain(parser),
             _ -> reject(parser, input, ParseDiagnosticCode::DataCapacityExceeded)
         }
     }
@@ -647,21 +647,21 @@ crashes Trap
         let copy: bool = at_keyword(parser, input, KeywordKind::Copy);
         let linear: bool = at_keyword(parser, input, KeywordKind::Linear);
         transition copy {
-            true -> named(parser, input, DataMultiplicity::Unrestricted)
+            true -> named(parser, input, DataMultiplicity::Unrestricted),
             _ -> linear_property(parser, input, linear)
         }
     }
 
     machine linear_property(parser: @mut Parser, input: @TokenStream, linear: bool) {
         transition linear {
-            true -> named(parser, input, DataMultiplicity::Linear)
+            true -> named(parser, input, DataMultiplicity::Linear),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataProperty)
         }
     }
 
     machine named(parser: @mut Parser, input: @TokenStream, multiplicity: DataMultiplicity) {
         transition parser.property_multiplicity {
-            DataMultiplicity::Affine -> first(parser, input, multiplicity)
+            DataMultiplicity::Affine -> first(parser, input, multiplicity),
             _ -> second(parser, input, multiplicity)
         }
     }
@@ -674,7 +674,7 @@ crashes Trap
 
     machine second(parser: @mut Parser, input: @TokenStream, multiplicity: DataMultiplicity) {
         transition multiplicity == parser.property_multiplicity {
-            true -> reject(parser, input, ParseDiagnosticCode::DuplicateDataMultiplicity)
+            true -> reject(parser, input, ParseDiagnosticCode::DuplicateDataMultiplicity),
             _ -> reject(parser, input, ParseDiagnosticCode::ConflictingDataMultiplicity)
         }
     }
@@ -683,14 +683,14 @@ crashes Trap
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightBracket);
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition close {
-            true -> closed(parser, input)
+            true -> closed(parser, input),
             _ -> comma_separator(parser, input, comma)
         }
     }
 
     machine comma_separator(parser: @mut Parser, input: @TokenStream, comma: bool) {
         transition comma {
-            true -> after_comma(parser, input)
+            true -> after_comma(parser, input),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDataPropertyEnd)
         }
     }
@@ -699,7 +699,7 @@ crashes Trap
         take_current(parser, input);
         let close: bool = at_punctuation(parser, input, PunctuationKind::RightBracket);
         transition close {
-            true -> closed(parser, input)
+            true -> closed(parser, input),
             _ -> property(parser, input)
         }
     }
@@ -728,7 +728,7 @@ crashes Trap
     let start: u64 in Trapping = parser.token_start;
     let hash: bool = at_punctuation(parser, input, PunctuationKind::Hash);
     transition hash {
-        true -> identity(parser, input, owner_kind, owner, semicolon, start)
+        true -> identity(parser, input, owner_kind, owner, semicolon, start),
         _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStableIdentity)
     }
 
@@ -737,7 +737,7 @@ crashes Trap
     {
         parse_stable_identity(parser, input);
         transition parser.output.accepted {
-            true -> ending(parser, input, owner_kind, owner, semicolon, start)
+            true -> ending(parser, input, owner_kind, owner, semicolon, start),
             _ -> done()
         }
     }
@@ -746,7 +746,7 @@ crashes Trap
         owner: u64 in Trapping, semicolon: bool, start: u64 in Trapping)
     {
         transition semicolon {
-            true -> semicolon(parser, input, owner_kind, owner, start)
+            true -> semicolon(parser, input, owner_kind, owner, start),
             _ -> capacity(parser, input, owner_kind, owner, start)
         }
     }
@@ -757,7 +757,7 @@ crashes Trap
         expect_punctuation(parser, input, PunctuationKind::Semicolon,
             ParseDiagnosticCode::ExpectedDataFieldEnd);
         transition parser.output.accepted {
-            true -> capacity(parser, input, owner_kind, owner, start)
+            true -> capacity(parser, input, owner_kind, owner, start),
             _ -> done()
         }
     }
@@ -766,7 +766,7 @@ crashes Trap
         owner: u64 in Trapping, start: u64 in Trapping)
     {
         transition parser.output.retired_identity_count < 2048 {
-            true -> retain(parser, owner_kind, owner, start)
+            true -> retain(parser, owner_kind, owner, start),
             _ -> reject(parser, input, ParseDiagnosticCode::DataMemberCapacityExceeded)
         }
     }
@@ -804,7 +804,7 @@ crashes Trap
     parser.identity_literal = 0;
     let numbered: bool = at_punctuation(parser, input, PunctuationKind::Hash);
     transition numbered {
-        true -> hash(parser, input)
+        true -> hash(parser, input),
         _ -> done()
     }
 
@@ -812,7 +812,7 @@ crashes Trap
         take_current(parser, input);
         let integer: bool = at_integer(parser, input);
         transition integer {
-            true -> identity(parser, input)
+            true -> identity(parser, input),
             _ -> missing(parser, input)
         }
     }

@@ -12,7 +12,7 @@ machine store(target: @mut Cell, value: i64) -> bool requires value == 41 {
 }
 machine consume<'storage>(loan: Loan<'storage>, value: i64) -> bool requires value == 41 {
     transition loan {
-        Loan::Active { target } -> (store(@mut target, value))
+        Loan::Active { target } -> (store(@mut target, value)),
         Loan::Empty -> false
     }
 }
@@ -20,7 +20,7 @@ const WRITE_VALUE: i64 = 41;
 
 machine store_code(source: @Cell) -> i64 ensures result == 41 {
     let observation: i64 = source.value;
-    transition observation == 19 { true -> WRITE_VALUE false -> WRITE_VALUE }
+    transition observation == 19 { true -> WRITE_VALUE, false -> WRITE_VALUE }
 }
 machine main() crashes Trap {
     let mut backing: Cell = Cell { value: 17 };
@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let loan: Loan = lend(@mut backing);
     let written: bool = consume(loan, store_code(@sibling));
     transition written && backing.value == 41 && sibling.value == 19 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

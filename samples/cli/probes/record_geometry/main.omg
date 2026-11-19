@@ -5,19 +5,19 @@ data Row { tag: u8; count: u64; }
 data Geometry { bytes: u64; alignment: u64; }
 
 machine identity(value: u64) -> u64 { value }
-machine row_bytes() -> u64 { size_of<Row>() }
+machine row_bytes() -> u64 { size_of::<Row>() }
 machine choose_bytes(large: bool) -> u64 {
     transition large {
-        true -> selected()
+        true -> selected(),
         _ -> small()
     }
-    machine selected() -> u64 { size_of<Row>() }
+    machine selected() -> u64 { size_of::<Row>() }
     machine small() -> u64 { 8u64 }
 }
 
 machine main() crashes Trap {
-    let bytes: u64 = size_of<Row>();
-    let alignment: u64 = align_of<Row>();
+    let bytes: u64 = size_of::<Row>();
+    let alignment: u64 = align_of::<Row>();
     let extent: u64 = bytes + alignment;
     let mut geometry: Geometry = Geometry { bytes: bytes, alignment: alignment };
     let saved: u64 = geometry.bytes;
@@ -40,13 +40,13 @@ machine main() crashes Trap {
         && cast_extent == 24 && selected_extent == 24
         && field_extent == 24 && array_extent == 24 && double_extent == 32
         && chosen_extent == 24 {
-        true -> finish(bytes, alignment)
+        true -> finish(bytes, alignment),
         _ -> bad()
     }
     machine finish(bytes: u64, alignment: u64) {
         let padding_extent: u64 = bytes - alignment;
         transition padding_extent == 8 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

@@ -5,7 +5,7 @@ data Choice { case Present(value: Contents); case Empty; }
 data Holder { head: u64; choice: Choice; tail: u64; }
 machine take(holder: @mut Holder) -> bool {
     transition holder.choice {
-        Choice::Present { value } -> clear(holder, value)
+        Choice::Present { value } -> clear(holder, value),
         Choice::Empty -> false
     }
     machine clear(holder: @mut Holder, captured: Contents) -> bool {
@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let captured: bool = take(@mut holder);
     let empty: bool = take(@mut holder);
     transition captured && !empty && holder.head == 641 && holder.tail == 967 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

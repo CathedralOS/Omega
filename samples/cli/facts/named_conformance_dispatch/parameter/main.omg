@@ -35,12 +35,12 @@ requires 0 <= left && left <= 50
 requires 0 <= right && right <= 50
 ensures result == left + right
 {
-    block apply<Selected>(left, right)
+    block apply::<Selected>(left, right)
 }
 
 machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
+    transition result == 42 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

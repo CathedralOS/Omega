@@ -68,13 +68,13 @@ blocks
     psi::parser_initialize(@mut parser);
     let count: HarnessWord = block read_u32(checking_harness);
     transition count.complete {
-        true -> block packages(checking_harness, @mut sources, @mut parser, count.value)
+        true -> block packages(checking_harness, @mut sources, @mut parser, count.value),
         _ -> malformed(checking_harness)
     }
 
     machine packages(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block package_row(checking_harness, sources, parser, remaining)
+            true -> block package_row(checking_harness, sources, parser, remaining),
             _ -> block dependencies(checking_harness, sources, parser)
         }
     }
@@ -85,7 +85,7 @@ blocks
         psi::module_path_clear(@mut name);
         let read: bool = block read_path(checking_harness, @mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> block add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, @name)
+            true -> block add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, @name),
             _ -> malformed(checking_harness)
         }
     }
@@ -100,7 +100,7 @@ blocks
     ) {
         let added: bool = psi::add_package(sources, name, toolchain);
         transition added {
-            true -> block packages(checking_harness, sources, parser, remaining - 1)
+            true -> block packages(checking_harness, sources, parser, remaining - 1),
             _ -> source_full(checking_harness)
         }
     }
@@ -108,14 +108,14 @@ blocks
     machine dependencies(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(checking_harness);
         transition count.complete {
-            true -> block dependency(checking_harness, sources, parser, count.value)
+            true -> block dependency(checking_harness, sources, parser, count.value),
             _ -> malformed(checking_harness)
         }
     }
 
     machine dependency(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block dependency_row(checking_harness, sources, parser, remaining)
+            true -> block dependency_row(checking_harness, sources, parser, remaining),
             _ -> block units(checking_harness, sources, parser)
         }
     }
@@ -130,7 +130,7 @@ blocks
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> block dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, @alias, target.value)
+            true -> block dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, @alias, target.value),
             _ -> malformed(checking_harness)
         }
     }
@@ -146,7 +146,7 @@ blocks
         target: u64 in Trapping
     ) {
         transition build {
-            true -> block add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
+            true -> block add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target),
             _ -> block add_dependency(checking_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
         }
     }
@@ -163,7 +163,7 @@ blocks
     ) {
         let added: bool = psi::add_dependency(sources, requester, scope, alias, target);
         transition added {
-            true -> block dependency(checking_harness, sources, parser, remaining - 1)
+            true -> block dependency(checking_harness, sources, parser, remaining - 1),
             _ -> source_full(checking_harness)
         }
     }
@@ -171,14 +171,14 @@ blocks
     machine units(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(checking_harness);
         transition count.complete {
-            true -> block unit(checking_harness, sources, parser, count.value)
+            true -> block unit(checking_harness, sources, parser, count.value),
             _ -> malformed(checking_harness)
         }
     }
 
     machine unit(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block unit_row(checking_harness, sources, parser, remaining)
+            true -> block unit_row(checking_harness, sources, parser, remaining),
             _ -> prepare_resolve(checking_harness, sources, parser)
         }
     }
@@ -189,7 +189,7 @@ blocks
         psi::module_path_clear(@mut module_path);
         let read: bool = block read_path(checking_harness, @mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> block source(checking_harness, sources, parser, remaining, unit_package.value, @module_path)
+            true -> block source(checking_harness, sources, parser, remaining, unit_package.value, @module_path),
             _ -> malformed(checking_harness)
         }
     }
@@ -206,7 +206,7 @@ blocks
         let mut lexer: Lexer;
         psi::lexer_initialize(@mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, @mut lexer, length.value)
+            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, @mut lexer, length.value),
             _ -> malformed(checking_harness)
         }
     }
@@ -222,7 +222,7 @@ blocks
         left: u64 in Trapping
     ) {
         transition left > 0 {
-            true -> block source_read(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
+            true -> block source_read(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left),
             _ -> block tokenize(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
         }
     }
@@ -239,7 +239,7 @@ blocks
     ) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block source_store(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
+            ByteRead::Byte { value } -> block source_store(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value),
             _ -> malformed(checking_harness)
         }
     }
@@ -257,7 +257,7 @@ blocks
     ) {
         psi::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
+            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1),
             _ -> source_full(checking_harness)
         }
     }
@@ -273,7 +273,7 @@ blocks
     ) {
         psi::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> block parse(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block parse(checking_harness, sources, parser, remaining, unit_package, module_path, lexer),
             _ -> lex_rejected(checking_harness)
         }
     }
@@ -289,7 +289,7 @@ blocks
     ) {
         psi::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, @lexer.output);
         transition parser.output.accepted {
-            true -> block add(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block add(checking_harness, sources, parser, remaining, unit_package, module_path, lexer),
             _ -> parse_rejected(checking_harness)
         }
     }
@@ -305,7 +305,7 @@ blocks
     ) {
         let added: bool = psi::source_set_add(sources, @lexer.source, unit_package, module_path);
         transition added {
-            true -> block unit(checking_harness, sources, parser, remaining - 1)
+            true -> block unit(checking_harness, sources, parser, remaining - 1),
             _ -> source_full(checking_harness)
         }
     }
@@ -324,7 +324,7 @@ blocks
     ) {
         psi::resolve(resolver, sources, @parser.output);
         transition resolver.output.accepted {
-            true -> prepare_type(checking_harness, sources, parser, resolver)
+            true -> prepare_type(checking_harness, sources, parser, resolver),
             _ -> resolve_rejected(checking_harness)
         }
     }
@@ -343,7 +343,7 @@ blocks
     ) {
         psi::type_check(typer, sources, @parser.output, @resolver.output);
         transition typer.output.accepted {
-            true -> prepare_check(checking_harness, parser, resolver, typer)
+            true -> prepare_check(checking_harness, parser, resolver, typer),
             _ -> type_rejected(checking_harness)
         }
     }
@@ -357,7 +357,7 @@ blocks
         psi::checker_check(checker, @parser.output, @resolver.output, @typer.output);
         write_checking_observation(checking_harness, @checker.output);
         transition checker.output.accepted {
-            true -> accepted(checking_harness)
+            true -> accepted(checking_harness),
             _ -> check_rejected(checking_harness)
         }
     }
@@ -404,7 +404,7 @@ blocks
 
     machine next(checking_harness: @mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
-            true -> block byte(checking_harness, read, value, scale)
+            true -> block byte(checking_harness, read, value, scale),
             _ -> word(value)
         }
     }
@@ -412,7 +412,7 @@ blocks
     machine byte(checking_harness: @mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value as byte } -> block next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            ByteRead::Byte { value as byte } -> block next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256),
             _ -> ended()
         }
     }
@@ -435,13 +435,13 @@ blocks
 {
     let length: HarnessWord = block read_u32(checking_harness);
     transition length.complete {
-        true -> block byte(checking_harness, path, length.value)
+        true -> block byte(checking_harness, path, length.value),
         _ -> failed()
     }
 
     machine byte(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
-            true -> block read(checking_harness, path, left)
+            true -> block read(checking_harness, path, left),
             _ -> complete()
         }
     }
@@ -449,7 +449,7 @@ blocks
     machine read(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block store(checking_harness, path, left, value)
+            ByteRead::Byte { value } -> block store(checking_harness, path, left, value),
             _ -> failed()
         }
     }
@@ -457,7 +457,7 @@ blocks
     machine store(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = psi::module_path_append(path, value as u8);
         transition kept {
-            true -> block byte(checking_harness, path, left - 1)
+            true -> block byte(checking_harness, path, left - 1),
             _ -> failed()
         }
     }
@@ -499,7 +499,7 @@ crashes Trap
 
     machine rejection(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         transition index < output.diagnostic_count {
-            true -> diagnostic(checking_harness, output, index)
+            true -> diagnostic(checking_harness, output, index),
             _ -> machines(checking_harness, output)
         }
     }
@@ -519,7 +519,7 @@ crashes Trap
 
     machine machine(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         transition index < output.machine_count {
-            true -> routes(checking_harness, output, index)
+            true -> routes(checking_harness, output, index),
             _ -> slots(checking_harness, output)
         }
     }
@@ -534,7 +534,7 @@ crashes Trap
 
     machine origin(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         transition index < output.slot_origin_count {
-            true -> one_origin(checking_harness, output, admits, index)
+            true -> one_origin(checking_harness, output, admits, index),
             _ -> qualifications(checking_harness, output, admits)
         }
     }
@@ -554,7 +554,7 @@ crashes Trap
 
     machine qualification(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         transition index < output.slot_qualification_count {
-            true -> one_qualification(checking_harness, output, admits, index)
+            true -> one_qualification(checking_harness, output, admits, index),
             _ -> review(checking_harness, admits)
         }
     }
@@ -591,7 +591,7 @@ crashes Trap
 
 machine origin_tag(kind: SlotOriginKind) -> u8 {
     transition kind {
-        SlotOriginKind::Parameter -> tag(1)
+        SlotOriginKind::Parameter -> tag(1),
         SlotOriginKind::Invocation -> tag(2)
     }
 
@@ -602,7 +602,7 @@ machine origin_tag(kind: SlotOriginKind) -> u8 {
 
 machine boolean_tag(value: bool) -> u8 {
     transition value {
-        true -> tag(1)
+        true -> tag(1),
         _ -> tag(0)
     }
 
@@ -613,31 +613,31 @@ machine boolean_tag(value: bool) -> u8 {
 
 machine diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
     transition value {
-        CheckDiagnosticCode::None -> tag(0)
-        CheckDiagnosticCode::CheckCapacityExceeded -> tag(1)
-        CheckDiagnosticCode::UnsupportedFact -> tag(2)
-        CheckDiagnosticCode::UnsupportedCheck -> tag(3)
-        CheckDiagnosticCode::IndexOutOfBounds -> tag(4)
-        CheckDiagnosticCode::ArithmeticOverflow -> tag(5)
-        CheckDiagnosticCode::DivisorMayBeZero -> tag(6)
-        CheckDiagnosticCode::ConversionOutOfRange -> tag(7)
-        CheckDiagnosticCode::ShiftCountOutOfRange -> tag(8)
-        CheckDiagnosticCode::RequirementUnproven -> tag(9)
-        CheckDiagnosticCode::DomainUnproven -> tag(10)
-        CheckDiagnosticCode::CrashNotDeclared -> tag(11)
-        CheckDiagnosticCode::GuaranteeUnproven -> tag(12)
-        CheckDiagnosticCode::RankUnproven -> tag(13)
-        CheckDiagnosticCode::ProgressUnproven -> tag(14)
-        CheckDiagnosticCode::UseAfterMove -> tag(15)
-        CheckDiagnosticCode::MoveOutOfBorrow -> tag(16)
-        CheckDiagnosticCode::LinearUnconsumed -> tag(17)
-        CheckDiagnosticCode::LinearOverwritten -> tag(18)
-        CheckDiagnosticCode::OverlappingArguments -> tag(19)
-        CheckDiagnosticCode::LoanConflict -> tag(20)
-        CheckDiagnosticCode::LoanEscapes -> tag(21)
-        CheckDiagnosticCode::RepresentationUnproven -> tag(22)
-        CheckDiagnosticCode::WriteOnlyObservation -> tag(23)
-        CheckDiagnosticCode::RankRangeUnproven -> tag(24)
+        CheckDiagnosticCode::None -> tag(0),
+        CheckDiagnosticCode::CheckCapacityExceeded -> tag(1),
+        CheckDiagnosticCode::UnsupportedFact -> tag(2),
+        CheckDiagnosticCode::UnsupportedCheck -> tag(3),
+        CheckDiagnosticCode::IndexOutOfBounds -> tag(4),
+        CheckDiagnosticCode::ArithmeticOverflow -> tag(5),
+        CheckDiagnosticCode::DivisorMayBeZero -> tag(6),
+        CheckDiagnosticCode::ConversionOutOfRange -> tag(7),
+        CheckDiagnosticCode::ShiftCountOutOfRange -> tag(8),
+        CheckDiagnosticCode::RequirementUnproven -> tag(9),
+        CheckDiagnosticCode::DomainUnproven -> tag(10),
+        CheckDiagnosticCode::CrashNotDeclared -> tag(11),
+        CheckDiagnosticCode::GuaranteeUnproven -> tag(12),
+        CheckDiagnosticCode::RankUnproven -> tag(13),
+        CheckDiagnosticCode::ProgressUnproven -> tag(14),
+        CheckDiagnosticCode::UseAfterMove -> tag(15),
+        CheckDiagnosticCode::MoveOutOfBorrow -> tag(16),
+        CheckDiagnosticCode::LinearUnconsumed -> tag(17),
+        CheckDiagnosticCode::LinearOverwritten -> tag(18),
+        CheckDiagnosticCode::OverlappingArguments -> tag(19),
+        CheckDiagnosticCode::LoanConflict -> tag(20),
+        CheckDiagnosticCode::LoanEscapes -> tag(21),
+        CheckDiagnosticCode::RepresentationUnproven -> tag(22),
+        CheckDiagnosticCode::WriteOnlyObservation -> tag(23),
+        CheckDiagnosticCode::RankRangeUnproven -> tag(24),
         CheckDiagnosticCode::RefinementUnproven -> tag(25)
     }
 

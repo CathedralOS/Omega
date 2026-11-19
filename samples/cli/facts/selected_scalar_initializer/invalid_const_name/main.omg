@@ -4,7 +4,7 @@ domain i32::Selected requires self == 1 || self == 38;
 const ITEMS: [i32 in Selected; 2] = [1, 2];
 machine verify(observed: i32, first: i32, flag: bool) crashes Trap {
     transition (flag && observed == 38 && first == 1) || (!flag && first == 1 && observed == 38) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

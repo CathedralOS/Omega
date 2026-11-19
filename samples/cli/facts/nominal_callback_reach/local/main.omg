@@ -19,9 +19,9 @@ requires machine Step satisfies StepContract::step;
 }
 
 machine main() crashes Trap {
-    let observed: u64 = walk<bump>(35);
+    let observed: u64 = walk::<bump>(35);
     transition observed == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -88,7 +88,7 @@ blocks
     machine read(parser_harness: @mut ParserHarness, lexer: @mut Lexer) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block retain(parser_harness, lexer, value)
+            ByteRead::Byte { value } -> block retain(parser_harness, lexer, value),
             _ -> tokenize(parser_harness, lexer)
         }
     }
@@ -96,7 +96,7 @@ blocks
     machine retain(parser_harness: @mut ParserHarness, lexer: @mut Lexer, value: i32) {
         psi::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> block read(parser_harness, lexer)
+            true -> block read(parser_harness, lexer),
             _ -> source_full(parser_harness, lexer)
         }
     }
@@ -114,7 +114,7 @@ blocks
     machine tokenize(parser_harness: @mut ParserHarness, lexer: @mut Lexer) {
         psi::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> prepare_parse(parser_harness, lexer)
+            true -> prepare_parse(parser_harness, lexer),
             _ -> rejected(parser_harness)
         }
     }
@@ -128,7 +128,7 @@ blocks
     machine parse(parser_harness: @mut ParserHarness, lexer: @Lexer, parser: @mut Parser) {
         psi::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, @lexer.output);
         transition parser.output.accepted {
-            true -> accepted(parser_harness, @parser.output)
+            true -> accepted(parser_harness, @parser.output),
             _ -> parse_rejected(parser_harness, @parser.output)
         }
     }
@@ -181,7 +181,7 @@ machine write_parse_observation(
     write_byte(parser_harness, 56);
     write_u64(parser_harness, 18);
     transition output.accepted {
-        true -> parse_accepted_header(parser_harness, output)
+        true -> parse_accepted_header(parser_harness, output),
         _ -> parse_rejected_header(parser_harness, output)
     }
 
@@ -193,204 +193,204 @@ machine write_parse_observation(
     machine parse_rejected_header(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_byte(parser_harness, 0);
         transition output.diagnostic.code {
-            ParseDiagnosticCode::None -> parse_diagnostic_none(parser_harness, output)
-            ParseDiagnosticCode::LexicalInputRejected -> parse_diagnostic(parser_harness, output, 1)
-            ParseDiagnosticCode::UnsupportedRootItem -> parse_diagnostic(parser_harness, output, 2)
-            ParseDiagnosticCode::ExpectedPathMember -> parse_diagnostic(parser_harness, output, 3)
-            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon -> parse_diagnostic(parser_harness, output, 4)
-            ParseDiagnosticCode::RootCapacityExceeded -> parse_diagnostic(parser_harness, output, 5)
-            ParseDiagnosticCode::UseCapacityExceeded -> parse_diagnostic(parser_harness, output, 6)
-            ParseDiagnosticCode::PathMemberCapacityExceeded -> parse_diagnostic(parser_harness, output, 7)
-            ParseDiagnosticCode::TokenInputCapacityExceeded -> parse_diagnostic(parser_harness, output, 8)
-            ParseDiagnosticCode::ExpectedItemAfterPub -> parse_diagnostic(parser_harness, output, 9)
-            ParseDiagnosticCode::ExpectedDataName -> parse_diagnostic(parser_harness, output, 10)
-            ParseDiagnosticCode::ExpectedDataBody -> parse_diagnostic(parser_harness, output, 11)
-            ParseDiagnosticCode::ExpectedDataFieldColon -> parse_diagnostic(parser_harness, output, 12)
-            ParseDiagnosticCode::ExpectedDataFieldType -> parse_diagnostic(parser_harness, output, 13)
-            ParseDiagnosticCode::ExpectedDataFieldEnd -> parse_diagnostic(parser_harness, output, 14)
-            ParseDiagnosticCode::DataCapacityExceeded -> parse_diagnostic(parser_harness, output, 15)
-            ParseDiagnosticCode::DataFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 16)
-            ParseDiagnosticCode::TypeReferenceCapacityExceeded -> parse_diagnostic(parser_harness, output, 17)
-            ParseDiagnosticCode::ExpectedDataProperty -> parse_diagnostic(parser_harness, output, 18)
-            ParseDiagnosticCode::ExpectedDataPropertyEnd -> parse_diagnostic(parser_harness, output, 19)
-            ParseDiagnosticCode::ExpectedDataCaseName -> parse_diagnostic(parser_harness, output, 20)
-            ParseDiagnosticCode::ExpectedDataCaseEnd -> parse_diagnostic(parser_harness, output, 21)
-            ParseDiagnosticCode::DataMemberCapacityExceeded -> parse_diagnostic(parser_harness, output, 22)
-            ParseDiagnosticCode::DataCaseCapacityExceeded -> parse_diagnostic(parser_harness, output, 23)
-            ParseDiagnosticCode::ExpectedDataCasePayloadField -> parse_diagnostic(parser_harness, output, 24)
-            ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon -> parse_diagnostic(parser_harness, output, 25)
-            ParseDiagnosticCode::ExpectedDataCasePayloadFieldType -> parse_diagnostic(parser_harness, output, 26)
-            ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd -> parse_diagnostic(parser_harness, output, 27)
-            ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 28)
-            ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(parser_harness, output, 29)
-            ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(parser_harness, output, 30)
-            ParseDiagnosticCode::ExpectedTypeQualifierDomain -> parse_diagnostic(parser_harness, output, 31)
-            ParseDiagnosticCode::ExpectedGenericParameter -> parse_diagnostic(parser_harness, output, 32)
-            ParseDiagnosticCode::ExpectedGenericParameterName -> parse_diagnostic(parser_harness, output, 33)
-            ParseDiagnosticCode::ExpectedGenericParameterColon -> parse_diagnostic(parser_harness, output, 34)
-            ParseDiagnosticCode::ExpectedGenericParameterType -> parse_diagnostic(parser_harness, output, 35)
-            ParseDiagnosticCode::ExpectedGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36)
-            ParseDiagnosticCode::GenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37)
-            ParseDiagnosticCode::GenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38)
-            ParseDiagnosticCode::ExpectedLifetimeName -> parse_diagnostic(parser_harness, output, 194)
-            ParseDiagnosticCode::ExpectedMeasureComponent -> parse_diagnostic(parser_harness, output, 195)
-            ParseDiagnosticCode::MeasureNotPublic -> parse_diagnostic(parser_harness, output, 196)
-            ParseDiagnosticCode::ExpectedRankRange -> parse_diagnostic(parser_harness, output, 197)
-            ParseDiagnosticCode::ExpectedArmGuard -> parse_diagnostic(parser_harness, output, 198)
-            ParseDiagnosticCode::ExpectedErasedMarker -> parse_diagnostic(parser_harness, output, 199)
-            ParseDiagnosticCode::ErasedBindingCapacityExceeded -> parse_diagnostic(parser_harness, output, 200)
-            ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40)
-            ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41)
-            ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42)
-            ParseDiagnosticCode::ExpectedMachineParameterColon -> parse_diagnostic(parser_harness, output, 43)
-            ParseDiagnosticCode::ExpectedMachineParameterType -> parse_diagnostic(parser_harness, output, 44)
-            ParseDiagnosticCode::ExpectedMachineParameterEnd -> parse_diagnostic(parser_harness, output, 45)
-            ParseDiagnosticCode::ExpectedMachineReturnType -> parse_diagnostic(parser_harness, output, 46)
-            ParseDiagnosticCode::ExpectedMachineBody -> parse_diagnostic(parser_harness, output, 47)
-            ParseDiagnosticCode::ExpectedMachineBodyEnd -> parse_diagnostic(parser_harness, output, 48)
-            ParseDiagnosticCode::MachineCapacityExceeded -> parse_diagnostic(parser_harness, output, 52)
-            ParseDiagnosticCode::ParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 53)
-            ParseDiagnosticCode::ExpectedOperand -> parse_diagnostic(parser_harness, output, 55)
-            ParseDiagnosticCode::ExpectedExpressionPathMember -> parse_diagnostic(parser_harness, output, 56)
-            ParseDiagnosticCode::ExpectedFieldName -> parse_diagnostic(parser_harness, output, 57)
-            ParseDiagnosticCode::ExpectedGroupEnd -> parse_diagnostic(parser_harness, output, 58)
-            ParseDiagnosticCode::ExpectedIndexEnd -> parse_diagnostic(parser_harness, output, 59)
-            ParseDiagnosticCode::ExpectedCallArgument -> parse_diagnostic(parser_harness, output, 60)
-            ParseDiagnosticCode::ExpectedCallArgumentEnd -> parse_diagnostic(parser_harness, output, 61)
-            ParseDiagnosticCode::ExpectedCastType -> parse_diagnostic(parser_harness, output, 62)
-            ParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd -> parse_diagnostic(parser_harness, output, 63)
-            ParseDiagnosticCode::ExpectedStructLiteralFieldColon -> parse_diagnostic(parser_harness, output, 64)
-            ParseDiagnosticCode::ExpectedStructLiteralValue -> parse_diagnostic(parser_harness, output, 65)
-            ParseDiagnosticCode::ExpectedStructLiteralFieldEnd -> parse_diagnostic(parser_harness, output, 66)
-            ParseDiagnosticCode::ExpressionCapacityExceeded -> parse_diagnostic(parser_harness, output, 67)
-            ParseDiagnosticCode::ExpressionNestingExceeded -> parse_diagnostic(parser_harness, output, 68)
-            ParseDiagnosticCode::ArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 69)
-            ParseDiagnosticCode::ConstructFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 70)
-            ParseDiagnosticCode::ExpectedLocalDataName -> parse_diagnostic(parser_harness, output, 71)
-            ParseDiagnosticCode::ExpectedLocalDataColon -> parse_diagnostic(parser_harness, output, 72)
-            ParseDiagnosticCode::ExpectedLocalDataType -> parse_diagnostic(parser_harness, output, 73)
-            ParseDiagnosticCode::ExpectedLocalDataInitialValue -> parse_diagnostic(parser_harness, output, 74)
-            ParseDiagnosticCode::ExpectedLocalDataEnd -> parse_diagnostic(parser_harness, output, 75)
-            ParseDiagnosticCode::ExpectedAssignmentValue -> parse_diagnostic(parser_harness, output, 76)
-            ParseDiagnosticCode::ExpectedAssignmentSemicolon -> parse_diagnostic(parser_harness, output, 77)
-            ParseDiagnosticCode::ExpectedStatementEnd -> parse_diagnostic(parser_harness, output, 78)
-            ParseDiagnosticCode::ExpectedCrashCause -> parse_diagnostic(parser_harness, output, 79)
-            ParseDiagnosticCode::ExpectedCrashEnd -> parse_diagnostic(parser_harness, output, 80)
-            ParseDiagnosticCode::StatementCapacityExceeded -> parse_diagnostic(parser_harness, output, 81)
-            ParseDiagnosticCode::ExpectedTransitionSubject -> parse_diagnostic(parser_harness, output, 82)
-            ParseDiagnosticCode::ExpectedTransitionArm -> parse_diagnostic(parser_harness, output, 83)
-            ParseDiagnosticCode::ExpectedTransitionArrow -> parse_diagnostic(parser_harness, output, 84)
-            ParseDiagnosticCode::ExpectedTransitionTarget -> parse_diagnostic(parser_harness, output, 85)
-            ParseDiagnosticCode::ExpectedTransitionTargetOpen -> parse_diagnostic(parser_harness, output, 86)
-            ParseDiagnosticCode::ExpectedTransitionTargetClose -> parse_diagnostic(parser_harness, output, 87)
-            ParseDiagnosticCode::ExpectedPatternField -> parse_diagnostic(parser_harness, output, 88)
-            ParseDiagnosticCode::ExpectedPatternFieldEnd -> parse_diagnostic(parser_harness, output, 89)
-            ParseDiagnosticCode::ArmCapacityExceeded -> parse_diagnostic(parser_harness, output, 90)
-            ParseDiagnosticCode::PatternFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 91)
-            ParseDiagnosticCode::ExpectedReachService -> parse_diagnostic(parser_harness, output, 92)
-            ParseDiagnosticCode::ExpectedInvokesBinding -> parse_diagnostic(parser_harness, output, 93)
-            ParseDiagnosticCode::ExpectedClauseEnd -> parse_diagnostic(parser_harness, output, 94)
-            ParseDiagnosticCode::ExpectedClauseFact -> parse_diagnostic(parser_harness, output, 95)
-            ParseDiagnosticCode::ClauseCapacityExceeded -> parse_diagnostic(parser_harness, output, 96)
-            ParseDiagnosticCode::ExpectedArrayElementType -> parse_diagnostic(parser_harness, output, 97)
-            ParseDiagnosticCode::ExpectedArraySeparatorOrEnd -> parse_diagnostic(parser_harness, output, 98)
-            ParseDiagnosticCode::ExpectedArrayLength -> parse_diagnostic(parser_harness, output, 99)
-            ParseDiagnosticCode::ExpectedArrayEnd -> parse_diagnostic(parser_harness, output, 100)
-            ParseDiagnosticCode::ExpectedStaticArgument -> parse_diagnostic(parser_harness, output, 101)
-            ParseDiagnosticCode::ExpectedStaticArgumentEnd -> parse_diagnostic(parser_harness, output, 102)
-            ParseDiagnosticCode::TypeNestingCapacityExceeded -> parse_diagnostic(parser_harness, output, 103)
-            ParseDiagnosticCode::TypeArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 104)
-            ParseDiagnosticCode::ClauseNotAdmitted -> parse_diagnostic(parser_harness, output, 105)
-            ParseDiagnosticCode::DuplicateCallAcknowledgement -> parse_diagnostic(parser_harness, output, 106)
-            ParseDiagnosticCode::CallAcknowledgementOrder -> parse_diagnostic(parser_harness, output, 107)
-            ParseDiagnosticCode::ExpectedStableIdentity -> parse_diagnostic(parser_harness, output, 108)
-            ParseDiagnosticCode::ExpectedBoundaryDeclaration -> parse_diagnostic(parser_harness, output, 109)
-            ParseDiagnosticCode::RetiredBoundaryRequirement -> parse_diagnostic(parser_harness, output, 110)
-            ParseDiagnosticCode::RetiredOperatorDeclaration -> parse_diagnostic(parser_harness, output, 111)
-            ParseDiagnosticCode::ExpectedTargetScopedMachine -> parse_diagnostic(parser_harness, output, 112)
-            ParseDiagnosticCode::ExpectedBoundaryDataEnd -> parse_diagnostic(parser_harness, output, 113)
-            ParseDiagnosticCode::ExpectedTraitName -> parse_diagnostic(parser_harness, output, 114)
-            ParseDiagnosticCode::ExpectedTraitParent -> parse_diagnostic(parser_harness, output, 115)
-            ParseDiagnosticCode::ExpectedTraitBody -> parse_diagnostic(parser_harness, output, 116)
-            ParseDiagnosticCode::ExpectedTraitMember -> parse_diagnostic(parser_harness, output, 117)
-            ParseDiagnosticCode::ExpectedTraitRequirementEnd -> parse_diagnostic(parser_harness, output, 118)
-            ParseDiagnosticCode::TraitCapacityExceeded -> parse_diagnostic(parser_harness, output, 119)
-            ParseDiagnosticCode::TraitParentCapacityExceeded -> parse_diagnostic(parser_harness, output, 120)
-            ParseDiagnosticCode::ExpectedConformanceSatisfies -> parse_diagnostic(parser_harness, output, 121)
-            ParseDiagnosticCode::ExpectedConformanceTrait -> parse_diagnostic(parser_harness, output, 122)
-            ParseDiagnosticCode::ExpectedConformanceBody -> parse_diagnostic(parser_harness, output, 123)
-            ParseDiagnosticCode::ExpectedConformanceMember -> parse_diagnostic(parser_harness, output, 124)
-            ParseDiagnosticCode::ConformanceCapacityExceeded -> parse_diagnostic(parser_harness, output, 128)
-            ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130)
-            ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131)
-            ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132)
-            ParseDiagnosticCode::ExpectedDomainSubject -> parse_diagnostic(parser_harness, output, 133)
-            ParseDiagnosticCode::ExpectedDomainSubjectEnd -> parse_diagnostic(parser_harness, output, 134)
-            ParseDiagnosticCode::ExpectedDomainConstituent -> parse_diagnostic(parser_harness, output, 135)
-            ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136)
-            ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137)
-            ParseDiagnosticCode::ExpectedDomainEnd -> parse_diagnostic(parser_harness, output, 138)
-            ParseDiagnosticCode::DomainCapacityExceeded -> parse_diagnostic(parser_harness, output, 140)
-            ParseDiagnosticCode::NamePathCapacityExceeded -> parse_diagnostic(parser_harness, output, 141)
-            ParseDiagnosticCode::ExpectedConstantName -> parse_diagnostic(parser_harness, output, 142)
-            ParseDiagnosticCode::ExpectedConstantColon -> parse_diagnostic(parser_harness, output, 143)
-            ParseDiagnosticCode::ExpectedConstantType -> parse_diagnostic(parser_harness, output, 144)
-            ParseDiagnosticCode::ExpectedConstantEquals -> parse_diagnostic(parser_harness, output, 145)
-            ParseDiagnosticCode::ExpectedConstantValue -> parse_diagnostic(parser_harness, output, 146)
-            ParseDiagnosticCode::ExpectedConstantEnd -> parse_diagnostic(parser_harness, output, 147)
-            ParseDiagnosticCode::ConstantCapacityExceeded -> parse_diagnostic(parser_harness, output, 148)
-            ParseDiagnosticCode::ExpectedPropositionName -> parse_diagnostic(parser_harness, output, 149)
-            ParseDiagnosticCode::ExpectedPropositionBody -> parse_diagnostic(parser_harness, output, 150)
-            ParseDiagnosticCode::ExpectedPropositionEvidence -> parse_diagnostic(parser_harness, output, 151)
-            ParseDiagnosticCode::ExpectedPropositionFact -> parse_diagnostic(parser_harness, output, 152)
-            ParseDiagnosticCode::ExpectedPropositionEnd -> parse_diagnostic(parser_harness, output, 153)
-            ParseDiagnosticCode::PropositionCapacityExceeded -> parse_diagnostic(parser_harness, output, 154)
-            ParseDiagnosticCode::ExpectedConformanceMachineBody -> parse_diagnostic(parser_harness, output, 155)
-            ParseDiagnosticCode::ExpectedSatisfiesTrait -> parse_diagnostic(parser_harness, output, 156)
-            ParseDiagnosticCode::ExpectedSatisfiedRequirement -> parse_diagnostic(parser_harness, output, 157)
-            ParseDiagnosticCode::ExpectedSatisfiesLabel -> parse_diagnostic(parser_harness, output, 158)
-            ParseDiagnosticCode::ExpectedSatisfiesBinding -> parse_diagnostic(parser_harness, output, 159)
-            ParseDiagnosticCode::ExpectedTerminationSubject -> parse_diagnostic(parser_harness, output, 160)
-            ParseDiagnosticCode::ExpectedTerminationSubjectEnd -> parse_diagnostic(parser_harness, output, 161)
-            ParseDiagnosticCode::ExpectedTerminationView -> parse_diagnostic(parser_harness, output, 162)
-            ParseDiagnosticCode::UnknownOperatorToken -> parse_diagnostic(parser_harness, output, 163)
-            ParseDiagnosticCode::OperatorTokenNotAdmitted -> parse_diagnostic(parser_harness, output, 164)
-            ParseDiagnosticCode::ExpectedContractName -> parse_diagnostic(parser_harness, output, 165)
-            ParseDiagnosticCode::ExpectedContractEnd -> parse_diagnostic(parser_harness, output, 166)
-            ParseDiagnosticCode::ContractCapacityExceeded -> parse_diagnostic(parser_harness, output, 167)
-            ParseDiagnosticCode::ExpectedMembershipDomain -> parse_diagnostic(parser_harness, output, 168)
-            ParseDiagnosticCode::MixedDomainConnectives -> parse_diagnostic(parser_harness, output, 169)
-            ParseDiagnosticCode::UnsupportedDomainArguments -> parse_diagnostic(parser_harness, output, 170)
-            ParseDiagnosticCode::ExpectedMatchSubject -> parse_diagnostic(parser_harness, output, 171)
-            ParseDiagnosticCode::ExpectedMatchArms -> parse_diagnostic(parser_harness, output, 172)
-            ParseDiagnosticCode::ExpectedMatchPattern -> parse_diagnostic(parser_harness, output, 173)
-            ParseDiagnosticCode::ExpectedMatchArrow -> parse_diagnostic(parser_harness, output, 174)
-            ParseDiagnosticCode::ExpectedMatchValue -> parse_diagnostic(parser_harness, output, 175)
-            ParseDiagnosticCode::EmptyMatch -> parse_diagnostic(parser_harness, output, 177)
-            ParseDiagnosticCode::ExpectedPatternRename -> parse_diagnostic(parser_harness, output, 178)
-            ParseDiagnosticCode::ExpectedEvidenceTrait -> parse_diagnostic(parser_harness, output, 179)
-            ParseDiagnosticCode::RankedSubjectCapacityExceeded -> parse_diagnostic(parser_harness, output, 180)
-            ParseDiagnosticCode::MatchArmCapacityExceeded -> parse_diagnostic(parser_harness, output, 181)
-            ParseDiagnosticCode::ExpectedRefinementBase -> parse_diagnostic(parser_harness, output, 182)
-            ParseDiagnosticCode::ExpectedRefinementRequirement -> parse_diagnostic(parser_harness, output, 183)
-            ParseDiagnosticCode::ExpectedRefinementAxis -> parse_diagnostic(parser_harness, output, 184)
-            ParseDiagnosticCode::ExpectedDefinitionName -> parse_diagnostic(parser_harness, output, 185)
-            ParseDiagnosticCode::ExpectedDefinitionColon -> parse_diagnostic(parser_harness, output, 186)
-            ParseDiagnosticCode::ExpectedDefinitionType -> parse_diagnostic(parser_harness, output, 187)
-            ParseDiagnosticCode::ExpectedDefinitionTerm -> parse_diagnostic(parser_harness, output, 188)
-            ParseDiagnosticCode::ExpectedDefinitionEnd -> parse_diagnostic(parser_harness, output, 189)
-            ParseDiagnosticCode::DefinitionCapacityExceeded -> parse_diagnostic(parser_harness, output, 190)
-            ParseDiagnosticCode::ExpectedRangeEnd -> parse_diagnostic(parser_harness, output, 191)
-            ParseDiagnosticCode::ExpectedArrayElement -> parse_diagnostic(parser_harness, output, 192)
-            ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193)
-            ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200)
-            ParseDiagnosticCode::RetiredWhereClause -> parse_diagnostic(parser_harness, output, 201)
-            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202)
-            ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203)
-            ParseDiagnosticCode::RetiredCastQualifier -> parse_diagnostic(parser_harness, output, 204)
-            ParseDiagnosticCode::InvalidCarrierCastEntry -> parse_diagnostic(parser_harness, output, 205)
-            ParseDiagnosticCode::ExpectedCastDomain -> parse_diagnostic(parser_harness, output, 206)
-            ParseDiagnosticCode::UnsupportedCastEntries -> parse_diagnostic(parser_harness, output, 207)
+            ParseDiagnosticCode::None -> parse_diagnostic_none(parser_harness, output),
+            ParseDiagnosticCode::LexicalInputRejected -> parse_diagnostic(parser_harness, output, 1),
+            ParseDiagnosticCode::UnsupportedRootItem -> parse_diagnostic(parser_harness, output, 2),
+            ParseDiagnosticCode::ExpectedPathMember -> parse_diagnostic(parser_harness, output, 3),
+            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon -> parse_diagnostic(parser_harness, output, 4),
+            ParseDiagnosticCode::RootCapacityExceeded -> parse_diagnostic(parser_harness, output, 5),
+            ParseDiagnosticCode::UseCapacityExceeded -> parse_diagnostic(parser_harness, output, 6),
+            ParseDiagnosticCode::PathMemberCapacityExceeded -> parse_diagnostic(parser_harness, output, 7),
+            ParseDiagnosticCode::TokenInputCapacityExceeded -> parse_diagnostic(parser_harness, output, 8),
+            ParseDiagnosticCode::ExpectedItemAfterPub -> parse_diagnostic(parser_harness, output, 9),
+            ParseDiagnosticCode::ExpectedDataName -> parse_diagnostic(parser_harness, output, 10),
+            ParseDiagnosticCode::ExpectedDataBody -> parse_diagnostic(parser_harness, output, 11),
+            ParseDiagnosticCode::ExpectedDataFieldColon -> parse_diagnostic(parser_harness, output, 12),
+            ParseDiagnosticCode::ExpectedDataFieldType -> parse_diagnostic(parser_harness, output, 13),
+            ParseDiagnosticCode::ExpectedDataFieldEnd -> parse_diagnostic(parser_harness, output, 14),
+            ParseDiagnosticCode::DataCapacityExceeded -> parse_diagnostic(parser_harness, output, 15),
+            ParseDiagnosticCode::DataFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 16),
+            ParseDiagnosticCode::TypeReferenceCapacityExceeded -> parse_diagnostic(parser_harness, output, 17),
+            ParseDiagnosticCode::ExpectedDataProperty -> parse_diagnostic(parser_harness, output, 18),
+            ParseDiagnosticCode::ExpectedDataPropertyEnd -> parse_diagnostic(parser_harness, output, 19),
+            ParseDiagnosticCode::ExpectedDataCaseName -> parse_diagnostic(parser_harness, output, 20),
+            ParseDiagnosticCode::ExpectedDataCaseEnd -> parse_diagnostic(parser_harness, output, 21),
+            ParseDiagnosticCode::DataMemberCapacityExceeded -> parse_diagnostic(parser_harness, output, 22),
+            ParseDiagnosticCode::DataCaseCapacityExceeded -> parse_diagnostic(parser_harness, output, 23),
+            ParseDiagnosticCode::ExpectedDataCasePayloadField -> parse_diagnostic(parser_harness, output, 24),
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldColon -> parse_diagnostic(parser_harness, output, 25),
+            ParseDiagnosticCode::ExpectedDataCasePayloadFieldType -> parse_diagnostic(parser_harness, output, 26),
+            ParseDiagnosticCode::ExpectedDataCasePayloadSeparatorOrEnd -> parse_diagnostic(parser_harness, output, 27),
+            ParseDiagnosticCode::DataCasePayloadFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 28),
+            ParseDiagnosticCode::DuplicateDataMultiplicity -> parse_diagnostic(parser_harness, output, 29),
+            ParseDiagnosticCode::ConflictingDataMultiplicity -> parse_diagnostic(parser_harness, output, 30),
+            ParseDiagnosticCode::ExpectedTypeQualifierDomain -> parse_diagnostic(parser_harness, output, 31),
+            ParseDiagnosticCode::ExpectedGenericParameter -> parse_diagnostic(parser_harness, output, 32),
+            ParseDiagnosticCode::ExpectedGenericParameterName -> parse_diagnostic(parser_harness, output, 33),
+            ParseDiagnosticCode::ExpectedGenericParameterColon -> parse_diagnostic(parser_harness, output, 34),
+            ParseDiagnosticCode::ExpectedGenericParameterType -> parse_diagnostic(parser_harness, output, 35),
+            ParseDiagnosticCode::ExpectedGenericParameterEnd -> parse_diagnostic(parser_harness, output, 36),
+            ParseDiagnosticCode::GenericParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 37),
+            ParseDiagnosticCode::GenericLifetimeOrdering -> parse_diagnostic(parser_harness, output, 38),
+            ParseDiagnosticCode::ExpectedLifetimeName -> parse_diagnostic(parser_harness, output, 194),
+            ParseDiagnosticCode::ExpectedMeasureComponent -> parse_diagnostic(parser_harness, output, 195),
+            ParseDiagnosticCode::MeasureNotPublic -> parse_diagnostic(parser_harness, output, 196),
+            ParseDiagnosticCode::ExpectedRankRange -> parse_diagnostic(parser_harness, output, 197),
+            ParseDiagnosticCode::ExpectedArmGuard -> parse_diagnostic(parser_harness, output, 198),
+            ParseDiagnosticCode::ExpectedErasedMarker -> parse_diagnostic(parser_harness, output, 199),
+            ParseDiagnosticCode::ErasedBindingCapacityExceeded -> parse_diagnostic(parser_harness, output, 200),
+            ParseDiagnosticCode::ExpectedMachineName -> parse_diagnostic(parser_harness, output, 40),
+            ParseDiagnosticCode::ExpectedMachineParameterOrEnd -> parse_diagnostic(parser_harness, output, 41),
+            ParseDiagnosticCode::ExpectedMachineParameter -> parse_diagnostic(parser_harness, output, 42),
+            ParseDiagnosticCode::ExpectedMachineParameterColon -> parse_diagnostic(parser_harness, output, 43),
+            ParseDiagnosticCode::ExpectedMachineParameterType -> parse_diagnostic(parser_harness, output, 44),
+            ParseDiagnosticCode::ExpectedMachineParameterEnd -> parse_diagnostic(parser_harness, output, 45),
+            ParseDiagnosticCode::ExpectedMachineReturnType -> parse_diagnostic(parser_harness, output, 46),
+            ParseDiagnosticCode::ExpectedMachineBody -> parse_diagnostic(parser_harness, output, 47),
+            ParseDiagnosticCode::ExpectedMachineBodyEnd -> parse_diagnostic(parser_harness, output, 48),
+            ParseDiagnosticCode::MachineCapacityExceeded -> parse_diagnostic(parser_harness, output, 52),
+            ParseDiagnosticCode::ParameterCapacityExceeded -> parse_diagnostic(parser_harness, output, 53),
+            ParseDiagnosticCode::ExpectedOperand -> parse_diagnostic(parser_harness, output, 55),
+            ParseDiagnosticCode::ExpectedExpressionPathMember -> parse_diagnostic(parser_harness, output, 56),
+            ParseDiagnosticCode::ExpectedFieldName -> parse_diagnostic(parser_harness, output, 57),
+            ParseDiagnosticCode::ExpectedGroupEnd -> parse_diagnostic(parser_harness, output, 58),
+            ParseDiagnosticCode::ExpectedIndexEnd -> parse_diagnostic(parser_harness, output, 59),
+            ParseDiagnosticCode::ExpectedCallArgument -> parse_diagnostic(parser_harness, output, 60),
+            ParseDiagnosticCode::ExpectedCallArgumentEnd -> parse_diagnostic(parser_harness, output, 61),
+            ParseDiagnosticCode::ExpectedCastType -> parse_diagnostic(parser_harness, output, 62),
+            ParseDiagnosticCode::ExpectedStructLiteralFieldOrEnd -> parse_diagnostic(parser_harness, output, 63),
+            ParseDiagnosticCode::ExpectedStructLiteralFieldColon -> parse_diagnostic(parser_harness, output, 64),
+            ParseDiagnosticCode::ExpectedStructLiteralValue -> parse_diagnostic(parser_harness, output, 65),
+            ParseDiagnosticCode::ExpectedStructLiteralFieldEnd -> parse_diagnostic(parser_harness, output, 66),
+            ParseDiagnosticCode::ExpressionCapacityExceeded -> parse_diagnostic(parser_harness, output, 67),
+            ParseDiagnosticCode::ExpressionNestingExceeded -> parse_diagnostic(parser_harness, output, 68),
+            ParseDiagnosticCode::ArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 69),
+            ParseDiagnosticCode::ConstructFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 70),
+            ParseDiagnosticCode::ExpectedLocalDataName -> parse_diagnostic(parser_harness, output, 71),
+            ParseDiagnosticCode::ExpectedLocalDataColon -> parse_diagnostic(parser_harness, output, 72),
+            ParseDiagnosticCode::ExpectedLocalDataType -> parse_diagnostic(parser_harness, output, 73),
+            ParseDiagnosticCode::ExpectedLocalDataInitialValue -> parse_diagnostic(parser_harness, output, 74),
+            ParseDiagnosticCode::ExpectedLocalDataEnd -> parse_diagnostic(parser_harness, output, 75),
+            ParseDiagnosticCode::ExpectedAssignmentValue -> parse_diagnostic(parser_harness, output, 76),
+            ParseDiagnosticCode::ExpectedAssignmentSemicolon -> parse_diagnostic(parser_harness, output, 77),
+            ParseDiagnosticCode::ExpectedStatementEnd -> parse_diagnostic(parser_harness, output, 78),
+            ParseDiagnosticCode::ExpectedCrashCause -> parse_diagnostic(parser_harness, output, 79),
+            ParseDiagnosticCode::ExpectedCrashEnd -> parse_diagnostic(parser_harness, output, 80),
+            ParseDiagnosticCode::StatementCapacityExceeded -> parse_diagnostic(parser_harness, output, 81),
+            ParseDiagnosticCode::ExpectedTransitionSubject -> parse_diagnostic(parser_harness, output, 82),
+            ParseDiagnosticCode::ExpectedTransitionArm -> parse_diagnostic(parser_harness, output, 83),
+            ParseDiagnosticCode::ExpectedTransitionArrow -> parse_diagnostic(parser_harness, output, 84),
+            ParseDiagnosticCode::ExpectedTransitionTarget -> parse_diagnostic(parser_harness, output, 85),
+            ParseDiagnosticCode::ExpectedTransitionTargetOpen -> parse_diagnostic(parser_harness, output, 86),
+            ParseDiagnosticCode::ExpectedTransitionTargetClose -> parse_diagnostic(parser_harness, output, 87),
+            ParseDiagnosticCode::ExpectedPatternField -> parse_diagnostic(parser_harness, output, 88),
+            ParseDiagnosticCode::ExpectedPatternFieldEnd -> parse_diagnostic(parser_harness, output, 89),
+            ParseDiagnosticCode::ArmCapacityExceeded -> parse_diagnostic(parser_harness, output, 90),
+            ParseDiagnosticCode::PatternFieldCapacityExceeded -> parse_diagnostic(parser_harness, output, 91),
+            ParseDiagnosticCode::ExpectedReachService -> parse_diagnostic(parser_harness, output, 92),
+            ParseDiagnosticCode::ExpectedInvokesBinding -> parse_diagnostic(parser_harness, output, 93),
+            ParseDiagnosticCode::ExpectedClauseEnd -> parse_diagnostic(parser_harness, output, 94),
+            ParseDiagnosticCode::ExpectedClauseFact -> parse_diagnostic(parser_harness, output, 95),
+            ParseDiagnosticCode::ClauseCapacityExceeded -> parse_diagnostic(parser_harness, output, 96),
+            ParseDiagnosticCode::ExpectedArrayElementType -> parse_diagnostic(parser_harness, output, 97),
+            ParseDiagnosticCode::ExpectedArraySeparatorOrEnd -> parse_diagnostic(parser_harness, output, 98),
+            ParseDiagnosticCode::ExpectedArrayLength -> parse_diagnostic(parser_harness, output, 99),
+            ParseDiagnosticCode::ExpectedArrayEnd -> parse_diagnostic(parser_harness, output, 100),
+            ParseDiagnosticCode::ExpectedStaticArgument -> parse_diagnostic(parser_harness, output, 101),
+            ParseDiagnosticCode::ExpectedStaticArgumentEnd -> parse_diagnostic(parser_harness, output, 102),
+            ParseDiagnosticCode::TypeNestingCapacityExceeded -> parse_diagnostic(parser_harness, output, 103),
+            ParseDiagnosticCode::TypeArgumentCapacityExceeded -> parse_diagnostic(parser_harness, output, 104),
+            ParseDiagnosticCode::ClauseNotAdmitted -> parse_diagnostic(parser_harness, output, 105),
+            ParseDiagnosticCode::DuplicateCallAcknowledgement -> parse_diagnostic(parser_harness, output, 106),
+            ParseDiagnosticCode::CallAcknowledgementOrder -> parse_diagnostic(parser_harness, output, 107),
+            ParseDiagnosticCode::ExpectedStableIdentity -> parse_diagnostic(parser_harness, output, 108),
+            ParseDiagnosticCode::ExpectedBoundaryDeclaration -> parse_diagnostic(parser_harness, output, 109),
+            ParseDiagnosticCode::RetiredBoundaryRequirement -> parse_diagnostic(parser_harness, output, 110),
+            ParseDiagnosticCode::RetiredOperatorDeclaration -> parse_diagnostic(parser_harness, output, 111),
+            ParseDiagnosticCode::ExpectedTargetScopedMachine -> parse_diagnostic(parser_harness, output, 112),
+            ParseDiagnosticCode::ExpectedBoundaryDataEnd -> parse_diagnostic(parser_harness, output, 113),
+            ParseDiagnosticCode::ExpectedTraitName -> parse_diagnostic(parser_harness, output, 114),
+            ParseDiagnosticCode::ExpectedTraitParent -> parse_diagnostic(parser_harness, output, 115),
+            ParseDiagnosticCode::ExpectedTraitBody -> parse_diagnostic(parser_harness, output, 116),
+            ParseDiagnosticCode::ExpectedTraitMember -> parse_diagnostic(parser_harness, output, 117),
+            ParseDiagnosticCode::ExpectedTraitRequirementEnd -> parse_diagnostic(parser_harness, output, 118),
+            ParseDiagnosticCode::TraitCapacityExceeded -> parse_diagnostic(parser_harness, output, 119),
+            ParseDiagnosticCode::TraitParentCapacityExceeded -> parse_diagnostic(parser_harness, output, 120),
+            ParseDiagnosticCode::ExpectedConformanceSatisfies -> parse_diagnostic(parser_harness, output, 121),
+            ParseDiagnosticCode::ExpectedConformanceTrait -> parse_diagnostic(parser_harness, output, 122),
+            ParseDiagnosticCode::ExpectedConformanceBody -> parse_diagnostic(parser_harness, output, 123),
+            ParseDiagnosticCode::ExpectedConformanceMember -> parse_diagnostic(parser_harness, output, 124),
+            ParseDiagnosticCode::ConformanceCapacityExceeded -> parse_diagnostic(parser_harness, output, 128),
+            ParseDiagnosticCode::ExpectedDomainCarrier -> parse_diagnostic(parser_harness, output, 130),
+            ParseDiagnosticCode::ExpectedDomainSeparator -> parse_diagnostic(parser_harness, output, 131),
+            ParseDiagnosticCode::ExpectedDomainName -> parse_diagnostic(parser_harness, output, 132),
+            ParseDiagnosticCode::ExpectedDomainSubject -> parse_diagnostic(parser_harness, output, 133),
+            ParseDiagnosticCode::ExpectedDomainSubjectEnd -> parse_diagnostic(parser_harness, output, 134),
+            ParseDiagnosticCode::ExpectedDomainConstituent -> parse_diagnostic(parser_harness, output, 135),
+            ParseDiagnosticCode::ExpectedEstablishedBy -> parse_diagnostic(parser_harness, output, 136),
+            ParseDiagnosticCode::ExpectedDomainRoute -> parse_diagnostic(parser_harness, output, 137),
+            ParseDiagnosticCode::ExpectedDomainEnd -> parse_diagnostic(parser_harness, output, 138),
+            ParseDiagnosticCode::DomainCapacityExceeded -> parse_diagnostic(parser_harness, output, 140),
+            ParseDiagnosticCode::NamePathCapacityExceeded -> parse_diagnostic(parser_harness, output, 141),
+            ParseDiagnosticCode::ExpectedConstantName -> parse_diagnostic(parser_harness, output, 142),
+            ParseDiagnosticCode::ExpectedConstantColon -> parse_diagnostic(parser_harness, output, 143),
+            ParseDiagnosticCode::ExpectedConstantType -> parse_diagnostic(parser_harness, output, 144),
+            ParseDiagnosticCode::ExpectedConstantEquals -> parse_diagnostic(parser_harness, output, 145),
+            ParseDiagnosticCode::ExpectedConstantValue -> parse_diagnostic(parser_harness, output, 146),
+            ParseDiagnosticCode::ExpectedConstantEnd -> parse_diagnostic(parser_harness, output, 147),
+            ParseDiagnosticCode::ConstantCapacityExceeded -> parse_diagnostic(parser_harness, output, 148),
+            ParseDiagnosticCode::ExpectedPropositionName -> parse_diagnostic(parser_harness, output, 149),
+            ParseDiagnosticCode::ExpectedPropositionBody -> parse_diagnostic(parser_harness, output, 150),
+            ParseDiagnosticCode::ExpectedPropositionEvidence -> parse_diagnostic(parser_harness, output, 151),
+            ParseDiagnosticCode::ExpectedPropositionFact -> parse_diagnostic(parser_harness, output, 152),
+            ParseDiagnosticCode::ExpectedPropositionEnd -> parse_diagnostic(parser_harness, output, 153),
+            ParseDiagnosticCode::PropositionCapacityExceeded -> parse_diagnostic(parser_harness, output, 154),
+            ParseDiagnosticCode::ExpectedConformanceMachineBody -> parse_diagnostic(parser_harness, output, 155),
+            ParseDiagnosticCode::ExpectedSatisfiesTrait -> parse_diagnostic(parser_harness, output, 156),
+            ParseDiagnosticCode::ExpectedSatisfiedRequirement -> parse_diagnostic(parser_harness, output, 157),
+            ParseDiagnosticCode::ExpectedSatisfiesLabel -> parse_diagnostic(parser_harness, output, 158),
+            ParseDiagnosticCode::ExpectedSatisfiesBinding -> parse_diagnostic(parser_harness, output, 159),
+            ParseDiagnosticCode::ExpectedTerminationSubject -> parse_diagnostic(parser_harness, output, 160),
+            ParseDiagnosticCode::ExpectedTerminationSubjectEnd -> parse_diagnostic(parser_harness, output, 161),
+            ParseDiagnosticCode::ExpectedTerminationView -> parse_diagnostic(parser_harness, output, 162),
+            ParseDiagnosticCode::UnknownOperatorToken -> parse_diagnostic(parser_harness, output, 163),
+            ParseDiagnosticCode::OperatorTokenNotAdmitted -> parse_diagnostic(parser_harness, output, 164),
+            ParseDiagnosticCode::ExpectedContractName -> parse_diagnostic(parser_harness, output, 165),
+            ParseDiagnosticCode::ExpectedContractEnd -> parse_diagnostic(parser_harness, output, 166),
+            ParseDiagnosticCode::ContractCapacityExceeded -> parse_diagnostic(parser_harness, output, 167),
+            ParseDiagnosticCode::ExpectedMembershipDomain -> parse_diagnostic(parser_harness, output, 168),
+            ParseDiagnosticCode::MixedDomainConnectives -> parse_diagnostic(parser_harness, output, 169),
+            ParseDiagnosticCode::UnsupportedDomainArguments -> parse_diagnostic(parser_harness, output, 170),
+            ParseDiagnosticCode::ExpectedMatchSubject -> parse_diagnostic(parser_harness, output, 171),
+            ParseDiagnosticCode::ExpectedMatchArms -> parse_diagnostic(parser_harness, output, 172),
+            ParseDiagnosticCode::ExpectedMatchPattern -> parse_diagnostic(parser_harness, output, 173),
+            ParseDiagnosticCode::ExpectedMatchArrow -> parse_diagnostic(parser_harness, output, 174),
+            ParseDiagnosticCode::ExpectedMatchValue -> parse_diagnostic(parser_harness, output, 175),
+            ParseDiagnosticCode::EmptyMatch -> parse_diagnostic(parser_harness, output, 177),
+            ParseDiagnosticCode::ExpectedPatternRename -> parse_diagnostic(parser_harness, output, 178),
+            ParseDiagnosticCode::ExpectedEvidenceTrait -> parse_diagnostic(parser_harness, output, 179),
+            ParseDiagnosticCode::RankedSubjectCapacityExceeded -> parse_diagnostic(parser_harness, output, 180),
+            ParseDiagnosticCode::MatchArmCapacityExceeded -> parse_diagnostic(parser_harness, output, 181),
+            ParseDiagnosticCode::ExpectedRefinementBase -> parse_diagnostic(parser_harness, output, 182),
+            ParseDiagnosticCode::ExpectedRefinementRequirement -> parse_diagnostic(parser_harness, output, 183),
+            ParseDiagnosticCode::ExpectedRefinementAxis -> parse_diagnostic(parser_harness, output, 184),
+            ParseDiagnosticCode::ExpectedDefinitionName -> parse_diagnostic(parser_harness, output, 185),
+            ParseDiagnosticCode::ExpectedDefinitionColon -> parse_diagnostic(parser_harness, output, 186),
+            ParseDiagnosticCode::ExpectedDefinitionType -> parse_diagnostic(parser_harness, output, 187),
+            ParseDiagnosticCode::ExpectedDefinitionTerm -> parse_diagnostic(parser_harness, output, 188),
+            ParseDiagnosticCode::ExpectedDefinitionEnd -> parse_diagnostic(parser_harness, output, 189),
+            ParseDiagnosticCode::DefinitionCapacityExceeded -> parse_diagnostic(parser_harness, output, 190),
+            ParseDiagnosticCode::ExpectedRangeEnd -> parse_diagnostic(parser_harness, output, 191),
+            ParseDiagnosticCode::ExpectedArrayElement -> parse_diagnostic(parser_harness, output, 192),
+            ParseDiagnosticCode::ExpectedArrayElementEnd -> parse_diagnostic(parser_harness, output, 193),
+            ParseDiagnosticCode::MissingBoundaryReachCeiling -> parse_diagnostic(parser_harness, output, 200),
+            ParseDiagnosticCode::RetiredWhereClause -> parse_diagnostic(parser_harness, output, 201),
+            ParseDiagnosticCode::RetiredDomainSubject -> parse_diagnostic(parser_harness, output, 202),
+            ParseDiagnosticCode::RetiredCasePredicate -> parse_diagnostic(parser_harness, output, 203),
+            ParseDiagnosticCode::RetiredCastQualifier -> parse_diagnostic(parser_harness, output, 204),
+            ParseDiagnosticCode::InvalidCarrierCastEntry -> parse_diagnostic(parser_harness, output, 205),
+            ParseDiagnosticCode::ExpectedCastDomain -> parse_diagnostic(parser_harness, output, 206),
+            ParseDiagnosticCode::UnsupportedCastEntries -> parse_diagnostic(parser_harness, output, 207),
             ParseDiagnosticCode::IntegerLiteralCapacityExceeded -> parse_diagnostic(parser_harness, output, 208)
         }
     }
@@ -409,7 +409,7 @@ machine write_parse_observation(
         write_source_span(parser_harness, output.diagnostic.source_span);
         write_u64(parser_harness, output.root_count as u64 in Trapping);
         transition output.root_count > 0 {
-            true -> parse_root(parser_harness, output, 0)
+            true -> parse_root(parser_harness, output, 0),
             _ -> parse_use_count(parser_harness, output)
         }
     }
@@ -419,14 +419,14 @@ machine write_parse_observation(
     {
         let root: RootItem = output.roots[index];
         transition root.kind {
-            RootItemKind::Use -> parse_root_tagged(parser_harness, output, root, index, 1)
-            RootItemKind::Data -> parse_root_tagged(parser_harness, output, root, index, 2)
-            RootItemKind::Machine -> parse_root_tagged(parser_harness, output, root, index, 3)
-            RootItemKind::Trait -> parse_root_tagged(parser_harness, output, root, index, 4)
-            RootItemKind::Conformance -> parse_root_tagged(parser_harness, output, root, index, 5)
-            RootItemKind::Domain -> parse_root_tagged(parser_harness, output, root, index, 6)
-            RootItemKind::Constant -> parse_root_tagged(parser_harness, output, root, index, 7)
-            RootItemKind::Proposition -> parse_root_tagged(parser_harness, output, root, index, 8)
+            RootItemKind::Use -> parse_root_tagged(parser_harness, output, root, index, 1),
+            RootItemKind::Data -> parse_root_tagged(parser_harness, output, root, index, 2),
+            RootItemKind::Machine -> parse_root_tagged(parser_harness, output, root, index, 3),
+            RootItemKind::Trait -> parse_root_tagged(parser_harness, output, root, index, 4),
+            RootItemKind::Conformance -> parse_root_tagged(parser_harness, output, root, index, 5),
+            RootItemKind::Domain -> parse_root_tagged(parser_harness, output, root, index, 6),
+            RootItemKind::Constant -> parse_root_tagged(parser_harness, output, root, index, 7),
+            RootItemKind::Proposition -> parse_root_tagged(parser_harness, output, root, index, 8),
             RootItemKind::Definition -> parse_root_tagged(parser_harness, output, root, index, 9)
         }
     }
@@ -444,14 +444,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, root.source_span);
         let next: u64 = index + 1;
         transition next < output.root_count {
-            true -> parse_root_bound(parser_harness, output, next)
+            true -> parse_root_bound(parser_harness, output, next),
             _ -> parse_use_count(parser_harness, output)
         }
     }
 
     machine parse_root_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 4096 {
-            true -> parse_root(parser_harness, output, next)
+            true -> parse_root(parser_harness, output, next),
             _ -> parse_use_count(parser_harness, output)
         }
     }
@@ -459,7 +459,7 @@ machine write_parse_observation(
     machine parse_use_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.use_count as u64 in Trapping);
         transition output.use_count > 0 {
-            true -> parse_use_item(parser_harness, output, 0)
+            true -> parse_use_item(parser_harness, output, 0),
             _ -> parse_member_count(parser_harness, output)
         }
     }
@@ -473,14 +473,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, item.source_span);
         let next: u64 = index + 1;
         transition next < output.use_count {
-            true -> parse_use_bound(parser_harness, output, next)
+            true -> parse_use_bound(parser_harness, output, next),
             _ -> parse_member_count(parser_harness, output)
         }
     }
 
     machine parse_use_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 1024 {
-            true -> parse_use_item(parser_harness, output, next)
+            true -> parse_use_item(parser_harness, output, next),
             _ -> parse_member_count(parser_harness, output)
         }
     }
@@ -488,7 +488,7 @@ machine write_parse_observation(
     machine parse_member_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.member_count as u64 in Trapping);
         transition output.member_count > 0 {
-            true -> parse_member(parser_harness, output, 0)
+            true -> parse_member(parser_harness, output, 0),
             _ -> parse_data_count(parser_harness, output)
         }
     }
@@ -500,14 +500,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, member.source_span);
         let next: u64 = index + 1;
         transition next < output.member_count {
-            true -> parse_member_bound(parser_harness, output, next)
+            true -> parse_member_bound(parser_harness, output, next),
             _ -> parse_data_count(parser_harness, output)
         }
     }
 
     machine parse_member_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 32000 {
-            true -> parse_member(parser_harness, output, next)
+            true -> parse_member(parser_harness, output, next),
             _ -> parse_data_count(parser_harness, output)
         }
     }
@@ -515,7 +515,7 @@ machine write_parse_observation(
     machine parse_data_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.data_count as u64 in Trapping);
         transition output.data_count > 0 {
-            true -> parse_data_item(parser_harness, output, 0)
+            true -> parse_data_item(parser_harness, output, 0),
             _ -> parse_data_member_count(parser_harness, output)
         }
     }
@@ -532,8 +532,8 @@ machine write_parse_observation(
         write_u64(parser_harness, item.first_case);
         write_u64(parser_harness, item.case_count as u64 in Trapping);
         transition item.multiplicity {
-            DataMultiplicity::Affine -> parse_data_multiplicity(parser_harness, output, item, index, 0)
-            DataMultiplicity::Unrestricted -> parse_data_multiplicity(parser_harness, output, item, index, 1)
+            DataMultiplicity::Affine -> parse_data_multiplicity(parser_harness, output, item, index, 0),
+            DataMultiplicity::Unrestricted -> parse_data_multiplicity(parser_harness, output, item, index, 1),
             DataMultiplicity::Linear -> parse_data_multiplicity(parser_harness, output, item, index, 2)
         }
     }
@@ -548,7 +548,7 @@ machine write_parse_observation(
     {
         write_byte(parser_harness, multiplicity);
         transition item.is_public {
-            true -> parse_data_public(parser_harness, output, item, index)
+            true -> parse_data_public(parser_harness, output, item, index),
             _ -> parse_data_private(parser_harness, output, item, index)
         }
     }
@@ -590,14 +590,14 @@ machine write_parse_observation(
         write_flag(parser_harness, item.is_boundary);
         let next: u64 = index + 1;
         transition next < output.data_count {
-            true -> parse_data_bound(parser_harness, output, next)
+            true -> parse_data_bound(parser_harness, output, next),
             _ -> parse_data_member_count(parser_harness, output)
         }
     }
 
     machine parse_data_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 256 {
-            true -> parse_data_item(parser_harness, output, next)
+            true -> parse_data_item(parser_harness, output, next),
             _ -> parse_data_member_count(parser_harness, output)
         }
     }
@@ -605,7 +605,7 @@ machine write_parse_observation(
     machine parse_data_member_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.data_member_count as u64 in Trapping);
         transition output.data_member_count > 0 {
-            true -> parse_data_member(parser_harness, output, 0)
+            true -> parse_data_member(parser_harness, output, 0),
             _ -> parse_field_count(parser_harness, output)
         }
     }
@@ -615,7 +615,7 @@ machine write_parse_observation(
     {
         let member: DataMember = output.data_members[index];
         transition member.kind {
-            DataMemberKind::Field -> parse_data_member_kind(parser_harness, output, member, index, 1)
+            DataMemberKind::Field -> parse_data_member_kind(parser_harness, output, member, index, 1),
             DataMemberKind::Case -> parse_data_member_kind(parser_harness, output, member, index, 2)
         }
     }
@@ -633,14 +633,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, member.source_span);
         let next: u64 = index + 1;
         transition next < output.data_member_count {
-            true -> parse_data_member_bound(parser_harness, output, next)
+            true -> parse_data_member_bound(parser_harness, output, next),
             _ -> parse_field_count(parser_harness, output)
         }
     }
 
     machine parse_data_member_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 2048 {
-            true -> parse_data_member(parser_harness, output, next)
+            true -> parse_data_member(parser_harness, output, next),
             _ -> parse_field_count(parser_harness, output)
         }
     }
@@ -648,7 +648,7 @@ machine write_parse_observation(
     machine parse_field_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.field_count as u64 in Trapping);
         transition output.field_count > 0 {
-            true -> parse_field(parser_harness, output, 0)
+            true -> parse_field(parser_harness, output, 0),
             _ -> parse_payload_field_count(parser_harness, output)
         }
     }
@@ -664,14 +664,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
         transition next < output.field_count {
-            true -> parse_field_bound(parser_harness, output, next)
+            true -> parse_field_bound(parser_harness, output, next),
             _ -> parse_payload_field_count(parser_harness, output)
         }
     }
 
     machine parse_field_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 1024 {
-            true -> parse_field(parser_harness, output, next)
+            true -> parse_field(parser_harness, output, next),
             _ -> parse_payload_field_count(parser_harness, output)
         }
     }
@@ -679,7 +679,7 @@ machine write_parse_observation(
     machine parse_payload_field_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.payload_field_count as u64 in Trapping);
         transition output.payload_field_count > 0 {
-            true -> parse_payload_field(parser_harness, output, 0)
+            true -> parse_payload_field(parser_harness, output, 0),
             _ -> parse_case_count(parser_harness, output)
         }
     }
@@ -695,14 +695,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, field.source_span);
         let next: u64 = index + 1;
         transition next < output.payload_field_count {
-            true -> parse_payload_field_bound(parser_harness, output, next)
+            true -> parse_payload_field_bound(parser_harness, output, next),
             _ -> parse_case_count(parser_harness, output)
         }
     }
 
     machine parse_payload_field_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 1024 {
-            true -> parse_payload_field(parser_harness, output, next)
+            true -> parse_payload_field(parser_harness, output, next),
             _ -> parse_case_count(parser_harness, output)
         }
     }
@@ -710,7 +710,7 @@ machine write_parse_observation(
     machine parse_case_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.case_count as u64 in Trapping);
         transition output.case_count > 0 {
-            true -> parse_case(parser_harness, output, 0)
+            true -> parse_case(parser_harness, output, 0),
             _ -> parse_type_reference_count(parser_harness, output)
         }
     }
@@ -729,14 +729,14 @@ machine write_parse_observation(
         write_u64(parser_harness, data_case.clause_count);
         let next: u64 = index + 1;
         transition next < output.case_count {
-            true -> parse_case_bound(parser_harness, output, next)
+            true -> parse_case_bound(parser_harness, output, next),
             _ -> parse_type_reference_count(parser_harness, output)
         }
     }
 
     machine parse_case_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 1536 {
-            true -> parse_case(parser_harness, output, next)
+            true -> parse_case(parser_harness, output, next),
             _ -> parse_type_reference_count(parser_harness, output)
         }
     }
@@ -744,7 +744,7 @@ machine write_parse_observation(
     machine parse_type_reference_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.type_reference_count as u64 in Trapping);
         transition output.type_reference_count > 0 {
-            true -> parse_type_reference(parser_harness, output, 0)
+            true -> parse_type_reference(parser_harness, output, 0),
             _ -> parse_type_argument_count(parser_harness, output)
         }
     }
@@ -759,10 +759,10 @@ machine write_parse_observation(
     {
         let type_reference: TypeReference = output.type_references[index];
         transition type_reference.kind {
-            TypeReferenceKind::Named -> parse_type_row(parser_harness, output, type_reference, index, 1, 0)
-            TypeReferenceKind::Reference -> parse_reference_row(parser_harness, output, type_reference, index)
-            TypeReferenceKind::Array -> parse_type_row(parser_harness, output, type_reference, index, 4, 0)
-            TypeReferenceKind::Slice -> parse_type_row(parser_harness, output, type_reference, index, 5, 0)
+            TypeReferenceKind::Named -> parse_type_row(parser_harness, output, type_reference, index, 1, 0),
+            TypeReferenceKind::Reference -> parse_reference_row(parser_harness, output, type_reference, index),
+            TypeReferenceKind::Array -> parse_type_row(parser_harness, output, type_reference, index, 4, 0),
+            TypeReferenceKind::Slice -> parse_type_row(parser_harness, output, type_reference, index, 5, 0),
             TypeReferenceKind::Literal -> parse_type_row(parser_harness, output, type_reference, index, 6, 0)
         }
     }
@@ -775,8 +775,8 @@ machine write_parse_observation(
     requires index <= 65535
     {
         transition type_reference.access {
-            ReferenceAccess::Shared -> parse_type_row(parser_harness, output, type_reference, index, 3, 1)
-            ReferenceAccess::Mutable -> parse_type_row(parser_harness, output, type_reference, index, 3, 2)
+            ReferenceAccess::Shared -> parse_type_row(parser_harness, output, type_reference, index, 3, 1),
+            ReferenceAccess::Mutable -> parse_type_row(parser_harness, output, type_reference, index, 3, 2),
             ReferenceAccess::WriteOnly -> parse_type_row(parser_harness, output, type_reference, index, 3, 3)
         }
     }
@@ -794,7 +794,7 @@ machine write_parse_observation(
         write_source_span(parser_harness, type_reference.name.source_span);
         write_source_span(parser_harness, type_reference.source_span);
         transition type_reference.has_domain {
-            true -> parse_type_domain(parser_harness, output, type_reference, index, access)
+            true -> parse_type_domain(parser_harness, output, type_reference, index, access),
             _ -> parse_type_unqualified(parser_harness, output, type_reference, index, access)
         }
     }
@@ -844,7 +844,7 @@ machine write_parse_observation(
         write_u64(parser_harness, type_reference.first_row);
         write_byte(parser_harness, flag(type_reference.has_lifetime));
         transition type_reference.has_lifetime {
-            true -> parse_type_tag(parser_harness, output, type_reference, index)
+            true -> parse_type_tag(parser_harness, output, type_reference, index),
             _ -> parse_type_untagged(parser_harness, output, type_reference, index)
         }
     }
@@ -886,14 +886,14 @@ machine write_parse_observation(
         write_u64(parser_harness, type_reference.lifetime_count);
         let next: u64 = index + 1;
         transition next < output.type_reference_count {
-            true -> parse_type_reference_bound(parser_harness, output, next)
+            true -> parse_type_reference_bound(parser_harness, output, next),
             _ -> parse_type_argument_count(parser_harness, output)
         }
     }
 
     machine parse_type_reference_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 65536 {
-            true -> parse_type_reference(parser_harness, output, next)
+            true -> parse_type_reference(parser_harness, output, next),
             _ -> parse_type_argument_count(parser_harness, output)
         }
     }
@@ -905,14 +905,14 @@ machine write_parse_observation(
 
     machine parse_type_argument(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64) {
         transition index < output.type_argument_count {
-            true -> parse_type_argument_bound(parser_harness, output, index)
+            true -> parse_type_argument_bound(parser_harness, output, index),
             _ -> parse_type_lifetime_count(parser_harness, output)
         }
     }
 
     machine parse_type_argument_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64) {
         transition index < 1024 {
-            true -> parse_type_argument_row(parser_harness, output, index)
+            true -> parse_type_argument_row(parser_harness, output, index),
             _ -> parse_type_lifetime_count(parser_harness, output)
         }
     }
@@ -924,7 +924,7 @@ machine write_parse_observation(
 
     machine parse_type_lifetime(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64) {
         transition index < output.type_lifetime_count && index < 1024 {
-            true -> parse_type_lifetime_row(parser_harness, output, index)
+            true -> parse_type_lifetime_row(parser_harness, output, index),
             _ -> parse_generic_count(parser_harness, output)
         }
     }
@@ -947,7 +947,7 @@ machine write_parse_observation(
     machine parse_generic_count(parser_harness: @mut ParserHarness, output: @SyntaxTrees) {
         write_u64(parser_harness, output.generic_parameter_count as u64 in Trapping);
         transition output.generic_parameter_count > 0 {
-            true -> parse_generic_parameter(parser_harness, output, 0)
+            true -> parse_generic_parameter(parser_harness, output, 0),
             _ -> parse_done()
         }
     }
@@ -957,12 +957,12 @@ machine write_parse_observation(
     {
         let parameter: GenericParameter = output.generic_parameters[index];
         transition parameter.kind {
-            GenericParameterKind::Lifetime -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 1)
-            GenericParameterKind::Type -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 2)
-            GenericParameterKind::Const -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 3)
-            GenericParameterKind::Value -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 4)
-            GenericParameterKind::Machine -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 5)
-            GenericParameterKind::Proposition -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 6)
+            GenericParameterKind::Lifetime -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 1),
+            GenericParameterKind::Type -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 2),
+            GenericParameterKind::Const -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 3),
+            GenericParameterKind::Value -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 4),
+            GenericParameterKind::Machine -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 5),
+            GenericParameterKind::Proposition -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 6),
             GenericParameterKind::Evidence -> parse_generic_parameter_kind(parser_harness, output, parameter, index, 7)
         }
     }
@@ -988,7 +988,7 @@ machine write_parse_observation(
     {
         write_source_span(parser_harness, parameter.name.source_span);
         transition parameter.has_type_reference {
-            true -> parse_generic_parameter_typed(parser_harness, output, parameter, index)
+            true -> parse_generic_parameter_typed(parser_harness, output, parameter, index),
             _ -> parse_generic_parameter_untyped(parser_harness, output, parameter, index)
         }
     }
@@ -1023,8 +1023,8 @@ machine write_parse_observation(
     requires index <= 255
     {
         transition parameter.bounds {
-            DataMultiplicity::Affine -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 0)
-            DataMultiplicity::Unrestricted -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 1)
+            DataMultiplicity::Affine -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 0),
+            DataMultiplicity::Unrestricted -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 1),
             DataMultiplicity::Linear -> parse_generic_parameter_bounded(parser_harness, output, parameter, index, 2)
         }
     }
@@ -1041,14 +1041,14 @@ machine write_parse_observation(
         write_source_span(parser_harness, parameter.source_span);
         let next: u64 = index + 1;
         transition next < output.generic_parameter_count {
-            true -> parse_generic_parameter_bound(parser_harness, output, next)
+            true -> parse_generic_parameter_bound(parser_harness, output, next),
             _ -> parse_done()
         }
     }
 
     machine parse_generic_parameter_bound(parser_harness: @mut ParserHarness, output: @SyntaxTrees, next: u64) {
         transition next < 256 {
-            true -> parse_generic_parameter(parser_harness, output, next)
+            true -> parse_generic_parameter(parser_harness, output, next),
             _ -> parse_done()
         }
     }
@@ -1073,7 +1073,7 @@ crashes Trap
 
     machine machine_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.machine_count {
-            true -> write_machine(parser_harness, output, index)
+            true -> write_machine(parser_harness, output, index),
             _ -> parameter_count(parser_harness, output)
         }
     }
@@ -1103,10 +1103,10 @@ crashes Trap
         write_source_span(parser_harness, item.target.source_span);
         write_flag(parser_harness, item.is_boundary);
         transition item.container {
-            MachineContainer::Root -> machine_container(parser_harness, output, index, item, 0)
-            MachineContainer::Trait -> machine_container(parser_harness, output, index, item, 1)
-            MachineContainer::Conformance -> machine_container(parser_harness, output, index, item, 2)
-            MachineContainer::Refinement -> machine_container(parser_harness, output, index, item, 3)
+            MachineContainer::Root -> machine_container(parser_harness, output, index, item, 0),
+            MachineContainer::Trait -> machine_container(parser_harness, output, index, item, 1),
+            MachineContainer::Conformance -> machine_container(parser_harness, output, index, item, 2),
+            MachineContainer::Refinement -> machine_container(parser_harness, output, index, item, 3),
             MachineContainer::Measure -> machine_container(parser_harness, output, index, item, 4)
         }
     }
@@ -1114,19 +1114,19 @@ crashes Trap
     machine machine_container(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, tag: u8) {
         write_byte(parser_harness, tag);
         transition item.operator {
-            OperatorToken::None -> machine_token(parser_harness, output, index, item, 0)
-            OperatorToken::Add -> machine_token(parser_harness, output, index, item, 1)
-            OperatorToken::Subtract -> machine_token(parser_harness, output, index, item, 2)
-            OperatorToken::Multiply -> machine_token(parser_harness, output, index, item, 3)
-            OperatorToken::Divide -> machine_token(parser_harness, output, index, item, 4)
-            OperatorToken::Modulo -> machine_token(parser_harness, output, index, item, 5)
-            OperatorToken::Equal -> machine_token(parser_harness, output, index, item, 6)
-            OperatorToken::NotEqual -> machine_token(parser_harness, output, index, item, 7)
-            OperatorToken::Less -> machine_token(parser_harness, output, index, item, 8)
-            OperatorToken::LessEqual -> machine_token(parser_harness, output, index, item, 9)
-            OperatorToken::Greater -> machine_token(parser_harness, output, index, item, 10)
-            OperatorToken::GreaterEqual -> machine_token(parser_harness, output, index, item, 11)
-            OperatorToken::Index -> machine_token(parser_harness, output, index, item, 12)
+            OperatorToken::None -> machine_token(parser_harness, output, index, item, 0),
+            OperatorToken::Add -> machine_token(parser_harness, output, index, item, 1),
+            OperatorToken::Subtract -> machine_token(parser_harness, output, index, item, 2),
+            OperatorToken::Multiply -> machine_token(parser_harness, output, index, item, 3),
+            OperatorToken::Divide -> machine_token(parser_harness, output, index, item, 4),
+            OperatorToken::Modulo -> machine_token(parser_harness, output, index, item, 5),
+            OperatorToken::Equal -> machine_token(parser_harness, output, index, item, 6),
+            OperatorToken::NotEqual -> machine_token(parser_harness, output, index, item, 7),
+            OperatorToken::Less -> machine_token(parser_harness, output, index, item, 8),
+            OperatorToken::LessEqual -> machine_token(parser_harness, output, index, item, 9),
+            OperatorToken::Greater -> machine_token(parser_harness, output, index, item, 10),
+            OperatorToken::GreaterEqual -> machine_token(parser_harness, output, index, item, 11),
+            OperatorToken::Index -> machine_token(parser_harness, output, index, item, 12),
             OperatorToken::Range -> machine_token(parser_harness, output, index, item, 13)
         }
     }
@@ -1149,7 +1149,7 @@ crashes Trap
 
     machine parameter_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.parameter_count {
-            true -> write_parameter(parser_harness, output, index)
+            true -> write_parameter(parser_harness, output, index),
             _ -> bodies(parser_harness, output)
         }
     }
@@ -1191,7 +1191,7 @@ crashes Trap
 
     machine expression_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.expression_count {
-            true -> write_expression(parser_harness, output, index)
+            true -> write_expression(parser_harness, output, index),
             _ -> argument_count(parser_harness, output)
         }
     }
@@ -1199,23 +1199,23 @@ crashes Trap
     machine write_expression(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let expression: Expression = psi::syntax_trees_expression(output, index);
         transition expression.kind {
-            ExpressionKind::Name -> expression_kind(parser_harness, output, index, expression, 1)
-            ExpressionKind::Path -> expression_kind(parser_harness, output, index, expression, 2)
-            ExpressionKind::Integer -> expression_kind(parser_harness, output, index, expression, 3)
-            ExpressionKind::Boolean -> expression_kind(parser_harness, output, index, expression, 4)
-            ExpressionKind::String -> expression_kind(parser_harness, output, index, expression, 5)
-            ExpressionKind::Field -> expression_kind(parser_harness, output, index, expression, 6)
-            ExpressionKind::Index -> expression_kind(parser_harness, output, index, expression, 7)
-            ExpressionKind::Unary -> expression_kind(parser_harness, output, index, expression, 8)
-            ExpressionKind::Binary -> expression_kind(parser_harness, output, index, expression, 9)
-            ExpressionKind::Cast -> expression_kind(parser_harness, output, index, expression, 10)
-            ExpressionKind::Call -> expression_kind(parser_harness, output, index, expression, 11)
-            ExpressionKind::Construct -> expression_kind(parser_harness, output, index, expression, 12)
-            ExpressionKind::Apply -> expression_kind(parser_harness, output, index, expression, 13)
-            ExpressionKind::Float -> expression_kind(parser_harness, output, index, expression, 14)
-            ExpressionKind::Membership -> expression_kind(parser_harness, output, index, expression, 15)
-            ExpressionKind::Match -> expression_kind(parser_harness, output, index, expression, 16)
-            ExpressionKind::Range -> expression_kind(parser_harness, output, index, expression, 17)
+            ExpressionKind::Name -> expression_kind(parser_harness, output, index, expression, 1),
+            ExpressionKind::Path -> expression_kind(parser_harness, output, index, expression, 2),
+            ExpressionKind::Integer -> expression_kind(parser_harness, output, index, expression, 3),
+            ExpressionKind::Boolean -> expression_kind(parser_harness, output, index, expression, 4),
+            ExpressionKind::String -> expression_kind(parser_harness, output, index, expression, 5),
+            ExpressionKind::Field -> expression_kind(parser_harness, output, index, expression, 6),
+            ExpressionKind::Index -> expression_kind(parser_harness, output, index, expression, 7),
+            ExpressionKind::Unary -> expression_kind(parser_harness, output, index, expression, 8),
+            ExpressionKind::Binary -> expression_kind(parser_harness, output, index, expression, 9),
+            ExpressionKind::Cast -> expression_kind(parser_harness, output, index, expression, 10),
+            ExpressionKind::Call -> expression_kind(parser_harness, output, index, expression, 11),
+            ExpressionKind::Construct -> expression_kind(parser_harness, output, index, expression, 12),
+            ExpressionKind::Apply -> expression_kind(parser_harness, output, index, expression, 13),
+            ExpressionKind::Float -> expression_kind(parser_harness, output, index, expression, 14),
+            ExpressionKind::Membership -> expression_kind(parser_harness, output, index, expression, 15),
+            ExpressionKind::Match -> expression_kind(parser_harness, output, index, expression, 16),
+            ExpressionKind::Range -> expression_kind(parser_harness, output, index, expression, 17),
             ExpressionKind::Array -> expression_kind(parser_harness, output, index, expression, 18)
         }
     }
@@ -1229,33 +1229,33 @@ crashes Trap
     ) {
         write_byte(parser_harness, tag);
         transition expression.operator {
-            OperatorKind::None -> expression_operator(parser_harness, output, index, expression, 0)
-            OperatorKind::Or -> expression_operator(parser_harness, output, index, expression, 1)
-            OperatorKind::And -> expression_operator(parser_harness, output, index, expression, 2)
-            OperatorKind::Equal -> expression_operator(parser_harness, output, index, expression, 3)
-            OperatorKind::NotEqual -> expression_operator(parser_harness, output, index, expression, 4)
-            OperatorKind::Less -> expression_operator(parser_harness, output, index, expression, 5)
-            OperatorKind::LessEqual -> expression_operator(parser_harness, output, index, expression, 6)
-            OperatorKind::Greater -> expression_operator(parser_harness, output, index, expression, 7)
-            OperatorKind::GreaterEqual -> expression_operator(parser_harness, output, index, expression, 8)
-            OperatorKind::BitOr -> expression_operator(parser_harness, output, index, expression, 9)
-            OperatorKind::BitXor -> expression_operator(parser_harness, output, index, expression, 10)
-            OperatorKind::BitAnd -> expression_operator(parser_harness, output, index, expression, 11)
-            OperatorKind::ShiftLeft -> expression_operator(parser_harness, output, index, expression, 12)
-            OperatorKind::ShiftRight -> expression_operator(parser_harness, output, index, expression, 13)
-            OperatorKind::Add -> expression_operator(parser_harness, output, index, expression, 14)
-            OperatorKind::Subtract -> expression_operator(parser_harness, output, index, expression, 15)
-            OperatorKind::Multiply -> expression_operator(parser_harness, output, index, expression, 16)
-            OperatorKind::Divide -> expression_operator(parser_harness, output, index, expression, 17)
-            OperatorKind::Modulo -> expression_operator(parser_harness, output, index, expression, 18)
-            OperatorKind::Not -> expression_operator(parser_harness, output, index, expression, 19)
-            OperatorKind::Negate -> expression_operator(parser_harness, output, index, expression, 20)
-            OperatorKind::BitNot -> expression_operator(parser_harness, output, index, expression, 21)
-            OperatorKind::Borrow -> expression_operator(parser_harness, output, index, expression, 22)
-            OperatorKind::BorrowMutable -> expression_operator(parser_harness, output, index, expression, 23)
-            OperatorKind::Suspend -> expression_operator(parser_harness, output, index, expression, 24)
-            OperatorKind::Block -> expression_operator(parser_harness, output, index, expression, 25)
-            OperatorKind::SuspendBlock -> expression_operator(parser_harness, output, index, expression, 26)
+            OperatorKind::None -> expression_operator(parser_harness, output, index, expression, 0),
+            OperatorKind::Or -> expression_operator(parser_harness, output, index, expression, 1),
+            OperatorKind::And -> expression_operator(parser_harness, output, index, expression, 2),
+            OperatorKind::Equal -> expression_operator(parser_harness, output, index, expression, 3),
+            OperatorKind::NotEqual -> expression_operator(parser_harness, output, index, expression, 4),
+            OperatorKind::Less -> expression_operator(parser_harness, output, index, expression, 5),
+            OperatorKind::LessEqual -> expression_operator(parser_harness, output, index, expression, 6),
+            OperatorKind::Greater -> expression_operator(parser_harness, output, index, expression, 7),
+            OperatorKind::GreaterEqual -> expression_operator(parser_harness, output, index, expression, 8),
+            OperatorKind::BitOr -> expression_operator(parser_harness, output, index, expression, 9),
+            OperatorKind::BitXor -> expression_operator(parser_harness, output, index, expression, 10),
+            OperatorKind::BitAnd -> expression_operator(parser_harness, output, index, expression, 11),
+            OperatorKind::ShiftLeft -> expression_operator(parser_harness, output, index, expression, 12),
+            OperatorKind::ShiftRight -> expression_operator(parser_harness, output, index, expression, 13),
+            OperatorKind::Add -> expression_operator(parser_harness, output, index, expression, 14),
+            OperatorKind::Subtract -> expression_operator(parser_harness, output, index, expression, 15),
+            OperatorKind::Multiply -> expression_operator(parser_harness, output, index, expression, 16),
+            OperatorKind::Divide -> expression_operator(parser_harness, output, index, expression, 17),
+            OperatorKind::Modulo -> expression_operator(parser_harness, output, index, expression, 18),
+            OperatorKind::Not -> expression_operator(parser_harness, output, index, expression, 19),
+            OperatorKind::Negate -> expression_operator(parser_harness, output, index, expression, 20),
+            OperatorKind::BitNot -> expression_operator(parser_harness, output, index, expression, 21),
+            OperatorKind::Borrow -> expression_operator(parser_harness, output, index, expression, 22),
+            OperatorKind::BorrowMutable -> expression_operator(parser_harness, output, index, expression, 23),
+            OperatorKind::Suspend -> expression_operator(parser_harness, output, index, expression, 24),
+            OperatorKind::Block -> expression_operator(parser_harness, output, index, expression, 25),
+            OperatorKind::SuspendBlock -> expression_operator(parser_harness, output, index, expression, 26),
             OperatorKind::BorrowWrite -> expression_operator(parser_harness, output, index, expression, 27)
         }
     }
@@ -1286,7 +1286,7 @@ crashes Trap
 
     machine argument_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.argument_count {
-            true -> write_argument(parser_harness, output, index)
+            true -> write_argument(parser_harness, output, index),
             _ -> field_count(parser_harness, output)
         }
     }
@@ -1304,7 +1304,7 @@ crashes Trap
 
     machine field_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.construct_field_count {
-            true -> write_field(parser_harness, output, index)
+            true -> write_field(parser_harness, output, index),
             _ -> statement_count(parser_harness, output)
         }
     }
@@ -1324,7 +1324,7 @@ crashes Trap
 
     machine statement_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.statement_count {
-            true -> write_statement(parser_harness, output, index)
+            true -> write_statement(parser_harness, output, index),
             _ -> arm_count(parser_harness, output)
         }
     }
@@ -1332,12 +1332,12 @@ crashes Trap
     machine write_statement(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let statement: Statement = psi::syntax_trees_statement(output, index);
         transition statement.kind {
-            StatementKind::Let -> statement_kind(parser_harness, output, index, statement, 1)
-            StatementKind::Assign -> statement_kind(parser_harness, output, index, statement, 2)
-            StatementKind::Expression -> statement_kind(parser_harness, output, index, statement, 3)
-            StatementKind::Tail -> statement_kind(parser_harness, output, index, statement, 4)
-            StatementKind::Crash -> statement_kind(parser_harness, output, index, statement, 5)
-            StatementKind::Transition -> statement_kind(parser_harness, output, index, statement, 6)
+            StatementKind::Let -> statement_kind(parser_harness, output, index, statement, 1),
+            StatementKind::Assign -> statement_kind(parser_harness, output, index, statement, 2),
+            StatementKind::Expression -> statement_kind(parser_harness, output, index, statement, 3),
+            StatementKind::Tail -> statement_kind(parser_harness, output, index, statement, 4),
+            StatementKind::Crash -> statement_kind(parser_harness, output, index, statement, 5),
+            StatementKind::Transition -> statement_kind(parser_harness, output, index, statement, 6),
             StatementKind::Discard -> statement_kind(parser_harness, output, index, statement, 7)
         }
     }
@@ -1357,7 +1357,7 @@ crashes Trap
         write_u64(parser_harness, statement.value);
         write_u64(parser_harness, statement.target);
         transition statement.cause {
-            CrashCause::Trap -> statement_cause(parser_harness, output, index, statement, 1)
+            CrashCause::Trap -> statement_cause(parser_harness, output, index, statement, 1),
             CrashCause::Abort -> statement_cause(parser_harness, output, index, statement, 2)
         }
     }
@@ -1383,7 +1383,7 @@ crashes Trap
 
     machine arm_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.arm_count {
-            true -> write_arm(parser_harness, output, index)
+            true -> write_arm(parser_harness, output, index),
             _ -> pattern_field_count(parser_harness, output)
         }
     }
@@ -1391,9 +1391,9 @@ crashes Trap
     machine write_arm(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = psi::syntax_trees_arm(output, index);
         transition arm.kind {
-            ArmPatternKind::Guard -> arm_kind(parser_harness, output, index, arm, 1)
-            ArmPatternKind::Wildcard -> arm_kind(parser_harness, output, index, arm, 2)
-            ArmPatternKind::Literal -> arm_kind(parser_harness, output, index, arm, 3)
+            ArmPatternKind::Guard -> arm_kind(parser_harness, output, index, arm, 1),
+            ArmPatternKind::Wildcard -> arm_kind(parser_harness, output, index, arm, 2),
+            ArmPatternKind::Literal -> arm_kind(parser_harness, output, index, arm, 3),
             ArmPatternKind::Case -> arm_kind(parser_harness, output, index, arm, 4)
         }
     }
@@ -1412,8 +1412,8 @@ crashes Trap
         write_flag(parser_harness, arm.has_guard);
         write_u64(parser_harness, arm.guard);
         transition arm.target_kind {
-            ArmTargetKind::Call -> arm_target(parser_harness, output, index, arm, 1)
-            ArmTargetKind::Value -> arm_target(parser_harness, output, index, arm, 2)
+            ArmTargetKind::Call -> arm_target(parser_harness, output, index, arm, 1),
+            ArmTargetKind::Value -> arm_target(parser_harness, output, index, arm, 2),
             ArmTargetKind::Unit -> arm_target(parser_harness, output, index, arm, 3)
         }
     }
@@ -1440,7 +1440,7 @@ crashes Trap
 
     machine pattern_field_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.pattern_field_count {
-            true -> write_pattern_field(parser_harness, output, index)
+            true -> write_pattern_field(parser_harness, output, index),
             _ -> clause_count(parser_harness, output)
         }
     }
@@ -1452,7 +1452,7 @@ crashes Trap
 
     machine clause_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.clause_count {
-            true -> write_clause(parser_harness, output, index)
+            true -> write_clause(parser_harness, output, index),
             _ -> done()
         }
     }
@@ -1460,14 +1460,14 @@ crashes Trap
     machine write_clause(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let clause: Clause = psi::syntax_trees_clause(output, index);
         transition clause.kind {
-            ClauseKind::Reaches -> clause_kind(parser_harness, output, index, clause, 1)
-            ClauseKind::Invokes -> clause_kind(parser_harness, output, index, clause, 2)
-            ClauseKind::Suspends -> clause_kind(parser_harness, output, index, clause, 3)
-            ClauseKind::Blocks -> clause_kind(parser_harness, output, index, clause, 4)
-            ClauseKind::Crashes -> clause_kind(parser_harness, output, index, clause, 5)
-            ClauseKind::Requires -> clause_kind(parser_harness, output, index, clause, 6)
-            ClauseKind::Ensures -> clause_kind(parser_harness, output, index, clause, 7)
-            ClauseKind::Satisfies -> clause_kind(parser_harness, output, index, clause, 9)
+            ClauseKind::Reaches -> clause_kind(parser_harness, output, index, clause, 1),
+            ClauseKind::Invokes -> clause_kind(parser_harness, output, index, clause, 2),
+            ClauseKind::Suspends -> clause_kind(parser_harness, output, index, clause, 3),
+            ClauseKind::Blocks -> clause_kind(parser_harness, output, index, clause, 4),
+            ClauseKind::Crashes -> clause_kind(parser_harness, output, index, clause, 5),
+            ClauseKind::Requires -> clause_kind(parser_harness, output, index, clause, 6),
+            ClauseKind::Ensures -> clause_kind(parser_harness, output, index, clause, 7),
+            ClauseKind::Satisfies -> clause_kind(parser_harness, output, index, clause, 9),
             ClauseKind::Terminates -> clause_kind(parser_harness, output, index, clause, 10)
         }
     }
@@ -1483,7 +1483,7 @@ crashes Trap
         write_u64(parser_harness, clause.first_member);
         write_u64(parser_harness, clause.member_count);
         transition clause.cause {
-            CrashCause::Trap -> clause_cause(parser_harness, output, index, clause, 1)
+            CrashCause::Trap -> clause_cause(parser_harness, output, index, clause, 1),
             CrashCause::Abort -> clause_cause(parser_harness, output, index, clause, 2)
         }
     }
@@ -1549,7 +1549,7 @@ crashes Trap
 
     machine path_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.name_path_count {
-            true -> write_path(parser_harness, output, index)
+            true -> write_path(parser_harness, output, index),
             _ -> trait_count(parser_harness, output)
         }
     }
@@ -1569,7 +1569,7 @@ crashes Trap
 
     machine trait_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.trait_count {
-            true -> write_trait(parser_harness, output, index)
+            true -> write_trait(parser_harness, output, index),
             _ -> parent_count(parser_harness, output)
         }
     }
@@ -1600,7 +1600,7 @@ crashes Trap
 
     machine parent_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.trait_parent_count {
-            true -> write_parent(parser_harness, output, index)
+            true -> write_parent(parser_harness, output, index),
             _ -> conformance_count(parser_harness, output)
         }
     }
@@ -1618,7 +1618,7 @@ crashes Trap
 
     machine conformance_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.conformance_count {
-            true -> write_conformance(parser_harness, output, index)
+            true -> write_conformance(parser_harness, output, index),
             _ -> domain_count(parser_harness, output)
         }
     }
@@ -1643,7 +1643,7 @@ crashes Trap
 
     machine domain_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.domain_count {
-            true -> write_domain(parser_harness, output, index)
+            true -> write_domain(parser_harness, output, index),
             _ -> constant_count(parser_harness, output)
         }
     }
@@ -1677,7 +1677,7 @@ crashes Trap
 
     machine constant_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.constant_count {
-            true -> write_constant(parser_harness, output, index)
+            true -> write_constant(parser_harness, output, index),
             _ -> proposition_count(parser_harness, output)
         }
     }
@@ -1701,7 +1701,7 @@ crashes Trap
 
     machine proposition_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.proposition_count {
-            true -> write_proposition(parser_harness, output, index)
+            true -> write_proposition(parser_harness, output, index),
             _ -> contract_count(parser_harness, output)
         }
     }
@@ -1713,7 +1713,7 @@ crashes Trap
 
     machine contract_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.contract_count {
-            true -> write_contract(parser_harness, output, index)
+            true -> write_contract(parser_harness, output, index),
             _ -> match_arm_count(parser_harness, output)
         }
     }
@@ -1721,7 +1721,7 @@ crashes Trap
     machine write_contract(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let contract: Contract = psi::syntax_trees_contract(output, index);
         transition contract.kind {
-            ContractKind::Machine -> contract_kind(parser_harness, output, index, contract, 1)
+            ContractKind::Machine -> contract_kind(parser_harness, output, index, contract, 1),
             ContractKind::Proposition -> contract_kind(parser_harness, output, index, contract, 2)
         }
     }
@@ -1750,7 +1750,7 @@ crashes Trap
 
     machine match_arm_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.match_arm_count {
-            true -> write_match_arm(parser_harness, output, index)
+            true -> write_match_arm(parser_harness, output, index),
             _ -> definition_count(parser_harness, output)
         }
     }
@@ -1758,9 +1758,9 @@ crashes Trap
     machine write_match_arm(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let arm: TransitionArm = psi::syntax_trees_match_arm(output, index);
         transition arm.kind {
-            ArmPatternKind::Guard -> match_arm_kind(parser_harness, output, index, arm, 1)
-            ArmPatternKind::Wildcard -> match_arm_kind(parser_harness, output, index, arm, 2)
-            ArmPatternKind::Literal -> match_arm_kind(parser_harness, output, index, arm, 3)
+            ArmPatternKind::Guard -> match_arm_kind(parser_harness, output, index, arm, 1),
+            ArmPatternKind::Wildcard -> match_arm_kind(parser_harness, output, index, arm, 2),
+            ArmPatternKind::Literal -> match_arm_kind(parser_harness, output, index, arm, 3),
             ArmPatternKind::Case -> match_arm_kind(parser_harness, output, index, arm, 4)
         }
     }
@@ -1780,7 +1780,7 @@ crashes Trap
 
     machine definition_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.definition_count {
-            true -> write_definition(parser_harness, output, index)
+            true -> write_definition(parser_harness, output, index),
             _ -> erased_count(parser_harness, output)
         }
     }
@@ -1794,7 +1794,7 @@ crashes Trap
 
     machine erased_row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.erased_binding_count {
-            true -> write_erased(parser_harness, output, index)
+            true -> write_erased(parser_harness, output, index),
             _ -> done()
         }
     }
@@ -1802,9 +1802,9 @@ crashes Trap
     machine write_erased(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let binding: ErasedBinding = psi::erased_binding(output, index);
         transition binding.kind {
-            ErasedBindingKind::Parameter -> erased_kind(parser_harness, output, index, binding, 1)
-            ErasedBindingKind::Field -> erased_kind(parser_harness, output, index, binding, 2)
-            ErasedBindingKind::PayloadField -> erased_kind(parser_harness, output, index, binding, 3)
+            ErasedBindingKind::Parameter -> erased_kind(parser_harness, output, index, binding, 1),
+            ErasedBindingKind::Field -> erased_kind(parser_harness, output, index, binding, 2),
+            ErasedBindingKind::PayloadField -> erased_kind(parser_harness, output, index, binding, 3),
             ErasedBindingKind::Local -> erased_kind(parser_harness, output, index, binding, 4)
         }
     }
@@ -1840,8 +1840,8 @@ crashes Trap
         write_u64(parser_harness, item.first_parameter);
         write_u64(parser_harness, item.parameter_count);
         transition item.body {
-            PropositionBody::Primitive -> proposition_body(parser_harness, output, index, item, 1)
-            PropositionBody::Evidence -> proposition_body(parser_harness, output, index, item, 2)
+            PropositionBody::Primitive -> proposition_body(parser_harness, output, index, item, 1),
+            PropositionBody::Evidence -> proposition_body(parser_harness, output, index, item, 2),
             PropositionBody::Transparent -> proposition_body(parser_harness, output, index, item, 3)
         }
     }
@@ -1866,7 +1866,7 @@ crashes Trap
 
 machine write_flag(parser_harness: @mut ParserHarness, value: bool) reaches Console {
     transition value {
-        true -> set(parser_harness)
+        true -> set(parser_harness),
         _ -> clear(parser_harness)
     }
 
@@ -1904,7 +1904,7 @@ machine write_byte(parser_harness: @mut ParserHarness, value: u8) reaches Consol
 // One byte for a flag.
 machine flag(value: bool) -> u8 {
     transition value {
-        true -> one()
+        true -> one(),
         _ -> zero()
     }
 
@@ -1927,14 +1927,14 @@ crashes Trap
     transition { _ -> next(parser_harness, output, 0) }
     machine next(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.retired_identity_count {
-            true -> row(parser_harness, output, index)
+            true -> row(parser_harness, output, index),
             _ -> done()
         }
     }
     machine row(parser_harness: @mut ParserHarness, output: @SyntaxTrees, index: u64 in Trapping) {
         let retired: RetiredIdentity = psi::retired_identity(output, index);
         transition retired.owner_kind {
-            RetiredIdentityOwner::Declaration -> tagged(parser_harness, output, index, retired, 1)
+            RetiredIdentityOwner::Declaration -> tagged(parser_harness, output, index, retired, 1),
             RetiredIdentityOwner::Payload -> tagged(parser_harness, output, index, retired, 2)
         }
     }

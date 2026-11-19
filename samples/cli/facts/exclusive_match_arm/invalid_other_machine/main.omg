@@ -9,7 +9,7 @@ requires counter == 0
 
 machine apply(chosen: @mut i64, other: @mut i64, visits: @mut u64) -> i64 {
     let selected: @mut i64 = match choose(visits) {
-        true -> chosen
+        true -> chosen,
         false -> other
     };
     chosen = 7;
@@ -27,7 +27,7 @@ machine main() crashes Trap {
     let mut visits: u64 = 0;
     let observed: i64 = forward(@mut chosen, @mut other, @mut visits);
     transition observed == 41 && chosen == 41 && other == 0 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

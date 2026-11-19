@@ -5,7 +5,7 @@ WindowsX64ScalarCalling satisfies CallingPolicy {
         let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
         let accepted: bool = windows_x64_scalar_signature(@signature, @mut plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan }
+            true -> BoundaryPlanResult::Accepted { plan: plan },
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
                 reason: "expected at most four 32/64-bit integer or sized-reference parameters, Unit or 32/64-bit integer result, and no callbacks" as +Utf8
             } }
@@ -18,34 +18,34 @@ machine windows_x64_scalar_signature(signature: @BoundarySignature,
     transition signature.parameter_count == signature.native_parameter_count
         && signature.parameter_count <= 4 && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
-        true -> completion(signature, plan)
+        true -> completion(signature, plan),
         _ -> false
     }
     machine completion(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool
     requires signature.parameter_count <= 4 {
         plan.call.parameter_count = signature.parameter_count;
         transition signature.has_result {
-            true -> result_index(signature, plan)
+            true -> result_index(signature, plan),
             _ -> windows_x64_scalar_parameters(signature, plan, 0, 4)
         }
     }
     machine result_index(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
-            true -> result_shape(signature, plan, @signature.shapes[signature.result])
+            true -> result_shape(signature, plan, @signature.shapes[signature.result]),
             _ -> false
         }
     }
     machine result_shape(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition shape.class {
-            ValueClass::Integer -> result_integer(signature, plan, shape)
+            ValueClass::Integer -> result_integer(signature, plan, shape),
             _ -> false
         }
     }
     machine result_integer(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         shape: @ValueShape) -> bool {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
-            true -> result_place(signature, plan, shape)
+            true -> result_place(signature, plan, shape),
             _ -> false
         }
     }
@@ -61,16 +61,16 @@ machine windows_x64_scalar_parameters(signature: @BoundarySignature,
     plan: @mut BoundaryEntryPlan, ordinal: u64, remaining: u64) -> bool
 terminates by remaining {
     transition {
-        ordinal == signature.parameter_count -> true
+        ordinal == signature.parameter_count -> true,
         ordinal < signature.parameter_count && ordinal < 4 && remaining > 0 ->
-            root(signature, plan, ordinal, remaining, signature.parameters[ordinal])
+            root(signature, plan, ordinal, remaining, signature.parameters[ordinal]),
         _ -> false
     }
     machine root(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         ordinal: u64, remaining: u64, root: u64) -> bool
     requires ordinal < 4, remaining > 0 {
         transition root < signature.shape_count && root < 256 {
-            true -> shape(signature, plan, ordinal, remaining, @signature.shapes[root])
+            true -> shape(signature, plan, ordinal, remaining, @signature.shapes[root]),
             _ -> false
         }
     }
@@ -78,8 +78,8 @@ terminates by remaining {
         ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition shape.class {
-            ValueClass::Integer -> integer(signature, plan, ordinal, remaining, shape)
-            ValueClass::Reference -> reference(signature, plan, ordinal, remaining, shape)
+            ValueClass::Integer -> integer(signature, plan, ordinal, remaining, shape),
+            ValueClass::Reference -> reference(signature, plan, ordinal, remaining, shape),
             _ -> false
         }
     }
@@ -87,7 +87,7 @@ terminates by remaining {
         ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
-            true -> place(signature, plan, ordinal, remaining, shape.byte_size)
+            true -> place(signature, plan, ordinal, remaining, shape.byte_size),
             _ -> false
         }
     }
@@ -95,7 +95,7 @@ terminates by remaining {
         ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition shape.byte_size == 8 && shape.alignment == 8 {
-            true -> place(signature, plan, ordinal, remaining, 8)
+            true -> place(signature, plan, ordinal, remaining, 8),
             _ -> false
         }
     }
@@ -111,9 +111,9 @@ terminates by remaining {
 machine windows_x64_scalar_argument_register(ordinal: u64) -> MachineRegister
 requires ordinal < 4 {
     transition ordinal {
-        0 -> MachineRegister::X86Rcx
-        1 -> MachineRegister::X86Rdx
-        2 -> MachineRegister::X86R8
+        0 -> MachineRegister::X86Rcx,
+        1 -> MachineRegister::X86Rdx,
+        2 -> MachineRegister::X86R8,
         _ -> MachineRegister::X86R9
     }
 }

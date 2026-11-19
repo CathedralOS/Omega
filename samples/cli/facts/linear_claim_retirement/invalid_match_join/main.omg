@@ -12,7 +12,7 @@ machine retire(token: Token) -> u64 {
 
 machine choose(flag: bool) -> Token {
     transition flag {
-        true -> left()
+        true -> left(),
         false -> right()
     }
     machine left() -> Token {
@@ -31,7 +31,7 @@ machine probe(flag: bool) -> u64 {
 
 machine main() crashes Trap {
     transition probe(true) == 42 && probe(false) == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

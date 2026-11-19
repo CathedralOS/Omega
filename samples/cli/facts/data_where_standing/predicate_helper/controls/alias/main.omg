@@ -22,8 +22,8 @@ const LOW: Counter = produce(-2147483648);
 const ALIAS: Counter = NAMED;
 machine compute<const VALUE: Counter>() -> i32 { 70 + VALUE.value }
 public machine main() crashes Trap {
-    transition ALIAS.before == 17 && ALIAS.after == 53 && NAMED.before == 17 && NAMED.after == 53 && LOW.before == 17 && LOW.after == 53 && compute<ALIAS>() == 130 && compute<LOW>() == -2147483578 {
-        true -> done()
+    transition ALIAS.before == 17 && ALIAS.after == 53 && NAMED.before == 17 && NAMED.after == 53 && LOW.before == 17 && LOW.after == 53 && compute::<ALIAS>() == 130 && compute::<LOW>() == -2147483578 {
+        true -> done(),
         false -> bad()
     }
 

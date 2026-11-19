@@ -163,7 +163,7 @@ fn joined_name(syntax: &SyntaxTrees, path: &[Identifier]) -> Result<Identifier, 
     Ok(Identifier::new(path.joined_path_in(syntax), span))
 }
 
-fn argument_type(
+pub(super) fn argument_type(
     syntax: &mut SyntaxTrees,
     argument: &StaticMachineArgument,
 ) -> Result<TypeReferenceHandle, Diagnostic> {

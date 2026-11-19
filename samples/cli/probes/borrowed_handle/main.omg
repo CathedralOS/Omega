@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let view: HandleView in OpenView = borrow_handle(@handle);
     let observed: u64 = observe(view);
     close(handle);
-    transition observed == 41 { true -> done() false -> wrong() }
+    transition observed == 41 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

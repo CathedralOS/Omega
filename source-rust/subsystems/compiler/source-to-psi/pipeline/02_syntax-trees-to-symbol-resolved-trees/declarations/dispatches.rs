@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn subject_is_evaluated_once_and_coverage_stops_at_each_dispatch() {
         let source = "machine caller() -> u32 {
-            transition probe() { true -> 1u32 false -> 2u32 }
+            transition probe() { true -> 1u32, false -> 2u32 }
             transition probe() { false -> 3u32 }
         }";
         let mut syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();
@@ -273,8 +273,8 @@ mod tests {
     fn trait_default_prepares_tuple_wildcards_and_preserves_an_uncovered_row() {
         let source = "trait Choose {
             machine choose(a: bool, b: bool) {
-                transition (a, b) { (true, _) -> {} (false, true) -> {} (false, false) -> {} }
-                transition (a, b) { (true, _) -> {} (false, true) -> {} }
+                transition (a, b) { (true, _) -> {}, (false, true) -> {}, (false, false) -> {} }
+                transition (a, b) { (true, _) -> {}, (false, true) -> {} }
             }
         }";
         let mut syntax = parse_syntax_trees(&Lexer::new(source).tokenize().unwrap()).unwrap();

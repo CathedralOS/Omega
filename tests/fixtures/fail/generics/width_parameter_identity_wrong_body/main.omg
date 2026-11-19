@@ -9,10 +9,10 @@ crashes none
     value
 }
 machine main() crashes Trap {
-    let wide: u32 = identity<32>(37u32);
-    let narrow: u8 = identity<8>(201u8);
+    let wide: u32 = identity::<32>(37u32);
+    let narrow: u8 = identity::<8>(201u8);
     transition wide == 37u32 && narrow == 201u8 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

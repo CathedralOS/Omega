@@ -72,7 +72,7 @@ machine Main::main(main: @mut Main) {
     main.packed.code = 10;
     transition main.packed.present == true && main.packed.mode == 5
         && main.packed.code == 10 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() { }

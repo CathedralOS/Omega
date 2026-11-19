@@ -23,7 +23,7 @@ X86Restore satisfies SelectedRestore {
                 nop
         }
         transition (saved & 64u64) == 64u64 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
         machine done() {}

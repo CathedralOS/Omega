@@ -14,29 +14,29 @@ use omega::language::core::narrow_u64_to_i64_exact;
 machine windows_reparse_target(data: @WindowsNativeReparseData, returned: u32, output: @mut [u16; 8192]) -> i64 {
     let extent: u64 = widen_u16_to_u64(data.data_length);
     transition returned >= 8 && returned <= 16384 && extent + 8 <= widen_u32_to_u64(returned) {
-        true -> kind(data, extent, output)
+        true -> kind(data, extent, output),
         false -> (-31)
     }
     machine kind(data: @WindowsNativeReparseData, extent: u64, output: @mut [u16; 8192]) -> i64 {
         transition data.tag {
-            2684354572 -> symbolic(data, extent, output)
-            2684354563 -> mount(data, extent, output)
+            2684354572 -> symbolic(data, extent, output),
+            2684354563 -> mount(data, extent, output),
             _ -> (-50)
         }
     }
     machine mount(data: @WindowsNativeReparseData, extent: u64, output: @mut [u16; 8192]) -> i64 {
-        transition extent >= 8 { true -> span(data, extent, 8, 0, false, output) false -> (-31) }
+        transition extent >= 8 { true -> span(data, extent, 8, 0, false, output), false -> (-31) }
     }
     machine symbolic(data: @WindowsNativeReparseData, extent: u64, output: @mut [u16; 8192]) -> i64 {
         transition extent >= 12 {
-            true -> flags(data, extent, output)
+            true -> flags(data, extent, output),
             false -> (-31)
         }
     }
     machine flags(data: @WindowsNativeReparseData, extent: u64, output: @mut [u16; 8192]) -> i64 {
         let flags: u32 = widen_u16_to_u32(data.rest[0]) | (widen_u16_to_u32(data.rest[1]) << 16);
         transition flags <= 1 {
-            true -> span(data, extent, 12, 2, flags == 1, output)
+            true -> span(data, extent, 12, 2, flags == 1, output),
             false -> (-50)
         }
     }
@@ -46,7 +46,7 @@ machine windows_reparse_target(data: @WindowsNativeReparseData, returned: u32, o
         let length: u64 = widen_u16_to_u64(data.substitute_length);
         transition extent >= header && header <= 12 && offset % 2 == 0
             && length > 0 && length % 2 == 0 && offset + length <= extent - header {
-            true -> units(data, base, offset, length, relative, output)
+            true -> units(data, base, offset, length, relative, output),
             false -> (-31)
         }
     }
@@ -55,7 +55,7 @@ machine windows_reparse_target(data: @WindowsNativeReparseData, returned: u32, o
         let start: u64 = base + offset / 2;
         let count: u64 = length / 2;
         transition start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
-            true -> (windows_reparse_copy_target(data, output, start, count, relative))
+            true -> (windows_reparse_copy_target(data, output, start, count, relative)),
             false -> (-31)
         }
     }
@@ -67,7 +67,7 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     machine copy(data: @WindowsNativeReparseData, output: @mut [u16; 8192], start: u64, count: u64, relative: bool, position: u64) -> i64
     requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
         transition position < count {
-            true -> character(data, output, start, count, relative, position)
+            true -> character(data, output, start, count, relative, position),
             false -> complete(output, count, relative)
         }
     }
@@ -75,7 +75,7 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start && position < count {
         let character: u16 = data.rest[start + position];
         transition character != 0 {
-            true -> store(data, output, start, count, relative, position, character)
+            true -> store(data, output, start, count, relative, position, character),
             false -> (-31)
         }
     }
@@ -87,12 +87,12 @@ requires start <= 8184 && count > 0 && count < 8192 && count <= 8184 - start {
     machine complete(output: @mut [u16; 8192], count: u64, relative: bool) -> i64
     requires count > 0 && count < 8192 {
         output[count] = 0;
-        transition relative { true -> (narrow_u64_to_i64_exact(count)) false -> absolute(output, count) }
+        transition relative { true -> (narrow_u64_to_i64_exact(count)), false -> absolute(output, count) }
     }
     machine absolute(output: @mut [u16; 8192], count: u64) -> i64
     requires count > 0 && count < 8192 {
         transition count > 4 && output[0] == 92 && output[1] == 63 && output[2] == 63 && output[3] == 92 {
-            true -> translate(output, count)
+            true -> translate(output, count),
             false -> (-50)
         }
     }

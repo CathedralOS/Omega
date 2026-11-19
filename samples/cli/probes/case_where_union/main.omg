@@ -25,20 +25,20 @@ machine case_where_union() {
     let numeric: Value<i32> = Value::Integer { value: 7 };
     let flag: Value<bool> = Value::Boolean { value: true };
     transition numeric {
-        Value::Integer { value } -> check_flag(flag, value)
+        Value::Integer { value } -> check_flag(flag, value),
         _ -> done(71)
     }
 
     machine check_flag(flag: Value<bool>, num: i32) {
         transition flag {
-            Value::Boolean { value } -> judge(num, value)
+            Value::Boolean { value } -> judge(num, value),
             _ -> done(72)
         }
     }
 
     machine judge(num: i32, truth: bool) {
         transition num == 7 && truth {
-            true -> done(70)
+            true -> done(70),
             _ -> done(73)
         }
     }

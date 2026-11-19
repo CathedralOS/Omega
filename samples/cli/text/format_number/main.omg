@@ -43,7 +43,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.buffer[1] = main.ones_byte;
 
     transition main.buffer == "25" {
-        true -> block ok(main)
+        true -> block ok(main),
         _ -> block bad(main)
     }
 

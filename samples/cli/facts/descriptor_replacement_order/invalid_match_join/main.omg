@@ -26,10 +26,10 @@ machine main() crashes Trap {
     let new: Cell = Cell { value: 41 };
     let sibling: Cell = Cell { value: 19 };
     let bundle: Bundle = Bundle { entries: [Views { first: @old, second: @sibling }] };
-    let selected: Bundle = match sibling.value == 19 { true -> bundle false -> bundle };
+    let selected: Bundle = match sibling.value == 19 { true -> bundle, false -> bundle };
     let replaced: bool = replace(selected, @intermediate, selected.entries[0].first);
     transition replaced && old.value == 17 && sibling.value == 19 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main) {
     transition shapes.inclusive.storage.len == 256
         && shapes.exclusive.storage.len == 257
         && shapes.domained.storage.len == 256 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -8,7 +8,7 @@ machine drop_mark(mark: @mut Mark) requires mark.code == 7 {
 }
 machine settle(mark: @Mark) {}
 machine check(tally: @Tally) crashes Trap {
-    transition tally.total == 7 { true -> done() _ -> bad() }
+    transition tally.total == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

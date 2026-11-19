@@ -41,13 +41,13 @@ machine Main::main(main: @mut Main) {
     main.made = 0;
     main.hits = 0;
     transition main.pair.a == 10 {
-        true -> take_field(main.pair, main)
+        true -> take_field(main.pair, main),
         _ -> take_call(make(@mut main.made, 5), 6, main)
     }
 
     machine take_field(pair: Pair, main: @mut Main) {
         transition pair.a + pair.b == 30 {
-            true -> owned(main)
+            true -> owned(main),
             _ -> fail(main)
         }
     }
@@ -56,7 +56,7 @@ machine Main::main(main: @mut Main) {
     }
     machine take_owned(o: Owned, main: @mut Main) {
         transition o.value == 3 {
-            true -> view(main)
+            true -> view(main),
             _ -> fail(main)
         }
     }
@@ -65,7 +65,7 @@ machine Main::main(main: @mut Main) {
     }
     machine take_view(view: @Pair, main: @mut Main) {
         transition view.b == 20 && main.made == 0 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

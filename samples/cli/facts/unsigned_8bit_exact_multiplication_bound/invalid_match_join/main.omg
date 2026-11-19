@@ -5,7 +5,7 @@ machine choose(flag: bool, first: u8, second: u8) -> u8
     ensures result >= 80u8 && result <= 180u8
 {
     transition flag {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -23,7 +23,7 @@ machine probe(flag: bool, lhs: u8, rhs: u8) -> u8
 machine main() crashes Trap {
     let combined: u8 = probe(true, 12u8, 10u8);
     transition combined == 100u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

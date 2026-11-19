@@ -7,7 +7,7 @@ machine window<'samples>(samples: @'samples mut [f64; 4], which: i64, flag: bool
 ensures result.len == 2
 {
     match which {
-        0 -> @mut samples[0..(match flag { true -> which + 1, false -> 1 })]
+        0 -> @mut samples[0..(match flag { true -> which + 1, false -> 1 })],
         _ -> @mut samples[2..4]
     }
 }
@@ -35,7 +35,7 @@ machine exercise(which: i64, flag: bool) crashes Trap {
     let fourth: f64 = samples[3];
     transition (which == 0 && first == 0.0 && second == 1.0 && third == 9.0 && fourth == 9.0)
         || (which != 0 && first == 9.0 && second == 9.0 && third == 0.0 && fourth == 1.0) {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

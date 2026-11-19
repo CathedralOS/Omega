@@ -5,10 +5,10 @@ boundary trait Service<T> {
 First satisfies Service<u32> { machine value() -> u64 reaches none crashes none { 29u64 } }
 Second satisfies Service<u64> { machine value() -> u64 reaches none crashes none { 37u64 } }
 machine main() crashes Trap {
-    let first: u64 = Service<u32>::value();
-    let second: u64 = Service<u64>::value();
+    let first: u64 = Service::<u32>::value();
+    let second: u64 = Service::<u64>::value();
     transition first == 29u64 && second == 37u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

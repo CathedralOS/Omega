@@ -21,13 +21,13 @@ machine main() crashes Trap {
     let sum_wrapped: u8 in Wrapping = compute_wrap(lhs, rhs);
     let sum: u8 = sum_wrapped as u8;
     transition true {
-        true -> step(sum)
+        true -> step(sum),
         _ -> bad()
     }
     machine step(forwarded: u8) {
         let check: i32 = verify_sum(forwarded);
         transition check == 0 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

@@ -17,7 +17,7 @@ requires requested < whole.length
 { whole.base + requested }
 machine main() crashes Trap {
     let address: addr = cut(NAMED, 0);
-    transition address == 0 { true -> done() _ -> bad() }
+    transition address == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

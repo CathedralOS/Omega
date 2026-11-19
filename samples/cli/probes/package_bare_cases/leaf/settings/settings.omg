@@ -1,0 +1,1 @@
+public data Value { case Empty; case Present(value: u32); }

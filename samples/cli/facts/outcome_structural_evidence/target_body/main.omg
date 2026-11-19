@@ -13,7 +13,7 @@ ensures Outcome::Success -> { selected: above(gate.threshold); }
 { Outcome::Failure }
 machine failure_arm() -> bool {
  transition pick_failure(Gate { threshold: 5 }) {
-  Outcome::Success { ; selected: proof } -> (false)
+  Outcome::Success { ; selected: proof } -> (false),
   _ -> (true)
  }
 }
@@ -23,7 +23,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -31,7 +31,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -48,7 +48,7 @@ X86Probe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(17u64);
      transition pick(gate) {
-      Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+      Outcome::Success { ; selected: proof } -> (gate.threshold == 5),
       _ -> (false)
      }
     }
@@ -60,7 +60,7 @@ ArmProbe satisfies SelectedProbe {
     {
         SelectedBodyCheck::require_tag(29u64);
      transition pick(gate) {
-      Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+      Outcome::Success { ; selected: proof } -> (gate.threshold == 5),
       _ -> (false)
      }
     }
@@ -68,7 +68,7 @@ ArmProbe satisfies SelectedProbe {
 
 
 machine main() crashes Trap {
- transition (SelectedProbe::probe(Gate { threshold: 5 })) && failure_arm() { true -> done() _ -> bad() }
+ transition (SelectedProbe::probe(Gate { threshold: 5 })) && failure_arm() { true -> done(), _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

@@ -10,10 +10,10 @@ machine probe() -> u8 {
     let view: @mut [u8] = @mut bytes[0..1];
     let saved: bool = ascii_only(view);
     other[0] = 255u8;
-    transition saved { true -> inspect(view) false -> 0u8 }
+    transition saved { true -> inspect(view), false -> 0u8 }
 }
 machine main() crashes Trap {
-    transition probe() == 65u8 { true -> done() false -> bad() }
+    transition probe() == 65u8 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

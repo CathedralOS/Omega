@@ -55,7 +55,7 @@ machine main() crashes Trap {
         && unsigned64(4294967296.0f64) == 4294967295u32
         && signed32(-0.0f32) == 0i32 && signed64(0.0f64) == 0i32
         && unsigned32(0.0f32) == 0u32 && unsigned64(-0.0f64) == 0u32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

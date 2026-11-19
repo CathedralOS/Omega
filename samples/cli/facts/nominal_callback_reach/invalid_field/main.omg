@@ -29,9 +29,9 @@ data Meter {
 }
 
 machine main() crashes Trap {
-    let meter: Meter = Meter { observed: walk<noise>(35) };
+    let meter: Meter = Meter { observed: walk::<noise>(35) };
     transition meter.observed == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

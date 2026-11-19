@@ -18,7 +18,7 @@ machine receive(value: Division) -> bool reaches IntegerDivision { consume(value
 machine main() reaches IntegerDivision crashes Trap {
  transition { _ -> arrived(IntegerDivision::divide(-70000000000, 3)) }
  machine arrived(value: Division) reaches IntegerDivision crashes Trap {
-  transition receive(value) { true -> done() _ -> failed() }
+  transition receive(value) { true -> done(), _ -> failed() }
  }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }

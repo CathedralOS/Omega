@@ -18,7 +18,7 @@ requires windows.len == 2 && slot == 0 {
 
 machine replaced(values: @[Cell]) -> bool {
     transition values.len == 2 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 2 {
@@ -28,7 +28,7 @@ machine replaced(values: @[Cell]) -> bool {
 
 machine unchanged(values: @[Cell]) -> bool {
     transition values.len == 1 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 1 {
@@ -53,7 +53,7 @@ machine exercise() crashes Trap {
     let mut windows: [Window; 2] = [Window { values: @mut original[..] }, Window { values: @mut neighbor[..] }];
     windows[selected].values = @mut replacement[..];
     transition check(@mut windows[..], @mut original) {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

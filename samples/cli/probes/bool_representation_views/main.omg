@@ -33,14 +33,14 @@ machine Main::main(main: @mut Main) {
     let flag_bits: @u8 = @main.flag as @u8;
     let byte_flag: @bool = @main.byte as @bool;
     transition flag_bits == 1 && byte_flag {
-        true -> mutate(main)
+        true -> mutate(main),
         _ -> fail(main)
     }
     machine mutate(main: @mut Main) {
         let byte_alias: @mut bool = @mut main.byte as @mut bool;
         byte_alias = false;
         transition main.byte == 0 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

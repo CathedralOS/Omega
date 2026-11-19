@@ -10,7 +10,7 @@ machine failed() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     let mut cursor: u64 = 2;
     let observed: u64 = received(snapshot(cursor, 9), reset(@mut cursor));
-    transition observed == 7 && cursor == 0 { true -> finished() false -> failed() }
+    transition observed == 7 && cursor == 0 { true -> finished(), false -> failed() }
     machine received(selected: Counted, ignored: u64) -> u64 ensures result == 7 {
     let mut output: u64 = 99;
     asm clobbers none {

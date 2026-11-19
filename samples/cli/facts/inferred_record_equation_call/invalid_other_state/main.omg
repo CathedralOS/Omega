@@ -11,8 +11,8 @@ machine main() crashes Trap {
     let original: Token<SEVEN> = Token { marker: 1 };
     transition { _ -> arrived(original) }
     machine arrived(items: Token<SEVEN>) {
-        let observed: u64 = read<Token<SEVEN>, EIGHT>(items);
-        transition observed == 7 { true -> done() _ -> bad() }
+        let observed: u64 = read::<Token<SEVEN>, EIGHT>(items);
+        transition observed == 7 { true -> done(), _ -> bad() }
     }
     machine done() {} machine bad() { crash Trap; }
 }

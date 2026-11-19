@@ -11,7 +11,7 @@ machine main() reaches MachineControl crashes Trap {
     }
     restore(saved);
     transition (saved & 64u64) == 64u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

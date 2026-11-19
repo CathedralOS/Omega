@@ -5,7 +5,7 @@ use omega::language::core::Issuance;
 use vec::VecCell;
 
 machine describe_cell() -> reflect::TypeSchema {
-    reflect::schema<VecCell>()
+    reflect::schema::<VecCell>()
 }
 
 machine construct_restricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
@@ -29,7 +29,7 @@ use omega::language::core::Exposure;
 public data RuleCell { value: u32; }
 public trait PlanReader { machine read() -> u32; }
 
-machine describe_rule_cell() -> reflect::TypeSchema { reflect::schema<RuleCell>() }
+machine describe_rule_cell() -> reflect::TypeSchema { reflect::schema::<RuleCell>() }
 
 // Naming VecCell does not publish its private value field to this source file.
 machine inaccessible_cell_field() -> reflect::FieldInfo { reflect::field(VecCell::value) }

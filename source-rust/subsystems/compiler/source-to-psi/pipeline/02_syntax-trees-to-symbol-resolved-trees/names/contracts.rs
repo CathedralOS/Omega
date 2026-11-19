@@ -481,7 +481,7 @@ fn assign_contract_call_symbols(
             }
             // A contract call takes the same static qualification as a
             // body call, so a fixed `core::` name such as
-            // `core::Identity<T>(left, right)` and a module-qualified
+            // `core::Identity::<T>(left, right)` and a module-qualified
             // machine select their declarations here too.
             let target_symbol = super::targets::normalize_expression_module_call(
                 symbols,

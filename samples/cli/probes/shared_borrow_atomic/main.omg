@@ -13,7 +13,7 @@ machine Main::main(main: @mut Main) {
     Cell::publish(@main.cell, 10);
     let prior: u32 = Cell::mark(@main.cell, 5);
     transition prior == 10 {
-        true -> done(main)
+        true -> done(main),
         false -> bad(main)
     }
     machine done(main: @mut Main) { }

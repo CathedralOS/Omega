@@ -22,7 +22,7 @@ impl ExpressionNode {
                             }
                             MatchPattern::Wildcard => "_".to_owned(),
                         };
-                        format!("{pattern} => {}", table.display_expression_name(arm.value))
+                        format!("{pattern} -> {}", table.display_expression_name(arm.value))
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -93,7 +93,7 @@ impl ExpressionNode {
                 application: path_application.clone(),
                 ..Default::default()
             }
-            .display_name(table),
+            .display_path(table, "::<"),
             Self::Range(range) => {
                 let separator = if range.end_inclusive { "..=" } else { ".." };
                 match (range.start.is_valid(), range.end.is_valid()) {
@@ -119,7 +119,7 @@ impl ExpressionNode {
             }
             Self::String(value) => source_text::display_literal_bytes(value),
             Self::Unary(unary) => unary.display_name(table),
-            Self::ZeroValue(_) => "zero_value<type>()".to_owned(),
+            Self::ZeroValue(_) => "zero_value::<type>()".to_owned(),
             Self::TypeExpression(_) => "<type expression>".to_owned(),
         }
     }
@@ -226,7 +226,7 @@ impl TableCallExpression {
             String::new()
         } else {
             format!(
-                "<{}>",
+                "::<{}>",
                 self.machine_arguments
                     .iter()
                     .map(|argument| argument.display_name(table))
@@ -259,6 +259,10 @@ impl TableCallExpression {
 
 impl StaticMachineArgument {
     fn display_name(&self, table: &crate::SyntaxTrees) -> String {
+        self.display_path(table, "<")
+    }
+
+    fn display_path(&self, table: &crate::SyntaxTrees, argument_opener: &str) -> String {
         if self.type_reference.is_valid() {
             return "<structural type>".to_owned();
         }
@@ -285,12 +289,12 @@ impl StaticMachineArgument {
                     .iter()
                     .map(|argument| argument.display_name(table)),
             );
-            rendered.push('<');
+            rendered.push_str(argument_opener);
             rendered.push_str(&arguments.join(", "));
             rendered.push('>');
             if let Some(member) = table.expressions.static_member(application.member) {
                 rendered.push_str("::");
-                rendered.push_str(&member.display_name(table));
+                rendered.push_str(&member.display_path(table, argument_opener));
             }
         }
         rendered

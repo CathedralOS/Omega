@@ -14,7 +14,7 @@ const MARKER: u8 = 37u8;
 
 machine write_read(bytes: @mut [u8]) -> u8 {
     transition bytes.len >= COMMITTED {
-        true -> access(bytes)
+        true -> access(bytes),
         false -> (0u8)
     }
     machine access(bytes: @mut [u8]) -> u8
@@ -25,8 +25,8 @@ machine write_read(bytes: @mut [u8]) -> u8 {
 }
 
 machine main() crashes Trap {
-    transition Activation::try_claim<BOUND>(COMMITTED) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
+    transition Activation::try_claim::<BOUND>(COMMITTED) {
+        ActivationClaimAttempt::Established { claim } -> established(claim),
         ActivationClaimAttempt::Rejected -> bad()
     }
     machine established(claim: ActivationClaim) {
@@ -36,13 +36,13 @@ machine main() crashes Trap {
         let observed: u8 = write_read(bytes);
         ActivationClaim::release(live);
         transition length == COMMITTED && observed == MARKER {
-            true -> over_bound()
+            true -> over_bound(),
             false -> bad()
         }
     }
     machine over_bound() {
-        transition Activation::try_claim<BOUND>(OVER_BOUND) {
-            ActivationClaimAttempt::Rejected -> done()
+        transition Activation::try_claim::<BOUND>(OVER_BOUND) {
+            ActivationClaimAttempt::Rejected -> done(),
             ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }

@@ -20,12 +20,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     let observed: LineReadResult = block Console::read_line(@mut input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> parse(main, @input, count)
+        LineReadResult::LineComplete { count } -> parse(main, @input, count),
         _ -> bad_input(main)
     }
     machine parse(main: @mut Main, input: @[u8; 8], count: u64) {
         transition count == 2 && input[0] >= 48 && input[0] <= 55 && input[1] == 10 {
-            true -> selected(main, (input[0] as i32) - 48)
+            true -> selected(main, (input[0] as i32) - 48),
             _ -> bad_input(main)
         }
     }
@@ -34,7 +34,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         load_case(@mut problem, selector);
         let valid: bool = valid_problem(@problem);
         transition valid {
-            true -> solve(main, @problem)
+            true -> solve(main, @problem),
             _ -> bad_problem(main)
         }
     }

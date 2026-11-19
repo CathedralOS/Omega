@@ -25,7 +25,7 @@ crashes Trap
     transition { _ -> next(arguments, 0) }
     machine next(arguments: @mut ArgumentValues, offset: u64 in Trapping) {
         transition offset < 64 {
-            true -> clear(arguments, offset)
+            true -> clear(arguments, offset),
             _ -> {}
         }
     }
@@ -47,14 +47,14 @@ crashes Trap
     scope.field_first = 0;
     scope.fields_parent = checker.fields_parent;
     transition checker.substituting || checker.field_values {
-        true -> active(checker, scope)
+        true -> active(checker, scope),
         _ -> {}
     }
     machine active(checker: @Checker, scope: @mut ArgumentScope) {
         scope.arguments.count = checker.argument_count;
         scope.arguments.valid = checker.argument_count <= 64;
         transition checker.substituting {
-            true -> parameters(checker, scope)
+            true -> parameters(checker, scope),
             _ -> fields(checker, scope)
         }
     }
@@ -64,7 +64,7 @@ crashes Trap
     }
     machine fields(checker: @Checker, scope: @mut ArgumentScope) {
         transition checker.field_values {
-            true -> field_roster(checker, scope)
+            true -> field_roster(checker, scope),
             _ -> next(checker, scope, 0)
         }
     }
@@ -74,7 +74,7 @@ crashes Trap
     }
     machine next(checker: @Checker, scope: @mut ArgumentScope, offset: u64 in Trapping) {
         transition offset < scope.arguments.count && offset < 64 {
-            true -> capture(checker, scope, offset)
+            true -> capture(checker, scope, offset),
             _ -> {}
         }
     }
@@ -98,7 +98,7 @@ crashes Trap
     transition { _ -> next(checker, scope, 0) }
     machine next(checker: @mut Checker, scope: @ArgumentScope, offset: u64 in Trapping) {
         transition offset < 64 {
-            true -> restore(checker, scope, offset)
+            true -> restore(checker, scope, offset),
             _ -> {}
         }
     }
@@ -119,7 +119,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, call, arguments, 0) }
     machine next(checker: @Checker, syntax: @SyntaxTrees, call: Expression, arguments: @mut ArgumentValues, offset: u64 in Trapping) {
         transition offset < arguments.count && offset < 64 {
-            true -> capture(checker, syntax, call, arguments, offset)
+            true -> capture(checker, syntax, call, arguments, offset),
             _ -> {}
         }
     }
@@ -143,14 +143,14 @@ public machine decide_bound_facts(
 crashes Trap
 {
     transition arguments.valid && arguments.count == clauses.parameter_count && arguments.count <= 64 {
-        true -> scoped(checker, syntax, resolution, typing, clauses, arguments, kind, proving)
+        true -> scoped(checker, syntax, resolution, typing, clauses, arguments, kind, proving),
         _ -> false
     }
     machine scoped(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, clauses: CallClauses, arguments: @ArgumentValues, kind: ClauseKind, proving: bool) -> bool {
         let mut previous: ArgumentScope;
         capture_argument_scope(checker, @mut previous);
         transition previous.arguments.valid {
-            true -> installed(checker, syntax, resolution, typing, clauses, arguments, kind, proving, @previous)
+            true -> installed(checker, syntax, resolution, typing, clauses, arguments, kind, proving, @previous),
             _ -> false
         }
     }
@@ -173,7 +173,7 @@ crashes Trap
     transition { _ -> next(checker, arguments, 0) }
     machine next(checker: @mut Checker, arguments: @ArgumentValues, offset: u64 in Trapping) {
         transition offset < arguments.count && offset < 64 {
-            true -> install(checker, arguments, offset)
+            true -> install(checker, arguments, offset),
             _ -> {}
         }
     }

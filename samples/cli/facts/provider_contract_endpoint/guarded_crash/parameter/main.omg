@@ -12,7 +12,7 @@ machine divide(numerator: u64, denominator: u64) -> u64
 crashes Trap denominator == 0u64
 {
     transition denominator == 0u64 {
-        true -> bad()
+        true -> bad(),
         false -> (numerator / denominator)
     }
     machine bad() -> u64 crashes Trap { crash Trap; }
@@ -33,7 +33,7 @@ requires value <= limit()
 public machine main() invokes Endpoint crashes Trap {
     let produced: u64 = bounded(7);
     let difference: u64 = subtract(produced);
-    transition difference == 0 && limit() == 7u64 { true -> done() false -> bad() }
+    transition difference == 0 && limit() == 7u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

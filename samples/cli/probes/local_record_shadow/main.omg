@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     main.hits = 0;
     let correct: bool = Counter::inspect();
     transition correct {
-        true -> passed(main)
+        true -> passed(main),
         false -> failed(main)
     }
     machine passed(main: @mut Main) { main.hits = 1; }

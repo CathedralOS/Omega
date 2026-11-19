@@ -98,7 +98,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, flags, 0);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -115,7 +115,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, flags, mode);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -132,7 +132,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, 577, mode);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -187,7 +187,7 @@ reaches FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 0);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -212,7 +212,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, @terminated, mode);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -229,7 +229,7 @@ reaches FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 512);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -246,7 +246,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(name, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, @terminated, mode);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -263,7 +263,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let fits: bool = posix_terminated_path(name, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(dirfd, @terminated, flags, 0);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -280,7 +280,7 @@ reaches FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(name, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(dirfd, @terminated, flags);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -297,7 +297,7 @@ reaches FilesystemMetadataMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchmodat(-100, @terminated, mode);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -324,7 +324,7 @@ reaches FilesystemNamespaceMutation
     let second_fits: bool = posix_terminated_path(to as -Path, @mut second[..]);
     let outcome: i32 = PosixFilesystemLinux::renameat(-100, @first, -100, @second);
     transition first_fits && second_fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -343,7 +343,7 @@ reaches FilesystemNamespaceMutation
     let second_fits: bool = posix_terminated_path(link as -Path, @mut second[..]);
     let outcome: i32 = PosixFilesystemLinux::linkat(-100, @first, -100, @second, 0);
     transition first_fits && second_fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -362,7 +362,7 @@ reaches FilesystemNamespaceMutation
     let second_fits: bool = posix_terminated_path(link as -Path, @mut second[..]);
     let outcome: i32 = PosixFilesystemLinux::symlinkat(@first, -100, @second);
     transition first_fits && second_fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -377,7 +377,7 @@ reaches FilesystemMetadataQuery
 {
     let mut terminated: [u8; 4096];
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
-    transition fits { true -> transfer(terminated, buffer, count) _ -> -36 }
+    transition fits { true -> transfer(terminated, buffer, count), _ -> -36 }
     machine transfer(terminated: [u8; 4096], buffer: @mut [u8], count: u64) -> i64 {
         // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
         let capacity: u64 = min_u64(min_u64(count, buffer.len), 2147483647);
@@ -402,7 +402,7 @@ reaches FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 0);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -419,7 +419,7 @@ reaches FilesystemNamespaceMutation
     let fits: bool = posix_terminated_path(path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 512);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -467,7 +467,7 @@ reaches FilesystemMetadataQuery
     {
         let mut terminated: [u8; 4096];
         let fits: bool = posix_terminated_path(name, @mut terminated[..]);
-        transition fits { true -> query(directory_descriptor, terminated, buffer, flags) _ -> -36 }
+        transition fits { true -> query(directory_descriptor, terminated, buffer, flags), _ -> -36 }
     }
     machine query(directory_descriptor: i32, terminated: [u8; 4096], buffer: @mut [u8; 144], flags: i32) -> i32
     {
@@ -534,7 +534,7 @@ reaches FilesystemMetadataMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchownat(-100, @terminated, uid, gid, 0);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 
@@ -551,7 +551,7 @@ reaches FilesystemMetadataMutation
     let fits: bool = posix_terminated_path(path as -Path, @mut terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchownat(-100, @terminated, uid, gid, 256);
     transition fits {
-        true -> settle(outcome)
+        true -> settle(outcome),
         _ -> (-36)
     }
 

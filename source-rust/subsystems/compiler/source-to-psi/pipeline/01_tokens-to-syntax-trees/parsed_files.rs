@@ -151,15 +151,13 @@ pub struct RetainedSourceParse {
 }
 
 pub struct SourceDeclarations {
-    pub module: Vec<String>,
     pub declares_operator_family: bool,
     pub declared: Vec<String>,
 }
 
 impl RetainedSourceParse {
-    pub fn declarations(&self, path: &Path) -> Result<SourceDeclarations, Vec<Diagnostic>> {
+    pub fn declarations(&self) -> SourceDeclarations {
         let syntax = &self.unit.syntax;
-        let mut module = None;
         let mut declares_operator_family = false;
         let mut declared = Vec::new();
         for item in self.unit.root_items() {
@@ -168,28 +166,12 @@ impl RetainedSourceParse {
             {
                 declares_operator_family = true;
             }
-            if let Item::Module(declaration) = syntax.root_item(*item) {
-                if module.is_some() {
-                    return Err(vec![Diagnostic::error(format!(
-                        "source {} declares more than one logical module",
-                        path.display()
-                    ))]);
-                }
-                module = Some(
-                    syntax
-                        .items
-                        .identifier_path_members(declaration.path)
-                        .iter()
-                        .map(|name| name.as_str(syntax).to_owned())
-                        .collect(),
-                );
-            }
+
         }
-        Ok(SourceDeclarations {
-            module: module.unwrap_or_default(),
+        SourceDeclarations {
             declares_operator_family,
             declared,
-        })
+        }
     }
 }
 
@@ -261,6 +243,6 @@ fn declared_names(syntax: &SyntaxTrees, item: &Item) -> Vec<String> {
         },
         Item::Trait(definition) => vec![first(&definition.name)],
         Item::TypeAlias(definition) => vec![first(&definition.name)],
-        Item::Module(_) | Item::Package(_) | Item::Use(_) => Vec::new(),
+        Item::Package(_) | Item::Use(_) => Vec::new(),
     }
 }

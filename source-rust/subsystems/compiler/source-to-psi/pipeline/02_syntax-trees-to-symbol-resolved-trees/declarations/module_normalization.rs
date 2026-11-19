@@ -33,7 +33,6 @@ use crate::resolution::constants::validate_scalar_initializer;
 use crate::resolution::declarations::generic_data::canonicalize_selected_declared_const_definition;
 use crate::resolution::lowering::lowerer::ConstResolutionMode;
 use crate::resolution::tables::syntax_expressions;
-use crate::resolution::tables::syntax_items;
 use crate::resolution::tables::syntax_type_references;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
@@ -49,26 +48,11 @@ pub(crate) fn validate_with_const_resolution_mode(
     selection: &crate::resolution::declarations::declaration_selection::ConstantSelection,
     mode: ConstResolutionMode,
 ) -> Result<(), Vec<Diagnostic>> {
-    let module_sources = syntax
-        .root_items()
-        .filter_map(|item| {
-            let Item::Module(module) = item else {
-                return None;
-            };
-            syntax_items(syntax)
-                .identifier_path_members(module.path)
-                .first()
-                .map(|member| member.source_span().source_id)
-        })
-        .collect::<Vec<_>>();
-    if module_sources.is_empty() {
-        return Ok(());
-    }
     for item in syntax.root_items() {
         let Item::Const(constant) = item else {
             continue;
         };
-        if !module_sources.contains(&constant.name.source_span().source_id) {
+        if !selection.header_symbols().source_module(constant.name.source_span().source_id).is_valid() {
             continue;
         }
         if mode != ConstResolutionMode::Complete

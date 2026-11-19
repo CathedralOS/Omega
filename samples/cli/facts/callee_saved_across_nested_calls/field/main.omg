@@ -56,7 +56,7 @@ machine probe() -> i32 { run() }
 
 machine main() crashes Trap {
     transition probe() == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

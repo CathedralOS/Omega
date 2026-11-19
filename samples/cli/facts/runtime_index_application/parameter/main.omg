@@ -8,7 +8,7 @@ machine probe(limit:u32)->u32 requires limit>=9 && limit<=10 {
 machine main() crashes Trap {
  let first:u32=probe(9);
  let second:u32=probe(10);
- transition first==8 && second==8 { true->done() _->bad() }
+ transition first==8 && second==8 { true->done(), _->bad() }
  machine done(){}
  machine bad(){crash Trap;}
 }

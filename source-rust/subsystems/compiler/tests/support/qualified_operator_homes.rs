@@ -7,8 +7,8 @@ const FILES: &[&str] = &[
     "app/main.omg",
     "app/build.omg",
     "provider/main.omg",
-    "provider/units.omg",
-    "provider/operations.omg",
+    "provider/units/units.omg",
+    "provider/operations/operations.omg",
     "provider/build.omg",
 ];
 

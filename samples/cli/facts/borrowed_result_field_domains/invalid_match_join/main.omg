@@ -14,7 +14,7 @@ requires index < 2 { choose(table, index) }
 machine inspect(cell: @Cell) -> u8 { cell.storage[0] }
 machine observe(table: @mut Table, index: u64) -> u8
 requires index < 2 {
-    let selected: @mut Cell = match index == 0 { true -> relay(table, 0) false -> relay(table, 1) };
+    let selected: @mut Cell = match index == 0 { true -> relay(table, 0), false -> relay(table, 1) };
     inspect(selected)
 }
 machine main() crashes Trap {
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let second: u8 = observe(@mut table, 1);
     transition first == 65 && second == 66
         && table.cells[0].storage[0] == 65 && table.cells[1].storage[0] == 66 {
-        true -> {} false -> bad()
+        true -> {}, false -> bad()
     }
     machine bad() crashes Trap { crash Trap; }
 }

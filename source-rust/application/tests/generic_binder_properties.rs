@@ -25,8 +25,8 @@ use std::process::Command;
 const COPY_BINDER: &str = "data Coin [copy] { value: u8; }
 machine keep<T [copy]>(item: T) -> T { item }
 machine main() crashes Trap {
-    let kept: Coin = keep<Coin>(Coin { value: 3 });
-    transition kept.value == 3 { true -> done() false -> bad() }
+    let kept: Coin = keep::<Coin>(Coin { value: 3 });
+    transition kept.value == 3 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -35,8 +35,8 @@ machine main() crashes Trap {
 const AFFINE_TO_LINEAR_BINDER: &str = "data Coin { value: u8; }
 machine keep<T [linear]>(item: T) -> T { item }
 machine main() crashes Trap {
-    let kept: Coin = keep<Coin>(Coin { value: 3 });
-    transition kept.value == 3 { true -> done() false -> bad() }
+    let kept: Coin = keep::<Coin>(Coin { value: 3 });
+    transition kept.value == 3 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -500,7 +500,7 @@ fn the_lent_value_is_not_handed_to_another_state_while_a_field_is_vacant() {
         format!(
             "machine swap(holder: @mut Holder, next: Inner, last: Inner, go: bool) {{\n    \
              let taken: Inner = holder.inner;\n    {before}\n    \
-             transition go {{\n        true -> finish(holder, last)\n        _ -> finish(holder, last)\n    }}\n    \
+             transition go {{\n        true -> finish(holder, last),\n        _ -> finish(holder, last)\n    }}\n    \
              machine finish(holder: @mut Holder, last: Inner) {{\n        {after}\n    }}\n}}\n"
         )
     };
@@ -847,7 +847,7 @@ fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
             let taken: Inner = move holder.inner;
             {restore}
             transition again {{
-                true -> take(holder, taken, false)
+                true -> take(holder, taken, false),
                 false -> taken
             }}
         }}

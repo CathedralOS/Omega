@@ -7,7 +7,7 @@ machine read_prefix<'a>(bytes: @'a [u8] in Ascii, other: @'a [u8] in Ascii, use_
 requires 1 <= bytes.len, 1 <= other.len
 {
     let raw: @'a [u8] = match use_first {
-        true -> (bytes as -Ascii)
+        true -> (bytes as -Ascii),
         false -> (other as -Ascii)
     };
     let prefix: @[u8] = raw[..1];
@@ -18,6 +18,6 @@ requires 1 <= bytes.len, 1 <= other.len
 machine entry_start() crashes Trap {
     let a: u8 = read_prefix("A1" as +Ascii, "Z2" as +Ascii, true);
     let z: u8 = read_prefix("A1" as +Ascii, "Z2" as +Ascii, false);
-    transition a == 65u8 && z == 90u8 { true -> {} false -> fail() }
+    transition a == 65u8 && z == 90u8 { true -> {}, false -> fail() }
     machine fail() crashes Trap { crash Trap; }
 }

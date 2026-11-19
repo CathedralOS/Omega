@@ -46,7 +46,7 @@ machine main() crashes Trap {
         && forward(3, 2) == 5
         && token_step(3, Token { marker: 7 }) == 4
     {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

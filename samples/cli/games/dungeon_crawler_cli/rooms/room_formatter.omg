@@ -11,7 +11,7 @@ machine write_current_cell(level: Level,
     out_line: @mut TextBuffer)
 {
     transition cell {
-        CellId::R00 -> gate_title(out_line)
+        CellId::R00 -> gate_title(out_line),
         _ -> branch_title(out_line)
     }
 
@@ -47,10 +47,10 @@ machine write_room_event(
     find_room(level, cell, @mut room);
 
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line)
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line)
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy.name, out_line)
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy.name, out_line),
         _ -> quiet_room(out_line)
     }
 
@@ -83,14 +83,14 @@ machine write_adjacent_rooms(level: Level,
     out_line: @mut TextBuffer)
 {
     transition cell {
-        CellId::R00 -> gate_paths(out_line)
-        CellId::R01 -> room_one_paths(out_line)
-        CellId::R02 -> room_two_paths(out_line)
-        CellId::R03 -> room_three_paths(out_line)
-        CellId::R04 -> room_four_paths(out_line)
-        CellId::R05 -> side_east_paths(out_line)
-        CellId::R06 -> side_west_paths(out_line)
-        CellId::R07 -> side_east_paths(out_line)
+        CellId::R00 -> gate_paths(out_line),
+        CellId::R01 -> room_one_paths(out_line),
+        CellId::R02 -> room_two_paths(out_line),
+        CellId::R03 -> room_three_paths(out_line),
+        CellId::R04 -> room_four_paths(out_line),
+        CellId::R05 -> side_east_paths(out_line),
+        CellId::R06 -> side_west_paths(out_line),
+        CellId::R07 -> side_east_paths(out_line),
         _ -> no_paths(out_line)
     }
 
@@ -132,14 +132,14 @@ machine write_inventory(player: Player,
     out_line: @mut TextBuffer)
 {
     transition player.inventory.gold >= 30 {
-        true -> inventory_thirty(out_line)
+        true -> inventory_thirty(out_line),
         false -> inventory_twenty_four_check(player, out_line)
     }
 
     machine inventory_twenty_four_check(player: Player,
         out_line: @mut TextBuffer) {
         transition player.inventory.gold >= 24 {
-            true -> inventory_twenty_four(player, out_line)
+            true -> inventory_twenty_four(player, out_line),
             false -> inventory_six_check(player, out_line)
         }
     }
@@ -147,7 +147,7 @@ machine write_inventory(player: Player,
     machine inventory_six_check(player: Player,
         out_line: @mut TextBuffer) {
         transition player.inventory.gold >= 6 {
-            true -> inventory_six(player, out_line)
+            true -> inventory_six(player, out_line),
             false -> inventory_zero(player, out_line)
         }
     }
@@ -155,7 +155,7 @@ machine write_inventory(player: Player,
     machine inventory_zero(player: Player,
         out_line: @mut TextBuffer) {
         transition player.inventory.item_count > 0 {
-            true -> inventory_zero_with_item(out_line)
+            true -> inventory_zero_with_item(out_line),
             false -> inventory_zero_empty(out_line)
         }
     }
@@ -171,7 +171,7 @@ machine write_inventory(player: Player,
     machine inventory_six(player: Player,
         out_line: @mut TextBuffer) {
         transition player.inventory.item_count > 0 {
-            true -> inventory_six_with_item(out_line)
+            true -> inventory_six_with_item(out_line),
             false -> inventory_six_only(out_line)
         }
     }
@@ -187,7 +187,7 @@ machine write_inventory(player: Player,
     machine inventory_twenty_four(player: Player,
         out_line: @mut TextBuffer) {
         transition player.inventory.item_count > 0 {
-            true -> inventory_twenty_four_with_item(out_line)
+            true -> inventory_twenty_four_with_item(out_line),
             false -> inventory_twenty_four_only(out_line)
         }
     }
@@ -209,7 +209,7 @@ machine write_character(player: Player,
     out_line: @mut TextBuffer)
 {
     transition player.health * 2 <= player.max_health {
-        true -> wounded_character(out_line)
+        true -> wounded_character(out_line),
         false -> character_experience(player, out_line)
     }
 
@@ -217,7 +217,7 @@ machine write_character(player: Player,
     machine character_experience(player: Player,
         out_line: @mut TextBuffer) {
         transition player.level >= 3 {
-            true -> seasoned_character(out_line)
+            true -> seasoned_character(out_line),
             false -> ready_character(out_line)
         }
     }

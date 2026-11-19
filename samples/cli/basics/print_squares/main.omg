@@ -33,7 +33,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block outer(main) }
 
     machine outer(main: @mut Main) {
-        transition main.k <= 9 { true -> block compute_sq(main) _ -> block finish(main) }
+        transition main.k <= 9 { true -> block compute_sq(main), _ -> block finish(main) }
     }
     machine compute_sq(main: @mut Main) {
         main.sq = main.k * main.k;
@@ -44,7 +44,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // `place` reaches 0 only after the third digit; the guard states that
     // nonzero divisor for `digit_div`'s Wrapping division.
     machine itoa_loop(main: @mut Main) {
-        transition main.p < 3 && main.place != 0 { true -> block digit_div(main) _ -> block print_row(main) }
+        transition main.p < 3 && main.place != 0 { true -> block digit_div(main), _ -> block print_row(main) }
     }
     machine digit_div(main: @mut Main) {
         main.d = main.sq / main.place;

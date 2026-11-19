@@ -19,7 +19,7 @@ data Payload {
 
 machine Payload::read_at(payload: @Payload, at: u64) -> u64 {
     transition payload {
-        Payload::Leaf { value } -> (value)
+        Payload::Leaf { value } -> (value),
         Payload::Empty -> (at)
     }
 }
@@ -31,7 +31,7 @@ data Sum {
 
 machine Sum::probe(sum: @Sum, position: u64) -> u64 {
     transition sum {
-        Sum::Found { p } -> (Payload::read_at(@p, position))
+        Sum::Found { p } -> (Payload::read_at(@p, position)),
         Sum::Missing -> (0)
     }
 }
@@ -44,7 +44,7 @@ machine Main::main(main: @mut Main) {
     let empty_read: u64 = Sum::probe(@Sum::Found { p: Payload::Empty }, 9);
     let missing: u64 = Sum::probe(@Sum::Missing, 9);
     transition leaf_read == 41 && empty_read == 9 && missing == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

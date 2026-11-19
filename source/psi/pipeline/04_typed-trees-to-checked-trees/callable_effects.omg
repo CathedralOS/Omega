@@ -9,13 +9,13 @@ crashes Trap
     let markers: bool = callable_clause_ceiling(syntax, required, given);
     let progress: bool = !callable_has_clause(syntax, required, ClauseKind::Terminates) || selected_progress(checker, syntax, resolution, target);
     transition markers && progress {
-        true -> selected(checker, syntax, resolution, required, target)
+        true -> selected(checker, syntax, resolution, required, target),
         false -> false
     }
     machine selected(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, target: Selection) -> bool {
         transition target {
-            Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0)
-            Selection::Binder { parameter } -> bound(resolution, parameter)
+            Selection::Machine { handle } -> clear(checker, syntax, resolution, required, handle, 0),
+            Selection::Binder { parameter } -> bound(resolution, parameter),
             _ -> false
         }
     }
@@ -25,7 +25,7 @@ crashes Trap
     }
     machine clear(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, root: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < checker.invocations.node_count && index < 10240 {
-            true -> cleared(checker, syntax, resolution, required, root, index)
+            true -> cleared(checker, syntax, resolution, required, root, index),
             false -> seed(checker, syntax, resolution, required, root)
         }
     }
@@ -39,13 +39,13 @@ crashes Trap
         checker.invocations.work_count = 0;
         let queued: bool = queue_callable_effect(checker, root);
         transition checker.invocations.complete && checker.invocations.sealed && queued {
-            true -> next(checker, syntax, resolution, required, 0)
+            true -> next(checker, syntax, resolution, required, 0),
             false -> false
         }
     }
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, cursor: u64 in Trapping) -> bool {
         transition cursor < checker.invocations.work_count && cursor < 10240 {
-            true -> node(checker, syntax, resolution, required, cursor)
+            true -> node(checker, syntax, resolution, required, cursor),
             false -> true
         }
     }
@@ -54,7 +54,7 @@ crashes Trap
     {
         let owner: u64 in Trapping = checker.invocations.work_nodes[cursor] as u64 in Trapping;
         transition owner < checker.invocations.node_count && owner < 10240 {
-            true -> bounded(checker, syntax, resolution, required, cursor, owner)
+            true -> bounded(checker, syntax, resolution, required, cursor, owner),
             false -> false
         }
     }
@@ -63,19 +63,19 @@ crashes Trap
     {
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
         transition callable_clause_ceiling(syntax, required, clauses) {
-            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as u64 in Trapping)
+            true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as u64 in Trapping),
             false -> false
         }
     }
     machine edge(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
-            true -> row(checker, syntax, resolution, required, cursor, handle - 1)
+            true -> row(checker, syntax, resolution, required, cursor, handle - 1),
             false -> ended(checker, syntax, resolution, required, cursor, handle)
         }
     }
     machine ended(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, cursor: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == 0 {
-            true -> next(checker, syntax, resolution, required, cursor + 1)
+            true -> next(checker, syntax, resolution, required, cursor + 1),
             false -> false
         }
     }
@@ -84,13 +84,13 @@ crashes Trap
     {
         let item: InvocationEdge = checker.invocations.edges[index];
         transition item.target {
-            InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, required, cursor, item.next, machine)
+            InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, required, cursor, item.next, machine),
             InvocationTarget::Binder { parameter } -> opaque(checker, syntax, resolution, required, cursor, item.next, parameter)
         }
     }
     machine concrete(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, required: CallClauses, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
         transition queue_callable_effect(checker, machine) {
-            true -> edge(checker, syntax, resolution, required, cursor, following)
+            true -> edge(checker, syntax, resolution, required, cursor, following),
             false -> false
         }
     }
@@ -98,7 +98,7 @@ crashes Trap
         let contract: BinderContract = binder_contract(resolution, parameter);
         let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
         transition contract.present && callable_clause_ceiling(syntax, required, clauses) {
-            true -> edge(checker, syntax, resolution, required, cursor, following)
+            true -> edge(checker, syntax, resolution, required, cursor, following),
             false -> false
         }
     }
@@ -108,19 +108,19 @@ machine queue_callable_effect(checker: @mut Checker, node: u64 in Trapping) -> b
 crashes Trap
 {
     transition node < checker.invocations.node_count && node < 10240 {
-        true -> bounded(checker, node)
+        true -> bounded(checker, node),
         false -> false
     }
     machine bounded(checker: @mut Checker, node: u64 in Trapping) -> bool
     requires node < 10240
     {
         transition checker.invocations.visited[node] {
-            true -> true
+            true -> true,
             false -> room(checker, node, checker.invocations.work_count)
         }
     }
     machine room(checker: @mut Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool {
-        transition index < 10240 { true -> publish(checker, node, index) false -> false }
+        transition index < 10240 { true -> publish(checker, node, index), false -> false }
     }
     machine publish(checker: @mut Checker, node: u64 in Trapping, index: u64 in Trapping) -> bool
     requires node < 10240 && index < 10240
@@ -140,14 +140,14 @@ crashes Trap
     transition { _ -> next(syntax, given, suspends, blocks, 0) }
     machine next(syntax: @SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         transition offset < given.clause_count {
-            true -> clause(syntax, given, suspends, blocks, offset)
+            true -> clause(syntax, given, suspends, blocks, offset),
             false -> true
         }
     }
     machine clause(syntax: @SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         let row: Clause = syntax_trees_clause(syntax, given.first_clause + offset);
         transition (row.kind == ClauseKind::Suspends && !suspends) || (row.kind == ClauseKind::Blocks && !blocks) || ((row.kind == ClauseKind::Reaches || row.kind == ClauseKind::Invokes) && row.member_count > 0) {
-            true -> false
+            true -> false,
             false -> next(syntax, given, suspends, blocks, offset + 1)
         }
     }
@@ -159,13 +159,13 @@ crashes Trap
     transition { _ -> next(syntax, clauses, kind, 0) }
     machine next(syntax: @SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
         transition offset < clauses.clause_count {
-            true -> row(syntax, clauses, kind, offset)
+            true -> row(syntax, clauses, kind, offset),
             false -> false
         }
     }
     machine row(syntax: @SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
         let clause: Clause = syntax_trees_clause(syntax, clauses.first_clause + offset);
-        transition clause.kind == kind { true -> true false -> next(syntax, clauses, kind, offset + 1) }
+        transition clause.kind == kind { true -> true, false -> next(syntax, clauses, kind, offset + 1) }
     }
 }
 
@@ -173,8 +173,8 @@ machine selected_progress(checker: @Checker, syntax: @SyntaxTrees, resolution: @
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> settled_termination(checker, handle)
-        Selection::Binder { parameter } -> binder_terminates(syntax, resolution, parameter)
+        Selection::Machine { handle } -> settled_termination(checker, handle),
+        Selection::Binder { parameter } -> binder_terminates(syntax, resolution, parameter),
         _ -> false
     }
 }

@@ -10,7 +10,7 @@ requires selected.len == 1 && replacement.len == 1 {
 machine finish(observed: u8, original: @[u8], replacement: @[u8]) crashes Trap
 requires original.len == 1 && replacement.len == 1 {
     transition observed == 29 && original[0] == 5 && replacement[0] == 29 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let carrier: Carrier = Carrier { selected: @original[..], marker: 73 };
     let observed: u8 = replace(carrier.selected, @replacement[..]);
     let retained: bool = carrier.selected[0] == 5 && carrier.marker == 73;
-    transition retained { true -> verify(observed, @original[..], @replacement[..]) _ -> bad() }
+    transition retained { true -> verify(observed, @original[..], @replacement[..]), _ -> bad() }
     machine verify(observed: u8, original: @[u8], replacement: @[u8]) requires original.len == 1 && replacement.len == 1 { finish(observed, original, replacement); }
     machine bad() { crash Trap; }
 }

@@ -13,7 +13,7 @@ machine carry() -> u64 {
 }
 machine main() crashes Trap {
     let answer: u64 = carry();
-    transition answer == 7 { true -> done() false -> bad() }
+    transition answer == 7 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

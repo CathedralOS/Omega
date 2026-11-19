@@ -24,7 +24,7 @@ machine main() crashes Trap {
     fill_true(@mut formed);
     fill_false(@mut other);
     transition payload(formed) == true && payload(other) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

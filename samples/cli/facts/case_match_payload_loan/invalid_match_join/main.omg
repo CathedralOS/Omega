@@ -14,17 +14,17 @@ machine exercise() -> bool {
     let sibling: Cell = Cell { value: 19 };
     let mut message: Message = Message { body: @mut backing };
     let envelope: Envelope = match choose() {
-        true -> Envelope::Active { message: @message }
+        true -> Envelope::Active { message: @message },
         false -> Envelope::Active { message: @message }
     };
     let written: bool = match envelope {
-        Envelope::Active { message } -> store(@mut message.body, 41)
+        Envelope::Active { message } -> store(@mut message.body, 41),
         Envelope::Empty -> false
     };
     written && backing.value == 41 && sibling.value == 19
 }
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

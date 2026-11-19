@@ -7,7 +7,7 @@ terminates by n
 ensures result * 2 == acc * 2 + n * (n + 1)
 {
     transition n > 0 {
-        true -> gauss(n - 1, acc + n)
+        true -> gauss(n - 1, acc + n),
         false -> acc
     }
 }
@@ -38,7 +38,7 @@ machine main() crashes Trap {
         let total: u64 in Wrapping = use(n);
         let direct: bool = observe(total, n);
         transition hold(direct) {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

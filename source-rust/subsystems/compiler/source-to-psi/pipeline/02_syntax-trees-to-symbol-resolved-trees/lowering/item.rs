@@ -390,11 +390,6 @@ fn lower_item_with_exposure(
                 },
             );
         }
-        Item::Module(module) => {
-            lowerer
-                .namespace_declarations
-                .record_module(syntax_trees, module.path);
-        }
         Item::Use(import) => {
             lowerer
                 .namespace_declarations

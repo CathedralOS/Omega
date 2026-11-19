@@ -10,7 +10,7 @@ machine consume(held: u64 in Nested::Inherited) -> u64 {
 machine main() crashes Trap {
     let held: u64 in Nested::Inherited = 3;
     transition consume(held) == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

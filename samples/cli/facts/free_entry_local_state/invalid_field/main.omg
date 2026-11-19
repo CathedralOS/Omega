@@ -12,7 +12,7 @@ machine start(unprovided: @mut Unprovided) crashes Trap {
     let holder: Holder = Holder { code: 7 };
     let mut tally: Tally = Tally { total: 0 };
     settle(@Mark { slot: @mut tally, code: holder.code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
+    transition tally.total == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

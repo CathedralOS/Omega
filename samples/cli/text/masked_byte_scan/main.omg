@@ -7,12 +7,12 @@ data PatternByte [copy] { value: u8; mask: u8; }
 
 machine nibble(character: u8) -> Optional<Nibble> {
     transition character == 63 {
-        true -> Optional::Some { value: Nibble { value: 0, mask: 0 } }
+        true -> Optional::Some { value: Nibble { value: 0, mask: 0 } },
         false -> decimal(character)
     }
     machine decimal(character: u8) -> Optional<Nibble> {
         transition character >= 48 && character <= 57 {
-            true -> digit(character)
+            true -> digit(character),
             false -> upper(character)
         }
     }
@@ -22,7 +22,7 @@ machine nibble(character: u8) -> Optional<Nibble> {
     }
     machine upper(character: u8) -> Optional<Nibble> {
         transition character >= 65 && character <= 70 {
-            true -> upper_digit(character)
+            true -> upper_digit(character),
             false -> lower(character)
         }
     }
@@ -32,7 +32,7 @@ machine nibble(character: u8) -> Optional<Nibble> {
     }
     machine lower(character: u8) -> Optional<Nibble> {
         transition character >= 97 && character <= 102 {
-            true -> lower_digit(character)
+            true -> lower_digit(character),
             false -> Optional::None
         }
     }
@@ -45,7 +45,7 @@ machine nibble(character: u8) -> Optional<Nibble> {
 machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
     let high: Optional<Nibble> = nibble(upper);
     transition high {
-        Optional::Some { value } -> second(value, lower)
+        Optional::Some { value } -> second(value, lower),
         Optional::None -> Optional::None
     }
     machine second(high: Nibble, lower: u8) -> Optional<PatternByte> {
@@ -54,7 +54,7 @@ machine pair(upper: u8, lower: u8) -> Optional<PatternByte> {
             Optional::Some { value } -> Optional::Some { value: PatternByte {
                 value: high.value * 16 + value.value,
                 mask: high.mask * 16 + value.mask
-            } }
+            } },
             Optional::None -> Optional::None
         }
     }
@@ -65,13 +65,13 @@ machine parse(input: @[u8], output: @mut [PatternByte]) -> Optional<u64> {
     machine next(input: @[u8], output: @mut [PatternByte], count: u64) -> Optional<u64>
     requires count <= output.len {
         transition input.len == 0 {
-            true -> Optional::Some { value: count }
+            true -> Optional::Some { value: count },
             false -> available(input, output, count)
         }
     }
     machine available(input: @[u8], output: @mut [PatternByte], count: u64) -> Optional<u64> {
         transition input.len >= 2 && count < output.len {
-            true -> decode(input, output, count)
+            true -> decode(input, output, count),
             false -> Optional::None
         }
     }
@@ -79,7 +79,7 @@ machine parse(input: @[u8], output: @mut [PatternByte]) -> Optional<u64> {
     requires input.len >= 2 && count < output.len {
         let decoded: Optional<PatternByte> = pair(input[0], input[1]);
         transition decoded {
-            Optional::Some { value } -> save(input, output, count, value)
+            Optional::Some { value } -> save(input, output, count, value),
             Optional::None -> Optional::None
         }
     }
@@ -93,20 +93,20 @@ machine parse(input: @[u8], output: @mut [PatternByte]) -> Optional<u64> {
 
 machine prefix(bytes: @[u8], pattern: @[PatternByte]) -> bool {
     transition pattern.len == 0 {
-        true -> true
+        true -> true,
         false -> available(bytes, pattern)
     }
     machine available(bytes: @[u8], pattern: @[PatternByte]) -> bool
     requires pattern.len > 0 {
         transition bytes.len > 0 {
-            true -> compare(bytes, pattern)
+            true -> compare(bytes, pattern),
             false -> false
         }
     }
     machine compare(bytes: @[u8], pattern: @[PatternByte]) -> bool
     requires bytes.len > 0 && pattern.len > 0 {
         transition (bytes[0] & pattern[0].mask) == pattern[0].value {
-            true -> prefix(bytes[1..], pattern[1..])
+            true -> prefix(bytes[1..], pattern[1..]),
             false -> false
         }
     }
@@ -118,14 +118,14 @@ requires pattern.len > 0 {
     machine next(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64], start: u64, count: u64) -> u64
     requires start <= bytes.len && count <= positions.len {
         transition start < bytes.len && count < positions.len {
-            true -> inspect(bytes, pattern, positions, start, count)
+            true -> inspect(bytes, pattern, positions, start, count),
             false -> count
         }
     }
     machine inspect(bytes: @[u8], pattern: @[PatternByte], positions: @mut [u64], start: u64, count: u64) -> u64
     requires start < bytes.len && count < positions.len {
         transition prefix(bytes[start..], pattern) {
-            true -> record(bytes, pattern, positions, start, count)
+            true -> record(bytes, pattern, positions, start, count),
             false -> next(bytes, pattern, positions, start + 1, count)
         }
     }
@@ -138,13 +138,13 @@ requires pattern.len > 0 {
 
 machine count_is(parsed: Optional<u64>, expected: u64) -> bool {
     transition parsed {
-        Optional::Some { value } -> (value == expected)
+        Optional::Some { value } -> (value == expected),
         Optional::None -> false
     }
 }
 machine rejected(parsed: Optional<u64>) -> bool {
     transition parsed {
-        Optional::Some { value } -> false
+        Optional::Some { value } -> false,
         Optional::None -> true
     }
 }
@@ -175,7 +175,7 @@ machine main() crashes Trap {
     let full: bool = rejected(parse("0000", @mut pattern[..1]));
     transition parsed && masks && matches && exact && overlapping && wildcard
         && limited == 2 && empty == 0 && lower && empty_parse && invalid && odd && full {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

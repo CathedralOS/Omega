@@ -8,7 +8,7 @@ ensures cursor == 0 && result == 0 { cursor = 0; 0 }
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine choose(flag: bool, selected: Counted, ignored: u64) -> Counted {
-    match flag { true -> selected false -> selected }
+    match flag { true -> selected, false -> selected }
 }
 machine main() crashes Trap {
     let mut cursor: u64 = 2;
@@ -20,5 +20,5 @@ machine main() crashes Trap {
     done requires output == 9 ensures output == selected.length && output == 7:
         nop
     }
-    transition output == 7 && cursor == 0 { true -> finished() false -> failed() }
+    transition output == 7 && cursor == 0 { true -> finished(), false -> failed() }
 }

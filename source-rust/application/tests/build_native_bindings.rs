@@ -90,8 +90,8 @@ fn a_binding_of_each_requirement_is_admitted() {
     let stderr = check(
         "control",
         &format!(
-            "    Build::bind<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind<Host::tock>(builder, windows_x86_64, {OTHER});
+            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind::<Host::tock>(builder, windows_x86_64, {OTHER});
 "
         ),
     );
@@ -105,8 +105,8 @@ fn two_places_for_one_requirement_on_one_target_are_refused() {
     let stderr = check(
         "two-places",
         &format!(
-            "    Build::bind<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind<Host::tick>(builder, windows_x86_64, {OTHER});
+            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind::<Host::tick>(builder, windows_x86_64, {OTHER});
 "
         ),
     );
@@ -125,8 +125,8 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
     let stderr = check(
         "two-targets",
         &format!(
-            "    Build::bind<Host::tick>(builder, windows_x86_64, {SLEEP});
-    Build::bind<Host::tick>(builder, linux_x86_64, {OTHER});
+            "    Build::bind::<Host::tick>(builder, windows_x86_64, {SLEEP});
+    Build::bind::<Host::tick>(builder, linux_x86_64, {OTHER});
 "
         ),
     );
@@ -139,7 +139,7 @@ fn one_requirement_may_be_found_in_a_different_place_on_each_target() {
 fn a_binding_that_names_no_requirement_is_refused() {
     let stderr = check(
         "no-requirement",
-        &format!("    Build::bind<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
+        &format!("    Build::bind::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
     );
     assert!(
         stderr.contains("native binding must name one exact visible package-owned requirement"),
@@ -160,7 +160,7 @@ fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
     let stderr = check_product(
         "uncalled-binding",
         &product,
-        &format!("    Build::bind<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
+        &format!("    Build::bind::<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
     );
     assert!(stderr.contains(DEFAULT_BODY_REFUSAL), "{stderr}");
 }
@@ -195,7 +195,7 @@ fn check_with_bound_library(name: &str, body: &str) -> String {
 use omega::language::core::ForeignBinding;
 machine build(builder: @mut Build) {{
     Build::package(builder, \"bound_library\");
-    Build::bind<Raw::read>(builder, macos_arm64, {SLEEP});
+    Build::bind::<Raw::read>(builder, macos_arm64, {SLEEP});
 }}
 "
         ),

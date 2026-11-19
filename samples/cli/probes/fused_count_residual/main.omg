@@ -34,7 +34,7 @@ machine separate_parameter(left: f64, right: f64, addend: f64) -> f64 {
 
 machine difference(moment: @Moment, index: i32 in Wrapping) -> f64 {
     transition index >= 0 && index < 3 {
-        true -> read(moment, index)
+        true -> read(moment, index),
         false -> 0.0
     }
     machine read(moment: @Moment, index: i32 in Wrapping) -> f64
@@ -48,7 +48,7 @@ machine accumulate(moment: @mut Moment) {
     transition { _ -> step(moment, 0) }
     machine step(moment: @mut Moment, index: i32 in Wrapping) {
         transition index >= 0 && index < 3 {
-            true -> square(moment, index)
+            true -> square(moment, index),
             false -> done()
         }
     }
@@ -81,7 +81,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         transition local_fused > 0.0 && local_separate == 0.0
             && main.moment.fused == local_fused
             && main.moment.separate == local_separate {
-            true -> scan(main)
+            true -> scan(main),
             false -> fail(main)
         }
     }
@@ -95,7 +95,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         transition main.moment.chain == 8.75
             && fused_product == 10.0
             && separate_product == 10.0 {
-            true -> pass(main)
+            true -> pass(main),
             false -> fail(main)
         }
     }

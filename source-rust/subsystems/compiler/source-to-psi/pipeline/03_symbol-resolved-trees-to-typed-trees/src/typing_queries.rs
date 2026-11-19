@@ -1135,7 +1135,7 @@ pub(crate) fn defer_unbound_calls(
                     .map_err(Diagnostic::error)?;
                 continue;
             }
-            // `size_of<T>()` and `align_of<T>()` name no declaration by
+            // `size_of::<T>()` and `align_of::<T>()` name no declaration by
             // construction: typing recognized the compiler-known query and
             // retained its operand, and Terminal Psi production reads that
             // request as a layout observation. It is not a call awaiting a
@@ -2270,13 +2270,13 @@ mod tests {
             if core {
                 let text = include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../../source/library/core/byte_observation.omg"
+                    "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
                 ));
                 let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                     .join("../../../../../../source/library/core");
                 let declaration = sources
                     .add_with_metadata(
-                        root.join("byte_observation.omg"),
+                        root.join("byte_observation/byte_observation.omg"),
                         text.to_owned(),
                         root,
                         None,

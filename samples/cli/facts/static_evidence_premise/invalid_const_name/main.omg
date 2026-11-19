@@ -38,9 +38,9 @@ requires direct == true
 const KEPT: bool = true;
 
 machine main() crashes Trap {
-    let direct: bool = project<NoKept>(KEPT);
+    let direct: bool = project::<NoKept>(KEPT);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

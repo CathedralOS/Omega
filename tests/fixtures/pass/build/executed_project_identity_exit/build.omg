@@ -2,7 +2,7 @@ use naming;
 
 machine build(builder: @mut Build) {
     transition naming::enabled() {
-        true -> declare_project(builder)
+        true -> declare_project(builder),
         false -> unselected(builder)
     }
 }

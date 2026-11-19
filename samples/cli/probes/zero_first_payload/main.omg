@@ -23,12 +23,12 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let token: Token;
     transition token {
-        Token::Number { value } -> number(value, main)
+        Token::Number { value } -> number(value, main),
         Token::End -> fail(main)
     }
     machine number(value: i32, main: @mut Main) {
         transition value == 0 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

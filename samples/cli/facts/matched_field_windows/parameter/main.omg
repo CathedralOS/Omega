@@ -7,7 +7,7 @@ machine from_parameter<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut 
     ensures result.len == 2
 {
     match which {
-        0 -> @mut items[0..which + 2]
+        0 -> @mut items[0..which + 2],
         _ -> @mut items[2..4]
     }
 }
@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let window: @mut [u8] = from_parameter(@mut bytes, 0);
     write_pair(window);
     transition bytes[0] == 9 && bytes[1] == 8 && bytes[2] == 3 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

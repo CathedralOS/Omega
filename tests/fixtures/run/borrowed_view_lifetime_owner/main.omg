@@ -23,7 +23,7 @@ machine entry() -> bool {
 }
 
 machine main() crashes Trap {
-    transition entry() { true -> done() _ -> bad() }
+    transition entry() { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

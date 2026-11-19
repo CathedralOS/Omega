@@ -22,7 +22,7 @@ public data CallableSignature [copy] {
 // Whether a machine binder's argument selects a machine.
 public machine selects_machine_argument(argument: MachineArgument) -> bool {
     transition argument {
-        MachineArgument::Absent -> no()
+        MachineArgument::Absent -> no(),
         _ -> yes()
     }
 
@@ -41,7 +41,7 @@ crashes Trap
 {
     let argument: MachineArgument = name_resolution_machine_argument(syntax, resolution, row);
     transition argument {
-        MachineArgument::Absent -> no()
+        MachineArgument::Absent -> no(),
         _ -> yes()
     }
 
@@ -58,7 +58,7 @@ public machine bind_machine(typer: @mut Typer, parameter: u64 in Trapping, argum
 crashes Trap
 {
     transition parameter < 256 {
-        true -> write(typer, parameter, argument)
+        true -> write(typer, parameter, argument),
         _ -> invalid()
     }
 
@@ -79,7 +79,7 @@ public machine machine_bound(typer: @Typer, parameter: u64 in Trapping) -> Machi
 crashes Trap
 {
     transition parameter < 256 {
-        true -> read(typer, parameter)
+        true -> read(typer, parameter),
         _ -> absent()
     }
 
@@ -88,7 +88,7 @@ crashes Trap
     {
         let stamp: u64 = typer.machine_stamps[parameter];
         transition stamp == typer.binding_generation {
-            true -> live(typer, parameter)
+            true -> live(typer, parameter),
             _ -> absent()
         }
     }
@@ -110,7 +110,7 @@ crashes Trap
 {
     let contract: BinderContract = binder_contract(resolution, parameter);
     transition contract.present {
-        true -> written(syntax, contract.contract)
+        true -> written(syntax, contract.contract),
         _ -> none()
     }
 
@@ -136,15 +136,15 @@ public machine argument_signature(syntax: @SyntaxTrees, resolution: @NameResolut
 crashes Trap
 {
     transition argument {
-        MachineArgument::Declared { machine } -> declared(syntax, machine)
-        MachineArgument::Forwarded { parameter } -> forwarded(syntax, resolution, parameter)
+        MachineArgument::Declared { machine } -> declared(syntax, machine),
+        MachineArgument::Forwarded { parameter } -> forwarded(syntax, resolution, parameter),
         _ -> none()
     }
 
     machine declared(syntax: @SyntaxTrees, machine: u64 in Trapping) -> CallableSignature {
         let item: MachineItem = machine_item(syntax, machine);
         transition item.generic_parameter_count == 0 {
-            true -> signature(item)
+            true -> signature(item),
             _ -> none()
         }
     }
@@ -196,7 +196,7 @@ crashes Trap
 
     machine next(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < count {
-            true -> binder(typer, syntax, resolution, first, count, offset)
+            true -> binder(typer, syntax, resolution, first, count, offset),
             _ -> done()
         }
     }
@@ -208,7 +208,7 @@ crashes Trap
         let signature: CallableSignature = argument_signature(syntax, resolution, argument);
         transition generic.kind == GenericParameterKind::Machine && contract.present && signature.present
             && contract.parameter_count == signature.parameter_count {
-            true -> parameter(typer, syntax, resolution, first, count, offset, contract, signature, 0)
+            true -> parameter(typer, syntax, resolution, first, count, offset, contract, signature, 0),
             _ -> next(typer, syntax, resolution, first, count, offset + 1)
         }
     }
@@ -225,7 +225,7 @@ crashes Trap
         index: u64 in Trapping
     ) {
         transition index < contract.parameter_count {
-            true -> unified(typer, syntax, resolution, first, count, offset, contract, signature, index)
+            true -> unified(typer, syntax, resolution, first, count, offset, contract, signature, index),
             _ -> result(typer, syntax, resolution, first, count, offset, contract, signature)
         }
     }
@@ -284,7 +284,7 @@ crashes Trap
 
     machine next(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, source_span: SourceSpan, offset: u64 in Trapping) -> bool {
         transition offset < count {
-            true -> binder(typer, syntax, resolution, first, count, source_span, offset)
+            true -> binder(typer, syntax, resolution, first, count, source_span, offset),
             _ -> refined()
         }
     }
@@ -292,7 +292,7 @@ crashes Trap
     machine binder(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, first: u64 in Trapping, count: u64 in Trapping, source_span: SourceSpan, offset: u64 in Trapping) -> bool {
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition generic.kind == GenericParameterKind::Machine {
-            true -> machine(typer, syntax, resolution, first, count, source_span, offset)
+            true -> machine(typer, syntax, resolution, first, count, source_span, offset),
             _ -> next(typer, syntax, resolution, first, count, source_span, offset + 1)
         }
     }
@@ -302,7 +302,7 @@ crashes Trap
         let argument: MachineArgument = machine_bound(typer, first + offset);
         let signature: CallableSignature = argument_signature(syntax, resolution, argument);
         transition contract.present && signature.present && contract.parameter_count == signature.parameter_count {
-            true -> parameter(typer, syntax, resolution, first, count, source_span, offset, contract, signature, 0)
+            true -> parameter(typer, syntax, resolution, first, count, source_span, offset, contract, signature, 0),
             _ -> unrefined()
         }
     }
@@ -320,7 +320,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> bool {
         transition index < contract.parameter_count {
-            true -> compared(typer, syntax, resolution, first, count, source_span, offset, contract, signature, index)
+            true -> compared(typer, syntax, resolution, first, count, source_span, offset, contract, signature, index),
             _ -> result(typer, syntax, resolution, first, count, source_span, offset, contract, signature)
         }
     }
@@ -341,7 +341,7 @@ crashes Trap
         let substituted: u64 in Trapping = substitute_bound(typer, wanted, source_span);
         let given: u64 in Trapping = signature_parameter(typer, syntax, signature, index);
         transition substituted == given {
-            true -> parameter(typer, syntax, resolution, first, count, source_span, offset, contract, signature, index + 1)
+            true -> parameter(typer, syntax, resolution, first, count, source_span, offset, contract, signature, index + 1),
             _ -> unrefined()
         }
     }
@@ -361,7 +361,7 @@ crashes Trap
         let substituted: u64 in Trapping = substitute_bound(typer, wanted, source_span);
         let given: u64 in Trapping = signature_result(typer, signature);
         transition substituted == given {
-            true -> next(typer, syntax, resolution, first, count, source_span, offset + 1)
+            true -> next(typer, syntax, resolution, first, count, source_span, offset + 1),
             _ -> unrefined()
         }
     }
@@ -383,13 +383,13 @@ crashes Trap
 {
     let contract: CallableSignature = binder_signature(syntax, resolution, parameter);
     transition contract.present {
-        true -> counted(typer, syntax, index, expression, parameter, contract)
+        true -> counted(typer, syntax, index, expression, parameter, contract),
         _ -> not_callable(typer, syntax, expression)
     }
 
     machine counted(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, parameter: u64 in Trapping, contract: CallableSignature) {
         transition contract.parameter_count == expression.count {
-            true -> called(typer, syntax, index, expression, parameter, contract)
+            true -> called(typer, syntax, index, expression, parameter, contract),
             _ -> reject(typer, expression, TypeDiagnosticCode::NoMatchingMachine)
         }
     }

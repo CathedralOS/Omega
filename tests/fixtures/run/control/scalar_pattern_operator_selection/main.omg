@@ -2,7 +2,7 @@ use omega::language::core::ProcessExit;
 
 machine choose(value: u64 in Trapping) -> u8 {
     transition value {
-        0 -> (7)
+        0 -> (7),
         _ -> (0)
     }
 }
@@ -12,7 +12,7 @@ reaches ProcessExit
 {
     let chosen: u8 = choose(0u64 as +Trapping);
     transition chosen == 7 {
-        true -> ProcessExit::exit_process(0)
+        true -> ProcessExit::exit_process(0),
         _ -> ProcessExit::exit_process(17)
     }
 }

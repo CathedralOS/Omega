@@ -20,7 +20,7 @@ machine probe(flag: bool) -> u64 {
     initialize_slot(@write left_slot);
     initialize_slot(@write right_slot);
     let joined: u64 = match flag {
-        true -> left_slot.value
+        true -> left_slot.value,
         false -> right_slot.value
     };
     joined - 100u64
@@ -29,7 +29,7 @@ machine probe(flag: bool) -> u64 {
 machine main() crashes Trap {
     let diff: u64 = probe(true);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

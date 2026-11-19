@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
     let sprite: Sprite;
     Sprite::draw(@sprite, @mut canvas);
     transition canvas.width == 80 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

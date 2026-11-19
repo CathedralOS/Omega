@@ -192,7 +192,7 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
 
 #[test]
 fn structural_static_argument_probe_preserves_indexed_comparisons() {
-    for comparison in ["left < values[0]", "left < values[0] > (right)"] {
+    for comparison in ["left < values[0]", "(left < values[0]) > (right)"] {
         let source = format!(
             "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool {{ {comparison} }}"
         );
@@ -208,7 +208,7 @@ fn structural_static_argument_probe_preserves_indexed_comparisons() {
 
 #[test]
 fn applied_requirement_call_keeps_its_trait_application_as_static_receiver() {
-    let text = "const READ: i32 = Parent<u64>::read(); const NOTED: i32 = Sink<u8, bool>::note<Handler>(value); const COMPARED: bool = left < right;";
+    let text = "const READ: i32 = Parent::<u64>::read(); const NOTED: i32 = Sink::<u8, bool>::note::<Handler>(value); const COMPARED: bool = left < right;";
     let tokens = Lexer::new(text).tokenize().expect("tokens");
     let syntax = crate::parse_syntax_trees(&tokens).expect("syntax");
     let values = syntax
@@ -258,7 +258,7 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
         ),
         (
             "guard",
-            "machine choose<T>() -> bool { transition { T == Box<u64> -> true _ -> false } }",
+            "machine choose<T>() -> bool { transition { T == Box<u64> -> true, _ -> false } }",
         ),
         (
             "constructor",
@@ -266,11 +266,11 @@ fn boolean_type_operands_preserve_constructor_and_value_contexts() {
         ),
         (
             "call",
-            "machine choose(value: u64) -> u64 { read<u64>(value) }",
+            "machine choose(value: u64) -> u64 { read::<u64>(value) }",
         ),
         (
             "comparison",
-            "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool { left < values[0] > (right) }",
+            "machine compare(left: u64, right: u64, values: [u64; 1]) -> bool { (left < values[0]) > (right) }",
         ),
     ];
     let mut equalities = 0;
@@ -333,4 +333,122 @@ fn boolean_type_operands_do_not_turn_qualified_type_arguments_into_indices() {
             )),
         "a type description supplies no integer/index value"
     );
+}
+
+#[test]
+fn explicit_arguments_belong_to_their_expression_path_component() {
+    let source = r#"
+        const PLAIN: T = library::select::<Outer<Inner<T>>, N >> 1,>(value);
+        const MEMBER: T = receiver.select::<N + 1>(value);
+        const PATH: T = library::Trait::<T>::Group::<U>::method::<V>(value);
+        const SYMBOL: T = library::Trait::<T>::Group::<U>::member;
+        const NESTED: T = apply::<compute::<T>(), measure::<U>>(value);
+        const ZERO: T = zero_value::<Outer<T>>();
+    "#;
+    let tokens = Lexer::new(source).tokenize().unwrap();
+    let parsed = crate::parse_syntax_trees(&tokens).expect("explicit expression applications");
+    let roots = parsed
+        .root_items()
+        .filter_map(|item| match item {
+            syntax_trees::item::Item::Const(definition) => Some(definition.initializer),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let call = |index: usize| {
+        let ExpressionNode::Call(call) = parsed.expressions.expression(roots[index]) else {
+            panic!("expected an invoked machine");
+        };
+        call
+    };
+    assert!(call(0).target_is_static);
+    assert_eq!(call(0).machine_arguments.len(), 2);
+    assert!(!call(1).target_is_static);
+    assert_eq!(call(1).target.as_str(&parsed), "select");
+    assert_eq!(call(2).target.as_str(&parsed), "method");
+    assert_eq!(call(2).machine_arguments[0].path[0].as_str(&parsed), "V");
+    let ExpressionNode::TypeExpression(receiver) = parsed.expressions.expression(call(2).receiver)
+    else {
+        panic!("expected the applied receiver");
+    };
+    let syntax_trees::types::TypeReferenceNode::StaticSelection(owner) =
+        parsed.type_references.type_reference(*receiver)
+    else {
+        panic!("expected the receiver to preserve both applications");
+    };
+    assert_eq!(owner.path[1].as_str(&parsed), "Trait");
+    let group = parsed
+        .expressions
+        .static_member(owner.application.as_ref().unwrap().member)
+        .unwrap();
+    assert_eq!(group.path[0].as_str(&parsed), "Group");
+    assert_eq!(
+        group.application.as_ref().unwrap().arguments[0].path[0].as_str(&parsed),
+        "U"
+    );
+    assert_eq!(
+        parsed.display_expression_name(roots[3]),
+        "library::Trait::<T>::Group::<U>::member"
+    );
+    assert_eq!(call(4).machine_arguments.len(), 2);
+    let syntax_trees::types::TypeReferenceNode::ConstExpression(computed) = parsed
+        .type_references
+        .type_reference(call(4).machine_arguments[0].type_reference)
+    else {
+        panic!("expected the call used as a value argument");
+    };
+    assert_eq!(parsed.display_expression_name(*computed), "compute::<T>()");
+    assert!(matches!(
+        parsed.expressions.expression(roots[5]),
+        ExpressionNode::ZeroValue(_)
+    ));
+}
+
+#[test]
+fn legacy_generic_calls_and_chained_comparisons_reject_at_parse_time() {
+    for expression in [
+        "id<u32>(x)",
+        "id<u32>",
+        "consume(id<u32>)",
+        "library::id<u32>(x)",
+        "receiver.id<u32>(x)",
+        "id<T, U>()",
+        "zero_value<T>()",
+        "Trait<T>::run()",
+        "Trait::<T>::run<U>(x)",
+        "a == b < c",
+        "a < b == c",
+        "a != b >= c",
+        "a <= b > c",
+    ] {
+        let source = format!("const RESULT: bool = {expression};");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let error = crate::parse_syntax_trees(&tokens).expect_err(expression);
+        if expression == "id<u32>(x)" {
+            assert!(
+                error.message.contains("use `name::<T>(...)`"),
+                "{}",
+                error.message
+            );
+        }
+    }
+    for expression in [
+        "T == (Box<u64>)",
+        "(Box<u64>) != T",
+        "a < (b)",
+        "(a < b) == c",
+        "a == (b < c)",
+        "(a < b) > (c)",
+        "a < b && c >= d",
+        "a != b || c == d",
+        "a << b < c >> d",
+    ] {
+        let source = format!("const RESULT: bool = {expression};");
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        crate::parse_syntax_trees(&tokens)
+            .unwrap_or_else(|error| panic!("{expression}: {error:?}"));
+    }
+    let tokens = Lexer::new("data Holder { field: Box::<u32>; }")
+        .tokenize()
+        .unwrap();
+    crate::parse_syntax_trees(&tokens).expect_err("type applications still use bare angles");
 }

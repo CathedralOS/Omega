@@ -44,7 +44,7 @@ machine main() crashes Trap {
         && borrowed(@ready, @ready) && computed && snapshot == false && ordered
         && context.signal == Signal::Done && context.calls == 3u32
         && selected == false && selected_different && operator_selected == false {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

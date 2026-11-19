@@ -17,7 +17,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -25,7 +25,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -44,7 +44,7 @@ X86Apply satisfies SelectedApply {
     {
         SelectedBodyCheck::require_tag(17u64);
         let selected: @write i64 = match choose(visits, flag) {
-            true -> @write chosen.value
+            true -> @write chosen.value,
             false -> @write other.value
         };
         selected = 41;
@@ -58,7 +58,7 @@ ArmApply satisfies SelectedApply {
     {
         SelectedBodyCheck::require_tag(29u64);
         let selected: @write i64 = match choose(visits, flag) {
-            true -> @write chosen.value
+            true -> @write chosen.value,
             false -> @write other.value
         };
         selected = 41;
@@ -71,7 +71,7 @@ machine store(flag: bool) -> Outcome crashes Trap {
     let mut visits: u64 = 0;
     SelectedApply::apply(@mut chosen, @mut other, @mut visits, flag);
     transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {
-        true -> report(Outcome { chosen: chosen.value, other: other.value })
+        true -> report(Outcome { chosen: chosen.value, other: other.value }),
         false -> wrong()
     }
     machine report(outcome: Outcome) -> Outcome { outcome }
@@ -82,7 +82,7 @@ machine main() crashes Trap {
     let taken: Outcome = store(true);
     let fallback: Outcome = store(false);
     transition taken.chosen == 41 && taken.other == 23 && fallback.chosen == 17 && fallback.other == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

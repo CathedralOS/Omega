@@ -25,13 +25,13 @@ machine main() crashes Trap {
     Operations::store(@mut stored, NoOrdering);
     transition observed == 17 && swapped == 11 && fetched == 31 && compared == 41 && loaded == 59
         && preserved == 29 && stored == 23 {
-        true -> another_state()
+        true -> another_state(),
         false -> wrong()
     }
     machine another_state() {
         let mut observed: u64;
         forwarded(@mut observed);
-        transition observed == 17 { true -> done() false -> wrong() }
+        transition observed == 17 { true -> done(), false -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }

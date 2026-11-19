@@ -75,8 +75,8 @@ fn a_case_field_value_keeps_its_case_fallback() {
         data Token [copy] { case Keyword(keyword: u8, offset: u32); case Other; }
         machine classify(token: @Token) -> u32 {
             match token {
-                Token::Keyword { keyword: 7, offset as _ } -> 1
-                Token::Keyword { keyword as _, offset as _ } -> 2
+                Token::Keyword { keyword: 7, offset as _ } -> 1,
+                Token::Keyword { keyword as _, offset as _ } -> 2,
                 _ -> 3
             }
         }
@@ -93,15 +93,15 @@ fn ordered_case_tests_and_partial_wildcards_are_accepted() {
     for (name, body) in [
         (
             "repeated_case",
-            "match token { Token::Keyword {keyword:7, offset as _}->1 Token::Keyword {keyword:8, offset as _}->2 Token::Keyword {keyword as _, offset as _}->3 Token::Other->4 }",
+            "match token { Token::Keyword {keyword:7, offset as _}->1, Token::Keyword {keyword:8, offset as _}->2, Token::Keyword {keyword as _, offset as _}->3, Token::Other->4 }",
         ),
         (
             "transition_fields",
-            "transition token { Token::Keyword {keyword:7, offset}->offset Token::Keyword {keyword:8, offset as _}->2 Token::Keyword {keyword as _, offset as _}->3 _->4 }",
+            "transition token { Token::Keyword {keyword:7, offset}->offset, Token::Keyword {keyword:8, offset as _}->2, Token::Keyword {keyword as _, offset as _}->3, _->4 }",
         ),
         (
             "partial_wildcard",
-            "match token { Token::Keyword {keyword:7, offset as _}->1 Token::Other->2 _->3 }",
+            "match token { Token::Keyword {keyword:7, offset as _}->1, Token::Other->2, _->3 }",
         ),
     ] {
         let found = verdict(
@@ -127,15 +127,15 @@ fn an_unconditional_pattern_shadows_later_arms_with_an_advisory() {
     for (name, body) in [
         (
             "full_case_first",
-            "match token { Token::Keyword {keyword as _, offset as _}->1 Token::Keyword {keyword:7, offset as _}->2 Token::Other->3 }",
+            "match token { Token::Keyword {keyword as _, offset as _}->1, Token::Keyword {keyword:7, offset as _}->2, Token::Other->3 }",
         ),
         (
             "wildcard_first",
-            "match token { _->1 Token::Keyword {keyword:7, offset as _}->2 Token::Other->3 }",
+            "match token { _->1, Token::Keyword {keyword:7, offset as _}->2, Token::Other->3 }",
         ),
         (
             "transition_shadow",
-            "transition token { Token::Keyword {keyword:7, offset as _}->1 _->2 Token::Keyword {keyword:8, offset as _}->3 }",
+            "transition token { Token::Keyword {keyword:7, offset as _}->1, _->2, Token::Keyword {keyword:8, offset as _}->3 }",
         ),
     ] {
         let found = verdict(
@@ -170,7 +170,7 @@ fn tested_payload_fields_do_not_establish_complete_case_coverage() {
         &format!(
             r#"{TOKEN}
         machine pick(token:@Token)->u32 {{ match token {{
-            Token::Keyword {{keyword:7, offset as _}}->1
+            Token::Keyword {{keyword:7, offset as _}}->1,
             Token::Other->2
         }} }} machine main() {{}}
     "#
@@ -188,7 +188,7 @@ fn a_pattern_value_must_have_the_projected_fields_type() {
     let source = format!(
         r#"{TOKEN}
         machine pick(token:@Token)->u32 {{ match token {{
-            Token::Keyword {{keyword:true, offset as _}}->1 _->2
+            Token::Keyword {{keyword:true, offset as _}}->1, _->2
         }} }} machine main() {{}}
     "#
     );
@@ -216,7 +216,7 @@ fn a_projected_comparison_selects_declared_equality() {
         machine == pattern_key_equal(left:Key, right:Key)->bool { false }
         data Token [copy] { case Keyword(keyword:Key); case Other; }
         machine pick(token:@Token)->u32 { match token {
-            Token::Keyword {keyword:Key::A}->1 _->2
+            Token::Keyword {keyword:Key::A}->1, _->2
         } }
         machine main() {}
     "#;
@@ -253,7 +253,7 @@ fn guarded_cases_emit_the_wildcard_call_once() {
         machine pattern_default(value:u32)->u32 { value }
         machine prepare(choice:Choice)->Choice { choice }
         machine pick(choice:Choice)->u32 { match prepare(choice) {
-            Choice::A {value:1}->1 Choice::B {value:2}->2 _->pattern_default(91)
+            Choice::A {value:1}->1, Choice::B {value:2}->2, _->pattern_default(91)
         } }
         machine main() {}
     "#,
@@ -348,8 +348,8 @@ fn an_enclosing_case_remains_selected_after_a_guard_updates_its_payload() {
         machine touch(state:@mut u32)->u8 { state=9; 0 }
         machine pick(outer:@mut Outer, token:@Token)->u32 { match outer {
             Outer::Hold {value}->match token {
-                Token::Keyword {keyword:touch(@mut outer.value)}->99 _->value
-            }
+                Token::Keyword {keyword:touch(@mut outer.value)}->99, _->value
+            },
             Outer::Empty->0
         } }
         machine main() {}

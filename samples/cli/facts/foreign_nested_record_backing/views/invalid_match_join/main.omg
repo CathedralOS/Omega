@@ -63,7 +63,7 @@ machine run_case(main: @mut Main, choose_first: bool, expected_route: u64) reach
     let caller_value: u64 = cells[1].value;
     let caller_left: u64 = cells[0].value;
     let caller_right: u64 = cells[2].value;
-    transition issued_value == 73 && caller_issued_value == 73 && gap == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 && observed_route == expected_route { true -> done() _ -> bad() }
+    transition issued_value == 73 && caller_issued_value == 73 && gap == 2147483574 && observed == 73 && value == 73 && original == 37 && marker == 91 && left == 305419896 && right == 1515863100 && caller_value == 73 && caller_left == 305419896 && caller_right == 1515863100 && observed_route == expected_route { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

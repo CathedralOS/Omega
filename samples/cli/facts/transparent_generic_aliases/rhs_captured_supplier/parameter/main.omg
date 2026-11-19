@@ -3,7 +3,7 @@
 use leaf::buffers;
 machine observe(value: @[u8; 4]) -> u8 { value[3u64] }
 machine relay(value: leaf::buffers::Padded<3u64>) -> [u8; 4] {
-    leaf::buffers::Selected<3u64>::forward<17u64>(value)
+    leaf::buffers::Selected::<3u64>::forward::<17u64>(value)
 }
 machine main() crashes Trap {
     let Count: u64 = 17u64;
@@ -12,7 +12,7 @@ machine main() crashes Trap {
     let forwarded: [u8; 4] = relay(represented);
     let alias_again: leaf::buffers::Padded<3u64> = forwarded;
     transition observe(@alias_again) == 42u8 && represented[0u64] == 17u8 && Count == 17u64 && Bias == 9u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

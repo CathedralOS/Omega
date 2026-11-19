@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let windows: [@mut [u8]; 1] = [@mut backing[..]];
     let observed: bool = forward(windows);
     transition observed {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

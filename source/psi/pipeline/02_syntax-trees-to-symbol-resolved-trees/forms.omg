@@ -27,7 +27,7 @@ crashes Trap
 
     machine root(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count && resolver.output.accepted {
-            true -> root_kind(resolver, syntax, index)
+            true -> root_kind(resolver, syntax, index),
             _ -> machine_at(resolver, syntax, 0)
         }
     }
@@ -35,12 +35,12 @@ crashes Trap
     machine root_kind(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: RootItem = root_item(syntax, index);
         transition item.kind {
-            RootItemKind::Definition -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span)
-            RootItemKind::Trait -> trait_root(resolver, syntax, index, item)
-            RootItemKind::Data -> data_binders(resolver, syntax, index, item)
-            RootItemKind::Conformance -> conformance_binders(resolver, syntax, index, item)
-            RootItemKind::Domain -> domain_binders(resolver, syntax, index, item)
-            RootItemKind::Proposition -> proposition_binders(resolver, syntax, index, item)
+            RootItemKind::Definition -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span),
+            RootItemKind::Trait -> trait_root(resolver, syntax, index, item),
+            RootItemKind::Data -> data_binders(resolver, syntax, index, item),
+            RootItemKind::Conformance -> conformance_binders(resolver, syntax, index, item),
+            RootItemKind::Domain -> domain_binders(resolver, syntax, index, item),
+            RootItemKind::Proposition -> proposition_binders(resolver, syntax, index, item),
             _ -> root(resolver, syntax, index + 1)
         }
     }
@@ -72,14 +72,14 @@ crashes Trap
     machine trait_root(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, item: RootItem) {
         let declared: TraitItem = trait_item(syntax, item.item_index);
         transition declared.is_refinement {
-            true -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span)
+            true -> reject(resolver, ResolveDiagnosticCode::UnsupportedDeclaration, item.source_span),
             _ -> trait_contracts(resolver, syntax, index, declared)
         }
     }
 
     machine trait_contracts(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping, declared: TraitItem) {
         transition declared.contract_count == 0 {
-            true -> trait_binders(resolver, syntax, index, declared)
+            true -> trait_binders(resolver, syntax, index, declared),
             _ -> trait_contract(resolver, syntax, declared)
         }
     }
@@ -96,7 +96,7 @@ crashes Trap
 
     machine machine_at(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
-            true -> machine_forms(resolver, syntax, index)
+            true -> machine_forms(resolver, syntax, index),
             _ -> done()
         }
     }
@@ -123,7 +123,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         transition offset < count {
-            true -> binder(resolver, syntax, first, count, admit_evidence, offset)
+            true -> binder(resolver, syntax, first, count, admit_evidence, offset),
             _ -> done()
         }
     }
@@ -131,15 +131,15 @@ crashes Trap
     machine binder(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition parameter.kind {
-            GenericParameterKind::Proposition -> reject(resolver, parameter.source_span)
-            GenericParameterKind::Evidence -> evidence(resolver, syntax, first, count, admit_evidence, offset, parameter.source_span)
+            GenericParameterKind::Proposition -> reject(resolver, parameter.source_span),
+            GenericParameterKind::Evidence -> evidence(resolver, syntax, first, count, admit_evidence, offset, parameter.source_span),
             _ -> next(resolver, syntax, first, count, admit_evidence, offset + 1)
         }
     }
 
     machine evidence(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, admit_evidence: bool, offset: u64 in Trapping, source_span: SourceSpan) {
         transition admit_evidence {
-            true -> next(resolver, syntax, first, count, admit_evidence, offset + 1)
+            true -> next(resolver, syntax, first, count, admit_evidence, offset + 1),
             _ -> reject(resolver, source_span)
         }
     }
@@ -157,7 +157,7 @@ crashes Trap
 {
     let bindable: bool = bindable_token(item.operator);
     transition item.operator == OperatorToken::None || (bindable && item.container == MachineContainer::Root && item.parent == 0 && item.has_owner) {
-        true -> contracts(resolver, syntax, item)
+        true -> contracts(resolver, syntax, item),
         _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedOperatorToken, item.token.source_span)
     }
 
@@ -173,7 +173,7 @@ crashes Trap
 
     machine contract(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
-            true -> shaped(resolver, syntax, item, offset)
+            true -> shaped(resolver, syntax, item, offset),
             _ -> generic(resolver, syntax, item, 0)
         }
     }
@@ -182,14 +182,14 @@ crashes Trap
         let written: Contract = syntax_trees_contract(syntax, item.first_contract + offset);
         let clauses: bool = callable_contract_clauses(syntax, written.first_clause, written.clause_count);
         transition written.kind == ContractKind::Machine && written.generic_parameter_count == 0 && written.contract_count == 0 && clauses {
-            true -> contract(resolver, syntax, item, offset + 1)
+            true -> contract(resolver, syntax, item, offset + 1),
             _ -> reject(resolver, ResolveDiagnosticCode::UnsupportedMachineContract, written.source_span)
         }
     }
 
     machine generic(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.generic_parameter_count {
-            true -> generic_kind(resolver, syntax, item, offset)
+            true -> generic_kind(resolver, syntax, item, offset),
             _ -> done()
         }
     }
@@ -197,8 +197,8 @@ crashes Trap
     machine generic_kind(resolver: @mut Resolver, syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
         transition parameter.kind {
-            GenericParameterKind::Proposition -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span)
-            GenericParameterKind::Evidence -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span)
+            GenericParameterKind::Proposition -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span),
+            GenericParameterKind::Evidence -> reject(resolver, ResolveDiagnosticCode::UnsupportedGenericParameter, parameter.source_span),
             _ -> generic(resolver, syntax, item, offset + 1)
         }
     }
@@ -219,7 +219,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
         transition index < end {
-            true -> clause(syntax, index, end)
+            true -> clause(syntax, index, end),
             _ -> admitted()
         }
     }
@@ -227,11 +227,11 @@ crashes Trap
     machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
         let written: Clause = syntax_trees_clause(syntax, index);
         transition written.kind {
-            ClauseKind::Requires -> next(syntax, index + 1, end)
-            ClauseKind::Ensures -> next(syntax, index + 1, end)
-            ClauseKind::Crashes -> next(syntax, index + 1, end)
-            ClauseKind::Suspends -> next(syntax, index + 1, end)
-            ClauseKind::Blocks -> next(syntax, index + 1, end)
+            ClauseKind::Requires -> next(syntax, index + 1, end),
+            ClauseKind::Ensures -> next(syntax, index + 1, end),
+            ClauseKind::Crashes -> next(syntax, index + 1, end),
+            ClauseKind::Suspends -> next(syntax, index + 1, end),
+            ClauseKind::Blocks -> next(syntax, index + 1, end),
             _ -> refused()
         }
     }
@@ -249,15 +249,15 @@ crashes Trap
 // order tokens.
 public machine bindable_token(token: OperatorToken) -> bool {
     transition token {
-        OperatorToken::Add -> yes()
-        OperatorToken::Subtract -> yes()
-        OperatorToken::Multiply -> yes()
-        OperatorToken::Divide -> yes()
-        OperatorToken::Modulo -> yes()
-        OperatorToken::Less -> yes()
-        OperatorToken::LessEqual -> yes()
-        OperatorToken::Greater -> yes()
-        OperatorToken::GreaterEqual -> yes()
+        OperatorToken::Add -> yes(),
+        OperatorToken::Subtract -> yes(),
+        OperatorToken::Multiply -> yes(),
+        OperatorToken::Divide -> yes(),
+        OperatorToken::Modulo -> yes(),
+        OperatorToken::Less -> yes(),
+        OperatorToken::LessEqual -> yes(),
+        OperatorToken::Greater -> yes(),
+        OperatorToken::GreaterEqual -> yes(),
         _ -> no()
     }
 

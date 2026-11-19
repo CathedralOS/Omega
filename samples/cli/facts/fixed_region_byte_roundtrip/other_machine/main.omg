@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let mut destination: [u64; 7] = [29u64, 0u64, 0u64, 0u64, 0u64, 0u64, 71u64];
     copy_region(@source, @mut destination, region_end());
     transition source[0] == 17u64 && source[1] == 23u64 && source[2] == 42u64 && source[3] == 9u64 && source[4] == 50u64 && source[5] == 61u64 && source[6] == 53u64 && destination[0] == 29u64 && destination[1] == 23u64 && destination[2] == 42u64 && destination[3] == 9u64 && destination[4] == 50u64 && destination[5] == 61u64 && destination[6] == 71u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

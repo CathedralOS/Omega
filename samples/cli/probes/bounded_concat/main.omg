@@ -18,7 +18,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 16 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -54,7 +54,7 @@ machine exercise(main: @mut Main) {
     main.text.used = 7;
     let view: @[u8] in Ascii = live(@main.text);
     transition (view as -Ascii) == "Room A1" && view.len == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1 as +Wrapping; }
@@ -65,6 +65,6 @@ machine exercise(main: @mut Main) {
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
     exercise(@mut entry_storage);
-    transition entry_storage.hits == 1 { true -> {} false -> bad() }
+    transition entry_storage.hits == 1 { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }

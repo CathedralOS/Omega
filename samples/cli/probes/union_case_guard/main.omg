@@ -3,13 +3,13 @@ data Main { cmd: Command; hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.cmd = Command::Move { dx: 2 };
     transition (main.cmd in Command::Quit | Command::Move) {
-        (true) -> moving(main)
+        (true) -> moving(main),
         _ -> silent(main)
     }
     machine moving(main: @mut Main) {
         main.hits = main.hits + 1;
         transition (main.cmd in Command::None | Command::Say) {
-            (true) -> silent(main)
+            (true) -> silent(main),
             _ -> checked(main)
         }
     }

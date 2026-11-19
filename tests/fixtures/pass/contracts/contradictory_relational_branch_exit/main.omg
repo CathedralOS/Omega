@@ -5,12 +5,12 @@ machine pick(low: u64, high: u64) -> u64
 requires low <= high
 {
     transition high < low {
-        true -> (low - 100u64)
+        true -> (low - 100u64),
         false -> (high - low)
     }
 }
 machine main() crashes Trap {
-    transition pick(3, 10) == 7 && pick(5, 5) == 0 { true -> done() _ -> bad() }
+    transition pick(3, 10) == 7 && pick(5, 5) == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

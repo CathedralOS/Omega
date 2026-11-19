@@ -95,7 +95,7 @@ invokes Arithmetic
     let arithmetic: ArithmeticFunctions = ArithmeticFunctions { multiply_divide: arithmetic_function };
     let calculated: i32 = Arithmetic::multiply_divide(@arithmetic, 6, 7, 2);
     transition success != 0 && table.value > 0 && forwarded != 0 && nested.table.value > 0 && direct_function != 0 && output > 0 && forwarded_function != 0 && forwarded_output > 0 && process != 0 && calculated == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

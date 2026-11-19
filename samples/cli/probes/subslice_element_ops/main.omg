@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
         && exits[2].open == false
         && exits[0].code == 1;
     transition outcome {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

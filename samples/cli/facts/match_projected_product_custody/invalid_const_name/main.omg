@@ -33,7 +33,7 @@ machine main() crashes Trap {
     let first_result: u64 = choose(0, 4, 6);
     let second_result: u64 = choose(1, 4, 6);
     transition first_result == 6 && second_result == 244 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

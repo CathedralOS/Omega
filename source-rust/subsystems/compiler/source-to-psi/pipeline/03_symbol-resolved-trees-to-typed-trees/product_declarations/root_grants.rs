@@ -190,35 +190,39 @@ public boundary trait BuildBindingOperations {
 public machine build_selection_receiver<'a>(builder: @'a mut Build) -> @'a mut Build { builder }
 "#;
         let build =
-            "machine build(builder: @mut Build) { Build::accept_boundary<First>(builder); }";
+            "machine build(builder: @mut Build) { Build::accept_boundary::<First>(builder); }";
         let product = "public boundary trait Service { machine tick() reaches none crashes none; }
                        public First satisfies Service { machine tick() reaches none crashes none {} }";
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
         let mut sources = crate::source_inputs::SourceMap::default();
         let mut syntax = None;
         let mut ids = Vec::new();
-        for (path, text, origin, scope) in [
+        for (path, text, package_root, origin, scope) in [
             (
                 "root/build.omg",
                 build,
+                "root",
                 SourceOrigin::User,
                 DependencyScope::Build,
             ),
             (
                 "<build-prelude>",
                 prelude,
+                "<build-prelude>",
                 SourceOrigin::Toolchain,
                 DependencyScope::Build,
             ),
             (
-                "<build-prelude:Build>",
-                "module Build;",
+                "<build-prelude>/Build/mod.omg",
+                "",
+                "<build-prelude>",
                 SourceOrigin::Toolchain,
                 DependencyScope::Build,
             ),
             (
                 "root/main.omg",
                 product,
+                "root",
                 SourceOrigin::User,
                 DependencyScope::Product,
             ),
@@ -227,7 +231,7 @@ public machine build_selection_receiver<'a>(builder: @'a mut Build) -> @'a mut B
                 .add_checked_instance(
                     path.into(),
                     text,
-                    "root".into(),
+                    package_root.into(),
                     Some(package),
                     origin,
                     SourceResolutionStratum::Base,

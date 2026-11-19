@@ -30,14 +30,14 @@ machine Selection::clone(source: @Selection) -> Selection {
     transition source {
         Selection::Found { payload } -> (Selection::Found {
             payload: Payload::clone(payload)
-        })
+        }),
         Selection::Empty -> (Selection::Empty)
     }
 }
 
 machine Selection::read(source: @Selection) -> u64 {
     transition source {
-        Selection::Found { payload } -> (Payload::read(payload))
+        Selection::Found { payload } -> (Payload::read(payload)),
         Selection::Empty -> (0)
     }
 }
@@ -49,7 +49,7 @@ machine Main::main(main: @mut Main) {
     let original: Selection = Selection::Found { payload: Payload { value: 41 } };
     let copied: Selection = Selection::clone(@original);
     transition Selection::read(@copied) == 42 && Selection::read(@original) == 41 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -22,17 +22,17 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut observations: Observations;
     let valid: bool = block read_input(@mut main.reader, @mut observations);
     transition valid {
-        true -> fit(main, @mut observations)
+        true -> fit(main, @mut observations),
         _ -> invalid(main)
     }
     machine fit(main: @mut Main, observations: @mut Observations) {
         let mut result: Fit;
         fit_curve(observations, @mut result);
         transition result.status {
-            0 -> output(main, observations, @result)
-            3 -> flat(main)
-            4 -> unidentified(main)
-            5 -> direction(main)
+            0 -> output(main, observations, @result),
+            3 -> flat(main),
+            4 -> unidentified(main),
+            5 -> direction(main),
             _ -> convergence(main)
         }
     }

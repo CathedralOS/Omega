@@ -12,14 +12,14 @@ ensures result >= Minimum
 machine construct<const Base: u64>() -> u64
 requires Base <= 100
 ensures result >= Base + 4
-{ selected<Base + 4, Selected<Base + 4>>() }
+{ selected::<Base + 4, Selected<Base + 4>>() }
 machine consume(value: u64) -> u64
 requires value >= 7
 { value - 7 }
 machine main() crashes Trap {
-    let value: u64 = construct<3>();
+    let value: u64 = construct::<3>();
     let difference: u64 = consume(value);
-    transition difference == 0 { true -> done() _ -> bad() }
+    transition difference == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

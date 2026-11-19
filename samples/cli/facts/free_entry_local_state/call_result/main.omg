@@ -14,7 +14,7 @@ machine start() crashes Trap {
     let code: u64 = supply();
     let mut tally: Tally = Tally { total: 0 };
     settle(@Mark { slot: @mut tally, code: code });
-    transition tally.total == 7 { true -> done() _ -> bad() }
+    transition tally.total == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

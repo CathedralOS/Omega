@@ -13,7 +13,7 @@ machine read_element(container: Container) -> u64 {
 machine main() crashes Trap {
     let container: Container = Container { values: [19, 42], index: 1 };
     transition container.values[0] == 19 && container.values[1] == 42 && read_element(container) == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

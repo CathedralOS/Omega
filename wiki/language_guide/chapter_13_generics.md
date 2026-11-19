@@ -34,7 +34,7 @@ machine identity<T>(value: T) -> T {
     value
 }
 
-let number: u32 = identity<u32>(42);
+let number: u32 = identity::<u32>(42);
 ```
 
 A body can only do with a `T` what its header says is possible. Copying
@@ -58,7 +58,7 @@ To compare, order or otherwise operate on a `T`, take an implementation of a
 ```omega
 machine sort<Element, const Order: Ranked<Element>>(values: @mut [Element]) { ... }
 
-sort<Card, PowerOrder>(@mut cards);
+sort::<Card, PowerOrder>(@mut cards);
 ```
 
 Inside `sort`, `Order::before(a, b)` calls whatever implementation the caller
@@ -75,7 +75,7 @@ machine Deck::score<const Key: machine(card: @Card) -> u64>(card: @Card) -> u64 
     Key(card)
 }
 
-Deck::score<Card::power_key>(@card);
+Deck::score::<Card::power_key>(@card);
 ```
 
 This is not a function pointer. `Deck::score<Card::power_key>` compiles to a
@@ -109,7 +109,7 @@ terminates
 public machine visit_one<T, const F: machine>(item: @mut T)
 terminates
 {
-    apply_one<T, F>(item);
+    apply_one::<T, F>(item);
 }
 ```
 
@@ -149,7 +149,7 @@ requires embed(Count) <= embed(items.len)
 }
 ```
 
-`prefix_count<16>(items)` and `prefix_count<count>(items)` both work. Use
+`prefix_count::<16>(items)` and `prefix_count::<count>(items)` both work. Use
 `const` when the value must size storage, and a plain parameter when nothing
 else in the signature refers to it.
 

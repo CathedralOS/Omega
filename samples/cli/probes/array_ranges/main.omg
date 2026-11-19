@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) {
     let middle: @[i32] = main.values[1..3];
     let empty: @[i32] = main.values[3..3];
     transition middle.len == 2 && empty.len == 0 && first == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

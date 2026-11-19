@@ -16,10 +16,10 @@ machine extract_payload(p: Packet) -> u64
 ensures result >= 40 && result <= 81
 {
     transition p {
-        Packet::Alpha { v } -> v
-        Packet::Beta { v } -> v
-        Packet::Gamma { v } -> v
-        Packet::Delta { v } -> v
+        Packet::Alpha { v } -> v,
+        Packet::Beta { v } -> v,
+        Packet::Gamma { v } -> v,
+        Packet::Delta { v } -> v,
         Packet::Epsilon { v } -> v
     }
 }
@@ -38,7 +38,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -46,7 +46,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -83,7 +83,7 @@ machine probe() -> u64 {
 
 machine main() crashes Trap {
     transition probe() == 40 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

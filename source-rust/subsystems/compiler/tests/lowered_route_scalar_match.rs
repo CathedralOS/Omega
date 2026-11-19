@@ -93,7 +93,7 @@ fn a_scalar_match_is_judged_and_accepted() {
             "machine settle(remaining: u64) -> u64 {\n\
                  let step: u64 = match remaining { 1 -> 1, _ -> 0 };\n\
                  transition remaining > step {\n\
-                     true -> settle(remaining - 1)\n\
+                     true -> settle(remaining - 1),\n\
                      false -> 7\n\
                  }\n\
              }",
@@ -298,7 +298,7 @@ fn an_accepted_scalar_match_runs_the_arm_its_subject_selects() {
              machine main() crashes Trap {{\n\
                  transition pick(0) == 10 && pick(1) == {expected} && pick(9) == 30\n\
                      && flip(true) == 1 && flip(false) == 2 {{\n\
-                     true -> done()\n\
+                     true -> done(),\n\
                      _ -> bad()\n\
                  }}\n\
                  machine done() {{}}\n\
@@ -324,7 +324,7 @@ machine choose_bit(flag: bool, value: u1) -> u1 {
 machine main() crashes Trap {
     transition keep_number(37) == 37 && keep_bool(true) && !keep_bool(false)
         && keep_bit(1) == 1 && choose_bit(true, 1) == 1 && choose_bit(false, 1) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -336,7 +336,7 @@ machine main() crashes Trap {
         ("runs_other", program(30), false),
         ("matching_carriers", matching_carriers, true),
         ("one_bit_carriers", one_bit_carriers.to_owned(), true),
-        ("declared_pattern_equality", "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } } machine main() crashes Trap { transition choose(0u64 as +Marked)==0 { true->done() _->bad() } machine done(){} machine bad(){crash Trap;} }".to_owned(), true),
+        ("declared_pattern_equality", "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7), _->(0) } } machine main() crashes Trap { transition choose(0u64 as +Marked)==0 { true->done(), _->bad() } machine done(){} machine bad(){crash Trap;} }".to_owned(), true),
     ] {
         let found = judged(name, &source);
         let RouteVerdict::Accepted(closure) = found else {
@@ -371,27 +371,27 @@ fn scalar_transition_patterns_use_ordinary_selected_equality() {
     for (name, program) in [
         (
             "policy_pattern",
-            "machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7) _->(0) } }",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { 0->(7), _->(0) } }",
         ),
         (
             "computed_pattern",
-            "machine choose(value:u64 in Trapping)->u8 { transition value { 0+1->(7) _->(0) } }",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { 0+1->(7), _->(0) } }",
         ),
         (
             "unary_pattern",
-            "machine choose(value:u64 in Trapping)->u8 { transition value { ~0u64->(7) _->(0) } }",
+            "machine choose(value:u64 in Trapping)->u8 { transition value { ~0u64->(7), _->(0) } }",
         ),
         (
             "indexed_pattern",
-            "machine choose(value:u64 in Trapping,values:@[u64;1])->u8 { transition value { values[0]->(7) _->(0) } }",
+            "machine choose(value:u64 in Trapping,values:@[u64;1])->u8 { transition value { values[0]->(7), _->(0) } }",
         ),
         (
             "policy_match",
-            "machine choose(value:u64 in Trapping)->u8 { match value { 0->7 _->0 } }",
+            "machine choose(value:u64 in Trapping)->u8 { match value { 0->7, _->0 } }",
         ),
         (
             "declared_pattern",
-            "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } }",
+            "domain u64::Marked; machine == never_equal(left:u64 in Marked,right:u64)->bool {false} machine choose(value:u64 in Marked)->u8 { transition value { 0->(7), _->(0) } }",
         ),
     ] {
         let found = verdict(name, program);
@@ -403,7 +403,7 @@ fn scalar_transition_patterns_use_ordinary_selected_equality() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let negative = "domain u64::Marked; machine choose(value:u64 in Marked)->u8 { transition value { 0->(7) _->(0) } } machine main() {}";
+    let negative = "domain u64::Marked; machine choose(value:u64 in Marked)->u8 { transition value { 0->(7), _->(0) } } machine main() {}";
     let errors = match unbuilt_frontier::staged("unserved_pattern_domain", negative) {
         Err(errors) => errors.join("\n"),
         Ok(_) => panic!("a scalar pattern cannot remove an unrelated qualification"),

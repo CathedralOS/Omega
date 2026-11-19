@@ -24,19 +24,19 @@ ensures result == value {
 machine main() crashes Trap {
     let mut caller_route: u64 = 0;
     let observed: u64 = match true {
-        true -> mark_size(size_of<Main>(), @mut caller_route, 17u64)
-        _ -> mark_size(size_of<Main>(), @mut caller_route, 23u64)
+        true -> mark_size(size_of::<Main>(), @mut caller_route, 17u64),
+        _ -> mark_size(size_of::<Main>(), @mut caller_route, 23u64)
     };
     let slack: u64 = observed - 4u64;
     let first_route: u64 = caller_route;
     let second_observed: u64 = match false {
-        true -> mark_size(size_of<Main>(), @mut caller_route, 17u64)
-        _ -> mark_size(size_of<Main>(), @mut caller_route, 23u64)
+        true -> mark_size(size_of::<Main>(), @mut caller_route, 17u64),
+        _ -> mark_size(size_of::<Main>(), @mut caller_route, 23u64)
     };
     let second_slack: u64 = second_observed - 4u64;
     transition observed == expected() && slack == expected() - 4u64
         && second_observed == expected() && second_slack == expected() - 4u64
-        && first_route == 17u64 && caller_route == 23u64 { true -> done() false -> bad() }
+        && first_route == 17u64 && caller_route == 23u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

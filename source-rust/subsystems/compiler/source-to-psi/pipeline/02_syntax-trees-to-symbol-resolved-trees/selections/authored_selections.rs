@@ -2338,7 +2338,7 @@ mod copied_call_tests {
             requires machine Function(value: Value) -> Value;
             { Function(value) }
             machine relay<Value>(value: Value) -> Value {
-                invoke<Value, identity<Value>>(value)
+                invoke::<Value, identity<Value>>(value)
             }
         "#;
         let mut sources = crate::source_inputs::SourceMap::default();

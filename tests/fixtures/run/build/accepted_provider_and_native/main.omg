@@ -17,7 +17,7 @@ machine main() crashes Trap {
     // The process owns this small allocation until normal termination.
     let address: addr = NativeAllocation::allocate(1u64, 8u64);
     transition observed == 29u64 && address != 0 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -13,7 +13,7 @@ requires value == 0xFFFF_FFFFu32
 { consume(value) }
 
 machine main() crashes Trap {
-    transition probe(integer::max<u16>() as u32) == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    transition probe(integer::max::<u16>() as u32) == 0u32 && integer::width_bits::<u32>() == 32u64 && !integer::is_signed::<u32>() { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

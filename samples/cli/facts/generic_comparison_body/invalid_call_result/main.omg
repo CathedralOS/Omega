@@ -7,7 +7,7 @@ machine same<T>(left: T, right: T) -> bool {
 }
 
 machine compare<T>(left: T, right: T) -> bool {
-    same<T>(left, right)
+    same::<T>(left, right)
 }
 
 machine hold(direct: bool) -> bool
@@ -23,9 +23,9 @@ machine produced() -> u64 {
 machine main() crashes Trap {
     let left: u64 = produced();
     let right: u64 = produced();
-    let direct: bool = compare<u64>(left, right);
+    let direct: bool = compare::<u64>(left, right);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

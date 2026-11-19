@@ -7,7 +7,7 @@ data Packet {
 }
 
 machine compute_geometry() -> u64 {
-    size_of<Packet>() - (align_of<Packet>() * 2u64)
+    size_of::<Packet>() - (align_of::<Packet>() * 2u64)
 }
 
 machine runner() -> u64 {
@@ -17,7 +17,7 @@ machine runner() -> u64 {
 machine main() crashes Trap {
     let diff: u64 = runner();
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

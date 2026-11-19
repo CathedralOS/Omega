@@ -696,10 +696,10 @@ boundary trait Probe {{
     crashes none;
 }}
 machine entry() -> u32 crashes none {{
-    let first: u32 = Probe::take<u32>(7, {limit});
+    let first: u32 = Probe::take::<u32>(7, {limit});
     let room: u32 = 10u32 - first;
-    let second: u32 = Probe::take<Reading>(Reading {{ level: 3 }}, 4);
-    let third: u32 = Probe::take<u32>(9, 2);
+    let second: u32 = Probe::take::<Reading>(Reading {{ level: 3 }}, 4);
+    let third: u32 = Probe::take::<u32>(9, 2);
     room
 }}
 "#
@@ -889,8 +889,8 @@ boundary trait Pair {
     reaches none requires value <= Limit crashes none;
 }
 machine entry() -> u32 crashes none {
-    let first: u32 = Pair::first<4>(3);
-    let second: u32 = Pair::second<4>(3);
+    let first: u32 = Pair::first::<4>(3);
+    let second: u32 = Pair::second::<4>(3);
     first
 }
 "#,
@@ -1163,7 +1163,7 @@ fn sink_requirement(frozen: &crate::source_state::FrozenTypedTrees) -> symbols::
 /// when nothing applies it.
 #[test]
 fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
-    let applied = value_generic_boundary("Sink::take<4>(@buffer, 3)");
+    let applied = value_generic_boundary("Sink::take::<4>(@buffer, 3)");
     let requirement = sink_requirement(&applied);
     let elaboration = claimed(&applied, requirement).unwrap();
     // The claim and the call name the one closed application.
@@ -1173,7 +1173,7 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
 
     // The twin differs in one argument: an `i32` of 5 is past the `u64` 4.
     let verdict = judge(claimed(
-        &value_generic_boundary("Sink::take<4>(@buffer, 5)"),
+        &value_generic_boundary("Sink::take::<4>(@buffer, 5)"),
         requirement,
     ))
     .unwrap();
@@ -1255,8 +1255,8 @@ boundary trait Probe {
     crashes none;
 }
 machine entry() -> u32 crashes none {
-    let first: u32 = Probe::take<4>(3);
-    let second: u32 = Probe::take<8>(7);
+    let first: u32 = Probe::take::<4>(3);
+    let second: u32 = Probe::take::<8>(7);
     first
 }
 "#,
@@ -2437,7 +2437,7 @@ requires true
 {guarantee}
 crashes none
 {{ Chosen::apply({actual}) }}
-machine entry() -> u32 crashes none {{ relay<Inline>() }}
+machine entry() -> u32 crashes none {{ relay::<Inline>() }}
 "#
     );
     // Use the actual specialization pass, retaining the exact source
@@ -3344,7 +3344,7 @@ trait Step<Value> {
 Selected<Value> satisfies Step<Value> {
     machine apply(input: Value) -> Value reaches none crashes none { input }
 }
-machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }
+machine entry() -> u32 reaches none crashes none { Selected::<u32>::apply(7) }
 "#
 }
 
@@ -3531,8 +3531,8 @@ fn generic_named_map_source_capture_identity_keeps_unused_binders() {
             1,
         )
         .replacen(
-            "Selected<u32>::apply(7)",
-            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            "Selected::<u32>::apply(7)",
+            "let first: u32 = Selected::<u32, u64>::apply(7); Selected::<u32, bool>::apply(8)",
             1,
         );
     let program = typed(&text);
@@ -3587,8 +3587,8 @@ fn generic_named_map_source_application_retains_actual_constructor_bindings() {
             1,
         )
         .replacen(
-            "Selected<u32>::apply(7)",
-            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            "Selected::<u32>::apply(7)",
+            "let first: u32 = Selected::<u32, u64>::apply(7); Selected::<u32, bool>::apply(8)",
             1,
         );
     let mut program = typed(&text);
@@ -3696,7 +3696,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
             "Selected<Value, Unused> satisfies",
             1,
         )
-        .replacen("Selected<u32>::apply(7)", "Selected<u32, u64>::apply(7)", 1);
+        .replacen("Selected::<u32>::apply(7)", "Selected::<u32, u64>::apply(7)", 1);
     let mut program = typed(&text);
     let mut call = generic_named_map_call(&program).clone();
     let crate::source_state::types::TypeReferenceNode::Generic {
@@ -3752,7 +3752,7 @@ fn prepare_named_map(text: &str) -> crate::source_state::FrozenTypedTrees {
 fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {
     named_owned_source(actual, promised, body)
         .replace("Inline satisfies", "Selected<Unused> satisfies")
-        .replace("Inline::apply", "Selected<u64>::apply")
+        .replace("Inline::apply", "Selected::<u64>::apply")
 }
 
 #[test]
@@ -3763,8 +3763,8 @@ fn generic_named_map_captures_keep_every_unused_binder() {
             "Selected<Value, Unused> satisfies",
         )
         .replace(
-            "Selected<u32>::apply(7)",
-            "let first: u32 = Selected<u32, u64>::apply(3); Selected<u32, bool>::apply(7)",
+            "Selected::<u32>::apply(7)",
+            "let first: u32 = Selected::<u32, u64>::apply(3); Selected::<u32, bool>::apply(7)",
         );
     let prepared = prepare_named_map(&text);
     let captures = prepared
@@ -3812,9 +3812,9 @@ fn generic_named_map_captures_keep_every_unused_binder() {
 #[test]
 fn generic_named_map_captures_keep_the_actual_source_owner() {
     let text = generic_named_map_source().replace(
-        "machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }",
-        "machine other() -> u32 reaches none crashes none { Selected<u32>::apply(3) }
-         machine entry() -> u32 reaches none crashes none { let first: u32 = other(); Selected<u32>::apply(7) }",
+        "machine entry() -> u32 reaches none crashes none { Selected::<u32>::apply(7) }",
+        "machine other() -> u32 reaches none crashes none { Selected::<u32>::apply(3) }
+         machine entry() -> u32 reaches none crashes none { let first: u32 = other(); Selected::<u32>::apply(7) }",
     );
     let prepared = prepare_named_map(&text);
     let captures = prepared

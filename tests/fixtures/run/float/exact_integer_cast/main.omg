@@ -13,7 +13,7 @@ requires value == 42.0f64 || value == -17.0f64 {
 machine main() crashes Trap {
     transition narrow32(42.0f32) == 42i32 && narrow32(-17.0f32) == -17i32
         && narrow64(42.0f64) == 42i32 && narrow64(-17.0f64) == -17i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() { }

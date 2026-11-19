@@ -27,7 +27,7 @@ machine Main::main(main: @mut Main) {
     let exact: i8 = narrow_i16_to_i8_exact(127);
     let wide: i64 = widen_i8_to_i64(-5);
     transition wrapped == -128 && clamped == 127 && exact == 127 && wide == -5 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

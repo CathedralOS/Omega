@@ -20,7 +20,7 @@ machine main(main: @mut Main) crashes Trap {
     let extra: bool = psi::push_slot_qualification(@mut checks, 1, 2);
     let mismatched: bool = psi::admits(@review, @checks);
     transition empty && qualified && originated && matched && extra && !mismatched {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
 

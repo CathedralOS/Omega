@@ -696,7 +696,20 @@ impl SourceStorage {
             }
         }
 
+        if origin_override == Some(SourceOrigin::Toolchain)
+            && path == Path::new(source_admission::source_identity::DEFAULT_BUILD_PATH)
+        {
+            return (path.to_owned(), None, SourceOrigin::Toolchain);
+        }
+
         if origin_override == Some(SourceOrigin::Toolchain) {
+            if source_admission::source_identity::is_build_prelude_path(path) {
+                return (
+                    PathBuf::from(source_admission::source_identity::BUILD_PRELUDE_ROOT),
+                    None,
+                    SourceOrigin::Toolchain,
+                );
+            }
             return (
                 self.toolchain_root.clone().unwrap_or_default(),
                 None,
@@ -894,7 +907,7 @@ mod tests {
         let capture = crate::capture_anonymous_compilation_source(&core).unwrap();
         let original = capture
             .tree()
-            .read_to_string(std::path::Path::new("float.omg"))
+            .read_to_string(std::path::Path::new("float/float.omg"))
             .unwrap();
         for substituted in [false, true] {
             let mut storage = SourceStorage::for_package_compilation(
@@ -913,7 +926,7 @@ mod tests {
             storage
                 .admit_source(
                     source_admission::SourceContents {
-                        path: core.join("float.omg"),
+                        path: core.join("float/float.omg"),
                         source: text,
                         scope: DependencyScope::Build,
                     },
@@ -949,11 +962,14 @@ mod tests {
         use source_capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
         let entry = root.join("entry.omg");
-        let mut entries = std::collections::BTreeMap::new();
+        let mut entries = std::collections::BTreeMap::from([(
+            PathBuf::from("other"),
+            CapturedSourceNode::Directory,
+        )]);
         for (name, body) in [
             ("entry.omg", "public data Entry {}"),
             ("sibling.omg", "data PrivateSibling {}"),
-            ("other.omg", "module other; public data Other {}"),
+            ("other/record.omg", "public data Other {}"),
             ("build.omg", "machine build() {}"),
         ] {
             entries.insert(

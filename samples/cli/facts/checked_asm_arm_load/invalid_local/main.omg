@@ -12,7 +12,7 @@ X86PlaceLoad satisfies PlaceLoad {
             mov loaded, [source]
         }
         transition loaded == 37 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
         machine done() {}
@@ -28,7 +28,7 @@ ArmPlaceLoad satisfies PlaceLoad {
             ldr loaded, [source]
         }
         transition loaded == 37 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
         machine done() {}

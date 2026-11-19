@@ -13,7 +13,7 @@ machine main() crashes Trap {
     cell.spare = 17;
     prepare(@write cell);
     transition cell.value == 61 && cell.spare == 17 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

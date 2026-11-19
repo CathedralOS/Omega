@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let mut pair: Pair = Pair { left: 10u64, right: 25u64 };
     let diff: u64 = verify(@mut pair);
     transition diff == 50u64 && pair.left == 999u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

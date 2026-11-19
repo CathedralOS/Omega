@@ -13,7 +13,7 @@ requires position < 4096 {
     machine read(frames: @mut [Frame; 4096], position: u64) -> u64
     requires position < 4096 {
         transition frames[position] {
-            Frame::Empty -> 99
+            Frame::Empty -> 99,
             Frame::Ready { value } -> (value - 1)
         }
     }
@@ -25,7 +25,7 @@ machine run(payload: u64 in PositiveSmall) -> u64 {
 machine supply() -> u64 in PositiveSmall { 0 }
 machine witness() -> u64 { run(supply()) }
 machine main() crashes Trap {
-    transition witness() == 2 { true -> done() false -> bad() }
+    transition witness() == 2 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -37,7 +37,7 @@ fn check(name: &str, body: &str) -> (bool, String) {
 {body}}}
 machine settle(builder: @mut Build, settled: OutputCompletion) {{
     transition settled {{
-        OutputCompletion::Sealed {{ receipt }} -> done()
+        OutputCompletion::Sealed {{ receipt }} -> done(),
         OutputCompletion::Retry {{ obligation, file }} -> failed(builder, obligation)
     }}
     machine done() {{}}

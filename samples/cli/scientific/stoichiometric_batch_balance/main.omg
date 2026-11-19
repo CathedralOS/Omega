@@ -23,7 +23,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block hold(context, produced, local_fourth) }
     machine hold(context: @mut Main, parameter: chemistry::model::Signature, local_fourth: i64 in Wrapping) {
         transition parameter.active == 3 && parameter.fourth == 0 && local_fourth == 0 {
-            true -> block store(context, parameter)
+            true -> block store(context, parameter),
             false -> signature_mismatch(context)
         }
     }
@@ -31,7 +31,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         context.signature = parameter;
         let called: chemistry::model::Signature = chemistry::balance::signature_of(4, 1, 1, 1, 1);
         transition context.signature.active == 3 && context.signature.fourth == 0 && called.active == 4 && called.fourth == 1 {
-            true -> block rows(context)
+            true -> block rows(context),
             false -> signature_mismatch(context)
         }
     }
@@ -44,7 +44,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let via_parameter: i64 in Wrapping = chemistry::balance::read_axis(selected);
         let via_call: @[i64 in Wrapping; 4] = chemistry::balance::axis(@first, @second, @third, 2);
         transition selected[0] == 2 && held.row[0] == 2 && via_parameter == 2 && via_call[3] == 1 {
-            true -> block windows(context)
+            true -> block windows(context),
             false -> signature_mismatch(context)
         }
     }
@@ -57,7 +57,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let via_parameter: i64 in Wrapping = chemistry::balance::read_window(held.values);
         let via_call: @[i64 in Wrapping] = chemistry::balance::reactant_window(@coefficients, 1);
         transition reactants.len == 2 && reactants[0] == 2 && reactants[1] == 1 && held.values.len == 2 && via_parameter == 2 && via_call.len == 2 {
-            true -> block consume(context)
+            true -> block consume(context),
             false -> signature_mismatch(context)
         }
     }
@@ -65,7 +65,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let mut input: Input;
         block read(context, @mut input);
         transition input.status == 0 && input.count == 19 {
-            true -> declare(context, @input)
+            true -> declare(context, @input),
             false -> invalid(context)
         }
     }
@@ -91,20 +91,20 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         reaction.stock[3] = input.values[17];
         reaction.cap = input.values[18];
         transition (reaction.species == 3 || reaction.species == 4) && reaction.bound >= 1 && reaction.bound <= 8 {
-            true -> atoms(context, @reaction, input, 2)
+            true -> atoms(context, @reaction, input, 2),
             false -> invalid(context)
         }
     }
     machine atoms(context: @mut Main, reaction: @chemistry::model::Reaction, input: @Input, index: u64) {
         transition index < 14 {
-            true -> atom(context, reaction, input, index)
+            true -> atom(context, reaction, input, index),
             false -> nonempty(context, reaction)
         }
     }
     machine atom(context: @mut Main, reaction: @chemistry::model::Reaction, input: @Input, index: u64)
     requires index < 14 {
         transition input.values[index] <= 16 {
-            true -> atoms(context, reaction, input, index + 1)
+            true -> atoms(context, reaction, input, index + 1),
             false -> invalid(context)
         }
     }
@@ -114,13 +114,13 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let third: i64 in Wrapping = reaction.first[2] + reaction.second[2] + reaction.third[2];
         let fourth: i64 in Wrapping = reaction.first[3] + reaction.second[3] + reaction.third[3];
         transition first > 0 && second > 0 && third > 0 {
-            true -> fourth_species(context, reaction, fourth)
+            true -> fourth_species(context, reaction, fourth),
             false -> invalid(context)
         }
     }
     machine fourth_species(context: @mut Main, reaction: @chemistry::model::Reaction, fourth: i64 in Wrapping) {
         transition (reaction.species == 4 && fourth > 0) || (reaction.species == 3 && fourth == 0 && reaction.stock[3] == 0) {
-            true -> balance(context, reaction)
+            true -> balance(context, reaction),
             false -> invalid(context)
         }
     }
@@ -128,7 +128,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let mut result: chemistry::model::Balance;
         chemistry::balance::solve(reaction, @mut result);
         transition result.solutions > 0 && result.coefficients[0] > 0 && result.coefficients[1] > 0 {
-            true -> batch(context, reaction, @result)
+            true -> batch(context, reaction, @result),
             false -> impossible(context)
         }
     }
@@ -137,7 +137,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let mut result: chemistry::model::Batch;
         chemistry::inventory::process(reaction, balance, @mut result);
         transition result.overflow {
-            true -> overflow(context, @result)
+            true -> overflow(context, @result),
             false -> verify(context, reaction, balance, @result)
         }
     }
@@ -149,7 +149,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let after_second: i64 in Wrapping = chemistry::model::element_total(@reaction.second, @batch.inventory);
         let after_third: i64 in Wrapping = chemistry::model::element_total(@reaction.third, @batch.inventory);
         transition before_first == after_first && before_second == after_second && before_third == after_third {
-            true -> report(context, balance, batch, before_first, before_second, before_third)
+            true -> report(context, balance, batch, before_first, before_second, before_third),
             false -> corrupt(context)
         }
     }
@@ -212,19 +212,19 @@ machine read(context: @mut Main, input: @mut Input) reaches ProcessExit + Consol
     machine scan(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> end(context, input, value, digits)
+            ByteRead::Eof -> end(context, input, value, digits),
             ByteRead::Byte { value as byte } -> block byte_value(context, input, value, digits, consumed, byte)
         }
     }
     machine byte_value(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition consumed < 1024 {
-            true -> block classify(context, input, value, digits, consumed + 1, byte)
+            true -> block classify(context, input, value, digits, consumed + 1, byte),
             false -> invalid(input)
         }
     }
     machine classify(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte >= 48 && byte <= 57 {
-            true -> block digit(context, input, value, consumed, byte)
+            true -> block digit(context, input, value, consumed, byte),
             false -> block separator(context, input, value, digits, consumed, byte)
         }
     }
@@ -232,26 +232,26 @@ machine read(context: @mut Main, input: @mut Input) reaches ProcessExit + Consol
         let wide: i64 in Wrapping = widen_i32_to_i64(byte) as i64 in Wrapping;
         let next: i64 in Wrapping = value * 10 + wide - 48;
         transition next <= 2147483647 {
-            true -> block scan(context, input, next, true, consumed)
+            true -> block scan(context, input, next, true, consumed),
             false -> invalid(input)
         }
     }
     machine separator(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping, byte: i32) {
         transition byte == 9 || byte == 10 || byte == 13 || byte == 32 {
-            true -> block whitespace(context, input, value, digits, consumed)
+            true -> block whitespace(context, input, value, digits, consumed),
             false -> invalid(input)
         }
     }
     machine whitespace(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool, consumed: i64 in Wrapping) {
         transition digits {
-            true -> block commit(context, input, value, consumed)
+            true -> block commit(context, input, value, consumed),
             false -> block scan(context, input, 0, false, consumed)
         }
     }
     machine commit(context: @mut Main, input: @mut Input, value: i64 in Wrapping, consumed: i64 in Wrapping) {
         let index: u64 = input.count;
         transition index < 19 {
-            true -> block store(context, input, value, consumed, index)
+            true -> block store(context, input, value, consumed, index),
             false -> invalid(input)
         }
     }
@@ -263,14 +263,14 @@ machine read(context: @mut Main, input: @mut Input) reaches ProcessExit + Consol
     }
     machine end(context: @mut Main, input: @mut Input, value: i64 in Wrapping, digits: bool) {
         transition digits {
-            true -> finish(input, value)
+            true -> finish(input, value),
             false -> done()
         }
     }
     machine finish(input: @mut Input, value: i64 in Wrapping) {
         let index: u64 = input.count;
         transition index < 19 {
-            true -> final_store(input, value, index)
+            true -> final_store(input, value, index),
             false -> invalid(input)
         }
     }

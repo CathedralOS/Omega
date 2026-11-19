@@ -34,7 +34,7 @@ ExchangeObservationCode satisfies ExchangeObservation {
 }
 
 machine main() reaches AddressParts, ExchangeObservation crashes Trap {
- transition ExchangeObservation::observe() { true -> done() _ -> failed() }
+ transition ExchangeObservation::observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

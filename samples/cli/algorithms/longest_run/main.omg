@@ -34,7 +34,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < text.len {
-            true -> read(text, index, previous, current, maximum)
+            true -> read(text, index, previous, current, maximum),
             _ -> maximum
         }
     }
@@ -44,7 +44,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
     requires index >= 0 {
         let byte: u8 = text[index];
         transition byte == previous {
-            true -> update(text, index, byte, current + 1, maximum)
+            true -> update(text, index, byte, current + 1, maximum),
             _ -> update(text, index, byte, 1, maximum)
         }
     }
@@ -53,7 +53,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
                  current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition current > maximum {
-            true -> advance(text, index, previous, current, current)
+            true -> advance(text, index, previous, current, current),
             _ -> advance(text, index, previous, current, maximum)
         }
     }
@@ -63,7 +63,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
                   current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < 16 {
-            true -> bump(text, index, previous, current, maximum)
+            true -> bump(text, index, previous, current, maximum),
             _ -> maximum
         }
     }

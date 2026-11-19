@@ -13,7 +13,7 @@ machine main() crashes Trap {
     let selected: dyn Fraction = Quarter as dyn Fraction;
     let observed: f64 = forward(selected);
     transition observed == 0.25 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

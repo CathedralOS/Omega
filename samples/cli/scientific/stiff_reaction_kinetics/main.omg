@@ -21,16 +21,16 @@ use domain::report::integer64;
 data Main { input: Input; problem: Problem; solution: Solution; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     block read(@mut main.input);
-    transition valid(@main.input) { true -> prepare(main) false -> invalid(main) }
+    transition valid(@main.input) { true -> prepare(main), false -> invalid(main) }
     machine prepare(main: @mut Main) {
         main.problem = problem(@main.input);
         transition physical(@main.problem.initial) && main.problem.initial.a + main.problem.initial.b + main.problem.initial.c <= 1000000.0 && main.problem.end <= 1000000.0 && main.problem.absolute > 0.0 && main.problem.relative > 0.0 && main.problem.relative <= 1.0 {
-            true -> solve(main) false -> invalid(main)
+            true -> solve(main), false -> invalid(main)
         }
     }
     machine solve(main: @mut Main) {
         main.solution = integrate(@main.problem);
-        transition main.solution.success { true -> report(main) false -> exhausted(main) }
+        transition main.solution.success { true -> report(main), false -> exhausted(main) }
     }
     machine report(main: @mut Main) {
         Console::write_line("stiff_reaction_kinetics units=1e-12");

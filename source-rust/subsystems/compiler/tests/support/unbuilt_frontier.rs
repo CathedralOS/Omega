@@ -50,6 +50,13 @@ pub fn frontier(
                 .unwrap_or_else(|reason| panic!("{}: {reason}", main.display())),
         );
     }
+    resolve_frontier(request, entry)
+}
+
+fn resolve_frontier(
+    request: compiler::CheckedCompileRequest,
+    entry: Option<&str>,
+) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
     compiler::CompilationSession::default()
         .typed_frontier_without_build(request, entry)
         .map_err(|failure| {
@@ -82,11 +89,26 @@ pub fn bound_fixture_frontier(
 /// directory named for `name`, removed afterwards; or the messages that
 /// stopped it.
 pub fn staged(name: &str, source: &str) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
+    staged_in(name, "", source)
+}
+
+/// Stages a program under a directory relative to the captured package root.
+pub fn staged_in(
+    name: &str,
+    directory: &str,
+    source: &str,
+) -> Result<Box<compiler::TypedFrontier>, Vec<String>> {
     let root = std::env::temp_dir().join(format!("omega-unbuilt-{}-{name}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("staging directory");
-    let main = root.join("main.omg");
+    let directory = root.join(directory);
+    std::fs::create_dir_all(&directory).expect("staging directory");
+    let main = directory.join("main.omg");
     std::fs::write(&main, source).expect("staged source");
-    let staged = frontier(&main, None, &[]);
+    let mut request = compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64"));
+    if directory != root {
+        request.package_inputs =
+            Some(unbuilt_dependencies::graph(&root, &[]).expect("staged package"));
+    }
+    let staged = resolve_frontier(request, None);
     let _ = std::fs::remove_dir_all(&root);
     staged
 }

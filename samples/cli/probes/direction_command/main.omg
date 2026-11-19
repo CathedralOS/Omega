@@ -26,18 +26,18 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.command = "north";
 
     transition main.command[0] == 110 {
-        true -> go_north(main)
+        true -> go_north(main),
         _ -> try_south(main)
     }
 
     machine try_south(main: @mut Main) {
-        transition main.command[0] == 115 { true -> go_south(main) _ -> try_east(main) }
+        transition main.command[0] == 115 { true -> go_south(main), _ -> try_east(main) }
     }
     machine try_east(main: @mut Main) {
-        transition main.command[0] == 101 { true -> go_east(main) _ -> try_west(main) }
+        transition main.command[0] == 101 { true -> go_east(main), _ -> try_west(main) }
     }
     machine try_west(main: @mut Main) {
-        transition main.command[0] == 119 { true -> go_west(main) _ -> unknown(main) }
+        transition main.command[0] == 119 { true -> go_west(main), _ -> unknown(main) }
     }
 
     machine go_north(main: @mut Main) {

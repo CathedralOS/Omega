@@ -54,7 +54,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Walk the samples; the loop counter `k` is bounded by the array length.
     machine tally_loop(main: @mut Main) {
         transition main.k < 8 {
-            true -> block load_sample(main)
+            true -> block load_sample(main),
             _ -> block done(main)
         }
     }
@@ -69,7 +69,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Admit the histogram index only where it is provably in range.
     machine bounded_tally(main: @mut Main) {
         transition main.v < 4 {
-            true -> block bump(main)
+            true -> block bump(main),
             _ -> block advance(main)
         }
     }

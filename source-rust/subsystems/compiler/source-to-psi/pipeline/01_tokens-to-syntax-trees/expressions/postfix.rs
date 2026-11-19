@@ -92,25 +92,25 @@ pub(crate) fn parse_member_suffix<'tokens, 'source>(
     let (member, rest) = after_dot.take_identifier()?;
     access_source_span.span.end = member.source_span().span.end;
 
-    if rest.at_punctuation(PunctuationKind::Less) {
+    if rest.at_expression_arguments() || rest.at_punctuation(PunctuationKind::Less) {
         let retired = match member.as_str(syntax_trees) {
             "accept_boundary" => Some(
-                "receiver-style boundary acceptance is retired; use Build::accept_boundary<Boundary>(builder)",
+                "receiver-style boundary acceptance is retired; use Build::accept_boundary::<Boundary>(builder)",
             ),
             "select_provider" => Some(
-                "receiver-style provider selection is retired; use Build::select_provider<Slot, Provider>(builder)",
+                "receiver-style provider selection is retired; use Build::select_provider::<Slot, Provider>(builder)",
             ),
             "exclude_service" => Some(
-                "receiver-style service exclusion is retired; use Build::exclude_service<BoundaryTrait>(builder)",
+                "receiver-style service exclusion is retired; use Build::exclude_service::<BoundaryTrait>(builder)",
             ),
             "select_representation" => Some(
-                "receiver-style representation selection is retired; use Build::select_representation<Opaque, Conformance>(builder)",
+                "receiver-style representation selection is retired; use Build::select_representation::<Opaque, Conformance>(builder)",
             ),
             "require_wire_compatibility" => Some(
-                "receiver-style wire compatibility is retired; use Build::require_wire_compatibility<Edge, Lineage, Local, Peer, Fact>(builder)",
+                "receiver-style wire compatibility is retired; use Build::require_wire_compatibility::<Edge, Lineage, Local, Peer, Fact>(builder)",
             ),
             "assume_binding_contract" => Some(
-                "receiver-style assumed binding is retired; use Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)",
+                "receiver-style assumed binding is retired; use Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)",
             ),
             _ => None,
         };
@@ -432,9 +432,10 @@ pub(crate) fn try_parse_static_machine_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
-    if !input.at_punctuation(PunctuationKind::Less) {
+    if !input.at_expression_arguments() {
         return Ok(None);
     }
+    let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
 
     let mut group_depth = 0usize;
     let mut previous = None;
@@ -508,7 +509,9 @@ fn parse_static_call_arguments<'tokens, 'source>(
 
         if cursor.at_punctuation(PunctuationKind::Comma) {
             cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
+            if !cursor.at_punctuation(PunctuationKind::Greater) {
+                continue;
+            }
         }
         if !cursor.at_punctuation(PunctuationKind::Greater) {
             return Ok(None);
@@ -528,10 +531,25 @@ pub(crate) fn parse_static_name_selection<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
+    parse_name_selection(syntax_trees, input, SelectionPosition::Type)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SelectionPosition {
+    Expression,
+    Type,
+    Argument,
+}
+
+pub(crate) fn parse_name_selection<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    position: SelectionPosition,
+) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
     let Ok((first, mut input)) = input.take_identifier() else {
         return Ok(None);
     };
-    if input.at_punctuation(PunctuationKind::Dot) {
+    if position != SelectionPosition::Expression && input.at_punctuation(PunctuationKind::Dot) {
         input = input.take_punctuation(PunctuationKind::Dot, ".")?;
         let (member, rest) = input.take_identifier()?;
         return Ok(Some((
@@ -549,7 +567,7 @@ pub(crate) fn parse_static_name_selection<'tokens, 'source>(
         )));
     }
     let mut path = vec![first];
-    while input.at_punctuation(PunctuationKind::ColonColon) {
+    while input.at_path_member() {
         let after_separator = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let Ok((member, rest)) = after_separator.take_identifier() else {
             return Ok(None);
@@ -557,17 +575,29 @@ pub(crate) fn parse_static_name_selection<'tokens, 'source>(
         path.push(member);
         input = rest;
     }
-    let application = if let Some((mut application, rest)) =
-        try_parse_static_symbol_application(syntax_trees, input)?
+    let arguments_start = match position {
+        SelectionPosition::Expression | SelectionPosition::Argument
+            if input.at_expression_arguments() =>
+        {
+            Some(input.take_punctuation(PunctuationKind::ColonColon, "::")?)
+        }
+        SelectionPosition::Expression => None,
+        SelectionPosition::Type | SelectionPosition::Argument => Some(input),
+    };
+    let application = if let Some(arguments_start) = arguments_start
+        && let Some((mut application, rest)) =
+            try_parse_static_symbol_application(syntax_trees, arguments_start)?
     {
         input = rest;
-        if input.at_punctuation(PunctuationKind::ColonColon) {
+        if input.at_path_member() {
             let next = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-            let Some((member, rest)) = parse_static_name_selection(syntax_trees, next)? else {
+            let Some((member, rest)) =
+                parse_name_selection(syntax_trees, next.deepen()?, position)?
+            else {
                 return Ok(None);
             };
             application.member = syntax_trees.expressions.insert_static_member(member);
-            input = rest;
+            input = rest.with_depth(next.depth());
         }
         Some(application)
     } else {
@@ -596,7 +626,9 @@ fn try_parse_static_argument<'tokens, 'source>(
     {
         return parse_static_type_argument(syntax_trees, input).map(Some);
     }
-    let Some((argument, rest)) = parse_static_name_selection(syntax_trees, input)? else {
+    let Some((argument, rest)) =
+        parse_name_selection(syntax_trees, input, SelectionPosition::Argument)?
+    else {
         syntax_trees.rewind_appended(argument_checkpoint);
         return try_parse_static_value_argument(syntax_trees, input);
     };
@@ -720,7 +752,9 @@ fn parse_static_symbol_application<'tokens, 'source>(
 
             if cursor.at_punctuation(PunctuationKind::Comma) {
                 cursor = cursor.take_punctuation(PunctuationKind::Comma, ",")?;
-                continue;
+                if !cursor.at_punctuation(PunctuationKind::Greater) {
+                    continue;
+                }
             }
             if !cursor.at_punctuation(PunctuationKind::Greater) {
                 return Ok(None);
@@ -759,8 +793,8 @@ fn parse_static_type_argument<'tokens, 'source>(
 }
 
 /*
-    `owner.tests.group<Requirement>()` registers a test group, and
-    `owner.tests.service<Group, Slot>()` selects its runner-supplied service,
+    `owner.tests.group::<Requirement>()` registers a test group, and
+    `owner.tests.service::<Group, Slot>()` selects its runner-supplied service,
     through the Build's `tests` facet (wiki/spec/build/testing.md). The facet is a value
     operand, so its receiver takes the same member projection an ordinary
     `owner.tests` value does rather than the static path a dotted call

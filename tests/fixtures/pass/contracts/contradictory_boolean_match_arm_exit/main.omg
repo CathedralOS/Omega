@@ -8,7 +8,7 @@ requires count >= 10
     match flag { true -> count, false -> count - 100u64 }
 }
 machine main() crashes Trap {
-    transition pick(12) == 12 && pick(99) == 99 { true -> done() _ -> bad() }
+    transition pick(12) == 12 && pick(99) == 99 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

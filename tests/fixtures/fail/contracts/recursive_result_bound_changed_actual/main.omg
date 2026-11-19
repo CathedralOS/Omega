@@ -5,7 +5,7 @@ terminates by n -> Nat::Descending
 ensures result <= previous
 {
     transition n > 0 {
-        true -> descend(n - 1, 1000)
+        true -> descend(n - 1, 1000),
         false -> previous
     }
 }

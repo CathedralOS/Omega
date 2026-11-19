@@ -42,7 +42,7 @@ machine Main::main(main: @mut Main) {
         && repeated32 == residual32 * 3.0f32
         && residual64 > 0.0 && separate64 == 0.0
         && repeated64 == residual64 * 3.0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

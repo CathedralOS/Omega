@@ -15,7 +15,7 @@ machine probe(narrow: u8) -> u64
 machine main() crashes Trap {
     let combined: u64 = probe(110u8);
     transition combined == 130u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

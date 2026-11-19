@@ -23,7 +23,7 @@ machine Main::main(main: @mut Main) {
     let second: u32 in Wrapping = increment(@choice, 8);
     let resident: u32 in Wrapping = observe(@choice);
     transition first == 3 && second == 8 && resident == 16 {
-        true -> done(main)
+        true -> done(main),
         false -> bad(main)
     }
     machine done(main: @mut Main) {

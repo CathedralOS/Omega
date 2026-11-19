@@ -34,33 +34,33 @@ machine run(instrument: @mut Instrument) reaches ProcessExit + Console {
     machine read(instrument: @mut Instrument) {
         let input: LineReadResult = block Console::read_line(@mut instrument.buffer[..]);
         transition input {
-            LineReadResult::LineComplete { count } -> block bounded(instrument, count)
-            LineReadResult::EndOfInput { count } -> end_of_input(instrument, count)
+            LineReadResult::LineComplete { count } -> block bounded(instrument, count),
+            LineReadResult::EndOfInput { count } -> end_of_input(instrument, count),
             _ -> invalid(instrument)
         }
     }
     machine end_of_input(instrument: @mut Instrument, count: u64) {
         transition count == 0 {
-            true -> summary(instrument)
+            true -> summary(instrument),
             false -> invalid(instrument)
         }
     }
     machine bounded(instrument: @mut Instrument, count: u64) {
         transition count <= 64 {
-            true -> block parse(instrument, count)
+            true -> block parse(instrument, count),
             false -> invalid(instrument)
         }
     }
     machine parse(instrument: @mut Instrument, count: u64) requires count <= 64 {
         let parsed: Input = parse_line(@instrument.buffer[0..count]);
         transition parsed {
-            Input::Sample { stimulus, observed } -> block validate(instrument, stimulus, observed)
+            Input::Sample { stimulus, observed } -> block validate(instrument, stimulus, observed),
             Input::Invalid -> invalid(instrument)
         }
     }
     machine validate(instrument: @mut Instrument, stimulus: i32 in Wrapping, observed: i32 in Wrapping) {
         transition stimulus <= 100 && observed <= 200000 && instrument.trace.rows < 256 {
-            true -> block analyze(instrument, stimulus, observed)
+            true -> block analyze(instrument, stimulus, observed),
             false -> range_error(instrument)
         }
     }
@@ -73,8 +73,8 @@ machine run(instrument: @mut Instrument) reaches ProcessExit + Console {
         number(instrument.trace.rows);
         field(stimulus);
         transition instrument.trace.branch {
-            1 -> block calibrated(instrument, forward, observed, width, "forward")
-            2 -> block calibrated(instrument, reverse, observed, width, "reverse")
+            1 -> block calibrated(instrument, forward, observed, width, "forward"),
+            2 -> block calibrated(instrument, reverse, observed, width, "reverse"),
             _ -> block ambiguous(instrument, observed, width)
         }
     }

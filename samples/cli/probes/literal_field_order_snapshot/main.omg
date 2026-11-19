@@ -12,7 +12,7 @@ machine Main::main(context: @mut Main) {
     context.packet = Packet { samples: context.samples, stamp: stamp(context) };
     transition context.packet.samples[0] == 30 && context.packet.samples[1] == 40
         && context.packet.stamp == 7 && context.samples[0] == 90 {
-        true -> finish(context)
+        true -> finish(context),
         false -> bad(context)
     }
     machine finish(context: @mut Main) { }

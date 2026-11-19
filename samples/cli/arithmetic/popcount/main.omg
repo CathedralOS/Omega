@@ -27,7 +27,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Loop head: stop once every bit has been shifted out.
     machine step(word: u32 in Wrapping, count: u32 in Wrapping) {
         transition word == 0 {
-            true -> block done(count)
+            true -> block done(count),
             _ -> block count_bit(word, count)
         }
     }

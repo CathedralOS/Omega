@@ -22,12 +22,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let present: Token = block read_token();
     let reference: Token = block read_token();
     transition layers.valid && echoes.valid && window.valid && present.valid && reference.valid {
-        true -> block header(@mut acquisition, layers.value, echoes.value, window.value, present.value, reference.value)
+        true -> block header(@mut acquisition, layers.value, echoes.value, window.value, present.value, reference.value),
         false -> malformed()
     }
     machine header(acquisition: @mut Acquisition, layers: i64 in Saturating, echoes: i64 in Saturating, window: i64 in Saturating, present: i64 in Saturating, reference: i64 in Saturating) {
         transition layers >= 1 && layers <= 4 && echoes >= 1 && echoes <= 8 && window <= 1000 && reference <= 1000000 && present <= 1 {
-            true -> block reference_check(acquisition, layers, echoes, window, present, reference)
+            true -> block reference_check(acquisition, layers, echoes, window, present, reference),
             false -> invalid_header()
         }
     }
@@ -40,13 +40,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         acquisition.reference_present = present;
         acquisition.reference = reference;
         transition present == 1 {
-            true -> block layer(acquisition, 0)
+            true -> block layer(acquisition, 0),
             false -> missing_reference()
         }
     }
     machine layer(acquisition: @mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.layers && index < 4 {
-            true -> block read_layer(acquisition, index)
+            true -> block read_layer(acquisition, index),
             false -> block echo(acquisition, 0)
         }
     }
@@ -55,14 +55,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let speed: Token = block read_token();
         let thickness: Token = block read_token();
         transition speed.valid && thickness.valid {
-            true -> block validate_layer(acquisition, index, speed.value, thickness.value)
+            true -> block validate_layer(acquisition, index, speed.value, thickness.value),
             false -> malformed()
         }
     }
     machine validate_layer(acquisition: @mut Acquisition, index: u64 in Saturating, speed: i64 in Saturating, thickness: i64 in Saturating)
     requires index < 4 {
         transition speed >= 1000 && speed <= 10000 && thickness >= 1 && thickness <= 1000000 {
-            true -> block store_layer(acquisition, index, speed, thickness)
+            true -> block store_layer(acquisition, index, speed, thickness),
             false -> invalid_layer()
         }
     }
@@ -74,7 +74,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine echo(acquisition: @mut Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
-            true -> block read_echo(acquisition, index)
+            true -> block read_echo(acquisition, index),
             false -> block finish_input(acquisition)
         }
     }
@@ -82,14 +82,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires index < 8 {
         let arrival: Token = block read_token();
         transition arrival.valid {
-            true -> block validate_echo(acquisition, index, arrival.value)
+            true -> block validate_echo(acquisition, index, arrival.value),
             false -> malformed()
         }
     }
     machine validate_echo(acquisition: @mut Acquisition, index: u64 in Saturating, arrival: i64 in Saturating)
     requires index < 8 {
         transition arrival >= acquisition.reference && arrival <= 9000000 {
-            true -> block store_echo(acquisition, index, arrival)
+            true -> block store_echo(acquisition, index, arrival),
             false -> invalid_echo()
         }
     }
@@ -101,7 +101,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine finish_input(acquisition: @mut Acquisition) {
         let ended: bool = block at_end();
         transition ended {
-            true -> process(acquisition)
+            true -> process(acquisition),
             false -> malformed()
         }
     }
@@ -112,7 +112,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine report(acquisition: @Acquisition, index: u64 in Saturating) {
         transition index < acquisition.echoes && index < 8 {
-            true -> report_echo(acquisition, index)
+            true -> report_echo(acquisition, index),
             false -> success()
         }
     }

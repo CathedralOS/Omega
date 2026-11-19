@@ -59,7 +59,7 @@ limitation is asking you to inherit its implementation problem as a trust
 assumption. Repair that problem instead. Exceptional use must identify a
 deliberate requirement outside the checked model; a failing build is not one.
 
-`Build::assume_binding_contract<Required::operation, Supplied::operation>(builder)`
+`Build::assume_binding_contract::<Required::operation, Supplied::operation>(builder)`
 asks the root to accept a semantic relationship that ordinary conformance
 checking has not proved. Audit shows both contracts, the actual implementation,
 the missing guarantees/authority and the transitive dependency path. Install and

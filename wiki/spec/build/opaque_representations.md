@@ -1,6 +1,6 @@
 # Opaque representation selection
 
-`Build::select_representation<Opaque, Conformance>(builder)` selects one exact named
+`Build::select_representation::<Opaque, Conformance>(builder)` selects one exact named
 implementation of compiler-owned `OpaqueRepresentation<Opaque, Representation>`,
 such as `TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }`.
 Both data types are ordinary trait arguments; the implementation has no data

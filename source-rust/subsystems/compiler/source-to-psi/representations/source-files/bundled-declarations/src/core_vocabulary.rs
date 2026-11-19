@@ -112,13 +112,13 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::source(
-                Path::new("atomic.omg"),
+                Path::new("Atomic/atomic.omg"),
                 crate::bytes(BundledFile::CoreAtomic)
             ),
             Some(CoreSource::Atomic)
         );
         assert_eq!(
-            CoreVocabularyCatalog::source(Path::new("atomic.omg"), b"edited"),
+            CoreVocabularyCatalog::source(Path::new("Atomic/atomic.omg"), b"edited"),
             None
         );
         assert_eq!(
@@ -137,7 +137,7 @@ mod tests {
         // package path, and the bare name matches nothing.
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
-                "reflect.omg",
+                "reflect/reflect.omg",
                 "reflect::inspect_record_fields",
                 crate::bytes(BundledFile::CoreReflect)
             )),
@@ -147,7 +147,7 @@ mod tests {
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
-                "reflect.omg",
+                "reflect/reflect.omg",
                 "inspect_record_fields",
                 crate::bytes(BundledFile::CoreReflect)
             )),
@@ -157,7 +157,7 @@ mod tests {
         // the family queries built on it are ordinary machines with no row.
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
-                "integer.omg",
+                "integer/integer.omg",
                 "integer::carrier",
                 crate::bytes(BundledFile::CoreInteger)
             )),
@@ -168,7 +168,7 @@ mod tests {
         for unrecognized in ["carrier", "integer::is_integer", "integer::is_signed"] {
             assert_eq!(
                 CoreVocabularyCatalog::classify(site(
-                    "integer.omg",
+                    "integer/integer.omg",
                     unrecognized,
                     crate::bytes(BundledFile::CoreInteger)
                 )),
@@ -177,12 +177,12 @@ mod tests {
             );
         }
         assert_eq!(
-            CoreVocabularyCatalog::classify(site("integer.omg", "integer::carrier", b"edited")),
+            CoreVocabularyCatalog::classify(site("integer/integer.omg", "integer::carrier", b"edited")),
             None
         );
         assert_eq!(
             CoreVocabularyCatalog::classify(site(
-                "reflect.omg",
+                "reflect/reflect.omg",
                 "core::reflect::inspect_record_fields",
                 crate::bytes(BundledFile::CoreReflect)
             )),

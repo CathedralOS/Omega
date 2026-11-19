@@ -32,7 +32,7 @@ machine namespace_const() {
     let echoed: i32 = Counter::echo(17);
     let counter: Counter = Counter { value: direct };
     transition direct == seed && echoed == 17 && counter.value == 7 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

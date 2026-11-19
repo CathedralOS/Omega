@@ -1427,7 +1427,7 @@ mod tests {
     fn compiler_queries_resolve_to_declarations_without_stealing_authored_calls() {
         let text = "machine chosen() -> u32 { 1 }\n\
                     machine expose(value: @u32) -> addr { address_of(value) }\n\
-                    machine describe() { let layout: CodeLayout = code_layout<chosen>(); }";
+                    machine describe() { let layout: CodeLayout = code_layout::<chosen>(); }";
         for query in ["address_of", "code_layout"] {
             let call = resolved_call(text, query);
             assert!(call.target_symbol.is_valid(), "{query} has no declaration");
@@ -1447,9 +1447,10 @@ mod tests {
             // must later reject the deliberately missing theorem arguments.
             let query = resolved_call(&format!("machine caller() {{ {operation}(); }}"), operation);
             assert_eq!(query.symbols_kind, SymbolKind::BuiltinFunction);
-            let authored = resolved_call(
+            let authored = resolved_call_in(
+                "Quotient",
                 &format!(
-                    "module Quotient; machine {operation}() -> u32 {{ 7 }} \
+                    "machine {operation}() -> u32 {{ 7 }} \
                      machine caller() -> u32 {{ {operation}() }}"
                 ),
                 operation,
@@ -1516,13 +1517,18 @@ mod tests {
     #[test]
     fn static_module_call_keeps_the_state_named_the_call_target() {
         let text = r#"
-            module kit;
             machine kit::work() -> i32 { 1 }
             machine caller() -> i32 { kit::work() }
         "#;
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
-            .add("kit/main.omg".into(), text.to_owned())
+            .add_with_metadata(
+                "root/kit/main.omg".into(),
+                text.to_owned(),
+                "root".into(),
+                None,
+                source_admission::SourceOrigin::User,
+            )
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
@@ -1572,11 +1578,10 @@ mod tests {
     #[test]
     fn module_receiver_call_keeps_the_state_named_the_call_target() {
         let text = r#"
-            module kit;
             machine kit::work() -> i32 { 1 }
             machine caller() -> i32 { kit.work() }
         "#;
-        let call = resolved_call(text, "work");
+        let call = resolved_call_in("kit", text, "work");
         assert!(
             call.target_symbol.is_valid(),
             "the module receiver dropped the state named the call target"
@@ -1593,21 +1598,19 @@ mod tests {
     #[test]
     fn module_receiver_call_keeps_the_generated_entry_state() {
         let text = r#"
-            module kit;
             machine work() -> i32 { 1 }
             machine caller() -> i32 { kit.work() }
         "#;
-        let call = resolved_call(text, "work");
+        let call = resolved_call_in("kit", text, "work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
         assert_eq!(call.state_name, "entry");
         assert_eq!(call.machine_name, "work");
 
         let text = r#"
-            module kit;
             machine work() -> i32 { 1 }
             machine caller() -> i32 { kit::work() }
         "#;
-        let call = resolved_call(text, "kit::work");
+        let call = resolved_call_in("kit", text, "kit::work");
         assert_eq!(call.symbols_kind, SymbolKind::State);
         assert_eq!(call.state_name, "entry");
         assert_eq!(call.machine_name, "work");
@@ -1620,13 +1623,18 @@ mod tests {
     #[test]
     fn module_receiver_statement_matches_the_static_pass() {
         let text = r#"
-            module kit;
             machine kit::work() -> i32 { 1 }
             machine caller() { kit.work(); }
         "#;
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
-            .add("kit/main.omg".into(), text.to_owned())
+            .add_with_metadata(
+                "root/kit/main.omg".into(),
+                text.to_owned(),
+                "root".into(),
+                None,
+                source_admission::SourceOrigin::User,
+            )
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
@@ -1672,8 +1680,7 @@ mod tests {
     // or another member of the same module cannot borrow it.
     #[test]
     fn imported_callable_paths_bind_without_exposing_their_module() {
-        let library =
-            "module kit; public machine work() -> u64 { 7 } public machine sibling() -> u64 { 8 }";
+        let library = "public machine work() -> u64 { 7 } public machine sibling() -> u64 { 8 }";
         let caller = r#"
             use omega::language::core::kit::work;
             machine expression() -> u64 { kit::work() }
@@ -1685,7 +1692,7 @@ mod tests {
         let mut sources = crate::source_inputs::SourceMap::default();
         let library_id = sources
             .add_with_metadata(
-                "toolchain/kit.omg".into(),
+                "toolchain/kit/work.omg".into(),
                 library.into(),
                 "toolchain".into(),
                 None,
@@ -1809,9 +1816,9 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_qualified_operator() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
-            module kit;
             operator kit::combine(left: i32, right: i32) -> i32;
             machine caller() -> i32 { kit.combine() }
             "#,
@@ -1823,14 +1830,14 @@ mod tests {
     }
 
     /*
-        `operator combine` inside `module kit` stores the leaf. The same
+        `operator combine` in the `kit` directory stores the leaf. The same
         receiver still finds it by the display path `kit::combine`.
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_operator() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
-            module kit;
             operator combine(left: i32, right: i32) -> i32;
             machine caller() -> i32 { kit.combine() }
             "#,
@@ -1848,9 +1855,9 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_proposition() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
-            module kit;
             proposition holds(a: i32, b: i32) = a == b;
             machine caller() -> i32 { kit.holds() }
             "#,
@@ -1866,7 +1873,6 @@ mod tests {
         assert!(
             source_is_rejected(
                 r#"
-                module kit;
                 proposition kit::holds(a: i32, b: i32) = a == b;
                 "#
             ),
@@ -1881,9 +1887,9 @@ mod tests {
     */
     #[test]
     fn module_receiver_call_resolves_a_leaf_mathematical_definition() {
-        let call = resolved_call(
+        let call = resolved_call_in(
+            "kit",
             r#"
-            module kit;
             let holds(value: i32): i32 = value;
             machine caller() -> i32 { kit.holds() }
             "#,
@@ -1899,7 +1905,6 @@ mod tests {
         assert!(
             source_is_rejected(
                 r#"
-                module kit;
                 let kit::holds(value: i32): i32 = value;
                 "#
             ),
@@ -1921,8 +1926,8 @@ mod tests {
                      machine identity<T>(value: T) -> T { value }\n\
                      machine count<const N: u64>() -> u64 { N }\n\
                      machine main() {\n\
-                         let number: u16 = identity<u16>(7u16);\n\
-                         let n: u64 = count<u16>();\n\
+                         let number: u16 = identity::<u16>(7u16);\n\
+                         let n: u64 = count::<u16>();\n\
                      }";
         assert_eq!(
             static_argument_kinds(roles),
@@ -1934,8 +1939,8 @@ mod tests {
         let hidden = "const u16: u64 = 3;\n\
                       machine count<const N: u64>() -> u64 { N }\n\
                       machine helper(u16: u64) -> u64\n\
-                          requires count<u16>() == 3\n\
-                      { count<u16>() }";
+                          requires count::<u16>() == 3\n\
+                      { count::<u16>() }";
         assert_eq!(
             static_argument_kinds(hidden),
             [
@@ -1944,10 +1949,10 @@ mod tests {
             ]
         );
         let missing = "machine count<const N: u64>() -> u64 { N }\n\
-                       machine main() { let n: u64 = count<u16>(); }";
+                       machine main() { let n: u64 = count::<u16>(); }";
         assert_eq!(static_argument_kinds(missing), [("count", None)]);
         let binder = "machine identity<T>(value: T) -> T { value }\n\
-                      machine wrap<const u16: u64>(value: u16) -> u16 { identity<u16>(value) }";
+                      machine wrap<const u16: u64>(value: u16) -> u16 { identity::<u16>(value) }";
         assert_eq!(
             static_argument_kinds(binder),
             [("identity", Some(SymbolKind::BuiltinType))]
@@ -1955,8 +1960,8 @@ mod tests {
         let record = "trait Step { machine apply(); }\n\
                       Hold satisfies Step { machine apply() { } }\n\
                       machine count<const Selected: Step>() -> u64 { 0u64 }\n\
-                      machine relay<const Selected: Step>() -> u64 { count<Selected>() }\n\
-                      machine main() -> u64 { count<Hold>() }";
+                      machine relay<const Selected: Step>() -> u64 { count::<Selected>() }\n\
+                      machine main() -> u64 { count::<Hold>() }";
         assert_eq!(
             static_argument_kinds(record),
             [
@@ -1969,9 +1974,7 @@ mod tests {
     /* Each call's target and the kind its first static argument selected. */
     fn static_argument_kinds(text: &str) -> Vec<(&'static str, Option<SymbolKind>)> {
         let mut sources = crate::source_inputs::SourceMap::default();
-        let source_id = sources
-            .add("kit/main.omg".into(), text.to_owned())
-            .source_id;
+        let source_id = sources.add("main.omg".into(), text.to_owned()).source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
             crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens)
@@ -2034,9 +2037,19 @@ mod tests {
     }
 
     fn resolved_call(text: &str, target: &str) -> ResolvedCall {
+        resolved_call_in("", text, target)
+    }
+
+    fn resolved_call_in(directory: &str, text: &str, target: &str) -> ResolvedCall {
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
-            .add("kit/main.omg".into(), text.to_owned())
+            .add_with_metadata(
+                std::path::Path::new("root").join(directory).join("main.omg"),
+                text.to_owned(),
+                "root".into(),
+                None,
+                source_admission::SourceOrigin::User,
+            )
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         let syntax =
@@ -2097,7 +2110,13 @@ mod tests {
     fn source_is_rejected(text: &str) -> bool {
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources
-            .add("kit/main.omg".into(), text.to_owned())
+            .add_with_metadata(
+                "root/kit/main.omg".into(),
+                text.to_owned(),
+                "root".into(),
+                None,
+                source_admission::SourceOrigin::User,
+            )
             .source_id;
         let tokens = Lexer::new(text).tokenize().expect("tokenize");
         crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).is_err()
@@ -2115,34 +2134,29 @@ mod tests {
     */
     #[test]
     fn build_operands_follow_imports_and_refuse_ambiguity() {
-        let clock = |module: &str| {
-            format!(
-                "module {module}; public boundary trait Clock {{ \
-                 machine now() -> u64 reaches none crashes none; }}"
-            )
-        };
-        let (first, second) = (clock("a"), clock("b"));
+        let clock = "public boundary trait Clock { \
+                     machine now() -> u64 reaches none crashes none; }";
         let caller = r#"
             data Fixed {}
             machine build(builder: u64) {
-                select_provider<Clock, Fixed>(builder);
-                assume_binding_contract<Clock::now, Clock::now>(builder);
+                select_provider::<Clock, Fixed>(builder);
+                assume_binding_contract::<Clock::now, Clock::now>(builder);
             }
         "#;
         let resolve_with = |imports: &[&str]| {
             let mut sources = crate::source_inputs::SourceMap::default();
             let mut units = Vec::new();
-            for (path, text) in [("toolchain/a.omg", &first), ("toolchain/b.omg", &second)] {
+            for path in ["toolchain/a/clock.omg", "toolchain/b/clock.omg"] {
                 let id = sources
                     .add_with_metadata(
                         path.into(),
-                        text.clone(),
+                        clock.to_owned(),
                         "toolchain".into(),
                         None,
                         source_admission::SourceOrigin::Toolchain,
                     )
                     .source_id;
-                units.push((id, text.as_str()));
+                units.push((id, clock));
             }
             let caller_id = sources
                 .add_with_metadata(

@@ -16,10 +16,10 @@ machine extract_payload(p: Packet) -> u64
 ensures result >= 40 && result <= 81
 {
     transition p {
-        Packet::Alpha { v } -> v
-        Packet::Beta { v } -> v
-        Packet::Gamma { v } -> v
-        Packet::Delta { v } -> v
+        Packet::Alpha { v } -> v,
+        Packet::Beta { v } -> v,
+        Packet::Gamma { v } -> v,
+        Packet::Delta { v } -> v,
         Packet::Epsilon { v } -> v
     }
 }
@@ -48,7 +48,7 @@ machine probe() -> u64 {
 
 machine main() crashes Trap {
     transition probe() == 40 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

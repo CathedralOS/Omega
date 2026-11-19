@@ -148,7 +148,7 @@ fn guarded_index(guard: &str) -> String {
 data Table [copy] {{ cells: [u32; 256]; count: u64; }}
 machine pick(table: Table, first: u64, second: u64) -> u32 {{
     transition {guard} {{
-        true -> sum(table.cells[first], table.cells[second])
+        true -> sum(table.cells[first], table.cells[second]),
         _ -> none()
     }}
     machine sum(left: u32, right: u32) -> u32 {{ left }}
@@ -261,7 +261,7 @@ machine pick(table: @Table, {formal}) -> u32 {{
 #[test]
 fn a_guard_over_the_fields_of_a_formal_reaches_its_arm() {
     let arms = |guard: &str, index: &str| {
-        format!("transition {guard} {{ true -> sum(table.cells[{index}]) _ -> none() }}")
+        format!("transition {guard} {{ true -> sum(table.cells[{index}]), _ -> none() }}")
     };
     for formal in ["key: Key", "key: @Key"] {
         for guard in [
@@ -288,7 +288,7 @@ fn a_guard_over_the_fields_of_a_formal_reaches_its_arm() {
             "mut key: Key",
             &format!(
                 "let within: bool = key.slot < 256 && key.other < 256;\n    {store}\n    \
-                 transition within {{ true -> sum(table.cells[key.slot]) _ -> none() }}"
+                 transition within {{ true -> sum(table.cells[key.slot]), _ -> none() }}"
             ),
         )
     };

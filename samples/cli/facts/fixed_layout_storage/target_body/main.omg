@@ -43,7 +43,7 @@ machine verify(expected_marker: u64) reaches Delivery crashes Trap {
     let bytes: @[u8; 16] = @value as @[u8; 16];
     let marker: u64 = Delivery::marker();
     transition marker == expected_marker && difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

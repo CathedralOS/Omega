@@ -61,20 +61,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // floor==1, moves==3, door_open==1 -> exit 70.
     transition main.lift.floor == 1 {
-        true -> block check_moves(main)
+        true -> block check_moves(main),
         _ -> block bad_floor(main)
     }
 
     machine check_moves(main: @mut Main) {
         transition main.lift.moves == 3 {
-            true -> block check_door(main)
+            true -> block check_door(main),
             _ -> block bad_moves(main)
         }
     }
 
     machine check_door(main: @mut Main) {
         transition main.lift.door_open == 1 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_door(main)
         }
     }
@@ -111,16 +111,16 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 // Dispatch a command to the elevator.
 machine send(main: @mut Main, cmd: Command) {
     transition cmd {
-        Command::GoTo { floor } -> handle_goto(main, floor)
-        Command::OpenDoor -> handle_open(main)
-        Command::CloseDoor -> handle_close(main)
+        Command::GoTo { floor } -> handle_goto(main, floor),
+        Command::OpenDoor -> handle_open(main),
+        Command::CloseDoor -> handle_close(main),
         _ -> done()
     }
 
     // GoTo: only move if door is closed.
     machine handle_goto(main: @mut Main, floor: i32) {
         transition main.lift.door_open == 0 {
-            true -> do_move(main, floor)
+            true -> do_move(main, floor),
             _ -> done()
         }
     }

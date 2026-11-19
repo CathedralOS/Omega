@@ -6,8 +6,8 @@ machine identity<T>(value: T) -> T {
 }
 machine produce() -> u64 { 42 }
 machine main() crashes Trap {
-    let result: u64 = identity<u64>(produce());
-    transition result == 42 { true -> done() _ -> failed() }
+    let result: u64 = identity::<u64>(produce());
+    transition result == 42 { true -> done(), _ -> failed() }
     machine done() {}
     machine failed() crashes Trap { crash Trap; }
 }

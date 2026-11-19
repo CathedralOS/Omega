@@ -10,7 +10,7 @@ machine main() crashes Trap {
     let returned: [Ticket] = issued();
     let moved: u64 = counted(returned);
     let kept: u64 = local.len;
-    transition moved == 2u64 && kept == 1u64 { true -> done() false -> failed() }
+    transition moved == 2u64 && kept == 1u64 { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

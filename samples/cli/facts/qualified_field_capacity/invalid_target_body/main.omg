@@ -32,7 +32,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -40,7 +40,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -86,7 +86,7 @@ machine main() crashes Trap {
     transition first.strategy.remaining == 32 && first.strategy.tail.length == 32
         && first.allocation.length == 16 && second.strategy.remaining == 32
         && second.strategy.tail.length == 32 && second.allocation.length == 16 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

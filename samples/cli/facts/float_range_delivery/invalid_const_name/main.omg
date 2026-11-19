@@ -10,7 +10,7 @@ requires value >= LOWER
 { admit(value) }
 machine main() crashes Trap {
     let observed: f64 = probe(0.25);
-    transition observed == 0.25 { true -> done() _ -> bad() }
+    transition observed == 0.25 { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

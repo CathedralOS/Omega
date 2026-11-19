@@ -11,7 +11,7 @@ const SELECTED: dyn Fraction = Quarter as dyn Fraction;
 machine main() crashes Trap {
     let observed: f64 = Fraction::get(SELECTED);
     transition observed == 0.25 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

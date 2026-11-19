@@ -33,7 +33,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     machine clear_grid(main: @mut Main, cell_index: i32) {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> block clear_cell(main, cell_index)
+            true -> block clear_cell(main, cell_index),
             _ -> block seed(main)
         }
     }
@@ -52,14 +52,14 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     }
     machine generation_loop(main: @mut Main, generation: i32) {
         transition generation >= 0 && generation < 40 {
-            true -> block render(main, generation)
+            true -> block render(main, generation),
             _ -> block finish(main)
         }
     }
     machine render(main: @mut Main, generation: i32) {
         let rendered: bool = main_render(main);
         transition rendered {
-            true -> block advance(main, generation)
+            true -> block advance(main, generation),
             _ -> block bad(main)
         }
     }
@@ -67,13 +67,13 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         block Clock::sleep(90);
         let advanced: bool = advance_generation(@mut main.grid);
         transition advanced {
-            true -> block next_generation(main, generation)
+            true -> block next_generation(main, generation),
             _ -> block bad(main)
         }
     }
     machine next_generation(main: @mut Main, generation: i32) {
         transition generation >= 0 && generation < 40 {
-            true -> block increment_generation(main, generation)
+            true -> block increment_generation(main, generation),
             _ -> block finish(main)
         }
     }
@@ -104,7 +104,7 @@ machine advance_generation(grid: @mut [i32; 364]) -> bool {
 
     machine cells(grid: @mut [i32; 364], next: @mut [i32; 364], cell_index: i32) -> bool {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> locate_cell(grid, next, cell_index)
+            true -> locate_cell(grid, next, cell_index),
             _ -> copy_cells(grid, next, 0)
         }
     }
@@ -112,13 +112,13 @@ machine advance_generation(grid: @mut [i32; 364]) -> bool {
         let row: i32 = cell_index / 26;
         let column: i32 = cell_index % 26;
         transition row >= 1 && row <= 12 && column >= 1 && column <= 24 {
-            true -> count_neighbors(grid, next, cell_index)
+            true -> count_neighbors(grid, next, cell_index),
             _ -> write_cell(grid, next, cell_index, 0)
         }
     }
     machine count_neighbors(grid: @mut [i32; 364], next: @mut [i32; 364], cell_index: i32) -> bool {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> apply_rules(grid, next, cell_index)
+            true -> apply_rules(grid, next, cell_index),
             _ -> invalid()
         }
     }
@@ -126,13 +126,13 @@ machine advance_generation(grid: @mut [i32; 364]) -> bool {
         let count: i32 = live_neighbors(grid, cell_index);
         let cell: i32 = grid[cell_index];
         transition count == 3 || (cell == 1 && count == 2) {
-            true -> write_cell(grid, next, cell_index, 1)
+            true -> write_cell(grid, next, cell_index, 1),
             _ -> write_cell(grid, next, cell_index, 0)
         }
     }
     machine write_cell(grid: @mut [i32; 364], next: @mut [i32; 364], cell_index: i32, cell: i32) -> bool {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> store_cell(grid, next, cell_index, cell)
+            true -> store_cell(grid, next, cell_index, cell),
             _ -> invalid()
         }
     }
@@ -142,7 +142,7 @@ machine advance_generation(grid: @mut [i32; 364]) -> bool {
     }
     machine copy_cells(grid: @mut [i32; 364], next: @mut [i32; 364], cell_index: i32) -> bool {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> copy_cell(grid, next, cell_index)
+            true -> copy_cell(grid, next, cell_index),
             _ -> done()
         }
     }
@@ -162,39 +162,39 @@ requires cell_index >= 0 && cell_index < 364
 
     machine neighbors(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32) -> i32 {
         transition offset >= 0 && offset < 9 {
-            true -> skip_center(grid, cell_index, offset, count)
+            true -> skip_center(grid, cell_index, offset, count),
             _ -> done(count)
         }
     }
     machine skip_center(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32) -> i32 {
         transition offset == 4 {
-            true -> advance(grid, cell_index, offset, count)
+            true -> advance(grid, cell_index, offset, count),
             _ -> cell_bounds(grid, cell_index, offset, count)
         }
     }
     machine cell_bounds(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32) -> i32 {
         transition cell_index >= 0 && cell_index < 364 {
-            true -> locate_neighbor(grid, cell_index, offset, count)
+            true -> locate_neighbor(grid, cell_index, offset, count),
             _ -> done(count)
         }
     }
     machine locate_neighbor(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32) -> i32 {
         let neighbor_index: i32 = cell_index + (offset / 3 - 1) * 26 + (offset % 3 - 1);
         transition neighbor_index >= 0 && neighbor_index < 364 {
-            true -> read_neighbor(grid, cell_index, offset, count, neighbor_index)
+            true -> read_neighbor(grid, cell_index, offset, count, neighbor_index),
             _ -> advance(grid, cell_index, offset, count)
         }
     }
     machine read_neighbor(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32, neighbor_index: i32) -> i32 {
         let neighbor: i32 = grid[neighbor_index];
         transition neighbor == 1 {
-            true -> advance(grid, cell_index, offset, (count % 9 + 1) % 9)
+            true -> advance(grid, cell_index, offset, (count % 9 + 1) % 9),
             _ -> advance(grid, cell_index, offset, count)
         }
     }
     machine advance(grid: @[i32; 364], cell_index: i32, offset: i32, count: i32) -> i32 {
         transition offset >= 0 && offset < 9 {
-            true -> increment(grid, cell_index, offset, count)
+            true -> increment(grid, cell_index, offset, count),
             _ -> done(count)
         }
     }
@@ -217,39 +217,39 @@ machine main_render(main: @mut Main) -> bool reaches ProcessExit + Console {
 
     machine render_row(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32) -> bool {
         transition row >= 1 && row <= 12 {
-            true -> render_column(main, line, row, 0)
+            true -> render_column(main, line, row, 0),
             _ -> done()
         }
     }
     machine render_column(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32) -> bool {
         transition column >= 0 && column < 24 {
-            true -> cell_bounds(main, line, row, column)
+            true -> cell_bounds(main, line, row, column),
             _ -> emit_row(main, line, row)
         }
     }
     machine cell_bounds(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32) -> bool {
         transition row >= 1 && row <= 12 {
-            true -> locate_cell(main, line, row, column)
+            true -> locate_cell(main, line, row, column),
             _ -> invalid()
         }
     }
     machine locate_cell(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32) -> bool {
         let cell_index: i32 = row * 26 + (column + 1);
         transition cell_index >= 0 && cell_index < 364 {
-            true -> read_cell(main, line, row, column, cell_index)
+            true -> read_cell(main, line, row, column, cell_index),
             _ -> invalid()
         }
     }
     machine read_cell(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32, cell_index: i32) -> bool {
         let cell: i32 = main.grid[cell_index];
         transition cell >= 0 && cell < 2 {
-            true -> put_cell(main, line, row, column, cell)
+            true -> put_cell(main, line, row, column, cell),
             _ -> invalid()
         }
     }
     machine put_cell(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32, cell: i32) -> bool {
         transition cell == 1 {
-            true -> live_glyph(main, line, row, column)
+            true -> live_glyph(main, line, row, column),
             _ -> dead_glyph(main, line, row, column)
         }
     }
@@ -263,7 +263,7 @@ machine main_render(main: @mut Main) -> bool reaches ProcessExit + Console {
     }
     machine column_bounds(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32, column: i32) -> bool {
         transition column >= 0 && column < 24 {
-            true -> advance_column(main, line, row, column)
+            true -> advance_column(main, line, row, column),
             _ -> emit_row(main, line, row)
         }
     }
@@ -273,7 +273,7 @@ machine main_render(main: @mut Main) -> bool reaches ProcessExit + Console {
     machine emit_row(main: @mut Main, line: @mut [u8; 24] in Utf8, row: i32) -> bool {
         Console::write_line(line);
         transition row >= 0 && row <= 12 {
-            true -> advance_row(main, line, row)
+            true -> advance_row(main, line, row),
             _ -> done()
         }
     }

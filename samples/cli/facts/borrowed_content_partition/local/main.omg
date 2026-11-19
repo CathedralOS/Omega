@@ -12,7 +12,7 @@ machine exercise(select: bool) -> bool {
 machine main() crashes Trap {
     let first: bool = exercise(true);
     let second: bool = exercise(false);
-    transition first && second { true -> done() _ -> bad() }
+    transition first && second { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

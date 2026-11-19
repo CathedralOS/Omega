@@ -17,13 +17,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut image: Image;
     let valid: bool = block read_image(@mut image);
     transition valid {
-        true -> analyze(main, @mut image)
+        true -> analyze(main, @mut image),
         false -> invalid(main)
     }
     machine analyze(main: @mut Main, image: @mut Image) {
         let complete: bool = label_regions(image);
         transition complete {
-            true -> report(main, image)
+            true -> report(main, image),
             false -> internal(main)
         }
     }

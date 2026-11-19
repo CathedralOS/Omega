@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let shift: u32 = 2u32;
     let res: i64 = probe(val, shift);
     transition res == 0i64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

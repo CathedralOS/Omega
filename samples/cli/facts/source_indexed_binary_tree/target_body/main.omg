@@ -13,7 +13,7 @@ terminates by Nodes
 ensures embed(Total) <= 10 * embed(Nodes)
 {
     transition evidence {
-        Tree::Empty { .. } -> done()
+        Tree::Empty { .. } -> done(),
         Tree::Fork { left_nodes, left_total, right_nodes, right_total, head, left, right, .. }
             -> step(left_nodes, left_total, right_nodes, right_total, head, left, right)
     }
@@ -23,14 +23,14 @@ ensures embed(Total) <= 10 * embed(Nodes)
     requires head <= 10 && embed(left_nodes) + embed(right_nodes) + 1 == embed(Nodes)
              && embed(left_total) + embed(right_total) + embed(head) == embed(Total)
     {
-        tree_bound<left_nodes, left_total>(left);
-        tree_bound<right_nodes, right_total>(right);
+        tree_bound::<left_nodes, left_total>(left);
+        tree_bound::<right_nodes, right_total>(right);
     }
 }
 machine bounded<Nodes: u64, Total: u64>(evidence [erased]: Tree<Nodes, Total>) -> u64
 requires Nodes <= 8
 {
-    tree_bound<Nodes, Total>(evidence);
+    tree_bound::<Nodes, Total>(evidence);
     80u64 - Total
 }
 machine open_total<LeftNodes: u64, LeftTotal: u64, RightNodes: u64, RightTotal: u64, Nodes: u64, Total: u64>(
@@ -44,7 +44,7 @@ ensures result <= 80
         left_nodes: LeftNodes, left_total: LeftTotal, right_nodes: RightNodes, right_total: RightTotal,
         head: 1, left: left, right: right
     };
-    tree_bound<Nodes, Total>(next);
+    tree_bound::<Nodes, Total>(next);
     Total
 }
 boundary trait SelectedBodyCheck {
@@ -53,7 +53,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -61,7 +61,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -87,7 +87,7 @@ X86Produced satisfies SelectedProduced {
         let right [erased]: Tree<1, 4> = Tree::Fork {
             left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
         };
-        open_total<1, 2, 1, 4, 3, 7>(left, right)
+        open_total::<1, 2, 1, 4, 3, 7>(left, right)
     }
 }
 
@@ -106,14 +106,14 @@ ArmProduced satisfies SelectedProduced {
         let right [erased]: Tree<1, 4> = Tree::Fork {
             left_nodes: 0, left_total: 0, right_nodes: 0, right_total: 0, head: 4, left: right_zero_a, right: right_zero_b
         };
-        open_total<1, 2, 1, 4, 3, 7>(left, right)
+        open_total::<1, 2, 1, 4, 3, 7>(left, right)
     }
 }
 
 
 machine main() crashes Trap {
     let remaining: u64 = 80u64 - SelectedProduced::produced();
-    transition remaining == 73 { true -> done() _ -> bad() }
+    transition remaining == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

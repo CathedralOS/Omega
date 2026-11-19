@@ -20,7 +20,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> carrier(resolver, sources, syntax, index)
+            true -> carrier(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -35,7 +35,7 @@ crashes Trap
 
     machine argument(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < item.argument_count && resolver.output.accepted {
-            true -> bind_argument(resolver, sources, syntax, index, item, scope, offset)
+            true -> bind_argument(resolver, sources, syntax, index, item, scope, offset),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -58,7 +58,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> domain(resolver, sources, syntax, index)
+            true -> domain(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -67,14 +67,14 @@ crashes Trap
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let known: DomainBinding = known_domain(sources, item.name.source_span);
         transition known {
-            DomainBinding::Unqualified -> prior(resolver, sources, syntax, index, item, 0)
+            DomainBinding::Unqualified -> prior(resolver, sources, syntax, index, item, 0),
             _ -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, item.name)
         }
     }
 
     machine prior(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
         transition earlier < index {
-            true -> compare(resolver, sources, syntax, index, item, earlier)
+            true -> compare(resolver, sources, syntax, index, item, earlier),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -85,7 +85,7 @@ crashes Trap
         let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as u64 in Trapping,
             earlier_item.name.source_span.source.value as u64 in Trapping);
         transition named && same_module {
-            true -> carriers(resolver, sources, syntax, index, item, earlier, earlier_item)
+            true -> carriers(resolver, sources, syntax, index, item, earlier, earlier_item),
             _ -> prior(resolver, sources, syntax, index, item, earlier + 1)
         }
     }
@@ -95,7 +95,7 @@ crashes Trap
         let earlier_scope: TypeScope = resolver_scope(earlier_item.first_generic_parameter, earlier_item.generic_parameter_count);
         let same: bool = same_type(resolver, sources, syntax, scope, item.carrier, earlier_scope, earlier_item.carrier);
         transition same {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, item.name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, item.name),
             _ -> prior(resolver, sources, syntax, index, item, earlier + 1)
         }
     }
@@ -113,14 +113,14 @@ crashes Trap
 {
     let matched: bool = span_spells(sources, name, "Wrapping");
     transition matched {
-        true -> found(DomainBinding::Wrapping)
+        true -> found(DomainBinding::Wrapping),
         _ -> saturating(sources, name)
     }
 
     machine saturating(sources: @SourceSet, name: SourceSpan) -> DomainBinding {
         let matched: bool = span_spells(sources, name, "Saturating");
         transition matched {
-            true -> found(DomainBinding::Saturating)
+            true -> found(DomainBinding::Saturating),
             _ -> trapping(sources, name)
         }
     }
@@ -128,7 +128,7 @@ crashes Trap
     machine trapping(sources: @SourceSet, name: SourceSpan) -> DomainBinding {
         let matched: bool = span_spells(sources, name, "Trapping");
         transition matched {
-            true -> found(DomainBinding::Trapping)
+            true -> found(DomainBinding::Trapping),
             _ -> finite(sources, name)
         }
     }
@@ -136,7 +136,7 @@ crashes Trap
     machine finite(sources: @SourceSet, name: SourceSpan) -> DomainBinding {
         let matched: bool = span_spells(sources, name, "Finite");
         transition matched {
-            true -> found(DomainBinding::Finite)
+            true -> found(DomainBinding::Finite),
             _ -> found(DomainBinding::Unqualified)
         }
     }
@@ -155,7 +155,7 @@ crashes Trap
 
     machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> candidate(resolver, sources, syntax, row, name, index)
+            true -> candidate(resolver, sources, syntax, row, name, index),
             _ -> absent()
         }
     }
@@ -163,14 +163,14 @@ crashes Trap
     machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
-            true -> rival(resolver, sources, syntax, row, name, index, index + 1)
+            true -> rival(resolver, sources, syntax, row, name, index, index + 1),
             _ -> next(resolver, sources, syntax, row, name, index + 1)
         }
     }
 
     machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> rival_candidate(resolver, sources, syntax, row, name, found, index)
+            true -> rival_candidate(resolver, sources, syntax, row, name, found, index),
             _ -> unique(found)
         }
     }
@@ -178,7 +178,7 @@ crashes Trap
     machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
-            true -> ambiguous()
+            true -> ambiguous(),
             _ -> rival(resolver, sources, syntax, row, name, found, index + 1)
         }
     }
@@ -205,7 +205,7 @@ crashes Trap
     let named: bool = spans_equal(sources, item.name.source_span, name);
     let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
     transition visible {
-        true -> carried(resolver, sources, syntax, item, row)
+        true -> carried(resolver, sources, syntax, item, row),
         _ -> no()
     }
 
@@ -243,7 +243,7 @@ crashes Trap
         actual_end: u64 in Trapping
     ) -> bool {
         transition carrier_end > carrier_first {
-            true -> pair(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
+            true -> pair(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
             _ -> finished(actual_first, actual_end)
         }
     }
@@ -259,7 +259,7 @@ crashes Trap
         actual_end: u64 in Trapping
     ) -> bool {
         transition actual_end > actual_first {
-            true -> wildcard(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
+            true -> wildcard(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end),
             _ -> different()
         }
     }
@@ -276,7 +276,7 @@ crashes Trap
     ) -> bool {
         let carrier_binding: TypeBinding = type_binding_at(@resolver.output, carrier_end - 1);
         transition carrier_binding {
-            TypeBinding::GenericParameter { parameter } -> generic(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end, parameter)
+            TypeBinding::GenericParameter { parameter } -> generic(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end, parameter),
             _ -> head(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
         }
     }
@@ -294,7 +294,7 @@ crashes Trap
     ) -> bool {
         let skipped: TypeReference = syntax_trees_type_reference(syntax, actual_end - 1);
         transition parameter >= item.first_generic_parameter && parameter < item.first_generic_parameter + item.generic_parameter_count {
-            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, skipped.first_row)
+            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, skipped.first_row),
             _ -> head(resolver, sources, syntax, item, carrier_first, carrier_end, actual_first, actual_end)
         }
     }
@@ -311,7 +311,7 @@ crashes Trap
     ) -> bool {
         let same: bool = same_head(resolver, sources, syntax, carrier_end - 1, actual_end - 1);
         transition same {
-            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, actual_end - 1)
+            true -> step(resolver, sources, syntax, item, carrier_first, carrier_end - 1, actual_first, actual_end - 1),
             _ -> different()
         }
     }
@@ -334,14 +334,14 @@ crashes Trap
     let right_row: TypeReference = syntax_trees_type_reference(syntax, right);
     transition left_row.kind == right_row.kind && left_row.access == right_row.access
         && left_row.argument_count == right_row.argument_count {
-        true -> spelling(resolver, sources, left, right, left_row, right_row)
+        true -> spelling(resolver, sources, left, right, left_row, right_row),
         _ -> different()
     }
 
     machine spelling(resolver: @Resolver, sources: @SourceSet, left: u64 in Trapping, right: u64 in Trapping, left_row: TypeReference, right_row: TypeReference) -> bool {
         let same: bool = spans_equal(sources, left_row.name.source_span, right_row.name.source_span);
         transition left_row.kind == TypeReferenceKind::Literal && !same {
-            true -> different()
+            true -> different(),
             _ -> bindings(resolver, left, right)
         }
     }
@@ -363,20 +363,20 @@ crashes Trap
 {
     let left_binding: TypeBinding = type_binding_at(resolution, left);
     transition left_binding {
-        TypeBinding::Builtin { builtin } -> builtin_row(resolution, builtin, right)
-        TypeBinding::Data { item } -> data_row(resolution, item, right)
-        TypeBinding::GenericParameter { parameter } -> generic_row(resolution, parameter, right)
-        TypeBinding::Reference -> answer(true)
-        TypeBinding::Array -> answer(true)
-        TypeBinding::Slice -> answer(true)
-        TypeBinding::Literal -> answer(true)
+        TypeBinding::Builtin { builtin } -> builtin_row(resolution, builtin, right),
+        TypeBinding::Data { item } -> data_row(resolution, item, right),
+        TypeBinding::GenericParameter { parameter } -> generic_row(resolution, parameter, right),
+        TypeBinding::Reference -> answer(true),
+        TypeBinding::Array -> answer(true),
+        TypeBinding::Slice -> answer(true),
+        TypeBinding::Literal -> answer(true),
         _ -> answer(false)
     }
 
     machine builtin_row(resolution: @NameResolution, left_builtin: BuiltinType, right: u64 in Trapping) -> bool {
         let right_binding: TypeBinding = type_binding_at(resolution, right);
         transition right_binding {
-            TypeBinding::Builtin { builtin } -> answer(left_builtin == builtin)
+            TypeBinding::Builtin { builtin } -> answer(left_builtin == builtin),
             _ -> answer(false)
         }
     }
@@ -384,7 +384,7 @@ crashes Trap
     machine data_row(resolution: @NameResolution, left_item: u64 in Trapping, right: u64 in Trapping) -> bool {
         let right_binding: TypeBinding = type_binding_at(resolution, right);
         transition right_binding {
-            TypeBinding::Data { item } -> answer(left_item == item)
+            TypeBinding::Data { item } -> answer(left_item == item),
             _ -> answer(false)
         }
     }
@@ -392,7 +392,7 @@ crashes Trap
     machine generic_row(resolution: @NameResolution, left_parameter: u64 in Trapping, right: u64 in Trapping) -> bool {
         let right_binding: TypeBinding = type_binding_at(resolution, right);
         transition right_binding {
-            TypeBinding::GenericParameter { parameter } -> answer(left_parameter == parameter)
+            TypeBinding::GenericParameter { parameter } -> answer(left_parameter == parameter),
             _ -> answer(false)
         }
     }
@@ -410,7 +410,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> routes(resolver, sources, syntax, index, 0)
+            true -> routes(resolver, sources, syntax, index, 0),
             _ -> done()
         }
     }
@@ -418,7 +418,7 @@ crashes Trap
     machine routes(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         transition offset < item.route_count && resolver.output.accepted {
-            true -> route(resolver, sources, syntax, index, offset, item.first_route + offset)
+            true -> route(resolver, sources, syntax, index, offset, item.first_route + offset),
             _ -> constituents(resolver, sources, syntax, index, 0)
         }
     }
@@ -431,7 +431,7 @@ crashes Trap
     machine constituents(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         transition offset < item.constituent_count && resolver.output.accepted {
-            true -> constituent(resolver, sources, syntax, index, offset, item, item.first_constituent + offset)
+            true -> constituent(resolver, sources, syntax, index, offset, item, item.first_constituent + offset),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -440,8 +440,8 @@ crashes Trap
         let name_path: NamePath = syntax_trees_name_path(syntax, path);
         let lookup: Lookup = constituent_domain(resolver, sources, syntax, item, name_path);
         transition lookup {
-            Lookup::Found { handle } -> bound(resolver, sources, syntax, index, offset, path, handle)
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, name_path)
+            Lookup::Found { handle } -> bound(resolver, sources, syntax, index, offset, path, handle),
+            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, name_path),
             Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, name_path)
         }
     }
@@ -465,8 +465,8 @@ machine constituent_domain(resolver: @Resolver, sources: @SourceSet, syntax: @Sy
 crashes Trap
 {
     transition name_path.member_count {
-        1 -> bare(resolver, sources, syntax, alias, name_path)
-        2 -> qualified(resolver, sources, syntax, alias, name_path)
+        1 -> bare(resolver, sources, syntax, alias, name_path),
+        2 -> qualified(resolver, sources, syntax, alias, name_path),
         _ -> absent()
     }
 
@@ -497,7 +497,7 @@ crashes Trap
 
     machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> candidate(resolver, sources, syntax, scope, carrier, name, index)
+            true -> candidate(resolver, sources, syntax, scope, carrier, name, index),
             _ -> absent()
         }
     }
@@ -505,14 +505,14 @@ crashes Trap
     machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
-            true -> rival(resolver, sources, syntax, scope, carrier, name, index, index + 1)
+            true -> rival(resolver, sources, syntax, scope, carrier, name, index, index + 1),
             _ -> next(resolver, sources, syntax, scope, carrier, name, index + 1)
         }
     }
 
     machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> rival_candidate(resolver, sources, syntax, scope, carrier, name, found, index)
+            true -> rival_candidate(resolver, sources, syntax, scope, carrier, name, found, index),
             _ -> unique(found)
         }
     }
@@ -520,7 +520,7 @@ crashes Trap
     machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
-            true -> ambiguous()
+            true -> ambiguous(),
             _ -> rival(resolver, sources, syntax, scope, carrier, name, found, index + 1)
         }
     }
@@ -553,16 +553,16 @@ crashes Trap
     let named: bool = spans_equal(sources, item.name.source_span, name);
     let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
     transition visible {
-        true -> head(resolver, sources, syntax, item, scope, carrier)
+        true -> head(resolver, sources, syntax, item, scope, carrier),
         _ -> answer(false)
     }
 
     machine head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, declared: DomainItem, scope: TypeScope, carrier: SourceSpan) -> bool {
         let own: TypeBinding = type_binding_at(@resolver.output, declared.carrier);
         transition own {
-            TypeBinding::GenericParameter { parameter } -> own_generic(declared, parameter)
-            TypeBinding::Builtin { builtin } -> builtin_carrier(sources, syntax, scope, carrier, builtin)
-            TypeBinding::Data { item } -> data_carrier(sources, syntax, scope, carrier, item)
+            TypeBinding::GenericParameter { parameter } -> own_generic(declared, parameter),
+            TypeBinding::Builtin { builtin } -> builtin_carrier(sources, syntax, scope, carrier, builtin),
+            TypeBinding::Data { item } -> data_carrier(sources, syntax, scope, carrier, item),
             _ -> answer(false)
         }
     }
@@ -575,7 +575,7 @@ crashes Trap
     machine builtin_carrier(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, own: BuiltinType) -> bool {
         let named: TypeBinding = type_binding(sources, syntax, scope, carrier);
         transition named {
-            TypeBinding::Builtin { builtin } -> answer(own == builtin)
+            TypeBinding::Builtin { builtin } -> answer(own == builtin),
             _ -> answer(false)
         }
     }
@@ -583,7 +583,7 @@ crashes Trap
     machine data_carrier(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, own: u64 in Trapping) -> bool {
         let named: TypeBinding = type_binding(sources, syntax, scope, carrier);
         transition named {
-            TypeBinding::Data { item } -> answer(own == item)
+            TypeBinding::Data { item } -> answer(own == item),
             _ -> answer(false)
         }
     }
@@ -602,7 +602,7 @@ crashes Trap
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> candidate(sources, syntax, name, index)
+            true -> candidate(sources, syntax, name, index),
             _ -> absent()
         }
     }
@@ -612,14 +612,14 @@ crashes Trap
         let named: bool = spans_equal(sources, item.name.source_span, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
         transition visible {
-            true -> rival(sources, syntax, name, index, index + 1)
+            true -> rival(sources, syntax, name, index, index + 1),
             _ -> next(sources, syntax, name, index + 1)
         }
     }
 
     machine rival(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
         transition index < syntax.domain_count {
-            true -> rival_candidate(sources, syntax, name, found, index)
+            true -> rival_candidate(sources, syntax, name, found, index),
             _ -> unique(found)
         }
     }
@@ -629,7 +629,7 @@ crashes Trap
         let named: bool = spans_equal(sources, item.name.source_span, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
         transition visible {
-            true -> ambiguous()
+            true -> ambiguous(),
             _ -> rival(sources, syntax, name, found, index + 1)
         }
     }

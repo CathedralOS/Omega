@@ -1,0 +1,1 @@
+public machine answer() -> u32 { 73u32 }

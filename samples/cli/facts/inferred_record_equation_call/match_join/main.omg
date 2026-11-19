@@ -16,6 +16,6 @@ machine joined(flag: bool) -> u64 {
 machine main() crashes Trap {
     let left_result: u64 = joined(true);
     let right_result: u64 = joined(false);
-    transition left_result == 7 && right_result == 7 { true -> done() _ -> bad() }
+    transition left_result == 7 && right_result == 7 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

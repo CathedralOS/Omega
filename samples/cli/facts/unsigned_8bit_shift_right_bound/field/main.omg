@@ -22,7 +22,7 @@ machine main() crashes Trap {
     let carrier: ShiftCarrier = ShiftCarrier { shifted: compute_shift(val) };
     let check: u8 = verify_shifted(carrier.shifted);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -153,7 +153,7 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
         }
         machine walk(items: @mut [u32], other: @mut [u32], index: u64) {
             transition index < 4u64 && index < items.len && index < other.len {
-                true -> step(items, other, index)
+                true -> step(items, other, index),
                 false -> done()
             }
             machine step(items: @mut [u32], other: @mut [u32], index: u64)
@@ -349,7 +349,7 @@ machine main() crashes Trap {
     transition { _ -> block round(false) }
 
     machine round(second: bool) {
-        let expected: u8 = match second { true -> 42u8 _ -> 17u8 };
+        let expected: u8 = match second { true -> 42u8, _ -> 17u8 };
         let packet: Packet = Packet {
             left: 11u8,
             bytes: [2u8, 3u8, 5u8],
@@ -362,14 +362,14 @@ machine main() crashes Trap {
     machine visit(second: bool, expected: u8, packet: @Packet) {
         let actual: u8 = read_value(packet);
         transition actual == expected && packet.left == 11u8 && packet.right == 99u8 {
-            true -> block next(second)
+            true -> block next(second),
             _ -> bad()
         }
     }
 
     machine next(second: bool) {
         transition second {
-            true -> done()
+            true -> done(),
             _ -> block round(true)
         }
     }
@@ -419,7 +419,7 @@ machine main() crashes Trap {
     machine forward(second: bool, expected: u8, packet: @Packet) {
         let next_expected: u8 = copy_expected(expected);
         transition second {
-            true -> block visit(true, next_expected, packet)
+            true -> block visit(true, next_expected, packet),
             _ -> block visit(false, next_expected, packet)
         }
     }
@@ -890,7 +890,7 @@ requires index < 2 {
         again: bool, shape: @Shape) -> u64
     requires index < 2 {
         transition again {
-            true -> entry(shapes, sibling, index, false)
+            true -> entry(shapes, sibling, index, false),
             false -> shape.value
         }
     }

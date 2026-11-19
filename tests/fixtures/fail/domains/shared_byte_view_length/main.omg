@@ -16,7 +16,7 @@ CountBytes satisfies ByteCount {
 machine main() crashes Trap {
     let length: u64 = ByteCount::length("rooms" as +FourBytes);
     transition length == 4u64 {
-        true -> done()
+        true -> done(),
         false -> fail()
     }
     machine done() {}

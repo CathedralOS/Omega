@@ -52,12 +52,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Dispatch on the operator byte text[2].
     transition main.text[2] == 43 {
-        true -> block do_add(main)
+        true -> block do_add(main),
         _ -> block check_sub(main)
     }
 
     machine check_sub(main: @mut Main) {
-        transition main.text[2] == 45 { true -> block do_sub(main) _ -> block unknown(main) }
+        transition main.text[2] == 45 { true -> block do_sub(main), _ -> block unknown(main) }
     }
 
     machine do_add(main: @mut Main) { main.result = main.a + main.b; transition { _ -> block emit(main) } }

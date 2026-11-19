@@ -71,7 +71,7 @@ fn a_store_into_one_field_keeps_a_clause_over_two_fields() {
             "joined_nested_machine",
             "machine reset(p: @mut Pair, early: bool) {
     transition early {
-        true -> block left(p)
+        true -> block left(p),
         _ -> block right(p)
     }
     machine left(p: @mut Pair) {

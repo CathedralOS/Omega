@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let high: i32 = compute(@upper);
     let low: i32 = compute(@lower);
     transition high == 130 && low == -2147483578 && upper.values[0] == 17 && upper.values[2] == 53 && lower.values[0] == 17 && lower.values[2] == 53 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

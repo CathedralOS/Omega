@@ -283,7 +283,7 @@ machine relay<'storage, Kind, machine Make>(bytes: @'storage [u8], other: @'stor
 requires machine Make(bytes: @'storage [u8]) -> u64 reaches none crashes none;
 { let length: u64 = Make(bytes); count = length; length }
 machine entry(left: @[u8], right: @[u8], count: @mut u64) {
-    let selected: u64 = relay<u32, make>(left, left, count);
+    let selected: u64 = relay::<u32, make>(left, left, count);
 }
 "#;
     let judged = |text: &str| {

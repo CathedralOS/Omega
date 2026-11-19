@@ -44,7 +44,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 32 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -121,7 +121,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Check entry1.name.
     transition name_view(@main.catalog.entry1.name) == "Alpha" {
-        true -> block check_name2(main)
+        true -> block check_name2(main),
         _ -> block bad_name1(main)
     }
 
@@ -134,7 +134,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_name2(main: @mut Main) {
         transition name_view(@main.catalog.entry2.name) == "Beta" {
-            true -> block check_label(main)
+            true -> block check_label(main),
             _ -> block bad_name2(main)
         }
     }
@@ -148,7 +148,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_label(main: @mut Main) {
         transition live(@main.catalog.label) == "[Alpha+Beta]" {
-            true -> block check_total(main)
+            true -> block check_total(main),
             _ -> block bad_label(main)
         }
     }
@@ -162,7 +162,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_total(main: @mut Main) {
         transition main.catalog.total == 70 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_total(main)
         }
     }

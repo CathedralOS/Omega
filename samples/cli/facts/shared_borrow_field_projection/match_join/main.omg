@@ -8,7 +8,7 @@ data Window requires used <= 90, {
 machine evaluate(flag: bool) -> u64 {
     let window: Window = Window { used: 40 };
     let view: @Window = match flag {
-        true -> @window
+        true -> @window,
         false -> @window
     };
     let used: u64 = view.used;
@@ -19,7 +19,7 @@ machine evaluate(flag: bool) -> u64 {
 machine main() crashes Trap {
     let diff: u64 = evaluate(true);
     transition diff == 50 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

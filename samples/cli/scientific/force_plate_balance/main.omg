@@ -21,15 +21,15 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut buffer: [u8; 256];
         let observed: LineReadResult = block Console::read_line(@mut buffer[..]);
         transition observed {
-            LineReadResult::LineComplete { count } -> block line(@buffer, count, false)
-            LineReadResult::EndOfInput { count } -> block line(@buffer, count, true)
-            LineReadResult::Full { count } -> block oversized()
+            LineReadResult::LineComplete { count } -> block line(@buffer, count, false),
+            LineReadResult::EndOfInput { count } -> block line(@buffer, count, true),
+            LineReadResult::Full { count } -> block oversized(),
             _ -> failed()
         }
     }
     machine line(buffer: @[u8; 256], count: u64, final: bool) {
         transition count <= buffer.len {
-            true -> block bounded_line(buffer, count, final)
+            true -> block bounded_line(buffer, count, final),
             _ -> failed()
         }
     }
@@ -37,14 +37,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires count <= buffer.len
     {
         transition final {
-            true -> end(@buffer[..count], count)
+            true -> end(@buffer[..count], count),
             _ -> block parse(@buffer[..count])
         }
     }
     machine parse(text: @[u8]) {
         let parsed: Parsed = parse_frame(text);
         transition parsed {
-            Parsed::Valid { frame } -> block balance(frame)
+            Parsed::Valid { frame } -> block balance(frame),
             _ -> block malformed()
         }
     }
@@ -64,19 +64,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine drain() {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> block drain_byte(value)
+            ByteRead::Byte { value } -> block drain_byte(value),
             _ -> done()
         }
     }
     machine drain_byte(value: i32) {
-        transition value == 10 { true -> block next() _ -> block drain() }
+        transition value == 10 { true -> block next(), _ -> block drain() }
     }
     machine end(text: @[u8], count: u64) {
-        transition count == 0 { true -> done() _ -> final_frame(text) }
+        transition count == 0 { true -> done(), _ -> final_frame(text) }
     }
     machine final_frame(text: @[u8]) {
         let parsed: Parsed = parse_frame(text);
-        transition parsed { Parsed::Valid { frame } -> final_balance(frame) _ -> final_invalid() }
+        transition parsed { Parsed::Valid { frame } -> final_balance(frame), _ -> final_invalid() }
     }
     machine final_balance(frame: Frame) {
         let result: Balance = reconcile(@frame);

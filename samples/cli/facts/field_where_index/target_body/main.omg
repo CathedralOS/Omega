@@ -16,7 +16,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -24,7 +24,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -62,7 +62,7 @@ machine Main::main(main: @mut Main) crashes Trap {
         main.k = 3;
         let second: i32 in Wrapping = SelectedReadTarget::read_target(main);
         transition first == 40 && second == 50 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

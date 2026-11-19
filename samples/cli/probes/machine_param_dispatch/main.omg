@@ -41,9 +41,9 @@ data Main { counter: Counter; hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.counter.value = 0;
-    step<Counter, Counter::increment>(@mut main.counter);
+    step::<Counter, Counter::increment>(@mut main.counter);
     transition main.counter.value == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

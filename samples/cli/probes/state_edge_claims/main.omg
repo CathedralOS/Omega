@@ -29,7 +29,7 @@ machine Main::main(main: @mut Main) {
     let receipt: Receipt = Receipt { code: 1 };
     let pair: Pair = Pair { left: receipt, right: Receipt { code: 2 } };
     transition pair.left.code == 1 {
-        true -> chosen(main, pair)
+        true -> chosen(main, pair),
         _ -> other(main, pair)
     }
     machine chosen(main: @mut Main, pair: Pair) {

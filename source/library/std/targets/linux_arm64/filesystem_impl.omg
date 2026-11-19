@@ -63,7 +63,7 @@ machine linux_arm64_posix_decode_metadata(filesystem: @mut PosixFilesystem) -> M
     let blocks: i64 = stat.value.blocks;
     let blksize: i64 = stat.value.blksize as i64;
     transition blocks >= 0 && blksize >= 0 {
-        true -> decode(stat, blocks, blksize)
+        true -> decode(stat, blocks, blksize),
         _ -> MetadataResult::Error { kind: ErrorKind::InvalidInput }
     }
     machine decode(stat: @LinuxArm64StatView, blocks: i64, blksize: i64) -> MetadataResult
@@ -121,8 +121,8 @@ machine linux_arm64_posix_decode_directory_kind(filesystem: @mut PosixFilesystem
     let stat: @LinuxArm64StatView = @filesystem.stat_buf as @LinuxArm64StatView;
     let kind: u32 = stat.value.mode & 61440;
     transition kind {
-        16384 -> PosixDirectoryKind::Directory
-        32768 -> PosixDirectoryKind::Regular
+        16384 -> PosixDirectoryKind::Directory,
+        32768 -> PosixDirectoryKind::Regular,
         _ -> PosixDirectoryKind::Other
     }
 }

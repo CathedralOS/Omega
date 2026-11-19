@@ -23,7 +23,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, resolution: @NameResolution, item: MachineItem, offset: u64 in Trapping, found: TerminationClause) -> TerminationClause {
         transition offset < item.clause_count {
-            true -> clause(syntax, resolution, item, offset, found)
+            true -> clause(syntax, resolution, item, offset, found),
             _ -> finished(found)
         }
     }
@@ -32,8 +32,8 @@ crashes Trap
         let handle: u64 in Trapping = item.first_clause + offset;
         let written: Clause = syntax_trees_clause(syntax, handle);
         transition written.kind {
-            ClauseKind::Terminates -> terminates(syntax, resolution, item, offset, found, handle, written.argument_count > 0)
-            ClauseKind::Satisfies -> satisfies(syntax, resolution, item, offset, found, handle)
+            ClauseKind::Terminates -> terminates(syntax, resolution, item, offset, found, handle, written.argument_count > 0),
+            ClauseKind::Satisfies -> satisfies(syntax, resolution, item, offset, found, handle),
             _ -> next(syntax, resolution, item, offset + 1, found)
         }
     }
@@ -42,7 +42,7 @@ crashes Trap
         let witnessed: TerminationClause = TerminationClause { promised: found.promised, promise: found.promise, ranked: true, handle: handle };
         let promising: TerminationClause = TerminationClause { promised: true, promise: handle, ranked: found.ranked, handle: found.handle };
         transition ranked {
-            true -> next(syntax, resolution, item, offset + 1, witnessed)
+            true -> next(syntax, resolution, item, offset + 1, witnessed),
             _ -> next(syntax, resolution, item, offset + 1, promising)
         }
     }
@@ -52,7 +52,7 @@ crashes Trap
         let inherited: bool = requirement_promises(syntax, requirement);
         let promising: TerminationClause = TerminationClause { promised: true, promise: handle, ranked: found.ranked, handle: found.handle };
         transition inherited && !found.promised {
-            true -> next(syntax, resolution, item, offset + 1, promising)
+            true -> next(syntax, resolution, item, offset + 1, promising),
             _ -> next(syntax, resolution, item, offset + 1, found)
         }
     }
@@ -68,7 +68,7 @@ machine requirement_promises(syntax: @SyntaxTrees, requirement: ValueBinding) ->
 crashes Trap
 {
     transition requirement {
-        ValueBinding::Machine { handle } -> declared(syntax, handle)
+        ValueBinding::Machine { handle } -> declared(syntax, handle),
         _ -> no()
     }
 
@@ -79,7 +79,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) -> bool {
         transition offset < item.clause_count {
-            true -> clause(syntax, item, offset)
+            true -> clause(syntax, item, offset),
             _ -> no()
         }
     }
@@ -87,7 +87,7 @@ crashes Trap
     machine clause(syntax: @SyntaxTrees, item: MachineItem, offset: u64 in Trapping) -> bool {
         let written: Clause = syntax_trees_clause(syntax, item.first_clause + offset);
         transition written.kind == ClauseKind::Terminates && written.argument_count == 0 {
-            true -> yes()
+            true -> yes(),
             _ -> next(syntax, item, offset + 1)
         }
     }
@@ -104,7 +104,7 @@ crashes Trap
 // Forget a machine's local graph summary before checking starts.
 public machine reset_termination(checker: @mut Checker, machine: u64 in Trapping) {
     transition machine < 10240 {
-        true -> write(checker, machine)
+        true -> write(checker, machine),
         _ -> done()
     }
 
@@ -124,7 +124,7 @@ crashes Trap
 {
     let machine: u64 in Trapping = checker.machine;
     transition machine < 10240 {
-        true -> write(checker, machine)
+        true -> write(checker, machine),
         _ -> done()
     }
 
@@ -141,7 +141,7 @@ crashes Trap
 // graph is acyclic or ranked.
 public machine settled_termination(checker: @Checker, machine: u64 in Trapping) -> bool {
     transition machine < 10240 {
-        true -> read(checker, machine)
+        true -> read(checker, machine),
         _ -> no()
     }
 
@@ -182,8 +182,8 @@ crashes Trap
 {
     let range: Expression = syntax_trees_expression(syntax, clause.range);
     transition view {
-        RankingView::BoundedDistance -> distance(checker, rank, bounds, range)
-        RankingView::IncreasingTo -> distance(checker, rank, bounds, range)
+        RankingView::BoundedDistance -> distance(checker, rank, bounds, range),
+        RankingView::IncreasingTo -> distance(checker, rank, bounds, range),
         _ -> produced(checker, rank.first, bounds, range)
     }
 
@@ -219,7 +219,7 @@ crashes Trap
 {
     let view: RankingView = ranking_view(resolution, termination.handle);
     transition view {
-        RankingView::Default -> defaulted(syntax, typing, termination)
+        RankingView::Default -> defaulted(syntax, typing, termination),
         _ -> chosen(view)
     }
 
@@ -229,21 +229,21 @@ crashes Trap
         let row: TypeRow = collection_row(typing, root);
         let natural: bool = natural_row(row);
         transition written.argument_count {
-            1 -> single(natural, row.kind == TypeKind::Slice)
+            1 -> single(natural, row.kind == TypeKind::Slice),
             _ -> chosen(RankingView::Default)
         }
     }
 
     machine single(natural: bool, sliced: bool) -> RankingView {
         transition natural {
-            true -> chosen(RankingView::Descending)
+            true -> chosen(RankingView::Descending),
             _ -> slice(sliced)
         }
     }
 
     machine slice(sliced: bool) -> RankingView {
         transition sliced {
-            true -> chosen(RankingView::SliceLength)
+            true -> chosen(RankingView::SliceLength),
             _ -> chosen(RankingView::Default)
         }
     }
@@ -257,7 +257,7 @@ crashes Trap
 // naturals.
 public machine natural_row(row: TypeRow) -> bool {
     transition row.kind == TypeKind::Builtin && is_carrier(row.builtin) {
-        true -> carrier(row.builtin)
+        true -> carrier(row.builtin),
         _ -> no()
     }
 
@@ -280,7 +280,7 @@ crashes Trap
 
     machine entry(checker: @mut Checker, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.parameter_count && offset < 64 {
-            true -> own(checker, item, offset)
+            true -> own(checker, item, offset),
             _ -> done()
         }
     }
@@ -306,7 +306,7 @@ crashes Trap
     let size: u64 in Trapping = root - low + 1;
     let base: u64 in Trapping = next_base(checker);
     transition base + size <= 4096 && checker.frame_count < 8 {
-        true -> framed(checker, syntax, resolution, typing, item, root, low, size, base)
+        true -> framed(checker, syntax, resolution, typing, item, root, low, size, base),
         _ -> unknown()
     }
 
@@ -360,7 +360,7 @@ crashes Trap
     let base: u64 in Trapping = next_base(checker);
     let shaped: bool = measure.statement_count == 1 && body.has_value;
     transition shaped && base + size <= 4096 && checker.frame_count < 8 {
-        true -> framed(checker, syntax, resolution, typing, measure, subject, body.value, low, size, base)
+        true -> framed(checker, syntax, resolution, typing, measure, subject, body.value, low, size, base),
         _ -> unknown()
     }
 
@@ -426,7 +426,7 @@ crashes Trap
 {
     let bound: u64 in Trapping = component_field(resolution, measure.first_component + offset);
     transition offset < measure.component_count && bound > 0 && subject.place > 0 {
-        true -> projected(checker, syntax, typing, subject, bound - 1)
+        true -> projected(checker, syntax, typing, subject, bound - 1),
         _ -> unknown()
     }
 
@@ -458,7 +458,7 @@ crashes Trap
     transition { _ -> clear(checker, syntax, resolution, 0, certified) }
     machine clear(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, certified: bool) {
         transition index < checker.invocations.node_count && index < 10240 {
-            true -> cleared(checker, syntax, resolution, index, certified)
+            true -> cleared(checker, syntax, resolution, index, certified),
             false -> ordered(checker, syntax, resolution, 0)
         }
     }
@@ -472,7 +472,7 @@ crashes Trap
     }
     machine ordered(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping) {
         transition offset < checker.invocations.order_count && offset < 10240 {
-            true -> node(checker, syntax, resolution, offset)
+            true -> node(checker, syntax, resolution, offset),
             false -> validate(checker, syntax, resolution, 0)
         }
     }
@@ -482,7 +482,7 @@ crashes Trap
         let node: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
         let component: u64 in Trapping = invocation_graph_component(@checker.invocations, node);
         transition component > 0 && component <= 10240 {
-            true -> component(checker, syntax, resolution, offset, component - 1)
+            true -> component(checker, syntax, resolution, offset, component - 1),
             false -> ordered(checker, syntax, resolution, offset + 1)
         }
     }
@@ -490,7 +490,7 @@ crashes Trap
     requires index < 10240
     {
         transition checker.components_done[index] {
-            true -> ordered(checker, syntax, resolution, offset + 1)
+            true -> ordered(checker, syntax, resolution, offset + 1),
             false -> start(checker, syntax, resolution, offset, index)
         }
     }
@@ -503,7 +503,7 @@ crashes Trap
     }
     machine member(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, component: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
         transition handle > 0 && handle <= 10240 {
-            true -> declaration(checker, syntax, resolution, offset, component, handle - 1, ready)
+            true -> declaration(checker, syntax, resolution, offset, component, handle - 1, ready),
             false -> publish_start(checker, syntax, resolution, offset, component, ready)
         }
     }
@@ -518,7 +518,7 @@ crashes Trap
     }
     machine edge(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
         transition handle > 0 && handle <= checker.invocations.edge_count && handle <= 32768 {
-            true -> selected(checker, syntax, resolution, offset, component, node, handle - 1, ready)
+            true -> selected(checker, syntax, resolution, offset, component, node, handle - 1, ready),
             false -> next_member(checker, syntax, resolution, offset, component, node, ready)
         }
     }
@@ -527,13 +527,13 @@ crashes Trap
     {
         let selected: InvocationEdge = checker.invocations.edges[index];
         transition selected.target {
-            InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, offset, component, node, selected.next, machine, ready)
+            InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, offset, component, node, selected.next, machine, ready),
             InvocationTarget::Binder { parameter } -> binder(checker, syntax, resolution, offset, component, node, selected.next, parameter, ready)
         }
     }
     machine concrete(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, next: u64 in Trapping, target: u64 in Trapping, ready: bool) {
         transition target < 10240 {
-            true -> dependency(checker, syntax, resolution, offset, component, node, next, target, ready)
+            true -> dependency(checker, syntax, resolution, offset, component, node, next, target, ready),
             false -> edge(checker, syntax, resolution, offset, component, node, next, false)
         }
     }
@@ -550,7 +550,7 @@ crashes Trap
     }
     machine next_member(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, component: u64 in Trapping, node: u64 in Trapping, ready: bool) {
         transition node < 10240 {
-            true -> linked(checker, syntax, resolution, offset, component, node, ready)
+            true -> linked(checker, syntax, resolution, offset, component, node, ready),
             false -> publish_start(checker, syntax, resolution, offset, component, false)
         }
     }
@@ -562,7 +562,7 @@ crashes Trap
     }
     machine publish_start(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, component: u64 in Trapping, ready: bool) {
         transition component < 10240 {
-            true -> completed(checker, syntax, resolution, offset, component, ready)
+            true -> completed(checker, syntax, resolution, offset, component, ready),
             false -> ordered(checker, syntax, resolution, offset + 1)
         }
     }
@@ -575,7 +575,7 @@ crashes Trap
     }
     machine publish(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, offset: u64 in Trapping, handle: u64 in Trapping, ready: bool) {
         transition handle > 0 && handle <= 10240 {
-            true -> published(checker, syntax, resolution, offset, handle - 1, ready)
+            true -> published(checker, syntax, resolution, offset, handle - 1, ready),
             false -> ordered(checker, syntax, resolution, offset + 1)
         }
     }
@@ -588,7 +588,7 @@ crashes Trap
     }
     machine validate(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < checker.invocations.edge_count && index < 32768 {
-            true -> validate_edge(checker, syntax, resolution, index)
+            true -> validate_edge(checker, syntax, resolution, index),
             false -> {}
         }
     }
@@ -607,12 +607,12 @@ crashes Trap
     let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
     transition { _ -> next(syntax, clauses.first_clause, clauses.first_clause + clauses.clause_count) }
     machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
-        transition index < end { true -> clause(syntax, index, end) false -> false }
+        transition index < end { true -> clause(syntax, index, end), false -> false }
     }
     machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping) -> bool {
         let clause: Clause = syntax_trees_clause(syntax, index);
         transition clause.kind == ClauseKind::Terminates && clause.argument_count == 0 {
-            true -> true
+            true -> true,
             false -> next(syntax, index + 1, end)
         }
     }
@@ -622,14 +622,14 @@ machine validate_rank_component(checker: @mut Checker, syntax: @SyntaxTrees, res
 crashes Trap
 {
     transition edge.target {
-        InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, edge, machine)
+        InvocationTarget::Machine { machine } -> concrete(checker, syntax, resolution, edge, machine),
         _ -> {}
     }
     machine concrete(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, edge: InvocationEdge, target: u64 in Trapping) {
         let component: u64 in Trapping = invocation_graph_component(@checker.invocations, edge.owner);
         let destination: u64 in Trapping = invocation_graph_component(@checker.invocations, target);
         transition component > 0 && component == destination && component <= 10240 {
-            true -> internal(checker, syntax, resolution, edge, component - 1)
+            true -> internal(checker, syntax, resolution, edge, component - 1),
             false -> {}
         }
     }
@@ -639,17 +639,17 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, edge.owner);
         let termination: TerminationClause = checker_termination_clause(syntax, resolution, item);
         transition termination.ranked && !checker.invocations.component_ranked[component] {
-            true -> unproven(checker, syntax, edge)
+            true -> unproven(checker, syntax, edge),
             false -> {}
         }
     }
     machine unproven(checker: @mut Checker, syntax: @SyntaxTrees, edge: InvocationEdge) {
-        transition edge.owner < 10240 { true -> first(checker, syntax, edge, edge.owner) false -> {} }
+        transition edge.owner < 10240 { true -> first(checker, syntax, edge, edge.owner), false -> {} }
     }
     machine first(checker: @mut Checker, syntax: @SyntaxTrees, edge: InvocationEdge, owner: u64 in Trapping)
     requires owner < 10240
     {
-        transition checker.rank_reported[owner] { true -> {} false -> reported(checker, syntax, edge, owner) }
+        transition checker.rank_reported[owner] { true -> {}, false -> reported(checker, syntax, edge, owner) }
     }
     machine reported(checker: @mut Checker, syntax: @SyntaxTrees, edge: InvocationEdge, owner: u64 in Trapping)
     requires owner < 10240

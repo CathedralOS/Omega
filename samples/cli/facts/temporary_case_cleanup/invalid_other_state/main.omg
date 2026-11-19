@@ -14,7 +14,7 @@ machine carry() -> bool {
 }
 machine main() crashes Trap {
     let accepted: bool = carry();
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

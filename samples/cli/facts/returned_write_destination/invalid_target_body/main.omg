@@ -5,14 +5,14 @@ boundary trait SelectedBodyCheck {
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
 }
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -42,7 +42,7 @@ machine main() crashes Trap {
  let neighbor: i32 = 19;
  let destination: @write i32 = SelectedLendWrite::lend_write(@write value);
  destination = destination;
- transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
+ transition value == 42 && neighbor == 19 { true -> done(), false -> wrong() }
  machine done() {} machine wrong() { crash Trap; }
 }
 machine x86_entry() crashes Trap {

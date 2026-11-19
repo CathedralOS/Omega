@@ -36,13 +36,13 @@ data Main {
 // Returns an array index for a given key (0->0, 1->2, 2->4).
 machine Picker::pick(picker: @mut Picker, key: i32) -> i32 {
     transition key == 0 {
-        true -> (0)
+        true -> (0),
         _ -> try1(key)
     }
 
     machine try1(key: i32) -> i32 {
         transition key == 1 {
-            true -> (2)
+            true -> (2),
             _ -> (4)
         }
     }
@@ -52,27 +52,27 @@ machine Picker::pick(picker: @mut Picker, key: i32) -> i32 {
 // idx must be 0..4.
 machine Main::read_at(main: @mut Main, idx: i32) -> i32 {
     transition idx == 0 {
-        true -> (main.table[0])
+        true -> (main.table[0]),
         _ -> try1(main, idx)
     }
 
     machine try1(main: @mut Main, idx: i32) -> i32 {
         transition idx == 1 {
-            true -> (main.table[1])
+            true -> (main.table[1]),
             _ -> try2(main, idx)
         }
     }
 
     machine try2(main: @mut Main, idx: i32) -> i32 {
         transition idx == 2 {
-            true -> (main.table[2])
+            true -> (main.table[2]),
             _ -> try3(main, idx)
         }
     }
 
     machine try3(main: @mut Main, idx: i32) -> i32 {
         transition idx == 3 {
-            true -> (main.table[3])
+            true -> (main.table[3]),
             _ -> (main.table[4])
         }
     }
@@ -100,7 +100,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify idx0 == 0.
     transition idx0 == 0 {
-        true -> check_idx2(main, idx2, v0, v2, v1)
+        true -> check_idx2(main, idx2, v0, v2, v1),
         _ -> bad_idx0(main)
     }
 
@@ -113,7 +113,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_idx2(main: @mut Main, idx2: i32, v0: i32, v2: i32, v1: i32) {
         transition idx2 == 4 {
-            true -> check_v0(main, v0, v2, v1)
+            true -> check_v0(main, v0, v2, v1),
             _ -> bad_idx2(main)
         }
     }
@@ -127,7 +127,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_v0(main: @mut Main, v0: i32, v2: i32, v1: i32) {
         transition v0 == 3 {
-            true -> compute_result(main, v0, v2, v1)
+            true -> compute_result(main, v0, v2, v1),
             _ -> bad_v0(main)
         }
     }
@@ -146,7 +146,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         // keep every intermediate result inside i64.
         let result: i64 = (v2 as i64) + (v1 as i64) - (v0 as i64) - 1;
         transition result == 70 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad_result(main)
         }
     }

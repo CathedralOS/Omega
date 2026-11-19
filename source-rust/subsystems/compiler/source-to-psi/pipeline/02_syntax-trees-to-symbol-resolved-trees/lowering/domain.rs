@@ -49,7 +49,9 @@ pub(crate) fn lower_domain_definition(
     )?;
 
     let mut semantic_identity =
-        declared_module_path(syntax_trees, domain.name.source_span().source_id)
+        lowerer.sources.as_deref().and_then(|sources| sources.get(domain.name.source_span().source_id))
+            .map(|file| file.directory_namespace()).transpose().map_err(Diagnostic::error)?
+            .filter(|parts| !parts.is_empty()).map(|parts| parts.join("::"))
             .map(|module| format!("{module}::{}", domain.name.as_str(syntax_trees)))
             .unwrap_or_else(|| domain.name.as_str(syntax_trees).to_owned());
     let owner = lowerer
@@ -126,25 +128,6 @@ pub(crate) fn lower_domain_definition(
         semantic_id,
         semantic_roles,
         establishment_routes: Vec::new(),
-    })
-}
-
-/*
-    The logical module path declared by the source that owns `source`, if any.
-    Scans root items directly so declaration order cannot hide a module header
-    that follows the domain in source order.
-*/
-fn declared_module_path(
-    syntax_trees: &SyntaxTrees,
-    source: source_text::SourceId,
-) -> Option<String> {
-    syntax_trees.root_items().find_map(|item| {
-        let syntax::item::Item::Module(module) = item else {
-            return None;
-        };
-        let members = syntax_trees.items.identifier_path_members(module.path);
-        (members.first()?.source_span().source_id == source)
-            .then(|| members.joined_path_in(syntax_trees))
     })
 }
 

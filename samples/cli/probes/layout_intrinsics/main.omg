@@ -13,15 +13,15 @@
 
 data Pair { left: u64; right: u32; }
 
-const BYTES: u64 = size_of<Pair>();
+const BYTES: u64 = size_of::<Pair>();
 
 data Main { hits: i32 in Wrapping; }
 
 machine Main::main(main: @mut Main) {
     main.hits = 0;
-    let alignment: u64 = align_of<Pair>();
+    let alignment: u64 = align_of::<Pair>();
     transition BYTES == 16 && alignment == 8 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

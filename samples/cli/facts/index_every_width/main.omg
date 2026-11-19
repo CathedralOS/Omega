@@ -48,7 +48,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     main.values = [1, 2, 4, 8];
     transition combine_fixed(main.values, 0, 1, 2, 3, 0, 1, 2, 2) == 12
         && read_slice(@main.values[..], 2) == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

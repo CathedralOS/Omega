@@ -50,7 +50,7 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
 
     machine prompt(game: @mut Game) {
         transition game.dungeon.player.health == 0 {
-            true -> block game_over(game)
+            true -> block game_over(game),
             false -> block read_command(game)
         }
     }
@@ -58,8 +58,8 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
     machine read_command(game: @mut Game) {
         render_prompt();
         transition block Console::read_line(@mut game.input[..]) {
-            LineReadResult::LineComplete { count } -> block received_command(game, count)
-            LineReadResult::EndOfInput { count } -> block received_command(game, count)
+            LineReadResult::LineComplete { count } -> block received_command(game, count),
+            LineReadResult::EndOfInput { count } -> block received_command(game, count),
             // Full and Invalid do not establish a completed command.
             _ -> block invalid_command(game)
         }
@@ -67,14 +67,14 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
 
     machine received_command(game: @mut Game, count: u64) {
         transition count <= 256 && count <= game.input.len {
-            true -> block bounded_command(game, count)
+            true -> block bounded_command(game, count),
             false -> block invalid_command(game)
         }
     }
 
     machine bounded_command(game: @mut Game, count: u64) requires count <= 256 {
         transition count > 0 {
-            true -> block inspect_line_end(game, count)
+            true -> block inspect_line_end(game, count),
             false -> block finished(game)
         }
     }
@@ -86,14 +86,14 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
     machine inspect_line_end(game: @mut Game, count: u64) requires count > 0 requires count <= 256 {
         let last_index: u64 = count - 1;
         transition last_index <= 255 && game.input[last_index] == 10 {
-            true -> block without_line_feed(game, last_index)
+            true -> block without_line_feed(game, last_index),
             false -> block dispatch_command(game, count)
         }
     }
 
     machine without_line_feed(game: @mut Game, count: u64) requires count <= 255 {
         transition count > 0 {
-            true -> block inspect_carriage_return(game, count)
+            true -> block inspect_carriage_return(game, count),
             false -> block finished(game)
         }
     }
@@ -101,7 +101,7 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
     machine inspect_carriage_return(game: @mut Game, count: u64) requires count > 0 requires count <= 255 {
         let last_index: u64 = count - 1;
         transition last_index <= 254 && game.input[last_index] == 13 {
-            true -> block without_carriage_return(game, last_index)
+            true -> block without_carriage_return(game, last_index),
             false -> block dispatch_command(game, count)
         }
     }
@@ -117,34 +117,34 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
         let command: @[u8] = game.input[0..count];
 
         transition {
-            command == "" -> block finished(game)
-            command == "quit" -> block finished(game)
-            command == "exit" -> block finished(game)
-            command == "look" -> block look(game)
-            command == "info" -> block look(game)
-            command == "paths" -> block exits(game)
-            command == "help" -> block exits(game)
-            command == "inventory" -> block inventory(game)
-            command == "inv" -> block inventory(game)
-            command == "char" -> block character(game)
-            command == "character" -> block character(game)
-            command == "stats" -> block character(game)
-            command == "use" -> block use_event(game)
-            command == "fight" -> block fight(game)
-            game.dungeon.current_cell == CellId::R00 && command == "north" -> block move_r01(game)
-            game.dungeon.current_cell == CellId::R01 && command == "south" -> block move_r00(game)
-            game.dungeon.current_cell == CellId::R01 && command == "north" -> block move_r02(game)
-            game.dungeon.current_cell == CellId::R01 && command == "east" -> block move_r05(game)
-            game.dungeon.current_cell == CellId::R02 && command == "south" -> block move_r01(game)
-            game.dungeon.current_cell == CellId::R02 && command == "north" -> block move_r03(game)
-            game.dungeon.current_cell == CellId::R02 && command == "west" -> block move_r06(game)
-            game.dungeon.current_cell == CellId::R03 && command == "south" -> block move_r02(game)
-            game.dungeon.current_cell == CellId::R03 && command == "north" -> block move_r04(game)
-            game.dungeon.current_cell == CellId::R03 && command == "east" -> block move_r07(game)
-            game.dungeon.current_cell == CellId::R04 && command == "south" -> block move_r03(game)
-            game.dungeon.current_cell == CellId::R05 && command == "west" -> block move_r01(game)
-            game.dungeon.current_cell == CellId::R06 && command == "east" -> block move_r02(game)
-            game.dungeon.current_cell == CellId::R07 && command == "west" -> block move_r03(game)
+            command == "" -> block finished(game),
+            command == "quit" -> block finished(game),
+            command == "exit" -> block finished(game),
+            command == "look" -> block look(game),
+            command == "info" -> block look(game),
+            command == "paths" -> block exits(game),
+            command == "help" -> block exits(game),
+            command == "inventory" -> block inventory(game),
+            command == "inv" -> block inventory(game),
+            command == "char" -> block character(game),
+            command == "character" -> block character(game),
+            command == "stats" -> block character(game),
+            command == "use" -> block use_event(game),
+            command == "fight" -> block fight(game),
+            game.dungeon.current_cell == CellId::R00 && command == "north" -> block move_r01(game),
+            game.dungeon.current_cell == CellId::R01 && command == "south" -> block move_r00(game),
+            game.dungeon.current_cell == CellId::R01 && command == "north" -> block move_r02(game),
+            game.dungeon.current_cell == CellId::R01 && command == "east" -> block move_r05(game),
+            game.dungeon.current_cell == CellId::R02 && command == "south" -> block move_r01(game),
+            game.dungeon.current_cell == CellId::R02 && command == "north" -> block move_r03(game),
+            game.dungeon.current_cell == CellId::R02 && command == "west" -> block move_r06(game),
+            game.dungeon.current_cell == CellId::R03 && command == "south" -> block move_r02(game),
+            game.dungeon.current_cell == CellId::R03 && command == "north" -> block move_r04(game),
+            game.dungeon.current_cell == CellId::R03 && command == "east" -> block move_r07(game),
+            game.dungeon.current_cell == CellId::R04 && command == "south" -> block move_r03(game),
+            game.dungeon.current_cell == CellId::R05 && command == "west" -> block move_r01(game),
+            game.dungeon.current_cell == CellId::R06 && command == "east" -> block move_r02(game),
+            game.dungeon.current_cell == CellId::R07 && command == "west" -> block move_r03(game),
             _ -> block invalid_command(game)
         }
     }
@@ -212,7 +212,7 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
         render_line(@game.output);
 
         transition game.dungeon.player.health == 0 {
-            true -> block game_over(game)
+            true -> block game_over(game),
             false -> block prompt(game)
         }
     }
@@ -221,7 +221,7 @@ machine run_game_loop(game: @mut Game) reaches ProcessExit + Console {
         let destination: CellId = game.dungeon.navigation.destination;
 
         transition can_travel_to(destination) {
-            true -> block move_player(game)
+            true -> block move_player(game),
             false -> block blocked_by_enemy(game)
         }
     }

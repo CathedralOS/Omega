@@ -11,7 +11,7 @@ requires input <= 200
 ensures result <= 90
 {
     transition input <= 90 {
-        true -> (input)
+        true -> (input),
         _ -> 90
     }
 }
@@ -28,12 +28,12 @@ ensures result <= 100
 }
 
 machine main() crashes Trap {
-    let zero: u32 = selected_limit<Conservative>(0);
-    let middle: u32 = selected_limit<Conservative>(42);
-    let upper: u32 = selected_limit<Conservative>(100);
+    let zero: u32 = selected_limit::<Conservative>(0);
+    let middle: u32 = selected_limit::<Conservative>(42);
+    let upper: u32 = selected_limit::<Conservative>(100);
     let direct: u32 = clamp_low(200);
     transition zero == 0 && middle == 42 && upper == 90 && direct == 90 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

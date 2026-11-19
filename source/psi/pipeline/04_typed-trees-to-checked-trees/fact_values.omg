@@ -21,7 +21,7 @@ crashes Trap
 
     machine node(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root {
-            true -> evaluated(checker, syntax, resolution, typing, root, handle)
+            true -> evaluated(checker, syntax, resolution, typing, root, handle),
             _ -> done()
         }
     }
@@ -44,21 +44,21 @@ crashes Trap
     let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
     let landed: bool = typing_landed_integer(typing, handle, expression);
     transition landed {
-        true -> literal(typing, handle)
+        true -> literal(typing, handle),
         _ -> form(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer)
     }
 
     machine form(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, integer: bool) -> Value {
         transition expression.kind {
-            ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle)
-            ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row)
-            ExpressionKind::Integer -> literal(typing, handle)
-            ExpressionKind::Boolean -> boolean(expression)
-            ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle)
-            ExpressionKind::Unary -> unary(checker, expression, row, integer)
-            ExpressionKind::Binary -> binary(checker, expression, row, integer)
-            ExpressionKind::Cast -> cast(checker, typing, expression, row, integer)
-            ExpressionKind::Call -> call(checker, syntax, resolution, typing, expression, row)
+            ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle),
+            ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row),
+            ExpressionKind::Integer -> literal(typing, handle),
+            ExpressionKind::Boolean -> boolean(expression),
+            ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle),
+            ExpressionKind::Unary -> unary(checker, expression, row, integer),
+            ExpressionKind::Binary -> binary(checker, expression, row, integer),
+            ExpressionKind::Cast -> cast(checker, typing, expression, row, integer),
+            ExpressionKind::Call -> call(checker, syntax, resolution, typing, expression, row),
             _ -> typed(row)
         }
     }
@@ -66,7 +66,7 @@ crashes Trap
     machine call(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, row: TypeRow) -> Value {
         let binding: ValueBinding = value_binding(resolution, expression.left);
         transition binding {
-            ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, expression, predicate)
+            ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, expression, predicate),
             _ -> typed(row)
         }
     }
@@ -86,7 +86,7 @@ crashes Trap
     machine path(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
         let binding: ValueBinding = value_binding(resolution, handle);
         transition binding {
-            ValueBinding::Constant { constant } -> constant(syntax, typing, constant, type_handle)
+            ValueBinding::Constant { constant } -> constant(syntax, typing, constant, type_handle),
             _ -> typed(row)
         }
     }
@@ -114,10 +114,10 @@ crashes Trap
 
     machine unary(checker: @mut Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
         transition expression.operator {
-            OperatorKind::Borrow -> borrowed(checker, expression)
-            OperatorKind::BorrowMutable -> borrowed(checker, expression)
-            OperatorKind::BorrowWrite -> borrowed(checker, expression)
-            OperatorKind::Negate -> negated(checker, expression, row, integer)
+            OperatorKind::Borrow -> borrowed(checker, expression),
+            OperatorKind::BorrowMutable -> borrowed(checker, expression),
+            OperatorKind::BorrowWrite -> borrowed(checker, expression),
+            OperatorKind::Negate -> negated(checker, expression, row, integer),
             _ -> typed(row)
         }
     }
@@ -130,7 +130,7 @@ crashes Trap
 
     machine negated(checker: @mut Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
         transition integer {
-            true -> negation(checker, expression, row)
+            true -> negation(checker, expression, row),
             _ -> typed(row)
         }
     }
@@ -142,7 +142,7 @@ crashes Trap
 
     machine binary(checker: @mut Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
         transition integer {
-            true -> arithmetic(checker, expression, row)
+            true -> arithmetic(checker, expression, row),
             _ -> typed(row)
         }
     }
@@ -154,7 +154,7 @@ crashes Trap
 
     machine cast(checker: @mut Checker, typing: @Typing, expression: Expression, row: TypeRow, integer: bool) -> Value {
         transition integer {
-            true -> conversion(checker, typing, expression, row)
+            true -> conversion(checker, typing, expression, row),
             _ -> recast(checker, expression, row)
         }
     }
@@ -166,7 +166,7 @@ crashes Trap
     // it (references.omg, flow.omg).
     machine recast(checker: @Checker, expression: Expression, row: TypeRow) -> Value {
         transition row.kind == TypeKind::Reference {
-            true -> borrowed(checker, expression)
+            true -> borrowed(checker, expression),
             _ -> typed(row)
         }
     }

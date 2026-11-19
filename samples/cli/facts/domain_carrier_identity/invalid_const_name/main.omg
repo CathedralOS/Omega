@@ -11,7 +11,7 @@ machine headroom() -> u8 requires LEVEL in Small {
 
 machine main() crashes Trap {
     transition headroom() == 3 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

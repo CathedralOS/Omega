@@ -64,7 +64,7 @@ machine cmp_swap_01(main: @mut Main) {
     let a: i32 = main.s.arr[0];
     let b: i32 = main.s.arr[1];
     transition a > b {
-        true -> do_swap_01(main, a, b)
+        true -> do_swap_01(main, a, b),
         _ -> done_01()
     }
     machine do_swap_01(main: @mut Main, a: i32, b: i32) {
@@ -78,7 +78,7 @@ machine cmp_swap_12(main: @mut Main) {
     let a: i32 = main.s.arr[1];
     let b: i32 = main.s.arr[2];
     transition a > b {
-        true -> do_swap_12(main, a, b)
+        true -> do_swap_12(main, a, b),
         _ -> done_12()
     }
     machine do_swap_12(main: @mut Main, a: i32, b: i32) {
@@ -92,7 +92,7 @@ machine cmp_swap_23(main: @mut Main) {
     let a: i32 = main.s.arr[2];
     let b: i32 = main.s.arr[3];
     transition a > b {
-        true -> do_swap_23(main, a, b)
+        true -> do_swap_23(main, a, b),
         _ -> done_23()
     }
     machine do_swap_23(main: @mut Main, a: i32, b: i32) {
@@ -106,7 +106,7 @@ machine cmp_swap_34(main: @mut Main) {
     let a: i32 = main.s.arr[3];
     let b: i32 = main.s.arr[4];
     transition a > b {
-        true -> do_swap_34(main, a, b)
+        true -> do_swap_34(main, a, b),
         _ -> done_34()
     }
     machine do_swap_34(main: @mut Main, a: i32, b: i32) {
@@ -120,7 +120,7 @@ machine cmp_swap_45(main: @mut Main) {
     let a: i32 = main.s.arr[4];
     let b: i32 = main.s.arr[5];
     transition a > b {
-        true -> do_swap_45(main, a, b)
+        true -> do_swap_45(main, a, b),
         _ -> done_45()
     }
     machine do_swap_45(main: @mut Main, a: i32, b: i32) {
@@ -186,7 +186,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Verify sorted order: [1, 2, 3, 5, 7, 8].
     let v0: i32 = main.s.arr[0];
     transition v0 == 1 {
-        true -> block check1(main)
+        true -> block check1(main),
         _ -> block bad0(main)
     }
 
@@ -200,7 +200,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check1(main: @mut Main) {
         let v1: i32 = main.s.arr[1];
         transition v1 == 2 {
-            true -> block check2(main)
+            true -> block check2(main),
             _ -> block bad1(main)
         }
     }
@@ -215,7 +215,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check2(main: @mut Main) {
         let v2: i32 = main.s.arr[2];
         transition v2 == 3 {
-            true -> block check3(main)
+            true -> block check3(main),
             _ -> block bad2(main)
         }
     }
@@ -230,7 +230,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check3(main: @mut Main) {
         let v3: i32 = main.s.arr[3];
         transition v3 == 5 {
-            true -> block check4(main)
+            true -> block check4(main),
             _ -> block bad3(main)
         }
     }
@@ -245,7 +245,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check4(main: @mut Main) {
         let v4: i32 = main.s.arr[4];
         transition v4 == 7 {
-            true -> block check5(main)
+            true -> block check5(main),
             _ -> block bad4(main)
         }
     }
@@ -260,7 +260,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check5(main: @mut Main) {
         let v5: i32 = main.s.arr[5];
         transition v5 == 8 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad5(main)
         }
     }

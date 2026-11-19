@@ -1034,9 +1034,8 @@ pub(super) fn build_symbol_table(
     sources: Option<Arc<SourceMap>>,
     source_scoped_top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     const_declarations: &[crate::resolution::lowering::lowerer::PendingConstDeclaration],
-    has_authored_modules: bool,
 ) -> SymbolTable {
-    let has_sources = sources.is_some() || has_authored_modules;
+    let has_sources = sources.is_some();
     let root_operator_names = program
         .operators
         .iter()

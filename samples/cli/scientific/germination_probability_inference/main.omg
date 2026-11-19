@@ -20,9 +20,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.reader.consumed = 0;
     let mut input: Input;
     let valid: bool = block read_input(@mut main.reader, @mut input);
-    transition valid { true -> batches(main, @input, 4, input.values[0], input.values[1]) _ -> invalid(main) }
+    transition valid { true -> batches(main, @input, 4, input.values[0], input.values[1]), _ -> invalid(main) }
     machine batches(main: @mut Main, input: @Input, position: i32 in Wrapping, alpha: i32 in Wrapping, beta: i32 in Wrapping) {
-        transition position >= 4 && position < 19 && position < input.count { true -> update(main, input, position, alpha, beta) _ -> prediction(main, input, alpha, beta) }
+        transition position >= 4 && position < 19 && position < input.count { true -> update(main, input, position, alpha, beta), _ -> prediction(main, input, alpha, beta) }
     }
     machine update(main: @mut Main, input: @Input, position: i32 in Wrapping, alpha: i32 in Wrapping, beta: i32 in Wrapping) {
         let next_alpha: i32 in Wrapping = alpha + input.values[position];
@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> bins(main, input.values[3], 0) }
     }
     machine bins(main: @mut Main, future: i32 in Wrapping, position: i32 in Wrapping) {
-        transition position >= 0 && position < 33 && position <= future { true -> emit(main, future, position) _ -> done(main) }
+        transition position >= 0 && position < 33 && position <= future { true -> emit(main, future, position), _ -> done(main) }
     }
     machine emit(main: @mut Main, future: i32 in Wrapping, position: i32 in Wrapping) {
         field(@mut main.reader, "bin=", F64::from_i32(position as i32));

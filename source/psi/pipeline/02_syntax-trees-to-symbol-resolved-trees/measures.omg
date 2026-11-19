@@ -10,7 +10,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
-            true -> item(resolver, sources, syntax, index)
+            true -> item(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -18,14 +18,14 @@ crashes Trap
     machine item(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let declared: MachineItem = machine_item(syntax, index);
         transition declared.container == MachineContainer::Measure {
-            true -> measure(resolver, sources, syntax, index, declared)
+            true -> measure(resolver, sources, syntax, index, declared),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
     machine measure(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         transition declared.component_count > 0 {
-            true -> owner(resolver, sources, syntax, index, declared)
+            true -> owner(resolver, sources, syntax, index, declared),
             _ -> computed(resolver, sources, syntax, index, declared)
         }
     }
@@ -34,7 +34,7 @@ crashes Trap
         let formed: bool = declared.parameter_count == 1 && declared.has_return_type && declared.has_body
             && declared.statement_count == 1;
         transition formed {
-            true -> next(resolver, sources, syntax, index + 1)
+            true -> next(resolver, sources, syntax, index + 1),
             _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.source_span)
         }
     }
@@ -42,7 +42,7 @@ crashes Trap
     machine owner(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: MachineItem) {
         let binding: ValueBinding = data_name(sources, syntax, declared.owner.source_span);
         transition binding {
-            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0)
+            ValueBinding::Data { item } -> component(resolver, sources, syntax, index, declared, item, 0),
             _ -> reject(resolver, ResolveDiagnosticCode::MeasureForm, declared.owner.source_span)
         }
     }
@@ -57,7 +57,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < declared.component_count && resolver.output.accepted {
-            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0)
+            true -> candidate(resolver, sources, syntax, index, declared, item, offset, 0),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -75,7 +75,7 @@ crashes Trap
         let data: DataItem = syntax_trees_data_item(syntax, item);
         let name: IdentifierSpan = syntax_trees_member(syntax, declared.first_component + offset);
         transition field_offset < data.field_count {
-            true -> compare(resolver, sources, syntax, index, declared, item, offset, field_offset, data, name)
+            true -> compare(resolver, sources, syntax, index, declared, item, offset, field_offset, data, name),
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownMeasureComponent, name.source_span)
         }
     }
@@ -96,7 +96,7 @@ crashes Trap
         let candidate_field: DataField = syntax_trees_field(syntax, handle);
         let same: bool = spans_equal(sources, candidate_field.name.source_span, name.source_span);
         transition same {
-            true -> bound(resolver, sources, syntax, index, declared, item, offset, handle)
+            true -> bound(resolver, sources, syntax, index, declared, item, offset, handle),
             _ -> candidate(resolver, sources, syntax, index, declared, item, offset, field_offset + 1)
         }
     }

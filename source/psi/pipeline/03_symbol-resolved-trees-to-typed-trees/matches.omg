@@ -21,7 +21,7 @@ crashes Trap
     let subject_type: u64 in Trapping = typing_expression_type(@typer.output, expression.left);
     let joined: bool = unlanded_join_type(typer, subject_type);
     transition subject_type == 0 || joined {
-        true -> subject_absent(typer, syntax, expression)
+        true -> subject_absent(typer, syntax, expression),
         _ -> pattern(typer, sources, syntax, resolution, index, expression, subject_type, 0)
     }
 
@@ -41,7 +41,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < expression.count && typer.output.accepted {
-            true -> arm_pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset)
+            true -> arm_pattern(typer, sources, syntax, resolution, index, expression, subject_type, offset),
             _ -> patterns_typed(typer, sources, syntax, resolution, index, expression, subject_type)
         }
     }
@@ -73,14 +73,14 @@ crashes Trap
         let range: ArmRange = ArmRange { matched: true, first: expression.first, count: expression.count };
         let covered: bool = covers(typer, sources, syntax, resolution, range, subject_type);
         transition !typer.output.accepted {
-            true -> done()
+            true -> done(),
             _ -> coverage(typer, syntax, index, expression, covered)
         }
     }
 
     machine coverage(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, covered: bool) {
         transition covered {
-            true -> values(typer, syntax, index, expression)
+            true -> values(typer, syntax, index, expression),
             _ -> uncovered(typer, expression)
         }
     }
@@ -93,7 +93,7 @@ crashes Trap
         let values: JoinedValues = joined_values(expression);
         let result_type: u64 in Trapping = fixed_join(typer, syntax, values);
         transition result_type > 0 {
-            true -> fixed(typer, syntax, index, values, result_type)
+            true -> fixed(typer, syntax, index, values, result_type),
             _ -> unfixed(typer, syntax, index, values)
         }
     }
@@ -107,7 +107,7 @@ crashes Trap
     machine unfixed(typer: @mut Typer, syntax: @SyntaxTrees, index: u64 in Trapping, values: JoinedValues) {
         let join: UnlandedJoin = unlanded_join(typer, syntax, values);
         transition join.mismatch > 0 {
-            true -> mismatched(typer, syntax, join.mismatch - 1)
+            true -> mismatched(typer, syntax, join.mismatch - 1),
             _ -> joined(typer, index, join.joined)
         }
     }

@@ -42,21 +42,21 @@ public Fixed satisfies FixedLayout<Payload> {
         let mut entries: [FieldEntry; 64];
         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
         let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: 16, size_is_dynamic: false, align: 8 };
-        layout_plan_place_private<FixedSlot>(plan, 8)
+        layout_plan_place_private::<FixedSlot>(plan, 8)
     }
 }
 public Variable satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
         let facts: LayoutTargetFacts = layout_target_facts(@target);
         transition facts.profile == "windows_x86_64" {
-            true -> place(schema, 24)
+            true -> place(schema, 24),
             _ -> place(schema, 16)
         }
         machine place(schema: Schema, bytes: u64) -> LayoutPlan reaches terminates {
             let mut entries: [FieldEntry; 64];
             entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };
             let plan: LayoutPlan = LayoutPlan { entries: entries, entry_count: 1, size_fixed: bytes, size_is_dynamic: false, align: 8 };
-            layout_plan_place_private<VariableSlot>(plan, 8)
+            layout_plan_place_private::<VariableSlot>(plan, 8)
         }
     }
 }
@@ -186,12 +186,12 @@ public SlotCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == 1 && signature.has_result
             && signature.callback_binder_count <= 33 && signature.callback_demand_count <= 33 {
-            true -> select(signature, signature.parameters[0], signature.result)
+            true -> select(signature, signature.parameters[0], signature.result),
             _ -> reject()
         }
         machine select(signature: BoundarySignature, parameter: u64, result: u64) -> BoundaryPlanResult {
             transition parameter < 256 && result < 256 {
-                true -> accept(signature, parameter, result)
+                true -> accept(signature, parameter, result),
                 _ -> reject()
             }
         }
@@ -236,7 +236,7 @@ machine fill_materializations(plan: @mut BoundaryEntryPlan, signature: @Boundary
 terminates by remaining
 {
     transition index < 33 && remaining > 0 {
-        true -> put(plan, signature, index, remaining)
+        true -> put(plan, signature, index, remaining),
         _ -> {}
     }
     machine put(plan: @mut BoundaryEntryPlan, signature: @BoundarySignature, index: u64, remaining: u64)
@@ -253,8 +253,8 @@ terminates by remaining
 machine slot_binder(signature: @BoundarySignature, index: u64) -> u64
 requires index < 33 {
     transition {
-        signature.callback_binders[index].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[index].binder
-        signature.callback_binders[1].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[1].binder
+        signature.callback_binders[index].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[index].binder,
+        signature.callback_binders[1].requirement == signature.callback_demands[index].requirement -> signature.callback_binders[1].binder,
         _ -> variable_position_binder(signature, 0, 33)
     }
 }
@@ -262,13 +262,13 @@ machine variable_position_binder(signature: @BoundarySignature, index: u64, rema
 terminates by remaining
 {
     transition index < 33 && remaining > 0 {
-        true -> inspect(signature, index, remaining)
+        true -> inspect(signature, index, remaining),
         _ -> signature.callback_binders[0].binder
     }
     machine inspect(signature: @BoundarySignature, index: u64, remaining: u64) -> u64
     requires index < 33 && remaining > 0 {
         transition signature.callback_demands[index].requirement == signature.callback_binders[1].requirement {
-            true -> signature.callback_binders[index].binder
+            true -> signature.callback_binders[index].binder,
             _ -> variable_position_binder(signature, index + 1, remaining - 1)
         }
     }
@@ -282,12 +282,12 @@ machine main() reaches Registrar + FixedCallback + VariableCallback invokes Regi
     envelope.slot31.value = 131;
     envelope.slot32.value = 132;
     envelope.after = 203;
-    let answer: u64 = Registrar::register<fixed_callback, variable_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback>(@envelope);
+    let answer: u64 = Registrar::register::<fixed_callback, variable_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback, fixed_callback>(@envelope);
     transition answer == 167 && envelope.before == 101 && envelope.first.value == 11
         && envelope.second.value == 37
         && envelope.slot31.value == 131
         && envelope.slot32.value == 132 && envelope.after == 203 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

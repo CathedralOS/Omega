@@ -31,7 +31,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.shape = Shape::Rectangle { width: 6, height: 7 };
 
     transition main.shape {
-        Shape::Circle { radius } -> block circle(main, radius)
+        Shape::Circle { radius } -> block circle(main, radius),
         Shape::Rectangle { width, height } -> block rect(main, width, height)
     }
 
@@ -39,7 +39,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // the direct edge into the compute state, whose contract admits it.
     machine circle(main: @mut Main, radius: i32) {
         transition radius >= 0 && radius < 101 {
-            true -> block circle_area(main, radius)
+            true -> block circle_area(main, radius),
             _ -> block emit(main)
         }
     }
@@ -49,7 +49,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine rect(main: @mut Main, width: i32, height: i32) {
         transition width >= 0 && width < 101 && height >= 0 && height < 101 {
-            true -> block rect_area(main, width, height)
+            true -> block rect_area(main, width, height),
             _ -> block emit(main)
         }
     }

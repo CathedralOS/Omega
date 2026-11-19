@@ -9,19 +9,19 @@ data Main { holder: Holder; hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.holder = Holder { ready: true };
     transition main.holder.sample {
-        Sample::Reading { value } -> ready(main, main.holder.ready)
+        Sample::Reading { value } -> ready(main, main.holder.ready),
         _ -> bad(main)
     }
     machine ready(main: @mut Main, was_ready: bool) {
         main.holder.sample = Sample::Missing;
         transition main.holder.sample {
-            Sample::Missing -> absent(main, was_ready)
+            Sample::Missing -> absent(main, was_ready),
             _ -> bad(main)
         }
     }
     machine absent(main: @mut Main, kept: bool) {
         let value: i32 = match kept {
-            (true) -> 70
+            (true) -> 70,
             _ -> 71
         };
     }

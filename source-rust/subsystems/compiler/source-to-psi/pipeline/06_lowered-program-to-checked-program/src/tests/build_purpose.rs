@@ -123,11 +123,11 @@ pub(super) fn frontier_with_core(
 #[test]
 fn bundled_core_imports_keep_the_callers_checked_purpose() {
     let core = &[(
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         "byte_observation",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../source/library/core/byte_observation.omg"
+            "/../../../../../../source/library/core/byte_observation/byte_observation.omg"
         )),
     )];
     let imports = "use omega::language::core::byte_observation; machine importer() {}";

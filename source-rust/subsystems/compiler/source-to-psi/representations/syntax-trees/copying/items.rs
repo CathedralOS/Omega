@@ -7,7 +7,7 @@ use crate::item::{
     DataField, DataMember, DataVariant, DomainAliasDefinition, DomainDefinition,
     GenericConformanceBound, Item, Machine, MachineParameterContract, MathematicalDefinition,
     MathematicalDefinitionBody, MathematicalParameterNode, MathematicalTypeHandle,
-    MathematicalTypeNode, MeasureDefinition, ModuleDeclaration, OperatorDefinition,
+    MathematicalTypeNode, MeasureDefinition,  OperatorDefinition,
     PackageDeclaration, ProofFact, ProofMembershipFact, PropositionBody, PropositionDefinition,
     PropositionParameterSignature, QuotientDefinition, QuotientEquivalenceSelection,
     SatisfiesClause, StateParameterHandle, StateParameterNode, StateSignature, TraitDefinition,
@@ -498,9 +498,6 @@ impl SyntaxCopy<'_> {
                 semantic_clause_token_count: domain.semantic_clause_token_count,
             }),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
-            Item::Module(module) => Item::Module(ModuleDeclaration {
-                path: self.copy_item_identifier_span(other, module.path),
-            }),
             Item::Operator(operator) => {
                 Item::Operator(self.copy_operator_definition(other, operator))
             }

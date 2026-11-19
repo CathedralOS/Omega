@@ -6,7 +6,7 @@ machine issue() -> u64 in Nonzero { 7 }
 machine walk(remaining: u64) -> u64 {
     transition { _ -> next(remaining, 0) }
     machine next(remaining: u64, previous: u64) -> u64 {
-        transition remaining > 0 { true -> again(remaining - 1) false -> (previous) }
+        transition remaining > 0 { true -> again(remaining - 1), false -> (previous) }
     }
     machine again(remaining: u64) -> u64 {
         let value: u64 in Nonzero = issue();
@@ -16,6 +16,6 @@ machine walk(remaining: u64) -> u64 {
 }
 machine main() crashes Trap {
     let result: u64 = walk(3);
-    transition result == 6 { true -> {} false -> wrong() }
+    transition result == 6 { true -> {}, false -> wrong() }
     machine wrong() crashes Trap { crash Trap; }
 }

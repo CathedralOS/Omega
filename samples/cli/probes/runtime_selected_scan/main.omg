@@ -19,7 +19,7 @@ requires machine Compare(value: @i32, threshold: i32) -> bool;
         -> Optional<@'input i32>
     requires position <= values.len {
         transition position < values.len {
-            true -> inspect(values, threshold, position)
+            true -> inspect(values, threshold, position),
             false -> Optional::None
         }
     }
@@ -28,7 +28,7 @@ requires machine Compare(value: @i32, threshold: i32) -> bool;
         -> Optional<@'input i32>
     requires position < values.len {
         transition Compare(@values[position], threshold) {
-            true -> Optional::Some { value: @values[position] }
+            true -> Optional::Some { value: @values[position] },
             false -> next(values, threshold, position + 1)
         }
     }
@@ -36,13 +36,13 @@ requires machine Compare(value: @i32, threshold: i32) -> bool;
 
 AtLeast satisfies Scan<i32> {
     machine first(values: @[i32], threshold: i32) -> Optional<@i32> {
-        search<at_least>(values, threshold)
+        search::<at_least>(values, threshold)
     }
 }
 
 Below satisfies Scan<i32> {
     machine first(values: @[i32], threshold: i32) -> Optional<@i32> {
-        search<below>(values, threshold)
+        search::<below>(values, threshold)
     }
 }
 
@@ -54,7 +54,7 @@ machine scan<'input>(selected: dyn Scan<i32>, values: @'input [i32], threshold: 
 
 machine observed(found: Optional<@i32>) -> i32 {
     transition found {
-        Optional::Some { value } -> (value)
+        Optional::Some { value } -> (value),
         Optional::None -> -100
     }
 }
@@ -71,7 +71,7 @@ machine main() crashes Trap {
     transition observed(high) == 7 && observed(low) == -3
         && observed(empty) == -100 && observed(absent) == -100
         && observed(suffix) == -1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

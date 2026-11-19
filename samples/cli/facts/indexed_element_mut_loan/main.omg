@@ -22,7 +22,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let from_index: u64 = 1;
     bump(@mut rooms[from_index]);
     transition rooms[0].exit_count == 0 && rooms[1].exit_count == 11 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

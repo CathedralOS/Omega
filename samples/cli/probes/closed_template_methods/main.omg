@@ -14,10 +14,10 @@
 use first;
 use second;
 
-machine read_first(value: @first::Envelope<u64>) -> u64 { first::Envelope::read<u64>(value) }
-machine read_second(value: @second::Envelope<u64>) -> u64 { second::Envelope::read<u64>(value) }
-machine read_again(value: @first::Envelope<u64>) -> u64 { first::Envelope::read<u64>(value) }
-machine read_boolean(value: @first::Envelope<bool>) -> bool { first::Envelope::read<bool>(value) }
+machine read_first(value: @first::Envelope<u64>) -> u64 { first::Envelope::read::<u64>(value) }
+machine read_second(value: @second::Envelope<u64>) -> u64 { second::Envelope::read::<u64>(value) }
+machine read_again(value: @first::Envelope<u64>) -> u64 { first::Envelope::read::<u64>(value) }
+machine read_boolean(value: @first::Envelope<bool>) -> bool { first::Envelope::read::<bool>(value) }
 
 data Main {
     hits: i32 in Wrapping;
@@ -30,7 +30,7 @@ machine Main::main(main: @mut Main) {
     let flag: first::Envelope<bool> = first::Envelope { value: true };
     transition read_first(@one) == 7 && read_second(@two) == 9
         && read_again(@one) == 7 && read_boolean(@flag) {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

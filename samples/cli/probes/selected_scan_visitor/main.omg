@@ -9,7 +9,7 @@ trait Visitor<Output> {
 
 machine append<'storage>(output: @mut Matches<'storage>, value: i32) -> bool {
     transition output.count < output.values.len {
-        true -> store(output, value)
+        true -> store(output, value),
         false -> false
     }
     machine store(output: @mut Matches<'storage>, value: i32) -> bool
@@ -37,14 +37,14 @@ machine scan<'storage>(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], o
     machine next(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>, position: u64) -> u64
     requires position <= input.len {
         transition position < input.len {
-            true -> inspect(visitor, input, output, position)
+            true -> inspect(visitor, input, output, position),
             false -> output.count
         }
     }
     machine inspect(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], output: @mut Matches<'storage>, position: u64) -> u64
     requires position < input.len {
         transition input[position] > 0 {
-            true -> emit(visitor, input, output, position)
+            true -> emit(visitor, input, output, position),
             false -> next(visitor, input, output, position + 1)
         }
     }
@@ -52,7 +52,7 @@ machine scan<'storage>(visitor: dyn Visitor<Matches<'storage>>, input: @[i32], o
     requires position < input.len {
         let accepted: bool = Visitor::emit(visitor, output, input[position]);
         transition accepted {
-            true -> next(visitor, input, output, position + 1)
+            true -> next(visitor, input, output, position + 1),
             false -> output.count
         }
     }
@@ -75,7 +75,7 @@ machine main() crashes Trap {
     transition count == 2 && exact[0] == 7 && exact[1] == 9 && exact[2] == -1
         && tagged_count == 2 && tagged[0] == 6 && tagged[1] == 8 && tagged[2] == -1
         && short_count == 1 && short[0] == 6 && empty_count == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -16,7 +16,7 @@ requires machine Selected satisfies Handler::call;
 }
 data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
-    let v: i32 = register<chosen>(4);
+    let v: i32 = register::<chosen>(4);
     main.hits = main.hits + (v as i32 in Wrapping);
 }
 

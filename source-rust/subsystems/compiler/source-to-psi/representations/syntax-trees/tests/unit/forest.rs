@@ -5,7 +5,7 @@ use crate::expression::{
 };
 use crate::identifier::Identifier;
 use crate::item::{
-    DataDefinition, Item, Machine, ModuleDeclaration, State, StateHandle, StateSignature,
+    DataDefinition, Item, Machine, PackageDeclaration, State, StateHandle, StateSignature,
     TraitDefinition,
 };
 use crate::snapshot::ItemSnapshot;
@@ -174,18 +174,18 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
 #[test]
 fn adopts_parser_pages_without_remapping_roots() {
     let mut first = SyntaxTrees::new_with_generation(SourceId(10), 1);
-    let first_root = first.push_root_item(Item::Module(ModuleDeclaration::default()));
+    let first_root = first.push_root_item(Item::Package(PackageDeclaration::default()));
     let mut second = SyntaxTrees::new_with_generation(SourceId(20), 2);
-    let second_root = second.push_root_item(Item::Module(ModuleDeclaration::default()));
+    let second_root = second.push_root_item(Item::Package(PackageDeclaration::default()));
 
     first.adopt_page(second);
     assert_eq!(first.root_item_handles(), [first_root, second_root]);
-    assert!(matches!(first.root_item(first_root), Item::Module(_)));
-    assert!(matches!(first.root_item(second_root), Item::Module(_)));
+    assert!(matches!(first.root_item(first_root), Item::Package(_)));
+    assert!(matches!(first.root_item(second_root), Item::Package(_)));
     assert_eq!(first.page_count(), 2);
 
     first.begin_page(3);
-    let generated = first.push_root_item(Item::Module(ModuleDeclaration::default()));
+    let generated = first.push_root_item(Item::Package(PackageDeclaration::default()));
     assert_eq!(generated.generation(), 3);
     assert_eq!(first.page_count(), 3);
 }

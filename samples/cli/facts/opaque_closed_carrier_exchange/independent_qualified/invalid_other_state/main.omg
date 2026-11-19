@@ -17,7 +17,7 @@ machine consume(first: InternetAddress in Classified, second: InternetAddress) -
 machine main() reaches AddressParts, AddressBridge crashes Trap {
  transition { _ -> receive(AddressBridge::make(10, 66051), AddressBridge::make(44048, 513)) }
  machine receive(first: InternetAddress in Classified, second: InternetAddress) {
-  transition consume(first, second) { true -> done() _ -> failed() }
+  transition consume(first, second) { true -> done(), _ -> failed() }
  }
  machine done() {}
  machine failed() { crash Trap; }

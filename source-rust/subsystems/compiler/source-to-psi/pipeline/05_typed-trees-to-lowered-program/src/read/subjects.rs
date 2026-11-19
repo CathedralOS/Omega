@@ -114,7 +114,7 @@ impl Program<'_> {
     /// package declares it. A selected machine is read like an entry and a
     /// selected data type is resolved as a record.
     ///
-    /// A native binding (`Build::bind<Host::tick>(builder, target, locator)`)
+    /// A native binding (`Build::bind::<Host::tick>(builder, target, locator)`)
     /// claims the requirement it names and the boundary trait that declares
     /// it. The binding says where the requirement is found; neither has a
     /// body to judge. The requirement is read as the boundary it is, by the

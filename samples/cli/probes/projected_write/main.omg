@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     main.pair.right.value = 29;
     forward(@mut main.pair, -43);
     transition main.pair.left.value == 17 && main.pair.right.value == -43 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
 

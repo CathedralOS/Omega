@@ -17,29 +17,29 @@ data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(@mut main.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> command(main, count)
-        LineReadResult::EndOfInput { count } -> end(main, count)
+        LineReadResult::LineComplete { count } -> command(main, count),
+        LineReadResult::EndOfInput { count } -> end(main, count),
         _ -> malformed(main)
     }
     machine command(main: @mut Main, count: u64) {
         transition count == 2 && main.input[0] == 33 && main.input[1] == 10 {
-            true -> control(main)
+            true -> control(main),
             false -> line(main, count)
         }
     }
     machine control(main: @mut Main) { frozen_numerical_control(); }
     machine line(main: @mut Main, count: u64) {
         transition count == 18 && main.input[17] == 10 {
-            true -> parse(main, 0)
+            true -> parse(main, 0),
             false -> malformed(main)
         }
     }
     machine end(main: @mut Main, count: u64) {
-        transition count == 17 { true -> parse(main, 0) false -> malformed(main) }
+        transition count == 17 { true -> parse(main, 0), false -> malformed(main) }
     }
     machine parse(main: @mut Main, position: u64) {
         transition position < 17 {
-            true -> character(main, position)
+            true -> character(main, position),
             false -> calculate(main)
         }
     }
@@ -47,7 +47,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires position < 17 {
         let byte: u8 = main.input[position];
         transition byte >= 48 && byte <= 57 {
-            true -> store(main, position, byte)
+            true -> store(main, position, byte),
             false -> malformed(main)
         }
     }
@@ -65,10 +65,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         };
         let result: Inference = analyze(@model);
         transition result.status {
-            0 -> success(main, result)
-            1 -> margins(main)
-            2 -> impossible(main)
-            3 -> observation(main)
+            0 -> success(main, result),
+            1 -> margins(main),
+            2 -> impossible(main),
+            3 -> observation(main),
             _ -> invariant(main)
         }
     }

@@ -9,7 +9,7 @@ domain u64::AtLeast73 requires self >= 73u64;
 data Selected [copy] { value: u64 in AtLeast73; }
 machine consume(cell: @Cell) -> u64 {
     let selected: u64 = match cell {
-        Cell::Ready -> cell.value
+        Cell::Ready -> cell.value,
         _ -> 73u64
     };
     let held: Selected = Selected { value: selected };
@@ -21,7 +21,7 @@ machine main() crashes Trap {
     let matched: u64 = consume(@ready);
     let defaulted: u64 = consume(@fallback);
     transition matched == 17u64 && defaulted == 0u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 }

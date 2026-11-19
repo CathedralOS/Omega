@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) reaches Writer crashes Trap {
     Writer::release(returned);
     let value: u64 = buffer.value;
     drop(buffer);
-    transition observed == 73 && value == 73 && original == 37 { true -> done() _ -> bad() }
+    transition observed == 73 && value == 73 && original == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

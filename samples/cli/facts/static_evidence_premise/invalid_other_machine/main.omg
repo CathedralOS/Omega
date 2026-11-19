@@ -38,7 +38,7 @@ requires direct == true
 machine observe(kept: bool) -> bool
 requires kept == true
 {
-    project<NoKept>(kept)
+    project::<NoKept>(kept)
 }
 
 machine relay(kept: bool) -> bool
@@ -51,7 +51,7 @@ machine main() crashes Trap {
     let kept: bool = true;
     let direct: bool = relay(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

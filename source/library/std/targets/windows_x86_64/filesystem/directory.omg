@@ -19,11 +19,11 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let result: IoResult = block windows_filesystem_read_dir_count(path);
     transition result {
-        IoResult::Error { kind } -> (EmptyResult::Error { kind: kind })
+        IoResult::Error { kind } -> (EmptyResult::Error { kind: kind }),
         IoResult::Ok { count } -> count(count)
     }
     machine count(count: u64) -> EmptyResult {
-        transition count == 0 { true -> EmptyResult::Empty false -> EmptyResult::NonEmpty }
+        transition count == 0 { true -> EmptyResult::Empty, false -> EmptyResult::NonEmpty }
     }
 }
 
@@ -35,8 +35,8 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 {
     let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
     transition result {
-        WindowsDirectoryEntryResult::Error { code } -> (DirEntryResult::Error { kind: windows_filesystem_error(code) })
-        WindowsDirectoryEntryResult::End -> DirEntryResult::End
+        WindowsDirectoryEntryResult::Error { code } -> (DirEntryResult::Error { kind: windows_filesystem_error(code) }),
+        WindowsDirectoryEntryResult::End -> DirEntryResult::End,
         WindowsDirectoryEntryResult::Entry { entry } -> selected(entry)
     }
     machine selected(record: WindowsDirectoryEntry) -> DirEntryResult {
@@ -46,7 +46,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
                 name_len: record.name_len,
                 is_dir: (record.attributes & 1040) == 16,
                 is_file: (record.attributes & 1040) == 0
-            } })
+            } }),
             false -> (DirEntryResult::Error { kind: ErrorKind::Other })
         }
     }

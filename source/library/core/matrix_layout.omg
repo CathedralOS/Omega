@@ -26,13 +26,13 @@ public data ReadResult [copy] { case Invalid; case Ok(value: i32); }
 
 public machine try_offset(layout: @Layout2, backing_length: u64, row: u64, column: u64) -> IndexResult {
     transition row < layout.rows && column < layout.columns && layout.origin < backing_length {
-        true -> row_capacity(layout, backing_length, row, column)
+        true -> row_capacity(layout, backing_length, row, column),
         false -> IndexResult::Invalid
     }
     machine row_capacity(layout: @Layout2, backing_length: u64, row: u64, column: u64) -> IndexResult {
         let available: u64 in Wrapping = (backing_length as u64 in Wrapping) - 1 - (layout.origin as u64 in Wrapping);
         transition layout.row_stride > 0 {
-            true -> row_limit(layout, row, column, available as u64)
+            true -> row_limit(layout, row, column, available as u64),
             false -> column_capacity(layout, column, layout.origin, available as u64)
         }
     }
@@ -40,7 +40,7 @@ public machine try_offset(layout: @Layout2, backing_length: u64, row: u64, colum
     requires layout.row_stride > 0 {
         let limit: u64 = available / layout.row_stride;
         transition row <= limit {
-            true -> row_exact(layout, row, column, available)
+            true -> row_exact(layout, row, column, available),
             false -> IndexResult::Invalid
         }
     }
@@ -52,7 +52,7 @@ public machine try_offset(layout: @Layout2, backing_length: u64, row: u64, colum
     }
     machine column_capacity(layout: @Layout2, column: u64, start: u64, available: u64) -> IndexResult {
         transition layout.column_stride > 0 {
-            true -> column_limit(layout, column, start, available)
+            true -> column_limit(layout, column, start, available),
             false -> IndexResult::Ok { index: start }
         }
     }
@@ -60,7 +60,7 @@ public machine try_offset(layout: @Layout2, backing_length: u64, row: u64, colum
     requires layout.column_stride > 0 {
         let limit: u64 = available / layout.column_stride;
         transition column <= limit {
-            true -> emit(layout, column, start)
+            true -> emit(layout, column, start),
             false -> IndexResult::Invalid
         }
     }
@@ -72,14 +72,14 @@ public machine try_offset(layout: @Layout2, backing_length: u64, row: u64, colum
 
 public machine valid_readonly(layout: @Layout2, backing_length: u64) -> bool {
     transition layout.rows == 0 || layout.columns == 0 {
-        true -> (layout.origin <= backing_length)
+        true -> (layout.origin <= backing_length),
         false -> nonempty(layout, backing_length)
     }
     machine nonempty(layout: @Layout2, backing_length: u64) -> bool {
         let row: u64 in Wrapping = (layout.rows as u64 in Wrapping) - 1;
         let column: u64 in Wrapping = (layout.columns as u64 in Wrapping) - 1;
         let selected: IndexResult = try_offset(layout, backing_length, row as u64, column as u64);
-        transition selected { IndexResult::Ok { index } -> true IndexResult::Invalid -> false }
+        transition selected { IndexResult::Ok { index } -> true, IndexResult::Invalid -> false }
     }
 }
 
@@ -87,7 +87,7 @@ machine greatest_common_divisor(left: u64, right: u64) -> u64
 terminates by right -> Nat::Descending
 {
     transition right > 0 {
-        true -> greatest_common_divisor(right, left % right)
+        true -> greatest_common_divisor(right, left % right),
         false -> left
     }
 }
@@ -95,31 +95,31 @@ terminates by right -> Nat::Descending
 public machine valid_mutable(layout: @Layout2, backing_length: u64) -> bool {
     let bounded: bool = valid_readonly(layout, backing_length);
     transition bounded {
-        true -> injective(layout)
+        true -> injective(layout),
         false -> false
     }
     machine injective(layout: @Layout2) -> bool {
         transition layout.rows == 0 || layout.columns == 0 {
-            true -> true
+            true -> true,
             false -> strides(layout)
         }
     }
     machine strides(layout: @Layout2) -> bool {
         transition (layout.rows > 1 && layout.row_stride == 0) || (layout.columns > 1 && layout.column_stride == 0) {
-            true -> false
+            true -> false,
             false -> axes(layout)
         }
     }
     machine axes(layout: @Layout2) -> bool {
         transition layout.rows <= 1 || layout.columns <= 1 {
-            true -> true
+            true -> true,
             false -> collision(layout)
         }
     }
     machine collision(layout: @Layout2) -> bool {
         let divisor: u64 = greatest_common_divisor(layout.row_stride, layout.column_stride);
         transition divisor > 0 {
-            true -> compare(layout, divisor)
+            true -> compare(layout, divisor),
             false -> false
         }
     }
@@ -143,16 +143,16 @@ requires index < backing.len {
 public machine try_read(backing: @[i32], layout: @Layout2, row: u64, column: u64) -> ReadResult {
     let admitted: bool = valid_readonly(layout, backing.len);
     transition admitted {
-        true -> locate(backing, layout, row, column)
+        true -> locate(backing, layout, row, column),
         false -> ReadResult::Invalid
     }
     machine locate(backing: @[i32], layout: @Layout2, row: u64, column: u64) -> ReadResult {
         let selected: IndexResult = try_offset(layout, backing.len, row, column);
-        transition selected { IndexResult::Ok { index } -> bounded(backing, index) IndexResult::Invalid -> ReadResult::Invalid }
+        transition selected { IndexResult::Ok { index } -> bounded(backing, index), IndexResult::Invalid -> ReadResult::Invalid }
     }
     machine bounded(backing: @[i32], index: u64) -> ReadResult {
         transition index < backing.len {
-            true -> read(backing, index)
+            true -> read(backing, index),
             false -> ReadResult::Invalid
         }
     }
@@ -164,15 +164,15 @@ public machine try_read(backing: @[i32], layout: @Layout2, row: u64, column: u64
 public machine try_write(backing: @mut [i32], layout: @Layout2, row: u64, column: u64, value: i32) -> bool {
     let admitted: bool = valid_mutable(layout, backing.len);
     transition admitted {
-        true -> locate(backing, layout, row, column, value)
+        true -> locate(backing, layout, row, column, value),
         false -> false
     }
     machine locate(backing: @mut [i32], layout: @Layout2, row: u64, column: u64, value: i32) -> bool {
         let selected: IndexResult = try_offset(layout, backing.len, row, column);
-        transition selected { IndexResult::Ok { index } -> bounded(backing, index, value) IndexResult::Invalid -> false }
+        transition selected { IndexResult::Ok { index } -> bounded(backing, index, value), IndexResult::Invalid -> false }
     }
     machine bounded(backing: @mut [i32], index: u64, value: i32) -> bool {
-        transition index < backing.len { true -> store(backing, index, value) false -> false }
+        transition index < backing.len { true -> store(backing, index, value), false -> false }
     }
     machine store(backing: @mut [i32], index: u64, value: i32) -> bool requires index < backing.len {
         backing[index] = value;

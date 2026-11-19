@@ -4,7 +4,7 @@ domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 // Place: another target body. Each of the four hosted targets establishes the scoped instance.
 machine verify(observed: u64 in BelowIndex<4>, flag: bool) crashes Trap {
     transition (flag && (observed as u64) == 3) || (!flag && (observed as u64) == 3) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -16,7 +16,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -24,7 +24,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }

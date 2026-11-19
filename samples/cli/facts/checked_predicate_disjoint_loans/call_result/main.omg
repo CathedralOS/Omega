@@ -17,7 +17,7 @@ machine selected() -> u64 ensures result == 0 { 0 }
 machine main() crashes Trap {
     let mut values: [Cell; 2] = [Cell { value: 1 }, Cell { value: 2 }];
     replace(@mut values[..], selected(), 1);
-    transition values[0].value == 17 && values[1].value == 53 { true -> done() _ -> bad() }
+    transition values[0].value == 17 && values[1].value == 53 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

@@ -7,7 +7,7 @@ crashes Trap
     transition { _ -> next(lowerer, syntax, typing, item, 0 as u64 +Trapping) }
     machine next(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, typing: @Typing, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.parameter_count && lowerer.output.status == ScalarStatus::Complete {
-            true -> parameter(lowerer, syntax, typing, item, offset)
+            true -> parameter(lowerer, syntax, typing, item, offset),
             _ -> done()
         }
     }
@@ -17,7 +17,7 @@ crashes Trap
         let type_handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
         scalar_require_layout(lowerer, syntax, typing, type_handle);
         transition handle < 32768 && lowerer.output.status == ScalarStatus::Complete {
-            true -> layout(lowerer, syntax, typing, item, offset, handle, type_handle)
+            true -> layout(lowerer, syntax, typing, item, offset, handle, type_handle),
             _ -> done()
         }
     }
@@ -25,7 +25,7 @@ crashes Trap
         let layout: ScalarLayout = scalar_layout_at(@lowerer.output, type_handle);
         let copyable: bool = scalar_copyable(syntax, typing, type_handle);
         transition layout.kind == ScalarLayoutKind::Reference || copyable {
-            true -> allocate(lowerer, syntax, typing, item, offset, handle, type_handle, layout)
+            true -> allocate(lowerer, syntax, typing, item, offset, handle, type_handle, layout),
             _ -> unsupported(lowerer)
         }
     }
@@ -44,25 +44,25 @@ crashes Trap
     transition { _ -> next(lowerer, syntax, resolution, typing, item, 0 as u64 +Trapping) }
     machine next(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping) {
         transition lowerer.output.status == ScalarStatus::Complete {
-            true -> remaining(lowerer, syntax, resolution, typing, item, offset)
+            true -> remaining(lowerer, syntax, resolution, typing, item, offset),
             _ -> done()
         }
     }
     machine remaining(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.statement_count {
-            true -> statement(lowerer, syntax, resolution, typing, item, offset)
+            true -> statement(lowerer, syntax, resolution, typing, item, offset),
             _ -> unit_end(lowerer, typing, item)
         }
     }
     machine statement(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping) {
         let statement: Statement = syntax_trees_statement(syntax, item.first_statement + offset);
         transition statement.kind {
-            StatementKind::Let -> local(lowerer, syntax, resolution, typing, item, offset, statement)
-            StatementKind::Assign -> assign(lowerer, syntax, resolution, typing, item, offset, statement)
-            StatementKind::Expression -> discard(lowerer, syntax, resolution, typing, item, offset, statement)
-            StatementKind::Discard -> discard(lowerer, syntax, resolution, typing, item, offset, statement)
-            StatementKind::Tail -> terminal(lowerer, syntax, resolution, typing, item, offset, statement)
-            StatementKind::Transition -> transition_statement(lowerer, syntax, resolution, typing, item, offset, statement)
+            StatementKind::Let -> local(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Assign -> assign(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Expression -> discard(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Discard -> discard(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Tail -> terminal(lowerer, syntax, resolution, typing, item, offset, statement),
+            StatementKind::Transition -> transition_statement(lowerer, syntax, resolution, typing, item, offset, statement),
             _ -> unsupported(lowerer)
         }
     }
@@ -70,7 +70,7 @@ crashes Trap
         let type_handle: u64 in Trapping = reference_type(typing, statement.type_reference);
         scalar_require_layout(lowerer, syntax, typing, type_handle);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> allocate(lowerer, syntax, resolution, typing, item, offset, statement, type_handle)
+            ScalarStatus::Complete -> allocate(lowerer, syntax, resolution, typing, item, offset, statement, type_handle),
             _ -> done()
         }
     }
@@ -80,7 +80,7 @@ crashes Trap
         scalar_bind(lowerer, item.first_statement + offset, storage + 1);
         let address: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::FrameAddress, storage, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition statement.has_value {
-            true -> initialize(lowerer, syntax, resolution, typing, item, offset, statement, layout, address)
+            true -> initialize(lowerer, syntax, resolution, typing, item, offset, statement, layout, address),
             _ -> zero(lowerer, syntax, resolution, typing, item, offset, layout, address)
         }
     }
@@ -92,7 +92,7 @@ crashes Trap
     }
     machine zero(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping, layout: ScalarLayout, address: u64 in Trapping) {
         transition address > 0 && lowerer.output.status == ScalarStatus::Complete {
-            true -> zeroed(lowerer, syntax, resolution, typing, item, offset, layout, address)
+            true -> zeroed(lowerer, syntax, resolution, typing, item, offset, layout, address),
             _ -> done()
         }
     }
@@ -106,7 +106,7 @@ crashes Trap
         scalar_expression(lowerer, syntax, resolution, typing, statement.target, true);
         scalar_expression(lowerer, syntax, resolution, typing, statement.value, false);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> assigned(lowerer, syntax, resolution, typing, item, offset, statement)
+            ScalarStatus::Complete -> assigned(lowerer, syntax, resolution, typing, item, offset, statement),
             _ -> done()
         }
     }
@@ -118,7 +118,7 @@ crashes Trap
         // not retain a descriptor destination in this slice; its pointer
         // must never be stored into the referent's possibly smaller bytes.
         transition row.kind == TypeKind::Reference && target.kind != ExpressionKind::Name {
-            true -> unsupported(lowerer)
+            true -> unsupported(lowerer),
             _ -> transfer(lowerer, syntax, resolution, typing, item, offset, statement)
         }
     }
@@ -136,7 +136,7 @@ crashes Trap
     }
     machine terminal(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping, statement: Statement) {
         transition offset + 1 == item.statement_count {
-            true -> returned(lowerer, syntax, resolution, typing, statement.value)
+            true -> returned(lowerer, syntax, resolution, typing, statement.value),
             _ -> unsupported(lowerer)
         }
     }
@@ -146,7 +146,7 @@ crashes Trap
     }
     machine transition_statement(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, offset: u64 in Trapping, statement: Statement) {
         transition offset + 1 == item.statement_count {
-            true -> arms(lowerer, syntax, resolution, typing, statement)
+            true -> arms(lowerer, syntax, resolution, typing, statement),
             _ -> unsupported(lowerer)
         }
     }
@@ -157,7 +157,7 @@ crashes Trap
         let result: u64 in Trapping = scalar_result_type(typing, item);
         let row: TypeRow = type_table_row(@typing.types, result);
         transition row.kind == TypeKind::Unit {
-            true -> unit(lowerer)
+            true -> unit(lowerer),
             _ -> unsupported(lowerer)
         }
     }
@@ -175,7 +175,7 @@ crashes Trap
     let handle: u64 in Trapping = typing_expression_type(typing, expression);
     let row: TypeRow = type_table_row(@typing.types, handle);
     transition written.kind == ExpressionKind::Name && row.kind == TypeKind::Reference {
-        true -> result(row.inner)
+        true -> result(row.inner),
         _ -> result(handle)
     }
     machine result(handle: u64 in Trapping) -> u64 in Trapping { handle }
@@ -186,14 +186,14 @@ crashes Trap
 {
     let value: u64 in Trapping = scalar_value(lowerer, expression);
     transition value > 0 && lowerer.output.status == ScalarStatus::Complete {
-        true -> returned(lowerer, value)
+        true -> returned(lowerer, value),
         _ -> absent(lowerer)
     }
     machine returned(lowerer: @mut ScalarLowerer, value: u64 in Trapping) {
         let ignored: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::ReturnValue, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
     }
     machine absent(lowerer: @mut ScalarLowerer) {
-        transition lowerer.output.status { ScalarStatus::Complete -> unsupported(lowerer) _ -> done() }
+        transition lowerer.output.status { ScalarStatus::Complete -> unsupported(lowerer), _ -> done() }
     }
     machine unsupported(lowerer: @mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
     machine done() {}
@@ -203,7 +203,7 @@ public machine scalar_patch_branch(lowerer: @mut ScalarLowerer, branch: u64 in T
 crashes Trap
 {
     transition branch > 0 && branch <= lowerer.output.operation_count && branch <= 16384 {
-        true -> patch(lowerer, branch - 1, target)
+        true -> patch(lowerer, branch - 1, target),
         _ -> invalid()
     }
     machine patch(lowerer: @mut ScalarLowerer, index: u64 in Trapping, target: u64 in Trapping) {
@@ -221,7 +221,7 @@ public machine scalar_transition(lowerer: @mut ScalarLowerer, syntax: @SyntaxTre
 crashes Trap
 {
     transition statement.has_value {
-        true -> subject(lowerer, syntax, resolution, typing, statement)
+        true -> subject(lowerer, syntax, resolution, typing, statement),
         _ -> arms(lowerer, syntax, resolution, typing, statement, 0 as u64 +Trapping)
     }
     machine subject(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement) {
@@ -230,36 +230,36 @@ crashes Trap
     }
     machine arms(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping) {
         transition lowerer.output.status == ScalarStatus::Complete {
-            true -> next(lowerer, syntax, resolution, typing, statement, offset)
+            true -> next(lowerer, syntax, resolution, typing, statement, offset),
             _ -> done()
         }
     }
     machine next(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping) {
         transition offset < statement.arm_count {
-            true -> arm(lowerer, syntax, resolution, typing, statement, offset)
+            true -> arm(lowerer, syntax, resolution, typing, statement, offset),
             _ -> unmatched(lowerer)
         }
     }
     machine arm(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping) {
         let arm: TransitionArm = syntax_trees_arm(syntax, statement.first_arm + offset);
         transition arm.kind {
-            ArmPatternKind::Wildcard -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, 0 as u64 +Trapping)
-            ArmPatternKind::Guard -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, false)
-            ArmPatternKind::Literal -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, true)
+            ArmPatternKind::Wildcard -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, 0 as u64 +Trapping),
+            ArmPatternKind::Guard -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, false),
+            ArmPatternKind::Literal -> condition(lowerer, syntax, resolution, typing, statement, offset, arm, true),
             _ -> unsupported(lowerer)
         }
     }
     machine condition(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, arm: TransitionArm, literal: bool) {
         scalar_expression(lowerer, syntax, resolution, typing, arm.pattern, false);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> tested(lowerer, syntax, resolution, typing, statement, offset, arm, literal)
+            ScalarStatus::Complete -> tested(lowerer, syntax, resolution, typing, statement, offset, arm, literal),
             _ -> done()
         }
     }
     machine tested(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, arm: TransitionArm, literal: bool) {
         let value: u64 in Trapping = scalar_value(lowerer, arm.pattern);
         transition literal && statement.has_value {
-            true -> equal(lowerer, syntax, resolution, typing, statement, offset, arm, value)
+            true -> equal(lowerer, syntax, resolution, typing, statement, offset, arm, value),
             _ -> branch(lowerer, syntax, resolution, typing, statement, offset, arm, value)
         }
     }
@@ -270,7 +270,7 @@ crashes Trap
     }
     machine branch(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, arm: TransitionArm, condition: u64 in Trapping) {
         transition condition > 0 && lowerer.output.status == ScalarStatus::Complete {
-            true -> skipped(lowerer, syntax, resolution, typing, statement, offset, arm, condition)
+            true -> skipped(lowerer, syntax, resolution, typing, statement, offset, arm, condition),
             _ -> done()
         }
     }
@@ -280,7 +280,7 @@ crashes Trap
     }
     machine guard(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, arm: TransitionArm, skip: u64 in Trapping) {
         transition arm.has_guard {
-            true -> guarded(lowerer, syntax, resolution, typing, statement, offset, arm, skip)
+            true -> guarded(lowerer, syntax, resolution, typing, statement, offset, arm, skip),
             _ -> target(lowerer, syntax, resolution, typing, statement, offset, arm, skip, 0 as u64 +Trapping)
         }
     }
@@ -288,7 +288,7 @@ crashes Trap
         scalar_expression(lowerer, syntax, resolution, typing, arm.guard, false);
         let value: u64 in Trapping = scalar_value(lowerer, arm.guard);
         transition value > 0 && lowerer.output.status == ScalarStatus::Complete {
-            true -> guard_skip(lowerer, syntax, resolution, typing, statement, offset, arm, skip, value)
+            true -> guard_skip(lowerer, syntax, resolution, typing, statement, offset, arm, skip, value),
             _ -> done()
         }
     }
@@ -298,7 +298,7 @@ crashes Trap
     }
     machine target(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, arm: TransitionArm, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         transition arm.target_kind {
-            ArmTargetKind::Unit -> unit(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip)
+            ArmTargetKind::Unit -> unit(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip),
             _ -> returned(lowerer, syntax, resolution, typing, statement, offset, arm, skip, guard_skip)
         }
     }
@@ -313,7 +313,7 @@ crashes Trap
     }
     machine end_arm(lowerer: @mut ScalarLowerer, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, statement: Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         transition lowerer.output.status == ScalarStatus::Complete {
-            true -> label(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip)
+            true -> label(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip),
             _ -> done()
         }
     }
@@ -335,7 +335,7 @@ machine scalar_optional_branch(lowerer: @mut ScalarLowerer, branch: u64 in Trapp
 crashes Trap
 {
     transition branch > 0 {
-        true -> patch(lowerer, branch, target)
+        true -> patch(lowerer, branch, target),
         _ -> done()
     }
     machine patch(lowerer: @mut ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping) { scalar_patch_branch(lowerer, branch, target); }

@@ -10,7 +10,7 @@ machine probe(count: u64) -> u16 requires count > 0 && count < 4096 {
     }
 }
 machine main() crashes Trap {
-    transition probe(7) == 14 { true -> done() _ -> bad() }
+    transition probe(7) == 14 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

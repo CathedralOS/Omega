@@ -18,7 +18,7 @@ machine leading(text: @[u8; 2] in Utf8) -> Leading {
     }
     machine inspect(text: @[u8; 2] in Utf8) -> Leading {
         transition 0 < text.len {
-            true -> read(text)
+            true -> read(text),
             _ -> (Leading::Empty)
         }
     }
@@ -34,7 +34,7 @@ machine Main::main(main: @mut Main) {
     let text: [u8; 2] in Utf8 = "OK";
     let first: Leading = leading(@text);
     transition first {
-        Leading::Byte { value } -> seen(value)
+        Leading::Byte { value } -> seen(value),
         _ -> miss()
     }
     machine seen(value: u64) { }

@@ -31,12 +31,12 @@ terminates by remaining
 {
     let step: WindowsPathStep = windows_path_step(path, output, input_offset, output_offset);
     transition step.status == 0 && remaining > 0 {
-        true -> windows_path_encode(path, output, step.next_input, step.next_output, remaining - 1)
+        true -> windows_path_encode(path, output, step.next_input, step.next_output, remaining - 1),
         false -> settle(step)
     }
     machine settle(step: WindowsPathStep) -> i64 {
         transition step.status == 1 {
-            true -> (narrow_u64_to_i64_wrapping(step.next_output))
+            true -> (narrow_u64_to_i64_wrapping(step.next_output)),
             false -> (-1)
         }
     }
@@ -44,25 +44,25 @@ terminates by remaining
 
 machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
     transition output_offset < output.len {
-        true -> position(path, output, input_offset, output_offset)
+        true -> position(path, output, input_offset, output_offset),
         false -> bad()
     }
     machine position(path: @[u8], output: @mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
         transition input_offset < path.len {
-            true -> decode(path, output, input_offset, output_offset)
+            true -> decode(path, output, input_offset, output_offset),
             false -> terminate(output, output_offset)
         }
     }
     machine decode(path: @[u8], output: @mut [u16; 4096], input_offset: u64, output_offset: u64) -> WindowsPathStep {
         let character: WindowsPathCharacter = windows_path_character(path, input_offset);
         transition character.valid {
-            true -> emit(output, character, output_offset)
+            true -> emit(output, character, output_offset),
             false -> bad()
         }
     }
     machine emit(output: @mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         transition character.point < 65536 {
-            true -> single(output, character, output_offset)
+            true -> single(output, character, output_offset),
             false -> pair(output, character, output_offset)
         }
     }
@@ -73,7 +73,7 @@ machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u
     machine pair(output: @mut [u16; 4096], character: WindowsPathCharacter, output_offset: u64) -> WindowsPathStep {
         let next_output: u64 = output_offset + 1;
         transition next_output < output.len {
-            true -> emit_pair(output, character, output_offset, next_output)
+            true -> emit_pair(output, character, output_offset, next_output),
             false -> bad()
         }
     }
@@ -95,47 +95,47 @@ machine windows_path_step(path: @[u8], output: @mut [u16; 4096], input_offset: u
 // Decode one scalar. Reject overlong encodings, UTF-16 surrogates, out-of-range
 // scalars and embedded NUL before returning a character to the encoder.
 machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter {
-    transition offset < path.len { true -> lead(path, offset) false -> bad() }
+    transition offset < path.len { true -> lead(path, offset), false -> bad() }
     machine lead(path: @[u8], offset: u64) -> WindowsPathCharacter {
         let first: u8 = path[offset];
         transition first > 0 && first < 128 {
-            true -> valid(widen_u8_to_u32(first), offset + 1)
+            true -> valid(widen_u8_to_u32(first), offset + 1),
             false -> multibyte(path, offset, first)
         }
     }
     machine multibyte(path: @[u8], offset: u64, first: u8) -> WindowsPathCharacter {
         let second_offset: u64 = offset + 1;
         transition first >= 194 && first <= 244 && second_offset < path.len {
-            true -> second(path, first, second_offset)
+            true -> second(path, first, second_offset),
             false -> bad()
         }
     }
     machine second(path: @[u8], first: u8, offset: u64) -> WindowsPathCharacter {
         let second: u8 = path[offset];
         transition second >= 128 && second < 192 {
-            true -> width(path, first, second, offset + 1)
+            true -> width(path, first, second, offset + 1),
             false -> bad()
         }
     }
     machine width(path: @[u8], first: u8, second: u8, next: u64) -> WindowsPathCharacter {
         transition first < 224 {
-            true -> valid((widen_u8_to_u32(first & 31) << 6) | widen_u8_to_u32(second & 63), next)
+            true -> valid((widen_u8_to_u32(first & 31) << 6) | widen_u8_to_u32(second & 63), next),
             false -> third_room(path, first, second, next)
         }
     }
     machine third_room(path: @[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
-        transition offset < path.len { true -> third(path, first, second, offset) false -> bad() }
+        transition offset < path.len { true -> third(path, first, second, offset), false -> bad() }
     }
     machine third(path: @[u8], first: u8, second: u8, offset: u64) -> WindowsPathCharacter {
         let third: u8 = path[offset];
         transition third >= 128 && third < 192 {
-            true -> third_width(path, first, second, third, offset + 1)
+            true -> third_width(path, first, second, third, offset + 1),
             false -> bad()
         }
     }
     machine third_width(path: @[u8], first: u8, second: u8, third: u8, next: u64) -> WindowsPathCharacter {
         transition first < 240 {
-            true -> three(first, second, third, next)
+            true -> three(first, second, third, next),
             false -> fourth_room(path, first, second, third, next)
         }
     }
@@ -143,12 +143,12 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
         let point: u32 = (widen_u8_to_u32(first & 15) << 12)
             | (widen_u8_to_u32(second & 63) << 6) | widen_u8_to_u32(third & 63);
         transition point >= 2048 && (point < 55296 || point > 57343) {
-            true -> valid(point, next)
+            true -> valid(point, next),
             false -> bad()
         }
     }
     machine fourth_room(path: @[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
-        transition offset < path.len { true -> fourth(path, first, second, third, offset) false -> bad() }
+        transition offset < path.len { true -> fourth(path, first, second, third, offset), false -> bad() }
     }
     machine fourth(path: @[u8], first: u8, second: u8, third: u8, offset: u64) -> WindowsPathCharacter {
         let fourth: u8 = path[offset];
@@ -156,7 +156,7 @@ machine windows_path_character(path: @[u8], offset: u64) -> WindowsPathCharacter
             | (widen_u8_to_u32(second & 63) << 12)
             | (widen_u8_to_u32(third & 63) << 6) | widen_u8_to_u32(fourth & 63);
         transition fourth >= 128 && fourth < 192 && point >= 65536 && point <= 1114111 {
-            true -> valid(point, offset + 1)
+            true -> valid(point, offset + 1),
             false -> bad()
         }
     }

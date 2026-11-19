@@ -21,7 +21,7 @@ machine operator_desugars() {
     v /= 4;  // 6
     v %= 4;  // 2
     transition v == 2 {
-        true -> check_bitwise()
+        true -> check_bitwise(),
         _ -> done(71)
     }
 
@@ -29,7 +29,7 @@ machine operator_desugars() {
         let a: i32 = 12;
         let b: i32 = 10;
         transition a & b == 8 && a | b == 14 && a ^ b == 6 {
-            true -> check_unary()
+            true -> check_unary(),
             _ -> done(72)
         }
     }
@@ -38,7 +38,7 @@ machine operator_desugars() {
         let n: i32 = -10;
         let s: u64 = 2u64 << 8;
         transition n == -10 && s == 512 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(73)
         }
     }

@@ -27,7 +27,7 @@ fn build_checks_each_carrier_and_only_emits_it_for_a_value_demand() {
                 r#"
 machine build(builder: @mut Build) {{
     Build::application(builder, "opaque_choice");
-    Build::select_representation<Token, TokenRepresentation>(builder);
+    Build::select_representation::<Token, TokenRepresentation>(builder);
     {binding}
 }}"#
             ),

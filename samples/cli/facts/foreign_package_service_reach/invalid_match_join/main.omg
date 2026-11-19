@@ -7,13 +7,13 @@ public boundary trait CharacterCase {
     machine upper(character: i32) -> i32 reaches Lettering crashes none;
 }
 machine demand(result: bool) crashes Trap {
-    transition result { true -> done() false -> bad() }
+    transition result { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
 machine joined(choice: bool) -> i32 reaches {
     match choice {
-        true -> CharacterCase::upper(103)
+        true -> CharacterCase::upper(103),
         false -> CharacterCase::upper(53)
     }
 }

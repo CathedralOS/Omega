@@ -12,7 +12,7 @@ machine main() crashes Trap {
     Atomic::fence(FenceOrdering::Receive);
     let observed: u32 = cell.value.load(Receive);
     let remaining: u32 = 100 - observed;
-    transition remaining == 59 { true -> done() _ -> bad() }
+    transition remaining == 59 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

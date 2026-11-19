@@ -19,7 +19,7 @@ crashes Trap
 {
     let matches: u64 in Trapping = operator_matches(typer, sources, syntax, resolution, expression, 0, 0);
     transition matches == 1 {
-        true -> select(typer, sources, syntax, resolution, index, expression, 0)
+        true -> select(typer, sources, syntax, resolution, index, expression, 0),
         _ -> unmatched(typer, expression, matches)
     }
 
@@ -34,7 +34,7 @@ crashes Trap
     ) {
         let admits: bool = operator_admits(typer, sources, syntax, resolution, expression, candidate);
         transition admits {
-            true -> selected(typer, syntax, index, expression, candidate)
+            true -> selected(typer, syntax, index, expression, candidate),
             _ -> select(typer, sources, syntax, resolution, index, expression, candidate + 1)
         }
     }
@@ -54,7 +54,7 @@ crashes Trap
 
     machine unmatched(typer: @mut Typer, expression: Expression, matches: u64 in Trapping) {
         transition matches == 0 {
-            true -> reject(typer, expression, TypeDiagnosticCode::OperandMismatch)
+            true -> reject(typer, expression, TypeDiagnosticCode::OperandMismatch),
             _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
         }
     }
@@ -77,7 +77,7 @@ machine operator_matches(
 crashes Trap
 {
     transition candidate < syntax.machine_count {
-        true -> test(typer, sources, syntax, resolution, expression, candidate, count)
+        true -> test(typer, sources, syntax, resolution, expression, candidate, count),
         _ -> result(count)
     }
 
@@ -92,7 +92,7 @@ crashes Trap
     ) -> u64 in Trapping {
         let admits: bool = operator_admits(typer, sources, syntax, resolution, expression, candidate);
         transition admits {
-            true -> next(typer, sources, syntax, resolution, expression, candidate + 1, count + 1)
+            true -> next(typer, sources, syntax, resolution, expression, candidate + 1, count + 1),
             _ -> next(typer, sources, syntax, resolution, expression, candidate + 1, count)
         }
     }
@@ -107,7 +107,7 @@ crashes Trap
         count: u64 in Trapping
     ) -> u64 in Trapping {
         transition candidate < syntax.machine_count {
-            true -> test(typer, sources, syntax, resolution, expression, candidate, count)
+            true -> test(typer, sources, syntax, resolution, expression, candidate, count),
             _ -> result(count)
         }
     }
@@ -132,7 +132,7 @@ crashes Trap
     let item: MachineItem = machine_item(syntax, candidate);
     let token: OperatorToken = operator_token(expression.operator);
     transition item.operator == token && item.parameter_count == 2 && item.generic_parameter_count == 0 {
-        true -> homed(typer, sources, syntax, resolution, expression, candidate, item)
+        true -> homed(typer, sources, syntax, resolution, expression, candidate, item),
         _ -> no()
     }
 
@@ -151,7 +151,7 @@ crashes Trap
         let left_home: bool = homed_operand(typer, home, left_type);
         let right_home: bool = homed_operand(typer, home, right_type);
         transition left_home || right_home {
-            true -> visible(typer, sources, syntax, resolution, expression, candidate, item)
+            true -> visible(typer, sources, syntax, resolution, expression, candidate, item),
             _ -> no()
         }
     }
@@ -170,7 +170,7 @@ crashes Trap
         let declared_unit: u64 in Trapping = item.name.source_span.source.value as u64 in Trapping;
         let own: bool = resolver_same_package(sources, use_unit, declared_unit);
         transition is_public || own {
-            true -> operands(typer, syntax, expression, item)
+            true -> operands(typer, syntax, expression, item),
             _ -> no()
         }
     }
@@ -196,7 +196,7 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);
     transition row.kind == TypeKind::Data {
-        true -> data(home, row.item)
+        true -> data(home, row.item),
         _ -> elsewhere()
     }
 
@@ -222,15 +222,15 @@ crashes Trap
 // operators are builtin).
 public machine operator_token(operator: OperatorKind) -> OperatorToken {
     transition operator {
-        OperatorKind::Add -> chosen(OperatorToken::Add)
-        OperatorKind::Subtract -> chosen(OperatorToken::Subtract)
-        OperatorKind::Multiply -> chosen(OperatorToken::Multiply)
-        OperatorKind::Divide -> chosen(OperatorToken::Divide)
-        OperatorKind::Modulo -> chosen(OperatorToken::Modulo)
-        OperatorKind::Less -> chosen(OperatorToken::Less)
-        OperatorKind::LessEqual -> chosen(OperatorToken::LessEqual)
-        OperatorKind::Greater -> chosen(OperatorToken::Greater)
-        OperatorKind::GreaterEqual -> chosen(OperatorToken::GreaterEqual)
+        OperatorKind::Add -> chosen(OperatorToken::Add),
+        OperatorKind::Subtract -> chosen(OperatorToken::Subtract),
+        OperatorKind::Multiply -> chosen(OperatorToken::Multiply),
+        OperatorKind::Divide -> chosen(OperatorToken::Divide),
+        OperatorKind::Modulo -> chosen(OperatorToken::Modulo),
+        OperatorKind::Less -> chosen(OperatorToken::Less),
+        OperatorKind::LessEqual -> chosen(OperatorToken::LessEqual),
+        OperatorKind::Greater -> chosen(OperatorToken::Greater),
+        OperatorKind::GreaterEqual -> chosen(OperatorToken::GreaterEqual),
         _ -> chosen(OperatorToken::None)
     }
 

@@ -24,7 +24,7 @@ reaches FilesystemMetadataQuery
 }
 
 machine windows_filesystem_extended_path(path: @[u8]) -> bool {
-    transition path.len >= 4 { true -> prefix(path) false -> false }
+    transition path.len >= 4 { true -> prefix(path), false -> false }
     machine prefix(path: @[u8]) -> bool requires path.len >= 4 {
         path[0] == 92 && path[1] == 92 && path[2] == 63 && path[3] == 92
     }
@@ -41,37 +41,37 @@ machine windows_filesystem_separator(path: @[u8], character: u8) -> bool {
 // slicing; malformed roots are left to Windows, never normalized into another
 // path. Ordinary paths accept both separators; extended paths only backslash.
 machine windows_filesystem_root_length(path: @[u8]) -> u64 {
-    transition path.len >= 2 { true -> prefix(path) false -> short(path) }
+    transition path.len >= 2 { true -> prefix(path), false -> short(path) }
     machine short(path: @[u8]) -> u64 {
-        transition path.len == 1 { true -> single(path) false -> 0 }
+        transition path.len == 1 { true -> single(path), false -> 0 }
     }
     machine single(path: @[u8]) -> u64 requires path.len == 1 {
-        transition windows_filesystem_separator(path, path[0]) { true -> 1 false -> 0 }
+        transition windows_filesystem_separator(path, path[0]) { true -> 1, false -> 0 }
     }
     machine prefix(path: @[u8]) -> u64 requires path.len >= 2 {
         let drive: bool = (path[0] >= 65 && path[0] <= 90) || (path[0] >= 97 && path[0] <= 122);
         transition drive && path[1] == 58 {
-            true -> drive(path)
+            true -> drive(path),
             false -> network(path)
         }
     }
     machine drive(path: @[u8]) -> u64 requires path.len >= 2 {
-        transition path.len >= 3 { true -> drive_separator(path) false -> 2 }
+        transition path.len >= 3 { true -> drive_separator(path), false -> 2 }
     }
     machine drive_separator(path: @[u8]) -> u64 requires path.len >= 3 {
-        transition windows_filesystem_separator(path, path[2]) { true -> 3 false -> 2 }
+        transition windows_filesystem_separator(path, path[2]) { true -> 3, false -> 2 }
     }
     machine network(path: @[u8]) -> u64 requires path.len >= 2 {
         transition windows_filesystem_separator(path, path[0]) && windows_filesystem_separator(path, path[1]) {
-            true -> extended(path)
+            true -> extended(path),
             false -> rooted(path)
         }
     }
     machine rooted(path: @[u8]) -> u64 requires path.len >= 2 {
-        transition windows_filesystem_separator(path, path[0]) { true -> 1 false -> 0 }
+        transition windows_filesystem_separator(path, path[0]) { true -> 1, false -> 0 }
     }
     machine extended(path: @[u8]) -> u64 {
-        transition path.len >= 8 { true -> extended_prefix(path) false -> components(path, 2, 2) }
+        transition path.len >= 8 { true -> extended_prefix(path), false -> components(path, 2, 2) }
     }
     machine extended_prefix(path: @[u8]) -> u64 requires path.len >= 8 {
         transition path[2] == 63 && windows_filesystem_separator(path, path[3])
@@ -79,7 +79,7 @@ machine windows_filesystem_root_length(path: @[u8]) -> u64 {
             && (path[5] == 78 || path[5] == 110)
             && (path[6] == 67 || path[6] == 99)
             && windows_filesystem_separator(path, path[7]) {
-            true -> components(path, 8, 2)
+            true -> components(path, 8, 2),
             false -> components(path, 2, 2)
         }
     }
@@ -94,7 +94,7 @@ machine windows_filesystem_root_components(path: @[u8], position: u64, remaining
 terminates by budget
 {
     transition position < path.len && budget > 0 {
-        true -> inspect(path, position, remaining, budget)
+        true -> inspect(path, position, remaining, budget),
         false -> (path.len)
     }
     machine inspect(path: @[u8], position: u64, remaining: u64, budget: u64) -> u64
@@ -102,7 +102,7 @@ terminates by budget
     terminates by budget
     {
         transition windows_filesystem_separator(path, path[position]) {
-            true -> separator(path, position, remaining, budget)
+            true -> separator(path, position, remaining, budget),
             false -> windows_filesystem_root_components(path, position + 1, remaining, budget - 1)
         }
     }
@@ -111,7 +111,7 @@ terminates by budget
     terminates by budget
     {
         transition remaining > 1 {
-            true -> windows_filesystem_root_components(path, position + 1, remaining - 1, budget - 1)
+            true -> windows_filesystem_root_components(path, position + 1, remaining - 1, budget - 1),
             false -> (position + 1)
         }
     }
@@ -150,12 +150,12 @@ reaches FilesystemMetadataQuery
 {
     let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
     transition result {
-        MetadataResult::Ok { meta } -> kind(meta, original)
+        MetadataResult::Ok { meta } -> kind(meta, original),
         MetadataResult::Error { kind } -> (UnitResult::Error { kind: original })
     }
     machine kind(metadata: Metadata, original: ErrorKind) -> UnitResult {
         transition metadata.kind {
-            FileKind::Directory -> UnitResult::Ok
+            FileKind::Directory -> UnitResult::Ok,
             _ -> (UnitResult::Error { kind: original })
         }
     }
@@ -180,12 +180,12 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
 {
     let result: UnitResult = block windows_filesystem_create_dir(path);
     transition result {
-        UnitResult::Ok -> UnitResult::Ok
+        UnitResult::Ok -> UnitResult::Ok,
         UnitResult::Error { kind } -> block failed(path, kind)
     }
     machine failed(path: @[u8] in Path, kind: ErrorKind) -> UnitResult {
         transition kind {
-            ErrorKind::AlreadyExists -> block windows_filesystem_existing_directory(path, kind)
+            ErrorKind::AlreadyExists -> block windows_filesystem_existing_directory(path, kind),
             _ -> (UnitResult::Error { kind: kind })
         }
     }
@@ -196,19 +196,19 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
 {
     let root: u64 = windows_filesystem_root_length(path as -Path);
     transition root < path.len {
-        true -> block walk(path, root)
+        true -> block walk(path, root),
         false -> block root(path)
     }
     machine root(path: @[u8] in Path) -> UnitResult {
         let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
         transition result {
-            MetadataResult::Error { kind } -> (UnitResult::Error { kind: kind })
+            MetadataResult::Error { kind } -> (UnitResult::Error { kind: kind }),
             MetadataResult::Ok { meta } -> root_kind(meta)
         }
     }
     machine root_kind(metadata: Metadata) -> UnitResult {
         transition metadata.kind {
-            FileKind::Directory -> UnitResult::Ok
+            FileKind::Directory -> UnitResult::Ok,
             _ -> (UnitResult::Error { kind: ErrorKind::AlreadyExists })
         }
     }
@@ -227,7 +227,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
     transition { _ -> block walk(path, start) }
     machine walk(path: @[u8] in Path, position: u64) -> UnitResult {
         transition position < path.len {
-            true -> block inspect(path, position)
+            true -> block inspect(path, position),
             false -> block complete(path)
         }
     }
@@ -238,7 +238,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
     requires position < path.len {
         // A builtin index takes an unqualified view (domains.md, "Operands").
         transition position > 0 && windows_filesystem_separator(path as -Path, (path as -Path)[position]) {
-            true -> block create(path, position)
+            true -> block create(path, position),
             false -> block walk(path, position + 1)
         }
     }
@@ -249,7 +249,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
         let prefix: @[u8] = @(path as -Path)[0..position];
         let result: UnitResult = block windows_filesystem_create_dir_existing(prefix as +Path);
         transition result {
-            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind })
+            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind }),
             UnitResult::Ok -> block walk(path, position + 1)
         }
     }

@@ -20,12 +20,12 @@ machine main() crashes Trap {
     let chosen_ref: @i64 = @chosen;
     let spare_ref: @i64 = @spare;
     let joined: @i64 = match choose() {
-        true -> spare_ref
+        true -> spare_ref,
         false -> chosen_ref
     };
     let observed: i64 = read_through(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

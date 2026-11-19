@@ -20,7 +20,7 @@ data Holder<'storage> { carrier: Carrier<'storage>; }
 
 machine transform<'storage>(carrier: Carrier<'storage>) -> Carrier<'storage> {
     transition carrier.marker == 41 {
-        true -> increment(carrier)
+        true -> increment(carrier),
         false -> preserve(carrier)
     }
     machine increment(carrier: Carrier<'storage>) -> Carrier<'storage> {
@@ -48,7 +48,7 @@ machine run<'storage>(main: @mut Main) {
     holder.carrier = transform(holder.carrier);
     let observed: i32 = repair(@mut holder);
     transition observed == 7 && holder.carrier.marker == 42 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

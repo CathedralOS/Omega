@@ -18,7 +18,7 @@ crashes Trap
     parser.declaration_is_public = is_public;
     parser.declaration_is_boundary = is_boundary;
     transition parser.output.definition_count < 256 {
-        true -> keyword(parser, input)
+        true -> keyword(parser, input),
         _ -> reject(parser, input, ParseDiagnosticCode::DefinitionCapacityExceeded)
     }
 
@@ -27,7 +27,7 @@ crashes Trap
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDefinitionName);
         transition parser.output.accepted {
-            true -> named(parser, input)
+            true -> named(parser, input),
             _ -> done()
         }
     }
@@ -37,7 +37,7 @@ crashes Trap
         parser.declaration_name_end = parser.name_end;
         let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
         transition generic {
-            true -> generics(parser, input)
+            true -> generics(parser, input),
             _ -> parameters(parser, input)
         }
     }
@@ -45,7 +45,7 @@ crashes Trap
     machine generics(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         transition parser.output.accepted {
-            true -> parameters(parser, input)
+            true -> parameters(parser, input),
             _ -> done()
         }
     }
@@ -53,7 +53,7 @@ crashes Trap
     machine parameters(parser: @mut Parser, input: @TokenStream) {
         parse_parameters(parser, input);
         transition parser.output.accepted {
-            true -> colon(parser, input)
+            true -> colon(parser, input),
             _ -> done()
         }
     }
@@ -63,7 +63,7 @@ crashes Trap
         parser.declaration_parameter_count = parser.signature_parameter_count;
         expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedDefinitionColon);
         transition parser.output.accepted {
-            true -> result_type(parser, input)
+            true -> result_type(parser, input),
             _ -> done()
         }
     }
@@ -71,7 +71,7 @@ crashes Trap
     machine result_type(parser: @mut Parser, input: @TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDefinitionType);
         transition parser.output.accepted {
-            true -> body(parser, input, parser.type_result)
+            true -> body(parser, input, parser.type_result),
             _ -> done()
         }
     }
@@ -79,7 +79,7 @@ crashes Trap
     // An assumption ends at its signature; a checked definition owes a term.
     machine body(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping) {
         transition parser.declaration_is_boundary {
-            true -> end(parser, input, result, false, 0)
+            true -> end(parser, input, result, false, 0),
             _ -> equals(parser, input, result)
         }
     }
@@ -87,7 +87,7 @@ crashes Trap
     machine equals(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping) {
         expect_punctuation(parser, input, PunctuationKind::Equal, ParseDiagnosticCode::ExpectedDefinitionTerm);
         transition parser.output.accepted {
-            true -> term(parser, input, result)
+            true -> term(parser, input, result),
             _ -> done()
         }
     }
@@ -95,7 +95,7 @@ crashes Trap
     machine term(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedDefinitionTerm, true, true);
         transition parser.output.accepted {
-            true -> end(parser, input, result, true, parser.expression_result)
+            true -> end(parser, input, result, true, parser.expression_result),
             _ -> done()
         }
     }
@@ -103,21 +103,21 @@ crashes Trap
     machine end(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDefinitionEnd);
         transition parser.output.accepted {
-            true -> retain_capacity(parser, input, result, has_term, term)
+            true -> retain_capacity(parser, input, result, has_term, term),
             _ -> done()
         }
     }
 
     machine retain_capacity(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         transition parser.output.definition_count < 256 {
-            true -> root_capacity(parser, input, result, has_term, term)
+            true -> root_capacity(parser, input, result, has_term, term),
             _ -> reject(parser, input, ParseDiagnosticCode::DefinitionCapacityExceeded)
         }
     }
 
     machine root_capacity(parser: @mut Parser, input: @TokenStream, result: u64 in Trapping, has_term: bool, term: u64 in Trapping) {
         transition parser.output.root_count < 4096 {
-            true -> retain(parser, result, has_term, term)
+            true -> retain(parser, result, has_term, term),
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
         }
     }

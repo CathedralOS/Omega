@@ -74,7 +74,7 @@ pub enum DeferredRequest {
     /// A domain whose `access` policy is applied at static arguments
     /// (`access IssuedBy<..>`): no pass resolves those arguments yet.
     AccessPolicyApplication,
-    /// A call that applies static arguments (`relay<u8>(..)`) which typed
+    /// A call that applies static arguments (`relay::<u8>(..)`) which typed
     /// preparation's specialization pass does not bind or does not generate
     /// a machine for yet.
     StaticApplication,

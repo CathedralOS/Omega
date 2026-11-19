@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) {
     let left_result: i32 = left::Provider::emit();
     let right_result: i32 = right::Provider::emit();
     transition left_result == 11 && right_result == 37 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

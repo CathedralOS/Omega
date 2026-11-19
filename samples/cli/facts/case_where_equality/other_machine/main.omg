@@ -10,7 +10,7 @@ data Main { interval: Interval; left_guard: u64; width: u64; right_guard: u64; f
 
 machine inspect(interval: Interval, main: @mut Main) {
     transition interval {
-        Interval::Point { lo, hi } -> take(lo, hi, main)
+        Interval::Point { lo, hi } -> take(lo, hi, main),
         Interval::Empty -> done()
     }
     machine take(lo: u64, hi: u64, main: @mut Main) {
@@ -29,7 +29,7 @@ machine guarded_width(main: @mut Main) crashes Trap {
 
     inspect(main.interval, main);
     transition main.width == 0 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() { }
@@ -42,7 +42,7 @@ machine entry_start() crashes Trap {
     let mut entry_storage: Main = Main { interval: Interval::Empty {}, left_guard: 101, width: 99, right_guard: 107, flag: false };
     run_main(@mut entry_storage);
     transition entry_storage.width == 0 && entry_storage.left_guard == 101 && entry_storage.right_guard == 107 && entry_storage.flag == false {
-        true -> observed()
+        true -> observed(),
         false -> writeback_failed()
     }
     machine observed() {}

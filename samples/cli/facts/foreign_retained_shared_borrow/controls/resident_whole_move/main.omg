@@ -45,7 +45,7 @@ machine run_main(main: @mut Main) reaches Reader crashes Trap {
     Reader::release(capacity_again);
     let value: u64 = moved.value;
     drop(moved);
-    transition observed == 37 && value == 37 { true -> done() _ -> bad() }
+    transition observed == 37 && value == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

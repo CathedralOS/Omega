@@ -45,7 +45,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine hex_loop(main: @mut Main) {
         transition main.i < 16 {
-            true -> block read_byte(main)
+            true -> block read_byte(main),
             _ -> block gutter_start(main)
         }
     }
@@ -62,7 +62,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine hi_digit(main: @mut Main) {
         transition main.hi < 10 {
-            true -> block hi_num(main)
+            true -> block hi_num(main),
             _ -> block hi_alpha(main)
         }
     }
@@ -90,7 +90,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine lo_digit(main: @mut Main) {
         transition main.lo < 10 {
-            true -> block lo_num(main)
+            true -> block lo_num(main),
             _ -> block lo_alpha(main)
         }
     }
@@ -128,7 +128,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine gutter_loop(main: @mut Main) {
         transition main.i < 16 {
-            true -> block read_glyph(main)
+            true -> block read_glyph(main),
             _ -> finish(main)
         }
     }
@@ -137,7 +137,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.b = main.data[main.i];
         main.bw = widen_u8_to_u32(main.b) as u32 in Wrapping;
         transition main.bw >= 32 && main.bw < 127 {
-            true -> keep_glyph(main)
+            true -> keep_glyph(main),
             _ -> dot_glyph(main)
         }
     }

@@ -10,7 +10,7 @@ machine run(main: @mut Main) crashes Trap {
     main.hits = 0;
     let total: i32 = 70 + main.counter.value;
     transition total <= 130 {
-        true -> pass(main)
+        true -> pass(main),
         false -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }
@@ -21,7 +21,7 @@ machine entry_start() crashes Trap {
     replace(@mut entry_storage.counter.value, 60);
     run(@mut entry_storage);
     transition entry_storage.hits == 1 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

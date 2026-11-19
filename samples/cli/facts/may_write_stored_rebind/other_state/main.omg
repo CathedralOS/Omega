@@ -4,7 +4,7 @@
 
 machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -32,7 +32,7 @@ machine main() crashes Trap {
     requires index < 4
     {
         transition (marker as u64) == 1 && chosen == 9 && items[index] == 7 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

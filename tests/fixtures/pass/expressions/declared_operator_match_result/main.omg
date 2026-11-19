@@ -49,7 +49,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let skipped: u64 = select_false();
     let named: u64 = by_name();
     transition selected == 260 && skipped == 1 && named == 260 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 

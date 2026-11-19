@@ -1,2 +1,0 @@
-// Named binary64 operations are static declarations, not members of data.
-module F64;

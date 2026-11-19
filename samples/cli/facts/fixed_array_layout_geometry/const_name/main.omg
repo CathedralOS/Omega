@@ -2,13 +2,13 @@
 // Place: const name. Named constants evaluate size_of and align_of before subtracting.
 // Expected exit: 0
 
-const ARRAY_SIZE: u64 = size_of<[u64; 4]>();
-const ARRAY_ALIGN: u64 = align_of<[u64; 4]>();
+const ARRAY_SIZE: u64 = size_of::<[u64; 4]>();
+const ARRAY_ALIGN: u64 = align_of::<[u64; 4]>();
 
 machine main() crashes Trap {
     let diff: u64 = ARRAY_SIZE - (ARRAY_ALIGN * 4u64);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

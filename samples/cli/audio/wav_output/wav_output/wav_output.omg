@@ -1,0 +1,59 @@
+// One portable byte-file sink over separately selected raw service families.
+// Whole-trait providers are named implementations, not data-owned groups of
+// exact satisfaction edges. The same POSIX body serves all POSIX targets;
+// target defaults choose the implementation and its raw closure, not a source
+// routing value or a different portable reach row.
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::widen_u32_to_i64;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::WindowsFilesystemHost;
+
+public boundary trait WavOutput {
+    machine write_wav(path: @[u8] in Path, bytes: @[u8]) -> i64
+        reaches WavOutput + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+        blocks
+        invokes PosixFilesystemHost
+        invokes WindowsFilesystemHost crashes none;
+}
+
+PosixWavOutput satisfies WavOutput {
+    machine write_wav(path: @[u8] in Path, bytes: @[u8]) -> i64
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes PosixFilesystemHost
+    {
+        let fd: i32 = PosixFilesystemHost::create(path, 420);
+        transition fd >= 0 { true -> write(fd, bytes), _ -> (widen_i32_to_i64(fd)) }
+
+        machine write(fd: i32, bytes: @[u8]) -> i64 {
+            let n: i64 = PosixFilesystemHost::write(fd, bytes);
+            let rc: i32 = PosixFilesystemHost::close(fd);
+            transition { _ -> (n) }
+        }
+    }
+}
+
+WindowsWavOutput satisfies WavOutput {
+    // GENERIC_WRITE, share 0, CREATE_ALWAYS and FILE_ATTRIBUTE_NORMAL.
+    // A failed create reports the same negated Win32 error as the raw family.
+    machine write_wav(path: @[u8] in Path, bytes: @[u8]) -> i64
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    invokes WindowsFilesystemHost
+    {
+        let handle: u64 = block WindowsFilesystemHost::create_file(path, 1073741824, 0, 2, 128);
+        transition handle != 0 { true -> block write(handle, bytes), _ -> failed() }
+
+        machine write(handle: u64, bytes: @[u8]) -> i64 {
+            let n: i64 = block WindowsFilesystemHost::write_file(handle, bytes);
+            let rc: i32 = block WindowsFilesystemHost::close_handle(handle);
+            transition { _ -> (n) }
+        }
+        machine failed() -> i64 {
+            let code: u32 = WindowsFilesystemHost::last_error();
+            transition { _ -> (0 - widen_u32_to_i64(code)) }
+        }
+    }
+}

@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let low: Bound = probe(0);
     let high: Bound = probe(256);
     transition low.value == 0 && high.value == 255 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

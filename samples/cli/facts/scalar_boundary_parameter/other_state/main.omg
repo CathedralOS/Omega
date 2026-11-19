@@ -15,7 +15,7 @@ machine invoke(value: u64 in AtLeast100) -> u64 {
 
 machine main() crashes Trap {
     let difference: u64 = invoke(issue(START));
-    transition difference == 0 { true -> done() _ -> wrong() }
+    transition difference == 0 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

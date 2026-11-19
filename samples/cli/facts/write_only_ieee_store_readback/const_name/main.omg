@@ -9,6 +9,6 @@ machine main() crashes Trap {
     let mut slot: f64;
     store(@write slot);
     let v: f64 = slot;
-    transition v == 0.75 { true -> done() _ -> bad() }
+    transition v == 0.75 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

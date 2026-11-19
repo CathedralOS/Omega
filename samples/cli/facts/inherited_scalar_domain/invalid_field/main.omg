@@ -11,7 +11,7 @@ machine consume(box: Box) -> u64 {
 machine main() crashes Trap {
     let held: Box = Box { held: 9 };
     transition consume(held) == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

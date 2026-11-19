@@ -141,14 +141,14 @@ machine Main::main(main: @mut Main) reaches
     main.hdc = 0;
     let mut window: Window = Gui::window_create(main.cls, main.title, 0x10CF0000, 200, 200, 256, 256);
     main.hwnd = window.window;
-    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
+    transition main.hwnd > 0 { true -> dc(main, window), _ -> bad(main, window) }
     machine dc(main: @mut Main, window: Window) {
         main.hdc = Gui::get_dc(@window, main.hwnd);
         main.frame = 0;
-        transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
+        transition main.hdc > 0 { true -> frame_loop(main, window), _ -> bad(main, window) }
     }
     machine frame_loop(main: @mut Main, window: Window) {
-        transition main.frame < 60 { true -> fill_init(main, window) _ -> finish(main, window) }
+        transition main.frame < 60 { true -> fill_init(main, window), _ -> finish(main, window) }
     }
     // --- fill the framebuffer: one linear pass, an animated diagonal wash ---
     machine fill_init(main: @mut Main, window: Window) {
@@ -156,7 +156,7 @@ machine Main::main(main: @mut Main) reaches
         transition { _ -> fill_loop(main, window) }
     }
     machine fill_loop(main: @mut Main, window: Window) {
-        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window), _ -> present(main, window) }
     }
     machine fill_cell(main: @mut Main, window: Window) {
         // row + col + phase, folded through % 256: i/64 <= 64, i%64 <= 63,
@@ -168,7 +168,7 @@ machine Main::main(main: @mut Main) reaches
         main.px = main.c * 0x00010000;
         main.px = main.px + (0xFF - main.c) * 256;
         main.px = main.px + 64;
-        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window) _ -> bad(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window), _ -> bad(main, window) }
     }
     machine fill_put(main: @mut Main, window: Window) {
         main.pixels[main.i] = main.px;
@@ -178,7 +178,7 @@ machine Main::main(main: @mut Main) reaches
     // --- present: stretch the 64x64 buffer into the 256x256 client area ---
     machine present(main: @mut Main, window: Window) {
         main.copied = Gui::blit(@window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main, window) _ -> bad(main, window) }
+        transition main.copied == 64 { true -> pace(main, window), _ -> bad(main, window) }
     }
     machine pace(main: @mut Main, window: Window) {
         block Clock::sleep(25);
@@ -191,10 +191,10 @@ machine Main::main(main: @mut Main) reaches
     }
     machine pump_loop(main: @mut Main, mut window: Window) {
         main.have = Gui::pump_message(@mut window, @mut main.message, @mut main.close_requested);
-        transition main.have > 0 { true -> pump_handle(main, window) _ -> liveness(main, window) }
+        transition main.have > 0 { true -> pump_handle(main, window), _ -> liveness(main, window) }
     }
     machine pump_handle(main: @mut Main, window: Window) {
-        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
+        transition main.pumped < 16 { true -> pump_next(main, window), _ -> liveness(main, window) }
     }
     machine pump_next(main: @mut Main, window: Window) {
         main.pumped = main.pumped + 1;
@@ -203,24 +203,24 @@ machine Main::main(main: @mut Main) reaches
     // --- liveness: if the window is destroyed, stop blitting into it ---
     machine liveness(main: @mut Main, window: Window) {
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 && !main.close_requested { true -> next_frame(main, window) _ -> bad(main, window) }
+        transition main.alive > 0 && !main.close_requested { true -> next_frame(main, window), _ -> bad(main, window) }
     }
     machine next_frame(main: @mut Main, window: Window) {
         // re-guard so the increment's edge carries the frame bound (the
         // keystone reads the DIRECT incoming edge; frame_loop's guard is
         // several states upstream by now).
-        transition main.frame < 60 { true -> advance(main, window) _ -> finish(main, window) }
+        transition main.frame < 60 { true -> advance(main, window), _ -> finish(main, window) }
     }
     machine advance(main: @mut Main, window: Window) {
         main.frame = main.frame + 1;
         transition { _ -> frame_loop(main, window) }
     }
     machine finish(main: @mut Main, window: Window) {
-        transition main.frame == 60 { true -> complete(main, window) _ -> bad(main, window) }
+        transition main.frame == 60 { true -> complete(main, window), _ -> bad(main, window) }
     }
     machine complete(main: @mut Main, window: Window) {
         let cleaned: bool = Gui::window_destroy(window, main.hdc);
-        transition cleaned { true -> passed(main) _ -> failed(main) }
+        transition cleaned { true -> passed(main), _ -> failed(main) }
     }
     machine passed(main: @mut Main) {
         Console::write_line("PASS: 60 frames blitted (exit 0)");

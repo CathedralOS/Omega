@@ -15,14 +15,14 @@ public boundary trait WindowsDescriptorMode {
     machine set_mode(descriptor: i32, mode: i32) -> i32 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
-    transition result { true -> done() false -> bad() }
+    transition result { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
 
 machine posix_through(choice: bool) crashes Trap {
     let joined: ChosenCell = match choice {
-        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true },
         false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
     };
     demand(joined.branch == choice);
@@ -37,7 +37,7 @@ machine windows_through(choice: bool) crashes Trap {
     let previous_mode: i32 = WindowsDescriptorMode::set_mode(1, 32768);
     demand(previous_mode != -1);
     let joined: ChosenCell = match choice {
-        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true }
+        true -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: true },
         false -> ChosenCell { cell: Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 }, branch: false }
     };
     demand(joined.branch == choice);

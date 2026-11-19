@@ -32,7 +32,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine step(main: @mut Main) {
         transition main.r >= 0 {
-            true -> block proc(main)
+            true -> block proc(main),
             false -> block check(main)
         }
     }
@@ -40,14 +40,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.d = main.digits[main.r] as i32 in Wrapping;
         main.par = (main.r % 2) as i32 in Wrapping;
         transition main.par == 1 {
-            true -> block double_it(main)
+            true -> block double_it(main),
             false -> block accumulate(main)
         }
     }
     machine double_it(main: @mut Main) {
         main.d = main.d * 2;
         transition main.d > 9 {
-            true -> block sub9(main)
+            true -> block sub9(main),
             false -> block accumulate(main)
         }
     }
@@ -60,7 +60,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine accumulate(main: @mut Main) {
         main.sum = main.sum + main.d;
         transition main.r >= 0 {
-            true -> block dec(main)
+            true -> block dec(main),
             false -> block check(main)
         }
     }
@@ -71,7 +71,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check(main: @mut Main) {
         main.par = main.sum % 10;
         transition main.par == 0 {
-            true -> block valid(main)
+            true -> block valid(main),
             false -> block invalid(main)
         }
     }

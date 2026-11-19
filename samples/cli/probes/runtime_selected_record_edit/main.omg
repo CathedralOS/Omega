@@ -49,7 +49,7 @@ machine main() crashes Trap {
         && events[0].identifier == 18446744073709551615
         && events[1].identifier == 31
         && events[2].identifier == 9223372036854775808 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let local_sum: u8 = sum;
     let check: i32 = verify_sum(local_sum);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

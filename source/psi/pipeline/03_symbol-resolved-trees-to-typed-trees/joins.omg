@@ -17,7 +17,7 @@ crashes Trap
 
     machine value(typer: @Typer, syntax: @SyntaxTrees, values: JoinedValues, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < values.count {
-            true -> candidate(typer, syntax, values, offset)
+            true -> candidate(typer, syntax, values, offset),
             _ -> found(0)
         }
     }
@@ -28,7 +28,7 @@ crashes Trap
         let unlanded: bool = typer_unlanded(typer, value_type);
         let never: bool = never_type(typer, value_type);
         transition unlanded || never {
-            true -> value(typer, syntax, values, offset + 1)
+            true -> value(typer, syntax, values, offset + 1),
             _ -> found(value_type)
         }
     }
@@ -46,7 +46,7 @@ crashes Trap
 
     machine value(typer: @mut Typer, syntax: @SyntaxTrees, values: JoinedValues, result_type: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < values.count && typer.output.accepted {
-            true -> admission(typer, syntax, values, result_type, offset)
+            true -> admission(typer, syntax, values, result_type, offset),
             _ -> done()
         }
     }
@@ -55,9 +55,9 @@ crashes Trap
         let handle: u64 in Trapping = joined_value(syntax, values, offset);
         let admission: Admission = typer_admission(typer, syntax, result_type, handle);
         transition admission {
-            Admission::Exact -> value(typer, syntax, values, result_type, offset + 1)
-            Admission::Landed -> adapted(typer, syntax, values, result_type, offset, handle)
-            Admission::SharedReborrow -> adapted(typer, syntax, values, result_type, offset, handle)
+            Admission::Exact -> value(typer, syntax, values, result_type, offset + 1),
+            Admission::Landed -> adapted(typer, syntax, values, result_type, offset, handle),
+            Admission::SharedReborrow -> adapted(typer, syntax, values, result_type, offset, handle),
             _ -> incompatible(typer, syntax, handle, admission)
         }
     }
@@ -77,8 +77,8 @@ crashes Trap
     machine incompatible(typer: @mut Typer, syntax: @SyntaxTrees, handle: u64 in Trapping, admission: Admission) {
         let value: Expression = syntax_trees_expression(syntax, handle);
         transition admission {
-            Admission::OutOfRange -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange)
-            Admission::Fraction -> rejected(typer, value, TypeDiagnosticCode::AnonymousFraction)
+            Admission::OutOfRange -> rejected(typer, value, TypeDiagnosticCode::LiteralOutOfRange),
+            Admission::Fraction -> rejected(typer, value, TypeDiagnosticCode::AnonymousFraction),
             _ -> rejected(typer, value, TypeDiagnosticCode::MismatchedTypes)
         }
     }
@@ -108,7 +108,7 @@ crashes Trap
 
     machine value(typer: @mut Typer, syntax: @SyntaxTrees, values: JoinedValues, choice: u64 in Trapping, shape: u64 in Trapping, offset: u64 in Trapping) -> UnlandedJoin {
         transition offset < values.count {
-            true -> candidate(typer, syntax, values, choice, shape, offset)
+            true -> candidate(typer, syntax, values, choice, shape, offset),
             _ -> finished(typer, syntax, values, shape)
         }
     }
@@ -119,7 +119,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typer.output.types, value_type);
         let value_shape: u64 in Trapping = scalar_or_array(row, value_type, choice);
         transition value_shape == 0 || value_shape == shape {
-            true -> value(typer, syntax, values, choice, shape, offset + 1)
+            true -> value(typer, syntax, values, choice, shape, offset + 1),
             _ -> differing(typer, syntax, values, choice, shape, offset, handle, value_shape)
         }
     }
@@ -135,7 +135,7 @@ crashes Trap
         value_shape: u64 in Trapping
     ) -> UnlandedJoin {
         transition shape == 0 {
-            true -> value(typer, syntax, values, choice, value_shape, offset + 1)
+            true -> value(typer, syntax, values, choice, value_shape, offset + 1),
             _ -> mismatched(handle)
         }
     }
@@ -144,7 +144,7 @@ crashes Trap
         let first: u64 in Trapping = joined_value(syntax, values, 0);
         let first_type: u64 in Trapping = typing_expression_type(@typer.output, first);
         transition shape > 0 {
-            true -> joined(shape)
+            true -> joined(shape),
             _ -> joined(first_type)
         }
     }
@@ -162,10 +162,10 @@ crashes Trap
 // for an anonymous array; zero for `Never`.
 machine scalar_or_array(row: TypeRow, handle: u64 in Trapping, choice: u64 in Trapping) -> u64 in Trapping {
     transition row.kind {
-        TypeKind::AnonymousArray -> shaped(handle)
-        TypeKind::AnonymousInteger -> shaped(choice)
-        TypeKind::AnonymousFloat -> shaped(choice)
-        TypeKind::AnonymousChoice -> shaped(choice)
+        TypeKind::AnonymousArray -> shaped(handle),
+        TypeKind::AnonymousInteger -> shaped(choice),
+        TypeKind::AnonymousFloat -> shaped(choice),
+        TypeKind::AnonymousChoice -> shaped(choice),
         _ -> shaped(0)
     }
 

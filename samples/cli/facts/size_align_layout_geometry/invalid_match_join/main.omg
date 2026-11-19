@@ -7,19 +7,19 @@ data Pair {
 }
 
 machine main() crashes Trap {
-    let s: u64 = size_of<Pair>();
-    let a: u64 = align_of<Pair>();
+    let s: u64 = size_of::<Pair>();
+    let a: u64 = align_of::<Pair>();
     let joined_size: u64 = match s == 16 {
-        true -> s
+        true -> s,
         _ -> s
     };
     let joined_align: u64 = match a == 8 {
-        true -> a
+        true -> a,
         _ -> a
     };
     let diff: u64 = joined_size - (joined_align * 2u64);
     transition diff == 0 && joined_size == 16u64 && joined_align == 8u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -88,44 +88,44 @@ machine render(main: @mut Main) reaches Console + WavOutput + AudioPlayback + Fi
     transition { _ -> block fill(main) }
 
     machine fill(main: @mut Main) {
-        transition main.i >= 0 && main.i < 8000 { true -> block sample(main) _ -> block write_file(main) }
+        transition main.i >= 0 && main.i < 8000 { true -> block sample(main), _ -> block write_file(main) }
     }
     machine sample(main: @mut Main) {
         main.phase = main.phase + 115343;
         main.top = main.phase / 65536;
         main.index = main.top % 32;
         main.byte = match main.index {
-            0 -> 128
-            1 -> 148
-            2 -> 167
-            3 -> 185
-            4 -> 199
-            5 -> 211
-            6 -> 220
-            7 -> 225
-            8 -> 228
-            9 -> 225
-            10 -> 220
-            11 -> 211
-            12 -> 199
-            13 -> 185
-            14 -> 167
-            15 -> 148
-            16 -> 128
-            17 -> 108
-            18 -> 89
-            19 -> 71
-            20 -> 57
-            21 -> 45
-            22 -> 36
-            23 -> 31
-            24 -> 28
-            25 -> 31
-            26 -> 36
-            27 -> 45
-            28 -> 57
-            29 -> 71
-            30 -> 89
+            0 -> 128,
+            1 -> 148,
+            2 -> 167,
+            3 -> 185,
+            4 -> 199,
+            5 -> 211,
+            6 -> 220,
+            7 -> 225,
+            8 -> 228,
+            9 -> 225,
+            10 -> 220,
+            11 -> 211,
+            12 -> 199,
+            13 -> 185,
+            14 -> 167,
+            15 -> 148,
+            16 -> 128,
+            17 -> 108,
+            18 -> 89,
+            19 -> 71,
+            20 -> 57,
+            21 -> 45,
+            22 -> 36,
+            23 -> 31,
+            24 -> 28,
+            25 -> 31,
+            26 -> 36,
+            27 -> 45,
+            28 -> 57,
+            29 -> 71,
+            30 -> 89,
             _ -> 108
         };
         main.buffer[main.i + 44] = main.byte;
@@ -135,11 +135,11 @@ machine render(main: @mut Main) reaches Console + WavOutput + AudioPlayback + Fi
 
     machine write_file(main: @mut Main) {
         main.n = block WavOutput::write_wav("sine_tone.wav", @main.buffer);
-        transition main.n == 8044 { true -> block play_it(main) _ -> bad(main) }
+        transition main.n == 8044 { true -> block play_it(main), _ -> bad(main) }
     }
     machine play_it(main: @mut Main) {
         main.rc = block AudioPlayback::play(@main.buffer[0], 8044, @main.buffer[44], 8000);
-        transition main.rc == 0 { true -> good(main) _ -> play_failed(main) }
+        transition main.rc == 0 { true -> good(main), _ -> play_failed(main) }
     }
     machine good(main: @mut Main) {
         Console::write_line("sine_tone: wrote sine_tone.wav (8000 frames)");
@@ -153,7 +153,7 @@ machine render(main: @mut Main) reaches Console + WavOutput + AudioPlayback + Fi
     machine play_failed(main: @mut Main) {
         Console::write("sine_tone: playback failed (-");
         main.magnitude = 0 - widen_i32_to_i64(main.rc);
-        transition main.magnitude >= 100 { true -> hundreds(main) _ -> tens(main) }
+        transition main.magnitude >= 100 { true -> hundreds(main), _ -> tens(main) }
     }
     machine hundreds(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 100);
@@ -167,7 +167,7 @@ machine render(main: @mut Main) reaches Console + WavOutput + AudioPlayback + Fi
         transition { _ -> ones(main) }
     }
     machine tens(main: @mut Main) {
-        transition main.magnitude >= 10 { true -> tens_print(main) _ -> ones(main) }
+        transition main.magnitude >= 10 { true -> tens_print(main), _ -> ones(main) }
     }
     machine tens_print(main: @mut Main) {
         main.digit = narrow_i64_to_i32_wrapping(48 + main.magnitude / 10);

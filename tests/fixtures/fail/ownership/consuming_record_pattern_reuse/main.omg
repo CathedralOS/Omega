@@ -14,7 +14,7 @@ machine main() crashes Trap {
     let mut counter: Counter = Counter { value: 11u64 };
     dispose(Wrapper { held: Counted { counter: @mut counter } });
     transition number == 29u64 && counter.value == 47u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

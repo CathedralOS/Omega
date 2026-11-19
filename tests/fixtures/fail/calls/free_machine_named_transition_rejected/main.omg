@@ -15,7 +15,7 @@ ensures result == 42u64
 
 machine start() crashes Trap {
     let actual: u64 = Main::main();
-    transition actual == 42u64 { true -> done() _ -> bad() }
+    transition actual == 42u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

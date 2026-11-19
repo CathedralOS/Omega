@@ -23,15 +23,15 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
-        1 -> physical(signature)
-        2 -> semantic(signature)
+        1 -> physical(signature),
+        2 -> semantic(signature),
         _ -> reject()
     }
 
     machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
-                signature.result)
+                signature.result),
             _ -> reject()
         }
     }
@@ -43,7 +43,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
             && initial_stack < signature.shape_count && result < signature.shape_count
         {
             true -> physical_shapes(signature.shapes[initial_stack],
-                signature.shapes[result])
+                signature.shapes[result]),
             _ -> reject()
         }
     }
@@ -54,7 +54,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         transition hosted_entry_integer_shape(@initial_stack, 8)
             && hosted_entry_integer_shape(@result, 4)
         {
-            true -> build_physical()
+            true -> build_physical(),
             _ -> reject()
         }
     }
@@ -76,7 +76,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0],
-                signature.parameters[1])
+                signature.parameters[1]),
             _ -> reject()
         }
     }
@@ -88,7 +88,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
             && image < signature.shape_count && storage < signature.shape_count
         {
             true -> semantic_shapes(signature.shapes[image],
-                signature.shapes[storage], signature)
+                signature.shapes[storage], signature),
             _ -> reject()
         }
     }
@@ -99,7 +99,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         transition hosted_entry_extent_shape(image, @signature)
             && hosted_entry_extent_shape(storage, @signature)
         {
-            true -> build_semantic()
+            true -> build_semantic(),
             _ -> reject()
         }
     }
@@ -123,7 +123,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         plan.call.convention = CallingConvention::SystemVAMD64;
         plan.call.stack_alignment = 16;
         transition supervisor {
-            true -> finish_supervisor(plan)
+            true -> finish_supervisor(plan),
             _ -> finish_call(plan)
         }
     }

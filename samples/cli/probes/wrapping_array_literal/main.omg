@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) {
     let inner: u32 in Wrapping = nested[0][0];
     let member: u32 in Wrapping = holder.values[0];
     transition wrapped == 0 && inner == 1 && member == 2 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

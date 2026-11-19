@@ -179,8 +179,8 @@ fn named_structural_const_arguments_keep_their_closed_receiving_application() {
             "data Sizes {}\nconst Sizes::OTHER: Index = Index { value: 2 };",
         )
         .replace(
-            "close<Indexed<Sizes::SIZE>>();",
-            "close<Indexed<Sizes::OTHER>>();",
+            "close::<Indexed<Sizes::SIZE>>();",
+            "close::<Indexed<Sizes::OTHER>>();",
         );
     let Err(messages) = unbuilt_frontier::staged("named_const_wrong_application", &source) else {
         panic!("the wrong application must fail its requires type equation");

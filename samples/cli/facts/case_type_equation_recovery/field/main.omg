@@ -9,7 +9,7 @@ data Value<T> [copy]
 }
 machine extract<T>(v: Value<T>) -> T {
     match v {
-        Value::Integer { value } -> value
+        Value::Integer { value } -> value,
         Value::Boolean { value } -> value
     }
 }
@@ -27,7 +27,7 @@ machine main() crashes Trap {
     };
     transition number_of(carrier) == 7 && flag_of(carrier) == true
         && number_of(other) == 9 && flag_of(other) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

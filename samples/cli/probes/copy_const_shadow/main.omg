@@ -43,7 +43,7 @@ machine copy_const_shadow() {
     let shadowed: Key = local_key(Key { value: 9 });
     let earlier: Key = later_key(Key { value: 9 });
     transition first.value == 1 && shadowed.value == 9 && earlier.value == 1 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

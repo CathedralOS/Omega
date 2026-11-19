@@ -10,7 +10,7 @@ requires position < windows.len {
 
 machine first(values: @[Cell]) -> u32 {
     transition values.len > 0 {
-        true -> read(values)
+        true -> read(values),
         false -> 0
     }
     machine read(values: @[Cell]) -> u32 requires values.len > 0 { values[0].value }
@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let left: bool = exercise(0);
     let right: bool = exercise(1);
     transition left && right {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

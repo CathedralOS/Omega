@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let local_diff: i8 = diff;
     let check: i32 = verify_diff(local_diff);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

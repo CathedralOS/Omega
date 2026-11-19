@@ -20,7 +20,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 32 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }
@@ -52,7 +52,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line(live(@main.greeting));
 
     transition live(@main.greeting) == "Hello, Ada!" {
-        true -> block ok(main)
+        true -> block ok(main),
         _ -> block mismatch(main)
     }
 

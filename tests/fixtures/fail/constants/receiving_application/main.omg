@@ -11,7 +11,7 @@ machine before_local(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> {
     value
 }
 machine close<Shape>() requires Shape == Indexed<Sizes::SIZE> {}
-machine instantiate() { close<Indexed<Sizes::SIZE>>(); }
+machine instantiate() { close::<Indexed<Sizes::SIZE>>(); }
 
 machine complete() {}
 machine fail() crashes Trap { crash Trap; }
@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let mut item: Indexed<Sizes::SIZE>;
     item.value = 9;
     transition keep(item).value == 9 && before_local(item).value == 9 {
-        true -> complete()
+        true -> complete(),
         _ -> fail()
     }
 }

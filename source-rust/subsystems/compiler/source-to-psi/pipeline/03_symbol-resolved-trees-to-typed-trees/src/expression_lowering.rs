@@ -1971,7 +1971,7 @@ pub(crate) mod expression {
                                 program.child_type_reference(*type_reference),
                             ) {
                                 return Err(Diagnostic::error(format!(
-                                    "`zero_value<{quotient}>()` cannot observe or choose a retained quotient representative: quotient values are opaque and have no compiler-verified canonical representative; use a named lifted operation with its role-correctness contract"
+                                    "`zero_value::<{quotient}>()` cannot observe or choose a retained quotient representative: quotient values are opaque and have no compiler-verified canonical representative; use a named lifted operation with its role-correctness contract"
                                 )));
                             }
                             let exposure = self.source.authored_expression_exposure(expression).unwrap_or(

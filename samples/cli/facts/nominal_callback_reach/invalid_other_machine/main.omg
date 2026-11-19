@@ -25,12 +25,12 @@ requires machine Step satisfies StepContract::step;
 }
 
 machine relay(value: u64) -> u64 {
-    walk<noise>(value)
+    walk::<noise>(value)
 }
 
 machine main() crashes Trap {
     transition relay(35) == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

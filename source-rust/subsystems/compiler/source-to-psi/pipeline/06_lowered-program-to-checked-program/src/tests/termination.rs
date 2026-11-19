@@ -24,7 +24,7 @@ fn count_down(measure: &str, next: &str) -> String {
         "machine count_down(remaining: u64, spare: u64) -> u64\n\
          terminates by {measure} {{\n    \
              transition remaining > 0 {{\n        \
-                 true -> count_down({next}, spare)\n        \
+                 true -> count_down({next}, spare),\n        \
                  false -> spare\n    \
              }}\n\
          }}\n"
@@ -254,7 +254,7 @@ fn a_measure_that_grows_is_rejected() {
          requires level <= 9\n\
          terminates by level {\n    \
              transition level < 9 {\n        \
-                 true -> climb(level + 1)\n        \
+                 true -> climb(level + 1),\n        \
                  false -> 0\n    \
              }\n\
          }\n",
@@ -270,7 +270,7 @@ fn a_promise_holds_over_a_ranked_loop_and_not_over_an_unranked_one() {
         format!(
             "machine count_down(remaining: u64) -> u64{clause} {{\n    \
                  transition remaining > 0 {{\n        \
-                     true -> count_down(remaining - 1)\n        \
+                     true -> count_down(remaining - 1),\n        \
                      false -> 0\n    \
                  }}\n\
              }}\n\
@@ -300,7 +300,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
             "machine spend({header}) -> u64\n\
              terminates by {measure} {{\n    \
                  transition remaining > 0 {{\n        \
-                     true -> spend(remaining - 1, limit)\n        \
+                     true -> spend(remaining - 1, limit),\n        \
                      false -> 0\n    \
                  }}\n\
              }}\n"
@@ -347,7 +347,7 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
              requires depth >= 0\n\
              terminates by depth -> Nat::Descending {\n    \
                  transition depth > 0 {\n        \
-                     true -> sink(depth - 1)\n        \
+                     true -> sink(depth - 1),\n        \
                      false -> 0\n    \
                  }\n\
              }\n"
@@ -360,10 +360,10 @@ fn a_witness_form_the_route_does_not_rank_is_refused_by_name() {
 fn a_joint_measure_checks_both_members_of_a_mutual_call_cycle() {
     let accepted = accepted(
         "machine even(n: u64) -> u64 terminates by n {\n    \
-                 transition n > 0 { true -> odd(n - 1) false -> 0 }\n\
+                 transition n > 0 { true -> odd(n - 1), false -> 0 }\n\
              }\n\
              machine odd(n: u64) -> u64 terminates by n {\n    \
-                 transition n > 0 { true -> even(n - 1) false -> 1 }\n\
+                 transition n > 0 { true -> even(n - 1), false -> 1 }\n\
              }\n",
     );
     let mut relations = 0;
@@ -409,7 +409,7 @@ fn differently_shaped_members_compare_their_own_measures_at_each_call() {
         machine payload(remaining: u64) -> u64
         terminates by remaining {
             transition remaining > 0 {
-                true -> header(0, remaining - 1)
+                true -> header(0, remaining - 1),
                 false -> 0
             }
         }
@@ -431,7 +431,7 @@ fn one_authored_measure_can_decrease_inside_the_helper() {
         terminates by remaining
         {
             transition remaining > 1u64 {
-                true -> step(remaining)
+                true -> step(remaining),
                 false -> 0u64
             }
             machine step(remaining: u64) -> u64
@@ -457,7 +457,7 @@ fn a_declared_measure_reaches_helpers_before_a_returned_budget() {
         terminates by remaining
         {
             transition remaining > 1u64 {
-                true -> prepare(remaining)
+                true -> prepare(remaining),
                 false -> 0u64
             }
             machine prepare(remaining: u64) -> u64
@@ -470,7 +470,7 @@ fn a_declared_measure_reaches_helpers_before_a_returned_budget() {
             requires original > 1u64
             {
                 transition left > 0u64 && left < original {
-                    true -> count(left)
+                    true -> count(left),
                     false -> 0u64
                 }
             }
@@ -495,7 +495,7 @@ fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
         terminates by remaining
         {
             transition remaining > 0 {
-                true -> keep(payload, spare, remaining - 1)
+                true -> keep(payload, spare, remaining - 1),
                 false -> payload
             }
             machine keep(payload: Packet, spare: u64, next: u64) -> Packet {
@@ -542,7 +542,7 @@ fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
     // measure never excuses proving the other arrival's actual binding.
     let joined = program.replace(
         "count(next, spare, payload)",
-        "transition payload.value == 0 { true -> count(next, spare, payload) false -> count(next, spare, payload) }",
+        "transition payload.value == 0 { true -> count(next, spare, payload), false -> count(next, spare, payload) }",
     );
     accepted(&joined);
     let wrong_arrival = joined.replace(
@@ -560,7 +560,7 @@ fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
     // without leaving a value continuation after the recursive transfer.
     let scalar_match = program.replace(
         "count(next, spare, payload)",
-        "match payload.value == 0 { true -> count(next, spare, payload) false -> count(next, spare, payload) }",
+        "match payload.value == 0 { true -> count(next, spare, payload), false -> count(next, spare, payload) }",
     );
     accepted(&scalar_match);
     let case_match = program.replace(
@@ -568,7 +568,7 @@ fn one_authored_measure_follows_actual_bindings_through_owned_record_helpers() {
         "data Choice { case Left; case Right; } data Packet { value: u64; choice: Choice; }",
     ).replace(
         "count(next, spare, payload)",
-        "match payload.choice { Choice::Left -> count(next, spare, payload) Choice::Right -> count(next, spare, payload) }",
+        "match payload.choice { Choice::Left -> count(next, spare, payload), Choice::Right -> count(next, spare, payload) }",
     );
     accepted(&case_match);
     let wrong_case = case_match.replace(
@@ -680,7 +680,7 @@ machine first(schema: Schema, plan: Plan, index: u64, remaining: u64) -> Plan
 requires index < 2 && remaining >= 1 && remaining <= 3
 terminates by remaining {
     transition remaining > 1 {
-        true -> later(schema, plan, index, remaining - 1)
+        true -> later(schema, plan, index, remaining - 1),
         false -> plan
     }
     machine later(schema: Schema, mut plan: Plan, index: u64, remaining: u64) -> Plan
@@ -688,7 +688,7 @@ terminates by remaining {
     terminates by remaining {
         plan.align = bounded(schema.fields[index].align);
         transition index < 1 {
-            true -> first(schema, plan, index + 1, remaining)
+            true -> first(schema, plan, index + 1, remaining),
             false -> plan
         }
     }
@@ -720,7 +720,7 @@ machine first(index: u64, remaining: u64, alignment: u64) -> u64
 requires index <= 32 && remaining >= 1 && remaining <= 33 && alignment >= 1 && alignment <= 16
 terminates by remaining {
     transition index < 32 && remaining > 1 {
-        true -> later(index, remaining - 1, alignment)
+        true -> later(index, remaining - 1, alignment),
         false -> alignment
     }
 }
@@ -772,7 +772,7 @@ machine retry(index: u64, remaining: u64, alignment: u64) -> u64
 requires index <= 32 && remaining >= 1 && remaining <= 33 && alignment >= 1 && alignment <= 16
 terminates by remaining {
     transition remaining > 1 {
-        true -> later(index, remaining - 1, alignment)
+        true -> later(index, remaining - 1, alignment),
         false -> alignment
     }
 }

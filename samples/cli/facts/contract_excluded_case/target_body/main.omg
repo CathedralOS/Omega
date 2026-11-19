@@ -30,7 +30,7 @@ machine probe() -> bool {
 }
 machine main() crashes Trap {
     transition probe() == true {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

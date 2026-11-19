@@ -5,14 +5,14 @@ machine clamp(val: u64) -> u64
     ensures result >= 10u64 && result <= 100u64
 {
     transition val < 10u64 {
-        true -> 10u64
+        true -> 10u64,
         _ -> check_high(val)
     }
     machine check_high(v: u64) -> u64
         requires v >= 10u64
     {
         transition v > 100u64 {
-            true -> 100u64
+            true -> 100u64,
             _ -> v
         }
     }
@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let clamped: u64 = clamp(raw);
     let total: u64 = compute(clamped);
     transition total == 90u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

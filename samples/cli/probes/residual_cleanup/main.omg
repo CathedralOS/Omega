@@ -40,7 +40,7 @@ machine Main::main(main: @mut Main) {
     let a: i32 = consume(first.receipt);
     let b: i32 = consume(second.receipt);
     transition a == 1 && b == 2 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

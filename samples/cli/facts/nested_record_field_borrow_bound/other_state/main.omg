@@ -29,7 +29,7 @@ machine evaluate() -> u64 {
 machine main() crashes Trap {
     let diff: u64 = evaluate();
     transition diff == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

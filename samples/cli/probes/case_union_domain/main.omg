@@ -10,8 +10,8 @@ machine Main::main(main: @mut Main) {
     }
     machine route(main: @mut Main) {
         transition main.cmd {
-            Command::None -> missed(main)
-            Command::Quit -> missed(main)
+            Command::None -> missed(main),
+            Command::Quit -> missed(main),
             Command::Interactive -> matched(main)
         }
     }

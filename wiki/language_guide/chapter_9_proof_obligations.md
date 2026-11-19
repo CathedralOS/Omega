@@ -73,7 +73,7 @@ machine clamp_small(count: u32) -> u32
 requires count >= 10
 {
     transition count < 5 {
-        true -> 0            // cannot happen; the compiler warns
+        true -> 0,            // cannot happen; the compiler warns
         false -> count
     }
 }
@@ -139,7 +139,7 @@ machine countdown(remaining: u32)
 terminates by remaining
 {
     transition remaining == 0 {
-        true -> {}
+        true -> {},
         false -> countdown(remaining - 1)
     }
 }

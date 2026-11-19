@@ -3,7 +3,7 @@
 data Note { value: u8; tag: u64; }
 data Frame { prefix: u64; observed: i32; suffix: u64; }
 machine probe(frame: @Frame, select: bool) -> Note {
-    transition frame.observed >= 0 && frame.observed <= 255 { true -> apply(frame.observed, select) false -> Note { value: 0, tag: 0 } }
+    transition frame.observed >= 0 && frame.observed <= 255 { true -> apply(frame.observed, select), false -> Note { value: 0, tag: 0 } }
     machine apply(value: i32, select: bool) -> Note {
         let result: u8 = value as u8;
         let tag: u64 = match select { true -> 11, false -> 13 };
@@ -17,6 +17,6 @@ machine main() crashes Trap {
     let first: Note = probe(@first_frame, true);
     let second: Note = probe(@second_frame, false);
     let out_of_range: Note = probe(@outside_frame, true);
-    transition out_of_range.value == 0 && out_of_range.tag == 0 && outside_frame.prefix == 31 && outside_frame.suffix == 37 && first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 && first_frame.prefix == 17 && first_frame.suffix == 19 && second_frame.prefix == 23 && second_frame.suffix == 29 { true -> done() false -> bad() }
+    transition out_of_range.value == 0 && out_of_range.tag == 0 && outside_frame.prefix == 31 && outside_frame.suffix == 37 && first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 && first_frame.prefix == 17 && first_frame.suffix == 19 && second_frame.prefix == 23 && second_frame.suffix == 29 { true -> done(), false -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

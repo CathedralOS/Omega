@@ -34,7 +34,7 @@ machine Main::main(main: @mut Main) {
     let { x, y as vertical, z as _ } = main.point;
     let total: i32 = x + vertical;
     transition total == 70 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

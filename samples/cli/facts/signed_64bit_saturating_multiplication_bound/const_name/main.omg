@@ -28,7 +28,7 @@ machine evaluate() -> i64 {
 machine main() crashes Trap {
     let res: i64 = evaluate();
     transition res == 150 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

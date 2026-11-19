@@ -14,7 +14,7 @@ machine main() crashes Trap {
     values[3] = 0;
     let captured: [u16; 4] in ZeroTail = values;
     let answer: u16 = 65535u16 + captured[3];
-    transition answer == 65535u16 { true -> done() false -> bad() }
+    transition answer == 65535u16 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

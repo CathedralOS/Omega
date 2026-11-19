@@ -20,7 +20,7 @@ fn select_home_with_base(
     let mut base_syntax = syntax_trees::SyntaxTrees::default();
     for (position, (path, text)) in units.iter().enumerate() {
         let path = std::path::PathBuf::from(path);
-        let root = path.parent().unwrap().to_path_buf();
+        let root = std::path::PathBuf::from(path.iter().next().unwrap());
         let source = sources
             .add_with_metadata(
                 path,
@@ -134,8 +134,8 @@ fn domain_exposure_operator_home_rejoins_retained_base_domains() {
         select_home_with_base(
             &[
                 (
-                    "app/units.omg",
-                    "module units; public data Item {} public domain Item::Mark;"
+                    "app/units/domain.omg",
+                    "public data Item {} public domain Item::Mark;"
                 ),
                 (
                     "app/main.omg",
@@ -157,7 +157,7 @@ fn domain_exposure_operator_home_accepts_module_and_exact_imports() {
         assert_eq!(
             select_home(
                 &[
-                    ("app/units.omg", "module units; public domain u64::Mark;"),
+                    ("app/units/domain.omg", "public domain u64::Mark;"),
                     ("app/main.omg", &caller),
                 ],
                 None
@@ -174,8 +174,8 @@ fn domain_exposure_operator_home_does_not_borrow_sibling_imports() {
         select_home(
             &[
                 (
-                    "app/units.omg",
-                    "module units; public domain u64::Mark; machine helper() -> u64 { 0 }"
+                    "app/units/domain.omg",
+                    "public domain u64::Mark; machine helper() -> u64 { 0 }"
                 ),
                 ("app/sibling.omg", "use units;"),
                 (
@@ -216,15 +216,20 @@ fn domain_exposure_operator_home_rejects_foreign_unimported_root() {
 #[test]
 fn domain_exposure_operator_home_rejects_competing_visible_domains() {
     let domains = [
-        ("app/one.omg", "module one; public domain u64::Mark;"),
-        ("app/two.omg", "module two; public domain u64::Mark;"),
+        ("app/one/domain.omg", "public domain u64::Mark;"),
+        ("app/two/domain.omg", "public domain u64::Mark;"),
     ];
-    for caller in [
-        "use one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
-        "module one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
+    for (path, caller) in [
+        (
+            "app/main.omg",
+            "use one; use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
+        ),
+        (
+            "app/one/entry.omg",
+            "use two; machine probe(value: u64 in u64::Mark) -> u64 { 0 }",
+        ),
     ] {
-        let error =
-            select_home(&[domains[0], domains[1], ("app/main.omg", caller)], None).unwrap_err();
+        let error = select_home(&[domains[0], domains[1], (path, caller)], None).unwrap_err();
         assert!(
             error.contains("more than one possible domain home"),
             "{caller}: {error}"
@@ -236,8 +241,8 @@ fn domain_exposure_operator_home_rejects_competing_visible_domains() {
                 domains[0],
                 domains[1],
                 (
-                    "app/main.omg",
-                    "module one; machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
+                    "app/one/entry.omg",
+                    "machine probe(value: u64 in u64::Mark) -> u64 { 0 }"
                 ),
             ],
             None
@@ -253,8 +258,8 @@ fn domain_exposure_operator_home_keeps_carrier_identity() {
         select_home(
             &[
                 (
-                    "app/one.omg",
-                    "module one; public data Item {} public domain Item::Mark;"
+                    "app/one/domain.omg",
+                    "public data Item {} public domain Item::Mark;"
                 ),
                 (
                     "app/main.omg",
@@ -273,7 +278,7 @@ fn domain_exposure_explicit_owner_uses_the_same_scope() {
     assert_eq!(
         select_home(
             &[
-                ("app/units.omg", "module units; public domain u64::Mark;"),
+                ("app/units/domain.omg", "public domain u64::Mark;"),
                 (
                     "app/main.omg",
                     "use units; machine probe(value: u64) -> u64 { 0 }"
@@ -287,7 +292,7 @@ fn domain_exposure_explicit_owner_uses_the_same_scope() {
     assert!(
         select_home(
             &[
-                ("foreign/units.omg", "module units; domain u64::Mark;"),
+                ("foreign/units/domain.omg", "domain u64::Mark;"),
                 ("app/main.omg", "machine probe(value: u64) -> u64 { 0 }"),
             ],
             Some("units::u64::Mark::operation")

@@ -244,9 +244,9 @@ fn admit_service_audits(
 
 /*
 Test groups (wiki/spec/build/testing.md#registration-and-discovery). Each
-executed `builder.tests.group<Requirement>()` registers one exact non-boundary
+executed `builder.tests.group::<Requirement>()` registers one exact non-boundary
 trait requirement once; registering it again rejects. Each executed
-`builder.tests.service<Requirement, Slot>()` configures a group the same Build
+`builder.tests.service::<Requirement, Slot>()` configures a group the same Build
 already registered, naming one exact boundary trait at most once per group.
 Groups keep their execution order, which is the roster order. Which slots the
 runner can back is decided by the runner, not here.
@@ -316,7 +316,7 @@ fn admit_test_groups(
                     .ok_or_else(|| {
                         refuse(
                             request,
-                            "test group service names a group this Build has not registered; register it with `builder.tests.group<…>()` first",
+                            "test group service names a group this Build has not registered; register it with `builder.tests.group::<…>()` first",
                         )
                     })?;
                 if group.services.iter().any(|service| service.slot == slot) {

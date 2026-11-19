@@ -11,7 +11,7 @@ public machine valid(value: Envelope, left: u32, right: u32) -> bool
 requires true
 {
     transition value.tickets.len == 2u64 {
-        true -> (value.marker == 7u8 && value.tickets[0u64].number == left && value.tickets[1u64].number == right)
+        true -> (value.marker == 7u8 && value.tickets[0u64].number == left && value.tickets[1u64].number == right),
         false -> false
     }
 }
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let empty: [Ticket] = [];
     let empty_length: u64 = empty.len;
     let empty_ok: bool = valid(Envelope { marker: 7u8, tickets: empty }, 0u32, 0u32) == false;
-    transition first_ok && second_ok && empty_length == 0u64 && empty_ok { true -> done() false -> failed() }
+    transition first_ok && second_ok && empty_length == 0u64 && empty_ok { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

@@ -14,14 +14,14 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures core::Identity<CountedQuantity<Units>>(
+    ensures core::Identity::<CountedQuantity<Units>>(
         Owned::content(old(@region)),
         Owned::content(@result)
     );
 }
 ConservingTransfer satisfies Transfer<Payload> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures core::Identity<CountedQuantity<Units>>(
+    ensures core::Identity::<CountedQuantity<Units>>(
         Owned::content(old(@region)),
         Owned::content(@result)
     )
@@ -40,7 +40,7 @@ machine exercise(select: bool) -> u64 {
 machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
-    transition first == 29 && second == 29 { true -> done() _ -> bad() }
+    transition first == 29 && second == 29 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

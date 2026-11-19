@@ -11,9 +11,9 @@ machine main() crashes Trap {
     let other_storage: Cell = Cell { value: 73 };
     let other: @u32 in Controlled = @other_storage.value;
     let choice: bool = choose();
-    let joined: @u32 in Controlled = match choice { true -> selected false -> other };
+    let joined: @u32 in Controlled = match choice { true -> selected, false -> other };
     let result: u32 = consume(joined);
-    transition result == 73 { true -> done() _ -> bad() }
+    transition result == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -1,0 +1,177 @@
+// One vessel has one lease. An abort retains that lease until explicit recovery;
+// cancellation can never make the vessel available to a competing owner.
+public data Laboratory [copy] {
+    owner: i32;
+    phase: i32;
+    closed: bool;
+    elapsed: i32 in Saturating;
+    completed: i32 in Saturating;
+    aborted: i32 in Saturating;
+}
+
+// Decisions: 0 acquired, 1 loaded, 2 started, 3 advanced, 4 completed,
+// 5 cancelled, 6 recovered, 7 lid changed, 8 conflict, 9 wrong phase,
+// 10 open interlock, 11 timeout, 12 invalid input, 13 emergency interlock.
+public machine apply(laboratory: @mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+    transition argument >= 0 && argument <= 9 {
+        true -> dispatch(laboratory, operation, argument),
+        false -> invalid()
+    }
+    machine dispatch(laboratory: @mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+        transition operation {
+            79 -> lid(laboratory, argument),
+            84 -> tick(laboratory, argument),
+            65 -> acquire(laboratory, argument),
+            76 -> owned(laboratory, operation, argument),
+            83 -> owned(laboratory, operation, argument),
+            70 -> owned(laboratory, operation, argument),
+            67 -> owned(laboratory, operation, argument),
+            82 -> owned(laboratory, operation, argument),
+            _ -> invalid()
+        }
+    }
+    machine acquire(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        transition argument == 1 || argument == 2 {
+            true -> available(laboratory, argument),
+            false -> invalid()
+        }
+    }
+    machine available(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        transition laboratory.owner == 0 {
+            true -> reserve(laboratory, argument),
+            false -> conflict()
+        }
+    }
+    machine reserve(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        laboratory.owner = argument as i32;
+        laboratory.phase = 1;
+        laboratory.elapsed = 0 as +Saturating;
+        transition { _ -> 0 }
+    }
+    machine owned(laboratory: @mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+        transition argument == 1 || argument == 2 {
+            true -> owner_check(laboratory, operation, argument),
+            false -> invalid()
+        }
+    }
+    machine owner_check(laboratory: @mut Laboratory, operation: i32, argument: i32 in Saturating) -> i32 {
+        transition laboratory.owner == argument {
+            true -> action(laboratory, operation),
+            false -> conflict()
+        }
+    }
+    machine action(laboratory: @mut Laboratory, operation: i32) -> i32 {
+        transition operation {
+            76 -> load(laboratory),
+            83 -> start(laboratory),
+            70 -> finish(laboratory),
+            67 -> cancel(laboratory),
+            _ -> recover(laboratory)
+        }
+    }
+    machine load(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.phase == 1 {
+            true -> loaded(laboratory),
+            false -> wrong_phase()
+        }
+    }
+    machine loaded(laboratory: @mut Laboratory) -> i32 {
+        laboratory.phase = 2;
+        transition { _ -> 1 }
+    }
+    machine start(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.phase == 2 {
+            true -> interlock(laboratory),
+            false -> wrong_phase()
+        }
+    }
+    machine interlock(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.closed {
+            true -> running(laboratory),
+            false -> open_interlock()
+        }
+    }
+    machine running(laboratory: @mut Laboratory) -> i32 {
+        laboratory.phase = 3;
+        laboratory.elapsed = 0 as +Saturating;
+        transition { _ -> 2 }
+    }
+    machine finish(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.phase == 3 {
+            true -> completed(laboratory),
+            false -> wrong_phase()
+        }
+    }
+    machine completed(laboratory: @mut Laboratory) -> i32 {
+        laboratory.phase = 5;
+        laboratory.owner = 0;
+        laboratory.completed = laboratory.completed + 1;
+        transition { _ -> 4 }
+    }
+    machine cancel(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.phase >= 1 && laboratory.phase <= 3 {
+            true -> abort(laboratory, 5),
+            false -> wrong_phase()
+        }
+    }
+    machine recover(laboratory: @mut Laboratory) -> i32 {
+        transition laboratory.phase == 4 {
+            true -> recovered(laboratory),
+            false -> wrong_phase()
+        }
+    }
+    machine recovered(laboratory: @mut Laboratory) -> i32 {
+        laboratory.owner = 0;
+        laboratory.phase = 0;
+        laboratory.elapsed = 0 as +Saturating;
+        transition { _ -> 6 }
+    }
+    machine tick(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        transition argument >= 1 && argument <= 9 {
+            true -> ticking(laboratory, argument),
+            false -> invalid()
+        }
+    }
+    machine ticking(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        transition laboratory.phase == 3 {
+            true -> advance(laboratory, argument),
+            false -> wrong_phase()
+        }
+    }
+    machine advance(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        laboratory.elapsed = laboratory.elapsed + argument;
+        transition laboratory.elapsed >= 5 {
+            true -> expire(laboratory),
+            false -> advanced()
+        }
+    }
+    machine expire(laboratory: @mut Laboratory) -> i32 {
+        // Time is clipped at the exact deadline, even for a nine-tick command.
+        laboratory.elapsed = 5 as +Saturating;
+        transition { _ -> abort(laboratory, 11) }
+    }
+    machine lid(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        transition argument == 0 || argument == 1 {
+            true -> set_lid(laboratory, argument),
+            false -> invalid()
+        }
+    }
+    machine set_lid(laboratory: @mut Laboratory, argument: i32 in Saturating) -> i32 {
+        laboratory.closed = argument == 1;
+        transition argument == 0 && laboratory.phase == 3 {
+            true -> abort(laboratory, 13),
+            false -> lid_changed()
+        }
+    }
+    machine abort(laboratory: @mut Laboratory, decision: i32) -> i32 {
+        laboratory.phase = 4;
+        laboratory.aborted = laboratory.aborted + 1;
+        transition { _ -> decision }
+    }
+    machine advanced() -> i32 { 3 }
+    machine lid_changed() -> i32 { 7 }
+    machine conflict() -> i32 { 8 }
+    machine wrong_phase() -> i32 { 9 }
+    machine open_interlock() -> i32 { 10 }
+    machine invalid() -> i32 { 12 }
+}

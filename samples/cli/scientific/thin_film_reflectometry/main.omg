@@ -33,7 +33,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     let layers: Number = block number(@mut application.reader);
     let count: Number = block number(@mut application.reader);
     transition ambient.valid && substrate.valid && layers.valid && count.valid {
-        true -> block options(application, ambient.value, substrate.value, layers.value, count.value)
+        true -> block options(application, ambient.value, substrate.value, layers.value, count.value),
         _ -> invalid(application)
     }
     machine invalid(application: @mut Application) { Console::write_line("ERROR input or domain"); ProcessExit::exit_process(10); }
@@ -41,7 +41,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         let layer_integer: i32 in Saturating = I32::from_f64(layers);
         let count_integer: i32 in Saturating = I32::from_f64(count);
         transition ambient >= 1.0 && ambient <= 4.0 && substrate >= 1.0 && substrate <= 4.0 && layers >= 0.0 && layers <= 8.0 && count >= 1.0 && count <= 32.0 && layers == F64::from_i32(layer_integer as i32) && count == F64::from_i32(count_integer as i32) {
-            true -> block configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping)
+            true -> block configure(application, ambient, substrate, layer_integer as i32 in Wrapping, count_integer as i32 in Wrapping),
             _ -> invalid(application)
         }
     }
@@ -51,13 +51,13 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         transition { _ -> block read_layer(application) }
     }
     machine read_layer(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> block layer_tokens(application) _ -> block start_wavelengths(application) }
+        transition application.index >= 0 && application.index < application.layers && application.index < 8 { true -> block layer_tokens(application), _ -> block start_wavelengths(application) }
     }
     machine layer_tokens(application: @mut Application) {
         let index: Number = block number(@mut application.reader);
         let thickness: Number = block number(@mut application.reader);
         transition index.valid && thickness.valid && index.value >= 1.0 && index.value <= 4.0 && thickness.value >= 0.0 && thickness.value <= 2000.0 {
-            true -> block store_layer(application, index.value, thickness.value)
+            true -> block store_layer(application, index.value, thickness.value),
             _ -> invalid(application)
         }
     }
@@ -68,11 +68,11 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     }
     machine start_wavelengths(application: @mut Application) { application.index = 0; transition { _ -> block read_wavelength(application) } }
     machine read_wavelength(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> block wavelength_token(application) _ -> block finish_input(application) }
+        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> block wavelength_token(application), _ -> block finish_input(application) }
     }
     machine wavelength_token(application: @mut Application) {
         let wavelength: Number = block number(@mut application.reader);
-        transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> block store_wavelength(application, wavelength.value) _ -> invalid(application) }
+        transition wavelength.valid && wavelength.value >= 200.0 && wavelength.value <= 2000.0 { true -> block store_wavelength(application, wavelength.value), _ -> invalid(application) }
     }
     machine store_wavelength(application: @mut Application, wavelength: f64) {
         application.wavelengths[application.index] = wavelength; application.index = application.index + 1;
@@ -80,21 +80,21 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
     }
     machine finish_input(application: @mut Application) {
         let complete: bool = block ended(@mut application.reader);
-        transition complete { true -> initialize(application) _ -> invalid(application) }
+        transition complete { true -> initialize(application), _ -> invalid(application) }
     }
     machine initialize(application: @mut Application) {
         application.index = 0; application.minimum = 2.0; application.minimum_wavelength = 0.0;
         transition { _ -> wavelength(application) }
     }
     machine wavelength(application: @mut Application) {
-        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> identity(application) _ -> done(application) }
+        transition application.index >= 0 && application.index < application.count && application.index < 32 { true -> identity(application), _ -> done(application) }
     }
     machine identity(application: @mut Application) {
         application.a = 1.0; application.b = 0.0; application.c = 0.0; application.d = 1.0; application.layer = 0;
         transition { _ -> multiply(application) }
     }
     machine multiply(application: @mut Application) {
-        transition application.layer >= 0 && application.layer < application.layers && application.layer < 8 { true -> matrix(application) _ -> amplitudes(application) }
+        transition application.layer >= 0 && application.layer < application.layers && application.layer < 8 { true -> matrix(application), _ -> amplitudes(application) }
     }
     machine matrix(application: @mut Application) {
         let index: f64 = application.indices[application.layer];
@@ -114,16 +114,16 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         let numerator_real: f64 = application.ambient * application.a - application.substrate * application.d;
         let numerator_imaginary: f64 = application.ambient * application.substrate * application.b - application.c;
         let denominator: Complex<f64> = Complex { real: denominator_real, imaginary: denominator_imaginary };
-        let reflection: Complex<f64> = quotient<f64, Double>(
+        let reflection: Complex<f64> = quotient::<f64, Double>(
             Complex { real: numerator_real, imaginary: numerator_imaginary }, denominator);
-        let transmission: Complex<f64> = quotient<f64, Double>(
+        let transmission: Complex<f64> = quotient::<f64, Double>(
             Complex { real: 2.0 * application.ambient, imaginary: 0.0 }, denominator);
         let reflection_real: f64 = reflection.real;
         let reflection_imaginary: f64 = reflection.imaginary;
         let transmission_real: f64 = transmission.real;
         let transmission_imaginary: f64 = transmission.imaginary;
-        let reflectance: f64 = norm<f64, Double>(reflection);
-        let transmittance: f64 = application.substrate / application.ambient * norm<f64, Double>(transmission);
+        let reflectance: f64 = norm::<f64, Double>(reflection);
+        let transmittance: f64 = application.substrate / application.ambient * norm::<f64, Double>(transmission);
         field(@mut application.reader, "wavelength_pico_nm=", application.wavelengths[application.index] * 1000000000000.0);
         field(@mut application.reader, "r_real_pico=", reflection_real * 1000000000000.0);
         field(@mut application.reader, "r_imaginary_pico=", reflection_imaginary * 1000000000000.0);
@@ -131,7 +131,7 @@ machine main(application: @mut Application) reaches ProcessExit + Console crashe
         field(@mut application.reader, "t_imaginary_pico=", transmission_imaginary * 1000000000000.0);
         field(@mut application.reader, "R_pico=", reflectance * 1000000000000.0);
         field(@mut application.reader, "T_pico=", transmittance * 1000000000000.0);
-        transition reflectance < application.minimum { true -> minimum(application, reflectance) _ -> next(application) }
+        transition reflectance < application.minimum { true -> minimum(application, reflectance), _ -> next(application) }
     }
     machine minimum(application: @mut Application, reflectance: f64) {
         application.minimum = reflectance; application.minimum_wavelength = application.wavelengths[application.index];

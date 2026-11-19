@@ -8,7 +8,7 @@ data Main { hits: i32; }
 machine Main::main(main: @mut Main) {
     alias_write(@mut main.hits);
     transition main.hits == 1 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() { }

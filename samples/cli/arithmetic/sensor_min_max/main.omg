@@ -60,7 +60,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Loop head: fold readings until every element has been visited.
     machine step(main: @mut Main) {
         transition main.i < 6 {
-            true -> block body(main)
+            true -> block body(main),
             _ -> block done(main)
         }
     }
@@ -80,7 +80,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // `bump` proves `i + 1` cannot overflow -- fully Exact, no domain.
     machine advance(main: @mut Main) {
         transition main.i < 6 {
-            true -> block bump(main)
+            true -> block bump(main),
             _ -> block step(main)
         }
     }

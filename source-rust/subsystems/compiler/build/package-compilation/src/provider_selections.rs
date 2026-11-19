@@ -236,7 +236,7 @@ impl PackageCompilationInputs {
                         .map(|(_, supplied)| supplied)
                         .ok_or_else(|| refuse("retained generated provider source has no handoff for its supplying package and purpose".into()))?
                 };
-                let relative = source.path.strip_prefix(source.package_root.join(".omega/generated"))
+                let relative = source.path.strip_prefix(source.package_root.join(source_admission::GENERATED_SOURCE_DIRECTORY))
                     .map_err(|_| refuse("retained generated provider source is outside its exact generated namespace".into()))?
                     .to_path_buf();
                 let generated = supplying_bundle.generated_source(&[relative])

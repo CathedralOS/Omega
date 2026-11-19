@@ -102,7 +102,7 @@ mod tests {
         ] {
             assert_eq!(
                 SealedIntrinsicCatalog::classify(site(
-                    "byte_observation.omg",
+                    "byte_observation/byte_observation.omg",
                     declaration,
                     crate::bytes(BundledFile::CoreByteObservation),
                 )),
@@ -124,7 +124,7 @@ mod tests {
             edited.push(b' ');
             assert_eq!(
                 SealedIntrinsicCatalog::classify(site(
-                    "byte_observation.omg",
+                    "byte_observation/byte_observation.omg",
                     declaration,
                     &edited,
                 )),
@@ -133,7 +133,7 @@ mod tests {
             let foreign_member = format!("Lookalike::{declaration}");
             assert_eq!(
                 SealedIntrinsicCatalog::classify(site(
-                    "byte_observation.omg",
+                    "byte_observation/byte_observation.omg",
                     &foreign_member,
                     crate::bytes(BundledFile::CoreByteObservation),
                 )),
@@ -142,7 +142,7 @@ mod tests {
         }
         assert_eq!(
             SealedIntrinsicCatalog::classify(site(
-                "byte_observation.omg",
+                "byte_observation/byte_observation.omg",
                 "unknown_predicate",
                 crate::bytes(BundledFile::CoreByteObservation),
             )),

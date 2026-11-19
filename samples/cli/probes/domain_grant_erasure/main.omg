@@ -60,7 +60,7 @@ machine Main::main(main: @mut Main) {
     let plain: Token = issued as Token;
 
     transition forgotten + stripped == 95 && plain.value == 70 {
-        true -> Main::ok(main)
+        true -> Main::ok(main),
         _ -> Main::bad(main)
     }
     machine ok(main: @mut Main) { main.hits = 1; }

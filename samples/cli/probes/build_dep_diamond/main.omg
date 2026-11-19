@@ -4,7 +4,7 @@ machine entry() -> i32 {
     let a: i32 = left();
     let b: i32 = right();
     transition a == b {
-        true -> a
+        true -> a,
         _ -> 0
     }
 }

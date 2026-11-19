@@ -8,7 +8,7 @@ public machine wrapped() -> u32 blocks { block may_wait() }
 machine main() crashes Trap {
     let answer: u32 = block wrapped();
     transition answer == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -156,7 +156,7 @@ public machine wrapped() -> u32 suspends {
 machine main(kept: u32) crashes Trap {
     let answer: u32 = suspend wrapped();
     transition answer == kept {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -328,7 +328,7 @@ fn a_nested_suspend_marker_does_not_gain_a_position_from_argument_lifting() {
 const LOOP: &str = r#"
 public machine again(value: bool) blocks {
     transition value {
-        true -> block again(false)
+        true -> block again(false),
         _ -> done()
     }
     machine done() {}
@@ -578,11 +578,11 @@ fn a_tail_call_keeps_its_conservative_service_interface_too() {
     let text = r#"
         boundary trait Output {}
         machine first(value: bool) reaches none {
-            transition value { true -> second(false) _ -> done() }
+            transition value { true -> second(false), _ -> done() }
             machine done() {}
         }
         public machine second(value: bool) reaches Output {
-            transition value { true -> first(false) _ -> done() }
+            transition value { true -> first(false), _ -> done() }
             machine done() {}
         }
         machine main() { first(true); }
@@ -725,7 +725,7 @@ fn a_tail_call_keeps_its_borrowed_formal_contract() {
         r#"
         machine main(bytes: @[u8], pending: bool) blocks {
             transition pending {
-                true -> block main(bytes, false)
+                true -> block main(bytes, false),
                 false -> done()
             }
             machine done() {}

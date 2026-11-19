@@ -11,7 +11,7 @@ requires selected.len == 1 && replacement.len == 1 {
 machine finish(observed: u8, original: @[u8], replacement: @[u8]) crashes Trap
 requires original.len == 1 && replacement.len == 1 {
     transition observed == 29 && original[0] == 5 && replacement[0] == 29 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

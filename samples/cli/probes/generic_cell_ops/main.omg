@@ -47,7 +47,7 @@ machine Main::main(main: @mut Main) {
     transition Cell::get(@main.integer_cell) == 42
         && Cell::get(@main.boolean_cell)
         && Cell::touch_count(@main.integer_cell) == 2 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

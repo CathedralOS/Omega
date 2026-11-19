@@ -14,7 +14,7 @@ use omega::language::core::narrow_i32_to_u64_trapping;
 machine input_byte() -> i32 reaches Console {
     let observed: ByteRead = block Console::read_byte();
     transition observed {
-        ByteRead::Byte { value } -> present(value)
+        ByteRead::Byte { value } -> present(value),
         ByteRead::Eof -> absent()
     }
     machine present(value: i32) -> i32 { value }
@@ -30,19 +30,19 @@ machine main() reaches ProcessExit + Console {
     transition sites >= 49 && sites <= 56 && activity >= 49 && activity <= 51
         && bond >= 49 && bond <= 51 && (topology == 111 || topology == 114)
         && (ending == 10 || ending == -1) && (topology != 114 || sites >= 51) {
-        true -> block valid(sites, activity, bond, topology, ending)
+        true -> block valid(sites, activity, bond, topology, ending),
         false -> invalid()
     }
     machine valid(sites: i32, activity: i32, bond: i32, topology: i32, ending: i32) {
         transition ending == 10 {
-            true -> block trailing(sites, activity, bond, topology)
+            true -> block trailing(sites, activity, bond, topology),
             false -> calculate(sites, activity, bond, topology)
         }
     }
     machine trailing(sites: i32, activity: i32, bond: i32, topology: i32) {
         let extra: i32 = block input_byte();
         transition extra == -1 {
-            true -> calculate(sites, activity, bond, topology)
+            true -> calculate(sites, activity, bond, topology),
             false -> invalid()
         }
     }
@@ -69,7 +69,7 @@ machine main() reaches ProcessExit + Console {
         decimal(lattice.histogram[occupied] as u64);
         Console::write_line("");
         transition occupied < lattice.sites && occupied + 1 < 9 {
-            true -> row(lattice, occupied + 1)
+            true -> row(lattice, occupied + 1),
             false -> done()
         }
     }

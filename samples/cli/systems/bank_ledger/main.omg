@@ -54,13 +54,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.ledger.balance = sum;
 
     transition main.ledger.balance == 70 {
-        true -> block check_count(main)
+        true -> block check_count(main),
         _ -> block bad_balance(main)
     }
 
     machine check_count(main: @mut Main) {
         transition main.ledger.count == 6 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_count(main)
         }
     }
@@ -92,7 +92,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 machine deposit(main: @mut Main, amount: i32 in Saturating) {
     main.ledger.count = main.ledger.count + 1;
     transition main.ledger.count == 1 {
-        true -> write0(main, amount)
+        true -> write0(main, amount),
         _ -> check2(main, amount)
     }
 
@@ -100,7 +100,7 @@ machine deposit(main: @mut Main, amount: i32 in Saturating) {
 
     machine check2(main: @mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 2 {
-            true -> write1(main, amount)
+            true -> write1(main, amount),
             _ -> check3(main, amount)
         }
     }
@@ -108,7 +108,7 @@ machine deposit(main: @mut Main, amount: i32 in Saturating) {
 
     machine check3(main: @mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 3 {
-            true -> write2(main, amount)
+            true -> write2(main, amount),
             _ -> check4(main, amount)
         }
     }
@@ -116,7 +116,7 @@ machine deposit(main: @mut Main, amount: i32 in Saturating) {
 
     machine check4(main: @mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 4 {
-            true -> write3(main, amount)
+            true -> write3(main, amount),
             _ -> check5(main, amount)
         }
     }
@@ -124,7 +124,7 @@ machine deposit(main: @mut Main, amount: i32 in Saturating) {
 
     machine check5(main: @mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 5 {
-            true -> write4(main, amount)
+            true -> write4(main, amount),
             _ -> check6(main, amount)
         }
     }
@@ -132,7 +132,7 @@ machine deposit(main: @mut Main, amount: i32 in Saturating) {
 
     machine check6(main: @mut Main, amount: i32 in Saturating) {
         transition main.ledger.count == 6 {
-            true -> write5(main, amount)
+            true -> write5(main, amount),
             _ -> done()
         }
     }

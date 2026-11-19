@@ -286,7 +286,7 @@ enum ArgumentsPurpose {
         machine_arguments: Box<[StaticMachineArgument]>,
         context: PostfixContext,
     },
-    /// `Requirement<...>::operation(...)` written as a primary operand.
+    /// `Requirement::<...>::operation(...)` written as a primary operand.
     AppliedRequirement {
         receiver: ExpressionHandle,
         target: Identifier,
@@ -610,6 +610,25 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }
             return Ok(Step::Value(expression, input));
         };
+        // A group starts its own chain. Within this one, a second comparison
+        // needs parentheses even when equality and ordering have different precedences.
+        if kind == ChainKind::Logical
+            && precedence >= 2
+            && let Some(pending) = self.operators[base..].last()
+            && pending.precedence >= 2
+        {
+            let message = if pending.operator == BinaryOperator::Less
+                && operator == BinaryOperator::Greater
+                && input
+                    .take_punctuation(punctuation, ">")?
+                    .at_punctuation(PunctuationKind::LeftParen)
+            {
+                "comparison operators cannot be chained without parentheses; use `name::<T>(...)` for a generic call"
+            } else {
+                "comparison operators cannot be chained without parentheses"
+            };
+            return Err(input.error_here(message));
+        }
         while self.operators.len() > base {
             if self.operators.last().expect("pending operator").precedence < precedence {
                 break;
@@ -674,10 +693,11 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         source_start: SourceSpan,
     ) -> StepResult<'tokens, 'source> {
         loop {
-            if input.at_punctuation(PunctuationKind::Less)
-                && let Some((machine_arguments, rest)) =
-                    try_parse_static_machine_arguments(syntax_trees, input)?
-            {
+            if input.at_expression_arguments() {
+                let (machine_arguments, rest) =
+                    try_parse_static_machine_arguments(syntax_trees, input)?.ok_or_else(|| {
+                        input.error_here("expected explicit generic arguments followed by a call")
+                    })?;
                 let after_open = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
                 return self.begin_arguments(
                     syntax_trees,
@@ -895,6 +915,44 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         }
     }
 
+    /// A bare type application can be a side of an equality. Parentheses may
+    /// enclose that side; a call's arguments or an index start a separate operand.
+    fn is_equality_operand(&self, mut rest: Input<'tokens, 'source>) -> bool {
+        let equality_follows = |input: Input<'_, '_>| {
+            input.at_punctuation(PunctuationKind::EqualEqual)
+                || input.at_punctuation(PunctuationKind::ExclamationEqual)
+        };
+        for frame in self.frames.iter().rev() {
+            if equality_follows(rest) {
+                return true;
+            }
+            match frame {
+                Frame::Chain { base, .. } if self.operators.len() > *base => {
+                    return self.operators.last().is_some_and(|pending| {
+                        matches!(
+                            pending.operator,
+                            BinaryOperator::Equal | BinaryOperator::NotEqual
+                        )
+                    });
+                }
+                Frame::Group if rest.at_punctuation(PunctuationKind::RightParen) => {
+                    rest = rest
+                        .take_punctuation(PunctuationKind::RightParen, ")")
+                        .expect("group closer");
+                }
+                Frame::Arguments(_)
+                | Frame::IndexStart(_)
+                | Frame::IndexEnd { .. }
+                | Frame::ArrayLiteral(_)
+                | Frame::StructLiteral(_)
+                | Frame::Match(_)
+                | Frame::DestructureField(_) => return false,
+                _ => {}
+            }
+        }
+        equality_follows(rest)
+    }
+
     fn primary(
         &mut self,
         syntax_trees: &mut SyntaxTrees,
@@ -975,8 +1033,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
 
         if input.at_contextual("zero_value") {
             let after_name = input.take_contextual("zero_value")?;
-            if after_name.at_punctuation(PunctuationKind::Less) {
-                let after_less = after_name.take_punctuation(PunctuationKind::Less, "<")?;
+            if after_name.at_expression_arguments() {
+                let after_separator =
+                    after_name.take_punctuation(PunctuationKind::ColonColon, "::")?;
+                let after_less = after_separator.take_punctuation(PunctuationKind::Less, "<")?;
                 let (type_reference, rest) = parse_type_reference_handle(syntax_trees, after_less)?;
                 let rest = rest.take_punctuation(PunctuationKind::Greater, ">")?;
                 let rest = rest.take_punctuation(PunctuationKind::LeftParen, "(")?;
@@ -1093,7 +1153,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             if after_spawn.at_punctuation(PunctuationKind::LeftBrace) {
                 return Err(input.error_here(
                     "`spawn { ... }` is retired: start an ordinary named machine through an \
-                 admitted task-runtime capability (`runtime.start<Worker::run>(...)`) and \
+                 admitted task-runtime capability (`runtime.start::<Worker::run>(...)`) and \
                  keep the returned linear `Task<T>`",
                 ));
             }
@@ -1101,9 +1161,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
 
         if input.at_name_like() {
             let start = input;
-            if let Some((path, rest)) =
-                try_uninvoked_application(syntax_trees, start, context.allows_type_expression())
-            {
+            if let Some((path, rest)) = try_uninvoked_application(syntax_trees, start) {
                 let expression = syntax_trees.expressions.insert(path);
                 syntax_trees
                     .expressions
@@ -1145,8 +1203,12 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
 
             if context.allows_type_expression()
                 && input.at_punctuation(PunctuationKind::Less)
-                && let Some((type_reference, rest)) =
-                    try_generic_type_operand(syntax_trees, start, !context.allows_struct_literal())
+                && let Some((type_reference, rest)) = try_generic_type_operand(
+                    syntax_trees,
+                    start,
+                    !context.allows_struct_literal(),
+                    |rest| self.is_equality_operand(rest),
+                )
             {
                 let expression = syntax_trees
                     .expressions
@@ -1469,12 +1531,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             value,
             source_span: arm_start.source_span_until(rest),
         });
-        let input = if rest.at_punctuation(PunctuationKind::Comma) {
-            rest.take_punctuation(PunctuationKind::Comma, ",")?
-        } else {
-            rest
-        };
-        self.match_arms(syntax_trees, state, input)
+        self.match_arms(syntax_trees, state, rest.after_dispatch_arm()?)
     }
 
     /// The fields of a destructure pattern after its `{`: `member`,

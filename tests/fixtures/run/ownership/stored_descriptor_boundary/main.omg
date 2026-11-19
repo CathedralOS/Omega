@@ -13,7 +13,7 @@ machine main() reaches Probe crashes Trap {
     let mut backing: [u8; 2] = [41u8, 19u8];
     let mut window: @mut [u8] = @mut backing[..];
     Probe::retained(@mut window);
-    transition selected == 7 && window.len == 2u64 { true -> done() false -> wrong() }
+    transition selected == 7 && window.len == 2u64 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() crashes Trap { crash Trap; }
 }

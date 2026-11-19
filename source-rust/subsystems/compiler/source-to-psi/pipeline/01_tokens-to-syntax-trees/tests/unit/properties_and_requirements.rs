@@ -1173,7 +1173,7 @@ fn parses_nested_machine_requires() {
     let source = r#"
         machine walk(value: i32) {
             transition value > 0 {
-                true -> positive(value)
+                true -> positive(value),
                 false -> done()
             }
 

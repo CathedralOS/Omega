@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let filled: bool = inspect(@mut handle);
     let picked: u64 = look(@table);
     transition filled && picked == 30 {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

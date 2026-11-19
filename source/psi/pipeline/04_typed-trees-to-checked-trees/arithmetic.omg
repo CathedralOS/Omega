@@ -15,14 +15,14 @@ crashes Trap
     let left: Value = value_at(checker, expression.left);
     let right: Value = value_at(checker, expression.right);
     transition expression.operator {
-        OperatorKind::Add -> add(checker, expression, row, left, right, checking)
-        OperatorKind::Subtract -> subtract(checker, expression, row, left, right, checking)
-        OperatorKind::Multiply -> multiply(checker, expression, row, left, right, checking)
-        OperatorKind::Divide -> divide(checker, expression, row, left, right, checking)
-        OperatorKind::Modulo -> modulo(checker, expression, row, left, right, checking)
-        OperatorKind::BitAnd -> bitwise(row, left, right)
-        OperatorKind::ShiftLeft -> shift(checker, expression, row, left, right, false, checking)
-        OperatorKind::ShiftRight -> shift(checker, expression, row, left, right, true, checking)
+        OperatorKind::Add -> add(checker, expression, row, left, right, checking),
+        OperatorKind::Subtract -> subtract(checker, expression, row, left, right, checking),
+        OperatorKind::Multiply -> multiply(checker, expression, row, left, right, checking),
+        OperatorKind::Divide -> divide(checker, expression, row, left, right, checking),
+        OperatorKind::Modulo -> modulo(checker, expression, row, left, right, checking),
+        OperatorKind::BitAnd -> bitwise(row, left, right),
+        OperatorKind::ShiftLeft -> shift(checker, expression, row, left, right, false, checking),
+        OperatorKind::ShiftRight -> shift(checker, expression, row, left, right, true, checking),
         _ -> carrier(row)
     }
 
@@ -79,7 +79,7 @@ crashes Trap
     machine shift(checker: @mut Checker, expression: Expression, row: TypeRow, left: Value, right: Value, rightward: bool, checking: bool) -> Value {
         require_shift_count(checker, expression, row, right, checking);
         transition rightward {
-            true -> shifted_right(checker, expression, row, left, right, checking)
+            true -> shifted_right(checker, expression, row, left, right, checking),
             _ -> shifted_left(checker, expression, row, checking)
         }
     }
@@ -112,7 +112,7 @@ crashes Trap
     let operand: Value = value_at(checker, expression.left);
     let constant: bool = is_constant(operand);
     transition constant {
-        true -> folded(operand)
+        true -> folded(operand),
         _ -> negated(checker, expression, row, operand, checking)
     }
 
@@ -143,7 +143,7 @@ crashes Trap
     let read_source: u64 in Trapping = checker_read_type(typing, source_type);
     let source_row: TypeRow = type_table_row(@typing.types, read_source);
     transition source_row.kind == TypeKind::Builtin && source_row.builtin == BuiltinType::Bool {
-        true -> boolean()
+        true -> boolean(),
         _ -> converted(checker, expression, row, source, checking)
     }
 
@@ -157,14 +157,14 @@ crashes Trap
         let fits: bool = value_within(source, row.builtin);
         let kept: Value = Value { place: 0, known: source.known, subject: source.subject, offset: source.offset, ceiling: source.ceiling, floor: source.floor };
         transition fits || !checking {
-            true -> exact(kept, row, fits)
+            true -> exact(kept, row, fits),
             _ -> rejected(checker, expression, row)
         }
     }
 
     machine exact(kept: Value, row: TypeRow, fits: bool) -> Value {
         transition fits {
-            true -> preserved(kept)
+            true -> preserved(kept),
             _ -> carrier(row)
         }
     }
@@ -193,7 +193,7 @@ crashes Trap
 {
     let fits: bool = value_within(result, row.builtin);
     transition fits || checker.exact_body {
-        true -> exact(result)
+        true -> exact(result),
         _ -> overflow(checker, expression, row, result, code, checking)
     }
 
@@ -203,9 +203,9 @@ crashes Trap
 
     machine overflow(checker: @mut Checker, expression: Expression, row: TypeRow, result: Value, code: CheckDiagnosticCode, checking: bool) -> Value {
         transition row.domain {
-            DomainBinding::Trapping -> trapping(checker, row, result)
-            DomainBinding::Wrapping -> wrapped(row, result)
-            DomainBinding::Saturating -> saturated(row, result)
+            DomainBinding::Trapping -> trapping(checker, row, result),
+            DomainBinding::Wrapping -> wrapped(row, result),
+            DomainBinding::Saturating -> saturated(row, result),
             _ -> unproven(checker, expression, row, code, checking)
         }
     }
@@ -221,7 +221,7 @@ crashes Trap
     machine wrapped(row: TypeRow, result: Value) -> Value {
         let constant: bool = is_constant(result);
         transition constant {
-            true -> wrapped_constant(row, result)
+            true -> wrapped_constant(row, result),
             _ -> carrier(row)
         }
     }
@@ -240,7 +240,7 @@ crashes Trap
     machine saturated(row: TypeRow, result: Value) -> Value {
         let constant: bool = is_constant(result);
         transition constant {
-            true -> saturated_constant(row, result)
+            true -> saturated_constant(row, result),
             _ -> saturated_range(row, result)
         }
     }
@@ -259,7 +259,7 @@ crashes Trap
 
     machine unproven(checker: @mut Checker, expression: Expression, row: TypeRow, code: CheckDiagnosticCode, checking: bool) -> Value {
         transition checking {
-            true -> rejected(checker, expression, row, code)
+            true -> rejected(checker, expression, row, code),
             _ -> carrier(row)
         }
     }
@@ -278,13 +278,13 @@ crashes Trap
 {
     let nonzero: bool = proves_nonzero(checker, divisor);
     transition nonzero {
-        true -> done()
+        true -> done(),
         _ -> zero(checker, expression, row, checking)
     }
 
     machine zero(checker: @mut Checker, expression: Expression, row: TypeRow, checking: bool) {
         transition row.domain == DomainBinding::Trapping {
-            true -> trapped(checker)
+            true -> trapped(checker),
             _ -> undefined(checker, expression, checking)
         }
     }
@@ -295,7 +295,7 @@ crashes Trap
 
     machine undefined(checker: @mut Checker, expression: Expression, checking: bool) {
         transition checking {
-            true -> rejected(checker, expression)
+            true -> rejected(checker, expression),
             _ -> done()
         }
     }
@@ -319,13 +319,13 @@ crashes Trap
     let below: bool = proves_less(checker, count, bits);
     let above: bool = proves_at_most(checker, zero, count);
     transition (below && above) || row.domain == DomainBinding::Wrapping {
-        true -> done()
+        true -> done(),
         _ -> outside(checker, expression, row, checking)
     }
 
     machine outside(checker: @mut Checker, expression: Expression, row: TypeRow, checking: bool) {
         transition row.domain == DomainBinding::Trapping {
-            true -> trapped(checker)
+            true -> trapped(checker),
             _ -> undefined(checker, expression, checking)
         }
     }
@@ -336,7 +336,7 @@ crashes Trap
 
     machine undefined(checker: @mut Checker, expression: Expression, checking: bool) {
         transition checking {
-            true -> rejected(checker, expression)
+            true -> rejected(checker, expression),
             _ -> done()
         }
     }
@@ -351,12 +351,12 @@ crashes Trap
 // The bit width of a fixed-integer carrier.
 public machine checker_width(builtin: BuiltinType) -> u64 in Trapping {
     transition builtin {
-        BuiltinType::I8 -> bits(8)
-        BuiltinType::U8 -> bits(8)
-        BuiltinType::I16 -> bits(16)
-        BuiltinType::U16 -> bits(16)
-        BuiltinType::I32 -> bits(32)
-        BuiltinType::U32 -> bits(32)
+        BuiltinType::I8 -> bits(8),
+        BuiltinType::U8 -> bits(8),
+        BuiltinType::I16 -> bits(16),
+        BuiltinType::U16 -> bits(16),
+        BuiltinType::I32 -> bits(32),
+        BuiltinType::U32 -> bits(32),
         _ -> bits(64)
     }
 

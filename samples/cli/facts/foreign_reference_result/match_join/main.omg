@@ -22,7 +22,7 @@ machine second_choice<'storage>(cell: @'storage mut Cell, marker: @mut u64) -> @
 }
 machine select<'storage>(cell: @'storage mut Cell, marker: @mut u64, first: bool) -> @'storage mut Cell reaches Memory {
  transition first {
-  true -> first_choice(cell, marker)
+  true -> first_choice(cell, marker),
   false -> second_choice(cell, marker)
  }
 }
@@ -41,7 +41,7 @@ machine main() reaches Memory crashes Trap {
  let second: bool = journey(@mut right, false);
  transition first_correct && second && left.value == 73 && right.value == 73
   && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
-  true -> done() _ -> bad()
+  true -> done(), _ -> bad()
  }
  machine done() {}
  machine bad() { crash Trap; }

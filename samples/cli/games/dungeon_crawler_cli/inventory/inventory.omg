@@ -13,9 +13,9 @@ machine add_reward(
     reward: Reward
 ) {
     transition reward.kind {
-        RewardKind::None -> {}
-        RewardKind::Gold -> add_gold(inventory_system, inventory, reward.gold)
-        RewardKind::Item -> add_item(inventory_system, inventory, reward.item)
+        RewardKind::None -> {},
+        RewardKind::Gold -> add_gold(inventory_system, inventory, reward.gold),
+        RewardKind::Item -> add_item(inventory_system, inventory, reward.item),
         RewardKind::GoldAndItem -> add_gold_and_item(inventory_system, inventory, reward)
     }
 
@@ -63,7 +63,7 @@ machine inventory_system_add_item(
     let existing_index: u64 = find_item(inventory_system, inventory, kind);
 
     transition existing_index < 32 {
-        true -> increment_existing(inventory_system, inventory, kind, existing_index as u64 in Wrapping)
+        true -> increment_existing(inventory_system, inventory, kind, existing_index as u64 in Wrapping),
         false -> append_item(inventory_system, inventory, kind)
     }
 
@@ -75,7 +75,7 @@ machine inventory_system_add_item(
         index: u64 in Wrapping
     ) {
         transition index < 32 {
-            true -> increment_item(inventory_system, @mut inventory.items[index], 1)
+            true -> increment_item(inventory_system, @mut inventory.items[index], 1),
             false -> append_item(inventory_system, inventory, kind)
         }
     }
@@ -102,7 +102,7 @@ machine inventory_system_append_item(inventory: @mut Inventory,
     let index: u64 in Wrapping = inventory.item_count;
 
     transition index < 32 {
-        true -> append_item_at(inventory, kind, index)
+        true -> append_item_at(inventory, kind, index),
         false -> {}
     }
 
@@ -123,7 +123,7 @@ machine find_item(
     let items: @[InventoryItem] = @inventory.items[..];
 
     match inventory.item_count > 0 {
-        true -> find_item_at(items, kind, 0)
+        true -> find_item_at(items, kind, 0),
         false -> (32)
     }
 }
@@ -132,7 +132,7 @@ machine find_item_at(items: @[InventoryItem],
     kind: ItemKind,
     index: u64 in Wrapping) -> u64 {
     transition index < items.len {
-        true -> inspect_item(items, kind, index)
+        true -> inspect_item(items, kind, index),
         false -> (32)
     }
 
@@ -145,7 +145,7 @@ machine find_item_at(items: @[InventoryItem],
         let next_index: u64 in Wrapping = index + 1;
 
         transition found {
-            true -> (index as u64)
+            true -> (index as u64),
             false -> scan_next(items, kind, next_index)
         }
     }
@@ -156,7 +156,7 @@ machine find_item_at(items: @[InventoryItem],
         kind: ItemKind,
         next_index: u64 in Wrapping) -> u64 {
         transition next_index < items.len {
-            true -> inspect_item(items, kind, next_index)
+            true -> inspect_item(items, kind, next_index),
             false -> (32)
         }
     }

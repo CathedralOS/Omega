@@ -7,7 +7,7 @@ machine Comparator::equal(comparator: @mut Comparator, left: f64, right: f64) ->
 machine main() crashes Trap {
     let mut comparator: Comparator;
     let equal: bool = Comparator::equal(@mut comparator, 212.0, 212.0);
-    transition equal { true -> bad() _ -> done() }
+    transition equal { true -> bad(), _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }
 }

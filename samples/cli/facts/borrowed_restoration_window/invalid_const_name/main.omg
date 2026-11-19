@@ -19,7 +19,7 @@ machine main() crashes Trap {
     held.value = 99u64;
     let val: u64 = cell.value;
     transition val >= TARGET && val <= TARGET {
-        true -> done(val)
+        true -> done(val),
         _ -> bad()
     }
     machine done(v: u64) {

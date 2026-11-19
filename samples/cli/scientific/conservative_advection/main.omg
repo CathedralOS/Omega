@@ -15,13 +15,13 @@ machine main(context:@mut Main) reaches ProcessExit + Console {
  let mut input:input::Input;
  let mut field:transport::Field;
  let parsed:bool=block io::input::parse(@mut input);
- transition parsed && input.count > 0 { true -> validate(@input,@mut field) false -> bad_input() }
+ transition parsed && input.count > 0 { true -> validate(@input,@mut field), false -> bad_input() }
  machine validate(input:@io::input::Input,field:@mut model::transport::Field) {
-  transition model::transport::initialize(input,field) { true -> execute(field) false -> bad_data() }
+  transition model::transport::initialize(input,field) { true -> execute(field), false -> bad_data() }
  }
  machine execute(field:@mut model::transport::Field) {
   model::transport::evolve(field);
-  transition model::transport::finite(field.mass) && model::transport::finite(field.minimum) && model::transport::finite(field.maximum) { true -> output(field) false -> bad_data() }
+  transition model::transport::finite(field.mass) && model::transport::finite(field.minimum) && model::transport::finite(field.maximum) { true -> output(field), false -> bad_data() }
  }
  machine output(field:@model::transport::Field) {
   Console::write("MASS "); io::report::scaled(field.mass,field.mass_exponent as i64 in Wrapping); Console::write_line("");
@@ -31,7 +31,7 @@ machine main(context:@mut Main) reaches ProcessExit + Console {
   transition { _ -> cells(field,0) }
  }
  machine cells(field:@model::transport::Field,index:u32 in Saturating) {
-  transition index < field.count { true -> cell(field,index) false -> done() }
+  transition index < field.count { true -> cell(field,index), false -> done() }
  }
  machine cell(field:@model::transport::Field,index:u32 in Saturating) {
   Console::write("CELL "); value(field,index); Console::write_line("");
@@ -43,7 +43,7 @@ machine main(context:@mut Main) reaches ProcessExit + Console {
 }
 
 machine value(field:@model::transport::Field,index:u32 in Saturating) reaches Console {
- transition field.exact { true -> exact(field,index) false -> computed(field,index) }
+ transition field.exact { true -> exact(field,index), false -> computed(field,index) }
  machine exact(field:@model::transport::Field,index:u32 in Saturating) {
   io::decimal::number(narrow_u64_to_i64_saturating(field.coefficients[index%64] as u64) as i64 in Wrapping);
   io::decimal::number(field.original_powers[index%64] as i64 in Wrapping);

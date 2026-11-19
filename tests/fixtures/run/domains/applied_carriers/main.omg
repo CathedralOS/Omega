@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let signed_raw: i32 = signed_sum as -Distance;
     let unsigned_raw: u32 = unsigned_sum as -Distance;
     transition signed_raw == 7i32 && unsigned_raw == 8u32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() { }

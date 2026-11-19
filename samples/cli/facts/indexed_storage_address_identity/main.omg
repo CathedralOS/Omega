@@ -2,7 +2,7 @@
 machine expose(value: @u64) -> addr { address_of(value) }
 machine main() crashes Trap {
  let value: u64 = 7;
- transition expose(@value) == expose(@value) { true -> done() false -> bad() }
+ transition expose(@value) == expose(@value) { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

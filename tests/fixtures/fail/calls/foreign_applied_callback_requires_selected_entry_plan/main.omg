@@ -11,8 +11,8 @@ data CallbackBody {}
 machine CallbackBody::notify() satisfies Handler::notify {}
 
 machine main() reaches Registrar crashes Trap {
-    let code: i32 = Registrar<u64>::install<CallbackBody::notify>();
-    transition code == 0 { true -> done() _ -> bad() }
+    let code: i32 = Registrar::<u64>::install::<CallbackBody::notify>();
+    transition code == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

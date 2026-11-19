@@ -12,7 +12,7 @@ machine main() crashes Trap {
   nop
  }
  forward(snapshot);
- transition (snapshot & 64u64) == 64u64 { true -> done() false -> bad() }
+ transition (snapshot & 64u64) == 64u64 { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }
@@ -23,7 +23,7 @@ machine forward(snapshot: u64) requires (snapshot & 64u64) == 64u64 crashes Trap
 
 machine consume(snapshot: u64) requires (snapshot & 64u64) == 64u64 crashes Trap {
  asm { observed requires (snapshot & 64u64) == 64u64: nop }
- transition (snapshot & 64u64) == 64u64 { true -> done() false -> bad() }
+ transition (snapshot & 64u64) == 64u64 { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

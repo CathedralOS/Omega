@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let xored: u64 = compute_xor(raw);
     let check: i32 = runner(xored);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

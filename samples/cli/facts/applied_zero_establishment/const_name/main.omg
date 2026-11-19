@@ -7,7 +7,7 @@ const Selected: u64 = 0;
 machine start() crashes Trap {
     let value: Gate<Selected>;
     let code: u8 = Gate::read(@value);
-    transition code == 0u8 { true -> done() _ -> bad() }
+    transition code == 0u8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

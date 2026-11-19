@@ -14,7 +14,7 @@ machine read_guarded(view: @[u64]) -> i32
     let elem: u64 = holder.view[2];
     let diff: u64 = holder.view.len - 3u64;
     transition elem == 30u64 && diff == 1u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() -> i32 { 0 }
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let view: @[u64] = @items[..];
     let res: i32 = read_guarded(view);
     transition res == 0 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() {}

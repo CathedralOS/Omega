@@ -6,7 +6,7 @@ machine counted(tickets: [Ticket]) -> u64 { tickets.len }
 machine main() crashes Trap {
     let returned: [Ticket] = issued(11u32);
     let moved: u64 = counted(returned);
-    transition moved == 1u64 { true -> done() false -> failed() }
+    transition moved == 1u64 { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

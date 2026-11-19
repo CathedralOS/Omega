@@ -19,22 +19,22 @@ data Storage { pair: Pair; }
 
 machine Storage::walk(storage: @mut Storage, choose_left: bool) {
     transition choose_left {
-        true -> seed_left(storage)
+        true -> seed_left(storage),
         false -> seed_right(storage)
     }
     machine first(storage: @mut Storage) {
-        transition true { true -> second(storage) false -> done(storage) }
+        transition true { true -> second(storage), false -> done(storage) }
     }
     machine second(storage: @mut Storage) {
-        transition true { true -> first(storage) false -> done(storage) }
+        transition true { true -> first(storage), false -> done(storage) }
     }
     machine seed_left(storage: @mut Storage) {
         storage.pair = Pair { left: 1, right: 2 };
-        transition true { true -> first(storage) false -> first(storage) }
+        transition true { true -> first(storage), false -> first(storage) }
     }
     machine seed_right(storage: @mut Storage) {
         storage.pair = Pair { right: 2, left: 1 };
-        transition true { true -> second(storage) false -> second(storage) }
+        transition true { true -> second(storage), false -> second(storage) }
     }
     machine done(storage: @mut Storage) {
         storage.pair.left = 2;
@@ -47,7 +47,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     Storage::walk(@mut main.storage, true);
     transition main.storage.pair.left == 2 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

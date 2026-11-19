@@ -11,7 +11,7 @@ machine take(flag: bool) -> u64 {
     match flag { true -> Mark::read(), false -> Mark::read() }
 }
 machine main() crashes Trap {
-    transition take(true) == 7 { true -> done() _ -> bad() }
+    transition take(true) == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

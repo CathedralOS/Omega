@@ -12,7 +12,7 @@ machine select_base(cond: bool) -> i64
     ensures result >= 25i64 && result <= 25i64
 {
     match cond {
-        true -> 25i64
+        true -> 25i64,
         false -> 25i64
     }
 }
@@ -20,13 +20,13 @@ machine select_base(cond: bool) -> i64
 machine main() crashes Trap {
     let base: i64 = select_base(true);
     transition base >= 25i64 && base <= 25i64 {
-        true -> shift_step(base)
+        true -> shift_step(base),
         _ -> bad()
     }
     machine shift_step(v: i64) {
         let shifted: i64 = shift_left(v);
         transition shifted >= 100i64 && shifted <= 100i64 {
-            true -> done(shifted)
+            true -> done(shifted),
             _ -> bad()
         }
     }

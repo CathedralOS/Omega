@@ -31,7 +31,7 @@ ensures result <= 75u64
 machine main() crashes Trap {
     let diff: u64 = exercise();
     transition diff == 50u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -11,7 +11,7 @@ machine half<'row>(row: @'row mut [Complex; 4], which: i64) -> @'row mut [Comple
 ensures result.len == 2
 {
     match which {
-        0 -> @mut row[0..2]
+        0 -> @mut row[0..2],
         _ -> @mut row[2..4]
     }
 }
@@ -46,7 +46,7 @@ machine main() crashes Trap {
     let mut held: Held = Held { cells: view };
     scale_pair(held.cells, 2.0);
     transition held.cells.len == 2 {
-        true -> observe(@mut held, right_real, right_imaginary, far_real, far_imaginary)
+        true -> observe(@mut held, right_real, right_imaginary, far_real, far_imaginary),
         false -> bad()
     }
     machine observe(held: @mut Held, right_real: f64, right_imaginary: f64, far_real: f64, far_imaginary: f64)
@@ -64,7 +64,7 @@ machine main() crashes Trap {
             && right_real == 3.0 && right_imaginary == -2.0
             && far_real == 4.0 && far_imaginary == 8.0
         {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

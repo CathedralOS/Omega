@@ -22,7 +22,7 @@ machine walk(s: @mut State) {{
     transition {{ _ -> block head(s) }}
     machine head(s: @mut State) {{
         let length: u64 = look(@s.row[..]);
-        transition s.y < 3 {{ true -> block step(s) _ -> done(s) }}
+        transition s.y < 3 {{ true -> block step(s), _ -> done(s) }}
     }}
     machine step(s: @mut State) {{
         s.y = s.y + 1;
@@ -35,7 +35,7 @@ machine walk(s: @mut State) {{
 machine entry() crashes Trap {{
     let mut s: State = State {{ row: [1, 2, 3, 4], y: 0, a: 0, b: 0 }};
     walk(@mut s);
-    transition s.y == 3 && s.a == 3 && s.b == 3 {{ true -> ok() false -> bad() }}
+    transition s.y == 3 && s.a == 3 && s.b == 3 {{ true -> ok(), false -> bad() }}
     machine ok() {{ }}
     machine bad() {{ crash Trap; }}
 }}

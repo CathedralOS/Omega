@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let first: u64 = inspect(true);
     let second: u64 = inspect(false);
     let observed: u64 = match first == 17 { true -> second, false -> 0, };
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

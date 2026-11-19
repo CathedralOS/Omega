@@ -28,13 +28,13 @@ data Main { }
 machine Main::main(context: @mut Main) reaches Source invokes Source crashes Trap {
     let acquired: Acquisition = Source::open();
     transition acquired {
-        Acquisition::Ok { resource } -> received(resource)
+        Acquisition::Ok { resource } -> received(resource),
         _ -> wrong()
     }
     machine received(resource: Resource in Open) {
         let identity: u64 = observe(@resource);
         close(resource);
-        transition identity == 73 { true -> done() false -> wrong() }
+        transition identity == 73 { true -> done(), false -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }

@@ -6,6 +6,6 @@ requires Length == [u8; Capacity]
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
     let observed: u64 = capacity(items);
-    transition observed == 2 { true -> done() _ -> bad() }
+    transition observed == 2 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

@@ -33,7 +33,7 @@ const FLOOR: u64 = 7;
 machine evaluate() -> u64 { forwarded(3) - FLOOR }
 machine main() crashes Trap {
     let difference: u64 = evaluate();
-    transition difference == 0 { true -> done() _ -> bad() }
+    transition difference == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

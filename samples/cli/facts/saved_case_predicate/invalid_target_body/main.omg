@@ -10,7 +10,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -18,7 +18,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -34,11 +34,11 @@ X86Probe satisfies SelectedProbe {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let saved: bool = capture<@mut Choice>(@mut choice, @mut other) in Choice::Full;
+        let saved: bool = capture::<@mut Choice>(@mut choice, @mut other) in Choice::Full;
         let alias: bool = saved;
         clear(choice);
         let ordinary: u64 = 9;
-        transition alias { true -> 490 / choice.amount false -> 0 }
+        transition alias { true -> 490 / choice.amount, false -> 0 }
     }
 }
 
@@ -47,11 +47,11 @@ ArmProbe satisfies SelectedProbe {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let saved: bool = capture<@mut Choice>(@mut choice, @mut other) in Choice::Full;
+        let saved: bool = capture::<@mut Choice>(@mut choice, @mut other) in Choice::Full;
         let alias: bool = saved;
         clear(choice);
         let ordinary: u64 = 9;
-        transition alias { true -> 490 / choice.amount false -> 0 }
+        transition alias { true -> 490 / choice.amount, false -> 0 }
     }
 }
 
@@ -65,7 +65,7 @@ machine main() crashes Trap {
     let absent: u64 = SelectedProbe::probe(@mut empty, @mut empty_other);
     transition observed == 70 && absent == 0
         && choice in Choice::Full && other in Choice::Empty
-        && empty in Choice::Empty && empty_other in Choice::Empty { true -> done() false -> bad() }
+        && empty in Choice::Empty && empty_other in Choice::Empty { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

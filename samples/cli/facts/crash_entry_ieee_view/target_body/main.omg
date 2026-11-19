@@ -3,7 +3,7 @@
 machine maybe_zero(value: f32) -> f32
 crashes Trap value == 0.0
 {
-    transition value == 0.0 { true -> bad() false -> (value) }
+    transition value == 0.0 { true -> bad(), false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
 boundary trait SelectedBodyCheck {
@@ -11,14 +11,14 @@ boundary trait SelectedBodyCheck {
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
 }
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -50,7 +50,7 @@ requires value == 1065353216
 }
 machine main() crashes Trap {
     let observed: f32 = read_bits(1065353216);
-    transition observed == 1.0 { true -> done() _ -> bad() }
+    transition observed == 1.0 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
 machine x86_entry() crashes Trap {

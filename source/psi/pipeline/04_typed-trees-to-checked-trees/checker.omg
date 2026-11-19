@@ -179,7 +179,7 @@ crashes Trap
 
     machine next_machine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
-            true -> machine(checker, syntax, resolution, typing, index)
+            true -> machine(checker, syntax, resolution, typing, index),
             _ -> settle(checker, syntax, resolution, typing)
         }
     }
@@ -187,7 +187,7 @@ crashes Trap
     machine machine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.parent == 0 {
-            true -> body(checker, syntax, resolution, typing, index)
+            true -> body(checker, syntax, resolution, typing, index),
             _ -> next_machine(checker, syntax, resolution, typing, index + 1)
         }
     }
@@ -224,7 +224,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
-            true -> declared(checker, syntax, index)
+            true -> declared(checker, syntax, index),
             _ -> done()
         }
     }
@@ -263,7 +263,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
         transition index < end {
-            true -> clause(syntax, index, end, trap, abort)
+            true -> clause(syntax, index, end, trap, abort),
             _ -> finished(trap, abort)
         }
     }
@@ -296,7 +296,7 @@ crashes Trap
     checker.discovered = 0;
     checker.walking = 0;
     transition checker.body_count <= 128 && !checker.overflowed {
-        true -> cleared(checker, syntax, resolution, typing, index, item)
+        true -> cleared(checker, syntax, resolution, typing, index, item),
         _ -> too_many(checker, item)
     }
 
@@ -306,7 +306,7 @@ crashes Trap
 
     machine arrivals(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < checker.body_count {
-            true -> unreached(checker, syntax, resolution, typing, index, item, offset)
+            true -> unreached(checker, syntax, resolution, typing, index, item, offset),
             _ -> explore(checker, syntax, resolution, typing, index, item)
         }
     }
@@ -325,7 +325,7 @@ crashes Trap
 
     machine drain(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         transition checker.queue_count > 0 && checker.output.machine_accepted {
-            true -> revisit(checker, syntax, resolution, typing, index, item)
+            true -> revisit(checker, syntax, resolution, typing, index, item),
             _ -> closed(checker, syntax, resolution, typing, index, item)
         }
     }
@@ -368,7 +368,7 @@ crashes Trap
 
     machine check_state(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < checker.body_count && checker.output.machine_accepted {
-            true -> reached(checker, syntax, resolution, typing, index, item, offset)
+            true -> reached(checker, syntax, resolution, typing, index, item, offset),
             _ -> publish(checker, index, item)
         }
     }
@@ -383,7 +383,7 @@ crashes Trap
 
     machine publish(checker: @mut Checker, index: u64 in Trapping, item: MachineItem) {
         transition checker.overflowed {
-            true -> overflowed(checker, item)
+            true -> overflowed(checker, item),
             _ -> done()
         }
     }
@@ -464,7 +464,7 @@ crashes Trap
     enter_parameters(checker, syntax, typing, declaration.first_parameter, declaration.parameter_count);
     let numbered: bool = enter_paths(checker, typing, offset, declaration.first_parameter);
     transition numbered && arrival {
-        true -> arrived(checker, syntax, resolution, typing, offset, declaration, checking)
+        true -> arrived(checker, syntax, resolution, typing, offset, declaration, checking),
         _ -> opened(checker, syntax, resolution, typing, declaration, checking)
     }
 
@@ -483,7 +483,7 @@ crashes Trap
         require_rank_range_entry(checker, syntax, resolution, typing, declaration);
         walk_body(checker, syntax, resolution, typing, declaration.first_statement, declaration.statement_count, checking);
         transition checking {
-            true -> owned(checker, syntax, resolution, typing, declaration)
+            true -> owned(checker, syntax, resolution, typing, declaration),
             _ -> done()
         }
     }
@@ -517,7 +517,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end {
-            true -> enter(checker, syntax, typing, index, end)
+            true -> enter(checker, syntax, typing, index, end),
             _ -> done()
         }
     }
@@ -545,7 +545,7 @@ machine reset_arrival(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
-        true -> reset(checker, offset)
+        true -> reset(checker, offset),
         _ -> invalid()
     }
 
@@ -568,7 +568,7 @@ machine was_reached(checker: @Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     transition offset < 128 {
-        true -> read(checker, offset)
+        true -> read(checker, offset),
         _ -> invalid()
     }
 
@@ -587,7 +587,7 @@ machine arrive(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
-        true -> copy(checker, offset)
+        true -> copy(checker, offset),
         _ -> invalid()
     }
 
@@ -606,13 +606,13 @@ machine checker_dequeue(checker: @mut Checker) -> u64 in Trapping
 crashes Trap
 {
     transition checker.queue_count > 0 {
-        true -> pop(checker, checker.queue_count - 1)
+        true -> pop(checker, checker.queue_count - 1),
         _ -> invalid()
     }
 
     machine pop(checker: @mut Checker, index: u64) -> u64 in Trapping {
         transition index < 128 {
-            true -> read(checker, index)
+            true -> read(checker, index),
             _ -> invalid()
         }
     }
@@ -623,7 +623,7 @@ crashes Trap
         let offset: u64 = checker.queue[index];
         checker.queue_count = index;
         transition offset < 128 {
-            true -> unqueued(checker, offset)
+            true -> unqueued(checker, offset),
             _ -> invalid()
         }
     }
@@ -644,7 +644,7 @@ machine checker_enqueue(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
-        true -> candidate(checker, offset)
+        true -> candidate(checker, offset),
         _ -> invalid()
     }
 
@@ -653,7 +653,7 @@ crashes Trap
     {
         let queued: bool = checker.queued[offset];
         transition queued {
-            true -> done()
+            true -> done(),
             _ -> push(checker, offset, checker.queue_count)
         }
     }
@@ -662,7 +662,7 @@ crashes Trap
     requires offset < 128
     {
         transition index < 128 {
-            true -> write(checker, offset, index)
+            true -> write(checker, offset, index),
             _ -> invalid()
         }
     }
@@ -698,7 +698,7 @@ crashes Trap
     let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
     set_projection(checker, 0, zero);
     transition checker.zone.infeasible {
-        true -> done()
+        true -> done(),
         _ -> parameter(checker, syntax, typing, expression, item, offset, 0, 1)
     }
 
@@ -715,7 +715,7 @@ crashes Trap
         subject: u64 in Trapping
     ) {
         transition index < item.parameter_count && index < expression.count {
-            true -> argument(checker, syntax, typing, expression, item, offset, index, subject)
+            true -> argument(checker, syntax, typing, expression, item, offset, index, subject),
             _ -> paths(checker, syntax, typing, expression, item, offset, subject)
         }
     }
@@ -737,7 +737,7 @@ crashes Trap
         let handle: u64 in Trapping = syntax_trees_argument(syntax, expression.first + index);
         let value: Value = value_at(checker, handle);
         transition integer && subject < 64 {
-            true -> projected(checker, syntax, typing, expression, item, offset, index, subject, value)
+            true -> projected(checker, syntax, typing, expression, item, offset, index, subject, value),
             _ -> parameter(checker, syntax, typing, expression, item, offset, index + 1, subject)
         }
     }
@@ -770,14 +770,14 @@ crashes Trap
 
     machine row(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping) {
         transition from < count {
-            true -> column(checker, offset, count, from, 0)
+            true -> column(checker, offset, count, from, 0),
             _ -> joined(checker, offset)
         }
     }
 
     machine column(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
         transition to < count {
-            true -> pair(checker, offset, count, from, to)
+            true -> pair(checker, offset, count, from, to),
             _ -> row(checker, offset, count, from + 1)
         }
     }
@@ -787,7 +787,7 @@ crashes Trap
         let second: Value = projection_at(checker, to);
         let bound: Bound = projected_bound(checker, first, second);
         transition from == to {
-            true -> column(checker, offset, count, from, to + 1)
+            true -> column(checker, offset, count, from, to + 1),
             _ -> stored(checker, offset, count, from, to, bound)
         }
     }
@@ -809,7 +809,7 @@ machine projected_bound(checker: @Checker, first: Value, second: Value) -> Bound
 crashes Trap
 {
     transition first.known && second.known {
-        true -> related(checker, first, second)
+        true -> related(checker, first, second),
         _ -> intervals(first, second)
     }
 
@@ -828,7 +828,7 @@ machine join_arrival(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
-        true -> arrival(checker, offset)
+        true -> arrival(checker, offset),
         _ -> invalid()
     }
 
@@ -837,7 +837,7 @@ crashes Trap
     {
         let reached: bool = checker.reached[offset];
         transition reached {
-            true -> loosen(checker, offset)
+            true -> loosen(checker, offset),
             _ -> first(checker, offset)
         }
     }
@@ -861,7 +861,7 @@ crashes Trap
         checker.merged = checker.arrivals[offset];
         let changed: bool = zone_join(@mut checker.merged, @checker.contribution);
         transition changed {
-            true -> loosened(checker, offset)
+            true -> loosened(checker, offset),
             _ -> done()
         }
     }
@@ -874,7 +874,7 @@ crashes Trap
         checker.loosenings[offset] = next as u64;
         let back: bool = back_edge(checker, offset);
         transition count >= 3 && back {
-            true -> widen(checker, offset)
+            true -> widen(checker, offset),
             _ -> store(checker, offset)
         }
     }
@@ -904,7 +904,7 @@ machine set_projection(checker: @mut Checker, subject: u64 in Trapping, value: V
 crashes Trap
 {
     transition subject < 64 {
-        true -> write(checker, subject, value)
+        true -> write(checker, subject, value),
         _ -> invalid()
     }
 
@@ -923,7 +923,7 @@ machine projection_at(checker: @Checker, subject: u64 in Trapping) -> Value
 crashes Trap
 {
     transition subject < 64 {
-        true -> read(checker, subject)
+        true -> read(checker, subject),
         _ -> invalid()
     }
 
@@ -944,8 +944,8 @@ public machine record_call(checker: @mut Checker, syntax: @SyntaxTrees, resoluti
 crashes Trap
 {
     transition selection {
-        Selection::Machine { handle } -> machine(checker, handle)
-        Selection::Binder { parameter } -> binder(checker, syntax, resolution, selection)
+        Selection::Machine { handle } -> machine(checker, handle),
+        Selection::Binder { parameter } -> binder(checker, syntax, resolution, selection),
         _ -> done()
     }
 
@@ -959,7 +959,7 @@ crashes Trap
 
     machine machine(checker: @mut Checker, callee: u64 in Trapping) {
         transition checker.call_count < 32768 {
-            true -> write(checker, checker.call_count, callee)
+            true -> write(checker, checker.call_count, callee),
             _ -> full(checker)
         }
     }
@@ -994,7 +994,7 @@ public machine record_supply(checker: @mut Checker, syntax: @SyntaxTrees, select
 crashes Trap
 {
     transition selection {
-        Selection::Machine { handle } -> selected(checker, syntax, call, handle)
+        Selection::Machine { handle } -> selected(checker, syntax, call, handle),
         _ -> done()
     }
 
@@ -1002,14 +1002,14 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, callee);
         let binds: bool = binds_machines(syntax, item.first_generic_parameter, item.generic_parameter_count);
         transition binds {
-            true -> supplying(checker, call, callee)
+            true -> supplying(checker, call, callee),
             _ -> done()
         }
     }
 
     machine supplying(checker: @mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
         transition checker.supplied_count < 1024 {
-            true -> write(checker, checker.supplied_count, call, callee)
+            true -> write(checker, checker.supplied_count, call, callee),
             _ -> full(checker)
         }
     }
@@ -1037,7 +1037,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
-            true -> parameter(syntax, first, count, offset)
+            true -> parameter(syntax, first, count, offset),
             _ -> none()
         }
     }
@@ -1045,7 +1045,7 @@ crashes Trap
     machine parameter(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition generic.kind == GenericParameterKind::Machine {
-            true -> found()
+            true -> found(),
             _ -> next(syntax, first, count, offset + 1)
         }
     }
@@ -1068,7 +1068,7 @@ public machine release_exclusive_arguments(checker: @mut Checker, syntax: @Synta
 crashes Trap
 {
     transition selection {
-        Selection::Machine { handle } -> framed(checker, syntax, typing, expression, handle)
+        Selection::Machine { handle } -> framed(checker, syntax, typing, expression, handle),
         _ -> unframed(checker, syntax, typing, expression)
     }
 
@@ -1087,7 +1087,7 @@ crashes Trap
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let count: u64 in Trapping = operand_count(expression);
         transition offset < count {
-            true -> argument(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset)
+            true -> argument(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset),
             _ -> done()
         }
     }
@@ -1098,7 +1098,7 @@ crashes Trap
         let exclusive: bool = exclusive_value(typing, handle);
         let whole: bool = writes_whole(checker, first_parameter + offset);
         transition exclusive {
-            true -> origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, unknown || whole || offset >= parameter_count)
+            true -> origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, unknown || whole || offset >= parameter_count),
             _ -> embedded(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, value.place)
         }
     }
@@ -1112,7 +1112,7 @@ crashes Trap
     machine origin(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
         let place: u64 in Trapping = storage_origin(checker, syntax, typing, handle);
         transition place > 0 {
-            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, place, whole)
+            true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, place, whole),
             _ -> unknown_origin(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, whole)
         }
     }
@@ -1123,7 +1123,7 @@ crashes Trap
     machine unknown_origin(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
         let changes: bool = frame_changes(checker, syntax, callee, whole);
         transition changes {
-            true -> unrepresented(checker, expression)
+            true -> unrepresented(checker, expression),
             _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
         }
     }
@@ -1149,7 +1149,7 @@ crashes Trap
     ) {
         let changes: bool = frame_changes(checker, syntax, callee, whole);
         transition changes {
-            true -> changed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, lender, place, whole)
+            true -> changed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, lender, place, whole),
             _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1)
         }
     }
@@ -1161,7 +1161,7 @@ crashes Trap
         let release: ReferenceRelease = ReferenceRelease::Invocation { expression: expression, lender: lender };
         forget_exclusive_referents(checker, syntax, typing, place, release);
         transition whole {
-            true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
+            true -> released(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place),
             _ -> narrowed(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, place)
         }
     }
@@ -1187,13 +1187,13 @@ machine frame_changes(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Tr
 crashes Trap
 {
     transition whole {
-        true -> answer(true)
+        true -> answer(true),
         _ -> field(checker, syntax, callee, 0)
     }
 
     machine field(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.field_count {
-            true -> inspected(checker, syntax, callee, index)
+            true -> inspected(checker, syntax, callee, index),
             _ -> answer(false)
         }
     }
@@ -1201,7 +1201,7 @@ crashes Trap
     machine inspected(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         let writes: bool = writes_field(checker, callee, index);
         transition writes {
-            true -> answer(true)
+            true -> answer(true),
             _ -> field(checker, syntax, callee, index + 1)
         }
     }
@@ -1222,7 +1222,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.place_count {
-            true -> visit(checker, typing, place, callee, index)
+            true -> visit(checker, typing, place, callee, index),
             _ -> done()
         }
     }
@@ -1232,7 +1232,7 @@ crashes Trap
         let inside: bool = checker_within(checker, index + 1, place);
         let written: bool = writes_field(checker, callee, candidate.handle);
         transition index + 1 != place && inside && candidate.kind == PlaceKind::Field && written {
-            true -> forgotten(checker, typing, place, callee, index)
+            true -> forgotten(checker, typing, place, callee, index),
             _ -> next(checker, typing, place, callee, index + 1)
         }
     }
@@ -1248,7 +1248,7 @@ crashes Trap
     }
 
     machine replace_origins(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, replace: bool) {
-        transition replace { true -> replaced(checker, typing, place) false -> {} }
+        transition replace { true -> replaced(checker, typing, place), false -> {} }
     }
     machine replaced(checker: @mut Checker, typing: @Typing, place: u64 in Trapping) {
         forget_reference_origins(checker, typing, place);
@@ -1268,7 +1268,7 @@ crashes Trap
 
     machine sweep(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, changed: bool) {
         transition index < checker.call_count {
-            true -> edge(checker, syntax, index, changed)
+            true -> edge(checker, syntax, index, changed),
             _ -> swept(checker, syntax, changed)
         }
     }
@@ -1283,7 +1283,7 @@ crashes Trap
         let abort: bool = checker_published(from.inferred, from.abort, from.declares_abort);
         let gained: bool = (trap && !into.trap) || (abort && !into.abort);
         transition gained {
-            true -> gain(checker, syntax, index, caller, into, trap, abort)
+            true -> gain(checker, syntax, index, caller, into, trap, abort),
             _ -> sweep(checker, syntax, index + 1, changed)
         }
     }
@@ -1302,14 +1302,14 @@ crashes Trap
 
     machine swept(checker: @mut Checker, syntax: @SyntaxTrees, changed: bool) {
         transition changed {
-            true -> sweep(checker, syntax, 0, false)
+            true -> sweep(checker, syntax, 0, false),
             _ -> fit(checker, syntax, 0)
         }
     }
 
     machine fit(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
-            true -> machine(checker, syntax, index)
+            true -> machine(checker, syntax, index),
             _ -> done()
         }
     }
@@ -1320,7 +1320,7 @@ crashes Trap
         let undeclared: bool = !routes.inferred
             && ((routes.trap && !routes.declares_trap) || (routes.abort && !routes.declares_abort));
         transition undeclared {
-            true -> rejected(checker, syntax, index)
+            true -> rejected(checker, syntax, index),
             _ -> fit(checker, syntax, index + 1)
         }
     }
@@ -1337,7 +1337,7 @@ crashes Trap
 // What a callee publishes for one cause.
 public machine checker_published(inferred: bool, derived: bool, declared: bool) -> bool {
     transition inferred {
-        true -> chosen(derived)
+        true -> chosen(derived),
         _ -> chosen(declared)
     }
 
@@ -1350,7 +1350,7 @@ machine caller_at(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < checker.call_count && index < 32768 {
-        true -> read(checker, index)
+        true -> read(checker, index),
         _ -> invalid()
     }
 
@@ -1369,7 +1369,7 @@ machine callee_at(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < checker.call_count && index < 32768 {
-        true -> read(checker, index)
+        true -> read(checker, index),
         _ -> invalid()
     }
 
@@ -1391,7 +1391,7 @@ crashes Trap
 {
     let walking: u64 in Trapping = checker.walking as u64 in Trapping;
     transition walking > 0 && walking <= 128 && offset < 128 {
-        true -> compared(checker, offset, walking - 1)
+        true -> compared(checker, offset, walking - 1),
         _ -> forward()
     }
 
@@ -1418,26 +1418,26 @@ crashes Trap
     transition { _ -> candidate(checker, syntax, root, 0) }
     machine candidate(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
         transition index < syntax.machine_count {
-            true -> ancestry(checker, syntax, root, index, index)
+            true -> ancestry(checker, syntax, root, index, index),
             false -> done()
         }
     }
     machine ancestry(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, ancestor);
         transition item.parent > 0 {
-            true -> parent(checker, syntax, root, index, item.parent - 1)
+            true -> parent(checker, syntax, root, index, item.parent - 1),
             false -> candidate(checker, syntax, root, index + 1)
         }
     }
     machine parent(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
         transition ancestor == root {
-            true -> retain(checker, syntax, root, index)
+            true -> retain(checker, syntax, root, index),
             false -> ancestry(checker, syntax, root, index, ancestor)
         }
     }
     machine retain(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
         transition checker.body_count < 128 {
-            true -> bounded(checker, syntax, root, index, checker.body_count)
+            true -> bounded(checker, syntax, root, index, checker.body_count),
             false -> full(checker)
         }
     }
@@ -1456,7 +1456,7 @@ public machine body_handle(checker: @Checker, slot: u64 in Trapping) -> u64 in T
 crashes Trap
 {
     transition slot < checker.body_count && slot < 128 {
-        true -> checker.bodies[slot] as u64 in Trapping
+        true -> checker.bodies[slot] as u64 in Trapping,
         false -> invalid()
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
@@ -1469,7 +1469,7 @@ crashes Trap
     transition { _ -> candidate(checker, handle, 0) }
     machine candidate(checker: @Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping {
         transition slot < checker.body_count && slot < 128 {
-            true -> compare(checker, handle, slot)
+            true -> compare(checker, handle, slot),
             false -> 0
         }
     }
@@ -1477,7 +1477,7 @@ crashes Trap
     requires slot < 128
     {
         transition checker.bodies[slot] == handle {
-            true -> (slot + 1)
+            true -> (slot + 1),
             false -> candidate(checker, handle, slot + 1)
         }
     }

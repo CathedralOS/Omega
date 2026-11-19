@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
     let c: bool = or_transfer(true);
     let d: bool = or_transfer(false);
     transition a && b && c && !d {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

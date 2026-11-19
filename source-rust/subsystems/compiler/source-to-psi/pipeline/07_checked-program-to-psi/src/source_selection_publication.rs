@@ -2163,8 +2163,8 @@ boundary trait Probe {{
 }}
 machine entry() -> u32 crashes none {{
     {}
-    let first: u32 = Probe::take<4>(3);
-    let second: u32 = Probe::take<8>(7);
+    let first: u32 = Probe::take::<4>(3);
+    let second: u32 = Probe::take::<8>(7);
     first
 }}
 "#,
@@ -2514,7 +2514,7 @@ machine entry() {
             r#"
 machine repeat(index: u64) {
     transition index < 3 {
-        true -> repeat(index + 1)
+        true -> repeat(index + 1),
         _ -> {}
     }
 }

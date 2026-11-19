@@ -28,13 +28,13 @@ Selected satisfies Reader {
 }
 machine classify(bytes: @[u8] in Utf8) -> u64 {
     match bytes == "abc" {
-        true -> 3
+        true -> 3,
         false -> accented(bytes)
     }
 }
 machine accented(bytes: @[u8]) -> u64 {
     match bytes == "é" {
-        true -> 2
+        true -> 2,
         false -> 9
     }
 }
@@ -44,7 +44,7 @@ machine main() crashes Trap {
     let first: u64 = classify(Reader::read(accent, word, First as dyn Payload));
     let second: u64 = classify(Reader::read(accent, word, Second as dyn Payload));
     transition first == 2 && second == 3 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

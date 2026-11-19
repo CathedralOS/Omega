@@ -54,7 +54,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // Loop head: partition until the white cursor meets the blue fence.
     machine head(main: @mut Main) {
         transition main.w < main.b {
-            true -> w_guard(main)
+            true -> w_guard(main),
             _ -> check0(main)
         }
     }
@@ -63,22 +63,22 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // (classify, red_swap, blue_swap -- no state between rewrites w).
     machine w_guard(main: @mut Main) {
         transition main.w < 3 {
-            true -> classify(main)
+            true -> classify(main),
             _ -> confused(main, 96)
         }
     }
 
     machine classify(main: @mut Main) {
         transition main.items[main.w] {
-            Color::Red -> r_guard(main)
-            Color::White -> w_bump_guard(main)
+            Color::Red -> r_guard(main),
+            Color::White -> w_bump_guard(main),
             _ -> b_guard(main)
         }
     }
 
     machine r_guard(main: @mut Main) {
         transition main.r < 3 {
-            true -> red_swap(main)
+            true -> red_swap(main),
             _ -> confused(main, 97)
         }
     }
@@ -101,7 +101,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // red and white arms join here.
     machine w_bump_guard(main: @mut Main) {
         transition main.w < 3 {
-            true -> w_bump(main)
+            true -> w_bump(main),
             _ -> confused(main, 95)
         }
     }
@@ -115,7 +115,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine b_guard(main: @mut Main) {
         transition main.b > 0 {
-            true -> blue_swap(main)
+            true -> blue_swap(main),
             _ -> confused(main, 98)
         }
     }
@@ -138,19 +138,19 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // Verify [Red, White, Blue] element by element via case dispatch.
     machine check0(main: @mut Main) {
         transition main.items[0] {
-            Color::Red -> check1(main)
+            Color::Red -> check1(main),
             _ -> bad(main, 71)
         }
     }
     machine check1(main: @mut Main) {
         transition main.items[1] {
-            Color::White -> check2(main)
+            Color::White -> check2(main),
             _ -> bad(main, 72)
         }
     }
     machine check2(main: @mut Main) {
         transition main.items[2] {
-            Color::Blue -> good(main)
+            Color::Blue -> good(main),
             _ -> bad(main, 73)
         }
     }

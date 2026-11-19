@@ -19,7 +19,7 @@ requires n <= 100, acc <= 5050,
 terminates by n
 {
     transition n == 0 {
-        true -> acc
+        true -> acc,
         false -> triangle(n - 1, acc + n)
     }
 }
@@ -37,7 +37,7 @@ machine const_sized_buffer() {
     let mut ledger: Ledger = Ledger {};
     ledger.buf[9] = 7;
     transition ledger.buf[9] == 7 && table_size() == 10 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

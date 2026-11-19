@@ -22,7 +22,7 @@ machine main() crashes Trap {
     machine check(mark: Mark) {
         let direct: bool = project(mark);
         transition hold(direct) {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

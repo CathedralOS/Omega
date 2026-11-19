@@ -116,11 +116,11 @@ public machine halt() -> {result} crashes Trap {{ crash Trap; }}
 public machine checked_value(value: u32, fatal: bool) -> u32
 ensures result == value
 crashes Trap {{
-    transition fatal {{ true -> halt() false -> value }}
+    transition fatal {{ true -> halt(), false -> value }}
 }}
 machine main() crashes Trap {{
     let value: u32 = checked_value(7u32, false);
-    transition value == 7u32 {{ true -> done() false -> wrong() }}
+    transition value == 7u32 {{ true -> done(), false -> wrong() }}
     machine done() {{}}
     machine wrong() {{ crash Trap; }}
 }}
@@ -140,7 +140,7 @@ fn an_uninhabited_transition_result_can_end_a_unit_machine() {
 public data Empty requires false {}
 public machine halt() -> Empty crashes Trap { crash Trap; }
 machine main(fatal: bool) crashes Trap {
-    transition fatal { true -> halt() false -> done() }
+    transition fatal { true -> halt(), false -> done() }
     machine done() {}
 }
 "#;
@@ -306,13 +306,13 @@ fn an_effect_statement_discards_only_an_actual_normal_result() {
 #[test]
 fn a_first_empty_match_arm_does_not_choose_the_common_or_inferred_type() {
     for matched in [
-        "match fatal { true -> halt() false -> value }",
+        "match fatal { true -> halt(), false -> value }",
         // Comparisons read their left operand without an expected carrier.
         // This exercises arm inference without a local type annotation.
-        "let compared: bool = (match fatal { true -> halt() false -> value }) == value; value",
+        "let compared: bool = (match fatal { true -> halt(), false -> value }) == value; value",
     ] {
         let original = river("public data Empty requires false {}", "Empty");
-        let dispatch = "transition fatal { true -> halt() false -> value }";
+        let dispatch = "transition fatal { true -> halt(), false -> value }";
         assert_eq!(original.matches(dispatch).count(), 1);
         let text = original.replace(dispatch, matched);
         check_no_normal(&accepted(&text));
@@ -604,7 +604,7 @@ machine main() crashes Trap {
     let outcome: Outcome<u32, Empty> = Outcome::Ok { value: 42u32 };
     let value: u32 = take_value(outcome);
     transition value == 42u32 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}
@@ -745,7 +745,7 @@ fn a_conditional_public_postcondition_uses_the_actual_boolean_argument() {
     for actual in [true, false] {
         let source = format!(
             "public machine stop(fatal: bool) -> u32 ensures !fatal crashes Trap {{ \
-             transition fatal {{ true -> fail() false -> 7u32 }} \
+             transition fatal {{ true -> fail(), false -> 7u32 }} \
              machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
              machine main() -> u32 crashes Trap {{ stop({actual}) }}"
         );
@@ -765,7 +765,7 @@ fn a_conditional_public_postcondition_uses_the_actual_integer_argument() {
     for actual in [0, 1] {
         let source = format!(
             "public machine stop(fatal: u32) -> u32 ensures fatal == 0 crashes Trap {{ \
-             transition fatal == 0 {{ true -> 7u32 false -> fail() }} \
+             transition fatal == 0 {{ true -> 7u32, false -> fail() }} \
              machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
              machine main() -> u32 crashes Trap {{ stop({actual}) }}"
         );
@@ -824,7 +824,7 @@ fn an_integer_postcondition_uses_the_requirement_instead_of_the_private_member()
     let source = "trait Answer { machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0; } \
                   Stops satisfies Answer { \
                     machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0 { \
-                      transition fatal == 0 { true -> 7u32 false -> fail() } \
+                      transition fatal == 0 { true -> 7u32, false -> fail() } \
                       machine fail() -> u32 crashes Trap { crash Trap; } \
                     } \
                   } \
@@ -874,7 +874,7 @@ fn a_computed_integer_actual_uses_the_public_postcondition_and_receiving_source(
     let source = "trait Answer { machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0; } \
                   Stops satisfies Answer { \
                     machine answer(fatal: u32) -> u32 crashes Trap ensures fatal == 0 { \
-                      transition fatal == 0 { true -> 7u32 false -> fail() } \
+                      transition fatal == 0 { true -> 7u32, false -> fail() } \
                       machine fail() -> u32 crashes Trap { crash Trap; } \
                     } \
                   } \

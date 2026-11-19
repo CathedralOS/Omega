@@ -54,7 +54,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine step(main: @mut Main) {
         transition main.i < 5 {
-            true -> block add(main)
+            true -> block add(main),
             _ -> block render(main)
         }
     }
@@ -82,7 +82,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.digit = main.sum / 100;
         main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 0x80 { true -> block hundreds(main) _ -> block bad(main) }
+        transition main.ch < 0x80 { true -> block hundreds(main), _ -> block bad(main) }
     }
     machine hundreds(main: @mut Main) {
         main.out[0] = main.ch;
@@ -90,14 +90,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.digit = main.digit % 10;
         main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 0x80 { true -> block tens(main) _ -> block bad(main) }
+        transition main.ch < 0x80 { true -> block tens(main), _ -> block bad(main) }
     }
     machine tens(main: @mut Main) {
         main.out[1] = main.ch;
         main.digit = main.sum % 10;
         main.digit = main.digit + 0x30;
         main.ch = narrow_i32_to_u8_trapping(main.digit as i32);
-        transition main.ch < 0x80 { true -> block ones(main) _ -> block bad(main) }
+        transition main.ch < 0x80 { true -> block ones(main), _ -> block bad(main) }
     }
     machine ones(main: @mut Main) {
         main.out[2] = main.ch;

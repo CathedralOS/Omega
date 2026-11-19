@@ -28,7 +28,7 @@ machine main() crashes Trap {
     write_slot(@mut slot_b, 14, 25);
 
     transition slot_a.left == 10 && slot_a.right == 20 && slot_b.left == 14 && slot_b.right == 25 && slot_c.left == 10 && slot_c.right == 20 {
-        true -> run_check(slot_a, slot_b, slot_c)
+        true -> run_check(slot_a, slot_b, slot_c),
         _ -> bad()
     }
     machine run_check(a: SlotPair, b: SlotPair, c: SlotPair)
@@ -37,7 +37,7 @@ machine main() crashes Trap {
         let sum: u64 = a.left + a.right + b.left + b.right + c.left + c.right;
         let res: u64 = evaluate(sum);
         transition res == 0 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

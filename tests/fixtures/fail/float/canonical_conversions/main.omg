@@ -22,7 +22,7 @@ machine main() crashes Trap {
         && rounded64(9007199254740993) == 9007199254740992.0f64
         && narrowed(1.000000059604644775390625f64) == 1.0f32
         && widened(-1.25f32) == -1.25f64
-    { true -> done() _ -> bad() }
+    { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

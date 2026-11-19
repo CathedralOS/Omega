@@ -50,7 +50,7 @@ machine observe_replacement() -> bool reaches AddressParts {
 
 machine run_main(main: @mut Main) reaches ProcessExit + AddressParts + Console {
     transition observe() && observe_replacement() {
-        true -> passed(main)
+        true -> passed(main),
         _ -> failed(main)
     }
     machine passed(main: @mut Main) { ProcessExit::exit_process(0); }

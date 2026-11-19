@@ -4,7 +4,7 @@ machine build(builder: @mut Build) {
     Build::application(builder, "activation_yields_without_replay");
     let remaining: u64 = count_down(512);
     transition remaining == 0 {
-        true -> bind_entries(builder)
+        true -> bind_entries(builder),
         false -> unexpected_result(builder)
     }
 }
@@ -12,7 +12,7 @@ machine build(builder: @mut Build) {
 machine count_down(remaining: u64) -> u64
 terminates by remaining {
     transition remaining > 0 {
-        true -> count_down(remaining - 1)
+        true -> count_down(remaining - 1),
         false -> 0
     }
 }

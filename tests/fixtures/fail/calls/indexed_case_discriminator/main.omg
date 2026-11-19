@@ -5,7 +5,7 @@ machine selected(table: @Table, index: u64) -> u64
 requires index < 3
 {
     match table.choices[index] {
-        Choice::First -> 17u64
+        Choice::First -> 17u64,
         Choice::Second -> 29u64
     }
 }
@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let first: u64 = selected(@table, 0);
     let second: u64 = selected(@table, 1);
     transition first == 17 && second == 29 && table.before == 11 && table.after == 37 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() { }

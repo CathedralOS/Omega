@@ -52,7 +52,7 @@ machine main() crashes Trap {
         f6: 60, f7: 70, f8: 80, f9: 93
     };
     transition probe(args) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

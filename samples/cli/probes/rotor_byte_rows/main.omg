@@ -25,7 +25,7 @@ machine wiring_at(wiring: @[[u8; 26]; 3], rotor: i32, letter: i32) -> u8
 {
     let image: u8 = wiring[rotor][letter];
     transition image < 26 {
-        true -> (image)
+        true -> (image),
         _ -> (0)
     }
 }
@@ -42,7 +42,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.mask = 1i32 << (main.image as i32);
     main.out = main.wiring[2][wiring_at(@main.wiring, 0, 0)];
     transition direct == 16 && main.mask == 16 && main.out == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
 

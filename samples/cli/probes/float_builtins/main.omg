@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     let anon: f32 = min_f32(4.0, 9.0);
     transition low32 == 4.0f32 && high32 == 9.0f32 && root32 == 2.0f32
         && root64 == 2.0 && anon == 4.0f32 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

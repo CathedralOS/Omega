@@ -28,7 +28,7 @@ machine Main::main(main: @mut Main) {
     let held: Indexed<PROJECTED> = Indexed { value: 3 };
     let returned: Indexed<7> = keep(held);
     transition returned.value == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

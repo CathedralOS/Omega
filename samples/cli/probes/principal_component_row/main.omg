@@ -56,19 +56,19 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine lengths(main: @mut Main) {
         transition main.local_length == 2 {
-            true -> field(main)
+            true -> field(main),
             false -> bad(main)
         }
     }
     machine field(main: @mut Main) {
         transition main.field_length == 2 {
-            true -> parameter(main)
+            true -> parameter(main),
             false -> bad(main)
         }
     }
     machine parameter(main: @mut Main) {
         transition main.parameter_length == 2 {
-            true -> high(main)
+            true -> high(main),
             false -> bad(main)
         }
     }
@@ -79,7 +79,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine call(main: @mut Main) {
         transition main.call_length == 2 {
-            true -> emit(main)
+            true -> emit(main),
             false -> bad(main)
         }
     }

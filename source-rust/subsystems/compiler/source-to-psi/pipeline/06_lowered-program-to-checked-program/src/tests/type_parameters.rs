@@ -146,7 +146,7 @@ fn an_optional_view_keeps_its_ordinary_borrowed_result_account() {
         }
         machine choose<'a>(bytes: @'a [u8], take: bool) -> Choice<'a> {
             transition take {
-                true -> Choice::Present { value: bytes }
+                true -> Choice::Present { value: bytes },
                 false -> Choice::Missing
             }
         }
@@ -179,7 +179,7 @@ fn a_generic_call_transfers_the_same_unknown_contents_packet() {
     let form = parameter_form(
         r#"
         machine keep<U>(value: U) -> U { value }
-        machine entry<T>(value: T) -> T { keep<T>(value) }
+        machine entry<T>(value: T) -> T { keep::<T>(value) }
     "#,
     );
     let verdict = judge(Ok(form)).unwrap();
@@ -756,8 +756,8 @@ fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
         machine length<T>(bytes: @[u8]) -> u64 { bytes.len }
         machine choose<T>() -> Choice { Choice { selected: true } }
         machine entry<T>(bytes: @[u8]) -> u64 {
-            let choice: Choice = choose<T>();
-            length<T>(bytes)
+            let choice: Choice = choose::<T>();
+            length::<T>(bytes)
         }
     "#,
     );
@@ -783,7 +783,7 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
         terminates by remaining
         {
             transition remaining > 1u64 {
-                true -> entry<T>(remaining - 1u64)
+                true -> entry::<T>(remaining - 1u64),
                 false -> 0u64
             }
         }
@@ -799,7 +799,10 @@ fn type_applied_recursion_reuses_its_exact_instance_and_refuses_changing_types()
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
-    let changing = program.replace("entry<T>(remaining - 1u64)", "entry<u32>(remaining - 1u64)");
+    let changing = program.replace(
+        "entry::<T>(remaining - 1u64)",
+        "entry::<u32>(remaining - 1u64)",
+    );
     let source = super::boundary_calls::typed(&changing);
     let refused =
         crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
@@ -817,15 +820,15 @@ requires remaining > 0u64
 terminates by remaining
 {
     transition remaining > 1u64 {
-        true -> second<T>(remaining - 1u64)
+        true -> second::<T>(remaining - 1u64),
         false -> 0u64
     }
 }
 machine second<T>(remaining: u64) -> u64
 requires remaining > 0u64
 terminates by remaining
-{ transition { _ -> first<T>(remaining) } }
-machine entry() -> u64 { first<u32>(3u64) }
+{ transition { _ -> first::<T>(remaining) } }
+machine entry() -> u64 { first::<u32>(3u64) }
 "#;
     let prepare = |text: &str| {
         let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -859,7 +862,8 @@ machine entry() -> u64 { first<u32>(3u64) }
             .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
         "{verdicts:?}"
     );
-    let stalled = mutually_recursive.replace("second<T>(remaining - 1u64)", "second<T>(remaining)");
+    let stalled =
+        mutually_recursive.replace("second::<T>(remaining - 1u64)", "second::<T>(remaining)");
     let refused = crate::checking::judge_compilation(prepare(&stalled));
     assert!(
         refused.iter().any(|verdict| match verdict {
@@ -969,7 +973,7 @@ fn a_generic_call_does_not_preserve_a_mutable_inputs_old_value() {
             r#"
             machine update<T>(value: @mut u32) ensures value == 1u32 {{ value = 1u32; }}
             machine entry<T>(value: @mut u32) requires value == 0u32
-                ensures value == {promised}u32 {{ update<T>(value); }}
+                ensures value == {promised}u32 {{ update::<T>(value); }}
         "#
         ));
         let mut form =
@@ -1011,7 +1015,7 @@ fn mixed_type_and_const_calls_keep_the_complete_tuple_and_contract() {
             requires Count > 0u64
             ensures result == Count
             {{ Count }}
-            machine entry<T>(value: @T) -> u64 {{ keep<T, {count}u64>(value) }}
+            machine entry<T>(value: @T) -> u64 {{ keep::<T, {count}u64>(value) }}
         "#
         );
         let form = parameter_form(&text);
@@ -1102,7 +1106,7 @@ fn specialized_calls_keep_independent_input_and_result_lifetimes() {
             {{ value }}
             machine entry<'left, 'right, 'spare>(
                 value: @'left [u8], other: @'right [u8], spare: @'spare [u8]
-            ) -> @'left [u8] {{ choose<3u64>({arguments}, spare) }}
+            ) -> @'left [u8] {{ choose::<3u64>({arguments}, spare) }}
         "#
         );
         let (typed, _) = crate::preparation::prepare_typed_trees(
@@ -1150,7 +1154,7 @@ fn generic_callback_applications_keep_the_selected_contract() {
             r#"
             machine measure<T>(value: {reference}) -> u64 {{ 41u64 }}
             machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 {{ Step(value) }}
-            machine entry<T>(value: @T) -> u64 {{ invoke<T, measure<T>>(value) }}
+            machine entry<T>(value: @T) -> u64 {{ invoke::<T, measure<T>>(value) }}
         "#
         );
         let form = callback_form(&text);
@@ -1206,7 +1210,7 @@ fn a_forwarded_open_record_uses_the_callers_actual_type() {
         r#"
         data Envelope<T> { value: T; }
         machine keep<U>(value: @Envelope<U>) {}
-        machine entry<T>(value: @Envelope<T>) { keep<T>(value); }
+        machine entry<T>(value: @Envelope<T>) { keep::<T>(value); }
     "#,
     );
     assert_eq!(form.generic_storage.len(), 1);
@@ -1237,7 +1241,7 @@ fn forwarded_open_records_cannot_change_their_argument() {
         r#"
         data Envelope<T> { value: T; }
         machine keep<U>(value: @Envelope<U>) {}
-        machine entry<T, U>(left: @Envelope<T>, right: @Envelope<U>) { keep<T>(right); }
+        machine entry<T, U>(left: @Envelope<T>, right: @Envelope<U>) { keep::<T>(right); }
     "#,
     );
     let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source));
@@ -1269,7 +1273,7 @@ fn an_open_record_call_requires_its_actual_source_owner() {
         r#"
         data Envelope<T> { value: T; }
         machine keep<U>(value: @Envelope<U>) {}
-        machine entry<T>(value: @Envelope<T>) { keep<T>(value); }
+        machine entry<T>(value: @Envelope<T>) { keep::<T>(value); }
     "#,
     );
     let entry = super::boundary_calls::entry(&source);
@@ -1318,8 +1322,8 @@ fn closed_callback_applications_prove_the_full_termination_contract() {
         reaches none crashes none { Step(move value) }
         machine copy(value: u32) -> u32 reaches none crashes none terminates { value }
         machine entry() -> u32 reaches none crashes none {
-            let ticket: u32 = invoke<Ticket, finish>(Ticket { value: 41u32 });
-            let scalar: u32 = invoke<u32, copy>(23u32);
+            let ticket: u32 = invoke::<Ticket, finish>(Ticket { value: 41u32 });
+            let scalar: u32 = invoke::<u32, copy>(23u32);
             match ticket == 41u32 && scalar == 23u32 { true -> 0u32, false -> 1u32 }
         }
     "#;
@@ -1395,7 +1399,7 @@ fn an_unused_closed_callback_still_proves_its_type_requirement() {
         machine consume<T, const Step: machine(value: T) -> T>(value: T) -> T {
             move value
         }
-        machine entry() -> u8 { consume<u8, selected<u8>>(7u8) }
+        machine entry() -> u8 { consume::<u8, selected<u8>>(7u8) }
     "#;
     let negative = source.replace("requires T == u8", "requires T == bool");
     assert_ne!(source, negative, "the twin changes only the required type");
@@ -1485,8 +1489,8 @@ const CALLBACK_REACH: &str = r#"
     boundary trait Output {}
     machine measure<T>(value: @T) -> u64 { 41u64 }
     machine invoke<T, const Step: machine(value: @T) -> u64>(value: @T) -> u64 { Step(value) }
-    machine relay<T>(value: @T) -> u64 { invoke<T, measure<T>>(value) }
-    machine entry<T>(value: @T) -> u64 reaches none { relay<T>(value) }
+    machine relay<T>(value: @T) -> u64 { invoke::<T, measure<T>>(value) }
+    machine entry<T>(value: @T) -> u64 reaches none { relay::<T>(value) }
 "#;
 
 #[test]
@@ -1735,7 +1739,7 @@ fn generic_case_reconstruction_preserves_both_empty_and_live_payloads() {
         data Outcome<T> { case Missing; case Present(item: T); }
         machine entry<T>(value: Outcome<T>) -> Outcome<T> {
             transition value {
-                Outcome::Missing -> Outcome::Missing
+                Outcome::Missing -> Outcome::Missing,
                 Outcome::Present { item } -> Outcome::Present { item: move item }
             }
         }
@@ -1776,7 +1780,7 @@ fn a_closed_sum_keeps_its_case_for_conditional_payload_disposal() {
         data Outcome<T> { case Missing; case Present(item: T); }
         machine entry(value: Outcome<Ticket>) -> u64 {
             transition value {
-                Outcome::Missing -> 0u64
+                Outcome::Missing -> 0u64,
                 Outcome::Present { item } -> consume(move item)
             }
         }
@@ -1802,7 +1806,7 @@ fn a_known_empty_case_keeps_its_cleanup_membership() {
         machine entry() -> u64 {
             let value: Outcome<Ticket> = Outcome::Missing;
             transition value {
-                Outcome::Missing -> 0u64
+                Outcome::Missing -> 0u64,
                 Outcome::Present { item } -> consume(move item)
             }
         }
@@ -1831,7 +1835,7 @@ fn sibling_helpers_keep_the_same_static_binders_and_entry_contract() {
                 machine first(pick: bool) -> u64
                 requires Count > 0u64
                 {{
-                    transition pick {{ true -> second() false -> 0u64 }}
+                    transition pick {{ true -> second(), false -> 0u64 }}
                 }}
                 machine second() -> u64
                 requires Count > 0u64
@@ -1974,15 +1978,15 @@ fn a_forwarded_classifier_partitions_its_callers_exact_type_binder() {
         data Tag<T> { value: u32; }
         machine classify<First, Second>() -> Choice {
             transition {
-                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true }
-                Second == Marker -> Choice { selected: false }
-                Second == Tag<u32> -> Choice { selected: true }
-                Second == Tag<u64> -> Choice { selected: false }
+                Second == u32 || Second == i32 || Second == bool -> Choice { selected: true },
+                Second == Marker -> Choice { selected: false },
+                Second == Tag<u32> -> Choice { selected: true },
+                Second == Tag<u64> -> Choice { selected: false },
                 _ -> Choice { selected: false }
             }
         }
-        machine relay<Left, Right>() -> Choice { classify<Right, Left>() }
-        machine entry<Unused, Item>() -> Choice { relay<Item, Unused>() }
+        machine relay<Left, Right>() -> Choice { classify::<Right, Left>() }
+        machine entry<Unused, Item>() -> Choice { relay::<Item, Unused>() }
     "#,
     );
     let forms =
@@ -2007,18 +2011,18 @@ fn a_forwarded_partition_does_not_invert_type_constructors_or_mix_binders() {
             r#"
             data Wrapped<T> { value: u32; }
             machine classify<Kind>() -> bool {
-                transition { Kind == u32 -> true _ -> false }
+                transition { Kind == u32 -> true, _ -> false }
             }
-            machine entry<T>() -> bool { classify<Wrapped<T>>() }
+            machine entry<T>() -> bool { classify::<Wrapped<T>>() }
             "#,
             "static partition cannot invert a constructed type argument",
         ),
         (
             r#"
             machine classify<Left, Right>() -> bool {
-                transition { Left == u32 -> true Right == bool -> true _ -> false }
+                transition { Left == u32 -> true, Right == bool -> true, _ -> false }
             }
-            machine entry<T, U>() -> bool { classify<U, T>() }
+            machine entry<T, U>() -> bool { classify::<U, T>() }
             "#,
             "static partition over independent type binders",
         ),
@@ -2037,9 +2041,9 @@ fn a_forwarded_partition_refuses_another_calls_source_application() {
     let mut source = super::boundary_calls::typed(
         r#"
         machine classify<Kind>() -> bool {
-            transition { Kind == u32 -> true _ -> false }
+            transition { Kind == u32 -> true, _ -> false }
         }
-        machine entry<T>() -> bool { classify<T>() }
+        machine entry<T>() -> bool { classify::<T>() }
     "#,
     );
     let entry = super::boundary_calls::entry(&source);
@@ -2082,17 +2086,17 @@ fn forwarded_partition_discovery_refuses_changing_recursive_mappings() {
     for program in [
         r#"
         machine entry<T, U>() -> bool {
-            let next: bool = entry<U, T>();
+            let next: bool = entry::<U, T>();
             next
         }
         "#,
         r#"
         machine relay<X, Y, Z>() -> bool {
-            let next: bool = entry<X, Y, Z>();
+            let next: bool = entry::<X, Y, Z>();
             next
         }
         machine entry<T, U, V>() -> bool {
-            let next: bool = relay<U, V, T>();
+            let next: bool = relay::<U, V, T>();
             next
         }
         "#,
@@ -2245,7 +2249,7 @@ fn a_selected_callback_keeps_its_exact_applied_record_result() {
                 .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
         "the callback's applied result must keep its data view: {accepted:?}"
     );
-    let invalid = source.replace("invoke<make>", "invoke<other>");
+    let invalid = source.replace("invoke::<make>", "invoke::<other>");
     assert_ne!(source, invalid);
     let rejected = match crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(&invalid),
@@ -2372,7 +2376,7 @@ machine remaining(value: @Envelope<u32>) -> u32 requires true {
 machine main() crashes Trap {
     let packet: Envelope<u32> = Envelope { payload: 41u32, count: 7u32 as +Small };
     transition remaining(@packet) == 3u32 && packet.payload == 41u32 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}
@@ -2437,7 +2441,7 @@ machine inspect<Element, const N: u64>(value: @Buffer<Element, N>) -> u64
 requires Element == u8 || Element == u16
 {
     transition value.length <= value.items.len {
-        true -> live(value)
+        true -> live(value),
         false -> 0u64
     }
     machine live(value: @Buffer<Element, N>) -> u64
@@ -2447,11 +2451,11 @@ requires Element == u8 || Element == u16
 machine main() crashes Trap {
     let live: Buffer<u8, 4> = Buffer { before: 17u64, items: [1u8, 2u8, 3u8, 4u8], length: 2u64, after: 91u64 };
     let invalid: Buffer<u8, 4> = Buffer { before: 19u64, items: [5u8, 6u8, 7u8, 8u8], length: 5u64, after: 93u64 };
-    let a: u64 = inspect<u8, 4>(@live);
-    let b: u64 = inspect<u8, 4>(@invalid);
+    let a: u64 = inspect::<u8, 4>(@live);
+    let b: u64 = inspect::<u8, 4>(@invalid);
     transition a == 2u64 && b == 0u64
         && live.before == 17u64 && live.after == 91u64 && invalid.before == 19u64 && invalid.after == 93u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

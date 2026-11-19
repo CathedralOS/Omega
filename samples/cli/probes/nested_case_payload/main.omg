@@ -53,7 +53,7 @@ data Main {
 // Inner dispatcher: interpret op code on accumulator with value n.
 machine Main::apply_op(main: @mut Main, op: i32 in Saturating, n: i32 in Saturating) {
     transition op == 0 {
-        true -> do_add(main, n)
+        true -> do_add(main, n),
         _ -> try_sub(main, op, n)
     }
 
@@ -63,7 +63,7 @@ machine Main::apply_op(main: @mut Main, op: i32 in Saturating, n: i32 in Saturat
 
     machine try_sub(main: @mut Main, op: i32 in Saturating, n: i32 in Saturating) {
         transition op == 1 {
-            true -> do_sub(main, n)
+            true -> do_sub(main, n),
             _ -> do_scale(main, n)
         }
     }
@@ -80,8 +80,8 @@ machine Main::apply_op(main: @mut Main, op: i32 in Saturating, n: i32 in Saturat
 // Outer dispatcher: unwrap Command case, then invoke inner dispatch.
 machine Main::apply_command(main: @mut Main, cmd: Command) {
     transition cmd {
-        Command::Run { op, n } -> do_run(main, op, n)
-        Command::Noop -> done(main)
+        Command::Run { op, n } -> do_run(main, op, n),
+        Command::Noop -> done(main),
         _ -> done(main)
     }
 
@@ -105,7 +105,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Main::apply_command(main, Command::Run { op: 0, n: 5 });
 
     transition main.st.acc == 70 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 

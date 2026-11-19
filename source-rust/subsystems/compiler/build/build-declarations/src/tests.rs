@@ -402,11 +402,10 @@ fn build_helpers_belong_to_modules_instead_of_data_carriers() {
         let syntax = source_syntax::parse_text(&text)
             .expect("compiler-owned prelude source")
             .syntax;
-        let modules = syntax
-            .root_items()
-            .filter(|item| matches!(item, syntax_trees::item::Item::Module(_)))
-            .count();
-        assert_eq!(modules, usize::from(namespace.is_some()), "{namespace:?}");
+        assert!(
+            !text.lines().any(|line| line.trim_start().starts_with("module ")),
+            "{namespace:?}"
+        );
         for item in syntax.root_items() {
             if let syntax_trees::item::Item::Machine(machine) = item {
                 assert!(

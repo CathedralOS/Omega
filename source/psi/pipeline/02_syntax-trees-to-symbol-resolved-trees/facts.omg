@@ -19,7 +19,7 @@ crashes Trap
 
     machine next_machine(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
-            true -> machine(resolver, sources, syntax, index)
+            true -> machine(resolver, sources, syntax, index),
             _ -> next_data(resolver, sources, syntax, 0)
         }
     }
@@ -36,7 +36,7 @@ crashes Trap
     // A callable contract's facts name its own parameters and result.
     machine next_contract(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
-            true -> contract_facts(resolver, sources, syntax, index, item, offset)
+            true -> contract_facts(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
@@ -52,7 +52,7 @@ crashes Trap
 
     machine next_data(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.data_count && resolver.output.accepted {
-            true -> data(resolver, sources, syntax, index)
+            true -> data(resolver, sources, syntax, index),
             _ -> next_domain(resolver, sources, syntax, 0)
         }
     }
@@ -61,7 +61,7 @@ crashes Trap
     // (wiki/spec/language/domains.md#declaration-and-membership).
     machine next_domain(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> domain(resolver, sources, syntax, index)
+            true -> domain(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -162,7 +162,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         transition index < end && resolver.output.accepted {
-            true -> clause(resolver, sources, syntax, scope, index, end, kind)
+            true -> clause(resolver, sources, syntax, scope, index, end, kind),
             _ -> done()
         }
     }
@@ -170,7 +170,7 @@ crashes Trap
     machine clause(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: NameScope, index: u64 in Trapping, end: u64 in Trapping, kind: ClauseKind) {
         let clause: Clause = syntax_trees_clause(syntax, index);
         transition clause.kind == kind && clause.has_expression {
-            true -> fact(resolver, sources, syntax, scope, index, end, kind, clause.expression)
+            true -> fact(resolver, sources, syntax, scope, index, end, kind, clause.expression),
             _ -> next(resolver, sources, syntax, scope, index + 1, end, kind)
         }
     }
@@ -200,7 +200,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && resolver.output.accepted {
-            true -> clause(resolver, sources, syntax, item_index, item, index, end)
+            true -> clause(resolver, sources, syntax, item_index, item, index, end),
             _ -> done()
         }
     }
@@ -209,7 +209,7 @@ crashes Trap
         let clause: Clause = syntax_trees_clause(syntax, index);
         let predicate: bool = clause.kind == ClauseKind::Requires;
         transition predicate && clause.has_expression {
-            true -> fact(resolver, sources, syntax, item_index, item, index, end, clause.expression)
+            true -> fact(resolver, sources, syntax, item_index, item, index, end, clause.expression),
             _ -> next(resolver, sources, syntax, item_index, item, index + 1, end)
         }
     }
@@ -231,7 +231,7 @@ crashes Trap
         handle: u64 in Trapping
     ) {
         transition handle <= root && resolver.output.accepted {
-            true -> named(resolver, sources, syntax, item_index, item, index, end, root, handle)
+            true -> named(resolver, sources, syntax, item_index, item, index, end, root, handle),
             _ -> next(resolver, sources, syntax, item_index, item, index + 1, end)
         }
     }
@@ -273,15 +273,15 @@ crashes Trap
 {
     let role: NameRole = resolver_role(resolver, handle);
     transition expression.kind {
-        ExpressionKind::Name -> single(resolver, sources, syntax, item_index, item, root, handle, expression, role)
-        ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role)
+        ExpressionKind::Name -> single(resolver, sources, syntax, item_index, item, root, handle, expression, role),
+        ExpressionKind::Path -> path(resolver, sources, syntax, root, handle, expression, role),
         _ -> done()
     }
 
     machine single(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item_index: u64 in Trapping, item: DataItem, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, role: NameRole) {
         transition role {
-            NameRole::Value -> value(resolver, sources, syntax, item_index, item, root, handle, expression)
-            NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression)
+            NameRole::Value -> value(resolver, sources, syntax, item_index, item, root, handle, expression),
+            NameRole::Callee -> callee(resolver, sources, syntax, root, handle, expression),
             _ -> bound(resolver, syntax, root, handle, expression, ValueBinding::Unresolved)
         }
     }
@@ -304,9 +304,9 @@ crashes Trap
 
     machine bound(resolver: @mut Resolver, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
         transition binding {
-            ValueBinding::Unresolved -> unresolved(resolver, expression)
-            ValueBinding::Ambiguous -> ambiguous(resolver, expression)
-            ValueBinding::Proposition { proposition } -> applied(resolver, syntax, root, handle, expression, binding)
+            ValueBinding::Unresolved -> unresolved(resolver, expression),
+            ValueBinding::Ambiguous -> ambiguous(resolver, expression),
+            ValueBinding::Proposition { proposition } -> applied(resolver, syntax, root, handle, expression, binding),
             _ -> stored(resolver, handle, binding)
         }
     }
@@ -314,14 +314,14 @@ crashes Trap
     machine applied(resolver: @mut Resolver, syntax: @SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression, binding: ValueBinding) {
         let code: ResolveDiagnosticCode = proposition_site(syntax, true, root, handle);
         transition code == ResolveDiagnosticCode::None {
-            true -> stored(resolver, handle, binding)
+            true -> stored(resolver, handle, binding),
             _ -> misplaced(resolver, code, expression)
         }
     }
 
     machine stored(resolver: @mut Resolver, handle: u64 in Trapping, binding: ValueBinding) {
         transition handle < 131072 {
-            true -> store(resolver, handle, binding)
+            true -> store(resolver, handle, binding),
             _ -> invalid()
         }
     }
@@ -358,13 +358,13 @@ crashes Trap
 {
     let subject: bool = span_spells(sources, name, "self");
     transition subject {
-        true -> found(ValueBinding::DataSubject { item: item_index })
+        true -> found(ValueBinding::DataSubject { item: item_index }),
         _ -> field(sources, syntax, item, name, 0)
     }
 
     machine field(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < item.field_count {
-            true -> field_named(sources, syntax, item, name, offset)
+            true -> field_named(sources, syntax, item, name, offset),
             _ -> binder(sources, syntax, item, name, 0)
         }
     }
@@ -373,14 +373,14 @@ crashes Trap
         let field: DataField = syntax_trees_field(syntax, item.first_field + offset);
         let spelled: bool = spans_equal(sources, field.name.source_span, name);
         transition spelled {
-            true -> found(ValueBinding::Field { field: item.first_field + offset })
+            true -> found(ValueBinding::Field { field: item.first_field + offset }),
             _ -> field(sources, syntax, item, name, offset + 1)
         }
     }
 
     machine binder(sources: @SourceSet, syntax: @SyntaxTrees, item: DataItem, name: SourceSpan, offset: u64 in Trapping) -> ValueBinding {
         transition offset < item.generic_parameter_count {
-            true -> binder_named(sources, syntax, item, name, offset)
+            true -> binder_named(sources, syntax, item, name, offset),
             _ -> found(ValueBinding::Unresolved)
         }
     }
@@ -391,7 +391,7 @@ crashes Trap
         let spelled: bool = spans_equal(sources, parameter.name.source_span, name);
         let value: bool = binder_names(parameter.kind, false);
         transition spelled && value {
-            true -> found(ValueBinding::GenericParameter { parameter: handle })
+            true -> found(ValueBinding::GenericParameter { parameter: handle }),
             _ -> binder(sources, syntax, item, name, offset + 1)
         }
     }

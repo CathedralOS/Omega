@@ -19,7 +19,7 @@ requires first.header.limit <= 50 && first.payload <= 50
 ensures result.payload <= 50 && result.header.tag == 7
 {
     match choose_first {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -55,7 +55,7 @@ machine main() crashes Trap {
     let sum1: u64 = probe(first, second, true);
     let sum2: u64 = probe(first, second, false);
     transition first.header.tag == 7 && sum1 == 42 && sum2 == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

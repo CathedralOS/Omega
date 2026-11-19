@@ -9,10 +9,10 @@ ensures result == 0u32
 { value - 0xFFFF_FFFFu32 }
 
 data Envelope { value: u32; }
-machine probe() -> u32 { let held: Envelope = Envelope { value: integer::max<u16>() as u32 }; consume(held.value) }
+machine probe() -> u32 { let held: Envelope = Envelope { value: integer::max::<u16>() as u32 }; consume(held.value) }
 
 machine main() crashes Trap {
-    transition probe() == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    transition probe() == 0u32 && integer::width_bits::<u32>() == 32u64 && !integer::is_signed::<u32>() { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

@@ -30,7 +30,7 @@ requires level in Ten
 machine read(slot: @Slot) -> i32 in Wrapping {
     transition slot {
         Slot { stamp as _, case as operation } -> match operation {
-            Slot::Ready { level } -> value(scale(level) as i32 in Wrapping)
+            Slot::Ready { level } -> value(scale(level) as i32 in Wrapping),
             Slot::Idle -> value(0)
         }
     }
@@ -48,7 +48,7 @@ machine Main::main(main: @mut Main) {
     let fresh: Slot = Slot::Ready { level: 3 };
     main.slot = fresh;
     transition main.slot.stamp == 0 && read(@main.slot) == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

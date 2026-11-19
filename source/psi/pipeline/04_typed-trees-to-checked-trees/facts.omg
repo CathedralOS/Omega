@@ -17,7 +17,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees) {
         transition checker.assumption_count > 0 {
-            true -> pop(checker, syntax)
+            true -> pop(checker, syntax),
             _ -> done()
         }
     }
@@ -28,9 +28,9 @@ crashes Trap
         let holds: bool = packed % 2 == 1;
         let expression: Expression = syntax_trees_expression(syntax, handle);
         transition expression.kind {
-            ExpressionKind::Binary -> binary(checker, syntax, expression, holds)
-            ExpressionKind::Unary -> unary(checker, syntax, expression, holds)
-            ExpressionKind::Boolean -> literal(checker, syntax, expression, holds)
+            ExpressionKind::Binary -> binary(checker, syntax, expression, holds),
+            ExpressionKind::Unary -> unary(checker, syntax, expression, holds),
+            ExpressionKind::Boolean -> literal(checker, syntax, expression, holds),
             _ -> truth(checker, syntax, handle, holds)
         }
     }
@@ -47,7 +47,7 @@ crashes Trap
 
     machine unary(checker: @mut Checker, syntax: @SyntaxTrees, expression: Expression, holds: bool) {
         transition expression.operator == OperatorKind::Not {
-            true -> negated(checker, syntax, expression.left, !holds)
+            true -> negated(checker, syntax, expression.left, !holds),
             _ -> next(checker, syntax)
         }
     }
@@ -61,7 +61,7 @@ crashes Trap
     // unreachable.
     machine literal(checker: @mut Checker, syntax: @SyntaxTrees, expression: Expression, holds: bool) {
         transition expression.flag != holds {
-            true -> contradiction(checker, syntax)
+            true -> contradiction(checker, syntax),
             _ -> next(checker, syntax)
         }
     }
@@ -76,14 +76,14 @@ crashes Trap
         let right: Value = value_at(checker, expression.right);
         let operator: OperatorKind = polarized(expression.operator, holds);
         transition operator {
-            OperatorKind::And -> both(checker, syntax, expression, holds)
-            OperatorKind::Or -> both(checker, syntax, expression, holds)
-            OperatorKind::Less -> related(checker, syntax, left, right, true)
-            OperatorKind::LessEqual -> related(checker, syntax, left, right, false)
-            OperatorKind::Greater -> related(checker, syntax, right, left, true)
-            OperatorKind::GreaterEqual -> related(checker, syntax, right, left, false)
-            OperatorKind::Equal -> equal(checker, syntax, left, right)
-            OperatorKind::NotEqual -> unequal(checker, syntax, left, right)
+            OperatorKind::And -> both(checker, syntax, expression, holds),
+            OperatorKind::Or -> both(checker, syntax, expression, holds),
+            OperatorKind::Less -> related(checker, syntax, left, right, true),
+            OperatorKind::LessEqual -> related(checker, syntax, left, right, false),
+            OperatorKind::Greater -> related(checker, syntax, right, left, true),
+            OperatorKind::GreaterEqual -> related(checker, syntax, right, left, false),
+            OperatorKind::Equal -> equal(checker, syntax, left, right),
+            OperatorKind::NotEqual -> unequal(checker, syntax, left, right),
             _ -> next(checker, syntax)
         }
     }
@@ -91,7 +91,7 @@ crashes Trap
     // `a && b` holding, or `a || b` failing: both operands, alike.
     machine both(checker: @mut Checker, syntax: @SyntaxTrees, expression: Expression, holds: bool) {
         transition (expression.operator == OperatorKind::And) == holds {
-            true -> pushed(checker, syntax, expression, holds)
+            true -> pushed(checker, syntax, expression, holds),
             _ -> next(checker, syntax)
         }
     }
@@ -126,7 +126,7 @@ crashes Trap
         let at_least: bool = proves_at_most(checker, right, left);
         let at_most: bool = proves_at_most(checker, left, right);
         transition at_least {
-            true -> raised(checker, syntax, left, right, at_most, below)
+            true -> raised(checker, syntax, left, right, at_most, below),
             _ -> lowered(checker, syntax, left, right, at_most, below)
         }
     }
@@ -138,7 +138,7 @@ crashes Trap
 
     machine lowered(checker: @mut Checker, syntax: @SyntaxTrees, left: Value, right: Value, at_most: bool, below: ExactInteger) {
         transition at_most {
-            true -> capped(checker, syntax, left, right, below)
+            true -> capped(checker, syntax, left, right, below),
             _ -> next(checker, syntax)
         }
     }
@@ -153,7 +153,7 @@ crashes Trap
 
 machine slack(strict: bool) -> ExactInteger {
     transition strict {
-        true -> below()
+        true -> below(),
         _ -> zero()
     }
 
@@ -170,7 +170,7 @@ machine slack(strict: bool) -> ExactInteger {
 // `||` keep their spelling; `both` reads the polarity.
 public machine polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
     transition holds {
-        true -> kept(operator)
+        true -> kept(operator),
         _ -> complement(operator)
     }
 
@@ -180,12 +180,12 @@ public machine polarized(operator: OperatorKind, holds: bool) -> OperatorKind {
 
     machine complement(operator: OperatorKind) -> OperatorKind {
         transition operator {
-            OperatorKind::Less -> chosen(OperatorKind::GreaterEqual)
-            OperatorKind::LessEqual -> chosen(OperatorKind::Greater)
-            OperatorKind::Greater -> chosen(OperatorKind::LessEqual)
-            OperatorKind::GreaterEqual -> chosen(OperatorKind::Less)
-            OperatorKind::Equal -> chosen(OperatorKind::NotEqual)
-            OperatorKind::NotEqual -> chosen(OperatorKind::Equal)
+            OperatorKind::Less -> chosen(OperatorKind::GreaterEqual),
+            OperatorKind::LessEqual -> chosen(OperatorKind::Greater),
+            OperatorKind::Greater -> chosen(OperatorKind::LessEqual),
+            OperatorKind::GreaterEqual -> chosen(OperatorKind::Less),
+            OperatorKind::Equal -> chosen(OperatorKind::NotEqual),
+            OperatorKind::NotEqual -> chosen(OperatorKind::Equal),
             _ -> chosen(operator)
         }
     }
@@ -202,7 +202,7 @@ public machine constrain_difference(checker: @mut Checker, left: Value, right: V
 crashes Trap
 {
     transition left.known && right.known {
-        true -> terms(checker, left, right, bound)
+        true -> terms(checker, left, right, bound),
         _ -> one_side(checker, left, right, bound)
     }
 
@@ -216,7 +216,7 @@ crashes Trap
 
     machine one_side(checker: @mut Checker, left: Value, right: Value, bound: ExactInteger) {
         transition left.known {
-            true -> left_term(checker, left, right, bound)
+            true -> left_term(checker, left, right, bound),
             _ -> right_side(checker, left, right, bound)
         }
     }
@@ -233,7 +233,7 @@ crashes Trap
 
     machine right_side(checker: @mut Checker, left: Value, right: Value, bound: ExactInteger) {
         transition right.known {
-            true -> right_term(checker, left, right, bound)
+            true -> right_term(checker, left, right, bound),
             _ -> done()
         }
     }
@@ -256,13 +256,13 @@ crashes Trap
     let polarity: u64 in Trapping = checker_polarity(holds);
     let packed: u64 in Trapping = handle * 2 + polarity;
     transition checker.assumption_count < 128 {
-        true -> push(checker, checker.assumption_count, packed)
+        true -> push(checker, checker.assumption_count, packed),
         _ -> full()
     }
 
     machine push(checker: @mut Checker, index: u64, packed: u64 in Trapping) {
         transition index < 128 {
-            true -> write(checker, index, packed)
+            true -> write(checker, index, packed),
             _ -> full()
         }
     }
@@ -280,7 +280,7 @@ crashes Trap
 
 machine checker_polarity(holds: bool) -> u64 in Trapping {
     transition holds {
-        true -> one()
+        true -> one(),
         _ -> zero()
     }
 
@@ -297,7 +297,7 @@ machine pop_assumption(checker: @mut Checker) -> u64 in Trapping
 crashes Trap
 {
     transition checker.assumption_count > 0 && checker.assumption_count <= 128 {
-        true -> read(checker, checker.assumption_count - 1)
+        true -> read(checker, checker.assumption_count - 1),
         _ -> invalid()
     }
 
@@ -328,7 +328,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees) -> bool {
         transition checker.assumption_count > 0 {
-            true -> goal(checker, syntax)
+            true -> goal(checker, syntax),
             _ -> proved()
         }
     }
@@ -342,7 +342,7 @@ crashes Trap
             && (expression.operator == OperatorKind::And || expression.operator == OperatorKind::Or);
         let negation: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
         transition logical {
-            true -> connective(checker, syntax, expression, holds)
+            true -> connective(checker, syntax, expression, holds),
             _ -> single(checker, syntax, handle, expression, holds, negation)
         }
     }
@@ -351,7 +351,7 @@ crashes Trap
     // need one side.
     machine connective(checker: @mut Checker, syntax: @SyntaxTrees, expression: Expression, holds: bool) -> bool {
         transition (expression.operator == OperatorKind::And) == holds {
-            true -> both(checker, syntax, expression, holds)
+            true -> both(checker, syntax, expression, holds),
             _ -> either(checker, syntax, expression, holds)
         }
     }
@@ -366,14 +366,14 @@ crashes Trap
         let left: bool = proves_atom(checker, syntax, expression.left, holds);
         let right: bool = proves_atom(checker, syntax, expression.right, holds);
         transition left || right {
-            true -> next(checker, syntax)
+            true -> next(checker, syntax),
             _ -> unproved()
         }
     }
 
     machine single(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping, expression: Expression, holds: bool, negation: bool) -> bool {
         transition negation {
-            true -> negated(checker, syntax, expression.left, !holds)
+            true -> negated(checker, syntax, expression.left, !holds),
             _ -> atom(checker, syntax, handle, holds)
         }
     }
@@ -386,7 +386,7 @@ crashes Trap
     machine atom(checker: @mut Checker, syntax: @SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool {
         let proved: bool = proves_atom(checker, syntax, handle, holds);
         transition proved {
-            true -> next(checker, syntax)
+            true -> next(checker, syntax),
             _ -> unproved()
         }
     }
@@ -409,8 +409,8 @@ crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, handle);
     transition expression.kind {
-        ExpressionKind::Binary -> comparison(checker, expression, holds)
-        ExpressionKind::Boolean -> literal(expression.flag == holds)
+        ExpressionKind::Binary -> comparison(checker, expression, holds),
+        ExpressionKind::Boolean -> literal(expression.flag == holds),
         _ -> truth(checker, handle, holds)
     }
 
@@ -432,12 +432,12 @@ crashes Trap
         let at_most: bool = same || proves_at_most(checker, left, right);
         let at_least: bool = same || proves_at_most(checker, right, left);
         transition operator {
-            OperatorKind::Less -> literal(less)
-            OperatorKind::LessEqual -> literal(at_most)
-            OperatorKind::Greater -> literal(greater)
-            OperatorKind::GreaterEqual -> literal(at_least)
-            OperatorKind::Equal -> literal(at_most && at_least)
-            OperatorKind::NotEqual -> literal(less || greater)
+            OperatorKind::Less -> literal(less),
+            OperatorKind::LessEqual -> literal(at_most),
+            OperatorKind::Greater -> literal(greater),
+            OperatorKind::GreaterEqual -> literal(at_least),
+            OperatorKind::Equal -> literal(at_most && at_least),
+            OperatorKind::NotEqual -> literal(less || greater),
             _ -> unproved()
         }
     }

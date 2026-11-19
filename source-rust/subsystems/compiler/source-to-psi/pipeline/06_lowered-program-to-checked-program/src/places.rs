@@ -8189,13 +8189,13 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             let next = step + 1;
             source.push_str(&format!(
                 "machine hop{step}(p: Point, choose: bool) -> u32 {{\n\
-                 transition choose {{ true -> left{step}(p, choose) false -> right{step}(p, choose) }}\n\
+                 transition choose {{ true -> left{step}(p, choose), false -> right{step}(p, choose) }}\n\
                  }}\n\
                  machine left{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n\
                  machine right{step}(p: Point, choose: bool) -> u32 {{ hop{next}(p, choose) }}\n"
             ));
         }
-        source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x false -> hop0(p, choose) }} }}\n"));
+        source.push_str(&format!("machine hop{count}(p: Point, choose: bool) -> u32 {{ transition choose {{ true -> p.x, false -> hop0(p, choose) }} }}\n"));
         let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(&source);
         let entry = typed
             .machines()
@@ -8419,7 +8419,7 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
 machine walk<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, first: bool) {
     let fresh: @'a [u8] = bytes[0..count];
     transition first {
-        true -> inspect(bytes, fresh, count, fresh)
+        true -> inspect(bytes, fresh, count, fresh),
         false -> inspect(bytes, saved, count, fresh)
     }
 }
@@ -8427,7 +8427,7 @@ machine inspect<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, fresh: @'a [u8
     let current: u64 = fresh.len;
     let previous: u64 = saved.len;
     transition count > 1 {
-        true -> walk(bytes, saved, count - 1, false)
+        true -> walk(bytes, saved, count - 1, false),
         false -> done()
     }
     machine done() {}
@@ -8624,7 +8624,7 @@ data Point { x: u32; y: u32; }
 domain Point::Small requires self.x < 100u32;
 machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
     let raw: Point = match choose {
-        true -> Point { x: v, y: 0u32 }
+        true -> Point { x: v, y: 0u32 },
         false -> Point { x: 7u32, y: 0u32 }
     };
     let p: Point in Small = raw as +Small;
@@ -8764,7 +8764,7 @@ machine entry(choose: bool, v: u32) -> u32 requires v < 50u32 {
     machine step(p: Point, choose: bool, v: u32) -> u32 {
         let found: u32 = p.x;
         transition choose {
-            true -> found
+            true -> found,
             false -> block left(choose, v)
         }
     }

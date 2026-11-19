@@ -17,7 +17,7 @@ machine TimedWaitPoll::poll(descriptors: u64, descriptor_count: u64, timeout_mil
 satisfies TimedWait::poll
 {
     transition descriptors == 0 && descriptor_count == 0 && timeout_milliseconds == 20 {
-        true -> 0
+        true -> 0,
         _ -> 1
     }
 }
@@ -37,7 +37,7 @@ machine entry_start() reaches Clock crashes Trap {
     let matched: i32 = Waiter::wait();
     let other: i32 = TimedWait::poll(0, 0, 5);
     transition matched == 0 && other == 1 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

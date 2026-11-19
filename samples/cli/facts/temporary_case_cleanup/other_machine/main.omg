@@ -12,7 +12,7 @@ ensures result.value == 2 { Bonus { value: 2 } }
 machine across() -> bool { consume(forward()) }
 machine main() crashes Trap {
     let accepted: bool = across();
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

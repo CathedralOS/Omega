@@ -7,7 +7,7 @@ data Probe { seen: i32; }
 machine Probe::classify(probe: @mut Probe, flag: bool) -> Res {
     probe.seen = 1;
     transition flag {
-        true -> pc_empty(probe)
+        true -> pc_empty(probe),
         _ -> pc_err(probe, Kind::NotFound)
     }
     machine pc_empty(probe: @mut Probe) -> Res { Res::Empty }
@@ -17,7 +17,7 @@ data Main { probe: Probe; result: Res; }
 machine Main::main(main: @mut Main) {
     main.result = Probe::classify(@mut main.probe, false);
     transition main.result {
-        Res::Empty -> bad(main)
+        Res::Empty -> bad(main),
         _ -> good(main)
     }
     machine good(main: @mut Main) { }

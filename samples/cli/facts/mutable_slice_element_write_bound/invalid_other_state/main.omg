@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let diff: u64 = mutate_other_state(storage_view(@mut backing));
     transition backing.items[1] == 45u64 && diff == 1u64 && backing.guard == 18446744073709551615
         && backing.items[0] == 10u64 && backing.items[2] == 30u64 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() {}

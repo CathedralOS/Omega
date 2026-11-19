@@ -13,15 +13,15 @@ machine construct<const Base: u64>() -> u64
 requires Base <= 100
 ensures result >= Base + 4
 {
-    selected<([Base, Base + 4]), Selected<([Base, Base + 4])>>()
+    selected::<([Base, Base + 4]), Selected<([Base, Base + 4])>>()
 }
 data Selection { before: u64; value: u64; tag: u64; after: u64; }
 machine choose(left: bool) -> Selection
 ensures result.value >= 7
 {
     match left {
-        true -> Selection { before: 13, value: construct<3>(), tag: 17, after: 31 },
-        false -> Selection { before: 13, value: construct<3>(), tag: 29, after: 31 }
+        true -> Selection { before: 13, value: construct::<3>(), tag: 17, after: 31 },
+        false -> Selection { before: 13, value: construct::<3>(), tag: 29, after: 31 }
     }
 }
 machine main() crashes Trap {
@@ -33,7 +33,7 @@ machine main() crashes Trap {
         && matching.tag == 17 && fallback.tag == 29
         && matching.before == 13 && matching.after == 31
         && fallback.before == 13 && fallback.after == 31
-    { true -> done() _ -> bad() }
+    { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

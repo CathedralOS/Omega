@@ -21,18 +21,18 @@ machine entry_start() crashes Trap {
     let empty: ReceiptState = ReceiptState::Empty;
     let live: ReceiptState = ReceiptState::Live { receipt: Receipt { code: -4 } };
     transition empty {
-        ReceiptState::Empty -> settle_live(live)
+        ReceiptState::Empty -> settle_live(live),
         _ -> bad()
     }
     machine settle_live(state: ReceiptState) crashes Trap {
         transition state {
-            ReceiptState::Live { receipt } -> finish(receipt)
+            ReceiptState::Live { receipt } -> finish(receipt),
             _ -> bad()
         }
     }
     machine finish(receipt: Receipt) crashes Trap {
         let code: i32 = ReceiptSettlement::settle(receipt);
-        transition code == 4 { true -> done() _ -> bad() }
+        transition code == 4 { true -> done(), _ -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

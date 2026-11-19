@@ -35,7 +35,7 @@ public boundary trait VacantContentTransfer {
     reaches none
     ensures
         result in Granted & Vacant,
-        core::Identity<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        core::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 
@@ -70,12 +70,12 @@ ensures
     result.rest.length == whole.length - requested,
     requested != 0 || result.rest.base == whole.base,
     result.rest.length == 0 || embed(result.rest.base) == embed(whole.base) + embed(requested),
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         Granted::content(old(@whole)),
         separate(
             Granted::content(@result.taken), Granted::content(@result.rest))
     ),
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         Vacant::content(old(@whole)),
         separate(
             Vacant::content(@result.taken), Vacant::content(@result.rest))
@@ -109,17 +109,17 @@ ensures
     embed(result.length) == embed(left.length) + embed(right.length),
     left.length == 0 || result.base == left.base,
     left.length != 0 || result.base == right.base,
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         separate(Granted::content(old(@left)), Granted::content(old(@right))),
         Granted::content(@result)
     ),
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
         Vacant::content(@result)
     )
 {
     transition left.length == 0 {
-        true -> empty_left(left, right)
+        true -> empty_left(left, right),
         false -> nonempty_left(left, right)
     }
 
@@ -128,11 +128,11 @@ ensures
     ensures
         result.base == right.base,
         embed(result.length) == embed(left.length) + embed(right.length),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Granted::content(old(@left)), Granted::content(old(@right))),
             Granted::content(@result)
         ),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
             Vacant::content(@result)
         )
@@ -149,17 +149,17 @@ ensures
     ensures
         result.base == left.base,
         embed(result.length) == embed(left.length) + embed(right.length),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Granted::content(old(@left)), Granted::content(old(@right))),
             Granted::content(@result)
         ),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
             Vacant::content(@result)
         )
     {
         transition right.length == 0 {
-            true -> empty_right(left, right)
+            true -> empty_right(left, right),
             false -> adjacent(left, right)
         }
     }
@@ -169,11 +169,11 @@ ensures
     ensures
         result.base == left.base,
         embed(result.length) == embed(left.length) + embed(right.length),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Granted::content(old(@left)), Granted::content(old(@right))),
             Granted::content(@result)
         ),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
             Vacant::content(@result)
         )
@@ -190,11 +190,11 @@ ensures
     ensures
         result.base == left.base,
         embed(result.length) == embed(left.length) + embed(right.length),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Granted::content(old(@left)), Granted::content(old(@right))),
             Granted::content(@result)
         ),
-        core::Identity<IntervalSet<Nat>>(
+        core::Identity::<IntervalSet<Nat>>(
             separate(Vacant::content(old(@left)), Vacant::content(old(@right))),
             Vacant::content(@result)
         )
@@ -214,7 +214,7 @@ public boundary trait ResidentContentTransfer<P, T> {
     reaches none
     ensures
         result in Granted & Resident<P, T>,
-        core::Identity<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
+        core::Identity::<IntervalSet<Nat>>(Granted::content(old(@storage)), Granted::content(@result))
     crashes Trap crashes Abort;
 }
 

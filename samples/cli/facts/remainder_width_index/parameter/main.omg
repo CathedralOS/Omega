@@ -11,7 +11,7 @@ requires buckets.len > 0 && width == buckets.len as u64
 machine main() crashes Trap {
     let buckets: [u8; 4] = [7, 8, 9, 6];
     transition pick(10, @buckets[..], 4) == 9 && pick(15, @buckets[..], 4) == 6 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

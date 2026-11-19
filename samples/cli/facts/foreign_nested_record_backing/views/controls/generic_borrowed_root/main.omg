@@ -12,7 +12,7 @@ machine entry_start() crashes Trap {
     relay(@mut view);
     let gap: u64 = observed_gap(view.item.value);
     drop(view);
-    transition gap == 2147483574 && wrapper.item.value == 73 && wrapper.item.left == 91 && wrapper.item.right == 1515863100 && original == 37 { true -> done() _ -> bad() }
+    transition gap == 2147483574 && wrapper.item.value == 73 && wrapper.item.left == 91 && wrapper.item.right == 1515863100 && original == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

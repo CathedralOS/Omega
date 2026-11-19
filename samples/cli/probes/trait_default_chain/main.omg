@@ -50,7 +50,7 @@ CounterResettable satisfies Resettable<Counter> {
 
 machine Counter::set(counter: @mut Counter, value: i32) {
     transition value == 10 {
-        true -> prepared(counter)
+        true -> prepared(counter),
         _ -> assigned(counter, value)
     }
 
@@ -82,7 +82,7 @@ machine trait_default_chain() {
     let mut counter: Counter = Counter { value: 0, prepared: false };
     CounterResettable::reset(@mut counter);
     transition counter.value == 30 && counter.prepared {
-        true -> check_ledger()
+        true -> check_ledger(),
         _ -> done(71)
     }
 
@@ -90,7 +90,7 @@ machine trait_default_chain() {
         let mut ledger: Ledger = Ledger { total: 0, count: 0 };
         LedgerStore::put_twice(@mut ledger, 7);
         transition ledger.count == 2 && ledger.total == 14 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(72)
         }
     }

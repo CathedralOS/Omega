@@ -47,8 +47,8 @@ machine Spread::plan(schema: Schema) -> LayoutPlan {
         size_is_dynamic: false,
         align: 8,
     };
-    let placed: LayoutPlan = layout_plan_place_private<WndClassSlot>(plan, 8);
-    layout_plan_place_private<SecondarySlot>(placed, 16)
+    let placed: LayoutPlan = layout_plan_place_private::<WndClassSlot>(plan, 8);
+    layout_plan_place_private::<SecondarySlot>(placed, 16)
 }
 
 data Main { hits: i32 in Wrapping; }

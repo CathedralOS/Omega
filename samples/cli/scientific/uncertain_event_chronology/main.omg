@@ -19,15 +19,15 @@ data Main { bytes: [u8; 32]; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(@mut main.bytes[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> input(main, count)
-        LineReadResult::EndOfInput { count } -> input(main, count)
+        LineReadResult::LineComplete { count } -> input(main, count),
+        LineReadResult::EndOfInput { count } -> input(main, count),
         _ -> invalid(main)
     }
     machine input(main: @mut Main, count: u64) {
         let mut model: Chronology;
         let valid: bool = parse(@main.bytes, count, @mut model);
         transition valid {
-            true -> solve(main, @mut model)
+            true -> solve(main, @mut model),
             false -> invalid(main)
         }
     }
@@ -35,7 +35,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut result: Reconciliation;
         reconcile(model, @mut result);
         transition result.count > 0 {
-            true -> feasible(main, @result)
+            true -> feasible(main, @result),
             false -> witness(main, model, @mut result)
         }
     }
@@ -47,7 +47,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine event(main: @mut Main, result: @Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 3 {
-            true -> report(main, result, index)
+            true -> report(main, result, index),
             false -> success(main)
         }
     }
@@ -85,7 +85,7 @@ machine number(main: @mut Main, value: i32 in Wrapping) reaches Console {
     transition { _ -> digit(main, value, 1000, false) }
     machine digit(main: @mut Main, value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> extract(main, value, divisor, started)
+            true -> extract(main, value, divisor, started),
             false -> done()
         }
     }
@@ -94,7 +94,7 @@ machine number(main: @mut Main, value: i32 in Wrapping) reaches Console {
     {
         let digit: i32 in Wrapping = value / divisor;
         transition digit > 0 || started || divisor == 1 {
-            true -> emit(main, value, divisor, digit)
+            true -> emit(main, value, divisor, digit),
             false -> digit(main, value % divisor, divisor / 10, false)
         }
     }

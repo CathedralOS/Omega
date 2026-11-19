@@ -32,9 +32,9 @@ machine produced() -> bool {
 
 machine main() crashes Trap {
     let kept: bool = produced();
-    let direct: bool = apply<witness>(kept);
+    let direct: bool = apply::<witness>(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

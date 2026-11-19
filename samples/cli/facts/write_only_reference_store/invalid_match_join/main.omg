@@ -24,7 +24,7 @@ machine exercise(choice: bool, expected_marker: i64) -> bool {
 }
 machine main() crashes Trap {
     transition exercise(true, 1) && exercise(false, 0) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -10,7 +10,7 @@ machine probe(limit:u32)->u32 requires limit>=Minimum && limit<=Maximum {
 machine main() crashes Trap {
  let first:u32=probe(Minimum);
  let second:u32=probe(Maximum);
- transition first==8 && second==8 { true->done() _->bad() }
+ transition first==8 && second==8 { true->done(), _->bad() }
  machine done(){}
  machine bad(){crash Trap;}
 }

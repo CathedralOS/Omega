@@ -1,5 +1,5 @@
 //! A Build may choose a provider whose slot and implementation are applied
-//! to static arguments: `Build::select_provider<Reading<Tag>,
+//! to static arguments: `Build::select_provider::<Reading<Tag>,
 //! FirstReading<[Holder<u64>; 2], Tag>>(builder, target)`. The request
 //! carries each operand as the author wrote it, a graph of names anchored at
 //! their declarations, and a selection made inside a generic helper carries

@@ -6,7 +6,7 @@ requires s >= 100i8 && s <= 100i8
 {
     let diff: i8 = s - 100i8;
     transition diff == 0i8 {
-        true -> 0i32
+        true -> 0i32,
         _ -> 1i32
     }
 }
@@ -30,7 +30,7 @@ requires val >= 20i8 && val <= 25i8
 machine main() crashes Trap {
     let exit_code: i32 = exercise(20i8);
     transition exit_code == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

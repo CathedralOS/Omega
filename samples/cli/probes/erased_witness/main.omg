@@ -41,12 +41,12 @@ machine Main::main(main: @mut Main) {
     Main::record(3, 10);
     main.record = Certified::Proven { value: 70 };
     transition main.record {
-        Certified::Proven { value, proof as _ } -> good(main, value)
+        Certified::Proven { value, proof as _ } -> good(main, value),
         Certified::Pending -> bad(main)
     }
     machine good(main: @mut Main, value: i32) {
         transition value == 70 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> bad(main)
         }
     }

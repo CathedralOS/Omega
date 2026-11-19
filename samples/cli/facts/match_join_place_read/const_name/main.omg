@@ -23,12 +23,12 @@ machine main() crashes Trap {
     let chosen: Pair = Pair { kept: KEPT, other: 5 };
     let spare: Pair = Pair { kept: UNSELECTED, other: 8 };
     let joined: @Pair = match choose() {
-        true -> @chosen
+        true -> @chosen,
         false -> @spare
     };
     let observed: i64 = read_field(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

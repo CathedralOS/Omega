@@ -6,7 +6,7 @@ machine main() crashes Trap {
     let first: u32 = kit::pick(9u32);
     let second: u64 = kit::pick(true);
     transition first == 17u32 && second == 64u64 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

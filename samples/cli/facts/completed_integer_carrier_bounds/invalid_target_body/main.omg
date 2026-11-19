@@ -11,7 +11,7 @@ Actual satisfies SelectedProbe {
         let low: Bound = Actual::convert(0);
         let high: Bound = Actual::convert(256);
         transition low.value == 0 && high.value == 255 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
         machine done() {}

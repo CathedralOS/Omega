@@ -57,67 +57,67 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.positive_zero_reciprocal64 = 1.0 / main.positive_zero64;
 
     transition main.negative_zero_reciprocal32 < 0.0f32 {
-        true -> check_positive_zero32(main)
+        true -> check_positive_zero32(main),
         _ -> fail(main, 71)
     }
 
     machine check_positive_zero32(main: @mut Main) {
         transition main.positive_zero_reciprocal32 > 0.0f32 {
-            true -> check_infinity32(main)
+            true -> check_infinity32(main),
             _ -> fail(main, 72)
         }
     }
     machine check_infinity32(main: @mut Main) {
         transition main.negative_infinity32 < 0.0f32 {
-            true -> check_nan32(main)
+            true -> check_nan32(main),
             _ -> fail(main, 73)
         }
     }
     machine check_nan32(main: @mut Main) {
-        transition main.nan_verdict32 { true -> check_infinity_not_nan32(main) _ -> fail(main, 74) }
+        transition main.nan_verdict32 { true -> check_infinity_not_nan32(main), _ -> fail(main, 74) }
     }
     machine check_infinity_not_nan32(main: @mut Main) {
         transition main.infinity_verdict32 == false {
-            true -> check_finite_not_nan32(main)
+            true -> check_finite_not_nan32(main),
             _ -> fail(main, 75)
         }
     }
     machine check_finite_not_nan32(main: @mut Main) {
         transition main.finite_verdict32 == false {
-            true -> check_negative_zero64(main)
+            true -> check_negative_zero64(main),
             _ -> fail(main, 76)
         }
     }
     machine check_negative_zero64(main: @mut Main) {
         transition main.negative_zero_reciprocal64 < 0.0 {
-            true -> check_positive_zero64(main)
+            true -> check_positive_zero64(main),
             _ -> fail(main, 77)
         }
     }
     machine check_positive_zero64(main: @mut Main) {
         transition main.positive_zero_reciprocal64 > 0.0 {
-            true -> check_infinity64(main)
+            true -> check_infinity64(main),
             _ -> fail(main, 78)
         }
     }
     machine check_infinity64(main: @mut Main) {
         transition main.negative_infinity64 < 0.0 {
-            true -> check_nan64(main)
+            true -> check_nan64(main),
             _ -> fail(main, 79)
         }
     }
     machine check_nan64(main: @mut Main) {
-        transition main.nan_verdict64 { true -> check_infinity_not_nan64(main) _ -> fail(main, 80) }
+        transition main.nan_verdict64 { true -> check_infinity_not_nan64(main), _ -> fail(main, 80) }
     }
     machine check_infinity_not_nan64(main: @mut Main) {
         transition main.infinity_verdict64 == false {
-            true -> check_finite_not_nan64(main)
+            true -> check_finite_not_nan64(main),
             _ -> fail(main, 81)
         }
     }
     machine check_finite_not_nan64(main: @mut Main) {
         transition main.finite_verdict64 == false {
-            true -> good(main)
+            true -> good(main),
             _ -> fail(main, 82)
         }
     }

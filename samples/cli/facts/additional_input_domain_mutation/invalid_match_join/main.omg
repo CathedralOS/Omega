@@ -12,12 +12,12 @@ machine observed_neighbor(first: bool) -> u32 {
         false -> Cell { value: 0, neighbor: 43 }
     };
     overwrite(@write cell);
-    transition cell.value == 73 { true -> cell.neighbor _ -> 0 }
+    transition cell.value == 73 { true -> cell.neighbor, _ -> 0 }
 }
 machine main() crashes Trap {
     let first: u32 = observed_neighbor(true);
     let second: u32 = observed_neighbor(false);
-    transition first == 41 && second == 43 { true -> done() _ -> bad() }
+    transition first == 41 && second == 43 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

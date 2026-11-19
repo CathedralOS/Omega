@@ -13,7 +13,7 @@ public machine validate_table(
 terminates
 {
     transition bytes.len >= 24 {
-        true -> header(bytes, signature, minimum_revision, minimum_size)
+        true -> header(bytes, signature, minimum_revision, minimum_size),
         _ -> (false)
     }
 
@@ -30,7 +30,7 @@ terminates
         transition actual_signature == signature && revision >= minimum_revision
             && reserved == 0 && header_size >= 24 && header_size >= minimum_size
             && header_size <= bytes.len {
-            true -> checksum(bytes, header_size as u64, expected_crc)
+            true -> checksum(bytes, header_size as u64, expected_crc),
             _ -> (false)
         }
     }
@@ -58,7 +58,7 @@ machine table_crc(bytes: @[u8], position: u64, checksum: u32, remaining: u64) ->
 terminates by remaining
 {
     transition position < bytes.len && remaining > 0 {
-        true -> table_crc(bytes, position + 1, table_byte(bytes, position, checksum), remaining - 1)
+        true -> table_crc(bytes, position + 1, table_byte(bytes, position, checksum), remaining - 1),
         _ -> (checksum ^ 0xFFFFFFFF)
     }
 }
@@ -68,7 +68,7 @@ machine table_byte(bytes: @[u8], position: u64, checksum: u32) -> u32
 requires position < bytes.len
 {
     transition position >= 16 && position < 20 {
-        true -> crc_bits(checksum, 8)
+        true -> crc_bits(checksum, 8),
         _ -> crc_bits(checksum ^ (bytes[position] as u32), 8)
     }
 }
@@ -77,7 +77,7 @@ machine crc_bits(checksum: u32, remaining: u64) -> u32
 terminates by remaining
 {
     transition remaining > 0 {
-        true -> bit(checksum, remaining)
+        true -> bit(checksum, remaining),
         _ -> (checksum)
     }
 
@@ -85,7 +85,7 @@ terminates by remaining
     requires remaining > 0
     {
         transition (checksum & 1) == 1 {
-            true -> crc_bits((checksum >> 1) ^ 0xEDB88320, remaining - 1)
+            true -> crc_bits((checksum >> 1) ^ 0xEDB88320, remaining - 1),
             _ -> crc_bits(checksum >> 1, remaining - 1)
         }
     }

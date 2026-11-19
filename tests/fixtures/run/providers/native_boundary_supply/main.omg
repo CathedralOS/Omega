@@ -7,7 +7,7 @@ boundary trait HostProcessId {
 machine main() {
     let process: i32 = HostProcessId::get();
     transition process > 0 {
-        true -> done()
+        true -> done(),
         false -> failed()
     }
     machine done() { }

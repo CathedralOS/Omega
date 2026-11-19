@@ -39,7 +39,7 @@ machine inspect<'held, const Marker: u64>(result: Readback<'held, LayoutStorage<
     result.value == 7u64 && result.pointer.value == 43u64
 }
 machine observe<'source, 'storage>(pointer: @'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: @'storage u64) -> bool {
-    inspect<7u64>(update<7u64>(pointer, storage))
+    inspect::<7u64>(update::<7u64>(pointer, storage))
 }
 machine main() crashes Trap {
     let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;
@@ -47,7 +47,7 @@ machine main() crashes Trap {
     let storage: u64 = 23u64;
     let result: bool = observe(@pointee, @storage);
     transition result && pointee.value == 43u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

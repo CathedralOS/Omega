@@ -44,7 +44,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine step(main: @mut Main) {
         transition main.i < 20 {
-            true -> block read(main)
+            true -> block read(main),
             _ -> block done(main)
         }
     }
@@ -52,7 +52,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read(main: @mut Main) {
         main.b = main.data[main.i];
         transition main.b == main.prev {
-            true -> block bump(main)
+            true -> block bump(main),
             _ -> block emit_mid(main)
         }
     }

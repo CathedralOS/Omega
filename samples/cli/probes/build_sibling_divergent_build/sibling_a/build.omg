@@ -10,7 +10,7 @@ suspends
     suspend Build::prepare_dependency(builder, shared_registration);
     let observed: i32 = shared::seed();
     transition observed == 3 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {

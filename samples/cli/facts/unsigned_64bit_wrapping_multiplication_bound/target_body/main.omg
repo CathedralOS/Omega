@@ -20,7 +20,7 @@ ensures result == 0u64
     let headroom: u64 = 200u64 - prod;
     let margin: u64 = prod - 50u64;
     transition headroom == 80u64 && margin == 70u64 {
-        true -> ok()
+        true -> ok(),
         _ -> bad()
     }
     machine ok() -> u64 {
@@ -37,7 +37,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -45,7 +45,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -84,7 +84,7 @@ ensures result == 0u64
 
 machine main() crashes Trap {
     transition probe() == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

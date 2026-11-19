@@ -36,11 +36,11 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: @mut Main) {
-        transition main.frame < 50 { true -> block clear_init(main) _ -> block finish(main) }
+        transition main.frame < 50 { true -> block clear_init(main), _ -> block finish(main) }
     }
     machine clear_init(main: @mut Main) { main.x = 0; transition { _ -> block clear_loop(main) } }
     machine clear_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 40 { true -> block clear_cell(main) _ -> block place(main) }
+        transition main.x >= 0 && main.x < 40 { true -> block clear_cell(main), _ -> block place(main) }
     }
     machine clear_cell(main: @mut Main) {
         main.line[main.x] = 32;
@@ -48,7 +48,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block clear_loop(main) }
     }
     machine place(main: @mut Main) {
-        transition main.p >= 0 && main.p < 40 { true -> block set_ball(main) _ -> block bad(main) }
+        transition main.p >= 0 && main.p < 40 { true -> block set_ball(main), _ -> block bad(main) }
     }
     machine set_ball(main: @mut Main) {
         main.line[main.p] = 79;
@@ -62,32 +62,32 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         Console::write(@main.cr[..]);
         Console::write(@main.line[..]);
         block Clock::sleep(25);
-        transition main.frame < 50 { true -> block frame_bump(main) _ -> block finish(main) }
+        transition main.frame < 50 { true -> block frame_bump(main), _ -> block finish(main) }
     }
     machine frame_bump(main: @mut Main) {
         main.frame = main.frame + 1;
-        transition main.dir == 1 { true -> block move_right_guard(main) _ -> block move_left_guard(main) }
+        transition main.dir == 1 { true -> block move_right_guard(main), _ -> block move_left_guard(main) }
     }
     machine move_right_guard(main: @mut Main) {
-        transition main.p >= 0 && main.p < 40 { true -> block move_right(main) _ -> block bad(main) }
+        transition main.p >= 0 && main.p < 40 { true -> block move_right(main), _ -> block bad(main) }
     }
     machine move_right(main: @mut Main) {
         main.p = main.p + 1;
         transition { _ -> block bounce_hi(main) }
     }
     machine move_left_guard(main: @mut Main) {
-        transition main.p >= 1 && main.p < 41 { true -> block move_left(main) _ -> block bad(main) }
+        transition main.p >= 1 && main.p < 41 { true -> block move_left(main), _ -> block bad(main) }
     }
     machine move_left(main: @mut Main) {
         main.p = main.p - 1;
         transition { _ -> block bounce_hi(main) }
     }
     machine bounce_hi(main: @mut Main) {
-        transition main.p >= 39 { true -> block flip_down(main) _ -> block bounce_lo(main) }
+        transition main.p >= 39 { true -> block flip_down(main), _ -> block bounce_lo(main) }
     }
     machine flip_down(main: @mut Main) { main.dir = 0 - 1; transition { _ -> block frame_loop(main) } }
     machine bounce_lo(main: @mut Main) {
-        transition main.p <= 0 { true -> block flip_up(main) _ -> block frame_loop(main) }
+        transition main.p <= 0 { true -> block flip_up(main), _ -> block frame_loop(main) }
     }
     machine flip_up(main: @mut Main) { main.dir = 1; transition { _ -> block frame_loop(main) } }
 

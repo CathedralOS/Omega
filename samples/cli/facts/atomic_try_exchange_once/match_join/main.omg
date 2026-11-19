@@ -16,8 +16,8 @@ machine probe(cells: @Cells, branch: bool, path: @write u64) -> bool {
         false -> marked(raw, path, 23),
     };
     transition joined {
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false)
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
     }
 }
@@ -30,8 +30,8 @@ machine mismatch(cells: @Cells, branch: bool, path: @write u64) -> bool {
         false -> marked(raw, path, 23),
     };
     transition joined {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false)
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
     }
 }
@@ -49,7 +49,7 @@ machine main() crashes Trap {
     path = 0;
     let fourth: bool = mismatch(@cells, false, @write path);
     let fourth_path: u64 = path;
-    transition first && first_path == 17 && second && second_path == 23 && third && third_path == 17 && fourth && fourth_path == 23 { true -> done() _ -> bad() }
+    transition first && first_path == 17 && second && second_path == 23 && third && third_path == 17 && fourth && fourth_path == 23 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

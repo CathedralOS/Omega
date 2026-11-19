@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let chosen: @mut i64 = pick(@mut grid, second);
     chosen = 20;
     transition grid.cells[1].x == 10 && grid.cells[2].x == 20 && grid.cells[2].y == 6 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

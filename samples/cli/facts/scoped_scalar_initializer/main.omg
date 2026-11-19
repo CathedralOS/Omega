@@ -4,7 +4,7 @@ domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 
 machine verify(observed: u64 in BelowIndex<4>) crashes Trap {
     transition (observed as u64) == 3 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

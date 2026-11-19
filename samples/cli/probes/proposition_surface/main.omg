@@ -19,7 +19,7 @@
 proposition terminal_relation<T, const Limit: u32, machine Generator>(value: T);
 
 proposition terminal_relation_alias<T, const Limit: u32, machine Generator>(value: T) =
-    terminal_relation<T, Limit, Generator>(value);
+    terminal_relation::<T, Limit, Generator>(value);
 
 machine terminal_constant() -> i32
 requires 7i32 == 7i32
@@ -29,8 +29,8 @@ ensures 7i32 == 7i32
 }
 
 machine forwarded() -> i32
-requires terminal_relation_alias<i32, 7, terminal_constant>(7i32)
-ensures terminal_relation_alias<i32, 7, terminal_constant>(7i32)
+requires terminal_relation_alias::<i32, 7, terminal_constant>(7i32)
+ensures terminal_relation_alias::<i32, 7, terminal_constant>(7i32)
 {
     7i32
 }
@@ -44,7 +44,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition terminal_constant() == 7 && narrow_literal() == 127 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

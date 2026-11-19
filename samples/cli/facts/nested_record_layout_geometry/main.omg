@@ -12,15 +12,15 @@ data Outer {
 }
 
 machine compute_geometry() -> u64 {
-    let s: u64 = size_of<Outer>();
-    let a: u64 = align_of<Outer>();
+    let s: u64 = size_of::<Outer>();
+    let a: u64 = align_of::<Outer>();
     s - (a * 3u64)
 }
 
 machine main() crashes Trap {
     let diff: u64 = compute_geometry();
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

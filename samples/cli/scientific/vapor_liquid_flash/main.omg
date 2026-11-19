@@ -13,26 +13,26 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut solution: model::flash::Solution;
     let parsed: bool = block io::input::parse(@mut raw);
     transition parsed {
-        true -> validate(@raw, @mut feed, @mut solution)
+        true -> validate(@raw, @mut feed, @mut solution),
         false -> invalid()
     }
     machine validate(raw: @io::input::Raw, feed: @mut io::input::Feed, solution: @mut model::flash::Solution) {
         transition io::input::validate(raw, feed) {
-            true -> solve(feed, solution)
+            true -> solve(feed, solution),
             false -> invalid()
         }
     }
     machine solve(feed: @io::input::Feed, solution: @mut model::flash::Solution) {
         model::flash::solve(feed, solution);
         transition solution.status == 3 {
-            true -> ambiguous(feed, solution)
+            true -> ambiguous(feed, solution),
             false -> verify(feed, solution)
         }
     }
     machine ambiguous(feed: @io::input::Feed, solution: @model::flash::Solution) { io::report::emit(feed, solution); ProcessExit::exit_process(3); }
     machine verify(feed: @io::input::Feed, solution: @model::flash::Solution) {
         transition model::flash::verify(feed, solution) {
-            true -> done(feed, solution)
+            true -> done(feed, solution),
             false -> failed()
         }
     }

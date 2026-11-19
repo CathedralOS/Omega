@@ -8,10 +8,10 @@ data Values {x:f64;}
 data Main {values:Values;}
 machine main(main:@mut Main) reaches ProcessExit + Console {
  let byte:ByteRead=block Console::read_byte();
- transition byte {ByteRead::Byte{value} -> guard(main,value) _ -> fail(main)}
+ transition byte {ByteRead::Byte{value} -> guard(main,value), _ -> fail(main)}
  machine guard(main:@mut Main,value:i32) {
   main.values.x=F64::from_i32(value)-48.0;
-  transition abs_f64(main.values.x) <= 0.000000001 {true -> good(main) _ -> fail(main)}
+  transition abs_f64(main.values.x) <= 0.000000001 {true -> good(main), _ -> fail(main)}
  }
  machine good(main:@mut Main) {ProcessExit::exit_process(70);}
  machine fail(main:@mut Main) {ProcessExit::exit_process(71);}

@@ -15,7 +15,7 @@ machine main() crashes Trap {
     values[3] = 1;
     let envelope: Envelope = Envelope { values: values };
     let answer: u16 = consume(envelope.values);
-    transition answer == 65535u16 { true -> done() false -> bad() }
+    transition answer == 65535u16 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

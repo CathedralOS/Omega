@@ -20,7 +20,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let external: i32 in Saturating = block read_number();
         let maintenance: i32 in Saturating = block read_number();
         transition external >= 0 && maintenance >= 0 {
-            true -> block store_node(main, node, external, maintenance)
+            true -> block store_node(main, node, external, maintenance),
             false -> invalid(main)
         }
     }
@@ -28,18 +28,18 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.web.external[node] = external;
         main.web.maintenance[node] = maintenance;
         let next: u64 = node + 1;
-        transition next < 3 { true -> block node_input(main, next) false -> block edge_count(main) }
+        transition next < 3 { true -> block node_input(main, next), false -> block edge_count(main) }
     }
     machine edge_count(main: @mut Main) {
         let count: i32 in Saturating = block read_number();
         transition count >= 0 && count <= 6 {
-            true -> block edges(main, count, 0)
+            true -> block edges(main, count, 0),
             false -> invalid(main)
         }
     }
     machine edges(main: @mut Main, count: i32 in Saturating, index: u64) requires index <= 6 {
         transition (index as i32 in Saturating) < count {
-            true -> block edge_input(main, count, index)
+            true -> block edge_input(main, count, index),
             false -> block end_input(main)
         }
     }
@@ -49,7 +49,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let intake: i32 in Saturating = block read_number();
         let efficiency: i32 in Saturating = block read_number();
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 && source != destination && intake >= 0 && efficiency >= 0 && efficiency <= 100 {
-            true -> block apply(main, count, index, source as u64, destination as u64, intake, efficiency)
+            true -> block apply(main, count, index, source as u64, destination as u64, intake, efficiency),
             false -> invalid(main)
         }
     }
@@ -62,14 +62,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         number(intake * 100);
         number(intake * efficiency);
         number(intake * (100 - efficiency));
-        transition index < 6 { true -> block advance(main, count, index) false -> invalid(main) }
+        transition index < 6 { true -> block advance(main, count, index), false -> invalid(main) }
     }
     machine advance(main: @mut Main, count: i32 in Saturating, index: u64) requires index < 6 {
         transition { _ -> block edges(main, count, index + 1) }
     }
     machine end_input(main: @mut Main) {
         let ended: bool = block require_end();
-        transition ended { true -> report_nodes(main, 0, 0, 0, 0) false -> invalid(main) }
+        transition ended { true -> report_nodes(main, 0, 0, 0, 0), false -> invalid(main) }
     }
     machine report_nodes(main: @mut Main, node: u64, balances: i32 in Saturating, deficits: i32 in Saturating, supplies: i32 in Saturating) requires node < 3 {
         let balance: i32 in Saturating = residual(@main.web, node);
@@ -87,7 +87,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let next_deficit: i32 in Saturating = deficits + shortage;
         let next_supply: i32 in Saturating = supplies + (main.web.external[node] - main.web.maintenance[node]) * 100;
         transition next < 3 {
-            true -> report_nodes(main, next, next_balance, next_deficit, next_supply)
+            true -> report_nodes(main, next, next_balance, next_deficit, next_supply),
             false -> diagnostic(main, next_balance, next_deficit, next_supply)
         }
     }
@@ -97,10 +97,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         number(main.web.loss);
         number(deficits);
         number(error);
-        transition error == 0 { true -> feasibility(main, deficits) false -> broken(main) }
+        transition error == 0 { true -> feasibility(main, deficits), false -> broken(main) }
     }
     machine feasibility(main: @mut Main, deficits: i32 in Saturating) {
-        transition deficits == 0 { true -> feasible(main) false -> infeasible(main) }
+        transition deficits == 0 { true -> feasible(main), false -> infeasible(main) }
     }
     machine feasible(main: @mut Main) { Console::write_line("FEASIBLE"); ProcessExit::exit_process(0); }
     machine infeasible(main: @mut Main) { Console::write_line("INFEASIBLE"); ProcessExit::exit_process(3); }

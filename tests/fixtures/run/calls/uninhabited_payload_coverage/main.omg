@@ -22,7 +22,7 @@ machine main() crashes Trap {
     let borrowed: u32 = read_value(@outcome);
     let owned: u32 = take_value(outcome);
     transition borrowed == 42u32 && owned == 42u32 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -22,14 +22,14 @@ data Second { padding: u64; value: i32; }
 
 machine first(subject: @Optional<First>) -> i32 {
     transition subject {
-        Optional::Some { value } -> (value.value)
+        Optional::Some { value } -> (value.value),
         Optional::None -> (0)
     }
 }
 
 machine second(subject: @Optional<Second>) -> i32 {
     transition subject {
-        Optional::Some { value } -> (2)
+        Optional::Some { value } -> (2),
         Optional::None -> (0)
     }
 }
@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main) {
     let right_result: i32 = second(@right);
     let empty_result: i32 = second(@empty);
     transition left_result == 1 && right_result == 2 && empty_result == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

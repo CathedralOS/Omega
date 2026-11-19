@@ -29,5 +29,5 @@ machine complete() { }
 machine fail() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     let second: u32 = number(ISSUED[1u64]);
-    transition second == 9 { true -> complete() _ -> fail() }
+    transition second == 9 { true -> complete(), _ -> fail() }
 }

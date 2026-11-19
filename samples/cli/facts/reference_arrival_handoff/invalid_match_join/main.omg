@@ -8,14 +8,14 @@ machine main() crashes Trap {
     let original: @mut i64 = @mut backing;
     let alternate: @mut i64 = @mut spare;
     let child: @mut i64 = match pick {
-        true -> original
+        true -> original,
         false -> alternate
     };
     backing = 7;
     child = 41;
     let observed: i64 = child;
     transition observed == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

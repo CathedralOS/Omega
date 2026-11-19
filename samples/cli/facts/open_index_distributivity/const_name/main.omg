@@ -66,9 +66,9 @@ const LEFT: u64 = 3;
 const RIGHT: u64 = 4;
 
 machine main() crashes Trap {
-    let moved: i64 = rearrange<FACTOR, LEFT, RIGHT, Canonical>(41);
+    let moved: i64 = rearrange::<FACTOR, LEFT, RIGHT, Canonical>(41);
     transition moved == 41 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -41,7 +41,7 @@ machine main() crashes Trap {
     let recorded: u64 = record_through(@mut record);
     let flag: u64 = TargetConstants::no_follow_flag();
     transition record.written == 3 && recorded == flag {
-        true -> accepted()
+        true -> accepted(),
         _ -> rejected()
     }
     machine accepted() {}

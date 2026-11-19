@@ -8,7 +8,7 @@ machine main() crashes Trap {
     };
     let diff: u64 = 63u64 - masked;
     transition diff == 27u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

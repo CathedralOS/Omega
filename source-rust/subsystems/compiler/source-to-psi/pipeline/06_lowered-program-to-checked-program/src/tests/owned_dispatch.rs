@@ -53,7 +53,7 @@ fn selecting(root: &str) -> String {
 machine build_entry(selection: Selection, view: @[u8]) {{ select(view, selection); }}
 machine select(view: @[u8], selection: Selection) {{
     transition selection {{
-        Selection::Root -> {root}
+        Selection::Root -> {root},
         Selection::Named {{ package }} -> take(package)
     }}
 }}
@@ -80,13 +80,13 @@ fn an_arm_moves_the_owned_payload_its_case_holds() {
 machine build_entry(source: Source) {{ route(source); }}
 machine route(source: Source) {{
     transition source {{
-        Source::Path {{ location }} -> take(location)
+        Source::Path {{ location }} -> take(location),
         Source::Git {{ repository, selection }} -> {git}
     }}
 }}
 machine select(view: @[u8], selection: Selection) {{
     transition selection {{
-        Selection::Root -> take(view)
+        Selection::Root -> take(view),
         Selection::Named {{ package }} -> take(package)
     }}
 }}
@@ -179,7 +179,7 @@ machine build_entry() {{
 }}
 machine dispatch(selection: Selection, spare: CopyHolder) {{
     transition selection {{
-        Selection::Root -> done()
+        Selection::Root -> done(),
         Selection::Named {{ package }} -> take(package)
     }}
 }}

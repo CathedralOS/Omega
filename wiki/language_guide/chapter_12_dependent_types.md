@@ -117,7 +117,7 @@ requires remaining <= buffer.len
 terminates by remaining -> Nat::Descending
 {
     transition remaining == 0 {
-        true -> {}
+        true -> {},
         false -> step(buffer, remaining)
     }
 

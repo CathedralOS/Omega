@@ -27,7 +27,7 @@ machine forward(first: InternetAddress) -> InternetAddress { first }
 machine observe() -> bool reaches AddressParts { consume(forward(AddressParts::make(10, 66051)), AddressParts::make(44048, 513)) }
 
 machine main() reaches AddressParts crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

@@ -30,7 +30,7 @@ machine main() reaches Service { let seen: u64 = Service::value(); }
 const HELPER: &str = "machine configure<const Flag: bool, const Tag: u64>(builder: @mut Build)
 requires Tag == 17u64
 {
-    Build::select_provider<Service, Provider>(builder, linux_x86_64);
+    Build::select_provider::<Service, Provider>(builder, linux_x86_64);
 }
 ";
 
@@ -77,7 +77,7 @@ fn a_build_helper_is_given_a_boolean_and_a_calculated_number() {
         ("anonymous", "(20 - 3)"),
         ("landed", "(8u64 + 9)"),
     ] {
-        let (compiled, stderr) = check(name, &format!("    configure<true, {tag}>(builder);\n"));
+        let (compiled, stderr) = check(name, &format!("    configure::<true, {tag}>(builder);\n"));
         assert!(compiled, "{tag}: {stderr}");
     }
 }
@@ -86,8 +86,8 @@ fn a_build_helper_is_given_a_boolean_and_a_calculated_number() {
 fn the_choice_a_configured_helper_makes_is_a_choice_of_the_build() {
     let (compiled, stderr) = check(
         "counted",
-        "    configure<false, (8u64 + 9u64)>(builder);
-    Build::select_provider<Service, Other>(builder, linux_x86_64);
+        "    configure::<false, (8u64 + 9u64)>(builder);
+    Build::select_provider::<Service, Other>(builder, linux_x86_64);
 ",
     );
     assert!(!compiled);
@@ -100,7 +100,7 @@ fn the_choice_a_configured_helper_makes_is_a_choice_of_the_build() {
 
 #[test]
 fn a_calculated_number_is_held_to_the_helper_s_requirement_by_its_value() {
-    let (compiled, stderr) = check("short", "    configure<true, (8u64 + 8u64)>(builder);\n");
+    let (compiled, stderr) = check("short", "    configure::<true, (8u64 + 8u64)>(builder);\n");
     assert!(!compiled);
     assert!(
         stderr.contains("cannot prove requires contract for call configure")
@@ -119,7 +119,7 @@ fn a_calculation_with_no_single_value_is_refused_and_never_accepted() {
     ] {
         let (compiled, stderr) = check(
             name,
-            &format!("    configure<true, {argument}>(builder);\n"),
+            &format!("    configure::<true, {argument}>(builder);\n"),
         );
         assert!(!compiled, "{argument}");
         assert!(stderr.contains("not supported yet"), "{argument}: {stderr}");

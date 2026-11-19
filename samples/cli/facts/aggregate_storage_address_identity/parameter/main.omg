@@ -10,7 +10,7 @@ machine probe(mut value: Pair) -> bool {
     original != 0 && original == forwarded && original == current && value.left == 13
 }
 machine main() crashes Trap {
-    transition probe(Pair { left: 7, right: 11 }) { true -> done() false -> bad() }
+    transition probe(Pair { left: 7, right: 11 }) { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

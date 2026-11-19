@@ -378,7 +378,7 @@ mod tests {
         let text = r#"
                 data Choice { case First; case Other; }
                 let select(value: Choice): Choice = match value {
-                    Choice::First {} -> Choice::First
+                    Choice::First {} -> Choice::First,
                     _ -> Choice::Other
                 };
             "#;
@@ -427,8 +427,8 @@ mod tests {
     #[test]
     fn a_contract_call_selects_the_fixed_core_identity_like_a_body_call() {
         let text = "machine same(value: f64) -> f64\n\
-                ensures core::Identity<f64>(result, value)\n\
-                { transition core::Identity<f64>(value, value) { _ -> (value) } }\n";
+                ensures core::Identity::<f64>(result, value)\n\
+                { transition core::Identity::<f64>(value, value) { _ -> (value) } }\n";
         let mut sources = crate::source_inputs::SourceMap::default();
         let source_id = sources.add("identity.omg".into(), text.into()).source_id;
         let tokens = Lexer::new(text).tokenize().unwrap();

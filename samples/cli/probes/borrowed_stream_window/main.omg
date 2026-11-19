@@ -13,13 +13,13 @@ machine receive<'owner>(stream: StreamView<'owner> in Borrowed, buffer: @mut [u8
     let identity: u64 = stream.identity;
     let capacity: u64 = buffer.len;
     transition count <= capacity {
-        true -> bounded(identity, buffer, count)
+        true -> bounded(identity, buffer, count),
         false -> bounded(identity, buffer, capacity)
     }
     machine bounded(identity: u64, buffer: @mut [u8], count: u64) -> u64
     requires count <= buffer.len {
         transition count <= 4 {
-            true -> received(identity, @mut buffer[0..count])
+            true -> received(identity, @mut buffer[0..count]),
             false -> received(identity, @mut buffer[0..4])
         }
     }
@@ -35,7 +35,7 @@ machine main() crashes Trap {
     let short_count: u64 = receive(borrow_stream(@stream), @mut bytes, 3);
     let clamped_count: u64 = receive(borrow_stream(@stream), @mut bytes, 9);
     transition short_count == 3 && clamped_count == 4 && stream.identity == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -33,7 +33,7 @@ machine probe(flag: bool) -> u64 {
 
 machine main() crashes Trap {
     transition probe(true) == 0 && probe(false) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

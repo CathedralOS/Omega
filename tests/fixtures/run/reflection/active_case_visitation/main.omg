@@ -28,9 +28,9 @@ requires Kind == u64
 
 machine observe(choice: @Choice, calls: u64, order: u64) crashes Trap {
     let mut trace: Trace = Trace { calls: 0u64, order: 0u64 };
-    reflect::visit_active_fields<Choice, report_case, report_field>(choice, @mut trace);
+    reflect::visit_active_fields::<Choice, report_case, report_field>(choice, @mut trace);
     transition trace.calls == calls && trace.order == order {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}
@@ -64,17 +64,17 @@ machine mutable_case() crashes Trap {
         after: 41u64,
     };
     let mut trace: Trace = Trace { calls: 0u64, order: 0u64 };
-    reflect::visit_active_fields_mut<Choice, report_case, edit_field>(@mut envelope.choice, @mut trace);
+    reflect::visit_active_fields_mut::<Choice, report_case, edit_field>(@mut envelope.choice, @mut trace);
     transition envelope.choice {
         Choice::Pair { first, second } ->
-            verify(envelope.before, envelope.after, first, second, trace.calls, trace.order)
+            verify(envelope.before, envelope.after, first, second, trace.calls, trace.order),
         _ -> wrong()
     }
     machine verify(before: u64, after: u64, first: u64, second: u64, calls: u64, order: u64) crashes Trap {
         transition before == 27u64 && after == 41u64
             && first == 85u64 && second == 81u64
             && calls == 3u64 && order == 8916u64 {
-            true -> done()
+            true -> done(),
             _ -> wrong()
         }
         machine done() {}

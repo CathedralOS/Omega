@@ -5,9 +5,9 @@
 use omega::language::core::CLayout;
 data Record [copy] { first: u8; second: u64; last: u16; }
 machine main() crashes Trap {
-    let bytes: u64 = size_of<CLayout<Record>>();
-    transition bytes == 24u64 && align_of<CLayout<Record>>() == 8u64 {
-        true -> done()
+    let bytes: u64 = size_of::<CLayout<Record>>();
+    transition bytes == 24u64 && align_of::<CLayout<Record>>() == 8u64 {
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

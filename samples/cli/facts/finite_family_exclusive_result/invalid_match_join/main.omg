@@ -14,7 +14,7 @@ First<'counter> satisfies Family<Ticket<'counter>, Delivery<'counter>> {
     machine row<Width: u32>(ticket: Ticket<'counter>) -> Delivery<'counter> requires Width == 16 || Width == 32 {
         let mut local: [u64; 1] = [0];
         transition Width == 16 {
-            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } }
+            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } },
             false -> Delivery::Wide { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } }
         }
     }
@@ -23,7 +23,7 @@ Second<'counter> satisfies Family<Ticket<'counter>, Delivery<'counter>> {
     machine row<Width: u32>(ticket: Ticket<'counter>) -> Delivery<'counter> requires Width == 16 || Width == 32 {
         let mut local: [u64; 1] = [0];
         transition Width == 16 {
-            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } }
+            true -> Delivery::Narrow { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } },
             false -> Delivery::Wide { ticket: Ticket { token: Token { drops: @mut local }, marker: Width } }
         }
     }
@@ -31,7 +31,7 @@ Second<'counter> satisfies Family<Ticket<'counter>, Delivery<'counter>> {
 data Stored<'counter> { ticket: Delivery<'counter>; }
 machine dispatch<'counter>(selected: dyn Family<Ticket<'counter>, Delivery<'counter>>, ticket: Ticket<'counter>, width: u32) -> Delivery<'counter>
 requires width == 16 || width == 32
-{ Family::row<width>(selected, ticket) }
+{ Family::row::<width>(selected, ticket) }
 machine forward<'counter>(ticket: Delivery<'counter>) -> Delivery<'counter> { ticket }
 machine observe<'counter>(selected: dyn Family<Ticket<'counter>, Delivery<'counter>>, drops: @'counter mut [u64; 1], width: u32) -> bool
 requires width == 16 || width == 32
@@ -40,7 +40,7 @@ requires width == 16 || width == 32
     transition { _ -> finish(forward(stored.ticket), width) }
     machine finish(delivery: Delivery<'counter>, width: u32) -> bool {
         transition delivery {
-            Delivery::Narrow { ticket } -> consume(ticket, width, 16)
+            Delivery::Narrow { ticket } -> consume(ticket, width, 16),
             Delivery::Wide { ticket } -> consume(ticket, width, 32)
         }
         machine consume(ticket: Ticket<'counter>, width: u32, tag: u32) -> bool {
@@ -53,7 +53,7 @@ machine check<'counter>(drops: @'counter mut [u64; 1]) crashes Trap {
     let first: bool = observe(First as dyn Family<Ticket<'counter>, Delivery<'counter>>, drops, 16);
     let first_settled: bool = drops[0] == 1;
     let second: bool = observe(Second as dyn Family<Ticket<'counter>, Delivery<'counter>>, drops, 32);
-    transition first && first_settled && second && drops[0] == 2 { true -> done() false -> bad() }
+    transition first && first_settled && second && drops[0] == 2 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -66,7 +66,7 @@ machine choose(first: bool) crashes Trap {
     };
     check(@mut joined.counter);
     transition (first && joined.tag == 17) || (!first && joined.tag == 29) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

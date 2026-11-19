@@ -26,7 +26,7 @@ pub(super) fn install(prelude: &str) -> String {
     for target in ProductTarget::ALL {
         writeln!(
             declarations,
-            "        BuildTarget::{} -> {}u64",
+            "        BuildTarget::{} -> {}u64,",
             target.source_case(),
             target.code()
         )

@@ -21,7 +21,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let second: i32 in Wrapping = main.cells[1] as i32 in Wrapping;
     let third: i32 in Wrapping = main.cells[2] as i32 in Wrapping;
     transition first + second + third == 70 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
 

@@ -35,7 +35,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.item.value = 9;
     transition keep(main.item).value == 9 && before_local(main.item).value == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

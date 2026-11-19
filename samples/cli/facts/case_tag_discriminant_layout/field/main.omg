@@ -15,17 +15,17 @@ data Holder [copy] {
 machine eval(holder: Holder) -> u64
     ensures result <= 64u64
 {
-    let s: u64 = size_of<Packet>();
-    let a: u64 = align_of<Packet>();
+    let s: u64 = size_of::<Packet>();
+    let a: u64 = align_of::<Packet>();
     let geometry_diff: u64 = (s + a) - 24u64;
     let packet: Packet = holder.packet;
     transition geometry_diff == 0 {
-        true -> inspect(packet)
+        true -> inspect(packet),
         _ -> 0u64
     }
     machine inspect(p: Packet) -> u64 {
         transition p {
-            Packet::Bounded { payload } -> (64u64 - payload)
+            Packet::Bounded { payload } -> (64u64 - payload),
             Packet::Empty {} -> 0u64
         }
     }
@@ -35,7 +35,7 @@ machine main() crashes Trap {
     let a: Holder = Holder { packet: Packet::Bounded { payload: 24u64 } };
     let b: Holder = Holder { packet: Packet::Empty {} };
     transition eval(a) == 40u64 && eval(b) == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

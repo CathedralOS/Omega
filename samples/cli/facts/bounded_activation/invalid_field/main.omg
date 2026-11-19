@@ -9,7 +9,7 @@ data Holder { claim: ActivationClaim; }
 
 machine write_read(bytes: @mut [u8]) -> u8 {
     transition bytes.len >= 3 {
-        true -> access(bytes)
+        true -> access(bytes),
         false -> (0u8)
     }
     machine access(bytes: @mut [u8]) -> u8
@@ -20,8 +20,8 @@ machine write_read(bytes: @mut [u8]) -> u8 {
 }
 
 machine main() crashes Trap {
-    transition Activation::try_claim<8>(3) {
-        ActivationClaimAttempt::Established { claim } -> established(claim)
+    transition Activation::try_claim::<8>(3) {
+        ActivationClaimAttempt::Established { claim } -> established(claim),
         ActivationClaimAttempt::Rejected -> bad()
     }
     machine established(claim: ActivationClaim) {
@@ -31,13 +31,13 @@ machine main() crashes Trap {
         ActivationClaim::release(holder.claim);
         let length: u64 = bytes.len;
         transition length == 3 && observed == 37u8 {
-            true -> over_bound()
+            true -> over_bound(),
             false -> bad()
         }
     }
     machine over_bound() {
-        transition Activation::try_claim<8>(9) {
-            ActivationClaimAttempt::Rejected -> done()
+        transition Activation::try_claim::<8>(9) {
+            ActivationClaimAttempt::Rejected -> done(),
             ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
         }
     }

@@ -36,7 +36,7 @@ machine scope() reaches Console crashes Trap {
  }
  machine observe(room: @mut Room) {
   Console::write_byte(79);
-  transition room.count == 11 { true -> seen() false -> bad() }
+  transition room.count == 11 { true -> seen(), false -> bad() }
  }
  machine seen() {}
  machine bad() { crash Trap; }

@@ -31,7 +31,7 @@ machine Item::code<Width: u32>(item: @Item) -> i32 satisfies Shape<Item>::code {
 }
 
 Primary satisfies Shape<Item> {
-    machine code<Width: u32>(subject: @Item) -> i32 requires Width == 16 || Width == 32 { Item::code<Width>(subject) }
+    machine code<Width: u32>(subject: @Item) -> i32 requires Width == 16 || Width == 32 { Item::code::<Width>(subject) }
 }
 
 data Main {
@@ -43,10 +43,10 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.item.value = 7;
     let selected: dyn Shape<Item> = Primary as dyn Shape<Item>;
-    let half: i32 = Shape::code<16>(selected, @main.item);
-    let full: i32 = Shape::code<32>(selected, @main.item);
+    let half: i32 = Shape::code::<16>(selected, @main.item);
+    let full: i32 = Shape::code::<32>(selected, @main.item);
     transition half == 7 && full == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

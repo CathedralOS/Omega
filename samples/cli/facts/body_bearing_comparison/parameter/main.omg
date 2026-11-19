@@ -29,7 +29,7 @@ machine observe(left: f64 in Marked, right: f64 in Marked) -> bool {
 
 machine main() crashes Trap {
     transition observe(1.0, 1.0) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -14,8 +14,8 @@ machine stage(scale: f64) -> [f64; 3] { [scale, scale + 1.0, scale + 2.0] }
 
 machine choose(order: u64) -> [f64; 3] {
     match order {
-        0 -> stage(1.0)
-        1 -> stage(2.0)
+        0 -> stage(1.0),
+        1 -> stage(2.0),
         _ -> stage(3.0)
     }
 }
@@ -32,7 +32,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine report(main: @mut Main, values: [f64; 3]) {
         let total: f64 = sum(values);
         transition total == 9.0 {
-            true -> pass()
+            true -> pass(),
             _ -> fail()
         }
     }

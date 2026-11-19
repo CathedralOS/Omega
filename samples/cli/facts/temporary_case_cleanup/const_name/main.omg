@@ -10,7 +10,7 @@ requires value.value == 2 {
 const NAMED: Bonus = Bonus { value: 2 };
 machine main() crashes Trap {
     let accepted: bool = consume(NAMED);
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -7,13 +7,13 @@ machine capture(position: u64, value: i32) -> Match { Match { position: position
 
 machine emit<'storage>(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool {
     transition selected < partitions.len {
-        true -> capacity(partitions, selected, record)
+        true -> capacity(partitions, selected, record),
         false -> false
     }
     machine capacity(partitions: @mut [Partition<'storage>], selected: u64, record: Match) -> bool
     requires selected < partitions.len {
         transition partitions[selected].count < partitions[selected].records.len {
-            true -> store(partitions, selected, record)
+            true -> store(partitions, selected, record),
             false -> false
         }
     }
@@ -49,7 +49,7 @@ machine main() crashes Trap {
         && first[2].position == 93 && first[2].value == -3
         && second[0].position == 81 && second[0].value == -4
         && second[1].position == 9223372036854775808 && second[1].value == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -21,7 +21,7 @@ machine count() -> u64 { 3 }
 machine identity<T [copy]>(value: T) -> T { value }
 
 machine extent() -> u64 {
-    let bytes: [u8; Count] = identity<[u8; Count]>([1u8, 2u8, 3u8]);
+    let bytes: [u8; Count] = identity::<[u8; Count]>([1u8, 2u8, 3u8]);
     bytes.len
 }
 
@@ -30,7 +30,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition Observed == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

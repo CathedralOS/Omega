@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     // Verify double_val standalone = 12 (passes).
     let dv6: i32 in Saturating = double_val(6);
     transition dv6 == 12 {
-        true -> check_r1(base)
+        true -> check_r1(base),
         _ -> bad_dv6()
     }
 
@@ -42,7 +42,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         // 10 + double_val(6) * 3 = 10 + 36 = 46.
         let r1: i32 in Saturating = base + double_val(6) * 3;
         transition r1 == 46 {
-            true -> check_r2(r1)
+            true -> check_r2(r1),
             _ -> bad_r1()
         }
     }
@@ -59,7 +59,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         // r1 - add5(2) + 1 = 46 - 7 + 1 = 40.
         let r2: i32 in Saturating = r1 - add5(2) + 1;
         transition r2 == 40 {
-            true -> check_inner(r1, r2)
+            true -> check_inner(r1, r2),
             _ -> bad_r2()
         }
     }
@@ -75,7 +75,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine check_inner(r1: i32 in Saturating, r2: i32 in Saturating) {
         let inner: i32 in Saturating = add5(7);
         transition inner == 12 {
-            true -> check_r3(r1, r2, inner)
+            true -> check_r3(r1, r2, inner),
             _ -> bad_inner()
         }
     }
@@ -91,7 +91,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine check_r3(r1: i32 in Saturating, r2: i32 in Saturating, inner: i32 in Saturating) {
         let r3: i32 in Saturating = r2 + double_val(inner);
         transition r3 == 64 {
-            true -> compute_final(r1, r2, r3)
+            true -> compute_final(r1, r2, r3),
             _ -> bad_r3()
         }
     }
@@ -107,7 +107,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine compute_final(r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         let result: i32 in Saturating = r3 + add5(1);
         transition result == 70 {
-            true -> good()
+            true -> good(),
             _ -> bad_result()
         }
     }

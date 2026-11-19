@@ -22,7 +22,7 @@ machine probe(number: Value<i32>, other_number: Value<i32>, flag: Value<bool>, o
 }
 machine main() crashes Trap {
     transition probe(Value::Integer { value: 7 }, Value::Integer { value: 9 }, Value::Boolean { value: true }, Value::Boolean { value: false }) == true {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

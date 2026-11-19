@@ -16,7 +16,7 @@ machine produce() -> InternetAddress reaches AddressParts, AddressBridge { Addre
 machine observe() -> bool reaches AddressParts, AddressBridge { consume(produce(), AddressBridge::make(44048, 513)) }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

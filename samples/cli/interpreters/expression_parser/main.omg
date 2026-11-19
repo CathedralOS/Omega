@@ -39,13 +39,13 @@ data Main {
 
 machine precedence(operator: u8) -> u64 {
     transition operator == 42 {
-        true -> high()
+        true -> high(),
         _ -> additive(operator)
     }
     machine high() -> u64 { 2 }
     machine additive(operator: u8) -> u64 {
         transition operator == 43 || operator == 45 {
-            true -> low()
+            true -> low(),
             _ -> none()
         }
     }
@@ -72,7 +72,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine scan(main: @mut Main) {
         transition main.position < main.length && main.position < 16 {
-            true -> read(main)
+            true -> read(main),
             _ -> drain(main)
         }
     }
@@ -80,28 +80,28 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read(main: @mut Main) {
         main.byte = main.text[main.position];
         transition main.byte >= 48 && main.byte <= 57 {
-            true -> push_digit(main)
+            true -> push_digit(main),
             _ -> punctuation(main)
         }
     }
 
     machine punctuation(main: @mut Main) {
         transition main.byte == 40 {
-            true -> push_open(main)
+            true -> push_open(main),
             _ -> close_or_operator(main)
         }
     }
 
     machine close_or_operator(main: @mut Main) {
         transition main.byte == 41 {
-            true -> close(main)
+            true -> close(main),
             _ -> operator(main)
         }
     }
 
     machine push_digit(main: @mut Main) {
         transition main.value_count < 16 && main.position < 16 {
-            true -> store_digit(main)
+            true -> store_digit(main),
             _ -> malformed()
         }
     }
@@ -116,7 +116,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine push_open(main: @mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
-            true -> store_open(main)
+            true -> store_open(main),
             _ -> malformed()
         }
     }
@@ -131,14 +131,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // ')' applies stacked operators back to the matching '('.
     machine close(main: @mut Main) {
         transition main.operator_count >= 1 && main.operator_count <= 16 {
-            true -> close_top(main)
+            true -> close_top(main),
             _ -> malformed()
         }
     }
 
     machine close_top(main: @mut Main) {
         transition main.operators[main.operator_count - 1] == 40 {
-            true -> pop_open(main)
+            true -> pop_open(main),
             _ -> close_apply(main)
         }
     }
@@ -150,7 +150,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine pop_open(main: @mut Main) {
         transition main.operator_count >= 1 && main.position < 16 {
-            true -> after_open(main)
+            true -> after_open(main),
             _ -> malformed()
         }
     }
@@ -165,7 +165,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // as tightly, then stacks itself.
     machine operator(main: @mut Main) {
         transition main.operator_count >= 1 && main.operator_count <= 16 {
-            true -> operator_top(main)
+            true -> operator_top(main),
             _ -> push_operator(main)
         }
     }
@@ -173,7 +173,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine operator_top(main: @mut Main) {
         let top: u8 = main.operators[main.operator_count - 1];
         transition top != 40 && precedence(top) >= precedence(main.byte) {
-            true -> operator_apply(main)
+            true -> operator_apply(main),
             _ -> push_operator(main)
         }
     }
@@ -185,7 +185,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine push_operator(main: @mut Main) {
         transition main.operator_count < 16 && main.position < 16 {
-            true -> store_operator(main)
+            true -> store_operator(main),
             _ -> malformed()
         }
     }
@@ -200,7 +200,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // The end of the text applies every operator still stacked.
     machine drain(main: @mut Main) {
         transition main.operator_count >= 1 {
-            true -> drain_apply(main)
+            true -> drain_apply(main),
             _ -> finish(main)
         }
     }
@@ -215,7 +215,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine apply(main: @mut Main) {
         transition main.value_count >= 2 && main.value_count <= 16
             && main.operator_count >= 1 && main.operator_count <= 16 {
-            true -> reduce(main)
+            true -> reduce(main),
             _ -> malformed()
         }
     }
@@ -227,21 +227,21 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.operator_count = main.operator_count - 1;
         main.value_count = main.value_count - 1;
         transition operator == 42 {
-            true -> store_result(main, left * right)
+            true -> store_result(main, left * right),
             _ -> additive_result(main, operator, left, right)
         }
     }
 
     machine additive_result(main: @mut Main, operator: u8, left: i32 in Wrapping, right: i32 in Wrapping) {
         transition operator == 43 {
-            true -> store_result(main, left + right)
+            true -> store_result(main, left + right),
             _ -> store_result(main, left - right)
         }
     }
 
     machine store_result(main: @mut Main, result: i32 in Wrapping) {
         transition main.value_count >= 1 && main.value_count <= 16 {
-            true -> write_result(main, result)
+            true -> write_result(main, result),
             _ -> malformed()
         }
     }
@@ -249,15 +249,15 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine write_result(main: @mut Main, result: i32 in Wrapping) {
         main.values[main.value_count - 1] = result;
         transition main.resume {
-            Resume::Close -> close(main)
-            Resume::Operator -> operator(main)
+            Resume::Close -> close(main),
+            Resume::Operator -> operator(main),
             Resume::Drain -> drain(main)
         }
     }
 
     machine finish(main: @mut Main) {
         transition main.value_count == 1 {
-            true -> report(main)
+            true -> report(main),
             _ -> malformed()
         }
     }

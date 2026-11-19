@@ -17,7 +17,7 @@ crashes Trap
     machine next(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         load_current(parser, input);
         transition parser.current_present {
-            true -> classify(parser, input, unsupported)
+            true -> classify(parser, input, unsupported),
             _ -> done()
         }
     }
@@ -26,15 +26,15 @@ crashes Trap
         let token: Token = input.tokens[parser.current_index];
         parser.statement_start = token.start;
         transition token.kind {
-            TokenKind::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> done()
-            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> done()
-            TokenKind::Keyword { keyword: KeywordKind::Let, .. } -> let_statement(parser, input, unsupported)
-            TokenKind::Keyword { keyword: KeywordKind::Transition, .. } -> transition_statement(parser, input, unsupported)
-            TokenKind::Keyword { keyword: KeywordKind::If, .. } -> reject(parser, input, unsupported)
-            TokenKind::Keyword { keyword: KeywordKind::Loop, .. } -> reject(parser, input, unsupported)
-            TokenKind::Keyword { keyword: KeywordKind::While, .. } -> reject(parser, input, unsupported)
-            TokenKind::Keyword { keyword: KeywordKind::Return, .. } -> reject(parser, input, unsupported)
-            TokenKind::Identifier -> word(parser, input, unsupported)
+            TokenKind::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> done(),
+            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> done(),
+            TokenKind::Keyword { keyword: KeywordKind::Let, .. } -> let_statement(parser, input, unsupported),
+            TokenKind::Keyword { keyword: KeywordKind::Transition, .. } -> transition_statement(parser, input, unsupported),
+            TokenKind::Keyword { keyword: KeywordKind::If, .. } -> reject(parser, input, unsupported),
+            TokenKind::Keyword { keyword: KeywordKind::Loop, .. } -> reject(parser, input, unsupported),
+            TokenKind::Keyword { keyword: KeywordKind::While, .. } -> reject(parser, input, unsupported),
+            TokenKind::Keyword { keyword: KeywordKind::Return, .. } -> reject(parser, input, unsupported),
+            TokenKind::Identifier -> word(parser, input, unsupported),
             _ -> expression_statement(parser, input, unsupported)
         }
     }
@@ -46,14 +46,14 @@ crashes Trap
         let underscore: bool = at_word(parser, input, "_");
         let assigned: bool = next_is_punctuation(parser, input, PunctuationKind::Equal);
         transition crash {
-            true -> crash_statement(parser, input, unsupported)
+            true -> crash_statement(parser, input, unsupported),
             _ -> discard_or_value(parser, input, unsupported, underscore && assigned)
         }
     }
 
     machine discard_or_value(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, discard: bool) {
         transition discard {
-            true -> discard_statement(parser, input, unsupported)
+            true -> discard_statement(parser, input, unsupported),
             _ -> expression_statement(parser, input, unsupported)
         }
     }
@@ -63,7 +63,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
         transition parser.output.accepted {
-            true -> discard_end(parser, input, unsupported, parser.expression_result)
+            true -> discard_end(parser, input, unsupported, parser.expression_result),
             _ -> done()
         }
     }
@@ -73,7 +73,7 @@ crashes Trap
             ParseDiagnosticCode::ExpectedAssignmentSemicolon
         );
         transition parser.output.accepted {
-            true -> discard_retained(parser, input, unsupported, value)
+            true -> discard_retained(parser, input, unsupported, value),
             _ -> done()
         }
     }
@@ -99,7 +99,7 @@ crashes Trap
         take_current(parser, input);
         let trap: bool = at_word(parser, input, "Trap");
         transition trap {
-            true -> crash_cause(parser, input, unsupported, CrashCause::Trap)
+            true -> crash_cause(parser, input, unsupported, CrashCause::Trap),
             _ -> crash_abort(parser, input, unsupported)
         }
     }
@@ -107,7 +107,7 @@ crashes Trap
     machine crash_abort(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         let abort: bool = at_word(parser, input, "Abort");
         transition abort {
-            true -> crash_cause(parser, input, unsupported, CrashCause::Abort)
+            true -> crash_cause(parser, input, unsupported, CrashCause::Abort),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedCrashCause)
         }
     }
@@ -116,7 +116,7 @@ crashes Trap
         take_current(parser, input);
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedCrashEnd);
         transition parser.output.accepted {
-            true -> crash_retained(parser, input, unsupported, cause)
+            true -> crash_retained(parser, input, unsupported, cause),
             _ -> done()
         }
     }
@@ -142,7 +142,7 @@ crashes Trap
         take_current(parser, input);
         let mutable: bool = at_word(parser, input, "mut");
         transition mutable {
-            true -> let_mut(parser, input, unsupported)
+            true -> let_mut(parser, input, unsupported),
             _ -> let_name(parser, input, unsupported, false)
         }
     }
@@ -153,7 +153,7 @@ crashes Trap
         take_current(parser, input);
         let named: bool = at_name(parser, input);
         transition named {
-            true -> let_name(parser, input, unsupported, true)
+            true -> let_name(parser, input, unsupported, true),
             _ -> let_named_mut(parser, input, unsupported)
         }
     }
@@ -168,7 +168,7 @@ crashes Trap
     machine let_marker(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         parse_erased_marker(parser, input);
         transition parser.output.accepted {
-            true -> let_colon(parser, input, unsupported)
+            true -> let_colon(parser, input, unsupported),
             _ -> done()
         }
     }
@@ -177,7 +177,7 @@ crashes Trap
         parser.local_mutable = mutable;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedLocalDataName);
         transition parser.output.accepted {
-            true -> let_named(parser, input, unsupported)
+            true -> let_named(parser, input, unsupported),
             _ -> done()
         }
     }
@@ -191,7 +191,7 @@ crashes Trap
     machine let_colon(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         expect_punctuation(parser, input, PunctuationKind::Colon, ParseDiagnosticCode::ExpectedLocalDataColon);
         transition parser.output.accepted {
-            true -> let_type(parser, input, unsupported)
+            true -> let_type(parser, input, unsupported),
             _ -> done()
         }
     }
@@ -199,7 +199,7 @@ crashes Trap
     machine let_type(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedLocalDataType);
         transition parser.output.accepted {
-            true -> let_initializer(parser, input, unsupported)
+            true -> let_initializer(parser, input, unsupported),
             _ -> done()
         }
     }
@@ -208,7 +208,7 @@ crashes Trap
         parser.local_type = parser.type_result;
         let initialized: bool = at_punctuation(parser, input, PunctuationKind::Equal);
         transition initialized {
-            true -> let_value(parser, input, unsupported)
+            true -> let_value(parser, input, unsupported),
             _ -> let_end(parser, input, unsupported, false, 0)
         }
     }
@@ -217,7 +217,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedLocalDataInitialValue, true, true);
         transition parser.output.accepted {
-            true -> let_end(parser, input, unsupported, true, parser.expression_result)
+            true -> let_end(parser, input, unsupported, true, parser.expression_result),
             _ -> done()
         }
     }
@@ -231,7 +231,7 @@ crashes Trap
     ) {
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedLocalDataEnd);
         transition parser.output.accepted {
-            true -> let_retained(parser, input, unsupported, has_value, value)
+            true -> let_retained(parser, input, unsupported, has_value, value),
             _ -> done()
         }
     }
@@ -265,7 +265,7 @@ crashes Trap
     machine expression_statement(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         parse_expression(parser, input, unsupported, true, true);
         transition parser.output.accepted {
-            true -> after_expression(parser, input, unsupported, parser.expression_result)
+            true -> after_expression(parser, input, unsupported, parser.expression_result),
             _ -> done()
         }
     }
@@ -273,7 +273,7 @@ crashes Trap
     machine after_expression(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         load_current(parser, input);
         transition parser.current_present {
-            true -> statement_end(parser, input, unsupported, value)
+            true -> statement_end(parser, input, unsupported, value),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
         }
     }
@@ -281,10 +281,10 @@ crashes Trap
     machine statement_end(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, value: u64 in Trapping) {
         let token: Token = input.tokens[parser.current_index];
         transition token.kind {
-            TokenKind::Punctuation { punctuation: PunctuationKind::Equal, .. } -> assignment(parser, input, unsupported, value)
-            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> terminated(parser, input, unsupported, value)
-            TokenKind::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> tail(parser, input, unsupported, value)
-            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> tail(parser, input, unsupported, value)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Equal, .. } -> assignment(parser, input, unsupported, value),
+            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> terminated(parser, input, unsupported, value),
+            TokenKind::Punctuation { punctuation: PunctuationKind::RightBrace, .. } -> tail(parser, input, unsupported, value),
+            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> tail(parser, input, unsupported, value),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedStatementEnd)
         }
     }
@@ -293,7 +293,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedAssignmentValue, true, true);
         transition parser.output.accepted {
-            true -> assignment_end(parser, input, unsupported, target, parser.expression_result)
+            true -> assignment_end(parser, input, unsupported, target, parser.expression_result),
             _ -> done()
         }
     }
@@ -309,7 +309,7 @@ crashes Trap
             ParseDiagnosticCode::ExpectedAssignmentSemicolon
         );
         transition parser.output.accepted {
-            true -> assignment_retained(parser, input, unsupported, target, value)
+            true -> assignment_retained(parser, input, unsupported, target, value),
             _ -> done()
         }
     }
@@ -376,7 +376,7 @@ crashes Trap
 
     machine store(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, statement: Statement) {
         transition parser.output.statement_count < 16384 {
-            true -> store_bounded(parser, input, unsupported, statement)
+            true -> store_bounded(parser, input, unsupported, statement),
             _ -> reject(parser, input, ParseDiagnosticCode::StatementCapacityExceeded)
         }
     }
@@ -394,7 +394,7 @@ crashes Trap
         take_current(parser, input);
         let open: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
-            true -> arms_open(parser, input, unsupported, false, 0)
+            true -> arms_open(parser, input, unsupported, false, 0),
             _ -> transition_subject(parser, input, unsupported)
         }
     }
@@ -402,7 +402,7 @@ crashes Trap
     machine transition_subject(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionSubject, false, true);
         transition parser.output.accepted {
-            true -> subject_open(parser, input, unsupported, parser.expression_result)
+            true -> subject_open(parser, input, unsupported, parser.expression_result),
             _ -> done()
         }
     }
@@ -410,7 +410,7 @@ crashes Trap
     machine subject_open(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping) {
         let open: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition open {
-            true -> arms_open(parser, input, unsupported, true, subject)
+            true -> arms_open(parser, input, unsupported, true, subject),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionArm)
         }
     }
@@ -436,7 +436,7 @@ crashes Trap
     ) {
         let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
         transition closing {
-            true -> transition_close(parser, input, unsupported, has_subject, subject)
+            true -> transition_close(parser, input, unsupported, has_subject, subject),
             _ -> arm_start(parser, input, unsupported, has_subject, subject)
         }
     }
@@ -450,7 +450,7 @@ crashes Trap
     ) {
         load_current(parser, input);
         transition parser.current_present {
-            true -> arm_pattern(parser, input, unsupported, has_subject, subject)
+            true -> arm_pattern(parser, input, unsupported, has_subject, subject),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionArm)
         }
     }
@@ -470,7 +470,7 @@ crashes Trap
         parser.arm_guard = 0;
         let wildcard: bool = at_word(parser, input, "_");
         transition wildcard {
-            true -> wildcard_arm(parser, input, unsupported, has_subject, subject)
+            true -> wildcard_arm(parser, input, unsupported, has_subject, subject),
             _ -> arm_expression(parser, input, unsupported, has_subject, subject)
         }
     }
@@ -495,7 +495,7 @@ crashes Trap
     ) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionArm, false, true);
         transition parser.output.accepted {
-            true -> arm_classify(parser, input, unsupported, has_subject, subject, parser.expression_result)
+            true -> arm_classify(parser, input, unsupported, has_subject, subject, parser.expression_result),
             _ -> done()
         }
     }
@@ -512,7 +512,7 @@ crashes Trap
     ) {
         let expression: Expression = syntax_trees_expression(@parser.output, pattern);
         transition has_subject {
-            true -> subject_pattern(parser, input, unsupported, subject, pattern, expression.kind)
+            true -> subject_pattern(parser, input, unsupported, subject, pattern, expression.kind),
             _ -> arm_guard(parser, input, unsupported, false, subject, ArmPatternKind::Guard, pattern, 0, 0)
         }
     }
@@ -526,8 +526,8 @@ crashes Trap
         kind: ExpressionKind
     ) {
         transition kind {
-            ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern)
-            ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern)
+            ExpressionKind::Name -> case_pattern(parser, input, unsupported, subject, pattern),
+            ExpressionKind::Path -> case_pattern(parser, input, unsupported, subject, pattern),
             _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Literal, pattern, 0, 0)
         }
     }
@@ -543,7 +543,7 @@ crashes Trap
         let braced: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         parser.arm_has_fields = braced;
         transition braced {
-            true -> pattern_fields_open(parser, input, unsupported, subject, pattern)
+            true -> pattern_fields_open(parser, input, unsupported, subject, pattern),
             _ -> arm_guard(parser, input, unsupported, true, subject, ArmPatternKind::Case, pattern,
                 parser.pattern_first_field, 0)
         }
@@ -570,14 +570,14 @@ crashes Trap
         let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
         let rest: bool = at_punctuation(parser, input, PunctuationKind::DotDot);
         transition closing {
-            true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
+            true -> pattern_fields_close(parser, input, unsupported, subject, pattern),
             _ -> pattern_field_or_rest(parser, input, unsupported, subject, pattern, rest)
         }
     }
 
     machine pattern_field_or_rest(parser: @mut Parser, input: @TokenStream, unsupported: ParseDiagnosticCode, subject: u64 in Trapping, pattern: u64 in Trapping, rest: bool) {
         transition rest {
-            true -> pattern_rest(parser, input, unsupported, subject, pattern)
+            true -> pattern_rest(parser, input, unsupported, subject, pattern),
             _ -> pattern_field(parser, input, unsupported, subject, pattern)
         }
     }
@@ -589,7 +589,7 @@ crashes Trap
         take_current(parser, input);
         let separator: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
-            true -> pattern_field_separator(parser, input, unsupported, subject, pattern)
+            true -> pattern_field_separator(parser, input, unsupported, subject, pattern),
             _ -> pattern_field_end(parser, input, unsupported, subject, pattern)
         }
     }
@@ -603,7 +603,7 @@ crashes Trap
     ) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternField);
         transition parser.output.accepted {
-            true -> pattern_field_named(parser, input, unsupported, subject, pattern)
+            true -> pattern_field_named(parser, input, unsupported, subject, pattern),
             _ -> done()
         }
     }
@@ -621,7 +621,7 @@ crashes Trap
         let renamed: bool = at_keyword(parser, input, KeywordKind::As);
         let binder: PatternField = pattern_binder(parser);
         transition valued {
-            true -> pattern_field_value(parser, input, unsupported, subject, pattern)
+            true -> pattern_field_value(parser, input, unsupported, subject, pattern),
             _ -> pattern_field_binder(parser, input, unsupported, subject, pattern, binder, renamed)
         }
     }
@@ -638,7 +638,7 @@ crashes Trap
         renamed: bool
     ) {
         transition renamed {
-            true -> pattern_field_rename(parser, input, unsupported, subject, pattern, binder)
+            true -> pattern_field_rename(parser, input, unsupported, subject, pattern, binder),
             _ -> pattern_field_store(parser, input, unsupported, subject, pattern, binder)
         }
     }
@@ -656,7 +656,7 @@ crashes Trap
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPatternRename);
         transition parser.output.accepted {
             true -> pattern_field_store(parser, input, unsupported, subject, pattern,
-                renamed_binder(parser, binder, waived))
+                renamed_binder(parser, binder, waived)),
             _ -> done()
         }
     }
@@ -671,7 +671,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedPatternField, false, true);
         transition parser.output.accepted {
-            true -> pattern_field_valued(parser, input, unsupported, subject, pattern, parser.expression_result)
+            true -> pattern_field_valued(parser, input, unsupported, subject, pattern, parser.expression_result),
             _ -> done()
         }
     }
@@ -698,7 +698,7 @@ crashes Trap
         field: PatternField
     ) {
         transition parser.output.pattern_field_count < 2048 {
-            true -> pattern_field_stored(parser, input, unsupported, subject, pattern, field)
+            true -> pattern_field_stored(parser, input, unsupported, subject, pattern, field),
             _ -> reject(parser, input, ParseDiagnosticCode::PatternFieldCapacityExceeded)
         }
     }
@@ -715,7 +715,7 @@ crashes Trap
         parser.output.pattern_field_count = parser.output.pattern_field_count + 1;
         let separator: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
-            true -> pattern_field_separator(parser, input, unsupported, subject, pattern)
+            true -> pattern_field_separator(parser, input, unsupported, subject, pattern),
             _ -> pattern_field_end(parser, input, unsupported, subject, pattern)
         }
     }
@@ -740,7 +740,7 @@ crashes Trap
     ) {
         let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
         transition closing {
-            true -> pattern_fields_close(parser, input, unsupported, subject, pattern)
+            true -> pattern_fields_close(parser, input, unsupported, subject, pattern),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedPatternFieldEnd)
         }
     }
@@ -774,7 +774,7 @@ crashes Trap
     ) {
         let guarded: bool = at_keyword(parser, input, KeywordKind::If);
         transition guarded {
-            true -> guard_condition(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            true -> guard_condition(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count),
             _ -> arm_arrow(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
         }
     }
@@ -795,7 +795,7 @@ crashes Trap
         parser.arm_has_guard = true;
         parser.arm_guard = parser.expression_result;
         transition parser.output.accepted {
-            true -> arm_arrow(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            true -> arm_arrow(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count),
             _ -> done()
         }
     }
@@ -813,7 +813,7 @@ crashes Trap
     ) {
         expect_punctuation(parser, input, PunctuationKind::Arrow, ParseDiagnosticCode::ExpectedTransitionArrow);
         transition parser.output.accepted {
-            true -> arm_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            true -> arm_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count),
             _ -> done()
         }
     }
@@ -834,7 +834,7 @@ crashes Trap
     ) {
         let terminal: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         transition terminal {
-            true -> terminal_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
+            true -> terminal_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count),
             _ -> call_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field, field_count)
         }
     }
@@ -867,7 +867,7 @@ crashes Trap
                 target_kind: ArmTargetKind::Unit,
                 target: 0,
                 source_span: parser_source_span(parser, parser.arm_start, parser.token_end)
-            })
+            }),
             _ -> done()
         }
     }
@@ -886,7 +886,7 @@ crashes Trap
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTransitionTarget, true, true);
         transition parser.output.accepted {
             true -> call_target_shape(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
-                field_count, parser.expression_result)
+                field_count, parser.expression_result),
             _ -> done()
         }
     }
@@ -910,9 +910,9 @@ crashes Trap
         let acknowledged: bool = acknowledges(call.operator);
         transition call.kind {
             ExpressionKind::Call -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
-                first_field, field_count, target, call)
+                first_field, field_count, target, call),
             ExpressionKind::Unary -> unary_target(parser, input, unsupported, has_subject, subject, kind,
-                pattern, first_field, field_count, target, call, acknowledged)
+                pattern, first_field, field_count, target, call, acknowledged),
             _ -> value_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
                 field_count, target, call)
         }
@@ -934,7 +934,7 @@ crashes Trap
     ) {
         transition acknowledged {
             true -> acknowledged_target(parser, input, unsupported, has_subject, subject, kind, pattern,
-                first_field, field_count, target, unary)
+                first_field, field_count, target, unary),
             _ -> value_target(parser, input, unsupported, has_subject, subject, kind, pattern, first_field,
                 field_count, target, unary)
         }
@@ -990,7 +990,7 @@ crashes Trap
         let acknowledged: bool = acknowledges(acknowledgement.operator);
         transition acknowledged && call.kind == ExpressionKind::Call {
             true -> call_target_callee(parser, input, unsupported, has_subject, subject, kind, pattern,
-                first_field, field_count, target, call)
+                first_field, field_count, target, call),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTransitionTargetOpen)
         }
     }
@@ -1024,7 +1024,7 @@ crashes Trap
         };
         let named: bool = names_declaration(callee.kind);
         transition named {
-            true -> store_arm(parser, input, unsupported, has_subject, subject, arm)
+            true -> store_arm(parser, input, unsupported, has_subject, subject, arm),
             _ -> reject_at(parser, ParseDiagnosticCode::ExpectedTransitionTarget, callee.source_span)
         }
     }
@@ -1038,7 +1038,7 @@ crashes Trap
         arm: TransitionArm
     ) {
         transition parser.output.arm_count < 8192 {
-            true -> arm_stored(parser, input, unsupported, has_subject, subject, arm)
+            true -> arm_stored(parser, input, unsupported, has_subject, subject, arm),
             _ -> reject(parser, input, ParseDiagnosticCode::ArmCapacityExceeded)
         }
     }
@@ -1094,9 +1094,9 @@ crashes Trap
 // Whether `operator` is a call acknowledgement prefix.
 machine acknowledges(operator: OperatorKind) -> bool {
     transition operator {
-        OperatorKind::Suspend -> acknowledgement()
-        OperatorKind::Block -> acknowledgement()
-        OperatorKind::SuspendBlock -> acknowledgement()
+        OperatorKind::Suspend -> acknowledgement(),
+        OperatorKind::Block -> acknowledgement(),
+        OperatorKind::SuspendBlock -> acknowledgement(),
         _ -> other()
     }
 

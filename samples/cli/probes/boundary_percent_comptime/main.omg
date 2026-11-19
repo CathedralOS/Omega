@@ -44,7 +44,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let kept: u64 = take_bounded(7);
     transition kept == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

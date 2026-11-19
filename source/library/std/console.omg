@@ -117,14 +117,14 @@ boundary trait DarwinX86ConsoleIo: Calling<SystemVByteViewCalling> {
 
 public WindowsConsole satisfies Console {
     machine write_line(text: @[u8]) reaches Console {
-        console_write_bytes<WindowsConsoleBytes>(text, true);
+        console_write_bytes::<WindowsConsoleBytes>(text, true);
     }
     machine write(text: @[u8]) reaches Console {
-        console_write_bytes<WindowsConsoleBytes>(text, false);
+        console_write_bytes::<WindowsConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block console_read_line<WindowsConsoleBytes>(out_line)
+        block console_read_line::<WindowsConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
@@ -138,14 +138,14 @@ public WindowsConsole satisfies Console {
 
 public LinuxX86Console satisfies Console {
     machine write_line(text: @[u8]) reaches Console {
-        console_write_bytes<LinuxX86ConsoleBytes>(text, true);
+        console_write_bytes::<LinuxX86ConsoleBytes>(text, true);
     }
     machine write(text: @[u8]) reaches Console {
-        console_write_bytes<LinuxX86ConsoleBytes>(text, false);
+        console_write_bytes::<LinuxX86ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block console_read_line<LinuxX86ConsoleBytes>(out_line)
+        block console_read_line::<LinuxX86ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
@@ -159,14 +159,14 @@ public LinuxX86Console satisfies Console {
 
 public LinuxArm64Console satisfies Console {
     machine write_line(text: @[u8]) reaches Console {
-        console_write_bytes<LinuxArm64ConsoleBytes>(text, true);
+        console_write_bytes::<LinuxArm64ConsoleBytes>(text, true);
     }
     machine write(text: @[u8]) reaches Console {
-        console_write_bytes<LinuxArm64ConsoleBytes>(text, false);
+        console_write_bytes::<LinuxArm64ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block console_read_line<LinuxArm64ConsoleBytes>(out_line)
+        block console_read_line::<LinuxArm64ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
@@ -180,14 +180,14 @@ public LinuxArm64Console satisfies Console {
 
 public DarwinArm64Console satisfies Console {
     machine write_line(text: @[u8]) reaches Console {
-        console_write_bytes<DarwinArm64ConsoleBytes>(text, true);
+        console_write_bytes::<DarwinArm64ConsoleBytes>(text, true);
     }
     machine write(text: @[u8]) reaches Console {
-        console_write_bytes<DarwinArm64ConsoleBytes>(text, false);
+        console_write_bytes::<DarwinArm64ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block console_read_line<DarwinArm64ConsoleBytes>(out_line)
+        block console_read_line::<DarwinArm64ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
@@ -201,14 +201,14 @@ public DarwinArm64Console satisfies Console {
 
 public DarwinX86Console satisfies Console {
     machine write_line(text: @[u8]) reaches Console {
-        console_write_bytes<DarwinX86ConsoleBytes>(text, true);
+        console_write_bytes::<DarwinX86ConsoleBytes>(text, true);
     }
     machine write(text: @[u8]) reaches Console {
-        console_write_bytes<DarwinX86ConsoleBytes>(text, false);
+        console_write_bytes::<DarwinX86ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mut [u8]) -> LineReadResult
     reaches Console blocks crashes Trap {
-        block console_read_line<DarwinX86ConsoleBytes>(out_line)
+        block console_read_line::<DarwinX86ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
@@ -236,10 +236,10 @@ LinuxX86ConsoleRaw satisfies PosixConsoleRawOperations {
 LinuxX86ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
-        block posix_console_read_byte<LinuxX86ConsoleRaw>()
+        block posix_console_read_byte::<LinuxX86ConsoleRaw>()
     }
     machine write_byte(byte: i32) reaches Console {
-        posix_console_write_byte<LinuxX86ConsoleRaw>(byte);
+        posix_console_write_byte::<LinuxX86ConsoleRaw>(byte);
     }
 
 }
@@ -260,10 +260,10 @@ LinuxArm64ConsoleRaw satisfies PosixConsoleRawOperations {
 LinuxArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
-        block posix_console_read_byte<LinuxArm64ConsoleRaw>()
+        block posix_console_read_byte::<LinuxArm64ConsoleRaw>()
     }
     machine write_byte(byte: i32) reaches Console {
-        posix_console_write_byte<LinuxArm64ConsoleRaw>(byte);
+        posix_console_write_byte::<LinuxArm64ConsoleRaw>(byte);
     }
 
 }
@@ -284,10 +284,10 @@ DarwinArm64ConsoleRaw satisfies PosixConsoleRawOperations {
 DarwinArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
-        block posix_console_read_byte<DarwinArm64ConsoleRaw>()
+        block posix_console_read_byte::<DarwinArm64ConsoleRaw>()
     }
     machine write_byte(byte: i32) reaches Console {
-        posix_console_write_byte<DarwinArm64ConsoleRaw>(byte);
+        posix_console_write_byte::<DarwinArm64ConsoleRaw>(byte);
     }
 
 }
@@ -308,10 +308,10 @@ DarwinX86ConsoleRaw satisfies PosixConsoleRawOperations {
 DarwinX86ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
     reaches Console blocks crashes Trap {
-        block posix_console_read_byte<DarwinX86ConsoleRaw>()
+        block posix_console_read_byte::<DarwinX86ConsoleRaw>()
     }
     machine write_byte(byte: i32) reaches Console {
-        posix_console_write_byte<DarwinX86ConsoleRaw>(byte);
+        posix_console_write_byte::<DarwinX86ConsoleRaw>(byte);
     }
 
 }
@@ -324,8 +324,8 @@ reaches Console blocks crashes Trap {
     let mut cell: i32 = 0;
     let count: i64 = block Raw::read(0, @mut cell, 1);
     transition count {
-        1 -> byte(cell)
-        0 -> end()
+        1 -> byte(cell),
+        0 -> end(),
         _ -> failed()
     }
     machine byte(cell: i32) -> ByteRead {
@@ -351,7 +351,7 @@ reaches Console {
     transition { _ -> block scan(out_line, 0) }
     machine scan(out_line: @mut [u8], position: u64) -> LineReadResult {
         transition position < out_line.len {
-            true -> block read(out_line, position, position + 1)
+            true -> block read(out_line, position, position + 1),
             false -> full(position)
         }
     }
@@ -359,7 +359,7 @@ reaches Console {
     requires position < out_line.len {
         let observed: ByteRead = block Bytes::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> block store(out_line, position, next, value)
+            ByteRead::Byte { value } -> block store(out_line, position, next, value),
             ByteRead::Eof -> end(position)
         }
     }
@@ -368,7 +368,7 @@ reaches Console {
     {
         out_line[position] = value as u8;
         transition value == 10 {
-            true -> complete(next)
+            true -> complete(next),
             false -> block scan(out_line, next)
         }
     }
@@ -389,7 +389,7 @@ reaches
     Console
 {
     transition bytes.len > 0 {
-        true -> emit(bytes[0], bytes[1..], newline)
+        true -> emit(bytes[0], bytes[1..], newline),
         false -> finish(newline)
     }
 
@@ -398,14 +398,14 @@ reaches
         let mut output: u8 = byte;
         Bytes::write_byte(output as i32);
         transition bytes.len > 0 {
-            true -> emit(bytes[0], bytes[1..], newline)
+            true -> emit(bytes[0], bytes[1..], newline),
             false -> finish(newline)
         }
     }
 
     machine finish(newline: bool) {
         transition newline {
-            true -> emit_newline(10)
+            true -> emit_newline(10),
             false -> done()
         }
     }

@@ -27,7 +27,7 @@ machine scaled(value: u32, factor: u32) -> u32 requires value <= 1000 && factor 
 }
 machine settle(total: u32) {
     transition total > 9000 {
-        true -> done()
+        true -> done(),
         false -> done()
     }
 }
@@ -293,10 +293,10 @@ fn a_guard_in_a_call_cycle_reaches_the_helper_it_selects() {
                  main.i = 0;\n\
                  transition {{ _ -> block head(main) }}\n\
                  machine head(main: @mut Main) {{\n\
-                     transition main.i >= 0 && main.i < 31 {{ true -> block mark(main) _ -> block done(main) }}\n\
+                     transition main.i >= 0 && main.i < 31 {{ true -> block mark(main), _ -> block done(main) }}\n\
                  }}\n\
                  machine mark(main: @mut Main) {{\n\
-                     transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main) _ -> block head(main) }}\n\
+                     transition main.i >= 0 && main.i < {bound} {{ true -> block bump(main), _ -> block head(main) }}\n\
                  }}\n\
                  machine bump(main: @mut Main) {{\n\
                      main.i = main.i + 1;\n\
@@ -329,14 +329,14 @@ fn a_caller_fact_reaches_its_helper_through_elements_and_stores() {
                  transition {{ _ -> sc_pos(main) }}\n\
                  machine sc_pos(main: @mut Main) {{ fill(main); transition {{ _ -> sc_verdict(main) }} }}\n\
                  machine sc_verdict(main: @mut Main) {{\n\
-                     transition main.wires[4] == 3 {{ true -> sc_next(main) _ -> sc_stop(main) }}\n\
+                     transition main.wires[4] == 3 {{ true -> sc_next(main), _ -> sc_stop(main) }}\n\
                  }}\n\
                  machine sc_stop(main: @mut Main) {{\n\
-                     transition main.n >= 0{bound} {{ true -> sc_ct(main) _ -> sc_next(main) }}\n\
+                     transition main.n >= 0{bound} {{ true -> sc_ct(main), _ -> sc_next(main) }}\n\
                  }}\n\
                  machine sc_ct(main: @mut Main) {{ main.n = main.n + 1; transition {{ _ -> sc_next(main) }} }}\n\
                  machine sc_next(main: @mut Main) {{\n\
-                     transition main.r >= 0 && main.r < 25 {{ true -> sc_inc(main) _ -> sc_done(main) }}\n\
+                     transition main.r >= 0 && main.r < 25 {{ true -> sc_inc(main), _ -> sc_done(main) }}\n\
                  }}\n\
                  machine sc_inc(main: @mut Main) {{ main.r = main.r + 1; transition {{ _ -> sc_pos(main) }} }}\n\
                  machine sc_done(main: @mut Main) {{ }}\n\
@@ -351,14 +351,14 @@ fn a_caller_fact_reaches_its_helper_through_elements_and_stores() {
                  main.x = 0;\n\
                  transition {{ _ -> head(main) }}\n\
                  machine head(main: @mut Main) {{\n\
-                     transition main.x >= 0 && main.x < 26 {{ true -> check(main) _ -> done(main) }}\n\
+                     transition main.x >= 0 && main.x < 26 {{ true -> check(main), _ -> done(main) }}\n\
                  }}\n\
                  machine check(main: @mut Main) {{\n\
                      main.t = main.plug[main.x];\n\
-                     transition main.t >= 0 && main.t < {bound} {{ true -> pair(main) _ -> done(main) }}\n\
+                     transition main.t >= 0 && main.t < {bound} {{ true -> pair(main), _ -> done(main) }}\n\
                  }}\n\
                  machine pair(main: @mut Main) {{\n\
-                     transition main.plug[main.t] == main.x && main.x < 26 {{ true -> next(main) _ -> done(main) }}\n\
+                     transition main.plug[main.t] == main.x && main.x < 26 {{ true -> next(main), _ -> done(main) }}\n\
                  }}\n\
                  machine next(main: @mut Main) {{ main.x = main.x + 1; transition {{ _ -> head(main) }} }}\n\
                  machine done(main: @mut Main) {{ }}\n\
@@ -390,7 +390,7 @@ fn a_conjunctive_guard_over_a_read_after_a_call_reaches_the_taken_edge() {
              machine step(main: @mut Main, v: i32) {{\n\
                  fill(main, v);\n\
                  let mid: i32 = main.pout;\n\
-                 transition {guard} {{ true -> use_it(main, mid) _ -> done(main) }}\n\
+                 transition {guard} {{ true -> use_it(main, mid), _ -> done(main) }}\n\
              }}\n\
              machine done(main: @mut Main) {{ }}\n\
              machine main() {{ let mut storage: Main; step(@mut storage, 3); step(@mut storage, 300); }}\n"
@@ -556,7 +556,7 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
             "use omega::language::core::integer;\n\
              public domain<T> T::Distance;\n\
              public machine + Distance::add<T [copy]>(left: T in Distance, right: T) -> T in Distance\n\
-             requires integer::is_signed_integer<T>() && integer::is_fixed_width_integer<T>()\n\
+             requires integer::is_signed_integer::<T>() && integer::is_fixed_width_integer::<T>()\n\
              ensures (result as -Distance) == ((left as -Distance) +% right)\n\
              {{ ((left as -Distance) +% right) as +Distance }}\n\
              machine main() crashes Trap {{\n\
@@ -564,7 +564,7 @@ fn a_generic_operator_reaches_domain_lowering_with_its_complete_application() {
                  let right: {carrier} = 4{carrier};\n\
                  let sum: {carrier} in Distance = left + right;\n\
                  let raw: {carrier} = sum as -Distance;\n\
-                 transition raw == 7 {{ true -> done() _ -> bad() }}\n\
+                 transition raw == 7 {{ true -> done(), _ -> bad() }}\n\
                  machine done() {{ }}\n\
                  machine bad() {{ crash Trap; }}\n\
              }}"
@@ -850,9 +850,9 @@ fn a_nested_requirement_names_a_mutable_byte_views_length() {
     let program = |guard: &str| {
         format!(
             "machine put(path: @[u8], out: @mut [u8], index: u64) {{\n    \
-             transition index < path.len {{ true -> byte(path, out, index) _ -> done() }}\n    \
+             transition index < path.len {{ true -> byte(path, out, index), _ -> done() }}\n    \
              machine byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
-             transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    }}\n    \
+             transition {guard} {{ true -> write_byte(path, out, index), _ -> done() }}\n    }}\n    \
              machine write_byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
              out[index] = path[index];\n        transition {{ _ -> done() }}\n    }}\n    \
              machine done() {{ }}\n}}\n\
@@ -888,25 +888,25 @@ fn a_recursive_caller_preserves_a_mutable_byte_views_extent_bound() {
              {{\n    \
                  put_path_byte(path, out, index);\n    \
                  transition index < path.len && remaining > 0 {{\n        \
-                     true -> copy_path_from(path, out, index + 1, remaining - 1)\n        \
+                     true -> copy_path_from(path, out, index + 1, remaining - 1),\n        \
                      _ -> done()\n    \
                  }}\n    \
                  machine done() {{ }}\n\
              }}\n\
              machine put_path_byte(path: @[u8], out: @mut [u8], index: u64) {{\n    \
                  transition index < path.len {{\n        \
-                     true -> byte(path, out, index)\n        \
+                     true -> byte(path, out, index),\n        \
                      _ -> terminator(out, index)\n    \
                  }}\n    \
                  machine byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
-                     transition {guard} {{ true -> write_byte(path, out, index) _ -> done() }}\n    \
+                     transition {guard} {{ true -> write_byte(path, out, index), _ -> done() }}\n    \
                  }}\n    \
                  machine write_byte(path: @[u8], out: @mut [u8], index: u64) {{\n        \
                      out[{write_index}] = path[index];\n        \
                      transition {{ _ -> done() }}\n    \
                  }}\n    \
                  machine terminator(out: @mut [u8], index: u64) {{\n        \
-                     transition index < out.len {{ true -> write_terminator(out, index) _ -> done() }}\n    \
+                     transition index < out.len {{ true -> write_terminator(out, index), _ -> done() }}\n    \
                  }}\n    \
                  machine write_terminator(out: @mut [u8], index: u64) {{\n        \
                      out[index] = 0;\n        \
@@ -968,7 +968,7 @@ fn a_case_payload_domain_holds_under_its_case() {
 ensures result != -1
 {{
                  match frame {{
-        Frame::Directory {{ handle }} -> plain(handle)
+        Frame::Directory {{ handle }} -> plain(handle),
                      Frame::Empty -> 0
     }}
 }}
@@ -1009,9 +1009,9 @@ fn a_value_parameter_application_is_judged_at_its_value() {
              ensures result <= Limit\n\
              {{ input }}\n\
              machine main() {{\n    \
-             let small: u64 = clamp<7>({small});\n    \
+             let small: u64 = clamp::<7>({small});\n    \
              let room: u64 = 7u64 - small;\n    \
-             let large: u64 = clamp<200>(150);\n}}\n"
+             let large: u64 = clamp::<200>(150);\n}}\n"
         )
     };
     // The entry closure, then `clamp` checked once with `Limit` rigid.
@@ -1042,8 +1042,8 @@ fn a_width_generic_body_is_judged_at_every_width() {
              crashes none\n\
              {{ value + 1 }}\n\
              machine main() {{\n    \
-             let small: u8 = next<8>(3u8, 9u8);\n    \
-             let large: u32 = next<32>(4u32, 10u32);\n}}\n"
+             let small: u8 = next::<8>(3u8, 9u8);\n    \
+             let large: u32 = next::<32>(4u32, 10u32);\n}}\n"
         )
     };
     // The entry closure, then `next` checked once with `N` rigid.
@@ -1062,7 +1062,7 @@ fn a_width_generic_body_is_judged_at_every_width() {
              crashes none\n\
              {{ 1 }}\n\
              machine main() {{\n    \
-             let small: {carrier}8 = one<8>();\n}}\n"
+             let small: {carrier}8 = one::<8>();\n}}\n"
         )
     };
     assert_eq!(verdicts("width_one", &one("u")), ["accepted", "accepted"]);
@@ -1121,8 +1121,8 @@ fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
 #[test]
 fn an_open_type_classifier_checks_unused_cases_and_the_remainder() {
     let source = "machine classify<T>() -> u8 ensures result <= 2u8 {\n\
-        transition { T == u8 -> 0u8 T == bool -> 1u8 _ -> 2u8 }\n\
-        }\n machine main() { let value: u8 = classify<u8>(); }\n";
+        transition { T == u8 -> 0u8, T == bool -> 1u8, _ -> 2u8 }\n\
+        }\n machine main() { let value: u8 = classify::<u8>(); }\n";
     assert_eq!(verdicts("open_type_classifier", source), ["accepted"; 4]);
     for (name, broken) in [
         (
@@ -1714,7 +1714,7 @@ fn a_case_payload_is_lent_only_where_its_case_is_selected() {
              machine measure(view: @[u8]) -> u32 {{ 1 }}\n\
              machine route(source: Source) -> u32 {{\n\
                  match source {{\n\
-                     Source::Path {{ location }} -> measure(location)\n\
+                     Source::Path {{ location }} -> measure(location),\n\
                      Source::Git {{ repository, revision }} -> measure(repository)\n\
                  }}\n\
              }}\n\
@@ -1956,8 +1956,8 @@ fn a_symbolic_width_is_judged_at_each_applied_width() {
              requires value < limit
              {{ value + 1 }}
              machine main() {{
-                 let wide: u13 = next<13>({wide}, 8191);
-                 let narrow: u5 = next<5>({narrow}, 31);
+                 let wide: u13 = next::<13>({wide}, 8191);
+                 let narrow: u5 = next::<5>({narrow}, 31);
 }}
 "
         )
@@ -1976,7 +1976,7 @@ fn a_symbolic_width_is_judged_at_each_applied_width() {
     let stopped = unbuilt_frontier::staged(
         "zero_applied_width",
         "machine next<const N: u64>(value: u<N>) -> u<N> { value }
-         machine main() { let none: u8 = 0; let kept: u8 = next<0>(none); }
+         machine main() { let none: u8 = 0; let kept: u8 = next::<0>(none); }
 ",
     )
     .err()
@@ -2138,7 +2138,7 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
              machine take(view: @[u8]) {{ }}\n\
              machine select(view: @[u8], selection: Selection) {{\n\
                  transition selection {{\n\
-                     Selection::Root -> take(view)\n\
+                     Selection::Root -> take(view),\n\
                      Selection::Named {{ package }} -> take(package)\n\
                  }}\n\
              }}\n\
@@ -2179,10 +2179,10 @@ fn a_static_argument_is_read_by_its_binder_role() {
              machine count<const N: u64>() -> u64 { N }\n\
              machine choose<const Condition: bool>() -> bool { Condition }\n\
              machine main() {\n\
-                 let number: u16 = identity<u16>(7u16);\n\
-                 let quantity: u64 = count<u16>();\n\
-                 let truth: bool = identity<bool>(true);\n\
-                 let decision: bool = choose<bool>();\n\
+                 let number: u16 = identity::<u16>(7u16);\n\
+                 let quantity: u64 = count::<u16>();\n\
+                 let truth: bool = identity::<bool>(true);\n\
+                 let decision: bool = choose::<bool>();\n\
              }\n",
     );
     assert_eq!(outcomes.len(), 4, "{outcomes:?}");
@@ -2224,7 +2224,7 @@ fn a_static_argument_is_read_by_its_binder_role() {
             "machine identity<T>(value: T) -> T { value }\n\
              const count: u64 = 2;\n\
              machine f(count: u64) -> u64 {\n\
-                 let bytes: [u8; 2] = identity<[u8; count]>([1, 2]);\n\
+                 let bytes: [u8; 2] = identity::<[u8; count]>([1, 2]);\n\
                  count\n\
              }\n\
              machine main() { let n: u64 = f(2); }\n",
@@ -2315,11 +2315,6 @@ fn a_builtin_type_name_is_read_by_its_role() {
             "machine pick<u32>(value: u32) -> u32 { value }\nmachine main() { }\n",
             "generic type binder `u32` is spelled like the builtin type",
         ),
-        (
-            "module_redefines_builtin",
-            "module u32;\nmachine main() { }\n",
-            "module `u32` is spelled like the builtin type",
-        ),
         // The runtime parameter hides the constant in both value positions.
         (
             "width_names_shadowing_parameter",
@@ -2353,6 +2348,24 @@ fn a_builtin_type_name_is_read_by_its_role() {
     }
 }
 
+#[test]
+fn a_directory_namespace_cannot_redefine_a_builtin_type() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let stopped =
+        unbuilt_frontier::staged_in("module_redefines_builtin", "u32", "machine main() {}");
+    let Err(messages) = stopped else {
+        panic!("the u32 directory must be rejected");
+    };
+    assert!(
+        messages
+            .iter()
+            .any(|message| message.contains("module `u32` is spelled like the builtin type")),
+        "{messages:?}"
+    );
+}
+
 /// The rule each rejected part of `source` breaks, by part, and `None` for
 /// a part that is not rejected for one rule the reader found.
 fn violations(name: &str, source: &str) -> Vec<Option<String>> {
@@ -2381,14 +2394,14 @@ fn violations(name: &str, source: &str) -> Vec<Option<String>> {
 #[test]
 fn an_integer_family_requirement_admits_its_carriers() {
     let program = "use omega::language::core::integer;
-         machine needs_integer<T>(value: T) -> T requires integer::is_integer<T>() { value }
-         machine relay<T>(value: T) -> T requires integer::is_signed_integer<T>() {
-             needs_integer<T>(value)
+         machine needs_integer<T>(value: T) -> T requires integer::is_integer::<T>() { value }
+         machine relay<T>(value: T) -> T requires integer::is_signed_integer::<T>() {
+             needs_integer::<T>(value)
          }
          machine main() {
-             let narrow: i8 = relay<i8>(3i8);
-             let wide: u16 = needs_integer<u16>(4u16);
-             let odd: i13 = relay<i13>(5i13);
+             let narrow: i8 = relay::<i8>(3i8);
+             let wide: u16 = needs_integer::<u16>(4u16);
+             let odd: i13 = relay::<i13>(5i13);
          }
 ";
     assert_eq!(
@@ -2407,8 +2420,8 @@ fn an_application_outside_an_integer_family_is_rejected() {
         format!(
             "use omega::language::core::integer;
              data Meters [copy] {{ value: u32; }}
-             machine count<T>(value: T) -> T requires integer::is_unsigned_integer<T>() {{ value }}
-             machine main() {{ let kept: {carrier} = count<{carrier}>({argument}); }}
+             machine count<T>(value: T) -> T requires integer::is_unsigned_integer::<T>() {{ value }}
+             machine main() {{ let kept: {carrier} = count::<{carrier}>({argument}); }}
 "
         )
     };
@@ -2450,17 +2463,17 @@ fn a_generic_body_relies_only_on_the_families_it_requires() {
         format!(
             "use omega::language::core::integer;
              machine is_integer<T>() -> bool ensures result == true crashes none terminates {{ true }}
-             machine fixed<T>(value: T) -> T requires integer::is_fixed_width_integer<T>() {{
+             machine fixed<T>(value: T) -> T requires integer::is_fixed_width_integer::<T>() {{
                  value
              }}
-             machine any<T>(value: T) -> T requires {premise} {{ fixed<T>(value) }}
-             machine main() {{ let kept: u8 = any<u8>(1u8); }}
+             machine any<T>(value: T) -> T requires {premise} {{ fixed::<T>(value) }}
+             machine main() {{ let kept: u8 = any::<u8>(1u8); }}
 "
         )
     };
     for premise in [
-        "integer::is_fixed_width_integer<T>()",
-        "integer::is_unsigned_integer<T>() && integer::is_fixed_width_integer<T>()",
+        "integer::is_fixed_width_integer::<T>()",
+        "integer::is_unsigned_integer::<T>() && integer::is_fixed_width_integer::<T>()",
     ] {
         assert_eq!(
             verdicts("fixed_width_premise", &program(premise)),
@@ -2469,8 +2482,8 @@ fn a_generic_body_relies_only_on_the_families_it_requires() {
         );
     }
     for (name, premise) in [
-        ("missing_fixed_width_premise", "integer::is_integer<T>()"),
-        ("fake_classifier_premise", "is_integer<T>()"),
+        ("missing_fixed_width_premise", "integer::is_integer::<T>()"),
+        ("fake_classifier_premise", "is_integer::<T>()"),
     ] {
         let found = violations(name, &program(premise));
         assert_eq!(found.len(), 4, "{name}: {found:?}");

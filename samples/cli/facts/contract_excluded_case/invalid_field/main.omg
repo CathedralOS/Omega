@@ -30,7 +30,7 @@ machine main() crashes Trap {
         other_flag: Value::Boolean { value: false }
     };
     transition read(carrier) == true {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -15,7 +15,7 @@ machine inspect(ticket: @Ticket in Ticket::Labelled) -> u64 {
 machine main() crashes Trap {
     let ticket: Ticket in Ticket::Labelled = issue();
     let observed: u64 = inspect(@ticket);
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

@@ -239,7 +239,7 @@ Comparisons follow IEEE: anything compared with NaN is false, except `!=`.
 Sorting needs a total order and asks for one by name:
 
 ```omega
-sort_by<F64::TotalOrder>(@mut samples);
+sort_by::<F64::TotalOrder>(@mut samples);
 ```
 
 Finite inputs do not make a result finite: a division can still overflow or

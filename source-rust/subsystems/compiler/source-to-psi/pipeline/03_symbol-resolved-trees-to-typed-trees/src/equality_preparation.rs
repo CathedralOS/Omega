@@ -978,10 +978,10 @@ mod tests {
         rival: Option<&str>,
     ) -> Result<crate::source_state::TypedTrees, String> {
         let geo = format!(
-            "module geo; public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
+            "public data Point [copy] {{ x: i32; }} {comparison} satisfies Equatable<Point> {{ machine equals(left: @Point, right: @Point) -> bool {{ left.x == right.x }} }}"
         );
         let app = "use dep::geo; machine same(left: geo::Point, right: geo::Point) -> bool { left == right }";
-        let mut units = vec![(31, "geo.omg", geo.as_str()), (32, "app.omg", app)];
+        let mut units = vec![(31, "geo/point.omg", geo.as_str()), (32, "app.omg", app)];
         let mut dependencies = vec![(32, "dep", 31)];
         let mut imports = vec![(1, 0, "dep::geo", 1)];
         if let Some(rival) = rival {

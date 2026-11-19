@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let gone: u32 = take(left);
     let halved: u32 = again(Cell { value: 10 });
     transition seen == 7 && taken == 9 && cell.value == 11 && pair.left == 2 && copy.left == 1 && outer.inner.value == 1 && outer.tag == 8 && gone == 6 && later.value == 4 && halved == 5 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() { }

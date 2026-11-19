@@ -5,7 +5,7 @@
 machine main() crashes Trap {
     let total: u64 = 3u64 + 4u64;
     transition total == 7u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

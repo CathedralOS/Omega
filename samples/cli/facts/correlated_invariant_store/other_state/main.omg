@@ -22,7 +22,7 @@ machine main() crashes Trap {
     advance(@mut full, 320);
     transition interior.total == 70 && endpoint.total == 320
         && unchanged.total == 320 && full.total == 320 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -3,6 +3,12 @@
 Expressions retain their selected operation identities and source evaluation
 schedule through checking, semantic evaluation, and realization.
 
+The comparison operators `==`, `!=`, `<`, `<=`, `>` and `>=` require
+parentheses when either operand is itself a comparison. Write
+`lo < value && value < hi` to test a range, or `(a < b) == expected` to
+compare the Boolean result. An explicit generic call uses
+[`id::<T>(value)`](generics.md#source-spelling).
+
 ## Evaluation schedule
 
 | Form | Evaluation order |
@@ -77,12 +83,12 @@ result may be another function term. This grants no implicit machine-to-function
 conversion, runtime closure, pending execution or obligation to finish applying
 the term. Expected-type and executable-demand checks still apply.
 
-`address_of<Selected<Arguments>>()` exposes a selected executable entry;
+`address_of::<Selected<Arguments>>()` exposes a selected executable entry;
 `address_of(reference)` exposes the referenced storage location. These are
 compiler-known core queries, not casts or equal-size bit reinterpretation.
 A qualified machine name does not capture a data instance. See
-[address exposure](counts_and_addresses.md#address-exposure). `size_of<T>()`
-and `align_of<T>()` query a data layout; `code_layout<Selected<Arguments>>()`
+[address exposure](counts_and_addresses.md#address-exposure). `size_of::<T>()`
+and `align_of::<T>()` query a data layout; `code_layout::<Selected<Arguments>>()`
 queries late native code regions. Static arguments select types or exact machine
 applications without introducing runtime type objects. These address/layout
 queries do not construct [runtime machine values](machine_values.md): a callable

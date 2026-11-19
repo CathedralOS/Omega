@@ -47,7 +47,7 @@ machine walk_descriptors(main: @mut Main) reaches ProcessExit + Console crashes 
         let d: @Desc = @main.buf[off] as @Desc;
         let pages: u64 = d.pages;
         transition d.kind >= 4 {
-            true -> tally(main, off, pages)
+            true -> tally(main, off, pages),
             _ -> step(main, off)
         }
     }
@@ -60,14 +60,14 @@ machine walk_descriptors(main: @mut Main) reaches ProcessExit + Console crashes 
     machine step(main: @mut Main, off: u32) requires off <= 32 reaches ProcessExit + Console crashes Trap {
         let stride: u32 = main.descriptor_size;
         transition stride > 0 && stride <= 16 {
-            true -> advance(main, off, stride)
+            true -> advance(main, off, stride),
             _ -> done(main)
         }
     }
     machine advance(main: @mut Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 reaches ProcessExit + Console crashes Trap {
         let next: u32 = off + stride;
         transition next <= 32 {
-            true -> walk(main, next)
+            true -> walk(main, next),
             _ -> done(main)
         }
     }

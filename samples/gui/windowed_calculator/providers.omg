@@ -49,7 +49,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes AppKit {
-    macos_window_create<11>(class_name, @title, style, x, y, width, height)
+    macos_window_create::<11>(class_name, @title, style, x, y, width, height)
 }
 
 public windows_x86_64 machine calc_window_destroy(window: Window) reaches
@@ -96,7 +96,7 @@ reaches
     ProcessOutput + ProcessExit invokes WindowsGuiHost {
     transition dest_width <= 2147483647 && dest_height <= 2147483647
         && source_width <= 2147483647 && source_height <= 2147483647 {
-        true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info)
+        true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info),
         _ -> (0)
     }
     machine copy(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32
@@ -106,7 +106,7 @@ reaches
         let copied: i32 = WindowsGuiHost::stretch_dibits(device, 0, 0,
             dest_width as i32, dest_height as i32, 0, 0,
             source_width as i32, source_height as i32, @pixels[0], @info[0], 0, 0x00CC0020);
-        transition copied > 0 { true -> result(copied) _ -> (0) }
+        transition copied > 0 { true -> result(copied), _ -> (0) }
     }
     machine result(copied: i32) -> u32 requires copied > 0 { copied as u32 }
 }
@@ -142,7 +142,7 @@ reaches
     message[3] = 0;
     message[4] = 0;
     message[5] = 0;
-    transition pumped { true -> (1) _ -> (0) }
+    transition pumped { true -> (1), _ -> (0) }
 }
 public macos_arm64 machine calc_msg_peek(window_state: @mut Window, mut message: [u64; 6]) -> u32
 reaches
@@ -194,7 +194,7 @@ reaches
     DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
     ProcessOutput + ProcessExit invokes WindowsGuiHost {
     let answer: bool = WindowsGuiHost::is_window(window);
-    transition answer { true -> (1) _ -> (0) }
+    transition answer { true -> (1), _ -> (0) }
 }
 public macos_arm64 machine calc_is_window(window_state: @Window, window: u64) -> u32
 reaches

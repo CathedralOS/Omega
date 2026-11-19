@@ -9,20 +9,20 @@ public machine validate_pattern_fields(
 crashes Trap
 {
     transition typer.output.accepted && arm.has_fields {
-        true -> field(typer, sources, syntax, arm, expected, 0)
+        true -> field(typer, sources, syntax, arm, expected, 0),
         _ -> done()
     }
 
     machine field(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < arm.field_count {
-            true -> prior(typer, sources, syntax, arm, expected, offset, 0)
+            true -> prior(typer, sources, syntax, arm, expected, offset, 0),
             _ -> complete(typer, syntax, arm, expected)
         }
     }
 
     machine prior(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
         transition earlier < offset {
-            true -> compare(typer, sources, syntax, arm, expected, offset, earlier)
+            true -> compare(typer, sources, syntax, arm, expected, offset, earlier),
             _ -> field(typer, sources, syntax, arm, expected, offset + 1)
         }
     }
@@ -32,14 +32,14 @@ crashes Trap
         let before: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + earlier);
         let repeated: bool = spans_equal(sources, before.name.source_span, written.name.source_span);
         transition repeated {
-            true -> duplicate(typer, written)
+            true -> duplicate(typer, written),
             _ -> prior(typer, sources, syntax, arm, expected, offset, earlier + 1)
         }
     }
 
     machine complete(typer: @mut Typer, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping) {
         transition !arm.has_rest && arm.field_count != expected {
-            true -> missing(typer, syntax, arm)
+            true -> missing(typer, syntax, arm),
             _ -> done()
         }
     }

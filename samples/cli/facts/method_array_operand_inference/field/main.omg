@@ -9,7 +9,7 @@ SelectedBytes satisfies Bytes {
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { before: 41, items: [7, 11, 13], after: 43 };
-    let observed: u8 = Bytes::last<3u64>(@packet.items);
-    transition observed == 13 && packet.before == 41 && packet.after == 43 { true -> done() _ -> bad() }
+    let observed: u8 = Bytes::last::<3u64>(@packet.items);
+    transition observed == 13 && packet.before == 41 && packet.after == 43 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

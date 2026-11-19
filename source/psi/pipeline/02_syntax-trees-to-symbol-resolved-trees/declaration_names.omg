@@ -25,11 +25,11 @@ crashes Trap
 {
     let root: RootItem = root_item(syntax, index);
     transition root.kind {
-        RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Data)
-        RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Trait)
-        RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Conformance)
-        RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, DeclarationKind::Constant)
-        RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, DeclarationKind::Proposition)
+        RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Data),
+        RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Trait),
+        RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Conformance),
+        RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, DeclarationKind::Constant),
+        RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, DeclarationKind::Proposition),
         _ -> none(root)
     }
 
@@ -57,7 +57,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.root_count {
-            true -> root(resolver, sources, syntax, index)
+            true -> root(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -65,8 +65,8 @@ crashes Trap
     machine root(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let declared: RootName = root_name(syntax, index);
         transition declared.space {
-            RootNamespace::None -> next(resolver, sources, syntax, index + 1)
-            RootNamespace::Type -> builtin_shadow(resolver, sources, syntax, index, declared)
+            RootNamespace::None -> next(resolver, sources, syntax, index + 1),
+            RootNamespace::Type -> builtin_shadow(resolver, sources, syntax, index, declared),
             _ -> earlier(resolver, sources, syntax, index, declared, 0)
         }
     }
@@ -74,14 +74,14 @@ crashes Trap
     machine builtin_shadow(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         let builtin: bool = builtin_type_spelling(sources, declared.name.source_span);
         transition builtin {
-            true -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, declared.name)
+            true -> reject(resolver, ResolveDiagnosticCode::ShadowsBuiltin, declared.name),
             _ -> earlier(resolver, sources, syntax, index, declared, 0)
         }
     }
 
     machine earlier(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName, prior: u64 in Trapping) {
         transition prior < index {
-            true -> compare(resolver, sources, syntax, index, declared, prior)
+            true -> compare(resolver, sources, syntax, index, declared, prior),
             _ -> competing(resolver, sources, syntax, index, declared)
         }
     }
@@ -90,7 +90,7 @@ crashes Trap
     // machine of its module must not also spell.
     machine competing(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         transition declared.space == RootNamespace::Constant {
-            true -> constant_path(resolver, sources, syntax, index, declared)
+            true -> constant_path(resolver, sources, syntax, index, declared),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -98,7 +98,7 @@ crashes Trap
     machine constant_path(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, declared: RootName) {
         let spelled: bool = value_path_taken(@resolver.output, sources, syntax, declared);
         transition spelled {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -111,14 +111,14 @@ crashes Trap
             other.name.source_span.source.value as u64 in Trapping);
         transition declared.space == other.space && named && declared.has_owner == other.has_owner
             && (!declared.has_owner || owner_named) && same_module {
-            true -> duplicate(resolver, declared, other)
+            true -> duplicate(resolver, declared, other),
             _ -> earlier(resolver, sources, syntax, index, declared, prior + 1)
         }
     }
 
     machine duplicate(resolver: @mut Resolver, declared: RootName, other: RootName) {
         transition declared.kind == RootItemKind::Data && other.kind == RootItemKind::Data {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateData, declared.name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateData, declared.name),
             _ -> reject(resolver, ResolveDiagnosticCode::DuplicateDeclaration, declared.name)
         }
     }
@@ -140,7 +140,7 @@ crashes Trap
 
     machine machine_at(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition index < syntax.machine_count {
-            true -> machine_path(resolution, sources, syntax, declared, index)
+            true -> machine_path(resolution, sources, syntax, declared, index),
             _ -> owner_data(sources, syntax, declared, 0)
         }
     }
@@ -152,14 +152,14 @@ crashes Trap
         let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
             item.name.source_span.source.value as u64 in Trapping);
         transition spelled && same_module {
-            true -> taken()
+            true -> taken(),
             _ -> machine_at(resolution, sources, syntax, declared, index + 1)
         }
     }
 
     machine owner_data(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping) -> bool {
         transition declared.has_owner && index < syntax.data_count {
-            true -> owner_named(sources, syntax, declared, index)
+            true -> owner_named(sources, syntax, declared, index),
             _ -> free()
         }
     }
@@ -170,14 +170,14 @@ crashes Trap
         let same_module: bool = resolver_same_module(sources, declared.name.source_span.source.value as u64 in Trapping,
             item.name.source_span.source.value as u64 in Trapping);
         transition named && same_module {
-            true -> case_at(sources, syntax, declared, index, item, 0)
+            true -> case_at(sources, syntax, declared, index, item, 0),
             _ -> owner_data(sources, syntax, declared, index + 1)
         }
     }
 
     machine case_at(sources: @SourceSet, syntax: @SyntaxTrees, declared: RootName, index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) -> bool {
         transition offset < item.case_count {
-            true -> case_named(sources, syntax, declared, index, item, offset)
+            true -> case_named(sources, syntax, declared, index, item, offset),
             _ -> owner_data(sources, syntax, declared, index + 1)
         }
     }
@@ -186,7 +186,7 @@ crashes Trap
         let data_case: DataCase = syntax_trees_data_case(syntax, item.first_case + offset);
         let named: bool = spans_equal(sources, data_case.name.source_span, declared.name.source_span);
         transition named {
-            true -> taken()
+            true -> taken(),
             _ -> case_at(sources, syntax, declared, index, item, offset + 1)
         }
     }
@@ -210,7 +210,7 @@ crashes Trap
 
     machine traits(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count && resolver.output.accepted {
-            true -> trait_generics(resolver, sources, syntax, index)
+            true -> trait_generics(resolver, sources, syntax, index),
             _ -> conformances(resolver, sources, syntax, 0)
         }
     }
@@ -224,7 +224,7 @@ crashes Trap
 
     machine conformances(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count && resolver.output.accepted {
-            true -> conformance_generics(resolver, sources, syntax, index)
+            true -> conformance_generics(resolver, sources, syntax, index),
             _ -> domains(resolver, sources, syntax, 0)
         }
     }
@@ -238,7 +238,7 @@ crashes Trap
 
     machine domains(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
-            true -> domain_generics(resolver, sources, syntax, index)
+            true -> domain_generics(resolver, sources, syntax, index),
             _ -> propositions(resolver, sources, syntax, 0)
         }
     }
@@ -252,7 +252,7 @@ crashes Trap
 
     machine propositions(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.proposition_count && resolver.output.accepted {
-            true -> proposition_generics(resolver, sources, syntax, index)
+            true -> proposition_generics(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -262,7 +262,7 @@ crashes Trap
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> proposition_parameters(resolver, sources, syntax, index, item)
+            true -> proposition_parameters(resolver, sources, syntax, index, item),
             _ -> done()
         }
     }
@@ -285,7 +285,7 @@ crashes Trap
 
     machine next_data(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping) {
         transition data_index < syntax.data_count {
-            true -> data_members(resolver, sources, syntax, data_index)
+            true -> data_members(resolver, sources, syntax, data_index),
             _ -> done()
         }
     }
@@ -295,14 +295,14 @@ crashes Trap
         let scope: TypeScope = data_scope(item);
         check_generic_names(resolver, sources, syntax, scope);
         transition resolver.output.accepted {
-            true -> member(resolver, sources, syntax, data_index, item, 0)
+            true -> member(resolver, sources, syntax, data_index, item, 0),
             _ -> done()
         }
     }
 
     machine member(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping) {
         transition offset < item.member_count {
-            true -> member_named(resolver, sources, syntax, data_index, item, offset)
+            true -> member_named(resolver, sources, syntax, data_index, item, offset),
             _ -> cases(resolver, sources, syntax, data_index, item, 0)
         }
     }
@@ -315,7 +315,7 @@ crashes Trap
 
     machine member_prior(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         transition prior < offset {
-            true -> member_compare(resolver, sources, syntax, data_index, item, offset, name, prior)
+            true -> member_compare(resolver, sources, syntax, data_index, item, offset, name, prior),
             _ -> member(resolver, sources, syntax, data_index, item, offset + 1)
         }
     }
@@ -327,14 +327,14 @@ crashes Trap
             prior_name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDataMember, name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateDataMember, name),
             _ -> member_prior(resolver, sources, syntax, data_index, item, offset, name, prior + 1)
         }
     }
 
     machine cases(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping) {
         transition case_offset < item.case_count {
-            true -> case_payload(resolver, sources, syntax, data_index, item, case_offset)
+            true -> case_payload(resolver, sources, syntax, data_index, item, case_offset),
             _ -> next_data(resolver, sources, syntax, data_index + 1)
         }
     }
@@ -346,7 +346,7 @@ crashes Trap
 
     machine payload(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping) {
         transition field_offset < data_case.payload_field_count {
-            true -> payload_named(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset)
+            true -> payload_named(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset),
             _ -> cases(resolver, sources, syntax, data_index, item, case_offset + 1)
         }
     }
@@ -358,7 +358,7 @@ crashes Trap
 
     machine payload_prior(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, prior: u64 in Trapping) {
         transition prior < field_offset {
-            true -> payload_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior)
+            true -> payload_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior),
             _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, 0)
         }
     }
@@ -369,14 +369,14 @@ crashes Trap
             prior_field.name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateCasePayloadField, name)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateCasePayloadField, name),
             _ -> payload_prior(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, prior + 1)
         }
     }
 
     machine common(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, data_index: u64 in Trapping, item: DataItem, case_offset: u64 in Trapping, data_case: DataCase, field_offset: u64 in Trapping, name: IdentifierSpan, common_offset: u64 in Trapping) {
         transition common_offset < item.field_count {
-            true -> common_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset)
+            true -> common_compare(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset),
             _ -> payload(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset + 1)
         }
     }
@@ -387,7 +387,7 @@ crashes Trap
             common_field.name.source_span
         );
         transition equal {
-            true -> reject(resolver, ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField, name)
+            true -> reject(resolver, ResolveDiagnosticCode::PayloadFieldCollidesWithCommonField, name),
             _ -> common(resolver, sources, syntax, data_index, item, case_offset, data_case, field_offset, name, common_offset + 1)
         }
     }

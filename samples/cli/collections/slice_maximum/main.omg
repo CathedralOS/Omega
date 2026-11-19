@@ -13,7 +13,7 @@ use omega_language_std::Console;
 
 machine find_max(s: @[i32], current: i32) -> i32 {
     transition s.len > 0 {
-        true -> find_max(s[1..], max_i32(current, s[0]))
+        true -> find_max(s[1..], max_i32(current, s[0])),
         false -> (current)
     }
 }

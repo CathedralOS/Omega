@@ -4,7 +4,7 @@ use runtime_generator;
 machine main() crashes Trap {
     let observed: i32 = runtime_generator::generated_value();
     transition observed == 7 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

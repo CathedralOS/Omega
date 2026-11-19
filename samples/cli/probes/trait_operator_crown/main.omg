@@ -47,11 +47,11 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let low: Card = Card { rank: 3 };
     let high: Card = Card { rank: 9 };
-    transition choose<Card, Ascending>(low, high)
+    transition choose::<Card, Ascending>(low, high)
         && Ascending::before(low, high)
         && crowned_less(low, high)
-        && !choose<Card, Ascending>(high, low) {
-        true -> pass(main)
+        && !choose::<Card, Ascending>(high, low) {
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

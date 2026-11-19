@@ -38,7 +38,7 @@ machine run(main: @mut Main) reaches ProcessExit {
     let b: i32 = dispatch(SquareShape::code, @mut main.item);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 

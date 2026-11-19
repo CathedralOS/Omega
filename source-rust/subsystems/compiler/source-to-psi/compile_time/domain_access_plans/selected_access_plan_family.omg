@@ -20,10 +20,10 @@ machine complete() { }
 machine fail() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     let observed: i32 = number(stamped(Ticket { number: 4 }));
-    transition observed == 4 { true -> complete() _ -> fail() }
+    transition observed == 4 { true -> complete(), _ -> fail() }
 }
 
-machine describe_ticket() -> TypeSchema { reflect::schema<Ticket>() }
+machine describe_ticket() -> TypeSchema { reflect::schema::<Ticket>() }
 
 machine construct_direct_plan(schema: TypeSchema) -> AccessPlan {
     access::new_plan(@schema, Issuance::Only { routes: [reflect::callable(stamp)] })

@@ -11,7 +11,7 @@ machine within(low: u32, high: u32, value: u32) -> bool requires low <= high ens
 }
 machine settle(total: u32) {
     transition total > 9000 || total < 3 {
-        true -> report_large()
+        true -> report_large(),
         false -> report_small(total)
     }
 }
@@ -23,7 +23,7 @@ machine main() {
     let product: u32 = scaled(total, 3);
     let accepted: bool = within(1, 100, product) && total != 0;
     transition accepted {
-        true -> settle(product)
+        true -> settle(product),
         false -> settle(0)
     }
 }

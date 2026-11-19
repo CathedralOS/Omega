@@ -36,12 +36,12 @@ blocks
 requires 0 <= a && a <= CEILING
 requires 0 <= b && b <= CEILING
 {
-    block apply<Selected>(a, b)
+    block apply::<Selected>(a, b)
 }
 
 machine main() blocks crashes Trap {
     let result: i32 = block probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
+    transition result == 42 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

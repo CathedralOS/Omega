@@ -167,7 +167,7 @@ fn write_program(shape: Shape, size: usize, directory: &Path) -> Result<(), Stri
             }
         }
         Shape::Citations => {
-            main.push_str("machine keep(a: Nat, b: Nat)\nrequires\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\nensures\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n}\n\nmachine chain(a: Nat, b: Nat)\nrequires\n    core::Identity<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n");
+            main.push_str("machine keep(a: Nat, b: Nat)\nrequires\n    core::Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\nensures\n    core::Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n}\n\nmachine chain(a: Nat, b: Nat)\nrequires\n    core::Identity::<Nat>(saturating_sub(a, b), Nat::Zero)\n{\n");
             for _ in 0..size {
                 main.push_str("    keep(a, b);\n");
             }

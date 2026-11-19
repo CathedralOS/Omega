@@ -16,7 +16,7 @@ machine forward(first: InternetAddress in Classified) -> InternetAddress in Clas
 machine observe() -> bool reaches AddressParts, AddressBridge { consume(forward(AddressBridge::make(10, 66051)), AddressBridge::make(44048, 513)) }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

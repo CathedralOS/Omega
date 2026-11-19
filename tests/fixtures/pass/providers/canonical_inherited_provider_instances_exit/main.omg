@@ -11,7 +11,7 @@ boundary trait Child: Parent<i32> { machine choose() -> i32 reaches crashes none
 
 Selected satisfies Child {
     machine echo<const Count: u64>(value: i32, ready: bool) -> i32 {
-        transition Count == 4 { true -> 18 _ -> 27 }
+        transition Count == 4 { true -> 18, _ -> 27 }
     }
     machine spare() -> i32 { 33 }
     machine choose() -> i32 { 19 }
@@ -19,10 +19,10 @@ Selected satisfies Child {
 
 machine main() reaches Child + Parent crashes Trap {
     let chosen: i32 = Child::choose();
-    let first: i32 = Parent<i32>::echo<4>(17, true);
-    let second: i32 = Parent<i32>::echo<8>(25, true);
+    let first: i32 = Parent::<i32>::echo::<4>(17, true);
+    let second: i32 = Parent::<i32>::echo::<8>(25, true);
     transition chosen == 19 && first == 18 && second == 27 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

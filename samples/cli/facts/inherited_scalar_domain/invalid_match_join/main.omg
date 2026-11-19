@@ -6,7 +6,7 @@ domain u64::Nested::Inherited;
 
 machine pick(tag: bool) -> u64 in Nested::Inherited {
     transition tag {
-        true -> 9
+        true -> 9,
         _ -> 1
     }
 }
@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let held: u64 in Nested::Inherited = pick(true);
     let other: u64 in Nested::Inherited = pick(false);
     transition consume(held) == 2 && consume(other) == 4 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
