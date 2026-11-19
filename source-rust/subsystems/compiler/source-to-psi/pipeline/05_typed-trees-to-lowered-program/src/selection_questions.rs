@@ -185,7 +185,7 @@ pub enum RawSelectionRole {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawSelectionTarget {
     Declaration(SymbolHandle),
-    CoreIntegerOperator(declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature),
+    CoreIntegerOperator(numerics::intrinsics::CoreIntegerOperatorSignature),
     LocalBinding {
         symbol: SymbolHandle,
         owner: SymbolHandle,

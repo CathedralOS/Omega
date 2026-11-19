@@ -1681,6 +1681,7 @@ name = "numerics"
 version = "0.1.0"
 dependencies = [
  "bignum",
+ "language-core",
  "record-storage",
  "wire",
 ]
@@ -2189,7 +2190,6 @@ dependencies = [
  "bound-installations",
  "calling-conventions",
  "component-description",
- "declaration-contracts",
  "diagnostics",
  "effects",
  "function-identity",

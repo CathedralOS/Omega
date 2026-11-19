@@ -295,7 +295,7 @@ pub fn current_terminal_authority_policy() -> TerminalAuthorityPolicy {
 fn classify_parameterized_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> Option<TerminalAuthorityDisposition> {
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericIntrinsic;
     match mechanism {
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
             operation,
@@ -347,7 +347,7 @@ fn encode_parameterized_commitment(hasher: &mut DomainDigestEncoder) {
         hasher.raw(&(family.len() as u32).to_be_bytes());
         hasher.raw(family);
         hasher.raw(
-            &(declaration_contracts::numeric_intrinsics::NumericType::ENCODED_SIZE as u32)
+            &(numerics::intrinsics::NumericType::ENCODED_SIZE as u32)
                 .to_be_bytes(),
         );
         hasher.raw(&0_u32.to_be_bytes());

@@ -328,6 +328,7 @@ pub(crate) use declaration_tables_and_index::{
 pub mod declaration_authority;
 mod declaration_reflection;
 pub mod declarations;
+mod numeric_declarations;
 pub use declaration_reflection::reflection;
 
 mod evidence_and_inspection;

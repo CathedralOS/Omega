@@ -4,8 +4,8 @@
 //! distinct from structural value equality: NaNs never equal themselves and
 //! signed zeros compare equal. Both directions tie the Boolean result to it.
 
-use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation;
+use numerics::intrinsics::NumericIntrinsic;
+use numerics::intrinsics::PrimitiveFloatBinaryOperation;
 use semantic_vocabulary::{IeeeFloatComparisonKind, Proposition, ScalarTerm, ScalarType, ValueId};
 
 /// One semantic relation serves a comparison's full result contract and its
@@ -93,7 +93,7 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
             ) && source.is_float()
                 && matches!(
                     target,
-                    declaration_contracts::numeric_intrinsics::NumericType::Integer(_)
+                    numerics::intrinsics::NumericType::Integer(_)
                 )) =>
         {
             Ok(format!(
@@ -162,7 +162,7 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
         .map_err(|error| error.description())?;
         return Ok(vec![Proposition::FloatIntegerConversion(relation)]);
     }
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::float_semantics::{
         FloatSemanticOperation,
         FloatSemanticValueKind::{Format, Integer, Meaning},
@@ -251,9 +251,7 @@ fn scalar_formals(
     let signature = meaning
         .signature()
         .ok_or("numeric primitive has no scalar signature")?;
-    let operand = signature
-        .operand
-        .scalar_type()
+    let operand = ScalarType::from_numeric_type(signature.operand)
         .ok_or("numeric primitive has no scalar operand")?;
     let count = u64::try_from(signature.operand_count)
         .map_err(|_| "numeric primitive has too many scalar formals")?;
@@ -280,7 +278,7 @@ fn integer_conversion(
     numerics::integer_carrier::FixedInteger,
     numerics::arithmetic::ArithmeticDomain,
 )> {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::arithmetic::ArithmeticDomain;
     match meaning {
         NumericIntrinsic::Conversion {
@@ -386,21 +384,20 @@ pub fn result_matches(
 /// The selected primitive's actual scalar result, including its permanent
 /// float format. Catalog rows with structural results stay outside this path.
 pub fn result_scalar_type(meaning: NumericIntrinsic) -> Result<ScalarType, &'static str> {
-    use declaration_contracts::numeric_intrinsics::NumericResult;
+    use numerics::intrinsics::NumericResult;
     let signature = meaning
         .signature()
         .ok_or("numeric primitive has no scalar signature")?;
     match signature.result {
         NumericResult::Boolean => Ok(ScalarType::Boolean),
-        NumericResult::Primitive(carrier) => carrier
-            .scalar_type()
+        NumericResult::Primitive(carrier) => ScalarType::from_numeric_type(carrier)
             .ok_or("numeric primitive has no scalar result"),
         NumericResult::FloatClass => Err("numeric primitive has a structural result"),
     }
 }
 
-fn carrier_name(carrier: declaration_contracts::numeric_intrinsics::NumericType) -> String {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+fn carrier_name(carrier: numerics::intrinsics::NumericType) -> String {
+    use numerics::intrinsics::NumericType;
     match carrier {
         NumericType::F32 => "f32".to_owned(),
         NumericType::F64 => "f64".to_owned(),
@@ -430,9 +427,7 @@ pub fn validate_boundary(
     let signature = meaning
         .signature()
         .ok_or("numeric primitive has no scalar signature")?;
-    let expected_operand = signature
-        .operand
-        .scalar_type()
+    let expected_operand = ScalarType::from_numeric_type(signature.operand)
         .ok_or("numeric primitive has no scalar operand")?;
     let parameter_name = carrier_name(signature.operand);
     let expected_result = result_scalar_type(meaning)?;

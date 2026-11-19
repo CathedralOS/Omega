@@ -5541,8 +5541,8 @@ pub mod expression {
 
         pub fn scalar_operation(
             self,
-        ) -> Option<declaration_contracts::numeric_intrinsics::ScalarBinaryOperation> {
-            use declaration_contracts::numeric_intrinsics::ScalarBinaryOperation as Operation;
+        ) -> Option<numerics::intrinsics::ScalarBinaryOperation> {
+            use numerics::intrinsics::ScalarBinaryOperation as Operation;
             Some(match self {
                 Self::Add => Operation::Add,
                 Self::Subtract => Operation::Subtract,

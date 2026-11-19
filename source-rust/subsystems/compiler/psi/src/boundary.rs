@@ -851,7 +851,7 @@ pub(crate) mod declarations {
     pub struct BoundaryMachineDeclaration {
         pub id: BoundaryMachineId,
         pub declaration: Option<CheckedBoundaryCallable>,
-        pub numeric_intrinsic: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
+        pub numeric_intrinsic: Option<numerics::intrinsics::NumericIntrinsic>,
         pub role: BoundaryDeclarationRole,
         pub kind: semantic_vocabulary::BoundaryRequirementKind,
         pub completion: semantic_vocabulary::BoundaryCompletion,
@@ -1458,7 +1458,7 @@ pub(crate) mod external_providers {
         pub requirement: NominalDeclarationIdentity,
         pub requirement_identity: TerminalIdentityIndex,
         pub requirement_package: Option<PackageKeyIdentity>,
-        pub numeric_intrinsic: Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
+        pub numeric_intrinsic: Option<numerics::intrinsics::NumericIntrinsic>,
         pub sealed_intrinsic: Option<crate::TerminalSealedNativeIntrinsic>,
         pub requirement_schema: Option<ExternalRequirementSchema>,
         pub target: Option<String>,
@@ -1659,7 +1659,7 @@ pub(crate) mod numeric_intrinsics {
         boundary: &crate::BoundaryMachineDeclaration,
         structural_types: &[crate::StructuralTypeDeclaration],
     ) -> Result<(), &'static str> {
-        use declaration_contracts::numeric_intrinsics::NumericResult;
+        use numerics::intrinsics::NumericResult;
         let Some(meaning) = boundary.numeric_intrinsic else {
             return Ok(());
         };
@@ -1674,13 +1674,13 @@ pub(crate) mod numeric_intrinsics {
             || boundary
                 .scalar_parameters
                 .iter()
-                .any(|parameter| Some(*parameter) != signature.operand.scalar_type())
+                .any(|parameter| Some(*parameter) != semantic_vocabulary::ScalarType::from_numeric_type(signature.operand))
         {
             return Err("numeric intrinsic has a mismatched boundary parameter signature");
         }
         let result_matches = match (&boundary.result, signature.result) {
             (crate::BoundaryMachineResult::Scalar(result), NumericResult::Primitive(primitive)) => {
-                Some(result.scalar_type) == primitive.scalar_type()
+                Some(result.scalar_type) == semantic_vocabulary::ScalarType::from_numeric_type(primitive)
             }
             (crate::BoundaryMachineResult::Scalar(result), NumericResult::Boolean) => {
                 result.scalar_type == semantic_vocabulary::ScalarType::Boolean
