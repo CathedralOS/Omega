@@ -115,6 +115,15 @@ fn nesting_inside_the_limit_parses() {
     }
 }
 
+/// Each nested data declaration consumes exactly one level, including the outermost one.
+#[test]
+fn the_nesting_limit_accepts_128_levels_and_refuses_the_next() {
+    for (depth, expected_error) in [(128, None), (129, Some(ParseErrorKind::NestingTooDeep))] {
+        let source = format!("{}{}", "data D {".repeat(depth), "}".repeat(depth));
+        assert_eq!(parse_on_small_stack(source), expected_error, "{depth} nested declarations");
+    }
+}
+
 /*
     A long chain is not nesting. `a + a + a + ...` and `f()()()...` are one
     level deep however long they are, and the parser handles them in a loop.

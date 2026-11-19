@@ -1,10 +1,10 @@
 //! Checks on a syntax tree that do not depend on the grammar being right.
 
-use omega_lexer::{Punctuation, Token, TokenKind};
+use omega_lexer::{Punctuation, Token, TokenKind, lex};
 use omega_parser::{NodeKind, SyntaxTree, TreeEvent};
 
 /*
-    Whatever the parser decided about how tokens group, four things must hold
+    Whatever the parser decided about how tokens group, five things must hold
     of any tree it returns, and none of them needs the grammar to state:
 
       1. The events are one well-formed tree: a single root, every `Open`
@@ -18,6 +18,9 @@ use omega_parser::{NodeKind, SyntaxTree, TreeEvent};
          or indirect child of some node, so is its `)`. A parser that grouped
          `f(a` into one node and `)` into the next has misread the source, and
          this catches it without knowing what `f(a)` means.
+      5. Printing the leaves and lexing the result recovers the token kinds
+         and spellings. Printing reduces each gap to one space and keeps
+         touching tokens together (including the two halves of a right shift).
 
     Returns a description of the first violation, or None.
 */
@@ -52,6 +55,8 @@ pub fn describe_tree_problem(
     let mut open_nodes: Vec<(NodeKind, usize, usize)> = Vec::new();
     let mut open_brackets: Vec<Punctuation> = Vec::new();
     let mut token_event_count = 0usize;
+    let mut printed_source = Vec::with_capacity(source_bytes.len());
+    let mut previous_token_end = None;
 
     for (event_index, event) in events.iter().enumerate() {
         match event {
@@ -91,14 +96,26 @@ pub fn describe_tree_problem(
 
                 *node_token_count += 1;
 
-                let token_kind = meaningful_token_indices
+                let Some(token) = meaningful_token_indices
                     .get(token_event_count)
                     .and_then(|&token_index| tokens.get(token_index as usize))
-                    .map(|token| token.get_kind());
+                else {
+                    return Some(format!("token event {event_index} has no corresponding source token"));
+                };
+
+                let span = token.get_span();
+                if previous_token_end.is_some_and(|end| end < span.get_start_offset()) {
+                    printed_source.push(b' ');
+                }
+                printed_source.extend_from_slice(
+                    span.slice(source_bytes)
+                        .expect("Expected a lexer span inside its source."),
+                );
+                previous_token_end = Some(span.get_end_offset());
 
                 token_event_count += 1;
 
-                let Some(TokenKind::Punctuation(punctuation)) = token_kind else {
+                let TokenKind::Punctuation(punctuation) = token.get_kind() else {
                     continue;
                 };
 
@@ -132,7 +149,46 @@ pub fn describe_tree_problem(
         ));
     }
 
+    let printed_tokens = match lex(&printed_source) {
+        Ok(tokens) => tokens,
+        Err(error) => return Some(format!("the printed leaves do not lex: {error}")),
+    };
+    let meaningful_tokens = |token: &&Token| !token.get_kind().is_trivia();
+    let original = tokens
+        .iter()
+        .filter(meaningful_tokens)
+        .map(|token| token_signature(token, source_bytes));
+    let printed = printed_tokens
+        .iter()
+        .filter(meaningful_tokens)
+        .map(|token| token_signature(token, &printed_source));
+    if original.ne(printed) {
+        return Some("lexing the printed leaves changed the meaningful tokens".into());
+    }
     None
+}
+
+/// Numeric suffix offsets move with the token when comments and whitespace are removed.
+fn token_signature<'a>(
+    token: &Token,
+    source: &'a [u8],
+) -> (TokenKind, &'a [u8]) {
+    let span = token.get_span();
+    let kind = match token.get_kind() {
+        TokenKind::Integer { radix, suffix_start_offset } => TokenKind::Integer {
+            radix,
+            suffix_start_offset: suffix_start_offset - span.get_start_offset(),
+        },
+        TokenKind::Float { suffix_start_offset } => TokenKind::Float {
+            suffix_start_offset: suffix_start_offset - span.get_start_offset(),
+        },
+        kind => kind,
+    };
+    (
+        kind,
+        span.slice(source)
+            .expect("Expected a lexer span inside its source."),
+    )
 }
 
 fn get_closing_bracket(punctuation: Punctuation) -> Option<Punctuation> {

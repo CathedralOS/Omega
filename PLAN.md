@@ -123,7 +123,7 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.1 s |
+| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.32 s |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -191,12 +191,13 @@ Psi to native code) are not planned yet.
 
   | Check | Result |
   | --- | --- |
-  | Fixtures | 22 accept and 99 reject, each a whole file; every rule in the grammar has both. The table is in GRAMMAR.md. |
+  | Fixtures | 22 accepted trees and 100 exact refusals for whole files. The grammar maps each rule family to its fixtures. Another 35 cases adapted from V1's Psi suite cover malformed input, exact byte spans and V2 verdicts. |
   | Spec corpus | All 132 examples parse. 125 did on the first run; the other seven each showed a gap in the grammar, listed as F1 to F7 in GRAMMAR.md. |
-  | Independent check | Every accepted tree is one well-formed tree, has no empty or unfinished node, holds every meaningful token exactly once in order, and closes every bracket inside the node that opened it. |
-  | Hostile input | 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five inputs that make a try-and-rewind parser take exponential time are refused at once. 30,000 random sources and 3,300 one-token-removed fixtures never crash it or produce a malformed tree. |
-  | Mutation | 31 deliberate breakages of the parser, one rule each; the suite fails on all 31. |
-  | Suite time | 1.1 s, almost all of it the hostile-input tests in a debug build. |
+  | Independent check | Trees from fixtures, spec fragments, random sources and token deletions preserve token order and bracket ownership. Printing their leaves and lexing the result reproduces the meaningful token kinds and spellings. |
+  | Operator grouping | All 1,600 ordered pairs of binary operator spellings have their specified grouping or refusal. All 36 comparison pairs accept either explicit grouping. |
+  | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,316 one-token deletions pass the robustness checks. |
+  | Mutation | All 35 deliberate parser changes were caught. Four exercise prefix `&&`, saturating shift precedence, the exact nesting limit and trailing fragment input. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
+  | Suite time | 1.32 s wall clock for a warm `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
   | Speed | 571 MB/s on one thread, 6.5 ns per token, after three kept experiments (8.4% faster than first built, same tree); 8.1 GB/s parsing on 32 threads. The lexer is now the slower layer on the same bytes. Ledger, including four rejected attempts, in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
 
 - **Design:** recursive descent, one function per grammar rule, with
@@ -212,13 +213,13 @@ Psi to native code) are not planned yet.
   seven spec examples that V1's parser, as read, would refuse. The largest:
   the spec shows an `if` statement that V1 retired, and writes `match` arms
   in a way V1 cannot parse.
-- **Decisions:** all ten of the grammar's are decided (2026-11-18): no `if`
+- **Decisions:** all eleven grammar decisions are recorded (2026-11-18): no `if`
   statement, `match` and `transition` share one grammar, nothing after a
   `requires` before a body, no reserved words, V1's operator precedence,
   assembly is parsed, and the spec's newer forms are in. Generic arguments
   in expressions are written `::<`. Arms are
-  separated by commas. All ten are decided, and the grammar is rewritten to
-  match.
+  separated by commas. Decision 11 requires parentheses around a comparison
+  used as the operand of another comparison.
 
 ### L2 to L4
 
@@ -522,7 +523,7 @@ before the layer that depends on it is signed off.
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all ten decisions made, parser built against it; accepted with L1 sign-off |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all eleven decisions made, parser built against it. L1 sign-off pending. |
 | 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
 | 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |

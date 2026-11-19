@@ -1,7 +1,7 @@
 # L1 Parser grammar
 
 Status: **built against this document on 2026-11-18; gate passed; waiting for
-Jarod's sign-off.** All ten decisions are made. The parser in `src/` follows
+Jarod's sign-off.** All eleven decisions are made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
 Building it changed the grammar in seven places and raised two questions;
@@ -573,7 +573,7 @@ language/generics.md:636), and the many examples that are fragments
 
 Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
-error it must produce. 22 accept, 99 reject.
+error it must produce. 22 accept, 100 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
@@ -593,22 +593,35 @@ error it must produce. 22 accept, 99 reject.
 | patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
 | binary operators | `expressions_binary` | `missing_operand`, `two_operators`, `chained_relational_comparison`, `chained_equality_comparison`, `comparison_of_a_comparison`, `comparison_as_right_operand`, `range_written_as_mathematics` |
 | right shift | `right_shift` | `right_shift_with_space` |
-| prefixes, postfixes, primaries | `expressions_unary_postfix` | `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
+| prefixes, postfixes, primaries | `expressions_unary_postfix`, `reference_to_reference` | `borrow_of_borrow_unspaced`, `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
 | casts | `casts` | `cast_then_arithmetic`, `cast_then_less_than` |
 | assembly | `assembly` | `asm_instructions_without_separator`, `asm_transition_without_target`, `asm_machine_holding_a_machine`, `asm_block_unclosed` |
 | no reserved words | `words_are_not_reserved` | covered by the rows above: each keyword test has a fixture on each side |
-| nesting limit | `tests/hostile_inputs.rs` (100 levels parse) | `nesting_too_deep`, and 17 constructs at 100,000 levels in `tests/hostile_inputs.rs` |
+| nesting limit | 128 nested data declarations parse on a 1 MB stack | 129 nested data declarations, `nesting_too_deep`, and 17 constructs at 100,000 levels in `tests/hostile_inputs.rs` |
 
 Beyond the fixtures, `tests/hostile_inputs.rs` checks that the parser refuses
 without crashing or hanging: every recursive rule nested 100,000 deep on a
 1 MB stack, five inputs that make a try-and-rewind parser take exponential
 time, 30,000 random sources built from the grammar's own vocabulary, and
-every accept fixture with each of its tokens removed in turn (3,300 files).
+every accept fixture with each of its tokens removed in turn (3,316 inputs).
 
-Every tree any test accepts is also checked for four things that do not
-depend on the grammar: it is one well-formed tree, no node is unfinished or
-empty, it holds every meaningful token exactly once in order, and every
-bracket closes inside the node that opened it.
+For accepted fixtures, spec fragments, random sources and token-deletion cases,
+the invariant checks for one root, finished nodes, ordered tokens and brackets
+that close inside the node that opened them. It then prints the leaves,
+reducing each gap to one space. Lexing that text must recover every meaningful
+token's spelling and kind, including the radix and suffix boundary of a number.
+
+`tests/operator_grouping.rs` checks the tree grouping for all 1,600 ordered
+pairs of the 40 binary operator spellings. For the 36 comparison pairs it
+checks the diagnostic on the second operator and both explicit groupings.
+
+`tests/psi_parser_cases.rs` adapts cases from V1's
+`tests/psi/parser/test_parser.py` at `0b90bdbaaa6`. It checks 27 malformed
+files against exact byte ranges and eight valid files against V2's rules.
+Four of those eight exercise deliberate V2 verdicts, including a trailing
+parameter comma and the name `self`. The tests run without a V1 checkout.
+`tests/spec_corpus.rs` also checks the three fragment entry points, including
+their diagnostics for trailing input.
 
 ## What building it found
 

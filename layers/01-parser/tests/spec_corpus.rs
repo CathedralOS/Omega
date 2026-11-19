@@ -3,7 +3,7 @@
 mod support;
 
 use omega_lexer::lex;
-use omega_parser::{FragmentKind, parse_fragment};
+use omega_parser::{FragmentKind, ParseErrorKind, parse_fragment};
 use std::path::Path;
 use support::dump_parse_error;
 
@@ -30,6 +30,32 @@ const EXAMPLE_SHAPES: &[(&str, FragmentKind)] = &[
 /// The spec writes a body it does not want to show as `{ ... }`. That is prose, not source.
 const ELIDED_BODY: &str = "{ ... }";
 const EMPTY_BODY: &str = "{     }";
+
+/// Statement fragments may mix items and tails. Clauses and single parameters must consume
+/// exactly their own grammar, including the optional final semicolon of a clause fragment.
+#[test]
+fn fragment_entry_points_consume_their_entire_input() {
+    for (kind, source) in [
+        (FragmentKind::Statements, "use a; b() c()"),
+        (FragmentKind::Clauses, "requires a ensures b;"),
+        (FragmentKind::GenericParam, "const N: u32"),
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let tree = parse_fragment(source.as_bytes(), &tokens, kind).unwrap_or_else(|error| panic!("{source}: {error}"));
+        assert_eq!(support::describe_tree_problem(source.as_bytes(), &tokens, &tree), None, "{source}");
+    }
+    for (kind, source, expected_span) in [
+        (FragmentKind::Statements, "use a; )", 7..8),
+        (FragmentKind::Clauses, "requires a; extra", 12..17),
+        (FragmentKind::GenericParam, "const N: u32, T", 12..13),
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let error = parse_fragment(source.as_bytes(), &tokens, kind).expect_err(source);
+        assert_eq!(error.get_kind(), ParseErrorKind::UnexpectedToken, "{source}");
+        let span = error.get_span();
+        assert_eq!(span.get_start_offset()..span.get_end_offset(), expected_span, "{source}");
+    }
+}
 
 fn get_fragment_kind(example_label: &str) -> FragmentKind {
     EXAMPLE_SHAPES
