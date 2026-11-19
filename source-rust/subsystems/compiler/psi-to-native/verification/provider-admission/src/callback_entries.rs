@@ -9,7 +9,7 @@
 // an `AdmittedCallbackEntry`.
 
 use super::{
-    AdmittedCallbackEntry, AdmittedNativeCallbackArgument, NativeRealizationInput,
+    AdmittedCallbackEntry, AdmittedNativeCallbackArgument, AdmissionSource,
     ProviderAdmissionRequest,
 };
 use arena::IdTable;
@@ -77,7 +77,7 @@ fn callback_error(message: impl std::fmt::Display) -> Vec<Diagnostic> {
 }
 
 pub(super) fn admit_entries(
-    input: &NativeRealizationInput<'_>,
+    input: &AdmissionSource<'_>,
     request: &ProviderAdmissionRequest<'_, '_>,
     entries: &PreparedEntries<'_>,
 ) -> Result<Vec<AdmittedNativeCallbackArgument>, String> {
@@ -108,7 +108,7 @@ pub(super) fn admit_entries(
 }
 
 pub(super) struct PreparedEntries<'a> {
-    input: &'a NativeRealizationInput<'a>,
+    input: &'a AdmissionSource<'a>,
     request: &'a ProviderAdmissionRequest<'a, 'a>,
     bodies: IdTable<MachineId, Option<&'a TerminalMachine>>,
     occurrences: Vec<(usize, &'a TerminalCallbackOccurrenceProposal)>,
@@ -120,7 +120,7 @@ pub(super) struct PreparedEntries<'a> {
 
 impl<'a> PreparedEntries<'a> {
     pub(super) fn new(
-        input: &'a NativeRealizationInput<'a>,
+        input: &'a AdmissionSource<'a>,
         request: &'a ProviderAdmissionRequest<'a, 'a>,
     ) -> Result<Self, String> {
         if request.callback_occurrences.is_empty() {

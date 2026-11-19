@@ -12,7 +12,7 @@ use artifact_lowering::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use diagnostics::Diagnostic;
 use provider_plans::ProviderPlan;
 use native_artifact::NativeComponentProduct;
-use provider_admission::provider_admission::{
+use provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 use std::sync::Arc;

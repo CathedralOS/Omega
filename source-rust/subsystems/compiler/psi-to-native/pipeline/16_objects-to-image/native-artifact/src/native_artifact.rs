@@ -19,7 +19,7 @@ use terminal_authority_receipts::{
 use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use provider_admission::ProviderExecutionEvidence;
-use provider_admission::provider_admission::AdmittedNativeProviders;
+use provider_admission::AdmittedNativeProviders;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 
 #[path = "dynamic_elf.rs"]

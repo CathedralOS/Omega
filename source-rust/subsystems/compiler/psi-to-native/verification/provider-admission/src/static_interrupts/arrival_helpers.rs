@@ -64,7 +64,7 @@ struct Associations {
 }
 
 pub(super) fn validate(
-    input: &super::super::NativeRealizationInput<'_>,
+    input: &super::super::AdmissionSource<'_>,
     request: &super::super::ProviderAdmissionRequest<'_, '_>,
     entry_custody: &super::super::callback_entries::PreparedEntries<'_>,
     call_graph: &terminal_semantics::synchronous_calls::SynchronousCallGraph<'_>,

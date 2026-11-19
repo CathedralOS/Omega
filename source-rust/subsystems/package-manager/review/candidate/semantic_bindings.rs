@@ -18,7 +18,7 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use provider_admission::provider_admission::{
+use provider_admission::{
     filesystem_host_permission_rows, time_host_permission_rows,
 };
 use review_evidence::SemanticBindingProjectionError;

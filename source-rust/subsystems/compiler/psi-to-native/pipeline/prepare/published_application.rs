@@ -5,7 +5,7 @@ use artifact_lowering::{
     BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
 };
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::{
+use provider_admission::{
     CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy,
 };
 use provider_realization::{

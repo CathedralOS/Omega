@@ -10,7 +10,7 @@ pub use pipeline::prepare::published_application::SavedProgramTarget;
 use diagnostics::Diagnostic;
 use pipeline::prepare::published_application::{complete_entry_scalars, prepare_saved_program};
 use pipeline::request::NativeCompileRequest;
-use provider_admission::provider_admission::current_terminal_authority_policy;
+use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
 

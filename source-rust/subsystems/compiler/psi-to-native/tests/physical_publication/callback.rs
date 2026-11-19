@@ -396,12 +396,12 @@ fn check_callback_publication(retain_body_source: bool) {
         NativeAdmissionRequest, NativeExecutionSelection, VerifiedNativeArtifactInput,
         admit_prepared_native_realization,
     };
-    use provider_admission::provider_admission::{
+    use provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
         prepare_source_evaluated_bindings,
     };
     let fixture = build_fixture();
-    let adapters = provider_admission::provider_admission::retain_selected_provider_adapters(
+    let adapters = provider_admission::retain_selected_provider_adapters(
         &fixture.selected,
     )
     .unwrap();

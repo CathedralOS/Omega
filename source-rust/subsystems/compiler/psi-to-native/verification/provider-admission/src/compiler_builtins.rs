@@ -39,8 +39,8 @@ pub use retained::{
     validate_external_provider_owners,
 };
 
-use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::AdmittedTerminalMechanism;
+use crate::{AdmissionSource, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use native_intrinsics::CompilerAccessorScalarOperation;
@@ -57,7 +57,7 @@ use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess, TerminalAccesso
 use terminal_semantics::AccessorScalarBoundaryDemand;
 
 pub(super) fn settle_compiler_builtins<'request>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
 ) -> Result<
     (
@@ -155,7 +155,7 @@ pub(super) fn settle_compiler_builtins<'request>(
                     "Windows process exit requires the exact checked core primitive",
                 )]);
             }
-            let physical = crate::provider_admission::normalized_foreign_terminal_mechanism(
+            let physical = crate::normalized_foreign_terminal_mechanism(
                 import.locator(),
                 import.entry_plan(),
             )
@@ -592,7 +592,7 @@ fn primitive_access_carrier(scalar: ClosedScalarType) -> Result<(String, u64), S
 }
 
 fn require_access_backing_origins(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> Result<(), String> {
     use std::collections::BTreeSet;

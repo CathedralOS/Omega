@@ -15,7 +15,7 @@ pub use verified_optimization_input::component_inputs::{
 
 mod native_providers {
     use super::TerminalNativeRealizationProposal;
-    use crate::artifact_lowering::providers::provider_admission::{
+    use provider_admission::{
         NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
         ProviderAdmissionRequest, SourceEvaluatedImportSettlement,
         TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
@@ -216,7 +216,7 @@ mod native_providers {
                 "receiving lowerer selections differ from the exact post-Terminal build proposal",
             ));
         }
-        crate::artifact_lowering::providers::provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
+        provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
             proposal.package_terminal_authority_permissions(),
             proposal.package_terminal_authority_permission_identities(),
             inputs.accepted_package_permissions,
@@ -240,7 +240,7 @@ mod native_providers {
         )?;
 
         let compiler_builtins =
-            crate::artifact_lowering::providers::provider_admission::prepare_retained_compiler_builtins(
+            provider_admission::prepare_retained_compiler_builtins(
                 inputs.execution.compiler_builtins(),
                 inputs.execution.selection().plans(),
             )?;

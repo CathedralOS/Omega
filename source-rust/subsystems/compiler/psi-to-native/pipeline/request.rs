@@ -8,7 +8,7 @@
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationWorkBudget;
-use provider_admission::provider_admission::{
+use provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 use target::ExecutableImageEmissionRequest;

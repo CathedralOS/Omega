@@ -13,8 +13,8 @@
 use std::collections::BTreeMap;
 
 use crate::NativeCallbackArgumentProposal;
-use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::AdmittedTerminalMechanism;
+use crate::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use diagnostics::Diagnostic;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
@@ -142,7 +142,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                 let target_profile =
                     target::TargetProfile::from_canonical_target_name(&provider_plan.target)
                         .map_err(|diagnostic| vec![diagnostic])?;
-                crate::provider_admission::terminal_authority_policy::conservative_syscall_terminal_mechanism(
+                crate::terminal_authority_policy::conservative_syscall_terminal_mechanism(
                     target_profile,
                     *number,
                     plan,
@@ -167,7 +167,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                         .plan
                         .plan();
                 match rows.callbacks.as_slice() {
-                    [] => crate::provider_admission::normalized_foreign_terminal_mechanism(
+                    [] => crate::normalized_foreign_terminal_mechanism(
                         evaluated.locator(),
                         boundary_entry_plan,
                     ),
@@ -179,7 +179,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                                     && callback.registrar_context == first.registrar_context
                             }) =>
                     {
-                        crate::provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
+                        crate::normalized_foreign_terminal_mechanism_with_callback_materializations(
                             evaluated.locator(),
                             boundary_entry_plan,
                             &first.registrar_context,
@@ -234,7 +234,7 @@ fn settled_host_cohort_row(
     if methods.next().is_some() {
         return None;
     }
-    crate::provider_admission::terminal_authority_policy::cohort_mechanism_row(
+    crate::terminal_authority_policy::cohort_mechanism_row(
         mechanism,
         &provider_plan.schema,
         method,

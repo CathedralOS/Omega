@@ -24,7 +24,7 @@ pub struct RuntimeComponent {
     selection: psi_provider_selections::AdmittedComponentProvider,
     application: BoundaryCallingApplication,
     runtime: TerminalCallableRuntimeProvisions<RuntimeAdapterIdentity>,
-    authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+    authority: provider_admission::AdmittedNativeCallableAuthority,
     locator: target::NormalizedComponentLocator,
     plan: provider_stack_contribution::SameStackProviderPlanCommitment,
     stack_bytes: u64,
@@ -35,7 +35,7 @@ impl RuntimeComponent {
     pub fn admit(
         call: &verified_optimization_input::AdmittedNativeComponentCall<'_>,
         runtime: TerminalCallableRuntimeProvisions<RuntimeAdapterIdentity>,
-        authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+        authority: provider_admission::AdmittedNativeCallableAuthority,
         demand: &StackDemand,
         image_contents: &[u8],
         export_slot: [u8; 32],
@@ -109,7 +109,7 @@ impl RuntimeComponent {
     }
     pub fn authority(
         &self,
-    ) -> &provider_admission::provider_admission::AdmittedNativeCallableAuthority {
+    ) -> &provider_admission::AdmittedNativeCallableAuthority {
         &self.authority
     }
     pub const fn stack_bytes(&self) -> u64 {

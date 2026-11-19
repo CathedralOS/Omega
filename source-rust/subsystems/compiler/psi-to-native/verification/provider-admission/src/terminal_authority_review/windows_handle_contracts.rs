@@ -389,7 +389,7 @@ fn original_windows_import<'a>(
     if locator.target() != target::TargetProfile::WindowsX64 {
         return Ok(None);
     }
-    let actual = crate::provider_admission::terminal_authority_policy::normalized_foreign_terminal_mechanism(
+    let actual = crate::terminal_authority_policy::normalized_foreign_terminal_mechanism(
         locator, &binding.boundary_entry_plan,
     )?;
     if context.mechanism(boundary) != Some(&actual) {

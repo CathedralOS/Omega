@@ -411,7 +411,7 @@ pub(crate) fn plan_inputs_and_review(
         profile.target_name(),
         reached.iter().copied(),
     )?;
-    let policy = provider_admission::provider_admission::current_terminal_authority_policy();
+    let policy = provider_admission::current_terminal_authority_policy();
     for leaf in primitives {
         let direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
         else {

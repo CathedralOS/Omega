@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use native_artifact::{
     FragmentObjectPublicationRequest, PublishedFragmentObject, publish_fragment_object,
 };
-use provider_admission::provider_admission::realization_error;
+use provider_admission::realization_error;
 use published_object_verification::NativeStageReplay;
 
 pub(crate) struct EmittedRealizationObject {

@@ -16,14 +16,13 @@ mod entry_receiver;
 pub use entry_receiver::admit_executable_entry;
 mod lowering;
 mod native_execution_scope;
-use ::provider_admission as providers;
 pub(crate) use native_execution_scope::native_admission;
 mod retained_terminal;
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
     admit_prepared_native_realization,
 };
-pub use providers::provider_admission::NativeCallbackArgumentProposal;
+pub use provider_admission::NativeCallbackArgumentProposal;
 pub use retained_terminal::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
     PreparedNativeExecution, RetainedNativeProviderInputs, RetainedTerminalArtifact,
@@ -36,7 +35,7 @@ pub use artifact_admission::{
     NativeExecutionSelection, NativeScalarApplications, TerminalAccessViewEstablishment,
     VerifiedNativeArtifactInput, lower_artifact,
 };
-pub use providers::provider_installation::SelectedProviderAdapter;
+pub use provider_admission::SelectedProviderAdapter;
 pub use verified_optimization_input::NativeExecutionScope;
 pub use verified_optimization_input::entry_settlement::{
     NativeProgramEntrySettlement, SelectedProgramEntryCall, ValidatedNativeProgramEntrySettlement,
