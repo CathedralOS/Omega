@@ -14,7 +14,6 @@ language-core = { path = "../../../foundation/language-core" }
 layout-plans = { path = "../../../psi/layout" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-optimization-core = { path = "../../optimization-contracts" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 
 sha2 = "0.10.9"

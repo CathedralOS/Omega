@@ -15,6 +15,5 @@ test-support = []
 
 [dependencies]
 wire = { path = "../../../../../foundation/wire" }
-optimization-core = { path = "../../optimization-contracts" }
 target = { path = "../target" }
 sha2 = "0.10.9"

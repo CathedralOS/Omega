@@ -9,14 +9,14 @@ name = "isa_aarch64"
 path = "src/lib.rs"
 
 [dependencies]
-target-aarch64 = { path = "../../../target-description/target-aarch64" }
+target-aarch64 = { path = "../../../targets/target-aarch64" }
 wire = { path = "../../../../../../foundation/wire" }
 normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
 encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding" }
-calling-conventions = { path = "../../../target-description/calling-conventions" }
+calling-conventions = { path = "../../../targets/calling-conventions" }
 optimization-core = { path = "../../../optimization-contracts" }
-register-model = { path = "../../../target-description/register-model" }
-target = { path = "../../../target-description/target" }
+register-model = { path = "../../../targets/register-model" }
+target = { path = "../../../targets/target" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
@@ -25,8 +25,8 @@ post-handoff-writer-plan = { path = "../../../installation/post-handoff-writer" 
 
 [dev-dependencies]
 selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }
-register-model = { path = "../../../target-description/register-model", features = ["test-support"] }
-isa-conformance = { path = "../../../../../test-support/isa-conformance" }
+register-model = { path = "../../../targets/register-model", features = ["test-support"] }
+isa-conformance = { path = "../../../tests/isa-conformance" }
 normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls", features = ["test-support"] }
 encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding", features = ["test-support"] }
 function-identity = { path = "../../../native-vocabulary/function-identity" }

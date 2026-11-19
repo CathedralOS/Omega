@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-runtime-abi = { path = "../../target-description/runtime-abi" }
+runtime-abi = { path = "../../targets/runtime-abi" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../08_register-homes-to-post-allocation-machine" }
 installation-admission = { path = "../../verification/installation-admission" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
@@ -20,13 +20,13 @@ frame-admission = { path = "../representations/machine-code/frame-admission" }
 machine-code = { path = "../representations/machine-code" }
 optimization-core = { path = "../../optimization-contracts" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
-register-environment = { path = "../../target-description/register-environment" }
+register-environment = { path = "../../targets/register-environment" }
 register-homes = { path = "../representations/register-homes" }
-register-model = { path = "../../target-description/register-model" }
+register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-target-x86_64 = { path = "../../target-description/target-x86_64" }
-target-aarch64 = { path = "../../target-description/target-aarch64" }
-calling-conventions = { path = "../../target-description/calling-conventions" }
+target-x86_64 = { path = "../../targets/target-x86_64" }
+target-aarch64 = { path = "../../targets/target-aarch64" }
+calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

@@ -11,17 +11,17 @@ path = "src/lib.rs"
 [dependencies]
 relaxation = { package = "resolved-layout-to-resolved-layout", path = "../13_resolved-layout-to-resolved-layout" }
 physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
-target-x86_64 = { path = "../../target-description/target-x86_64" }
-target-aarch64 = { path = "../../target-description/target-aarch64" }
+target-x86_64 = { path = "../../targets/target-x86_64" }
+target-aarch64 = { path = "../../targets/target-aarch64" }
 frame-admission = { path = "../representations/machine-code/frame-admission" }
 wire = { path = "../../../../../foundation/wire" }
-register-environment = { path = "../../target-description/register-environment" }
-register-model = { path = "../../target-description/register-model" }
+register-environment = { path = "../../targets/register-environment" }
+register-model = { path = "../../targets/register-model" }
 register-homes = { path = "../representations/register-homes" }
 selected-instructions = { path = "../representations/selected-instructions" }
 optimization-core = { path = "../../optimization-contracts" }
-target = { path = "../../target-description/target" }
-calling-conventions = { path = "../../target-description/calling-conventions" }
+target = { path = "../../targets/target" }
+calling-conventions = { path = "../../targets/calling-conventions" }
 function-identity = { path = "../../native-vocabulary/function-identity" }
 machine-code = { path = "../representations/machine-code" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }

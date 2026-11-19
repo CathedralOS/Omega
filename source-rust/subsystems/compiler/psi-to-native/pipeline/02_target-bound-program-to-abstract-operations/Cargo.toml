@@ -13,9 +13,9 @@ effects = { path = "../../installation/native-effects" }
 installation-evidence = { path = "../../installation/installation-evidence" }
 optimization-core = { path = "../../optimization-contracts" }
 provider-admission = { path = "../../verification/provider-admission" }
-runtime-abi = { path = "../../target-description/runtime-abi" }
+runtime-abi = { path = "../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }

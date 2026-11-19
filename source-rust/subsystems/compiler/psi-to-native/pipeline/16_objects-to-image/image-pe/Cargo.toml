@@ -9,12 +9,12 @@ name = "image_pe"
 path = "src/lib.rs"
 
 [dependencies]
-calling-conventions = { path = "../../../target-description/calling-conventions" }
+calling-conventions = { path = "../../../targets/calling-conventions" }
 arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 image = { path = "../image" }
 object-file = { path = "../../15_placed-functions-to-objects" }
-target = { path = "../../../target-description/target" }
+target = { path = "../../../targets/target" }
 
 machine-code = { path = "../../representations/machine-code" }
 
@@ -22,4 +22,4 @@ machine-code = { path = "../../representations/machine-code" }
 entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
-runtime-abi = { path = "../../../target-description/runtime-abi" }
+runtime-abi = { path = "../../../targets/runtime-abi" }

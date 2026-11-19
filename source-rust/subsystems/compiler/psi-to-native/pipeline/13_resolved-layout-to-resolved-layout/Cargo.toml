@@ -9,9 +9,9 @@ placement = { package = "selected-form-encoding-to-resolved-layout", path = "../
 machine-code = { path = "../representations/machine-code" }
 optimization-core = { path = "../../optimization-contracts" }
 post-allocation-machine = { path = "../representations/post-allocation-machine" }
-register-model = { path = "../../target-description/register-model" }
+register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 
 [dev-dependencies]
