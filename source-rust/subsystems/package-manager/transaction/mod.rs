@@ -39,12 +39,14 @@ use crate::resolution::source::{
 };
 use crate::review::{CompileResolvedPackageReviewsError, PackageReviewExecutor};
 use crate::review::{PackageChangeReview, review_package_change_reusing};
+use build_evaluation_result::CompileFailure;
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
 use source_acquisition::PrimaryGitChoices;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
 use source_acquisition::local::staging::StagedLocalSnapshot;
 use source_acquisition::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
+use source_completion_accounting::SourceCompletionAccounting;
 use state::{LIMITS, PROPOSAL, discard, file_failure, read, text, write_proposal};
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -669,7 +671,7 @@ pub struct PackageCommandOutcome {
 #[derive(Debug)]
 pub struct PackageCommandError {
     cause: PackageCommandCause,
-    accounting: products::SourceCompletionAccounting,
+    accounting: SourceCompletionAccounting,
 }
 
 #[derive(Debug)]
@@ -677,24 +679,24 @@ enum PackageCommandCause {
     Message(String),
     Review(Box<CompileResolvedPackageReviewsError>),
     Change(Box<crate::review::PackageChangeError>),
-    Compilation(products::CompileFailure),
+    Compilation(CompileFailure),
     Preparation(Box<crate::dependencies::PrepareLocalProjectError>),
 }
 
 impl PackageCommandError {
-    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &SourceCompletionAccounting {
         &self.accounting
     }
 
     pub fn with_source_completion_accounting(
         mut self,
-        accounting: products::SourceCompletionAccounting,
+        accounting: SourceCompletionAccounting,
     ) -> Self {
         self.accounting.append(accounting);
         self
     }
 
-    pub fn compilation_failure(&self) -> Option<&products::CompileFailure> {
+    pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         match &self.cause {
             PackageCommandCause::Compilation(failure) => Some(failure),
             _ => None,
@@ -742,8 +744,8 @@ impl PackageCommandError {
     }
 }
 
-impl From<products::CompileFailure> for PackageCommandError {
-    fn from(error: products::CompileFailure) -> Self {
+impl From<CompileFailure> for PackageCommandError {
+    fn from(error: CompileFailure) -> Self {
         let accounting = error
             .source_completion_accounting()
             .cloned()

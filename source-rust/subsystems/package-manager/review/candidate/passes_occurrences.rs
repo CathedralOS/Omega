@@ -15,7 +15,8 @@
 */
 
 use crate::build_session::dependency_first_package_order;
-use products::CompileFailure;
+use build_evaluation_result::CompileFailure;
+use source_completion_accounting::SourceCompletionAccounting;
 
 use super::super::semantic_bindings::projection_error;
 use super::super::{
@@ -29,9 +30,7 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageS
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    IndependentComponentDescription,
-    PackageCompilationInputError,
-    PackageCompilationInputs,
+    IndependentComponentDescription, PackageCompilationInputError, PackageCompilationInputs,
     derive_source_consumption_commitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
@@ -98,15 +97,13 @@ pub struct RetainedPackageReviews {
 }
 
 impl RetainedPackageReviews {
-    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> SourceCompletionAccounting {
         occurrence_accounting(&self.occurrences)
     }
 }
 
-fn occurrence_accounting(
-    occurrences: &[RetainedOccurrenceCompile],
-) -> products::SourceCompletionAccounting {
-    let mut accounting = products::SourceCompletionAccounting::default();
+fn occurrence_accounting(occurrences: &[RetainedOccurrenceCompile]) -> SourceCompletionAccounting {
+    let mut accounting = SourceCompletionAccounting::default();
     for occurrence in occurrences {
         if let OccurrenceCompile::Live(source) = &occurrence.compilation {
             accounting.append(source.source_completion_accounting().clone());
@@ -698,12 +695,10 @@ impl<'pass> PackageReviewRound<'pass> {
             None => Err(CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Compilation {
                     package: occurrence.key.clone(),
-                    failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-                        format!(
-                            "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                            inputs.package_name(component).unwrap_or("<unnamed>"),
-                        ),
-                    )]),
+                    failure: CompileFailure::Diagnostics(vec![Diagnostic::error(format!(
+                        "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                        inputs.package_name(component).unwrap_or("<unnamed>"),
+                    ))]),
                 },
             )),
         }
@@ -882,7 +877,7 @@ impl<'pass> PackageReviewRound<'pass> {
         Ok(cache_write)
     }
 
-    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> SourceCompletionAccounting {
         occurrence_accounting(&self.occurrences)
     }
 

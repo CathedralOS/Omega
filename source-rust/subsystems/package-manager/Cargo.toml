@@ -9,6 +9,8 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+build-evaluation-result = { path = "../compiler/build/build-settings/result" }
+source-completion-accounting = { path = "../compiler/source-to-psi/pipeline/prepare_and_check/accounting" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 provider-plans = { path = "../compiler/build/providers/plans" }
@@ -32,7 +34,6 @@ build-declarations = { path = "../compiler/build/build-declarations" }
 build-settings = { path = "../compiler/build/build-settings" }
 build-output = { path = "../compiler/build/build-output" }
 compiler = { path = "../compiler" }
-products = { path = "../../compilation/products" }
 review-evidence = { path = "review/evidence" }
 source-acquisition = { path = "source-acquisition" }
 package-compilation = { path = "../compiler/build/package-compilation" }
