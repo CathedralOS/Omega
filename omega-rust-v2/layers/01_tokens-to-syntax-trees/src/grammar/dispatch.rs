@@ -17,10 +17,11 @@ impl SyntaxParser<'_> {
         subject. Otherwise it is a name: `match = 3;`, `match.field`,
         `match + 1`, `(match)`.
 
-        The cost is that a machine named `match` cannot be called as
-        `match(x)`, because `(x)` could be a subject. That is the one place this
-        grammar takes a word away from the programmer, and it only bites
-        someone who names a machine `match`.
+        The cost is that a value named `match` cannot be called as `match(x)`,
+        indexed as `match[0]` or subtracted from as `match - 1`, because `(`,
+        `[` and `-` can start a subject; `(match)(x)` keeps it a name. The
+        `machine` keyword test takes a word away the same way, which GRAMMAR.md
+        lists under "When a word is a keyword".
     */
     pub(crate) fn at_dispatch_keyword(
         &self,

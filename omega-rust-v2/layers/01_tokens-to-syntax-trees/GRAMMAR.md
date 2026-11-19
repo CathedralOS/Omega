@@ -546,8 +546,14 @@ the word is an ordinary name.
 Two words in a row are never a legal expression, which is why "a name
 follows" is a safe test for a declaration.
 
-The cost is in one place. A machine named `match` or `transition` cannot be
-called as `match(x)`, because `(x)` could be a subject.
+The cost falls where a name followed by such a token would also be a legal
+expression. A `(`, `[` or `-` after `match` starts a subject, so a value
+named `match` cannot be called as `match(x)`, indexed as `match[0]` or
+subtracted from as `match - 1`, and a statement cannot start that way with
+`transition`. A statement that starts with `machine`, an operator and a name
+declares an operator machine, so `machine < limit;` is not a comparison.
+Parentheses around the name keep it a name: `(match)(x)`,
+`(machine) < limit;`.
 
 ## Limits
 
