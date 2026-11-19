@@ -1355,10 +1355,11 @@ dependencies = [
 name = "installation-conditions"
 version = "0.1.0"
 dependencies = [
+ "psi-program-identity",
+ "record-storage",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
- "terminal-psi",
 ]
 
 [[package]]
@@ -1979,6 +1980,7 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
+ "installation-conditions",
  "product-publication",
  "psi-entry-memory",
  "worker-budget",
@@ -2370,6 +2372,7 @@ dependencies = [
  "build-declarations",
  "build-output",
  "calling-conventions",
+ "installation-conditions",
  "psi-to-admitted-native-inputs",
  "record-storage",
  "component-description",

@@ -5,7 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+record-storage = { path = "../../../../../../foundation/record-storage" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
-terminal-psi = { path = "../../../../psi" }
+psi-program-identity = { path = "../../../../psi/program-identity" }

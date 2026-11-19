@@ -5,7 +5,7 @@ pub struct InstalledInterruptStackRequirement {
     pub installation_machine: semantic_vocabulary::MachineId,
     pub arrival: Option<InstalledArrivalStackDemand>, // Conditional composition for this installation; runtime guards check dedicated backing.
     pub fault_exclusion: Option<InstalledBodyFaultPremises>, // Conditional body result re-derived at final composition from the private body.
-    pub psi: terminal_psi::TerminalPsiIdentity,
+    pub psi: psi_program_identity::TerminalPsiIdentity,
     pub target: target::NativeTarget,
     pub operation: semantic_vocabulary::OperationId,
     pub placement_index: usize,

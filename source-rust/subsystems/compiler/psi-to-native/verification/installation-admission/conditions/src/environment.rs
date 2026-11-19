@@ -14,7 +14,7 @@ pub enum InstallationEnvironmentAssumption {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootstrapEnvironmentAssumption {
-    pub psi: terminal_psi::TerminalPsiIdentity,
+    pub psi: psi_program_identity::TerminalPsiIdentity,
     pub profile: target::TargetProfile,
     pub entry: semantic_vocabulary::MachineId,
     pub installation: semantic_vocabulary::OperationId,
@@ -41,7 +41,7 @@ impl BootstrapEnvironmentAssumption {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86InterruptDeliveryAssumption {
-    pub psi: terminal_psi::TerminalPsiIdentity,
+    pub psi: psi_program_identity::TerminalPsiIdentity,
     pub profile: target::TargetProfile,
     pub entry: semantic_vocabulary::MachineId,
     pub installation: semantic_vocabulary::OperationId,
@@ -115,7 +115,7 @@ impl InstallationEnvironmentAssumption {
         }
     }
 
-    pub fn psi(&self) -> terminal_psi::TerminalPsiIdentity {
+    pub fn psi(&self) -> psi_program_identity::TerminalPsiIdentity {
         match self {
             Self::Bootstrap(row) => row.psi,
             Self::InterruptDelivery(row) => row.psi,
