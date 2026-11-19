@@ -15,7 +15,7 @@ pub fn boundary_call_reach(
             "cannot determine executable boundary supply: {detail}"
         ))
     };
-    let graph = crate::SynchronousCallGraph::new(module, None)
+    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
         .and_then(|graph| {
             graph.with_boundary_calls(
                 implementations

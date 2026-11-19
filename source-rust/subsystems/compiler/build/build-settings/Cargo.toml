@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }
 psi-provider-selections = { path = "../../psi/providers" }
 build-time-values = { path = "../evaluation/values" }
@@ -18,7 +19,6 @@ source-admission = { path = "../../source-to-psi/pipeline/representations/source
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
 terminal-interpreter = { path = "../../../interpreter" }
-terminal-installation = { path = "../../psi-admission" }
 terminal-work = { path = "../../psi/work" }
 terminal-codec = { path = "../../psi/codec" }
 syntax-trees = { path = "../../source-to-psi/pipeline/representations/syntax-trees" }

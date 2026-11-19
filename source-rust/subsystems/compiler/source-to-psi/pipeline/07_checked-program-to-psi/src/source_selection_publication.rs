@@ -2309,10 +2309,10 @@ machine entry() -> u32 crashes none {{
         let (program, _) = closed_requirement_formed_in_build(false);
         let source = accept_formation_program(program).unwrap();
         let prepared = prepare(&source, source.module(), None).unwrap();
-        terminal_installation::selection_questions::admit_selection_questions(
+        psi_authorization::selection_questions::admit_selection_questions(
             source.module(),
             &prepared.questions,
-            &terminal_installation::selection_questions::SelectionAuthorities {
+            &psi_authorization::selection_questions::SelectionAuthorities {
                 build: None,
                 product: None,
             },
@@ -2385,7 +2385,7 @@ machine entry() {
         );
         let module = source.module();
         let prepared = prepare(&source, module, None).expect("cleanup choices must publish");
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -2492,7 +2492,7 @@ machine entry() {
                 (
                     name,
                     expected,
-                    terminal_installation::selection_questions::validate_selection_questions(
+                    psi_authorization::selection_questions::validate_selection_questions(
                         module, &packet,
                     ),
                 )
@@ -2525,7 +2525,7 @@ machine entry() { repeat(0); }
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
         let validate = |questions: &SelectionQuestions| {
-            terminal_installation::selection_questions::validate_selection_questions(
+            psi_authorization::selection_questions::validate_selection_questions(
                 module, questions,
             )
         };
@@ -2693,7 +2693,7 @@ machine entry() -> u64 reaches none crashes none {
             "the source must retain a runtime call through its callable parameter"
         );
         let prepared = prepare(&source, module, None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -2714,7 +2714,7 @@ machine entry() -> u64 reaches none crashes none {
         let mut duplicate = prepared.questions.clone();
         duplicate.declarations.get_mut(rows[1].0).unwrap().identity = identities[0].clone();
         assert!(
-            terminal_installation::selection_questions::validate_selection_questions(
+            psi_authorization::selection_questions::validate_selection_questions(
                 module, &duplicate,
             )
             .unwrap_err()
@@ -2795,7 +2795,7 @@ machine entry() {
             ))
         ));
         let prepared = prepare(&source, module, None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -2816,7 +2816,7 @@ machine entry() {
             .identity
             .clone();
         assert!(
-            terminal_installation::selection_questions::validate_selection_questions(
+            psi_authorization::selection_questions::validate_selection_questions(
                 module, &duplicate
             )
             .is_err(),
@@ -2840,7 +2840,7 @@ machine entry() reaches Input {}
         );
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -2890,7 +2890,7 @@ machine entry() reaches Input {}
                 })
                 .unwrap();
             *joined = other.0;
-            let error = terminal_installation::selection_questions::validate_selection_questions(
+            let error = psi_authorization::selection_questions::validate_selection_questions(
                 module, &changed,
             )
             .unwrap_err();
@@ -3035,7 +3035,7 @@ machine entry() reaches Input {}
         );
 
         let prepared = prepare(&source, module, None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -3054,7 +3054,7 @@ machine entry() reaches Input {}
         let module = source.module();
         let prepared = prepare(&source, module, None)
             .expect("copied calls retain the enclosing record argument supplier");
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )
@@ -3147,7 +3147,7 @@ machine entry() reaches Input {}
         let source = named_calls();
         let module = source.module();
         let prepared = prepare(&source, module, None).unwrap();
-        terminal_installation::selection_questions::validate_selection_questions(
+        psi_authorization::selection_questions::validate_selection_questions(
             module,
             &prepared.questions,
         )

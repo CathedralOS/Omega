@@ -2,7 +2,8 @@
 //! source reads to the calls and values in the published program before checking
 //! the dependency permissions for each read's Build or Product purpose.
 
-use semantic_vocabulary::compiler_evaluation::{DeclarationCustody, DeclarationSelectionAuthority};
+use declaration_scope::DeclarationSelectionAuthority;
+use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::*;
 use semantic_vocabulary::{
     CallableInvocationSite, MachineId, SelectionDeclarationId, SelectionQuestionId,
@@ -889,7 +890,7 @@ fn admit_questions(
             // A local binder or deferred input still needs its exact Build
             // requester's consent; neither creates missing package custody.
             if !requester_consented {
-                crate::declaration_selection::require_declaration_selection(
+                declaration_scope::require_declaration_selection(
                     requester.custody,
                     requester.custody,
                     None,
@@ -901,7 +902,7 @@ fn admit_questions(
                 | SelectionReference::LocalBinding { .. } => (),
                 SelectionReference::Intrinsic { .. } => {
                     if !requester_consented {
-                        crate::declaration_selection::require_declaration_selection(
+                        declaration_scope::require_declaration_selection(
                             requester.custody,
                             DeclarationCustody::Toolchain,
                             authorities.for_purpose(row.purpose),
@@ -936,7 +937,7 @@ fn admit_questions(
                             | DeclarationCustody::ToolchainContract => false,
                         };
                     if !selected_consented {
-                        crate::declaration_selection::require_declaration_selection(
+                        declaration_scope::require_declaration_selection(
                             requester.custody,
                             owner.custody,
                             authorities.for_purpose(row.purpose),

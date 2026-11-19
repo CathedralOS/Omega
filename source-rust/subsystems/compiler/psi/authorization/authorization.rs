@@ -3,6 +3,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod selection_questions;
+
 use std::sync::Arc;
 
 use terminal_codec::{CanonicalTerminalArtifact, TerminalArtifactIdentity};

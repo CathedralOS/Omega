@@ -8,6 +8,7 @@ version.workspace = true
 path = "selections.rs"
 
 [dependencies]
+diagnostics = { path = "../../../../foundation/diagnostics" }
 record-storage = { path = "../../../../foundation/record-storage" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-codec = { path = "../codec" }

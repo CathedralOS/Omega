@@ -28,7 +28,7 @@ mod package_review;
 pub use demand::{SourceNativeBinding, SourceProviderDemand, SourceProviderFacts};
 pub use package_review::SourcePackageReviewRequirements;
 
-pub use terminal_installation::logical_reach::ClosedLogicalProviderReach;
+pub use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
 
 impl crate::AcceptedTerminalSource {
     /// Finish logical body discovery without invoking a calling policy or
@@ -39,7 +39,7 @@ impl crate::AcceptedTerminalSource {
         entry: Option<MachineId>,
         selected_requirements: &[BoundaryMachineId],
     ) -> Result<ClosedLogicalProviderReach, Vec<Diagnostic>> {
-        terminal_installation::logical_reach::close_providers(
+        psi_provider_selections::logical_reach::close_providers(
             self.module(),
             target,
             entry,

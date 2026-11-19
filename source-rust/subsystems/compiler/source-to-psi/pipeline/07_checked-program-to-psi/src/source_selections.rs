@@ -1,13 +1,13 @@
 //! Keep accepted source selections attached to the code they describe.
 //! Decoding a program never recreates this source-issued companion.
 
+use psi_authorization::selection_questions::{
+    InvocationSelectionConsent, SelectionAuthorities, admit_selection_questions_with_consent,
+};
 use semantic_vocabulary::SelectionQuestionId;
 use semantic_vocabulary::source_selections::SelectionQuestions;
 use std::sync::Arc;
 use terminal_codec::{TerminalExecutionIdentity, TerminalExecutionView};
-use terminal_installation::selection_questions::{
-    InvocationSelectionConsent, SelectionAuthorities, admit_selection_questions_with_consent,
-};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct TerminalSourceSelections {
@@ -173,7 +173,7 @@ mod tests {
                 )
                 .unwrap();
             let questions = &produced.source_selections().unwrap().questions;
-            terminal_installation::selection_questions::validate_selection_questions(
+            psi_authorization::selection_questions::validate_selection_questions(
                 produced.view().module(),
                 questions,
             )
@@ -192,7 +192,7 @@ mod tests {
                 .unwrap()
                 .identity = overloads[0].1.identity.clone();
             assert!(
-                terminal_installation::selection_questions::validate_selection_questions(
+                psi_authorization::selection_questions::validate_selection_questions(
                     produced.view().module(),
                     &duplicate,
                 )

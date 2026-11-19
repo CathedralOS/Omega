@@ -131,9 +131,7 @@ impl SourcePublication {
     pub fn publish(
         &self,
         optimizations: &PsiOptimizationSelections,
-        authority: Option<
-            &dyn declaration_scope::DeclarationSelectionAuthority,
-        >,
+        authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
         observer: &mut impl crate::PsiCompilationObserver,
     ) -> Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>> {
         self.retain(optimizations, || {
@@ -149,7 +147,7 @@ impl SourcePublication {
             packet
                 .admit(
                     artifact.view().into(),
-                    &terminal_installation::selection_questions::SelectionAuthorities {
+                    &psi_authorization::selection_questions::SelectionAuthorities {
                         build: None,
                         product: authority,
                     },
