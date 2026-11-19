@@ -3290,12 +3290,32 @@ pub mod types {
         Domain(DomainConstraint),
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+    pub enum ValueDomain {
+        Finite,
+    }
+
+    impl ValueDomain {
+        pub fn from_name(name: &str) -> Option<Self> {
+            match name {
+                "Finite" => Some(Self::Finite),
+                _ => None,
+            }
+        }
+
+        pub fn name(self) -> &'static str {
+            match self {
+                Self::Finite => "Finite",
+            }
+        }
+    }
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
     pub enum DomainConstraintSubject {
         #[default]
         Declared,
         Carry(language_core::CarryPermission),
-        Value(declaration_contracts::value_domain::ValueDomain),
+        Value(ValueDomain),
         OmegaLayout {
             grammar: OmegaLayoutGrammar,
         },

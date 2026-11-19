@@ -12,10 +12,10 @@ service-surface = { path = "../../../../psi/service-surface" }
 declaration-scope = { path = "../../../../foundation/declaration-scope" }
 artifacts = { path = "../../../../foundation/measurements" }
 access-vocabulary = { path = "../../../../psi/access" }
-declaration-contracts = { path = "../../../language/declaration-contracts" }
 schema-reflection = { path = "../../../../psi/schema" }
 application-identity = { path = "../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
+source-provenance = { path = "../../../../foundation/source-provenance" }
 source-admission = { path = "../source-files/custody" }
 source-text = { path = "../../../../../../foundation/source-text" }
 bignum = { path = "../../../../../../foundation/bignum" }
@@ -27,7 +27,6 @@ access-admission = { path = "../../../../psi/access/admission" }
 arena = { path = "../../../../../../foundation/arena" }
 record-storage = { path = "../../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-flow-effects = { path = "../../../language/source-effects" }
 language-core = { path = "../../../../foundation/language-core" }
 layout-plans = { path = "../../../../psi/layout" }
 numerics = { path = "../../../../psi/semantics/numeric" }

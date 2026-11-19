@@ -2149,14 +2149,13 @@ pub(crate) mod constraints {
         name: &str,
         argument_count: usize,
     ) -> typed::types::DomainConstraintSubject {
-        use typed::types::{DomainConstraintSubject, OmegaLayoutGrammar};
+        use typed::types::{DomainConstraintSubject, OmegaLayoutGrammar, ValueDomain};
 
         if argument_count == 0 {
             if let Some(permission) = language_core::CarryPermission::from_name(name) {
                 return DomainConstraintSubject::Carry(permission);
             }
-            if let Some(domain) = declaration_contracts::value_domain::ValueDomain::from_name(name)
-            {
+            if let Some(domain) = ValueDomain::from_name(name) {
                 return DomainConstraintSubject::Value(domain);
             }
         }

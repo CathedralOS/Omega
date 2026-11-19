@@ -4,16 +4,19 @@ We keep those contracts independent of target calling plans, retaining each exac
 typed declaration and application for later provider selection.
 */
 
+#[path = "service_declarations/inventory_records.rs"]
+mod inventory_records;
+
 #[path = "service_declarations/normal_memberships.rs"]
 mod normal_memberships;
 
 pub fn service_declaration_scope(
     typed: &crate::source_state::TypedTrees,
     owner: symbols::SymbolHandle,
-) -> Result<declaration_contracts::source_identity::DependencyScope, &'static str> {
+) -> Result<source_provenance::DependencyScope, &'static str> {
     if typed.symbols.source_files().next().is_none() {
         // Without source files there are no scoped source instances to choose.
-        return Ok(declaration_contracts::source_identity::DependencyScope::default());
+        return Ok(source_provenance::DependencyScope::default());
     }
     let span = typed
         .symbols
@@ -45,8 +48,11 @@ pub fn service_declaration_commitment(
 }
 
 pub mod provider_declarations {
-    use declaration_contracts::provider_declarations::SelectedTargetMachineOrigin;
-    use declaration_contracts::trust_declarations::TrustDeclarations;
+    pub use super::inventory_records::{
+        AcceptedContractDeclaration, AcceptedMachineDeclaration, AcceptedTemplateDeclaration,
+        ProviderRequirementApplication, SelectedTargetMachineOrigin, TrustDeclarationCardinality,
+        TrustDeclarations,
+    };
     use diagnostics::Diagnostic;
     use std::sync::{Arc, OnceLock};
 
@@ -110,10 +116,7 @@ pub mod provider_declarations {
     pub fn closed_provider_leaf_applications(
         typed: &crate::source_state::TypedTrees,
         template: &str,
-    ) -> Result<
-        Vec<declaration_contracts::provider_declarations::ProviderRequirementApplication>,
-        Vec<String>,
-    > {
+    ) -> Result<Vec<ProviderRequirementApplication>, Vec<String>> {
         let mut identities = Vec::new();
         let mut diagnostics = Vec::new();
         for application in typed
@@ -141,12 +144,10 @@ pub mod provider_declarations {
                         .push("provider receiving application has no portable identity".into());
                     continue;
                 };
-                identities.push(
-                    declaration_contracts::provider_declarations::ProviderRequirementApplication {
-                        requirement: identity,
-                        receiving_application,
-                    },
-                );
+                identities.push(ProviderRequirementApplication {
+                    requirement: identity,
+                    receiving_application,
+                });
             }
         }
         if diagnostics.is_empty() {
@@ -179,7 +180,7 @@ pub mod provider_declarations {
     }
     pub(crate) mod context {
         use crate::source_state::TypedTrees;
-        use declaration_contracts::source_identity::DependencyScope;
+        use source_provenance::DependencyScope;
         use symbols::SymbolHandle;
 
         #[derive(Copy, Clone)]
@@ -222,7 +223,7 @@ pub mod provider_declarations {
             let services = super::PreparedServiceCatalog::prepare(
                 ProviderPlanningContext::new(
                     owner.as_ref().as_ref(),
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ),
                 exact_toolchain_sources,
             );
@@ -252,7 +253,7 @@ pub mod provider_declarations {
             self.require_owner(owner)?;
             self.services.bind(ProviderPlanningContext::new(
                 self.owner.as_ref().as_ref(),
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ))
         }
 
@@ -268,7 +269,7 @@ pub mod provider_declarations {
             self.origins.get_or_init(|| {
                 provider_target_declarations(
                     self.owner.as_ref().as_ref(),
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
             })
         }
@@ -299,7 +300,6 @@ pub mod provider_declarations {
         pub fn trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
             self.trust
                 .get_or_init(|| {
-                    use declaration_contracts::trust_declarations::{AcceptedMachineDeclaration, TrustDeclarationCardinality};
                     let typed = self.owner.as_ref().as_ref();
                     let machines = typed
                         .machines()
@@ -338,8 +338,8 @@ pub mod provider_declarations {
 
     pub fn provider_target_declarations(
         typed: &crate::source_state::TypedTrees,
-        scope: declaration_contracts::source_identity::DependencyScope,
-    ) -> Vec<declaration_contracts::provider_declarations::SelectedTargetMachineOrigin> {
+        scope: source_provenance::DependencyScope,
+    ) -> Vec<SelectedTargetMachineOrigin> {
         typed
             .machines()
             .iter()
@@ -347,12 +347,12 @@ pub mod provider_declarations {
                 typed
                     .symbols
                     .symbol_is_in_dependency_scope(machine.symbol, scope)
-                    && (scope == declaration_contracts::source_identity::DependencyScope::Product
+                    && (scope == source_provenance::DependencyScope::Product
                         || machine.target.is_none())
             })
             .filter_map(|machine| {
                 machine.authored_target.as_ref().map(|target| {
-                    declaration_contracts::provider_declarations::SelectedTargetMachineOrigin {
+                    SelectedTargetMachineOrigin {
                         machine: machine.symbol,
                         target: target.as_str().to_owned(),
                     }
@@ -408,7 +408,7 @@ pub mod provider_declarations {
                 catalog
                     .bind(super::ProviderPlanningContext::new(
                         owner.as_ref().as_ref(),
-                        declaration_contracts::source_identity::DependencyScope::Build,
+                        source_provenance::DependencyScope::Build,
                     ))
                     .is_err()
             );
@@ -844,6 +844,7 @@ pub mod projection {
         }
     }
 
+    use crate::source_state::invocations::InvocationTarget;
     use crate::source_state::provider_declarations::ProviderPlanningContext;
     use crate::source_state::trait_definition::{AppliedTraitScope, AppliedTypeReference};
     use service_surface::ServiceEntryAuthorityFlow;
@@ -1660,16 +1661,16 @@ pub mod projection {
 
     fn invocation_entries(
         program: &crate::source_state::TypedTrees,
-        targets: Vec<flow_effects::InvocationTarget>,
+        targets: Vec<InvocationTarget>,
         parameter_count: usize,
     ) -> Option<Vec<ServiceSynchronousInvocation>> {
         let mut entries = targets
             .into_iter()
             .map(|target| match target {
-                flow_effects::InvocationTarget::Parameter(position) => ((position as usize)
+                InvocationTarget::Parameter(position) => ((position as usize)
                     < parameter_count)
                     .then_some(ServiceSynchronousInvocation::Parameter(position)),
-                flow_effects::InvocationTarget::Service(symbol) => program
+                InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
                     .find(|definition| definition.symbol == symbol)
@@ -1764,7 +1765,7 @@ pub(crate) mod catalog {
     pub struct PreparedServiceCatalog {
         owner_identity: u64,
         owner_address: usize,
-        scope: declaration_contracts::source_identity::DependencyScope,
+        scope: source_provenance::DependencyScope,
         exact_toolchain_sources: Box<[(source_text::SourceId, [u8; 32])]>,
         records: Arena<ServiceRecord>,
         requirements: Arena<PreparedServiceRequirement>,
@@ -2356,6 +2357,7 @@ pub mod signatures {
         PackageKeyIdentity, callback_requirement_id, nominal_callback_binder_id,
         nominal_callback_native_parameter_id,
     };
+    use crate::source_state::invocations::InvocationTarget;
     use symbols::SymbolHandle;
 
     pub(crate) mod abi_signatures {
@@ -2398,7 +2400,7 @@ pub mod signatures {
             pub fn projections_in_context<'a>(
                 &'a self,
                 typed: &'a TypedTrees,
-                context: declaration_contracts::source_identity::DependencyScope,
+                context: source_provenance::DependencyScope,
             ) -> impl Iterator<Item = &'a PreparedAbiSource> {
                 self.projections.iter().filter(move |projection| {
                     projection.source.is_valid()
@@ -3460,7 +3462,7 @@ pub mod signatures {
         pub(crate) fn prepare(typed: &TypedTrees) -> Self {
             let product = ProviderPlanningContext::new(
                 typed,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             );
             let mut declarations = Arena::new();
             for definition in typed.traits() {
@@ -3634,7 +3636,7 @@ pub mod signatures {
                 static_machine_ordinal: ordinal,
                 requirement_identity,
                 invokes_synchronously: invocations
-                    .contains(&flow_effects::InvocationTarget::Service(*trait_definition)),
+                    .contains(&InvocationTarget::Service(*trait_definition)),
             });
             callback_sources.push(BoundaryCallbackSource {
                 parameter_symbol: parameter.symbol,

@@ -1599,7 +1599,7 @@ mod tests {
     fn ordinary_call_inference_completes_the_existing_application() {
         let source = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../tests/fixtures/run/generics/inferred_static_call_types/main.omg"
+            "/../../../../../../tests/fixtures/run/generics/inferred_static_call_types/main.omg"
         ));
         let program = checked(&[("main.omg", source)]).expect("the fixture types");
         let expressions = &program.expression_table;

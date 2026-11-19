@@ -182,7 +182,7 @@ pub mod boundary_completions {
 
         const NEVER_SOURCE: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/never.omg"
+            "/../../../../../../../source/library/core/never.omg"
         ));
 
         fn fixture(
@@ -249,7 +249,7 @@ pub mod boundary_completions {
 
         const PROCESS_EXIT_SOURCE: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/process_exit.omg"
+            "/../../../../../../../source/library/core/process_exit.omg"
         ));
 
         fn completion_fixture(
@@ -2178,7 +2178,14 @@ pub mod invocations {
     use crate::source_state::signature::{
         AuthoredInvocation, AuthoredInvocationTarget, StateParameter, StateSignature,
     };
-    use flow_effects::InvocationTarget;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum InvocationTarget {
+        /// Position among the callable's entry parameters after the receiver.
+        Parameter(u32),
+        /// A statically selected boundary service.
+        Service(symbols::SymbolHandle),
+    }
 
     pub fn declared_signature_invocations(
         program: &TypedTrees,
@@ -2633,7 +2640,7 @@ pub mod numeric_intrinsics {
             {
                 return Some(execution);
             }
-            let intrinsic = crate::numeric_declarations::resolve(
+            let intrinsic = crate::source_state::numeric_declarations::resolve(
                 namespace,
                 name,
                 self.type_reference_table.arithmetic_domain(return_type),

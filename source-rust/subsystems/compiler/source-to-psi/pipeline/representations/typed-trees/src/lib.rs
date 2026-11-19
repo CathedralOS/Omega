@@ -1665,7 +1665,7 @@ impl TypedTrees {
                     .is_none_or(|file| {
                         file.origin.is_toolchain()
                             || file.dependency_scope
-                                == declaration_contracts::source_identity::DependencyScope::Build
+                                == source_provenance::DependencyScope::Build
                     }))
     }
 
