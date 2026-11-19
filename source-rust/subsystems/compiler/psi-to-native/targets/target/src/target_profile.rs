@@ -82,7 +82,7 @@ impl ProgramEntryPhysicalContractPackage {
 
     pub const fn package_relative_source(self) -> &'static str {
         match self {
-            Self::UefiX64 => "targets/uefi_x86_64/entry.omg",
+            Self::UefiX64 => "uefi_x86_64_entry.omg",
             Self::MacosArm64 => "targets/macos_arm64/entry.omg",
             Self::MacosX64 => "targets/macos_x86_64/entry.omg",
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
@@ -809,7 +809,7 @@ mod tests {
             physical_package.manifest_identity(),
             "omega::language::std::targets::uefi_x86_64::entry"
         );
-        eq!(physical_package.package_relative_source() => "targets/uefi_x86_64/entry.omg");
+        eq!(physical_package.package_relative_source() => "uefi_x86_64_entry.omg");
         assert_eq!(
             slot.physical_calling_convention,
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)

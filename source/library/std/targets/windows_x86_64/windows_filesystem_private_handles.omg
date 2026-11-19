@@ -1,3 +1,5 @@
+use targets::windows_x86_64::filesystem_removal::windows_removal_open_child;
+use targets::windows_x86_64::filesystem_removal::windows_removal_open_root;
 // The shared completion premise for private synchronous nonalert file objects.
 // Each issuer actually opens the object with fixed synchronous options and
 // keeps it private through completion/close; no constructor accepts mode bits

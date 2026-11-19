@@ -1110,7 +1110,7 @@ mod tests {
             let mut request = crate::resolution::ResolutionRequest::new(syntax);
             request.sources = Some(std::sync::Arc::new(sources));
             let resolved = crate::resolution::resolve(request).unwrap();
-            let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+            let typed = crate::prepare_fixture(crate::typing::lower_symbol_resolved_trees(&resolved).unwrap());
             let prepared = crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {

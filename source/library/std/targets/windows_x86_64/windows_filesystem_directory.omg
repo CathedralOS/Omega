@@ -1,3 +1,4 @@
+use omega_language_std;
 // The raw names iterator owns one fresh private file object until completion.
 // Private nonalert synchronous mode makes null-event NT directory queries finish
 // before their borrowed outputs expire. Do not substitute an external handle,

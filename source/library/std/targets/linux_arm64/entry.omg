@@ -1,3 +1,23 @@
+use AbiValueClass;
+use BoundaryEntryPlan;
+use BoundaryPlanResult;
+use BoundarySignature;
+use Calling;
+use CallingConvention;
+use CallingPolicy;
+use CallingPolicyRejection;
+use EntryControl;
+use EntryStack;
+use MachineRegime;
+use MachineRegister;
+use Preemption;
+use ValueLocation;
+use ValuePlacement;
+use ValueShape;
+use hosted_entry_arm_extent_value;
+use hosted_entry_extent_shape;
+use hosted_entry_integer_shape;
+use omega_language_std;
 use omega::language::core::ProgramStorageEntry;
 
 // The Linux kernel enters a static ELF executable on AArch64 with the

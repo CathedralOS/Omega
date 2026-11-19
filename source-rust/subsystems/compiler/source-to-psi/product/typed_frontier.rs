@@ -2,7 +2,7 @@
 #[derive(Debug, Clone)]
 pub struct TypedFrontier {
     /// The actual frozen typed source returned by Psi 04 preparation.
-    pub typed: crate::source_state::FrozenTypedTrees,
+    pub typed: crate::preparation::PreparedTypedTrees,
     /// Actual constant invocation custody retained with this source owner.
     pub source_completion_accounting: crate::compile_time::SourceCompletionAccounting,
     /// The Build's bound program roots, in the order the checker received

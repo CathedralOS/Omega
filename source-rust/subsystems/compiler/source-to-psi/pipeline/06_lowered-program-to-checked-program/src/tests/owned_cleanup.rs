@@ -26,7 +26,7 @@ ensures result <= 50u64
 const DECOMPOSE: &str =
     "let { dropped, valid, value as _ } = move resource; dropped.value = valid;";
 
-fn prepared(text: &str) -> crate::source_state::FrozenTypedTrees {
+fn prepared(text: &str) -> crate::preparation::PreparedTypedTrees {
     crate::preparation::prepare_typed_trees(
         super::boundary_calls::typed(text),
         &crate::preparation::PreparationRequest::settled(),

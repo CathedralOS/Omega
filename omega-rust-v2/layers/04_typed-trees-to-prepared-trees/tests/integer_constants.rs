@@ -415,7 +415,7 @@ fn every_tail_helper_must_establish_termination() {
         (
             "machine a(n:u64)->u64{b(n)} machine b(n:u64)->u64{a(n)} const SIZE:u64=a(4);",
             "a(n)",
-            "a cyclic static invocation requires a checked termination proof\ncall chain: a -> b -> a",
+            "a cyclic static invocation requires a checked termination proof\nrecursive component: a -> b -> a",
         ),
     ] {
         let error = prepare(source).unwrap_err();
@@ -454,7 +454,7 @@ fn tail_cycle_detection_uses_declaration_identity_across_files() {
                 assert_eq!(error.span.slice(body.as_bytes()), Some(b"first(n)".as_slice()));
                 assert_eq!(
                     error.message,
-                    "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\ncall chain: first -> second -> third -> first"
+                    "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\nrecursive component: first -> second -> third -> first"
                 );
             } else {
                 assert_integer_constant(&result.unwrap(), "SIZE", 8);
@@ -711,4 +711,36 @@ fn typed_negation_refuses_the_signed_minimum_in_a_constant_or_call() {
             error.message
         );
     }
+}
+
+#[test]
+fn preparation_requires_proof_before_entering_a_recursive_body() {
+    for clause in ["", "terminates", "terminates by n"] {
+        for demand in [
+            "const VALUE:u64=count(0u64);",
+            "machine consume(x:[u8;count(0u64)]){}",
+        ] {
+            let source = format!(
+                "machine count(n:u64)->u64 {clause} {{match n == 0u64 {{true -> 7u64, false -> count(n - 1u64),}}}}
+                 {demand}"
+            );
+            let error = prepare(&source).unwrap_err();
+            assert_eq!(
+                error.message,
+                "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\nrecursive component: count -> count"
+            );
+            assert_eq!(error.span.slice(source.as_bytes()), Some(b"count(n - 1u64)".as_slice()));
+        }
+    }
+
+    let source = "machine first(n:u64)->u64 {match n == 0u64 {true -> 7u64, false -> second(n - 1u64),}}
+                  machine second(n:u64)->u64 {first(n)}
+                  machine outer()->u64 {first(0u64)}
+                  const VALUE:u64=outer();";
+    let error = prepare(source).unwrap_err();
+    assert_eq!(
+        error.message,
+        "static evaluation cannot admit this invocation: a cyclic static invocation requires a checked termination proof\ncall chain: outer -> first\nrecursive component: first -> second -> first"
+    );
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"first(n)".as_slice()));
 }

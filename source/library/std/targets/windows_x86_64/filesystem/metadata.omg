@@ -1,3 +1,17 @@
+use ErrorKind;
+use ExistsResult;
+use File;
+use FileKind;
+use Metadata;
+use MetadataResult;
+use Permissions;
+use PosixMetadataResult;
+use TimestampResult;
+use UnitResult;
+use WindowsFileMetadata;
+use WindowsFilesystemHost;
+use WindowsMetadataResult;
+use omega_language_std;
 // Decode native Windows facts, never invented POSIX identities. FILETIME uses
 // 100-ns ticks from 1601; portable timestamps use signed Unix seconds. A real
 // zero timestamp is distinct from unavailable POSIX metadata. Only the known

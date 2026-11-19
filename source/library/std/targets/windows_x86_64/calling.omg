@@ -1,3 +1,21 @@
+use AbiValueClass;
+use AbiValueShape;
+use BoundaryEntryPlan;
+use BoundaryPlanResult;
+use BoundarySignature;
+use CallingConvention;
+use CallingPolicy;
+use CallingPolicyRejection;
+use EntryControl;
+use EntryStack;
+use MachineRegime;
+use MachineRegister;
+use Preemption;
+use ValueClass;
+use ValueLocation;
+use ValuePlacement;
+use ValueShape;
+use omega_language_std;
 // Fixed Microsoft x64 calls with up to four scalar or sized-reference formals.
 // Stack arguments, narrow register scalars and callbacks require a richer policy.
 WindowsX64ScalarCalling satisfies CallingPolicy {

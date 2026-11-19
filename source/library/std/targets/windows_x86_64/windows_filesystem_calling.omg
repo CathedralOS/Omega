@@ -1,21 +1,17 @@
+use AbiValueClass;
+use AbiValueShape;
+use BoundaryEntryPlan;
+use BoundarySignature;
+use MachineRegister;
+use ValueClass;
+use ValueLocation;
+use ValueShape;
 // ReadFile/WriteFile split one borrowed view into pointer and DWORD count.
 // Place all sixteen descriptor bytes: pointer in RDX, length in R8. The
 // requirement proves length <= DWORD_MAX, so the callee's right-justified
 // low DWORD equals the complete semantic extent, without a truncating ABI.
 // Handle, count-output pointer and null OVERLAPPED retain their ordered slots.
 // This plan supplies representation, never storage authority or completion.
-
-public WindowsFilesystemTransferCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let accepted: bool = windows_filesystem_transfer_signature(@signature);
-        transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() },
-            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected handle, whole byte view, count reference and overlapped" as +Utf8
-            } }
-        }
-    }
-}
 
 machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> bool {
     transition signature.parameter_count == 4 && signature.native_parameter_count == 4

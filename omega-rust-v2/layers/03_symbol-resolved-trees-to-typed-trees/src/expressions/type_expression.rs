@@ -1,3 +1,4 @@
+use super::destination::Destination;
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::expressions::storage_origin::Origin;
@@ -12,6 +13,9 @@ impl BodyTyper<'_, '_> {
         declaration: &omega_resolver::DeclarationId,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        if self.catalog.types.indices.constant_is_pending(declaration) {
+            return Err(self.catalog.types.indices.wait(source, node));
+        }
         let ty = self
             .catalog
             .constants
@@ -34,16 +38,17 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         expected: Option<&ValueType>,
     ) -> Result<ValueType, TypeError> {
-        self.type_at_destination(node_index, expected, false)
+        self.type_at_destination(node_index, expected.into(), false)
     }
 
     pub(super) fn type_at_destination(
         &mut self,
         node_index: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
         machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         use NodeKind::*;
+        let expected = destination.exact();
         let source_file = self.unit.file;
         let node = &source_file.nodes[node_index];
         let mut static_argument_slot = None;
@@ -237,36 +242,42 @@ impl BodyTyper<'_, '_> {
                 );
                 ty
             }
-            Paren => self.type_at_destination(self.unit.single_child(node_index)?, expected, machine_result)?,
+            Paren => self.type_at_destination(self.unit.single_child(node_index)?, destination, machine_result)?,
             CallMarker => {
                 let child = self.unit.single_child(node_index)?;
                 if !matches!(source_file.nodes[child].kind, Call | CallMarker) {
                     return Err(TypeError::at(source_file, node_index, "acknowledgement requires a call"));
                 }
-                self.type_expression_with_expected_type(child, expected)?
+                self.type_at_destination(child, destination, false)?
             }
-            Call => self.type_call(node_index, expected)?,
+            Call => self.type_call(node_index, destination)?,
             Selection => crate::contracts::conformance::bind_expression(self.unit, self.catalog, node_index, self.output)?,
             RecordLiteral => self.record(node_index, expected)?,
-            Match => self.dispatch(node_index, expected, machine_result)?,
-            Body => self.check_block(node_index, expected, machine_result)?,
+            Match => self.dispatch(node_index, destination, machine_result)?,
+            Body => self.check_block(node_index, destination, machine_result)?,
             ArrayLiteral => {
-                let element = match expected {
-                    Some(ValueType::Array(t, size)) if *size == node.children.len() as u64 => Some(t.as_ref().clone()),
-                    _ => None,
-                };
+                let mut pending_elements = Vec::new();
+                let element_destination = destination.array_element(node.children.len() as u64, &self.catalog.types.indices, &mut pending_elements);
                 let mut entries = Vec::new();
                 for &e in &node.children {
-                    entries.push((e, self.type_expression_with_expected_type(e, element.as_ref())?));
+                    entries.push((e, self.type_at_destination(e, element_destination, false)?));
                 }
-                let element = element
-                    .or_else(|| {
-                        entries
-                            .iter()
-                            .find(|(_, t)| !matches!(t, ValueType::Exact { .. }))
-                            .map(|(_, t)| t.clone())
-                    })
-                    .ok_or_else(|| TypeError::at(source_file, node_index, "array literal needs an element type"))?;
+                let element = element_destination.exact().cloned().or_else(|| {
+                    entries
+                        .iter()
+                        .find(|(_, ty)| !matches!(ty, ValueType::Exact { .. }))
+                        .map(|(_, ty)| ty.clone())
+                });
+                let Some(element) = element else {
+                    let indices = &self.catalog.types.indices;
+                    if let Some(pending) = element_destination.pending()
+                        && pending.permits(|element| entries.iter().all(|(_, value)| value.fits(element)))
+                    {
+                        pending.retain_demands(indices);
+                        return Err(indices.wait(source_file, node_index));
+                    }
+                    return Err(TypeError::at(source_file, node_index, "array literal needs an element type"));
+                };
                 for (e, t) in entries {
                     self.check_destination(e, &t, &element)?;
                 }
@@ -313,7 +324,10 @@ impl BodyTyper<'_, '_> {
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;
-        self.catalog.types.indices.retain_demands(&value);
+        self.catalog
+            .types
+            .indices
+            .retain_demands_at(source_file.node_id(node_index), &value);
         self.record_expression_with_static_argument(node_index, value.clone(), static_argument_slot);
         Ok(value)
     }

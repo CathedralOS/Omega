@@ -1,3 +1,5 @@
+use LinuxX64TimeHostInstant;
+use TimeHost;
 // linux_x86_64 `TimeHost` provider.
 //
 // Linux publishes no scalar nanosecond clock read. `clock_gettime` writes a
@@ -24,12 +26,6 @@
 use omega::language::core::narrow_u32_to_i32_wrapping;
 use omega::language::core::narrow_i64_to_u64_saturating;
 
-// The kernel's 64-bit timespec, in declaration order. Both fields are SIGNED;
-// a CLOCK_MONOTONIC read or a post-1970 CLOCK_REALTIME read is nonnegative,
-// and the saturating conversions below keep a negative or absurd field from
-// becoming an enormous unsigned tick count.
-public data LinuxX64TimeHostInstant { seconds: i64; nanoseconds: i64; }
-
 // Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
 // one-member clock-wait traits; this trait owns the time-host read and wait.
 boundary trait LinuxX64TimeRead {
@@ -40,98 +36,6 @@ boundary trait LinuxX64TimeRead {
     reaches TimeHost
     blocks
     crashes none;
-}
-
-// `seconds * 1_000_000_000 + nanoseconds` in the Wrapping spelling
-// `instant_now` already uses for the same reason: the interval fold cannot
-// multiply variable bounds, so a proven-in-range multiply is not expressible
-// here. The product cannot wrap for any real clock — u64 holds 18_446_744_073
-// seconds of nanoseconds, past year 2554 for CLOCK_REALTIME and 584 years of
-// uptime for CLOCK_MONOTONIC — and a kernel reporting more reads as a
-// degraded tick count instead of faulting.
-public machine linux_x86_64_time_host_ticks(seconds: i64, nanoseconds: i64) -> u64 {
-    let seconds_unsigned: u64 = narrow_i64_to_u64_saturating(seconds);
-    let nanoseconds_unsigned: u64 = narrow_i64_to_u64_saturating(nanoseconds);
-    let scaled: u64 in Wrapping = (seconds_unsigned as u64 in Wrapping) * 1000000000;
-    let total: u64 in Wrapping = scaled + (nanoseconds_unsigned as u64 in Wrapping);
-    total as u64
-}
-
-public LinuxX8664TimeHost satisfies TimeHost {
-    // Failed reads return zero; the std clock reads own degraded-clock handling.
-    machine monotonic_ticks() -> u64
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    {
-        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(1, @mut instant);
-        transition status == 0 {
-            true -> measured(instant.seconds, instant.nanoseconds),
-            _ -> degraded()
-        }
-
-        machine measured(seconds: i64, nanoseconds: i64) -> u64 {
-            linux_x86_64_time_host_ticks(seconds, nanoseconds)
-        }
-
-        machine degraded() -> u64 { 0 }
-    }
-
-    machine monotonic_ticks_per_second() -> u64
-    {
-        1000000000
-    }
-
-    machine wall_clock_raw() -> u64
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    {
-        let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(0, @mut instant);
-        transition status == 0 {
-            true -> measured(instant.seconds, instant.nanoseconds),
-            _ -> degraded()
-        }
-
-        machine measured(seconds: i64, nanoseconds: i64) -> u64 {
-            linux_x86_64_time_host_ticks(seconds, nanoseconds)
-        }
-
-        machine degraded() -> u64 { 0 }
-    }
-
-    machine wall_clock_units_per_second() -> u64
-    {
-        1000000000
-    }
-
-    machine wall_clock_epoch_offset_seconds() -> u64
-    {
-        0
-    }
-
-    machine sleep(milliseconds: u32)
-    reaches TimeHost
-    invokes LinuxX64TimeRead
-    blocks
-    {
-        transition milliseconds > 2147483647 {
-            true -> block in_parts(milliseconds),
-            _ -> block at_once(milliseconds)
-        }
-
-        machine at_once(milliseconds: u32) {
-            block linux_x86_64_time_host_wait_part(narrow_u32_to_i32_wrapping(milliseconds));
-        }
-
-        machine in_parts(milliseconds: u32) {
-            let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
-            block linux_x86_64_time_host_wait_part(third);
-            block linux_x86_64_time_host_wait_part(third);
-            block linux_x86_64_time_host_wait_part(third);
-            block linux_x86_64_time_host_wait_part(narrow_u32_to_i32_wrapping(milliseconds % 3));
-        }
-    }
 }
 
 machine linux_x86_64_time_host_wait_part(timeout_milliseconds: i32)

@@ -1,7 +1,6 @@
-# 05 - Typed trees to lowered program
+# 05 - Prepared typed trees to lowered program
 
-This crate turns the finished typed trees into a lowered program, and fills the [check tables](../../representations/lowered-program/README.md)
-that the checker reads beside it. It covers scalar code and plain data:
+This stage accepts the `PreparedTypedTrees` issued by [stage 04](../04_typed-trees-to-prepared-typed-trees/prepare.rs). It lowers those trees and fills the [check tables](../../representations/lowered-program/README.md) that stage 06 reads. It covers scalar code and plain data:
 records (literals, field reads, stores, whole copies) and sums (case literals,
 case tests, dispatch and `match` with payload bindings). It is the second
 piece of [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
@@ -237,7 +236,7 @@ reference rows are still refused by name. Every other kind (`const`,
 type alias, a wire schema, a machine token binding) is refused as
 `declaration <kind>`: the route judges none of them yet.
 
-For a call such as `Selected<u32>::apply(7)`, the reader verifies the
+For a call such as `Selected::<u32>::apply(7)`, the reader verifies the
 complete map tuple, the actual caller, the unique owned row, the captured
 instance and the entry correspondence. Callers see the public requirement
 contract; the owning body is checked separately under its written and
@@ -278,8 +277,8 @@ body and its contract name like a formal; and an opaque type parameter
 are all of these kinds is read in two forms.
 
 - **Its specializations**, by `elaborate`. Stage 04 generates one closed
-  machine for each static application such as `advance<Double>`. A call of
-  `advance<Double>` is read as a direct call of that machine; inside it, the
+  machine for each static application such as `advance::<Double>`. A call of
+  `advance::<Double>` is read as a direct call of that machine; inside it, the
   call through the parameter is read as a direct call of the selected
   member. Each such call is recorded in `Elaboration::selections` with the
   parameter, trait, requirement and member, all as symbols. A machine
@@ -303,7 +302,7 @@ are all of these kinds is read in two forms.
 
 **A requirement with value parameters** (`trait Bounded { machine
 value<const Units: u64>(input: u64) -> u64 requires input <= Units ...; }`)
-is read at the literals a call binds them to: `Implementation::value<7>(x)`
+is read at the literals a call binds them to: `Implementation::value::<7>(x)`
 is held to the contract with 7 wherever the clauses name `Units`
 (`requirement_signature`, `ClauseScope::bound`). Each literal is one of the
 call site's static arguments and must be exactly one integer literal
@@ -321,7 +320,7 @@ record, so every operator, comparison, field and literal rule refuses it.
 What each type parameter in scope stands for is kept beside the machine
 being read (`Program::scope`), looked up by the binder's symbol. A call of
 another generic machine at the entry's own type parameters,
-`forward<T>(item, limit)`, is read from the bindings of the call's static
+`forward::<T>(item, limit)`, is read from the bindings of the call's static
 application: the callee becomes one bodiless machine per tuple of type
 arguments, with its signature and contract at those types
 (`Program::application`, `Elaboration::applications`). A body may name a
@@ -332,7 +331,7 @@ closed machine, as far as its clauses and body are in the subset.
 
 **A generated machine of a finite type family** keeps its type equations.
 Stage 04 does not fold them: the machine generated from `threshold<T>
-requires T == u32 || T == u64 { transition T == u32 { true -> (37u32) _ ->
+requires T == u32 || T == u64 { transition T == u32 { true -> (37u32), _ ->
 (73u64) } }` for `u32` still holds `requires u32 == u32 || u32 == u64`, a
 local bound to `u32 == u32`, both arms, and an arm that returns a `u64`
 from a machine whose result is `u32`. Such an equation is static
@@ -577,7 +576,7 @@ A loop in Omega is a machine whose transition arm calls it again, directly
 or through other machines. The subset serves such a call cycle between
 scalar machines when every call between its members stands in terminal
 position (an arm's target, or the body's final value): `machine spin(n: u32)
--> u32 { transition n > 0 { true -> spin(n - 1) false -> 0 } }`, and the
+-> u32 { transition n > 0 { true -> spin(n - 1), false -> 0 } }`, and the
 same through two or more machines.
 [termination](../../../../../wiki/spec/language/termination.md#calls-and-productive-loops):
 "A productive terminal-transfer cycle without a termination promise may run
@@ -860,7 +859,7 @@ payload field, and an argument. A payload field is a builtin integer,
   A selected user comparison remains a call; a named-case operand is only a
   lowering optimization. Payload-bearing equality keeps its selected
   comparison or conformance call;
-- `transition s { S::A { p } -> ..  S::B -> ..  _ -> .. }`, with payload
+- `transition s { S::A { p } -> .., S::B -> .., _ -> .. }`, with payload
   bindings, renames (`p as q`), waived fields (`p as _`), field-value tests
   (`p: value`) and `..`, with repeated alternatives and an ordered fallback;
 - value-position `match` over a sum expression, with scalar arms;

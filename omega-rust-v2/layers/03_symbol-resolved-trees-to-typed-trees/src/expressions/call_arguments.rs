@@ -1,3 +1,5 @@
+use super::destination::Destination;
+use crate::evaluation::check_static_indices::IndexEvaluations;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::{Access, ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
@@ -10,6 +12,45 @@ pub(super) struct CallOperand {
     pub value: ValueType,
     version: Option<Site>,
     pub(super) read_from: Option<Access>,
+}
+
+/// A candidate must satisfy all known obligations before these differences
+/// can justify postponing the selection.
+#[derive(Default)]
+pub(super) struct PendingComparisons(Vec<ValueType>);
+
+impl PendingComparisons {
+    pub(super) fn compare(
+        &mut self,
+        indices: &IndexEvaluations<'_>,
+        actual: &ValueType,
+        expected: &ValueType,
+    ) -> bool {
+        if !indices.can_wait_for_equality(actual, expected) {
+            return false;
+        }
+        self.record(actual, expected);
+        true
+    }
+
+    pub(super) fn record(
+        &mut self,
+        actual: &ValueType,
+        expected: &ValueType,
+    ) {
+        self.0.extend([actual.clone(), expected.clone()]);
+    }
+
+    pub(super) fn retain_demands(
+        &self,
+        indices: &IndexEvaluations<'_>,
+    ) -> bool {
+        let mut waiting = false;
+        for value in &self.0 {
+            waiting |= indices.retain_demands(value);
+        }
+        waiting
+    }
 }
 
 pub(super) struct SelectedMachine<'a> {
@@ -53,7 +94,7 @@ impl BodyTyper<'_, '_> {
     pub(super) fn argument_operand(
         &mut self,
         node: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
     ) -> Result<CallOperand, TypeError> {
         let root = self.unit.file.ungroup(node);
         if self.unit.file.nodes[root].kind == NodeKind::FieldAccess
@@ -64,7 +105,7 @@ impl BodyTyper<'_, '_> {
             operand.read_from = place;
             Ok(operand)
         } else {
-            let value = self.type_expression_with_expected_type(node, expected)?;
+            let value = self.type_at_destination(node, destination, false)?;
             Ok(self.call_operand(node, value))
         }
     }
@@ -96,10 +137,25 @@ impl BodyTyper<'_, '_> {
         id: &DeclarationId,
         bindings: &mut [Option<ValueType>],
     ) -> bool {
+        self.infer_operand_with(kind, position, operand, formal, id, bindings, &mut |_, _| false)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn infer_operand_with(
+        &self,
+        kind: NodeKind,
+        position: usize,
+        operand: &CallOperand,
+        formal: &ValueType,
+        id: &DeclarationId,
+        bindings: &mut [Option<ValueType>],
+        compare_pending: &mut impl FnMut(&ValueType, &ValueType) -> bool,
+    ) -> bool {
         if let Some((access, inner)) = Self::argument_loan(kind, position, &operand.value, formal) {
-            return (*access != Access::Mut || self.require_place_access(operand.node, access).is_ok()) && inner.infer(&operand.value, id, bindings);
+            return (*access != Access::Mut || self.require_place_access(operand.node, access).is_ok())
+                && inner.infer_with(&operand.value, id, bindings, compare_pending);
         }
-        formal.infer(&operand.value, id, bindings)
+        formal.infer_with(&operand.value, id, bindings, compare_pending)
     }
 
     pub(super) fn admit_argument(

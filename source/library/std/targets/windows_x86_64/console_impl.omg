@@ -1,3 +1,7 @@
+use ByteRead;
+use Calling;
+use Console;
+use ConsoleByteOperations;
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
 use omega::language::core::narrow_i32_to_u8_wrapping;

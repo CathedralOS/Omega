@@ -66,6 +66,17 @@ impl ValueType {
             )
         })
     }
+    pub(crate) fn depends_on_unsupplied_parameter(
+        &self,
+        declaration: &DeclarationId,
+        supplied: usize,
+    ) -> bool {
+        self.components().any(|part| match part {
+            Self::Parameter { owner, index } => owner.as_ref() == declaration && *index >= supplied,
+            Self::StaticFormula { term, .. } => term.depends_on_unsupplied_parameter(declaration, supplied),
+            _ => false,
+        })
+    }
     pub(crate) fn depends_on_call_input(&self) -> bool {
         self.components().any(|ty| {
             matches!(
@@ -291,41 +302,67 @@ impl ValueType {
         owner: &DeclarationId,
         args: &mut [Option<ValueType>],
     ) -> bool {
+        self.infer_with(actual, owner, args, &mut |_, _| false)
+    }
+
+    pub(crate) fn infer_with(
+        &self,
+        actual: &ValueType,
+        owner: &DeclarationId,
+        args: &mut [Option<ValueType>],
+        compare_pending: &mut impl FnMut(&ValueType, &ValueType) -> bool,
+    ) -> bool {
         use ValueType::*;
         match (self, actual) {
             (Parameter { owner: b, index }, actual) if b.as_ref() == owner => match &args[*index] {
-                Some(bound) => bound.admits(actual),
+                Some(bound) => bound.admits(actual) || compare_pending(bound, actual),
                 None if matches!(actual, Exact { .. }) => true,
                 None => {
                     args[*index] = Some(actual.clone());
                     true
                 }
             },
-            (Universe { strict: a, level: x }, Universe { strict: b, level: y }) => a == b && x.infer(y, owner, args),
-            (Tuple(left), Tuple(right)) => left.len() == right.len() && left.iter().zip(right).all(|(a, b)| a.infer(b, owner, args)),
-            (IndexedInteger { signed: a, width }, Integer { signed: b, width: Some(n) }) if a == b => width.infer(&Self::static_size(*n), owner, args),
-            (IndexedInteger { signed: a, width: x }, IndexedInteger { signed: b, width: y }) if a == b => x.infer(y, owner, args),
-            (IndexedArray(t, index), Array(v, n)) => t.infer(v, owner, args) && index.infer(&Self::static_size(*n), owner, args),
-            (IndexedArray(t, index), IndexedArray(v, n)) => t.infer(v, owner, args) && index.infer(n, owner, args),
-            (Function(a, b), Function(c, d)) => a.infer(c, owner, args) && b.infer(d, owner, args),
-            (AtLifetime(t, l), AtLifetime(v, r)) => t.infer(v, owner, args) && l.infer(r, owner, args),
+            (Universe { strict: a, level: x }, Universe { strict: b, level: y }) => a == b && x.infer_with(y, owner, args, compare_pending),
+            (Tuple(left), Tuple(right)) => {
+                left.len() == right.len()
+                    && left
+                        .iter()
+                        .zip(right)
+                        .all(|(a, b)| a.infer_with(b, owner, args, compare_pending))
+            }
+            (IndexedInteger { signed: a, width }, Integer { signed: b, width: Some(n) }) if a == b => {
+                width.infer_with(&Self::static_size(*n), owner, args, compare_pending)
+            }
+            (IndexedInteger { signed: a, width: x }, IndexedInteger { signed: b, width: y }) if a == b => x.infer_with(y, owner, args, compare_pending),
+            (IndexedArray(t, index), Array(v, n)) => {
+                t.infer_with(v, owner, args, compare_pending) && index.infer_with(&Self::static_size(*n), owner, args, compare_pending)
+            }
+            (IndexedArray(t, index), IndexedArray(v, n)) => t.infer_with(v, owner, args, compare_pending) && index.infer_with(n, owner, args, compare_pending),
+            (Function(a, b), Function(c, d)) => a.infer_with(c, owner, args, compare_pending) && b.infer_with(d, owner, args, compare_pending),
+            (AtLifetime(t, l), AtLifetime(v, r)) => t.infer_with(v, owner, args, compare_pending) && l.infer_with(r, owner, args, compare_pending),
             (Qualified(t, a), Qualified(v, b)) => {
                 a.len() == b.len()
-                    && t.infer(v, owner, args)
+                    && t.infer_with(v, owner, args, compare_pending)
                     && a.iter().zip(b).all(|(x, y)| {
                         x.declaration == y.declaration
                             && x.arguments.len() == y.arguments.len()
                             && x.arguments
                                 .iter()
                                 .zip(&y.arguments)
-                                .all(|(i, j)| i.infer(j, owner, args))
+                                .all(|(i, j)| i.infer_with(j, owner, args, compare_pending))
                     })
             }
-            (Applied(id, a), Applied(id2, b)) => id == id2 && a.len() == b.len() && a.iter().zip(b).all(|(t, v)| t.infer(v, owner, args)),
-            (Reference(a, t), Reference(b, v)) => a == b && t.infer(v, owner, args),
-            (Array(t, n), Array(v, m)) => n == m && t.infer(v, owner, args),
-            (Slice(t), Slice(v)) => t.infer(v, owner, args),
-            _ => self.admits(actual),
+            (Applied(id, a), Applied(id2, b)) => {
+                id == id2
+                    && a.len() == b.len()
+                    && a.iter()
+                        .zip(b)
+                        .all(|(t, v)| t.infer_with(v, owner, args, compare_pending))
+            }
+            (Reference(a, t), Reference(b, v)) => a == b && t.infer_with(v, owner, args, compare_pending),
+            (Array(t, n), Array(v, m)) => n == m && t.infer_with(v, owner, args, compare_pending),
+            (Slice(t), Slice(v)) => t.infer_with(v, owner, args, compare_pending),
+            _ => self.admits(actual) || compare_pending(self, actual),
         }
     }
 }

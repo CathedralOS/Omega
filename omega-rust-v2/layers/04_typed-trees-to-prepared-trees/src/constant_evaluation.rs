@@ -2,9 +2,10 @@ use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 
 use omega_resolver::DeclarationId;
-use omega_typer::{StaticValueRequest, TypeError, TypedConstant, TypedSignature, TypedTrees, ValueType};
+use omega_typer::{StaticValueRequest, TypeError, TypedConstant, TypedTrees, ValueType};
 
 use crate::invocation::EvaluationError;
+use crate::invocation::termination::{SignatureIndex, TerminationAdmission};
 use crate::{PreparedValue, refusal};
 
 /// Values belong to this typing pass because it owns the selected calls.
@@ -13,7 +14,8 @@ pub(super) struct ConstantEvaluation<'trees, 'text> {
     pub(super) definitions: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
     pub(super) values: HashMap<DeclarationId, PreparedValue>,
     pub(super) boundary_slots: &'trees [omega_typer::BoundarySlot],
-    signatures: OnceCell<HashMap<&'trees DeclarationId, &'trees TypedSignature>>,
+    signatures: OnceCell<SignatureIndex<'trees>>,
+    pub(super) termination: TerminationAdmission<'trees, 'text>,
 }
 
 impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
@@ -31,27 +33,22 @@ impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
                 .collect(),
             values: HashMap::new(),
             signatures: OnceCell::new(),
+            termination: TerminationAdmission::default(),
         }
     }
 
     /// A tail chain selects a declaration at each hop. Index the signatures
     /// once for this typing pass, when evaluation first encounters a call.
-    pub(super) fn signature(
-        &self,
-        machine: &DeclarationId,
-    ) -> Option<&'trees TypedSignature> {
-        self.signatures
-            .get_or_init(|| {
-                let mut by_machine = HashMap::with_capacity(self.trees.signatures.len());
-                for signature in &self.trees.signatures {
-                    by_machine
-                        .entry(&signature.machine)
-                        .or_insert(signature.as_ref());
-                }
+    pub(super) fn signatures(&self) -> &SignatureIndex<'trees> {
+        self.signatures.get_or_init(|| {
+            let mut by_machine = HashMap::with_capacity(self.trees.signatures.len());
+            for (index, signature) in self.trees.signatures.iter().enumerate() {
                 by_machine
-            })
-            .get(machine)
-            .copied()
+                    .entry(&signature.machine)
+                    .or_insert((index, signature.as_ref()));
+            }
+            by_machine
+        })
     }
 
     pub(super) fn finish(mut self) -> Result<HashMap<DeclarationId, PreparedValue>, TypeError> {

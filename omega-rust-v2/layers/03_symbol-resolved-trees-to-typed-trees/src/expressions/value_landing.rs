@@ -95,13 +95,11 @@ impl BodyTyper<'_, '_> {
             return Ok(());
         }
         if !value.fits(expected) {
-            if self
-                .catalog
-                .types
-                .indices
-                .defer_indexed_landing(value, expected)
-            {
-                return Ok(());
+            let indices = &self.catalog.types.indices;
+            if indices.can_wait_for_equality(value, expected) {
+                indices.retain_demands(value);
+                indices.retain_demands(expected);
+                return Err(indices.wait(self.unit.file, node_index));
             }
             return Err(TypeError::at(self.unit.file, node_index, format!("expected {expected}, found {value}")));
         }

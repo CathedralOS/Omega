@@ -148,11 +148,11 @@ impl SourceCompilationRoster {
     /// Retain this roster so a later publication cannot substitute different roots.
     pub fn lower_for_publication(
         self,
-        typed: Arc<crate::source_state::FrozenTypedTrees>,
+        typed: crate::lowering::PreparedTypedTrees,
     ) -> Result<crate::lowering::LoweredSourcePublication, Vec<Diagnostic>> {
         let calling = self.normalization.calling.borrow(&typed);
         let mut prepared = crate::lowering::LoweredSourcePublication::prepare(
-            Arc::clone(&typed),
+            typed.clone(),
             crate::lowering::Compilation {
                 declaration_metadata: &self.declaration_metadata,
                 entries: self.publication_entries(),

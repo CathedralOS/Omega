@@ -68,7 +68,7 @@ fn supplied_with_subjects(
     slot: &str,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Result<Vec<String>, String> {
-    let typed = typed(text);
+    let typed = crate::prepare_fixture(typed(text));
     let slot = match slot {
         "Service::go" => {
             typed
@@ -177,10 +177,10 @@ const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none c
 fn multiple_provider_declarations_publish_in_portable_order() {
     // All three maps in the kept program are checked declarations. Selecting
     // one must not stop the other exact candidates from being published.
-    let typed = typed(include_str!(concat!(
+    let typed = crate::prepare_fixture(typed(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../tests/fixtures/run/providers/target_selected_implementation/main.omg"
-    )));
+    ))));
     let supplies = [crate::lowering::Supply {
         slot: declared(&typed, "TargetConstants"),
         provider: declared(&typed, "WindowsConstants"),
@@ -343,7 +343,7 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
         );
     }
     // Without the supply the provider is no part of the compilation.
-    let typed = typed(&text);
+    let typed = crate::prepare_fixture(typed(&text));
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -550,7 +550,7 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
         "{refusal}"
     );
 
-    let typed = typed(&text);
+    let typed = crate::prepare_fixture(typed(&text));
     let member = typed
         .machines()
         .iter()

@@ -36,7 +36,7 @@ pub(crate) fn type_stage_inner<'text>(
         catalog.ranking_views = environment.ranking_views.into();
         catalog.access_plan_requirement = environment.access_plan_requirement;
     }
-    check_stage(
+    let (_, demands) = check_stage(
         resolved,
         environment,
         &mut catalog,
@@ -49,8 +49,6 @@ pub(crate) fn type_stage_inner<'text>(
         output.library = Some(crate::standard_library());
     }
     catalog.publish_declarations(&mut output);
-    let demands = catalog.types.indices.take_demands();
-    catalog.publish_static_data_shapes(&demands, &mut output);
     Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
 }
 
@@ -62,7 +60,7 @@ pub(crate) fn check_stage<'a>(
     definition: Option<&'a CoreInterface>,
     library_execution: Option<&ExecutionCalls>,
     allow_pending: bool,
-) -> Result<ExecutionCalls, TypeError> {
+) -> Result<(ExecutionCalls, Vec<StaticValueDemand>), TypeError> {
     let mut units = index_resolved_sources(resolved);
     catalog.types.indices = IndexEvaluations::admit(&units, environment, allow_pending)?;
     let trait_tokens = trait_operator_tokens(resolved, &catalog.types.trait_operator_tokens);
@@ -92,12 +90,23 @@ pub(crate) fn check_stage<'a>(
     constants::infer(&units, catalog, output)?;
     check_bodies(&units, catalog, output)?;
     check_static_indices(&units, catalog, environment, output)?;
-    let execution = ExecutionCalls::collect(output);
-    machine_effects::check_machine_effects(catalog, &execution, environment.boundary_slots, output)?;
+    if allow_pending {
+        // Formation may discover a prerequisite for a call's inferred effects.
+        catalog.types.formations.check(&catalog.types, output)?;
+    }
+    let demands = catalog.types.indices.take_demands();
+    let dependencies =
+        super::preparation_dependencies::PreparationDependencies::collect(resolved, catalog, output, &demands, catalog.types.indices.take_blocked_nodes());
+    let execution = ExecutionCalls::collect(output, &dependencies);
+    machine_effects::check_machine_effects(catalog, &execution, &dependencies, environment.boundary_slots, output)?;
     guarded_calls::record_guarded_calls(&execution, library_execution, catalog, output);
-    cleanup::check_cleanup_selections(&units, catalog, output)?;
-    trait_refinements::check_trait_refinements(catalog, output)?;
-    access_policies::check_access_policies(&units, catalog, output)?;
-    catalog.types.formations.check(&catalog.types, output)?;
-    Ok(execution)
+    cleanup::check_cleanup_selections(&units, catalog, &dependencies, output)?;
+    trait_refinements::check_trait_refinements(catalog, &dependencies, output)?;
+    access_policies::check_access_policies(&units, catalog, &dependencies, output)?;
+    if !allow_pending {
+        catalog.types.formations.check(&catalog.types, output)?;
+    }
+    let demands = dependencies.ready_demands(demands)?;
+    catalog.publish_static_data_shapes(&demands, &dependencies, output);
+    Ok((execution, demands))
 }

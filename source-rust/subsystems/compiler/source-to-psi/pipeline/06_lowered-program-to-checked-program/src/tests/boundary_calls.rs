@@ -684,7 +684,7 @@ fn source_boundary_contract_alternatives_keep_each_actual_argument() {
 /// preparation closes the requirement once per application, as it generates
 /// one machine per application of a generic machine, so the program is read
 /// after that stage.
-fn applied_boundary_prepared(limit: u32) -> crate::source_state::FrozenTypedTrees {
+fn applied_boundary_prepared(limit: u32) -> crate::preparation::PreparedTypedTrees {
     let typed = typed(&format!(
         r#"
 data Reading {{ level: u32; }}
@@ -1100,7 +1100,7 @@ machine entry() -> u32 crashes none { 3 }
 /// preparation closes it once per application, so `take<4>` has an array
 /// formal of four bytes and the clause `used <= 4`. `calls` is the entry's
 /// body; it may apply the requirement or not.
-fn value_generic_boundary(calls: &str) -> crate::source_state::FrozenTypedTrees {
+fn value_generic_boundary(calls: &str) -> crate::preparation::PreparedTypedTrees {
     let typed = typed(&format!(
         r#"
 boundary trait Sink {{
@@ -1863,7 +1863,7 @@ Previous satisfies Step {{
 machine entry() crashes none {{}}
 "#
     );
-    compilation_results_for_subjects(&typed(&text), &[None])
+    compilation_results_for_subjects(&crate::prepare_fixture(typed(&text)), &[None])
         .into_iter()
         .map(Result::unwrap)
         .collect()
@@ -1959,11 +1959,11 @@ crashes none
 }
 
 fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
-    compilation_verdicts_of(&typed(text))
+    compilation_verdicts_of(&crate::prepare_fixture(typed(text)))
 }
 
-fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<RouteVerdict> {
-    compilation_results_of(typed)
+fn compilation_verdicts_of(typed: &crate::preparation::PreparedTypedTrees) -> Vec<RouteVerdict> {
+    compilation_results_for_subjects(typed, &[])
         .into_iter()
         .map(Result::unwrap)
         .collect()
@@ -1972,11 +1972,11 @@ fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<Route
 pub(super) fn compilation_results_of(
     typed: &crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    compilation_results_for_subjects(typed, &[])
+    compilation_results_for_subjects(&crate::prepare_fixture(typed.clone()), &[])
 }
 
-fn compilation_results_for_subjects(
-    typed: &crate::source_state::TypedTrees,
+pub(super) fn compilation_results_for_subjects(
+    typed: &crate::preparation::PreparedTypedTrees,
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let entry = entry(typed);
@@ -2134,7 +2134,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
     let text = declared_source("", "input - 1", "7", "")
         .replacen("trait Step", "boundary trait Step", 1)
         .replacen("requires value > 0", "reaches none requires value > 0", 1);
-    let typed = typed(&text);
+    let typed = crate::prepare_fixture(typed(&text));
     let entry = entry(&typed);
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -2165,7 +2165,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
 
 #[test]
 fn a_declared_conformers_call_keeps_the_requirement_reach_ceiling() {
-    let typed = typed(
+    let typed = crate::prepare_fixture(typed(
         r#"
 boundary trait Service {}
 trait Read {
@@ -2174,7 +2174,7 @@ trait Read {
 machine chosen() -> u32 satisfies Read::value crashes none { 7 }
 machine entry() -> u32 reaches none crashes none { chosen() }
 "#,
-    );
+    ));
     let entry = entry(&typed);
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -2212,14 +2212,14 @@ fn named_selected_calls_keep_their_public_reach_ceiling() {
     // A literal-returning implementation still contributes the public service
     // ceiling at its selected call. Only the caller's written ceiling changes.
     for (ceiling, accepts) in [("Service", true), ("none", false)] {
-        let typed = typed(&format!(
+        let typed = crate::prepare_fixture(typed(&format!(
             "boundary trait Service {{}}
              trait Read {{ machine value() -> u32 reaches Service crashes none; }}
              Named satisfies Read {{
                  machine value() -> u32 reaches none crashes none {{ 7 }}
              }}
              machine entry() -> u32 reaches {ceiling} crashes none {{ Named::value() }}"
-        ));
+        )));
         let entry = entry(&typed);
         let verdicts = crate::checking::judge_compilation(
             crate::lowering::prepare_compilation(
@@ -2276,7 +2276,7 @@ trait Other {
 
 Rebound satisfies Other { Other::apply = previous; }
 "#;
-    let typed = typed(&text);
+    let typed = crate::prepare_fixture(typed(&text));
     let entry = entry(&typed);
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -2347,7 +2347,7 @@ Selected satisfies G<{selected_type}> {{ G::go = Owner::go; }}
 machine entry() -> u32 reaches none crashes none {{ 7 }}
 "#
         );
-        let typed = typed(&text);
+        let typed = crate::prepare_fixture(typed(&text));
         let verdicts = crate::checking::judge_compilation(
             crate::lowering::prepare_compilation(
                 &typed,
@@ -2413,7 +2413,7 @@ fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
 fn inline_parameter_prepared(
     actual: &str,
     guarantee: &str,
-) -> crate::source_state::FrozenTypedTrees {
+) -> crate::preparation::PreparedTypedTrees {
     inline_parameter_prepared_with(actual, guarantee, typed)
 }
 
@@ -2421,7 +2421,7 @@ fn inline_parameter_prepared_with(
     actual: &str,
     guarantee: &str,
     read: impl FnOnce(&str) -> crate::source_state::TypedTrees,
-) -> crate::source_state::FrozenTypedTrees {
+) -> crate::preparation::PreparedTypedTrees {
     let text = format!(
         r#"
 trait Step {{
@@ -2815,7 +2815,7 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
 #[test]
 fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
     for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
-        let program = typed(&named_owned_source(actual, promised, "0"));
+        let program = crate::prepare_fixture(typed(&named_owned_source(actual, promised, "0")));
         let entry = entry(&program);
         let mut conformances = program.conformances().iter();
         let conformance = conformances
@@ -3044,7 +3044,7 @@ fn named_two_packages(public_map: bool) -> crate::source_state::TypedTrees {
 
 #[test]
 fn a_named_map_controls_visibility_without_publishing_its_private_body() {
-    let prepared = named_two_packages(true);
+    let prepared = crate::prepare_fixture(named_two_packages(true));
     let verdicts = compilation_verdicts_of(&prepared);
     assert!(
         verdicts
@@ -3065,7 +3065,7 @@ fn a_named_map_controls_visibility_without_publishing_its_private_body() {
 
     // A generated bare call cannot borrow the public map's visibility.
     // Retain the real source and body, removing only the routed selection.
-    let mut bare = prepared;
+    let mut bare = prepared.into_inner();
     let (handle, body) = bare
         .expression_table
         .expression_entries()
@@ -3238,7 +3238,7 @@ machine entry() -> u64 crashes none {
     Large::apply(9)
 }
 "#;
-    let prepared = typed(text);
+    let prepared = crate::prepare_fixture(typed(text));
     let verdicts = compilation_verdicts_of(&prepared);
     let RouteVerdict::Accepted(accepted) = &verdicts[0] else {
         panic!("both applied calls must be accepted")
@@ -3740,7 +3740,7 @@ fn generic_named_map_source_rejects_a_foreign_unused_argument() {
     );
 }
 
-fn prepare_named_map(text: &str) -> crate::source_state::FrozenTypedTrees {
+fn prepare_named_map(text: &str) -> crate::preparation::PreparedTypedTrees {
     crate::preparation::prepare_typed_trees(
         typed(text),
         &crate::preparation::PreparationRequest::settled(),
@@ -3779,10 +3779,10 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         captures[1].conformance_application.identity_encoding
     );
     let verdicts = compilation_verdicts_of(&prepared);
-    let RouteVerdict::Accepted(invocation) = &verdicts[0] else {
+    let RouteVerdict::Accepted(accepted) = &verdicts[0] else {
         panic!("expected the closed invocation: {verdicts:?}");
     };
-    let module = &invocation.elaboration.module;
+    let module = &accepted.elaboration.module;
     terminal_semantics::closed_reach::validate_closed_reach_applications(module).unwrap();
     let retained = module
         .machines
@@ -3796,16 +3796,17 @@ fn generic_named_map_captures_keep_every_unused_binder() {
             .all(|capture| capture.parameter_kinds == [0, 0])
     );
     assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
-    let mut missing = (*prepared).clone();
+    let mut missing = prepared.clone().into_inner();
     missing.captured_machine_applications = Default::default();
     missing
         .captured_machine_applications
         .insert(captures[1].clone());
-    let verdicts = compilation_verdicts_of(&missing);
+    // A second preparation would reconstruct the deliberately deleted capture.
+    let verdict = judge(invocation(missing)).unwrap();
     assert!(
-        matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
+        matches!(&verdict, RouteVerdict::FallBack(refusal)
         if refusal.detail.contains("named map body has no prepared capture")),
-        "{verdicts:?}"
+        "{verdict:?}"
     );
 }
 
@@ -3920,7 +3921,7 @@ fn generic_named_map_closed_call_also_judges_its_original_template() {
     );
 }
 
-fn full_named_map_verdicts(typed: &crate::source_state::TypedTrees) -> Vec<RouteVerdict> {
+fn full_named_map_verdicts(typed: &crate::preparation::PreparedTypedTrees) -> Vec<RouteVerdict> {
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             typed,

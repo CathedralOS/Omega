@@ -1,3 +1,4 @@
+use super::destination::Destination;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::PatternSource;
 use crate::{ObligationKind, TypeError, ValueType};
@@ -7,10 +8,11 @@ impl BodyTyper<'_, '_> {
     pub(super) fn check_block(
         &mut self,
         node_index: usize,
-        expected: Option<&ValueType>,
+        destination: Destination<'_>,
         machine_result: bool,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        let expected = destination.exact();
         let mut result = None;
         for &statement in &source.nodes[node_index].children {
             use NodeKind::*;
@@ -27,13 +29,13 @@ impl BodyTyper<'_, '_> {
                 }
                 Use | Data | Const | Trait | Domain | Conformance | MathLet if source.nodes[node_index].kind == Fragment => {}
                 Transition => {
-                    result = Some(self.dispatch(statement, expected, machine_result)?);
+                    result = Some(self.dispatch(statement, destination, machine_result)?);
                     self.set_origin(node_index, self.origin(statement));
                 }
                 Tail | ExpressionStatement | Discard => {
                     let expr = self.unit.single_child(statement)?;
                     let tail = source.nodes[statement].kind == Tail;
-                    let value = self.type_at_destination(expr, if tail { expected } else { None }, tail && machine_result)?;
+                    let value = self.type_at_destination(expr, if tail { destination } else { Destination::Unspecified }, tail && machine_result)?;
                     if tail {
                         self.set_origin(node_index, self.origin(expr));
                         if let Some(ty) = expected {

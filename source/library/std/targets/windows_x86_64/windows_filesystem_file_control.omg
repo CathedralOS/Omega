@@ -1,3 +1,4 @@
+use omega_language_std;
 // Pin the exact object for every handle operation. Length changes use the
 // native end-of-file information class and never seek the shared cursor.
 // Attribute updates resolve a path once, retain unrelated observed attributes,

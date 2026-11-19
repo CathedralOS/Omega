@@ -1,3 +1,7 @@
+use targets::linux_arm64::LinuxArm64TimeRead;
+use targets::linux_x86_64::LinuxX64TimeRead;
+use targets::macos_arm64::DarwinTimeRead;
+use targets::windows_x86_64::WindowsTimeRead;
 // std::time — the raw per-OS time boundary (TASKS_TIME.md rung 4, D11/D12).
 //
 // Value-returning scalars ONLY on this TRAIT surface: the portable SEMANTICS

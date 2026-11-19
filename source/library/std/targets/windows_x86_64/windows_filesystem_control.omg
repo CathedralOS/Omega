@@ -1,3 +1,5 @@
+use WindowsFileTimeResult;
+use omega_language_std;
 // Synchronous handle, path, timestamp and namespace operations. Errors are
 // captured immediately after their native call; no provider error cache exists.
 use omega::language::core::FilesystemContentRead;

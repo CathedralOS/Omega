@@ -70,12 +70,7 @@ fn source_package_reports_the_same_first_error_in_every_file_order() {
         (WRONG_RENDER, WRONG_READ, "render.omg", WRONG_RENDER, "draw(flag)", "expected u32, found bool"),
     ] {
         let start = text.find(expression).unwrap();
-        let expected = TypeError {
-            package: "app".into(),
-            file: file.into(),
-            span: SourceSpan::new(start, start + expression.len()),
-            message: message.into(),
-        };
+        let expected = TypeError::new("app", file, SourceSpan::new(start, start + expression.len()), message);
         for order in FILE_ORDERS {
             assert_eq!(type_package(render, read, order).unwrap_err(), expected, "order {order:?}");
         }

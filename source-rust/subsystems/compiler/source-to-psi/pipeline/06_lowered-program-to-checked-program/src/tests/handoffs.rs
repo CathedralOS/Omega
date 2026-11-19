@@ -6,9 +6,9 @@ use super::*;
 fn prepared_terminal_input_keeps_contracts_without_the_typed_owner() {
     for (promised, accepted) in [(7, true), (8, false)] {
         let input = {
-            let typed = super::boundary_calls::typed(&format!(
+            let typed = crate::prepare_fixture(super::boundary_calls::typed(&format!(
                 "machine entry() -> u32 ensures result == {promised} {{ 7u32 }}"
-            ));
+            )));
             let entry = super::boundary_calls::entry(&typed);
             crate::lowering::prepare_compilation(
                 &typed,

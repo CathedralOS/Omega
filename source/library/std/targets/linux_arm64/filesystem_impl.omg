@@ -1,3 +1,16 @@
+use ErrorKind;
+use Metadata;
+use MetadataResult;
+use Permissions;
+use PosixDirectoryKind;
+use PosixFilesystem;
+use PosixFilesystemTarget;
+use PosixMetadata;
+use PosixMetadataResult;
+use TimestampResult;
+use error_kind_reconstruct;
+use posix_flag_bit;
+use posix_metadata_kind;
 // Linux AArch64 ABI facts for the shared POSIX portable service. The kernel's
 // asm-generic/stat.h record is 128 bytes, aligned to 8: nlink and blksize are
 // 32-bit fields, unlike x86-64. Its reserved tail is not a birth timestamp.

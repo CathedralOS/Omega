@@ -1,5 +1,6 @@
 //! Service reach and synchronous invocations propagate along the same executing
 //! machine calls. A newly discovered fact crosses each incoming call once.
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{CallUse, TypeError, TypedCall, TypedStage};
 use omega_resolver::DeclarationId;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -13,15 +14,20 @@ pub(crate) struct ExecutionCalls {
 }
 
 impl ExecutionCalls {
-    pub(crate) fn collect(stage: &TypedStage) -> Self {
+    pub(crate) fn collect(
+        stage: &TypedStage,
+        dependencies: &PreparationDependencies<'_>,
+    ) -> Self {
         let mut direct = Vec::new();
         let mut callers = HashMap::<DeclarationId, Vec<usize>>::new();
-        for (i, call) in stage
-            .calls
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.use_site == CallUse::Execution)
-        {
+        for (i, call) in stage.calls.iter().enumerate().filter(|(_, call)| {
+            call.use_site == CallUse::Execution
+                && dependencies.node_is_ready(call.node)
+                && call
+                    .caller
+                    .as_ref()
+                    .is_none_or(|caller| dependencies.declaration_is_ready(caller))
+        }) {
             direct.push(i);
             if call.caller.is_some() {
                 callers.entry(call.machine.clone()).or_default().push(i);
@@ -31,7 +37,15 @@ impl ExecutionCalls {
             .indirect_calls
             .iter()
             .enumerate()
-            .filter_map(|(i, c)| (c.use_site == CallUse::Execution).then_some(i))
+            .filter_map(|(i, call)| {
+                (call.use_site == CallUse::Execution
+                    && dependencies.node_is_ready(call.node)
+                    && call
+                        .caller
+                        .as_ref()
+                        .is_none_or(|caller| dependencies.declaration_is_ready(caller)))
+                .then_some(i)
+            })
             .collect();
         Self { direct, indirect, callers }
     }

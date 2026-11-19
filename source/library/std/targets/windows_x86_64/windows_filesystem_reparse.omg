@@ -1,3 +1,4 @@
+use omega_language_std;
 // Stored link-target query. The fresh no-follow object never escapes before
 // completion and close, so no external alias can change its synchronous mode.
 // Decode/encode entirely in owned scratch before writing the requested caller

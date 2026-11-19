@@ -11,7 +11,7 @@ autobenches = false
 path = "lib.rs"
 
 [features]
-test-support = ["typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
+test-support = ["prepared-typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
 
 [dependencies]
 source-provider-publication = { path = "../../../product-records/target-providers" }
@@ -20,7 +20,7 @@ psi-provider-selections = { path = "../../../psi/providers" }
 service-surface = { path = "../../../psi/service-surface" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
-typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
+prepared-typed-trees-to-lowered-program = { path = "../05_prepared-typed-trees-to-lowered-program" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../../representations/symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../../representations/typed-trees" }
@@ -49,10 +49,10 @@ psi-provider-selections = { path = "../../../psi/providers" }
 bundled-declarations = { path = "../../representations/source-files/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
-typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }
+typed-trees-to-prepared-typed-trees = { path = "../04_typed-trees-to-prepared-typed-trees", features = ["test-support"] }
 source-parser = { path = "../01_tokens-to-syntax-trees" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }
-typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program", features = ["test-support"] }
+prepared-typed-trees-to-lowered-program = { path = "../05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-program", features = ["test-support"] }

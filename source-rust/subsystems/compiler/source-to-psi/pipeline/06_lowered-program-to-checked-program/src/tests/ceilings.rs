@@ -12,7 +12,7 @@ use super::*;
 fn judged(text: &str) -> RouteVerdict {
     let typed = typed(text);
     let entry = entry(&typed);
-    let frozen: crate::source_state::FrozenTypedTrees = typed.into();
+    let frozen = crate::prepare_fixture(typed);
     let mut verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &frozen,

@@ -1,9 +1,10 @@
 # Typed preparation (Psi 04)
 
 Every program's typed trees cross this stage on their way to the checker, by
-one path: [`prepare_typed_trees`](src/driver.rs) runs an explicit, ordered
-list of passes over the typed trees and freezes the result. There is no way to
-freeze a program without running the list.
+one path: [`prepare_typed_trees`](prepare.rs) runs an explicit, ordered
+list of passes over the typed trees and returns `PreparedTypedTrees`. Stage 05
+requires this output to lower a source compilation. A representation reader can
+freeze typed trees independently to inspect a read-only snapshot.
 
 A pass takes typed trees and returns typed trees. It either does its work or
 refuses, by name, a request it does not serve
@@ -16,14 +17,15 @@ program, and nothing here is an acceptance.
 
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
-| [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay<u8>(..)`, `advance<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
-| [record patterns](src/passes/record_patterns.rs) | For `let { a, b as _ } = subject;`, the subject's record symbol on the marker local and each named field's symbol on its roster row | Structural elaboration (`read/places.rs`, `record_pattern`), which refuses a marker without them |
+| [specialization](passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [domain applications](passes/domain_applications.rs) | The declaration’s carrier, proof facts and cleanup selection with its retained type and value arguments substituted, or a refusal on that application | Structural elaboration reads the theory for the exact declaration and semantic domain identity |
+| [record patterns](passes/record_patterns.rs) | For `let { a, b as _ } = subject;`, the subject's record symbol on the marker local and each named field's symbol on its roster row | Structural elaboration (`read/places.rs`, `record_pattern`), which refuses a marker without them |
 
 For a reflected sum visitor, specialization checks both callback interfaces and
 creates a candidate helper for each declared case. When stage 05 reads the
 dispatch, it tests the applied sum's type contracts and admits callback
 applications only for cases that can still occur. The generated helpers enter
-through that dispatch. [Active-case expansion](src/passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_typed-trees-to-lowered-program/src/read/transitions.rs)
+through that dispatch. [Active-case expansion](passes/specialization/reflected_fields/active_cases.rs) · [Dispatch lowering](../05_prepared-typed-trees-to-lowered-program/src/read/transitions.rs)
 
 Specialization serves type parameters given plain named types (a builtin
 type, a data declaration with no parameters, a type parameter in scope) and
@@ -36,7 +38,7 @@ for that requirement and records the requirement it was written against
 (`StaticRequirementDispatch`), which structural elaboration reads
 (`read/calls.rs`, `requirement_call`). Two names of one implementation value
 are one application. A call that names a trait's requirement and applies the
-requirement's own parameters (`Probe::take<Reading>(..)`) is served the same
+requirement's own parameters (`Probe::take::<Reading>(..)`) is served the same
 way, except that a requirement has no body to copy: the application selects
 the requirement's signature and contract at the arguments
 (`TypedTrees::instantiate_requirement_application`), one closed requirement
@@ -52,7 +54,7 @@ and re-decides those proofs in each generated machine.
 
 A value parameter (`const Tag: u64`, `const Flag: bool`) is given an integer
 literal, `true` or `false`. A number written as a calculation over literals,
-`configure<(8u64 + 9u64)>(..)`, reaches this pass already as the literal of
+`configure::<(8u64 + 9u64)>(..)`, reaches this pass already as the literal of
 its value: typing folds it where it reads the argument
 (`typed_trees::const_integer::closed_literal`), so `17u64`, `(8u64 + 9u64)`
 and `(20 - 3)` are one application. A calculation typing does not close (two
@@ -60,7 +62,7 @@ integer types, a result outside its type, a name or a call) stays a request
 on the machine that holds the call.
 
 A Build selection inside a generic helper,
-`Build::select_provider<Reading<Tag>, FirstReading<Tag>>(builder, target)`, is
+`Build::select_provider::<Reading<Tag>, FirstReading<Tag>>(builder, target)`, is
 copied as written. Its operands are the request the call was authored with,
 not static arguments of a machine to generate, so the generated helper holds
 the same request, and the reader of the selection takes each parameter's
@@ -79,7 +81,7 @@ activation is captured. If a child has its own static parameters,
 the whole tree is left unserved.
 
 A fully applied named map with a default type-only telescope uses the same
-copier through [named conformance preparation](src/passes/specialization/named_conformances.rs).
+copier through [named conformance preparation](passes/specialization/named_conformances.rs).
 Its call keeps the public requirement. An existing `CapturedMachineApplication`
 keeps the actual constructor bindings, complete tuple and lexical owner,
 mapped to the fresh body, states and formals. An unused binder
@@ -120,9 +122,9 @@ its own slots.
 
 Requested work beside the program (deferred layout applications, opaque
 representation selections, wire compatibility demands) has no pass and is
-refused by name. [Product operand preparation](src/product/mod.rs) builds the
+refused by name. [Product operand preparation](product_operands/mod.rs) builds the
 application of a provider choice whose slot or provider takes static
-arguments ([applications](src/product/applications.rs)): it closes the
+arguments ([applications](product_operands/applications.rs)): it closes the
 request's operand graph with the static arguments of the generic helper that
 made the choice, and checks the resulting argument tuple against the
 declaration's parameters. It refuses a requirement applied to static

@@ -1,10 +1,12 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{StaticDataShape, StaticValueDemand, TypedStage, ValueType};
 
 impl DeclarationCatalog<'_> {
     pub(crate) fn publish_static_data_shapes(
         &self,
         demands: &[StaticValueDemand],
+        dependencies: &PreparationDependencies<'_>,
         stage: &mut TypedStage,
     ) {
         enum Step {
@@ -47,7 +49,7 @@ impl DeclarationCatalog<'_> {
                 continue;
             }
             let Some((owner, args)) = carrier.nominal_parts() else { continue };
-            if stage.static_data_shapes.contains_key(&carrier) {
+            if !dependencies.declaration_is_ready(owner) || stage.static_data_shapes.contains_key(&carrier) {
                 continue;
             }
             // An application can contain a smaller instance of the same

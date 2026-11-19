@@ -306,7 +306,7 @@ machine bytes_of(words: @[i32]) requires words.len <= 8 {
     take(bytes);
 }
 machine take(bytes: @[u8]) { }";
-    let typed = super::boundary_calls::typed(source);
+    let typed = crate::prepare_fixture(super::boundary_calls::typed(source));
     let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
         crate::lowering::prepare_compilation(
             &typed,

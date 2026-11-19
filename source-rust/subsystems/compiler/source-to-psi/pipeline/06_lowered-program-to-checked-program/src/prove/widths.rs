@@ -28,7 +28,7 @@ only fact about a power of two these goals need. From the declaration's
 `1 <= 2^(N-1)`, so `1` need not inhabit `i<N>`.
 
 Wrapping, saturating and trapping arithmetic at a parameter width are
-refused before they reach here (`typed_trees_to_lowered_program`): they need
+refused before they reach here (`prepared_typed_trees_to_lowered_program`): they need
 reduction modulo `2^N`, which no term states.
 */
 

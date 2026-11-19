@@ -1,3 +1,4 @@
+use omega_language_std;
 // Canonicalization opens once for read-attributes, follows the final reparse
 // point, queries that private object, then closes it on every returning path.
 // Keep the normalized DOS spelling (including \\?\) without lossy conversion.

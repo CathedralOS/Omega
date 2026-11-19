@@ -26,12 +26,7 @@ pub fn type_stage_in_environment<'text>(
     // Raw L2 callers can supply their own package graph. Collection operations still
     // use the sealed toolchain identities even when no standard exports are installed.
     for tree in resolved.trees() {
-        omega_toolchain::check_source_identity(tree.file.package, tree.file.path).map_err(|e| TypeError {
-            package: e.package,
-            file: e.file,
-            span: e.span,
-            message: e.message,
-        })?;
+        omega_toolchain::check_source_identity(tree.file.package, tree.file.path).map_err(|e| TypeError::new(e.package, e.file, e.span, e.message))?;
     }
     type_admitted_stage(resolved, None, environment)
 }

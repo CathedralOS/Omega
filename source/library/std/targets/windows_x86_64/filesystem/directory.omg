@@ -1,3 +1,12 @@
+use DirEntry;
+use DirEntryResult;
+use EmptyResult;
+use ErrorKind;
+use IoResult;
+use WindowsDirectoryEntry;
+use WindowsDirectoryEntryResult;
+use WindowsFilesystemHost;
+use omega_language_std;
 // Names-only counting does not decode into DirEntry's bounded UTF-8 spelling
 // or query metadata. In particular an unrepresentable name still counts.
 use omega::language::core::FilesystemContentRead;

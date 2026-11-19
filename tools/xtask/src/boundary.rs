@@ -1301,7 +1301,7 @@ mod tests {
         assert!(
             violations
                 .iter()
-                .any(|error| error.contains("source-record -> 05_typed-trees-to-lowered-program"))
+                .any(|error| error.contains("source-record -> 05_prepared-typed-trees-to-lowered-program"))
         );
     }
 

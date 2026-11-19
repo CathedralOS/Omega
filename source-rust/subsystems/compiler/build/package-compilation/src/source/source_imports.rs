@@ -78,6 +78,7 @@ use std::path::{Path, PathBuf};
 pub(crate) fn discover_imports(
     parsed: &ParsedSourceBatch,
     root_path: &Path,
+    contracts: &ToolchainContractCustody,
     filesystem: &source_capture::SourceFileSystem,
     retained: &mut Vec<ResolvedSourceImport>,
     discovery: &mut impl LogicalSourceDiscovery,
@@ -104,6 +105,8 @@ pub(crate) fn discover_imports(
                 return Err(vec![Diagnostic::error(
                     "ordinary library imports require a declared dependency",
                 )]);
+            } else if let Some(root) = contracts.root_for(&unit.path) {
+                (root, paths::contract_package_prefix(root, &members[0])?)
             } else {
                 (source_root, 0)
             };

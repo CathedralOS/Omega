@@ -214,9 +214,10 @@ pub(crate) fn reconciled_package_import(
     }
     let Some(requester) = requester else {
         if let Some(contract_root) = contract_root {
+            let prefix = super::paths::contract_package_prefix(contract_root, first)?;
             return Ok(ReconciledPackageImport::ToolchainContract {
                 root: contract_root.to_path_buf(),
-                logical_path: members
+                logical_path: members[prefix..]
                     .iter()
                     .map(|name| name.as_str().to_owned())
                     .collect(),

@@ -1,5 +1,5 @@
 // Each test states a scalar program as closed bodies, lowers it with
-// typed-trees-to-lowered-program's own lowering, discharges it, and checks the verdict
+// prepared-typed-trees-to-lowered-program's own lowering, discharges it, and checks the verdict
 // of each obligation. A discharged verdict is re-decided here by the kernel
 // from the evidence alone, and a tampered certificate must be refused.
 

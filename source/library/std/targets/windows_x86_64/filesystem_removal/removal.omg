@@ -1,3 +1,6 @@
+use omega_language_std;
+use targets::windows_x86_64::WindowsFilesystemIo;
+use targets::windows_x86_64;
 // Recursive removal entrance: acquire one no-follow root, inspect that exact
 // object, then walk retained parent handles. A reparse root is refused; child
 // reparse objects are deleted as leaves, never traversed. Success includes

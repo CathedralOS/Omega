@@ -1,3 +1,6 @@
+use WindowsDirectoryEntry;
+use WindowsDirectoryEntryResult;
+use omega_language_std;
 // Ordinal selection owns one private directory object and skips only dot rows.
 // Metadata comes from that enumeration record, not a second pathname lookup
 // which could select a replacement child. No ordering or snapshot is promised.

@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
-    source: Arc<FrozenTypedTrees>,
+    source: crate::lowering::PreparedTypedTrees,
     closure: Box<AcceptedClosure>,
     correspondence: crate::lowering::SourceCorrespondence,
     requirement_reviews: Vec<crate::lowering::RequirementReview>,
@@ -157,7 +157,7 @@ impl AcceptedTerminalSource {
     /// use checked_program_to_psi::AcceptedTerminalSource;
     /// use lowered_program_to_checked_program::checking::judge_publication;
     /// use terminal_check_tables::compilation::{CompilationForPublication, TerminalCompilation};
-    /// use typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
+    /// use prepared_typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
     ///
     /// struct Replacement<Source>(TerminalCompilation, Source);
     /// impl<Source> CompilationForPublication for Replacement<Source> {
@@ -629,7 +629,7 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration().module
     }
 
-    pub fn source(&self) -> &Arc<FrozenTypedTrees> {
+    pub fn source(&self) -> &crate::lowering::PreparedTypedTrees {
         &self.source
     }
 
@@ -878,7 +878,7 @@ mod tests {
         )
         .unwrap();
         crate::judge_fixture(
-            Arc::new(frozen),
+            frozen,
             Compilation {
                 declaration_metadata: &[],
                 entries: &[entry],
