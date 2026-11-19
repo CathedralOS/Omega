@@ -153,7 +153,8 @@ pub(super) fn compile(
                 return Err(vec![Diagnostic::error("execution request produced only portable Psi")]);
             }
         };
-        (RunProduct { root: root_path, product, test_roster: Vec::new() }, profile.target_name())
+        let test_roster = stage.execute_registered_tests(profile, &[])?;
+        (RunProduct { root: root_path, product, test_roster }, profile.target_name())
     };
     let interpretations = reference_inputs
         .into_iter()
