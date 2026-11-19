@@ -38,19 +38,7 @@ const PASSES: &[Pass] = &[
     },
 ];
 
-/// Compatibility checks requested for one Build-selected wire schema edge.
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-pub struct WireCompatibilityDemand {
-    pub edge: String,
-    pub lineage: String,
-    pub local_schema: String,
-    pub peer_schema: String,
-    pub require_readable: bool,
-    pub require_writable: bool,
-    pub require_unknown_preservation: bool,
-    pub require_canonical: bool,
-    pub require_complete_migration: bool,
-}
+pub use source_declarations::source_selections::WireCompatibilityDemand;
 
 /// Work the caller asks of this stage beside the program itself. It is a
 /// request, not evidence that preparation or checking occurred.

@@ -10,6 +10,29 @@ use crate::declaration_selection::ResolvedAuthoredDeclarationSelection;
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
 
+/// The realized machine selected for an authored program root.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+    pub implementation_symbol: SymbolHandle,
+    pub source_span: Option<SourceSpan>,
+}
+
+/// Compatibility checks requested for one Build-selected wire schema edge.
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+pub struct WireCompatibilityDemand {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub require_readable: bool,
+    pub require_writable: bool,
+    pub require_unknown_preservation: bool,
+    pub require_canonical: bool,
+    pub require_complete_migration: bool,
+}
+
 /// An explicit contract assumption attributed to the selecting Build declaration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssumedBindingContract {

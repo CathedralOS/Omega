@@ -5,16 +5,8 @@ use crate::declaration_selection::ExecutedRootBinding;
 use crate::declaration_selection::RootBindingSelection;
 use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
-use source_text::SourceSpan;
-use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RootBinding {
-    pub slot: String,
-    pub implementation: String,
-    pub implementation_symbol: SymbolHandle,
-    pub source_span: Option<SourceSpan>,
-}
+pub use source_declarations::source_selections::RootBinding;
 
 pub fn collect_root_bindings(
     typed: &TypedTrees,
