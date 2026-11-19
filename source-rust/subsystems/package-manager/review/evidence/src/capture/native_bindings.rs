@@ -14,7 +14,7 @@ use crate::record::{
     PackageReviewNominalOwner,
 };
 use diagnostics::Diagnostic;
-use effects::provider_plan::{EvaluatedNativeBinding, ServiceSchema};
+use provider_plans::{EvaluatedNativeBinding, ServiceSchema};
 use semantic_vocabulary::{ForeignLocatorCandidate, PackageKeyIdentity};
 use target::TargetProfile;
 

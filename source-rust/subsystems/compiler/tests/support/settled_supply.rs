@@ -22,7 +22,7 @@ pub trait SettledSupplyNative {
     fn plans(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>>;
+    ) -> Result<Vec<provider_plans::ProviderPlan>, Vec<Diagnostic>>;
 }
 impl SettledSupplyNative for SettledTargetSupply {
     /// Normalize only selected native leaves, retaining the complete Build
@@ -260,7 +260,7 @@ impl SettledSupplyNative for SettledTargetSupply {
     fn plans(
         &self,
         planning: SupplyPlanning<'_>,
-    ) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
+    ) -> Result<Vec<provider_plans::ProviderPlan>, Vec<Diagnostic>> {
         if self
             .requirements()
             .iter()
@@ -324,7 +324,7 @@ pub struct SlotSchema {
     pub target: String,
     pub slot: symbols::SymbolHandle,
     pub declaration: String,
-    pub surface: std::sync::Arc<effects::provider_plan::ServiceSurface>,
+    pub surface: std::sync::Arc<provider_plans::ServiceSurface>,
 }
 
 pub struct SupplyPlanning<'a> {

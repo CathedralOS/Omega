@@ -61,7 +61,7 @@ impl PackagePolicyServiceMethod {
         }
         for premise in &self.termination_premises {
             if premise.profile.is_empty()
-                || matches!(premise.subject, effects::provider_plan::ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
+                || matches!(premise.subject, service_surface::ServiceProgressSubject::Parameter(ordinal) if ordinal >= self.parameter_count)
                 || premise
                     .establishment_routes
                     .iter()

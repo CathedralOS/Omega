@@ -28,7 +28,7 @@ use terminal_psi::TerminalIdentityTableBuilder;
 /// Ownership through the provider-type nominal, the coordinate a
 /// package-authored provider type carries its package in.
 pub fn provider_type_owner(
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     owner: PackageKeyIdentity,
 ) -> bool {
     plan.provider_type_package_identity == Some(owner)
@@ -37,7 +37,7 @@ pub fn provider_type_owner(
 /// Ownership through the package the plan originates from: a package-owned
 /// service boundary and its provider carry the owner there.
 pub fn schema_symbol_owner(
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     owner: PackageKeyIdentity,
 ) -> bool {
     plan.origin_package_identity == Some(owner)
@@ -154,7 +154,7 @@ pub fn direct_process_exit_leaf_binding(
     boundary: semantic_vocabulary::BoundaryMachineId,
     target: &str,
     leaf: &backend_plan::DirectBoundaryLeaf,
-    evaluated: &[effects::provider_plan::EvaluatedNativeBinding],
+    evaluated: &[provider_plans::EvaluatedNativeBinding],
     evaluated_identities: &terminal_psi::TerminalIdentityTable,
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let refused = |reason: String| {
@@ -234,7 +234,7 @@ fn accept(
     owner: PackageKeyIdentity,
     trait_name: &str,
     binding_role: AcceptedSemanticBindingRole,
-    owns: fn(&effects::provider_plan::ProviderPlan, PackageKeyIdentity) -> bool,
+    owns: fn(&provider_plans::ProviderPlan, PackageKeyIdentity) -> bool,
     accepted_methods: &[&str],
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked

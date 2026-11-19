@@ -311,7 +311,7 @@ impl NumericMethod {
         let [row] = leaf.plan.rows.as_slice() else {
             return Err(unavailable("one complete numeric realization row"));
         };
-        let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
+        let provider_plans::ProviderBinding::CompilerIntrinsic { machine } = &row.binding
         else {
             return Err(unavailable("the numeric method's intrinsic binding"));
         };

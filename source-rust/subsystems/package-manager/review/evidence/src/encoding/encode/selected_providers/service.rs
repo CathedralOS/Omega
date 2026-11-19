@@ -9,9 +9,7 @@ use language_core::DomainPredicatePresence;
 use service_surface::{
     ServiceResultProjection, ServiceSynchronousInvocation,
 };
-use effects::provider_plan::{
-    ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
-};
+use service_surface::{ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject};
 use semantic_vocabulary::BoundaryCompletion;
 
 pub(in crate::encoding::encode) fn method(

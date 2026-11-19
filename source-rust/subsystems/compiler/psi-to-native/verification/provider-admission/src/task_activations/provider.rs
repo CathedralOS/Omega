@@ -1,6 +1,6 @@
 use super::{identity_text, nonzero};
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ServiceMethod, ServiceSchema};
+use provider_plans::{ServiceMethod, ServiceSchema};
 use terminal_psi::{
     TerminalIdentityTable, TerminalTaskActivationDemand, TerminalTaskStartOperation,
 };

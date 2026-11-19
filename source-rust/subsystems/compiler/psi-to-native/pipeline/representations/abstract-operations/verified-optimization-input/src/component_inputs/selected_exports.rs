@@ -1,6 +1,6 @@
 //! Join a selected native provider plan to exports independently verified from a component.
 use component_description::VerifiedComponent;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use provider_plans::{ProviderBinding, ProviderPlan};
 
 pub(super) fn selected_plan_export_positions(
     component: &VerifiedComponent,

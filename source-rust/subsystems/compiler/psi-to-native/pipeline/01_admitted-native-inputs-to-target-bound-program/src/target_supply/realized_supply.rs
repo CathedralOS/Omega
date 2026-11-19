@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use backend_plan::DirectBoundaryLeaf;
 use effects::CompilerIntrinsicExecutionIdentity;
-use effects::provider_plan::ProviderPlan;
+use provider_plans::ProviderPlan;
 use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +28,7 @@ pub struct TargetSupplyRealizationInput {
     pub direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    pub evaluated_native_bindings: Vec<effects::provider_plan::EvaluatedNativeBinding>,
+    pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
     pub terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -55,7 +55,7 @@ pub struct SelectedProviderRealization {
     direct_boundary_leaves: Vec<DirectBoundaryLeaf>,
     calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    evaluated_native_bindings: Vec<effects::provider_plan::EvaluatedNativeBinding>,
+    evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
     terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
@@ -192,7 +192,7 @@ impl RealizedTargetSupply {
             if plan.rows.iter().any(|row| {
                 matches!(
                     row.binding,
-                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                    provider_plans::ProviderBinding::CheckedAdapter { .. }
                 )
             }) {
                 declaration
@@ -216,7 +216,7 @@ impl RealizedTargetSupply {
             {
                 if !matches!(
                     row.binding,
-                    effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                    provider_plans::ProviderBinding::CompilerIntrinsic { .. }
                 ) && (execution.is_some() || numeric.is_some())
                 {
                     return Err(
@@ -343,7 +343,7 @@ impl RealizedTargetSupply {
                             return Err("direct syscall changes its admitted native binding".into());
                         }
                         let receipts = input.evaluated_native_bindings.iter().filter(|binding| {
-                            matches!(binding, effects::provider_plan::EvaluatedNativeBinding::Syscall(syscall)
+                            matches!(binding, provider_plans::EvaluatedNativeBinding::Syscall(syscall)
                                 if syscall.number() == number && syscall.target().target_name() == input.target)
                                 && binding.receipt().build_origin().is_some_and(|origin| {
                                     input.evaluated_binding_identities.text(origin.requirement_identity)
@@ -561,7 +561,7 @@ impl SelectedProviderRealization {
     pub fn external_bindings(&self) -> &[calling_conventions::ExternalBindingRow] {
         &self.external_bindings
     }
-    pub fn evaluated_native_bindings(&self) -> &[effects::provider_plan::EvaluatedNativeBinding] {
+    pub fn evaluated_native_bindings(&self) -> &[provider_plans::EvaluatedNativeBinding] {
         &self.evaluated_native_bindings
     }
     pub fn evaluated_binding_identities(&self) -> &terminal_psi::TerminalIdentityTable {

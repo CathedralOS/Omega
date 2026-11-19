@@ -1,7 +1,7 @@
 // Retained provider plans and canonical direct-boundary data. Source declaration
 // discharge objects have no producer after the old checker connection is cut.
 use diagnostics::Diagnostic;
-use effects::provider_plan::ProviderPlan;
+use provider_plans::ProviderPlan;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DirectBoundaryMechanism {
@@ -164,7 +164,7 @@ impl DirectBoundaryInput {
 /// declarations remain available for source checking without being deployed.
 pub fn direct_compiler_primitive_leaves(
     module: &terminal_psi::TerminalModule,
-    schemas: &[effects::provider_plan::ServiceSchema],
+    schemas: &[provider_plans::ServiceSchema],
     target: &str,
     requested: impl IntoIterator<Item = semantic_vocabulary::BoundaryMachineId>,
 ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
@@ -243,20 +243,20 @@ pub fn direct_compiler_primitive_leaves(
                 "hosted primitive needs one exact canonical requirement schema",
             ));
         };
-        let mut original = effects::provider_plan::ProviderPlan {
+        let mut original = provider_plans::ProviderPlan {
             target: target.to_owned(),
             schema: schema.clone(),
             ..Default::default()
         };
         let coordinate = original.identities.intern(requirement);
-        original.rows.push(effects::provider_plan::ProviderPlanRow {
+        original.rows.push(provider_plans::ProviderPlanRow {
             method: method.name.clone(),
             requirement_identity: coordinate,
             declared_requirement_identity: coordinate,
             calling_signature: None,
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
-            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            binding: provider_plans::ProviderBinding::CompilerIntrinsic {
                 machine: text(declaration.source.semantic_declaration)?.to_owned(),
             },
         });
@@ -323,8 +323,8 @@ pub(crate) fn canonical_numeric_realization(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::ProviderPlanRow;
-    use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSurface};
+    use provider_plans::ProviderPlanRow;
+    use provider_plans::{ProviderBinding, ServiceMethod, ServiceSchema, ServiceSurface};
     use semantic_vocabulary::{BoundaryCompletion, ExternalCompletionKind};
 
     /// Isolate contract projection, not source admission or execution authority.

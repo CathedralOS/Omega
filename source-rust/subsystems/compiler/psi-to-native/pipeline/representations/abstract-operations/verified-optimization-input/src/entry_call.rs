@@ -10,7 +10,7 @@ pub struct SelectedProgramEntryCall {
     boundary: BoundaryMachineId,
     entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     callee: MachineId,
-    provider_plan: effects::provider_plan::ProviderPlanDigest,
+    provider_plan: semantic_vocabulary::provider_identity::ProviderPlanDigest,
 }
 
 impl SelectedProgramEntryCall {
@@ -18,7 +18,7 @@ impl SelectedProgramEntryCall {
         boundary: BoundaryMachineId,
         entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
         callee: MachineId,
-        provider_plan: effects::provider_plan::ProviderPlanDigest,
+        provider_plan: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     ) -> Self {
         Self {
             boundary,
@@ -36,7 +36,7 @@ impl SelectedProgramEntryCall {
     pub const fn source_signature(&self) -> [u8; 32] {
         self.entry.source_signature_identity()
     }
-    pub const fn provider_plan(&self) -> effects::provider_plan::ProviderPlanDigest {
+    pub const fn provider_plan(&self) -> semantic_vocabulary::provider_identity::ProviderPlanDigest {
         self.provider_plan
     }
 }

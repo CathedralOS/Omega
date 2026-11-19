@@ -539,7 +539,7 @@ fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
         panic!("one direct native exit leaf")
     };
     let consent = |leaf: &backend_plan::DirectBoundaryLeaf,
-                   receipts: &[effects::provider_plan::EvaluatedNativeBinding],
+                   receipts: &[provider_plans::EvaluatedNativeBinding],
                    target: &str| {
         fixture_package_inputs::provider_acceptance::direct_process_exit_leaf_binding(
             module,

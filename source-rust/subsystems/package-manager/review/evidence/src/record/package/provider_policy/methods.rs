@@ -7,9 +7,8 @@ use crate::record::{
 
 use crate::record::accessors::field_projection_accessors;
 use service_surface::ServiceSynchronousInvocation;
-use effects::provider_plan::{
-    ProviderIdentityTable, ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim,
-};
+use service_surface::identities::ProviderIdentityTable;
+use service_surface::{ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceMethod {

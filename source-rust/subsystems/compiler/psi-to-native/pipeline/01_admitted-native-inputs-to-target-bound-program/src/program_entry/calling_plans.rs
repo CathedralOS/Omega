@@ -3,7 +3,7 @@
 
 use super::SelectedProgramEntryCallingPlans;
 use crate::calling_policy_plans::CallingProgram;
-use effects::provider_plan::{
+use provider_plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
     ServiceCallingPlan, ServiceSchema,
 };
@@ -23,7 +23,7 @@ pub struct ProgramEntryCallingPlanRequest<'source> {
     pub semantic_requirement: &'source str,
     pub physical_requirement: &'source str,
     pub physical_source_digest: [u8; 32],
-    pub providers: &'source [effects::provider_plan::ProviderPlan],
+    pub providers: &'source [provider_plans::ProviderPlan],
     pub admission: crate::calling_policy_plans::TerminalCallingPolicyAdmission,
 }
 

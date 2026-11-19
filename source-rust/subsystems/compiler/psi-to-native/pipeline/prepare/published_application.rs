@@ -222,7 +222,7 @@ fn prepare_published_application<Publisher>(
 
 fn checked_provider_calls(
     module: &terminal_psi::TerminalModule,
-    declarations: &[effects::provider_plan::ProviderPlan],
+    declarations: &[provider_plans::ProviderPlan],
 ) -> Result<
     Vec<(
         semantic_vocabulary::BoundaryMachineId,
@@ -236,7 +236,7 @@ fn checked_provider_calls(
         if !declaration.rows.iter().any(|row| {
             matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                provider_plans::ProviderBinding::CheckedAdapter { .. }
             )
         }) {
             continue;

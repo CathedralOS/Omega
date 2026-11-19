@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+provider-plans = { path = "../build/providers/plans" }
 provider-correspondence = { path = "verification/provider-correspondence" }
 psi-scalar-applications = { path = "../psi/scalar-applications" }
 psi-provider-selections = { path = "../psi/providers" }

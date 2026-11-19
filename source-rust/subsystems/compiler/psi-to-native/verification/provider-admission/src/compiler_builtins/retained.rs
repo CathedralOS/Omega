@@ -21,7 +21,7 @@ use super::{
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::external_providers::{matches_external_selection, reconcile_numeric_meaning};
-use effects::provider_plan::{ProviderPlan, ServiceSchema};
+use provider_plans::{ProviderPlan, ServiceSchema};
 use provider_correspondence::selected_external_execution;
 use std::collections::BTreeSet;
 use target_operations::{CompilerBuiltinExecution, NearestIeeeFloatArithmeticRealization};
@@ -132,7 +132,7 @@ pub fn prepare_retained_compiler_builtins<'request>(
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
-    row: &'a effects::provider_plan::ProviderPlanRow,
+    row: &'a provider_plans::ProviderPlanRow,
     semantic_schema: &'a ServiceSchema,
     execution: Option<CompilerIntrinsicExecutionIdentity>,
     external_realization: Option<&'a str>,
@@ -176,7 +176,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
         {
             if matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
+                provider_plans::ProviderBinding::CompilerIntrinsic { .. }
             ) {
                 selected_rows.push(SelectedIntrinsicRow {
                     requirement_identity: plan.identities.text(row.requirement_identity),
@@ -371,7 +371,7 @@ fn validate_retained_provider_owners(
     retained: &BTreeSet<&str>,
 ) -> Result<(), String> {
     let requires_declaration =
-        |plan: &ProviderPlan, row: &effects::provider_plan::ProviderPlanRow| {
+        |plan: &ProviderPlan, row: &provider_plans::ProviderPlanRow| {
             retained.iter().any(|requirement| {
                 facts.selected_row_matches_requirement(
                     requirement,
@@ -385,7 +385,7 @@ fn validate_retained_provider_owners(
             return Err("selected external declarations have incomplete row custody".into());
         }
         for (row, realization) in selected.rows.iter().zip(&selected.row_numeric_realizations) {
-            let effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } =
+            let provider_plans::ProviderBinding::CompilerIntrinsic { machine } =
                 &row.binding
             else {
                 if realization.is_some() {
@@ -625,21 +625,21 @@ mod tests {
         declaration.trait_name = declaration.identities.intern("Float");
         declaration
             .methods
-            .push(effects::provider_plan::ServiceMethod {
+            .push(provider_plans::ServiceMethod {
                 name: "add".into(),
                 requirement_owner: "Float".into(),
                 requirement_identity: declaration.identities.intern("Float::add"),
                 ..Default::default()
             });
         let requirement = plan.identities.intern("Float::add");
-        plan.rows.push(effects::provider_plan::ProviderPlanRow {
+        plan.rows.push(provider_plans::ProviderPlanRow {
             method: "add".into(),
             requirement_identity: requirement,
             declared_requirement_identity: requirement,
             calling_signature: None,
             requirement_lifetime_partition: Vec::new(),
             admitted_same_stack_bytes: 0,
-            binding: effects::provider_plan::ProviderBinding::CompilerIntrinsic {
+            binding: provider_plans::ProviderBinding::CompilerIntrinsic {
                 machine: "float_add".into(),
             },
         });

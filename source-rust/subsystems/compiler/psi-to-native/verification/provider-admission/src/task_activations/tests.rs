@@ -1,6 +1,6 @@
 use super::validate_task_activations;
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
 use language_core::{CarryCpu, CarryPolicy};
 use target::TargetProfile;
 use terminal_psi::*;

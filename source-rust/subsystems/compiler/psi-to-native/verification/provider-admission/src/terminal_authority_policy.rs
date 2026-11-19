@@ -41,9 +41,9 @@ use effects::{
     CheckedPhysicalOperationIdentity, CompilerAccessorScalarOperation,
     CompilerIntrinsicExecutionIdentity, NormalizedForeignArgumentContract, TerminalAuthorityClass,
     TerminalAuthorityDisposition, TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity,
-    provider_plan::{ServiceMethod, ServiceSchema},
     terminal_mechanism_identity_bytes,
 };
+use provider_plans::{ServiceMethod, ServiceSchema};
 
 pub(crate) use external_mechanisms::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
@@ -457,8 +457,8 @@ mod interrupt_control_tests {
     use effects::{
         SelectedProviderPlanFacts, TerminalAuthorityClosureLeaf,
         TerminalAuthorityClosureLeafOrigin, TerminalAuthorityClosureReviewReceipt,
-        provider_plan::{ProviderPlanDigest, ServiceSchemaDigest},
     };
+    use provider_plans::{ProviderPlanDigest, ServiceSchemaDigest};
     use language_core::BuiltinFunction;
 
     #[test]

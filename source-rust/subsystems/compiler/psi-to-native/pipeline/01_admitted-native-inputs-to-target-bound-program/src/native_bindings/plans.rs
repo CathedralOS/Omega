@@ -1,6 +1,6 @@
 // Normalize a completed Build supply into its locator receipt. This does not
 // select a provider or admit a service schema; those require canonical authority.
-use effects::provider_plan::{
+use provider_plans::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
     EvaluatedBindingMaterializationDigest, EvaluatedBindingProducerClosureDigest,
     EvaluatedBindingReceipt, EvaluatedBindingUsage, EvaluatedForeignImport,
@@ -21,7 +21,7 @@ pub fn normalize_native_binding(
     requirement: &str,
     service_declaration: &[u8; 32],
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<effects::provider_plan::EvaluatedNativeBinding, String> {
+) -> Result<provider_plans::EvaluatedNativeBinding, String> {
     if requirement.is_empty() || supply.requirement_identity != requirement {
         return Err("completed Build binding belongs to a different requirement".into());
     }
@@ -42,8 +42,8 @@ fn evaluate(
     supply: &NativeBindingMaterialization,
     target: target::TargetProfile,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-) -> Result<effects::provider_plan::EvaluatedNativeBinding, String> {
-    use effects::provider_plan::EvaluatedNativeBinding;
+) -> Result<provider_plans::EvaluatedNativeBinding, String> {
+    use provider_plans::EvaluatedNativeBinding;
     let selection = supply;
     let author_identity = &selection.producer_identity;
     let source_occurrence_digest = selection.source_occurrence_digest;
@@ -65,7 +65,7 @@ fn evaluate(
                 .map_err(|_| "native Build syscall number does not fit u32")?;
             (
                 None,
-                effects::provider_plan::evaluated_syscall_identity_digest(target, number),
+                provider_plans::evaluated_syscall_identity_digest(target, number),
             )
         }
     };

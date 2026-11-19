@@ -7,9 +7,9 @@ use crate::record::{PackagePolicyProviderBinding, PackagePolicyProviderEvaluated
 
 fn table_field_storage(
     reader: &mut Reader<'_>,
-) -> Result<Result<effects::provider_plan::TableFieldStorage, String>, Error> {
+) -> Result<Result<provider_plans::TableFieldStorage, String>, Error> {
     Ok(super::super::tag!(reader => {
-        0 => Ok(effects::provider_plan::TableFieldStorage {
+        0 => Ok(provider_plans::TableFieldStorage {
             table_application: reader.string()?,
             field_declaration: reader.string()?,
         }),

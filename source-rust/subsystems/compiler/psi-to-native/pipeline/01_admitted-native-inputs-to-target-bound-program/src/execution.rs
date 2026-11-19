@@ -98,7 +98,7 @@ fn selected_boundary_implementations(
         if !declaration.rows.iter().any(|row| {
             matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                provider_plans::ProviderBinding::CheckedAdapter { .. }
             )
         }) {
             continue;

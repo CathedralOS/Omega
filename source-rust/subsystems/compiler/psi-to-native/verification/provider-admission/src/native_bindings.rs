@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use effects::provider_plan::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
+use provider_plans::{EvaluatedBindingReceipt, EvaluatedNativeBinding, ServiceSchema};
 use semantic_vocabulary::BoundaryMachineId;
 use terminal_psi::{TerminalIdentityTable, TerminalIdentityTableBuilder};
 
@@ -57,7 +57,7 @@ impl RetainedNativeBindings {
     pub fn retain(inputs: &[NativeBindingInput<'_>]) -> Result<Self, String> {
         let mut identities = TerminalIdentityTableBuilder::default();
         let mut schemas = std::collections::BTreeMap::<
-            effects::provider_plan::ServiceSchemaDigest,
+            provider_plans::ServiceSchemaDigest,
             Arc<ServiceSchema>,
         >::new();
         let mut rows = Vec::with_capacity(inputs.len());
@@ -135,13 +135,13 @@ pub fn validate_receipt(
     // Reconstruct the materialized mechanism as well as its receipt.
     match binding {
         EvaluatedNativeBinding::Import(import) => {
-            effects::provider_plan::EvaluatedForeignImport::from_retained_evidence(
+            provider_plans::EvaluatedForeignImport::from_retained_evidence(
                 import.locator().clone(),
                 receipt.clone(),
             )?;
         }
         EvaluatedNativeBinding::Syscall(syscall) => {
-            effects::provider_plan::EvaluatedForeignSyscall::from_retained_evidence(
+            provider_plans::EvaluatedForeignSyscall::from_retained_evidence(
                 syscall.target(),
                 u64::try_from(syscall.number()).map_err(|_| "native syscall number is negative")?,
                 receipt.clone(),
@@ -389,7 +389,7 @@ fn validate_native_contract<'module>(
 }
 
 fn validate_native_declared_types(
-    method: &effects::provider_plan::ServiceMethod,
+    method: &provider_plans::ServiceMethod,
     parameter_types: &[terminal_psi::TerminalIdentityIndex],
     result_type: terminal_psi::TerminalIdentityIndex,
     result: &terminal_psi::BoundaryMachineResult,
@@ -738,7 +738,7 @@ fn validate_owned_aggregate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::*;
+    use provider_plans::*;
 
     #[test]
     fn native_declared_types_accept_i32_and_reject_a_different_type() {

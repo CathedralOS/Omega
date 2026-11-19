@@ -6,7 +6,7 @@ pub struct SelectedTrustEvidence<'a> {
     pub target: Option<&'a str>,
     pub plans: &'a effects::SelectedProviderPlanFacts,
     pub leaves: &'a [backend_plan::DirectBoundaryLeaf],
-    pub bindings: &'a [effects::provider_plan::EvaluatedNativeBinding],
+    pub bindings: &'a [provider_plans::EvaluatedNativeBinding],
     pub identities: &'a terminal_psi::TerminalIdentityTable,
 }
 

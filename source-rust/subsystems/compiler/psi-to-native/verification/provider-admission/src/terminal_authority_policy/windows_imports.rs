@@ -141,7 +141,7 @@ pub(super) fn mechanism_row(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::BoundaryCallingPlanCommitment;
+    use provider_plans::BoundaryCallingPlanCommitment;
     use effects::{CheckedSyscallArgumentContractIdentity, TerminalAuthorityClass};
 
     fn imported(
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn parent_dispatch_preserves_reviewed_windows_cohort_coverage() {
-        use effects::provider_plan::ServiceMethod;
+        use provider_plans::ServiceMethod;
 
         let method = ServiceMethod {
             name: "read".to_owned(),
@@ -282,7 +282,7 @@ mod tests {
             ("read", b"_read".as_slice()),
             ("write", b"_write".as_slice()),
         ] {
-            let method = effects::provider_plan::ServiceMethod {
+            let method = provider_plans::ServiceMethod {
                 name: name.to_owned(),
                 ..Default::default()
             };

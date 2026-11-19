@@ -149,7 +149,7 @@ mod placement {
             };
             if matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                provider_plans::ProviderBinding::CheckedAdapter { .. }
             ) {
                 continue;
             }
@@ -249,7 +249,7 @@ mod placement {
         calling: &'plans [BoundaryCallingApplication],
         abi: &semantic_vocabulary::CallingAbiIdentity,
         calling_owner: Option<&str>,
-        expected: Option<&effects::provider_plan::ServiceCallingPlan>,
+        expected: Option<&provider_plans::ServiceCallingPlan>,
     ) -> Result<&'plans BoundaryCallingApplication, String> {
         let mut matching = calling.iter().filter(|application| {
             &application.abi == abi

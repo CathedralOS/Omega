@@ -12,7 +12,7 @@ pub struct NormalizedNativeSupplies {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizedNativeSupply {
     pub boundary: BoundaryMachineId,
-    pub binding: effects::provider_plan::EvaluatedNativeBinding,
+    pub binding: provider_plans::EvaluatedNativeBinding,
 }
 
 /// Use the selected body's own closure to resolve each authored installation bound.

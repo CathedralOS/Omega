@@ -18,8 +18,8 @@ use ::provider_admission::provider_admission;
 use effects::{
     CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,
     TerminalAuthorityDisposition,
-    provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow},
 };
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use package_manager::{
     PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
 };
@@ -319,7 +319,7 @@ fn trusted_write_file_requirement(
 fn checked_receiver_method<'a>(
     plan: &'a ProviderPlan,
     row: &ProviderPlanRow,
-) -> &'a effects::provider_plan::ServiceMethod {
+) -> &'a provider_plans::ServiceMethod {
     let requirement = plan.identities.text(row.requirement_identity);
     let mut methods = plan
         .schema

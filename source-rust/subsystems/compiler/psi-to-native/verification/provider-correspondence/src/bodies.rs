@@ -24,7 +24,7 @@ pub use declaration_contracts::CheckedBodyCandidate;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::external_providers::reconcile_numeric_meaning;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use provider_plans::{ProviderBinding, ProviderPlan};
 
 pub fn select_checked_body<'candidate, Body>(
     plan: &ProviderPlan,
@@ -71,7 +71,7 @@ struct CheckedBodySelection<'plan> {
 impl<'plan> CheckedBodySelection<'plan> {
     fn new(
         plan: &'plan ProviderPlan,
-        row: &effects::provider_plan::ProviderPlanRow,
+        row: &provider_plans::ProviderPlanRow,
     ) -> Result<Self, Diagnostic> {
         let ProviderBinding::CheckedAdapter {
             machine_identity,
@@ -111,7 +111,7 @@ pub(crate) fn select_terminal_checked_body<'module>(
     module: &'module terminal_psi::TerminalModule,
     demand: &terminal_psi::TerminalBoundaryApplicationDemand,
     plan: &ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
+    row: &provider_plans::ProviderPlanRow,
 ) -> Result<&'module terminal_psi::CheckedMachineDeclaration, Diagnostic> {
     let selection = CheckedBodySelection::new(plan, row)?;
     let mut candidates = module
@@ -144,7 +144,7 @@ pub fn selected_external_execution(
     identities: &terminal_psi::TerminalIdentityTable,
     requirement: &terminal_psi::NominalDeclarationIdentity,
     plan: &ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
+    row: &provider_plans::ProviderPlanRow,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
     realization: Option<&str>,
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {
@@ -167,7 +167,7 @@ pub(crate) fn selected_execution_for_identity(
     identities: &terminal_psi::TerminalIdentityTable,
     requirement: &str,
     plan: &ProviderPlan,
-    row: &effects::provider_plan::ProviderPlanRow,
+    row: &provider_plans::ProviderPlanRow,
     retained: Option<CompilerIntrinsicExecutionIdentity>,
     realization: Option<&str>,
 ) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {

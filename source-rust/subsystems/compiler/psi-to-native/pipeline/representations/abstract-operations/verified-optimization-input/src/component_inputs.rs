@@ -3,7 +3,7 @@ mod selected_exports;
 use crate::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
-use effects::provider_plan::ProviderPlan;
+use provider_plans::ProviderPlan;
 use std::sync::Arc;
 use terminal_psi::ProviderCandidateConformance;
 
@@ -18,7 +18,7 @@ pub struct ComponentNativeInputs<'input> {
     evidence: Option<&'input Arc<terminal_codec::EvidenceSeals>>,
     proposal: &'input TerminalNativeRealizationProposal,
     exports: Vec<ComponentExportInput<'input>>,
-    plan_digest: effects::provider_plan::ProviderPlanDigest,
+    plan_digest: provider_plans::ProviderPlanDigest,
 }
 
 #[derive(Debug)]
@@ -26,7 +26,7 @@ pub struct AdmittedNativeComponentCall<'input> {
     selected: psi_provider_selections::AdmittedComponentProvider,
     component: &'input VerifiedComponent,
     application: &'input BoundaryCallingApplication,
-    plan_digest: effects::provider_plan::ProviderPlanDigest,
+    plan_digest: provider_plans::ProviderPlanDigest,
 }
 
 impl<'input> AdmittedNativeComponentCall<'input> {
@@ -48,7 +48,7 @@ impl<'input> AdmittedNativeComponentCall<'input> {
     pub const fn application(&self) -> &'input BoundaryCallingApplication {
         self.application
     }
-    pub const fn plan_digest(&self) -> &effects::provider_plan::ProviderPlanDigest {
+    pub const fn plan_digest(&self) -> &provider_plans::ProviderPlanDigest {
         &self.plan_digest
     }
 
@@ -115,7 +115,7 @@ impl<'input> ComponentNativeInputs<'input> {
         self.proposal
             .callable_scalar_demand(self.authorization(), &entries)
     }
-    pub const fn plan_digest(&self) -> &effects::provider_plan::ProviderPlanDigest {
+    pub const fn plan_digest(&self) -> &provider_plans::ProviderPlanDigest {
         &self.plan_digest
     }
 
@@ -187,7 +187,7 @@ pub struct RetainedComponentNativeInputs {
     component: Arc<VerifiedComponent>,
     retained: Arc<RetainedTerminalArtifact>,
     exports: Vec<(usize, usize)>,
-    plan_digest: effects::provider_plan::ProviderPlanDigest,
+    plan_digest: provider_plans::ProviderPlanDigest,
 }
 
 impl RetainedComponentNativeInputs {
@@ -301,7 +301,7 @@ impl RetainedComponentNativeInputs {
 fn one_application<'input>(
     applications: &'input [BoundaryCallingApplication],
     abi: &semantic_vocabulary::CallingAbiIdentity,
-    expected: Option<&effects::provider_plan::ServiceCallingPlan>,
+    expected: Option<&provider_plans::ServiceCallingPlan>,
     target: target::NativeTarget,
     role: &str,
 ) -> Result<(usize, &'input BoundaryCallingApplication), String> {

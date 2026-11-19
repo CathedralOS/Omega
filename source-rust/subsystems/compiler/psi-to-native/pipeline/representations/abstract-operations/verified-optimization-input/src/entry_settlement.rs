@@ -13,7 +13,7 @@ mod calling_plans {
     use calling_conventions::{
         BoundaryCallingApplication, BoundarySignatureGeometry, BoundaryValueClass,
     };
-    use effects::provider_plan::{ServiceMethod, ServiceSchema};
+    use provider_plans::{ServiceMethod, ServiceSchema};
     use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
 
     pub(crate) fn validate_paired_calling_plans(
@@ -597,7 +597,7 @@ mod semantic_call {
     use super::ValidatedNativeProgramEntrySettlement;
     use crate::SelectedProgramEntryCall;
     use effects::CompilerIntrinsicExecutionIdentity;
-    use effects::provider_plan::ProviderBinding;
+    use provider_plans::ProviderBinding;
 
     /// Settles the `ProgramEntry` call native admission selected for
     /// `artifact`, or `None` when no selected provider row carries the

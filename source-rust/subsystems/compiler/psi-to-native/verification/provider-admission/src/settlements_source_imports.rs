@@ -16,7 +16,7 @@ use crate::NativeCallbackArgumentProposal;
 use crate::provider_admission::AdmittedTerminalMechanism;
 use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
 // The saved native choice must still name the declaration used to form this
@@ -131,7 +131,7 @@ pub(super) fn derive_source_evaluated_mechanisms(
                     )
                     .map_err(|error| vec![error])?,
                     provider: provider_plan.identity_digest(),
-                    calling: effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(
+                    calling: provider_plans::BoundaryCallingPlanCommitment::from_digest(
                         validated.contract_commitment_digest(),
                     ),
                     byte_offset,
@@ -482,7 +482,7 @@ fn authenticate_callback_application(
 #[cfg(test)]
 mod exact_native_declaration_tests {
     use super::*;
-    use effects::provider_plan::{ProviderBinding, ServiceMethod};
+    use provider_plans::{ProviderBinding, ServiceMethod};
 
     #[test]
     fn exact_native_rows_cannot_replace_the_declared_method_under_the_same_abi() {

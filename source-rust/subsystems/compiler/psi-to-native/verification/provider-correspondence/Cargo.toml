@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+provider-plans = { path = "../../../build/providers/plans" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 function-identity = { path = "../../pipeline/representations/function-identity" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }

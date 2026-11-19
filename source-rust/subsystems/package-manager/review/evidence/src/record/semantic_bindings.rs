@@ -8,7 +8,7 @@
 // the project's explicit policy decision.
 
 use crate::record::accessors::field_projection_accessors;
-use effects::provider_plan::ServiceSchema;
+use provider_plans::ServiceSchema;
 use package_compilation::AcceptedSemanticBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

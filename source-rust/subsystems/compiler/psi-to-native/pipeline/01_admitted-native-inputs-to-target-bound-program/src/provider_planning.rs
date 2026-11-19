@@ -7,6 +7,6 @@ pub use effects::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 
-pub(crate) fn trait_name_text(schema: &effects::provider_plan::ServiceSchema) -> &str {
+pub(crate) fn trait_name_text(schema: &provider_plans::ServiceSchema) -> &str {
     schema.identity_text(schema.declaration.trait_name)
 }

@@ -1078,7 +1078,7 @@ fn profile() -> target::TargetProfile {
 fn plans(
     publication: &source_compiler::SourcePublication,
     settled: &SettledTargetSupply,
-) -> Result<Vec<effects::provider_plan::ProviderPlan>, String> {
+) -> Result<Vec<provider_plans::ProviderPlan>, String> {
     if settled.requirements().is_empty() {
         return settled
             .realize_no_demand(publication.accepted().map_err(first)?.module())
@@ -1676,14 +1676,14 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     let machines = rows
         .iter()
         .map(|row| match row.binding {
-            effects::provider_plan::ProviderBinding::CheckedAdapter {
+            provider_plans::ProviderBinding::CheckedAdapter {
                 machine_identity, ..
             } => machine_identity,
             _ => panic!("a checked provider's rows are checked adapters"),
         })
         .collect::<Vec<_>>();
     for (row, machine) in rows.iter_mut().zip(machines.into_iter().rev()) {
-        if let effects::provider_plan::ProviderBinding::CheckedAdapter {
+        if let provider_plans::ProviderBinding::CheckedAdapter {
             machine_identity, ..
         } = &mut row.binding
         {

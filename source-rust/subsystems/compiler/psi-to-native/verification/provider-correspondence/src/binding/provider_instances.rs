@@ -7,7 +7,7 @@ use declaration_contracts::provider_declarations::ClosedProviderInstance;
 use declaration_contracts::provider_declarations::ProviderInstanceApplication;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
-use effects::provider_plan::{ProviderBinding, ProviderIdentityId, ProviderPlan, ProviderPlanRow};
+use provider_plans::{ProviderBinding, ProviderIdentityId, ProviderPlan, ProviderPlanRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInstanceRowDeclarations {

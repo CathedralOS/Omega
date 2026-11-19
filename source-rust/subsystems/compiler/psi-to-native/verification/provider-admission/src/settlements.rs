@@ -37,7 +37,7 @@ use crate::provider_admission::{
 };
 use calling_conventions::{CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow};
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use provider_plans::{ProviderBinding, ProviderPlan};
 use source_imports::derive_source_evaluated_mechanisms;
 use target::NativeTarget;
 use target_operations::{
@@ -272,7 +272,7 @@ fn settle_boundary<'request>(
 
 fn external_calling_application<'row>(
     row: &'row calling_conventions::ExternalBindingRow,
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     abi: &semantic_vocabulary::CallingAbiIdentity,
 ) -> Result<&'row calling_conventions::BoundaryCallingApplication, Vec<Diagnostic>> {
     let application = row.calling_application(abi).ok_or_else(|| {
@@ -315,9 +315,9 @@ fn external_calling_application<'row>(
 fn selected_plan_from_exact_evidence<'facts>(
     selected: &'facts effects::SelectedProviderPlanFacts,
     report_identity: u64,
-    exact_plan: &effects::provider_plan::ProviderPlan,
+    exact_plan: &provider_plans::ProviderPlan,
     requirement: &str,
-) -> Result<&'facts effects::provider_plan::ProviderPlan, Vec<Diagnostic>> {
+) -> Result<&'facts provider_plans::ProviderPlan, Vec<Diagnostic>> {
     selected
         .plan_by_exact_evidence(report_identity, exact_plan)
         .ok_or_else(|| {
@@ -333,7 +333,7 @@ fn rejoin_component_call(
     authority: &super::AdmittedNativeCallableAuthority,
     locator: &target::NormalizedComponentLocator,
     same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
-    selected_plan: &effects::provider_plan::ProviderPlan,
+    selected_plan: &provider_plans::ProviderPlan,
     requirement: &str,
     identities: &terminal_psi::TerminalIdentityTable,
     receiver: terminal_psi::TerminalPsiIdentity,
@@ -386,7 +386,7 @@ fn rejoin_component_call(
 
 #[allow(clippy::too_many_arguments)]
 fn rejoin_normalized_foreign_call(
-    selected_plan: &effects::provider_plan::ProviderPlan,
+    selected_plan: &provider_plans::ProviderPlan,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     same_stack: &provider_stack_contribution::AdmittedSameStackContribution,
     provider_plan_report_identity: u64,
@@ -436,14 +436,14 @@ fn rejoin_normalized_foreign_call(
     ) {
         let table = match (selected, retained) {
             (
-                effects::provider_plan::ProviderBinding::VtableField { field, .. },
+                provider_plans::ProviderBinding::VtableField { field, .. },
                 calling_conventions::ExternalBindingKind::VtableField {
                     field: retained,
                     byte_offset,
                 },
             ) if field == retained => Some((*byte_offset, false)),
             (
-                effects::provider_plan::ProviderBinding::TableFunction { field, .. },
+                provider_plans::ProviderBinding::TableFunction { field, .. },
                 calling_conventions::ExternalBindingKind::TableFunction {
                     field: retained,
                     byte_offset,
@@ -471,7 +471,7 @@ fn rejoin_normalized_foreign_call(
         }
     }
     let (
-        effects::provider_plan::ProviderBinding::Import {
+        provider_plans::ProviderBinding::Import {
             evaluated: selected_import,
         },
         calling_conventions::ExternalBindingKind::Import {

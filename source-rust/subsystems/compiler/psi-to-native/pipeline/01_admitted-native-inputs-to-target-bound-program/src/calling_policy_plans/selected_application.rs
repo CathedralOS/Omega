@@ -11,7 +11,7 @@ use semantic_vocabulary::{CallingAbiIdentity, CallingDeclarationOwner};
 pub(crate) fn selected_calling_applications(
     module: &terminal_psi::TerminalModule,
     explicit: &[calling_conventions::BoundaryCallingApplication],
-    plan: &effects::provider_plan::ProviderPlan,
+    plan: &provider_plans::ProviderPlan,
     row_index: usize,
 ) -> Result<SelectedCallingApplications, Diagnostic> {
     let row = plan
@@ -146,8 +146,8 @@ pub(crate) fn selected_calling_applications(
 
 fn receiver_accepts(
     module: &terminal_psi::TerminalModule,
-    plan: &effects::provider_plan::ProviderPlan,
-    requirement: effects::provider_plan::ProviderIdentityId,
+    plan: &provider_plans::ProviderPlan,
+    requirement: provider_plans::ProviderIdentityId,
     declaration: &terminal_psi::CallingAbiDeclaration,
 ) -> Result<bool, Diagnostic> {
     match declaration
@@ -180,8 +180,8 @@ fn receiver_accepts(
 
 fn default_calling_abis(
     module: &terminal_psi::TerminalModule,
-    plan: &effects::provider_plan::ProviderPlan,
-    requirement: effects::provider_plan::ProviderIdentityId,
+    plan: &provider_plans::ProviderPlan,
+    requirement: provider_plans::ProviderIdentityId,
     declarations: &[&terminal_psi::CallingAbiDeclaration],
 ) -> Result<Vec<CallingAbiIdentity>, String> {
     let mut keys = Vec::new();
@@ -319,10 +319,10 @@ pub(crate) fn native_calling_results(
             )));
         }
         let policy = match &supplied.binding {
-            effects::provider_plan::EvaluatedNativeBinding::Import(_) => {
+            provider_plans::EvaluatedNativeBinding::Import(_) => {
                 calling_conventions::CallingPolicy::native_for_target(profile.native_target())
             }
-            effects::provider_plan::EvaluatedNativeBinding::Syscall(_) => {
+            provider_plans::EvaluatedNativeBinding::Syscall(_) => {
                 calling_conventions::CallingPolicy::native_syscall_for_target(
                     profile.native_target(),
                 )
@@ -373,7 +373,7 @@ pub(crate) struct SelectedCallingApplications {
 pub fn component_calling_applications(
     profile: target::TargetProfile,
     program: &super::CallingProgram,
-    providers: &[&effects::provider_plan::ProviderPlan],
+    providers: &[&provider_plans::ProviderPlan],
     explicit: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<Vec<calling_conventions::BoundaryCallingApplication>, Vec<Diagnostic>> {
     let native_target = profile.native_realization().ok_or_else(|| {
@@ -386,7 +386,7 @@ pub fn component_calling_applications(
         if !plan.rows.iter().any(|row| {
             matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                provider_plans::ProviderBinding::CheckedAdapter { .. }
             )
         }) {
             continue;
@@ -403,7 +403,7 @@ pub fn component_calling_applications(
         for (row_index, row) in plan.rows.iter().enumerate() {
             if !matches!(
                 row.binding,
-                effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                provider_plans::ProviderBinding::CheckedAdapter { .. }
             ) {
                 continue;
             }

@@ -19,7 +19,7 @@ use crate::record::{
     PackageReviewWriteFrameCompleteness,
 };
 use diagnostics::Diagnostic;
-use effects::provider_plan::{
+use provider_plans::{
     ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};

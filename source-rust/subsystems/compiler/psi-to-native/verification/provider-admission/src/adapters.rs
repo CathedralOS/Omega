@@ -12,7 +12,7 @@
 // inspect the original entry without installing providers in that body.
 
 use crate::SelectedProviderAdapter;
-use effects::provider_plan::ProviderBinding;
+use provider_plans::ProviderBinding;
 use psi_provider_selections::AdmittedProviderSelections;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
@@ -205,7 +205,7 @@ pub fn selected_synchronous_call_graph<'module>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use provider_plans::{ProviderPlan, ProviderPlanRow, ServiceMethod};
 
     fn plan() -> ProviderPlan {
         let mut plan = ProviderPlan {

@@ -102,7 +102,7 @@ impl TrustAdmission {
     pub fn for_provider_plan(
         commitment: String,
         report_identity: u64,
-        provider_plan_digest: effects::provider_plan::ProviderPlanDigest,
+        provider_plan_digest: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     ) -> Result<Self, &'static str> {
         Self::derived(
             commitment,
@@ -116,7 +116,7 @@ impl TrustAdmission {
         commitment: String,
         report_identity: u64,
         contract: &[u8; 32],
-        plan: effects::provider_plan::ProviderPlanDigest,
+        plan: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     ) -> Result<Self, &'static str> {
         if *contract == [0; 32] {
             return Err("native trust requires the complete checked requirement contract");

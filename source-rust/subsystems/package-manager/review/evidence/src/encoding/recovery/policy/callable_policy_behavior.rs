@@ -103,7 +103,7 @@ pub(in crate::encoding::recovery) fn termination(
                     }),
                     projections: reader.sequence(41, nominal)?,
                     establishment_routes: reader.sequence(83, |reader| {
-                        use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
+                        use service_surface::ServiceProgressEstablishmentRouteKind as Kind;
                         Ok(PackagePolicyServiceProgressRoute {
                             kind: super::super::tag!(reader => {
                                 0 => Kind::CheckedRequirement,
