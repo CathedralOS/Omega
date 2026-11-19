@@ -1,12 +1,11 @@
 # Native pipeline representations
 
-The six directories here define successive native program forms. Stage 06 computes [allocation analyses](../06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+Six program families define the successive native forms. Stage 06 computes [allocation analyses](../06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 
-Each of the six top-level folders is a program family with its own
-representation package. Pipeline crates read that data but do not own its
-public program types. The table names program data only, not the admission
+Each program family owns its public types in a representation package.
+Pipeline crates consume those types. The table names program data only, not the admission
 tokens or replay evidence a stage keeps beside it.
 
 | Family | Current program root | Producing and consuming operations |
@@ -88,9 +87,13 @@ reach the object only when a validator request retains them for
 
 ## Supporting data belongs with its domain
 
-Shared identity and optimization vocabulary lives in
-[Omega foundation](../../../foundation/README.md). Target descriptions, calling
-conventions, and physical register models live under `backend/`; provider-plan
+[Callback function identity](function-identity/src/lib.rs) pairs the published Psi
+program with its callback placement. Admission, native program forms and object
+verification carry that same identity. The [object stage](../15_placed-functions-to-objects/src/names.rs)
+gives a private callback its linker symbol when building an object.
+
+Target descriptions, calling conventions and physical register models live under
+[`targets/`](../../targets/); provider-plan
 evidence lives in [`backend/plans/effects/`](../../backend/plans/effects/src/lib.rs),
 and artifact boundary coverage in
 [`backend/artifacts/boundary-applications/`](../../backend/artifacts/boundary-applications/src/lib.rs).

@@ -12,7 +12,7 @@ register-environment = { path = "../../../targets/register-environment" }
 native-vocabulary = { path = "../../../native-vocabulary" }
 layout-plans = { path = "../../../../psi/layout" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../function-identity" }
 optimization-core = { path = "../../../optimization-contracts" }
 target = { path = "../../../targets/target" }
 register-model = { path = "../../../targets/register-model" }

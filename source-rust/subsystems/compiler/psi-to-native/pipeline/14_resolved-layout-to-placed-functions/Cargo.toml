@@ -22,7 +22,6 @@ selected-instructions = { path = "../representations/selected-instructions" }
 optimization-core = { path = "../../optimization-contracts" }
 target = { path = "../../targets/target" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-function-identity = { path = "../../native-vocabulary/function-identity" }
 machine-code = { path = "../representations/machine-code" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

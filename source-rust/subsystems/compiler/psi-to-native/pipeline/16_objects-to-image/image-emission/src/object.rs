@@ -539,8 +539,7 @@ pub(crate) mod private_object_composition {
         if let Some((symbol, _)) = object_function_reference(object, identity) {
             return Ok(symbol);
         }
-        let name = identity
-            .private_symbol()
+        let name = object_file::private_function_symbol_name(identity)
             .ok_or(Error::Mismatch("invalid private function identity"))?;
         refuse_symbol_collision(object, &name, "private function symbol collision")?;
         let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -560,9 +559,7 @@ pub(crate) mod private_object_composition {
         private: &PrivateFunctionObject,
     ) -> Result<(), Error> {
         let body = &private.body;
-        let prefix = private
-            .identity
-            .private_symbol()
+        let prefix = object_file::private_function_symbol_name(private.identity)
             .ok_or(Error::Mismatch("invalid private identity"))?;
         let text_offset = align_section(linked, SectionKind::Text, &prefix)?;
         let data_offset = align_section(linked, SectionKind::Data, &prefix)?;

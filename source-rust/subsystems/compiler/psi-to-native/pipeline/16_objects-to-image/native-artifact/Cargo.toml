@@ -24,7 +24,7 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../../installation/boundary-applications" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 effects = { path = "../../../installation/native-effects" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 target = { path = "../../../targets/target" }
 image = { path = "../image" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }

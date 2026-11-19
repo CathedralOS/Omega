@@ -15,7 +15,7 @@ target-vocabulary = { path = "../target-vocabulary" }
 native-vocabulary = { path = "../../../../native-vocabulary" }
 language-core = { path = "../../../../../foundation/language-core" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
-function-identity = { path = "../../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../function-identity" }
 optimization-core = { path = "../../../../optimization-contracts" }
 target = { path = "../../../../targets/target" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }

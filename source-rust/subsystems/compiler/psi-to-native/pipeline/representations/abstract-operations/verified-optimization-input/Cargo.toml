@@ -40,7 +40,7 @@ program-entry-plan = { path = "../../../../installation/program-entry" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }
 boundary-applications = { path = "../../../../installation/boundary-applications" }
 provider-correspondence = { path = "../../../../verification/provider-correspondence" }
-function-identity = { path = "../../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../function-identity" }
 optimization-core = { path = "../../../../optimization-contracts" }
 component-description = { path = "../../../../components/description" }
 task-plans = { path = "../../../../installation/task-plans" }

@@ -2913,11 +2913,10 @@ mod imports {
                             && callback_plan.kind == SymbolKind::Function
                             && callback_plan.offset == 0
                             && callback_plan.size == 0
-                            && callback
-                                .target
-                                .callback_function
-                                .private_symbol()
-                                .as_deref()
+                            && object_file::private_function_symbol_name(
+                                callback.target.callback_function,
+                            )
+                            .as_deref()
                                 == Some(callback_plan.name.as_str()) => {}
                     _ => {
                         return Err(Error::Mismatch(
@@ -3796,9 +3795,9 @@ mod private_addresses {
             .collect::<Vec<_>>();
         existing_names.sort_unstable();
         for identity in identities {
-            let name = identity.private_symbol().ok_or(Error::Mismatch(
-                "private reference has no function identity",
-            ))?;
+            let name = object_file::private_function_symbol_name(*identity).ok_or(
+                Error::Mismatch("private reference has no function identity"),
+            )?;
             if existing_names.binary_search(&name).is_ok() {
                 return Err(Error::Mismatch("private function symbol name collision"));
             }
@@ -3920,7 +3919,8 @@ mod private_addresses {
             ))?;
             if reference.identity != *identity
                 || reference.symbol != handle
-                || identity.private_symbol().as_deref() != Some(symbol.name.as_str())
+                || object_file::private_function_symbol_name(*identity).as_deref()
+                    != Some(symbol.name.as_str())
                 || symbol.kind != SymbolKind::Function
                 || symbol.section != SymbolSection::None
                 || symbol.offset != 0

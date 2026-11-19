@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 installation-binding = { path = "../10_framed-machine-to-bound-framed-machine" }
-function-identity = { path = "../../native-vocabulary/function-identity" }
+function-identity = { path = "../representations/function-identity" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 arena = { path = "../../../../../foundation/arena" }
 runtime-abi = { path = "../../targets/runtime-abi" }

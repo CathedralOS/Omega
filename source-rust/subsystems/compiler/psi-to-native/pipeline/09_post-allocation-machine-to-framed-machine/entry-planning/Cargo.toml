@@ -10,7 +10,7 @@ frame-planning = { package = "post-allocation-machine-to-framed-machine", path =
 program-entry-plan = { path = "../../../installation/program-entry" }
 physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
 installation-admission = { path = "../../../verification/installation-admission" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 installation-evidence = { path = "../../../installation/installation-evidence" }

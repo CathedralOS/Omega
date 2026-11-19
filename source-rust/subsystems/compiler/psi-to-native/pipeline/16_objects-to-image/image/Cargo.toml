@@ -14,7 +14,7 @@ wire = { path = "../../../../../../foundation/wire" }
 optimization-core = { path = "../../../optimization-contracts" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 object-file = { path = "../../15_placed-functions-to-objects" }

@@ -886,7 +886,6 @@ dependencies = [
  "diagnostics",
  "encoding-admission",
  "frame-admission",
- "function-identity",
  "isa-aarch64",
  "isa-x86_64",
  "layout-plans",
@@ -1208,7 +1207,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "encoded-scalar-plan",
- "function-identity",
  "isa-conformance",
  "layout-plans",
  "legalized-operations",
@@ -1243,7 +1241,6 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "encoded-scalar-plan",
- "function-identity",
  "isa-conformance",
  "layout-plans",
  "legalized-operations",
@@ -3092,7 +3089,6 @@ name = "target-operations"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "function-identity",
  "installation-evidence",
  "language-core",
  "native-vocabulary",

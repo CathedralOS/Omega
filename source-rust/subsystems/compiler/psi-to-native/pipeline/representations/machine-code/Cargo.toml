@@ -18,7 +18,7 @@ native-vocabulary = { path = "../../../native-vocabulary" }
 register-homes = { path = "../register-homes" }
 post-allocation-machine = { path = "../post-allocation-machine" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../../native-vocabulary/function-identity" }
+function-identity = { path = "../function-identity" }
 optimization-core = { path = "../../../optimization-contracts" }
 target = { path = "../../../targets/target" }
 register-model = { path = "../../../targets/register-model" }

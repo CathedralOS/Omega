@@ -13,7 +13,7 @@ wire = { path = "../../../../../../../foundation/wire" }
 native-vocabulary = { path = "../../../../native-vocabulary" }
 language-core = { path = "../../../../../foundation/language-core" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
-function-identity = { path = "../../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../function-identity" }
 target = { path = "../../../../targets/target" }
 task-plans = { path = "../../../../installation/task-plans" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }

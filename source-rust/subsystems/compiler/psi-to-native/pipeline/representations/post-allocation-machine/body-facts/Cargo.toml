@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 installation-admission = { path = "../../../../verification/installation-admission" }
-function-identity = { path = "../../../../native-vocabulary/function-identity" }
+function-identity = { path = "../../function-identity" }
 machine-code = { path = "../../machine-code" }
 selected-instructions = { path = "../../selected-instructions" }
 verified-optimization-input = { path = "../../abstract-operations/verified-optimization-input" }
