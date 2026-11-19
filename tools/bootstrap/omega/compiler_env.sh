@@ -113,7 +113,7 @@ require_omega_parser_entry_identity() {
   require_bound_identity "main.epsilon" \
     "$OMEGA_PATH_OMEGA_PARSER_ENTRY" "$OMEGA_PARSER_ENTRY_SIZE" \
     "$OMEGA_PARSER_ENTRY_SHA256" \
-    "tests/bootstrap/omega-parser/README.md"
+    "_recycling/tests/bootstrap/omega-parser/README.md"
 }
 
 # require_omega_outcome_entry_identity : the outcome gate's main.epsilon is
@@ -122,7 +122,7 @@ require_omega_outcome_entry_identity() {
   require_bound_identity "main.epsilon" \
     "$OMEGA_PATH_OMEGA_OUTCOME_ENTRY" "$OMEGA_OUTCOME_ENTRY_SIZE" \
     "$OMEGA_OUTCOME_ENTRY_SHA256" \
-    "tests/bootstrap/omega-outcome/README.md"
+    "_recycling/tests/bootstrap/omega-outcome/README.md"
 }
 
 # require_omega_request_entry_identity : the request gate's main.epsilon is
@@ -132,7 +132,7 @@ require_omega_request_entry_identity() {
   require_bound_identity "main.epsilon" \
     "$OMEGA_PATH_OMEGA_REQUEST_ENTRY" "$OMEGA_REQUEST_ENTRY_SIZE" \
     "$OMEGA_REQUEST_ENTRY_SHA256" \
-    "tests/bootstrap/omega-request/README.md"
+    "_recycling/tests/bootstrap/omega-request/README.md"
 }
 
 # require_omega_request_fixture_identity : the request gate's canonical
@@ -141,7 +141,7 @@ require_omega_request_fixture_identity() {
   require_bound_identity "request.bin" \
     "$OMEGA_PATH_OMEGA_REQUEST_FIXTURE" "$OMEGA_REQUEST_FIXTURE_SIZE" \
     "$OMEGA_REQUEST_FIXTURE_SHA256" \
-    "tests/bootstrap/omega-request/README.md"
+    "_recycling/tests/bootstrap/omega-request/README.md"
 }
 
 # require_omega_executable_entries_identity : every entry the executable
@@ -168,7 +168,7 @@ require_omega_executable_entries_identity() {
     set -- $OMEGA_EXECUTABLE_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/$1" "$2" "$3" \
-      "tests/bootstrap/omega-executable/README.md" || return $?
+      "bootstrap/interpreted/tests/omega-executable/README.md" || return $?
   done
 }
 

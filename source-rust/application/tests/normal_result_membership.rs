@@ -8,9 +8,9 @@ use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
+        .join("tests/fixtures/domains")
         .join(tier)
-        .join("domains/normal_result_membership")
+        .join("normal_result_membership")
 }
 
 fn invoke(build: &Path, source: &str) -> (Output, String) {

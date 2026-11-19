@@ -20,7 +20,7 @@ use terminal_interpreter::{
 use terminal_work::WorkMeter;
 
 fn produce(machine: &str) -> std::sync::Arc<CanonicalTerminalArtifact> {
-    let root = repo_root().join("tests/fixtures/pass/layouts/placed_view_call_custody/main.omg");
+    let root = repo_root().join("source-rust/subsystems/compiler/tests/fixtures/layouts/pass/placed_view_call_custody/main.omg");
     let prepared =
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);

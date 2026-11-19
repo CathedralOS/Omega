@@ -27,7 +27,7 @@ compiler's explicit accepted subset govern both realizations.
 On Linux x86-64, from the repository root:
 
 ```sh
-python3 bootstrap/independent/source_test.py
+python3 bootstrap/independent/tests/source_test.py
 ```
 
 The cold route starts with the audited Alpha seed and separately admitted Beta
@@ -140,11 +140,11 @@ The next construction check uses the real Delta compiler and Epsilon evaluator,
 then optionally runs the actual bootstrap Omega compiler on its existing fixture:
 
 ```sh
-python3 bootstrap/independent/successor_test.py --omega
+python3 bootstrap/independent/tests/successor_test.py --omega
 
 # Explicitly reuse the retained source-constructed native compiler after
 # checking its source and ELF identities against the construction report.
-python3 bootstrap/independent/successor_test.py --reuse-constructed --omega
+python3 bootstrap/independent/tests/successor_test.py --reuse-constructed --omega
 ```
 
 Default execution first repeats the cold construction above. Reuse does not
@@ -272,7 +272,7 @@ eager and short-circuit control.
 Extracting the shared binary operator and scalar outcome declarations preserved
 the 617,354-byte Epsilon source and the canonical Gamma and native evaluator
 artifacts measured for that experiment.
-The [test source packer](../../tests/epsilon/compiled-native/composition.py)
+The [test source packer](tests/epsilon/composition.py)
 takes whole files from the verified Epsilon manifest in declaration order.
 The Epsilon-to-Delta compiler uses the source view, representations, lexer,
 parser and checker. Its literal emitter also uses the byte decoder in
@@ -432,7 +432,7 @@ the native compiler previously stopped at the diagnostic parameter of
 `set_keyword` passes the constructed `OmegaTokenKind::Keyword` to `emit`.
 At this checkpoint, the compiler stopped before constructing that receiver argument.
 
-`python3 bootstrap/independent/successor_test.py --reuse-constructed --compile-epsilon`
+`python3 bootstrap/independent/tests/successor_test.py --reuse-constructed --compile-epsilon`
 uses the verified native predecessors to exercise argument passing. The storage
 fixture passes a record as its first argument, mutates that same record in a
 later argument, and checks the original value after a state transfer. The unchanged
@@ -539,4 +539,4 @@ stopped at byte 85,007. A control inserts one known unsupported constructor
 after the frozen lexer's last machine at byte 108,029. The new compiler reaches
 that constructor at byte 108,141. The lexer itself is unchanged. The complete
 numeric scanner also compiles and runs as a separate executable. [Scanner
-fixture](../../tests/epsilon/compiled-native/lexer_digits_main.epsilon)
+fixture](tests/epsilon/lexer_digits_main.epsilon)

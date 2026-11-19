@@ -7,9 +7,9 @@ use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
     let fixture = support::repository_root()
-        .join("tests/fixtures")
+        .join("source-rust/application/tests/fixtures/ownership")
         .join(tier)
-        .join("ownership/generic_case_payloads");
+        .join("generic_case_payloads");
     let scratch = TemporaryDirectory::create("generic-case-payloads", false).unwrap();
     for name in ["main.omg", "build.omg"] {
         std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();
@@ -49,7 +49,7 @@ fn generic_case_payloads_survive_construction_and_calls_in_both_engines() {
 #[test]
 fn an_empty_generic_result_cannot_discard_its_owned_argument() {
     let source =
-        include_str!("../../../tests/fixtures/fail/ownership/generic_case_payloads/main.omg");
+        include_str!("fixtures/ownership/fail/generic_case_payloads/main.omg");
     let declaration = source.find("machine observe<T>").unwrap();
     let result = declaration + source[declaration..].find("{ Outcome::Missing }").unwrap() + 2;
     let expected_span = format!("bytes {}..{}:", result, result + "Outcome::Missing".len());

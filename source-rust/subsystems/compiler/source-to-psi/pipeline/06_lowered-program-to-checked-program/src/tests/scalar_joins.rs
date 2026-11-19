@@ -4,7 +4,7 @@ use super::build_purpose::judge_build;
 use super::*;
 
 const SOURCE: &str = include_str!(
-    "../../../../../../../../tests/fixtures/pass/contracts/contradictory_match_predecessor_join_exit/main.omg"
+    "../../../../../../../../tests/fixtures/contracts/pass/contradictory_match_predecessor_join_exit/main.omg"
 );
 
 #[test]

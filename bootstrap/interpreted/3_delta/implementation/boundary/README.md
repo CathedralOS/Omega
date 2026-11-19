@@ -332,7 +332,7 @@ expected type or producing an authored type/arity rejection. Negative row
 coordinates still assert. This adds no diagnostic code or coordinate convention.
 The ordinary phase outcome propagates the owned failure to the existing
 publisher before lowering or output. The
-[internal-boundary controls](../../../../../tests/delta/internal-boundary/README.md)
+[internal-boundary controls](../../../../../_recycling/tests/delta/internal-boundary/README.md)
 exercise actual dispatch and publication using synthetic retained frames;
 those frames are not claimed to arise from admitted Delta source.
 
@@ -435,7 +435,7 @@ by the emission audit's injective `(origin, ancestor cut)` charge at
 `sum(T) <= 32*N + 512*N*N`. A bound covering every admitted composition remains
 owed: this envelope exceeds the arena from `N = 238`. The
 [measured worst-shape
-study](../../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+study](../../../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 projects 417,063,339 pairs at full admitted extents — 8.2× under the
 3,422,453,760-pair arena. That supports the provision but is not a proof that
 no admitted source can exhaust it. Under the retired 40,265,318-pair profile, the
@@ -497,7 +497,7 @@ inside the 4-MiB request extent and the 1,024 expression-depth profile.
 
 Run through canonical DCREQ profile 1 on macOS arm64 under the unchanged
 selected evaluator tape and the packed closure pinned in
-`tests/delta/resource-boundary/compiler.tsv`, compilation ended in 650.7
+`bootstrap/interpreted/tests/delta/resource-boundary/compiler.tsv`, compilation ended in 650.7
 seconds with status 2, empty stderr, and only the 40-byte DCOUT frame:
 `Incomplete` resource 7, Delta-source coordinate 76,595, limit 114,294,752,
 requested 114,294,760. The coordinate is the atom start of the constructor's
@@ -524,7 +524,7 @@ ends in the same ledger at the constructor's 19,147th field-type atom
 payload extent). No admitted-source family therefore reaches a post-frontend
 allocation boundary; post-frontend pair consumption is covered by the
 [measured worst-shape
-study](../../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+study](../../../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 (417,063,339 projected pairs, 8.2× under the 3,422,453,760-pair arena), which
 counts the instrumented evaluator's pair stores across the whole producer —
 post-frontend phases included. A stress refusal at a post-frontend allocation
@@ -571,7 +571,7 @@ are dispositioned rather than open: the local-slot, label, and fixup rows have
 no producer-side request and acquire no invented refusal, internal code 3's
 label/fixup contradiction has no producer in this representation, and internal
 codes 1 and 2 have canonical producers exercised by the
-[internal-boundary gate](../../../../../tests/delta/internal-boundary/README.md).
+[internal-boundary gate](../../../../../_recycling/tests/delta/internal-boundary/README.md).
 Lowering constructs a complete expanded
 Gamma plan before publication, and records the height of every generated
 expression. A separate normalizer extracts over-height fragments under the

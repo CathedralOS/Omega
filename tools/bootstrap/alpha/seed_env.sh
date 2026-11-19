@@ -30,7 +30,7 @@ ALPHA_SEED_X64_LINUX_SHA256=39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced27
 # Each container's stamping hole file offset, recorded beside the bound
 # identities so non-host gates can address every container. The hole is the
 # raw extent of the container's tape section (`.tape` in the PE32+ and the
-# ELF64, `__tape` in the Mach-O); tests/alpha/container.sh pins that equality,
+# ELF64, `__tape` in the Mach-O); bootstrap/interpreted/tests/alpha/container.sh pins that equality,
 # so a rebuilt or re-signed container that moved the section is refused here
 # rather than stamped into the wrong bytes.
 ALPHA_SEED_ARM64_MACOS_HOLE_OFF=32768
@@ -80,7 +80,7 @@ esac
 # (132), but every other sign-bit-set code — including a halt whose register
 # sign-extends into the DWORD — observes as 127, hiding the authored low byte.
 # Seed-executing gates that pin byte-level exit expectations take the native
-# subprocess route (tests/alpha/native_exit.py) when this is 1 instead of
+# subprocess route (bootstrap/interpreted/tests/alpha/native_exit.py) when this is 1 instead of
 # reading $? directly.
 ALPHA_SEED_EXIT_COLLAPSED=0
 case "$(uname -s)" in

@@ -4,7 +4,7 @@ End-to-end CLI checks for advisory unreachable-branch warnings (`omega --check`)
 
 An unreachable-branch warning is advisory: it is printed to `stderr` while compilation
 still succeeds (`exit 0`). We run `omega --check` on the contract fixtures under
-`tests/fixtures/pass/contracts/` and count the `warning: unreachable branch:` lines:
+the CLI and shared `tests/fixtures/contracts/pass/` directories and count the `warning: unreachable branch:` lines:
 - A transition or match arm that contradicts its machine's `requires` clause
   warns once.
 - A contradiction inside a generic machine warns once for the authored machine
@@ -24,7 +24,6 @@ const WARNING: &str = "warning: unreachable branch:";
 
 fn fixture(name: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures/pass/contracts")
         .join(name)
 }
 
@@ -63,9 +62,9 @@ fn assert_one_warning(name: &str, fragments: &[&str]) {
 #[test]
 fn a_transition_arm_contradicting_the_entry_requirement_warns() {
     for name in [
-        "contradictory_branch_closes_obligation_exit",
-        "contradictory_branch_call_admission_exit",
-        "contradictory_branch_result_guarantee_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/contradictory_branch_closes_obligation_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/contradictory_branch_call_admission_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/contradictory_branch_result_guarantee_exit",
     ] {
         assert_one_warning(
             name,
@@ -80,7 +79,7 @@ fn a_transition_arm_contradicting_the_entry_requirement_warns() {
 #[test]
 fn a_relational_contradiction_names_both_values() {
     assert_one_warning(
-        "contradictory_relational_branch_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/contradictory_relational_branch_exit",
         &["the `true` arm of a transition", "low <= high"],
     );
 }
@@ -88,7 +87,7 @@ fn a_relational_contradiction_names_both_values() {
 #[test]
 fn a_match_arm_contradicting_the_entry_requirement_warns() {
     assert_one_warning(
-        "contradictory_boolean_match_arm_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/contradictory_boolean_match_arm_exit",
         &["the `false` arm of a match", "count >= 10"],
     );
 }
@@ -100,7 +99,7 @@ fn a_match_arm_contradicting_the_entry_requirement_warns() {
 #[test]
 fn a_match_arm_ruled_out_before_a_join_warns() {
     assert_one_warning(
-        "contradictory_match_predecessor_join_exit",
+        "tests/fixtures/contracts/pass/contradictory_match_predecessor_join_exit",
         &["the `true` arm of a match", "count >= 10"],
     );
 }
@@ -108,7 +107,7 @@ fn a_match_arm_ruled_out_before_a_join_warns() {
 #[test]
 fn a_generic_contradiction_warns_once_for_the_authored_machine() {
     assert_one_warning(
-        "generic_branch_contract_contradiction_exit",
+        "tests/fixtures/contracts/pass/generic_branch_contract_contradiction_exit",
         &["machine `pick` state `entry`"],
     );
 }
@@ -116,8 +115,8 @@ fn a_generic_contradiction_warns_once_for_the_authored_machine() {
 #[test]
 fn specialization_and_consistent_branches_stay_quiet() {
     for name in [
-        "specialized_branch_selection_quiet_exit",
-        "consistent_branches_quiet_exit",
+        "tests/fixtures/contracts/pass/specialized_branch_selection_quiet_exit",
+        "source-rust/application/tests/fixtures/contracts/pass/consistent_branches_quiet_exit",
     ] {
         assert_eq!(warnings(name), Vec::<String>::new(), "{name}");
     }
@@ -128,7 +127,7 @@ fn specialization_and_consistent_branches_stay_quiet() {
 /// a value `match`. A `_` arm some case reaches stays quiet.
 #[test]
 fn a_wildcard_after_every_declared_case_warns() {
-    let reported = warnings("dead_wildcard_arm_exit");
+    let reported = warnings("source-rust/application/tests/fixtures/contracts/pass/dead_wildcard_arm_exit");
     assert_eq!(reported.len(), 2, "{reported:?}");
     for (warning, machine) in reported.iter().zip(["`next`", "`weight`"]) {
         assert!(

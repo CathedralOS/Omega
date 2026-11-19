@@ -45,7 +45,7 @@ Windows execution is measured: the container reconstructs exactly and executes,
 and its divide/remainder handlers carry the same divisor pre-check as the other
 seeds — this host would deliver a hardware `#DE` as `0xC0000094`/`0xC0000095`,
 so both faulting divisor forms take the audited illegal-instruction routine
-instead. See [bounds conformance](../../../tests/alpha/README.md#bounds-conformance)
+instead. See [bounds conformance](../tests/alpha/README.md#bounds-conformance)
 for the measured record.
 
 The Linux x86-64 realization is a static ELF64 built from
@@ -63,7 +63,7 @@ and `INT64_MIN / -1` exactly as the arm64 seed does. The tape hole is the
 is `.data` at 0x402000 and text at 0x401000. Rebuild for provenance:
 `as --64 -o a.o alpha_x64_linux.s && ld -s -o alpha_x64_linux --build-id=none -e _start a.o`,
 then compare the committed bytes directly.
-`tests/bootstrap/alpha-beta-edge.sh` runs that clone-serialization check on
+`bootstrap/interpreted/tests/alpha-beta-edge.sh` runs that clone-serialization check on
 Linux x86-64 hosts wherever GNU `as`/`ld` are present.
 
 The extent is a startup allocation, so the
@@ -113,7 +113,7 @@ recipe above records: the retired container's ad-hoc signature no longer
 validated (it could never execute unmodified), and Darwin 27's dyld refuses
 images with no `LC_UUID` at all, which is why the shipped bytes now keep a
 zeroed-UUID load command.
-See [bounds conformance](../../../tests/alpha/README.md#bounds-conformance) for
+See [bounds conformance](../tests/alpha/README.md#bounds-conformance) for
 tested behavior, observation limits, and the measured Windows execution
 record. macOS execution and source rebuild are checked on a macOS host.
 
@@ -125,7 +125,7 @@ initially zero; host I/O writes its low four bytes, leaving the high half zero
 for the native word read. All storage fits the existing writable zeroed page.
 This corrects the former alias with registers 16–19 by relocating eleven
 address immediates (22 binary bytes), without adding instructions or capacity.
-The [register fixture](../../../tests/alpha/io-registers.hex) checks initial zero
+The [register fixture](../tests/alpha/io-registers.hex) checks initial zero
 values, full-word preservation, and direct I/O operands. On Windows it
 returns exit 0 with stdout `ABCDEF` for input `AB`, so the host's I/O
 scratch no longer aliases registers 16–19 at runtime either.
@@ -145,10 +145,10 @@ SEMANTICS.md             AlphaBootstrapV5 execution and tape semantics
 ```
 
 Host seed selection and tape stamping live under `tools/bootstrap/alpha/`.
-`tests/alpha/container.sh` validates all three containers' native structure and
+`bootstrap/interpreted/tests/alpha/container.sh` validates all three containers' native structure and
 the stamping-hole contract on any host. Conformance and the independent reference
-VM live under `tests/alpha/`.
-`tests/bootstrap/alpha-beta-edge.sh` checks behavior and optional native-source
+VM live under `bootstrap/interpreted/tests/alpha/`.
+`bootstrap/interpreted/tests/alpha-beta-edge.sh` checks behavior and optional native-source
 provenance.
 
 Trusted Beta lives under `bootstrap/interpreted/1_beta/`. Its readable compiler source

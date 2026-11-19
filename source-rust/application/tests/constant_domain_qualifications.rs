@@ -12,7 +12,6 @@ use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
     let project = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -30,7 +29,7 @@ fn run_both(fixture: &str) -> (bool, String) {
 
 #[test]
 fn a_constant_keeps_a_domain_anyone_may_issue_on_each_element() {
-    let (succeeded, report) = run_both("run/domains/constant_qualified_elements");
+    let (succeeded, report) = run_both("source-rust/application/tests/fixtures/domains/run/constant_qualified_elements");
     assert!(succeeded, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -39,7 +38,7 @@ fn a_constant_keeps_a_domain_anyone_may_issue_on_each_element() {
 
 #[test]
 fn a_constant_cannot_reissue_a_domain_its_plan_restricts() {
-    let (succeeded, report) = run_both("fail/domains/constant_issued_elements");
+    let (succeeded, report) = run_both("source-rust/application/tests/fixtures/domains/fail/constant_issued_elements");
     assert!(!succeeded, "{report}");
     assert!(
         report.contains(

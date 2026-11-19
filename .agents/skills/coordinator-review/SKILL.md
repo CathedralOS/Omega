@@ -10,7 +10,7 @@ Read the actual diff before merging, so a passing check does not hide a broken
 language guarantee or a weakened test. Authors run this checklist on their own
 changes; a coordinator can run it on any change it is worried about. Who owns
 the work follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), and
-how to publish follows [landing](../../../tools/docs/landing.md).
+how to publish follows [landing](../../../wiki/development/landing.md).
 
 ## 1. Who Lands
 

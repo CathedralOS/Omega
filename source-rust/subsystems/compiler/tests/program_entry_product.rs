@@ -190,7 +190,7 @@ fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_repor
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let root = fixture_package_inputs::repo_root().join(
-                "tests/fixtures/pass/build/native_row_outranks_scoped_implementations_exit/main.omg",
+                "source-rust/subsystems/compiler/tests/fixtures/build/pass/native_row_outranks_scoped_implementations_exit/main.omg",
             );
             let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
                 .unwrap_or_else(|errors| panic!("dynamic fixture discovery: {errors:#?}"));

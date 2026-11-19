@@ -757,7 +757,7 @@ The parent is `aa8030676ef29dd7506dbb2111e4f1ae57e81004`. The verified compiler 
 
 The pinned parent also passed Console `run --both` with native and interpreter exit 0. The candidate comparison used the scalar executable. The full workspace suite, saved-file route, other targets and provider-demand closure remain open. The cold candidate CLI build took 13m 22s with two jobs and 83 misses. Building the two targeted tests with the warm CLI dependencies took 5.17s. Their actual executions took 32.23s and 33.27s. The permanent test alone is the ongoing edit-loop check. Before the temporary-branch push, all-target Clippy passed for the four changed crates (`omega`, `terminal-psi`, `source-compiler`, and `portable-publication`) in 2m 31s with warnings denied.
 
-**Fixture selection.** The custody witness is `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg`, which explicitly binds the Linux entry. The parent also ran `samples/cli/basics/cli_mvp/main.omg`, which requests the standard library through Build. The ordinary executable comparison uses the same scalar fixture as the custody witness. A first attempt to use that Console sample through bare `orchestration::check_source` failed on the parent with `dependency requests require coordinator settlement before Product compilation`. The ordinary CLI runs package settlement. The regression test uses the standalone scalar fixture at the custody boundary.
+**Fixture selection.** The custody witness is `tests/fixtures/calls/run/scalar_contract_route_exit/main.omg`, which explicitly binds the Linux entry. The parent also ran `samples/cli/basics/cli_mvp/main.omg`, which requests the standard library through Build. The ordinary executable comparison uses the same scalar fixture as the custody witness. A first attempt to use that Console sample through bare `orchestration::check_source` failed on the parent with `dependency requests require coordinator settlement before Product compilation`. The ordinary CLI runs package settlement. The regression test uses the standalone scalar fixture at the custody boundary.
 
 **Review scope.** The serialized schema records a declaration ID and can record a package identity. That does not establish every custody variant, including `ToolchainContract`. The source issuer therefore records the authenticated outcome in the portable program held in memory. An absent source selection retains the parent refusal. The test exercises a substituted declaration. It does not demonstrate a saved-file positive. Omega's bridge still reads artifact, evidence and application presence from its source publication and keeps a weak owner identity for its cross-pairing check. Provider demand still reads source selections separately.
 
@@ -769,7 +769,7 @@ export CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_INCREMENTAL=0
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 mbx build --locked -p omega
 # OMEGA_BIN names the debug/omega produced by this build.
-"$OMEGA_BIN" --target linux_x86_64 --build-dir "$OUT/product" tests/fixtures/run/calls/scalar_contract_route_exit/main.omg
+"$OMEGA_BIN" --target linux_x86_64 --build-dir "$OUT/product" tests/fixtures/calls/run/scalar_contract_route_exit/main.omg
 "$OUT/product/omega-program"
 sha256sum "$OUT/product/omega-program"
 ```
@@ -790,7 +790,7 @@ fn observe_selected_entry() {
                 .ancestors()
                 .nth(3)
                 .unwrap()
-                .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg");
+                .join("tests/fixtures/calls/run/scalar_contract_route_exit/main.omg");
             let checked = orchestration::check_source(
                 &mut compiler::CompilationSession::default(),
                 compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
@@ -918,7 +918,7 @@ python3 tools/atlas/evidence/scripts/compare_pipeline_contracts.py aa8030676ef2 
 
 Each step has a result that closes it and a condition that stops the plan. Steps 1 and 2 change no directory names.
 
-**Size as proposed.** The two trees name 8 Psi stages and 14 Omega stages (two new, ten historical, objects and image). They replace one Psi stage crate and ten numbered Omega stage directories. Acceptance compares native fixtures per applicable target and source-only fixtures in their relevant source configurations. Before starting a step, write down how many crates it creates or moves and how many test programs and target builds it needs, and apply the [host build budget](https://github.com/CathedralOS/Omega/blob/aa8030676ef29dd7506dbb2111e4f1ae57e81004/tools/docs/build_slot.md).
+**Size as proposed.** The two trees name 8 Psi stages and 14 Omega stages (two new, ten historical, objects and image). They replace one Psi stage crate and ten numbered Omega stage directories. Acceptance compares native fixtures per applicable target and source-only fixtures in their relevant source configurations. Before starting a step, write down how many crates it creates or moves and how many test programs and target builds it needs, and apply the [host build budget](https://github.com/CathedralOS/Omega/blob/aa8030676ef29dd7506dbb2111e4f1ae57e81004/wiki/development/build_slot.md).
 
 | Step | Work | Closes when | Stop and return to the owner if |
 | --- | --- | --- | --- |
@@ -993,11 +993,11 @@ When an agent finds a recurrence, add the commit, caller or failing fixture to t
 
 The single implementation PR updates the following records where the merged behavior or ownership changes. Search for the old terms before landing.
 
-- [rulings.md](tools/atlas/rulings.md): record any newly adopted stage-ownership rulings with their dates and evidence. The integrated delivery and in-memory handoff are already recorded in this plan.
+- [rulings.md](_recycling/tools/atlas/rulings.md): record any newly adopted stage-ownership rulings with their dates and evidence. The integrated delivery and in-memory handoff are already recorded in this plan.
 - `tools/atlas/artifacts/diagrams.json`: add an entry for each of this page's four diagrams (claim, node kinds, edge labels).
-- [questions.md](tools/atlas/questions.md): close Q-C, Q-F and Q-G individually when their implementation proofs pass. Record the owning stages, positive and negative fixtures, and remaining exceptions.
-- [foundation-and-backend.md](tools/atlas/plans/foundation-and-backend.md): mark it historical. Its design history stays readable.
-- The [00–10 map](tools/atlas/artifacts/architecture.md) and the table in the atlas [README](tools/atlas/README.md). Register this Markdown source in the Atlas builder’s page list and rebuild with `python3 tools/atlas/build_pages.py`.
+- [questions.md](_recycling/tools/atlas/questions.md): close Q-C, Q-F and Q-G individually when their implementation proofs pass. Record the owning stages, positive and negative fixtures, and remaining exceptions.
+- [foundation-and-backend.md](_recycling/tools/atlas/plans/foundation-and-backend.md): mark it historical. Its design history stays readable.
+- The [00–10 map](_recycling/tools/atlas/artifacts/architecture.md) and the table in the atlas [README](_recycling/tools/atlas/README.md). Register this Markdown source in the Atlas builder’s page list and rebuild with `python3 tools/atlas/build_pages.py`.
 - Record any divergence between the final stage map and the existing root instructions in this plan for owner review. Keep the migration laws in this Markdown.
 - `omega-rust/pipeline.md` and `omega-rust/psi/compilation/pipeline/README.md`: every "stage 01" and `01_source-compilation` reference.
 - `TASKS.md`: **PIPELINE-ARCHITECTURE-ENFORCEMENT**, which names "the connected 00–10 route".

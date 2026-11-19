@@ -14,11 +14,11 @@ pub(crate) fn prepare_inputs(producer: &Path, destination: &Path) -> Result<(), 
     let fixtures = [
         (
             "scalar",
-            "tests/fixtures/run/calls/scalar_contract_route_exit",
+            "tests/fixtures/calls/run/scalar_contract_route_exit",
         ),
         (
             "borrowed",
-            "tests/fixtures/run/ownership/borrowed_root_replacement",
+            "tests/fixtures/ownership/run/borrowed_root_replacement",
         ),
     ];
     // Read every input before creating the output. The kept fixtures remain

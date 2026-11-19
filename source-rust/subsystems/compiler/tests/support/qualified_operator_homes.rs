@@ -33,7 +33,7 @@ impl Project {
             })
             .unwrap();
         let fixture = super::unbuilt_frontier::repository(
-            "tests/fixtures/run/operators/qualified_operator_home",
+            "source-rust/subsystems/compiler/tests/fixtures/operators/run/qualified_operator_home",
         );
         for file in FILES {
             let target = root.join(file);

@@ -314,7 +314,7 @@ fn a_formal_lent_exclusively_holds_what_the_callee_left() {
 // mistaken local rebind, so the caller traps unless it observes seven.
 const BORROWED_REPLACEMENT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../../tests/fixtures/run/ownership/borrowed_root_replacement/main.omg"
+    "/../../../../../../tests/fixtures/ownership/run/borrowed_root_replacement/main.omg"
 ));
 
 fn borrowed_replacement_source() -> String {

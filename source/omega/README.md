@@ -78,8 +78,8 @@ Alpha tape is written only when checking, lowering and emission all
 complete. A failure writes no tape and exits with a construction status:
 lexical 251, parsing 250, resolution 248, typing 249, checking 247,
 unsupported lowering or entry 246, capacity 252, malformed framing 253. These
-are not OCOUT tags. The separate [request gate](../../tests/product/request/test-request.sh)
-tests OCREQ framing; the [Alpha execution cases](../../tests/product/alpha/README.md)
+are not OCOUT tags. The separate [request gate](../../_recycling/tests/product/request/test-request.sh)
+tests OCREQ framing; the [Alpha execution cases](../../_recycling/tests/product/alpha/README.md)
 call the real construction application and compilation library.
 
 Remaining work is on [TASKS.md](../../TASKS.md) and

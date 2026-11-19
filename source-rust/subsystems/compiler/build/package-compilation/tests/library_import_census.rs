@@ -3,7 +3,7 @@
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
 // requester-local aliases (`omega_language_std`, `alloc`). Fail-tier fixtures
-// (`tests/fixtures/fail`) and standalone roots without `build.omg` are excluded
+// (under a feature’s `fail/` directory) and standalone roots without `build.omg` are excluded
 // from missing-edge assertions because their rejection is tested by the
 // compiler itself.
 
@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const SCAN_ROOTS: &[&str] = &["tests", "samples", "source", "bootstrap"];
-const SKIPPED_DIRS: &[&str] = &["target", "build", ".git", "node_modules"];
+const SKIPPED_DIRS: &[&str] = &["target", ".git", "node_modules"];
 const MOUNTED_LIBRARIES: &[&str] = &["std", "alloc"];
 
 fn repo_root() -> PathBuf {
@@ -31,9 +31,11 @@ fn collect_omega_files(root: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            if SKIPPED_DIRS
-                .iter()
-                .any(|name| path.file_name().map(|file| file == *name).unwrap_or(false))
+            if (path.ends_with("build")
+                && (root.join("build.omg").is_file() || root.ends_with("samples")))
+                || SKIPPED_DIRS
+                    .iter()
+                    .any(|name| path.file_name().map(|file| file == *name).unwrap_or(false))
             {
                 continue;
             }
@@ -153,6 +155,15 @@ fn library_imports_ride_declared_edges_not_the_mount() {
     for root in SCAN_ROOTS {
         collect_omega_files(&repo.join(root), &mut sources);
     }
+    for owner in ["source-rust", "tools"] {
+        let mut local_sources = Vec::new();
+        collect_omega_files(&repo.join(owner), &mut local_sources);
+        sources.extend(
+            local_sources
+                .into_iter()
+                .filter(|file| file.ancestors().any(|dir| dir.ends_with("tests/fixtures"))),
+        );
+    }
     sources.sort();
 
     let mut mount_path_offenders = Vec::new();
@@ -163,7 +174,12 @@ fn library_imports_ride_declared_edges_not_the_mount() {
         let Ok(text) = fs::read_to_string(source) else {
             continue;
         };
-        let fail_tier = source.starts_with(repo.join("tests/fixtures/fail"));
+        let fail_tier = source.ancestors().any(|dir| {
+            dir.ends_with("fail")
+                && dir
+                    .ancestors()
+                    .any(|parent| parent.ends_with("tests/fixtures"))
+        });
         for (head, is_mount) in imports_of(&text) {
             if is_mount && MOUNTED_LIBRARIES.contains(&head.as_str()) {
                 let self_dir = repo.join("source/library").join(&head);

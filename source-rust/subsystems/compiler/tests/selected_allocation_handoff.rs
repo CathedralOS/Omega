@@ -23,8 +23,8 @@ use target::TargetProfile;
 // Compilations share process-wide phase counters; run them one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-const LOW_PRESSURE: &str = "tests/fixtures/run/optimizer/selected_allocation_low_pressure_exit";
-const HIGH_PRESSURE: &str = "tests/fixtures/run/optimizer/selected_allocation_high_pressure_exit";
+const LOW_PRESSURE: &str = "source-rust/subsystems/compiler/tests/fixtures/optimizer/run/selected_allocation_low_pressure_exit";
+const HIGH_PRESSURE: &str = "source-rust/subsystems/compiler/tests/fixtures/optimizer/run/selected_allocation_high_pressure_exit";
 
 const SELECTED_LOWERING: &str = "SelectedIncomingWrappingAddZeroIdentityCopy";
 const PRE_ALLOCATION: &str = "SelectedSameBlockCopyI64RemovalV1";

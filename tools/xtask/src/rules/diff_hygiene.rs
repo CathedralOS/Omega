@@ -35,7 +35,7 @@ pub(super) fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String>
         }
         if path.starts_with(RETIRED_CORPUS_ROOT) {
             violations.push(format!(
-                "{path}: {RETIRED_CORPUS_ROOT} is retired and nothing runs it (tests/README.md); keep a program a test needs beside that test, under {KEPT_FIXTURES_ROOT}"
+                "{path}: {RETIRED_CORPUS_ROOT} is retired and nothing runs it (tests/README.md); keep a program a test needs beside that test, under its crate’s {KEPT_FIXTURES_ROOT}"
             ));
         } else if path.ends_with(".omg") {
             if path.starts_with(FACTS_ROOT) {

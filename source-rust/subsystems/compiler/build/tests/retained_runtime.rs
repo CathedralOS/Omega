@@ -12,7 +12,7 @@ use terminal_runtime::{
 #[test]
 fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let bytes = include_bytes!(
-        "../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/linux_x86_64.psi"
+        "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
     );
     let artifact = Arc::new(CanonicalTerminalArtifact::from_bytes(bytes).unwrap());
     let profile = target::TargetProfile::LinuxX64;

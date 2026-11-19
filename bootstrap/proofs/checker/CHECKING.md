@@ -98,7 +98,7 @@ encoding certificate; these generic tests do not complete P1.
 
 ## Rule census on the complete certificate
 
-`tests/gamma/beta-encoding-theory/run.sh --full-subject` reproduces the
+`bootstrap/proofs/tests/beta-encoding-theory/run.sh --full-subject` reproduces the
 complete derivation on any python3 host and counts each rule's emitted rows.
 Measured census: 1,018,733 unfolding, 1,157,751 transitivity, 936,662
 congruence, 69,828 reflexivity, and 0 symmetry rows; maximum premise depth 204
@@ -134,7 +134,7 @@ evaluator frame for the pinned checker source and four-byte source length. The
 canonical closure and diagnostic compositions are measured by their
 manifests/pins; the whole artifact owner must retain its exact entry
 composition and verify this framing requirement.
-The [checking diagnostic](../../../tests/gamma/derivation-checking/source.tsv)
+The [checking diagnostic](../../../_recycling/tests/gamma/derivation-checking/source.tsv)
 is 1,391 lines and 63,512 bytes; an exact-limit checker input yields
 `4 + 63,512 + 136,314,880 = 136,382,496` framed bytes.
 
@@ -221,7 +221,7 @@ and refused the recorded request at admission and at session reservation.
 
 Recorded consequences of the larger extents: the exact/adjacent pair
 boundary is no longer executable in gate time, so
-`tests/gamma/heap-boundary` and `tests/epsilon/pair-boundary` now witness
+`bootstrap/proofs/tests/heap-boundary` and `bootstrap/interpreted/tests/epsilon/pair-boundary` now witness
 the retired-V4-arena crossing and keep the refusal fixture pinned for
 opt-in execution; the function census's 2,097,152-row physical table is
 reachable in principle within the request frame, so the count preflight is

@@ -17,7 +17,7 @@ use source_compiler::source_state::domain::{AccessPlanJudgment, CheckedIssuance,
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    fixture_repository::root().join("tests/fixtures")
+    fixture_repository::root()
         .join(name)
         .join("main.omg")
 }
@@ -52,7 +52,7 @@ fn typed_frontier_of(
 
 #[test]
 fn a_domain_carries_the_policy_its_access_clause_selects() {
-    let typed = &typed_frontier("pass/domains/access_policy_selected")
+    let typed = &typed_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/pass/access_policy_selected")
         .unwrap_or_else(|diagnostics| panic!("Psi 00 through 04 must complete: {diagnostics:?}"));
     let domain = |name: &str| {
         typed
@@ -98,7 +98,7 @@ fn a_domain_carries_the_policy_its_access_clause_selects() {
 /// Policy application judgment stays deferred on the domain until demanded.
 #[test]
 fn a_policy_applied_at_static_arguments_is_deferred_on_its_domain() {
-    let typed = &typed_frontier("pass/domains/access_policy_applied")
+    let typed = &typed_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/pass/access_policy_applied")
         .unwrap_or_else(|diagnostics| panic!("Psi 00 through 04 must complete: {diagnostics:?}"));
     let controlled = typed
         .domain_definitions
@@ -192,7 +192,7 @@ fn a_policy_applied_at_static_arguments_is_deferred_on_its_domain() {
 /// declaration. Keeping it must not create an invalid dependency.
 #[test]
 fn a_numeric_policy_argument_keeps_its_value_without_a_declaration_dependency() {
-    let typed = &typed_frontier("pass/domains/access_policy_applied")
+    let typed = &typed_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/pass/access_policy_applied")
         .unwrap_or_else(|diagnostics| panic!("Psi 00 through 04 must complete: {diagnostics:?}"));
     let counted = typed
         .domain_definitions
@@ -295,7 +295,7 @@ machine main() { }
 
 #[test]
 fn an_access_policy_that_names_no_implementation_is_refused() {
-    let Err(diagnostics) = typed_frontier("fail/domains/access_policy_unresolved") else {
+    let Err(diagnostics) = typed_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/fail/access_policy_unresolved") else {
         panic!("a policy declared nowhere stops name resolution");
     };
     assert!(
@@ -309,7 +309,7 @@ fn an_access_policy_that_names_no_implementation_is_refused() {
 /// Result promises demand the selected plans just like displayed qualifications.
 #[test]
 fn result_membership_promises_demand_their_access_plans() {
-    let typed = typed_frontier("run/domains/normal_result_membership")
+    let typed = typed_frontier("tests/fixtures/domains/run/normal_result_membership")
         .unwrap_or_else(|diagnostics| panic!("typed preparation must complete: {diagnostics:?}"));
     let expected = [
         "Ticket::Stamped",

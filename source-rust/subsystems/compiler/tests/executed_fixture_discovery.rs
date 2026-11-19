@@ -13,7 +13,7 @@ static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn reviewed_fixture_discovers_an_empty_dangerous_service_roster() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root()
-        .join("tests/fixtures/pass/facts/compound_index_guard_through_call_result_exit/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/facts/pass/compound_index_guard_through_call_result_exit/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("kept index-guard Build");
     let mut prepared = review_fixture(
         discovered,
@@ -97,7 +97,7 @@ fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
 #[test]
 fn native_project_build_publishes_the_reached_boundary_calling_application() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+    let root = repo_root().join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
     let profile = TargetProfile::host();
     // The ordinary source-checking API captures the source, executes its
     // local Build and completes the accepted publication in one session.
@@ -156,7 +156,7 @@ fn native_project_build_publishes_the_reached_boundary_calling_application() {
 fn native_fixture_admission_does_not_upgrade_a_package_check() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root()
-        .join("tests/fixtures/pass/build/explicit_provider_readiness_exit/backing/main.omg");
+        .join("tests/fixtures/build/pass/explicit_provider_readiness_exit/backing/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("backing source");
     let product = CompilationProduct::Native(products::NativeProductRequest {
         installation_assumptions: Vec::new(),
@@ -184,7 +184,7 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
 fn executed_bindings_select_targets_and_retained_legs_keep_separate_staging() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root =
-        repo_root().join("tests/fixtures/pass/build/explicit_provider_readiness_exit/main.omg");
+        repo_root().join("tests/fixtures/build/pass/explicit_provider_readiness_exit/main.omg");
     let first = discover_fixture(&root, Default::default()).expect("first Build");
     assert_eq!(
         first.targets,
@@ -221,7 +221,7 @@ fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let repository = repo_root();
     let root = repository
-        .join("tests/fixtures/pass/build/acquired_generator_completed_output_set/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/acquired_generator_completed_output_set/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("generator Build");
     let mut prepared = review_fixture(
         discovered,
@@ -256,7 +256,7 @@ fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
 #[test]
 fn target_audit_rejoins_compiled_foreign_operands() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let root = repo_root().join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+    let root = repo_root().join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
     let report = orchestration::compile_sources(
         &mut compiler::CompilationSession::default(),
         compiler::CompileRequest::new(compiler::CompileOptions {

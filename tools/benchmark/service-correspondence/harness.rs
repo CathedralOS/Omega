@@ -120,7 +120,7 @@ fn workloads() -> Vec<(String, String, &'static str)> {
         [console.find("public data ByteRead").unwrap()..console.find("// Text adapters").unwrap()];
     let mut rows = vec![
         ("one".into(), family(1, false), "Service"),
-        ("target_selected".into(), include_str!("../../../tests/fixtures/run/providers/target_selected_implementation/main.omg").into(), "TargetConstants"),
+        ("target_selected".into(), include_str!("../../../tests/fixtures/providers/run/target_selected_implementation/main.omg").into(), "TargetConstants"),
         ("console_declarations".into(), console.into(), "Console"),
     ];
     for methods in [16, 64] {

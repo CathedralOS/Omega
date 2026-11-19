@@ -6,7 +6,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 fn project(fixture: &str) -> TemporaryDirectory {
     let temporary = TemporaryDirectory::create("project-preparation", false).unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/pass")
+        .join("../../..")
         .join(fixture);
     for name in ["build.omg", "main.omg"] {
         std::fs::copy(fixture.join(name), temporary.path().join(name)).unwrap();
@@ -80,7 +80,7 @@ fn source_graph(preparation: &LocalProjectPreparation) -> ResolvedPackageSourceC
 
 #[test]
 fn beginning_preparation_does_not_project_dynamic_declarations() {
-    let temporary = project("build/executed_dependency_source_join_exit");
+    let temporary = project("tests/fixtures/build/pass/executed_dependency_source_join_exit");
     let pending = begin(temporary.path());
     let acquired = pending.acquire_root().unwrap();
     assert_eq!(
@@ -93,7 +93,7 @@ fn beginning_preparation_does_not_project_dynamic_declarations() {
 
 #[test]
 fn completion_keeps_the_declared_source_identity() {
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let pending = begin(temporary.path());
     let graph = source_graph(&pending);
     let snapshot_entry = graph
@@ -117,7 +117,7 @@ fn completion_keeps_the_declared_source_identity() {
 
 #[test]
 fn invalid_deployment_policy_leaves_the_other_requested_target_available() {
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let mut pending = begin(temporary.path());
     let valid = pending.targets[0].profile;
     let refused = *TargetProfile::ALL
@@ -152,7 +152,7 @@ fn uncached_occurrence_requires_checked_project_evidence() {
         CandidateReview, CompileResolvedPackageReviewCause, review_resolved_packages,
     };
 
-    let project_root = project("calls/machine_self_call_recursion_compile");
+    let project_root = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let acquisition = begin(project_root.path());
     let closure = source_graph(&acquisition);
     let profile = TargetProfile::host_if_supported().unwrap();
@@ -184,8 +184,8 @@ fn uncached_occurrence_requires_checked_project_evidence() {
 
 #[test]
 fn completion_refuses_another_projects_resolved_graph() {
-    let first = project("calls/machine_self_call_recursion_compile");
-    let second = project("calls/machine_self_call_recursion_compile");
+    let first = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
+    let second = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let first = begin(first.path());
     let second = begin(second.path());
     let closure = source_graph(&second);
@@ -199,7 +199,7 @@ fn completion_refuses_another_projects_resolved_graph() {
 #[test]
 fn preparation_retains_transaction_exclusion_and_pair_baseline() {
     for changed_file in ["build.omg", "omega.lock"] {
-        let temporary = project("calls/machine_self_call_recursion_compile");
+        let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
         drop(
             PackageFileTransaction::open(temporary.path(), PackagePublicationLimits::default())
                 .unwrap(),
@@ -231,7 +231,7 @@ fn preparation_retains_transaction_exclusion_and_pair_baseline() {
 
 #[test]
 fn invalid_lock_refuses_before_storage_or_source_acquisition() {
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     std::fs::write(temporary.path().join("omega.lock"), b"not an accepted lock").unwrap();
     let result = begin_local_project_preparation_in_storage(
         &temporary.path().join("main.omg"),
@@ -245,7 +245,7 @@ fn invalid_lock_refuses_before_storage_or_source_acquisition() {
 #[test]
 fn build_reuse_refuses_both_widening_and_narrowing_the_captured_authority() {
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     std::fs::write(temporary.path().join("other.omg"), "const OTHER: u32 = 1;").unwrap();
     let pending = begin(temporary.path());
     let selected = SourceCaptureRequest::new([
@@ -277,7 +277,7 @@ fn build_reuse_refuses_both_widening_and_narrowing_the_captured_authority() {
 #[test]
 fn build_reuse_preserves_optional_request_authority_even_with_equal_captured_bytes() {
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let pending = begin(temporary.path());
     let required = [
         (b"main.omg".to_vec(), Obligation::Required),
@@ -305,7 +305,7 @@ fn build_reuse_preserves_optional_request_authority_even_with_equal_captured_byt
 #[test]
 fn selected_project_preparation_requires_its_actual_compilation_entry() {
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let pending = begin(temporary.path());
     let only_build =
         SourceCaptureRequest::new([(b"build.omg".to_vec(), Obligation::Required)]).unwrap();
@@ -317,7 +317,7 @@ fn selected_project_preparation_requires_its_actual_compilation_entry() {
 fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage() {
     use crate::declarations::dependencies::edit::BuildFileReplacement;
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     std::fs::write(
         temporary.path().join("unselected.omg"),
         "const OTHER: u32 = 1;",
@@ -376,7 +376,7 @@ fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage()
 fn selected_project_and_inspection_cannot_omit_the_preflight_observed_build() {
     use crate::review::{PackageInspectionOptions, PackageInspectionTransaction};
     use source_acquisition::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
-    let temporary = project("calls/machine_self_call_recursion_compile");
+    let temporary = project("tests/fixtures/calls/pass/machine_self_call_recursion_compile");
     let only_main =
         SourceCaptureRequest::new([(b"main.omg".to_vec(), Obligation::Required)]).unwrap();
     let pending = begin(temporary.path());

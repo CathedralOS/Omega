@@ -1427,7 +1427,7 @@ ensures result <= 21
 In the tests `Double::apply` publishes the requirement's own contract and
 returns `value + value`, and `Shift::apply` asks less and promises more
 (`requires value <= 12 ensures result <= 17`) and returns `value + 5`. The
-fixture (`tests/fixtures/run/generics/implementation_parameter_contract`)
+fixture (`tests/fixtures/generics/run/implementation_parameter_contract`)
 selects `Shift` and `Hold`, which returns `value` and promises
 `result <= 10`, so both of its uses satisfy a bound the requirement does not
 give.
@@ -1487,7 +1487,7 @@ reach the prover, and the tests count prover starts.
 
 `compiler`'s example `generic_certificate_carry` runs the same three steps
 from source, on the typed trees of
-`tests/fixtures/run/generics/implementation_parameter_contract` and its fail
+`tests/fixtures/generics/run/implementation_parameter_contract` and its fail
 twin. The twin differs only in the bound `advance` promises, `result <= 18`:
 a search over each of its two specializations alone proves that bound, and
 the generic check refuses it.
@@ -1558,7 +1558,7 @@ use, not once for every value.
 | `a_body_that_reads_the_parameter_as_an_operand_is_not_carried` | the limit below |
 
 `compiler`'s test `lowered_route_generics` runs the three steps from source
-on `tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit`, where
+on `source-rust/subsystems/compiler/tests/fixtures/facts/pass/lexical_generic_bound_through_local_exit`, where
 `Selected::value<const Units: u64>` is a trait member called as
 `Implementation::value::<7>(7)`, and on its fail twin, which differs only in
 the requirement's contract (`requires true`): the member then asks `input <=

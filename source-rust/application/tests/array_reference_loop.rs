@@ -7,7 +7,6 @@ use std::process::{Command, Stdio};
 
 fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
     let project = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(arguments)
@@ -41,7 +40,7 @@ fn observe(fixture: &str, arguments: &[&str]) -> (bool, String) {
 #[test]
 fn a_loop_keeps_the_selected_shape_in_native_and_psi_execution() {
     let (success, report) = observe(
-        "run/references/array_reference_loop",
+        "source-rust/application/tests/fixtures/references/run/array_reference_loop",
         &["run", "--both", "main.omg"],
     );
     assert!(success, "{report}");
@@ -52,10 +51,9 @@ fn a_loop_keeps_the_selected_shape_in_native_and_psi_execution() {
 
 #[test]
 fn a_new_borrow_does_not_choose_an_arbitrary_incoming_parent() {
-    let fixture = "fail/references/array_reference_loop_mutable_from_shared";
+    let fixture = "source-rust/application/tests/fixtures/references/fail/array_reference_loop_mutable_from_shared";
     let expected = std::fs::read_to_string(
         support::repository_root()
-            .join("tests/fixtures")
             .join(fixture)
             .join("expected.txt"),
     )

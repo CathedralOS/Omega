@@ -111,7 +111,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .iter()
         .map(|n| directory.join(n))
         .find(|p| p.is_file());
-    // A program under a `fail/` folder (`tests/fixtures/fail/`) pins the
+    // A program under a `fail/` folder within its fixture group pins the
     // rejection it exists to produce, as a negative twin does.
     let is_negative = matches!(dir_name, "invalid" | "intended_invalid" | "out_of_bounds")
         || dir_name.starts_with("invalid_")

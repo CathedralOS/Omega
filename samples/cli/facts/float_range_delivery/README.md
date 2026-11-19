@@ -9,8 +9,8 @@ The current [LOWERED-FORM-CHECKER](../../../../TASKS.md) qualification covers
 [`local/main.omg`](local/main.omg), unchanged, on `macos_arm64`: source
 `2daea63892d` runs with exit 0 in both Psi and native execution. Its narrower
 stored range survives the local read and proves `admit`'s wider input bound.
-The [retained positive](../../../../tests/fixtures/run/float/range_delivery/main.omg)
-and [negative](../../../../tests/fixtures/fail/float/range_delivery/main.omg)
+The [retained positive](../../../../source-rust/subsystems/compiler/tests/fixtures/float/run/range_delivery/main.omg)
+and [negative](../../../../source-rust/subsystems/compiler/tests/fixtures/float/fail/range_delivery/main.omg)
 both give `probe` a complete `requires true` input contract; only the negative
 removes Reading's upper guarantee, and the checker rejects the call to `admit`
 for its missing `0.5` bound. The complete contract prevents `probe` from

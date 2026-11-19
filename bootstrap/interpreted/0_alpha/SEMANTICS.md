@@ -4,7 +4,7 @@
 > this document*: it is correct iff every opcode realizes the transition below.
 > The two committed seeds (x64 Windows PE, arm64 macOS Mach-O) are independent
 > implementations of exactly these rules;
-> [`tests/alpha/conformance.sh`](../../../tests/alpha/conformance.sh) is
+> [`bootstrap/interpreted/tests/alpha/conformance.sh`](../tests/alpha/conformance.sh) is
 > the executable companion (hand-built tapes that pin each rule, which any
 > faithful seed must pass).
 
@@ -177,7 +177,7 @@ alone do not establish complete conformance.
 
 ## 9. Conformance
 
-`tests/alpha/conformance.sh` runs hand-built bytecode tapes against the host's
+`bootstrap/interpreted/tests/alpha/conformance.sh` runs hand-built bytecode tapes against the host's
 seed and checks exit code and stdout. It pins in-bound rules, signed
 division/remainder, signed `jlt`, EOF, and arithmetic/unknown-opcode traps.
 The linked bounds cases exercise exact and adjacent fetch, operand, byte/word

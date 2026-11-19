@@ -23,7 +23,7 @@ fn typed_frontier(
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let main = fixture_repository::root().join("tests/fixtures")
+    let main = fixture_repository::root()
         .join(name)
         .join("main.omg");
     compiler::CompilationSession::default()
@@ -43,7 +43,7 @@ fn typed_frontier(
 
 #[test]
 fn each_entry_of_an_accounted_cast_carries_its_result_type() {
-    let typed = &typed_frontier("pass/domains/cast_accounting")
+    let typed = &typed_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/pass/cast_accounting")
         .unwrap_or_else(|diagnostics| panic!("Psi 00 through 04 must complete: {diagnostics:?}"));
     // Every accounted entry, as `entry => the type after it`. A domain the
     // operand's type wrote keeps that spelling; one the cast supplies is
@@ -140,7 +140,7 @@ fn rejected_with(name: &str, expected: &str) {
 #[test]
 fn an_attached_domain_the_cast_does_not_name_is_rejected() {
     rejected_with(
-        "fail/domains/cast_unaccounted_domain",
+        "source-rust/subsystems/compiler/tests/fixtures/domains/fail/cast_unaccounted_domain",
         "domain cast leaves attached domain `Positive` unaccounted for",
     );
 }
@@ -148,7 +148,7 @@ fn an_attached_domain_the_cast_does_not_name_is_rejected() {
 #[test]
 fn adding_a_domain_the_operand_already_carries_is_rejected() {
     rejected_with(
-        "fail/domains/cast_adds_carried_domain",
+        "source-rust/subsystems/compiler/tests/fixtures/domains/fail/cast_adds_carried_domain",
         "cast entry `+Km` adds domain `Km`, but the operand's type `i32[in Km, in Positive]` already carries `Km`",
     );
 }
@@ -156,7 +156,7 @@ fn adding_a_domain_the_operand_already_carries_is_rejected() {
 #[test]
 fn a_child_kept_without_its_parent_is_rejected() {
     rejected_with(
-        "fail/domains/cast_orphans_child",
+        "source-rust/subsystems/compiler/tests/fixtures/domains/fail/cast_orphans_child",
         "domain cast would leave `Positive::Small` without its parent `Positive`",
     );
 }
@@ -164,7 +164,7 @@ fn a_child_kept_without_its_parent_is_rejected() {
 #[test]
 fn removing_a_domain_the_operand_lacks_is_rejected() {
     rejected_with(
-        "fail/domains/cast_removes_absent_domain",
+        "source-rust/subsystems/compiler/tests/fixtures/domains/fail/cast_removes_absent_domain",
         "cast entry `-Km` names domain `Km`, but the operand's type `i32` does not carry `Km`",
     );
 }
@@ -172,7 +172,7 @@ fn removing_a_domain_the_operand_lacks_is_rejected() {
 #[test]
 fn a_carrier_cast_of_a_qualified_operand_is_rejected() {
     rejected_with(
-        "fail/domains/cast_carrier_of_qualified",
+        "source-rust/subsystems/compiler/tests/fixtures/domains/fail/cast_carrier_of_qualified",
         "carrier cast `as i64` converts a value whose type `i32[in Km]` carries domain `Km`",
     );
 }

@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn fixture(path: &str) -> PathBuf {
-    support::repository_root().join("tests/fixtures").join(path)
+    support::repository_root().join(path)
 }
 
 fn run_both(project: &Path) -> (Output, String) {
@@ -31,7 +31,7 @@ fn run_both(project: &Path) -> (Output, String) {
 
 #[test]
 fn layout_queries_observe_the_selected_c_layout_in_native_and_psi() {
-    let project = fixture("run/layouts/c_layout_size_alignment_query");
+    let project = fixture("source-rust/application/tests/fixtures/layouts/run/c_layout_size_alignment_query");
     let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
     let (output, report) = run_both(&project);
     assert!(output.status.success(), "{report}");
@@ -46,7 +46,7 @@ fn layout_queries_observe_the_selected_c_layout_in_native_and_psi() {
 
 #[test]
 fn a_layout_query_of_a_record_the_policy_cannot_lay_out_is_refused() {
-    let project = fixture("fail/layouts/c_layout_unsupported_size_query");
+    let project = fixture("source-rust/application/tests/fixtures/layouts/fail/c_layout_unsupported_size_query");
     let (output, report) = run_both(&project);
     assert!(!output.status.success(), "{report}");
     assert!(

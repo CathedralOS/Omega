@@ -50,7 +50,7 @@ impl Package {
                 add(
                     "pkg/main.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/pass/effects/optional_reach_declared_slack_exit/main.omg"
+                        "../../../../../../../tests/fixtures/effects/pass/optional_reach_declared_slack_exit/main.omg"
                     ),
                 )?;
             }
@@ -71,13 +71,13 @@ impl Package {
                 let kit = add(
                     "pkg/kit/kit.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/kit/kit.omg"
+                        "../tests/fixtures/calls/pass/ordinary_family_binding/kit/kit.omg"
                     ),
                 )?;
                 let main = add(
                     "pkg/main.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/pass/calls/ordinary_family_binding/main.omg"
+                        "../tests/fixtures/calls/pass/ordinary_family_binding/main.omg"
                     ),
                 )?;
                 imports.push(SourceScopedTopLevelBinding::logical_module_import(
@@ -91,7 +91,7 @@ impl Package {
                 add(
                     "pkg/main.omg",
                     include_str!(
-                        "../../../../../../../tests/fixtures/run/generics/nominal_const_extent/main.omg"
+                        "../../../../../../../tests/fixtures/generics/run/nominal_const_extent/main.omg"
                     ),
                 )?;
             }

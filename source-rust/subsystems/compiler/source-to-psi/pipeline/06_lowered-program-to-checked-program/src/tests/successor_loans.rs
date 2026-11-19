@@ -658,7 +658,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     };
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/ranked_slice_iteration/main.omg"
     ));
     let typed = crate::prepare_fixture(super::rankings::typed_with_ranking_catalog(program));
     let checksum = typed

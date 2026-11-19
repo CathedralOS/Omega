@@ -17,7 +17,7 @@ use target::TargetProfile;
 fn authored_build_returns_its_application_and_target_bindings() {
     configure_library();
     let fixture = fixture_repository::root()
-        .join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+        .join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
     let project = begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true)
         .unwrap()
         .unwrap();
@@ -270,7 +270,7 @@ fn dependent_continuation_runs_after_its_package_was_prepared() {
 
     configure_library();
     let path = fixture_repository::root().join(
-        "tests/fixtures/fail/build/product_entry_query_foreign_helper_private_entry/main.omg",
+        "tests/fixtures/build/fail/product_entry_query_foreign_helper_private_entry/main.omg",
     );
     let project = begin_local_project_preparation(&path, &[TargetProfile::LinuxX64], true)
         .unwrap()
@@ -332,7 +332,7 @@ fn authored_queries_describe_the_deferred_product_before_build_returns() {
 
     configure_library();
     let fixture = fixture_repository::root()
-        .join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");
+        .join("tests/fixtures/build/pass/product_description_paths_exit/main.omg");
     let project = begin_local_project_preparation(&fixture, &[TargetProfile::LinuxX64], true)
         .unwrap()
         .unwrap();

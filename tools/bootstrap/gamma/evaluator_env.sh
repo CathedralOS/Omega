@@ -11,7 +11,7 @@
 
 # Bound Beta-to-Gamma edge subject. These are the same identities pinned by
 # bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md ("The selected implementation is"),
-# repeated in tests/gamma/heap-boundary/evaluator.tsv and required by
+# repeated in bootstrap/proofs/tests/heap-boundary/evaluator.tsv and required by
 # bootstrap/interpreted/3_delta/delta_compiler.composed. A digest here is an identity
 # check that the bytes being stamped are the selected evaluator; it is not a
 # proof that the evaluator implements Gamma. Changing the source or tape

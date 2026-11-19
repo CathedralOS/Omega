@@ -224,7 +224,7 @@ the
 `omega --version` reports the compiler version, source commit (when the
 packager supplies it) and Rust host target. Release bundles carry their
 library beside the executable; Cargo development builds fall back to the
-checkout. See [release packaging](../../tools/release/README.md#build-a-relocatable-bundle)
+checkout. See [release packaging](../../_recycling/tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection and relocation tests.
 
 `omega psi inspect --artifact <file>` reads an existing portable Psi artifact

@@ -1,6 +1,6 @@
 # Antigravity Cloud Swarm (`exebox` VM)
 
-This guide covers coordinating concurrent in-session subagents in an Antigravity Cloud Linux VM (`exebox` sandbox, `/home/antigravity/CathedralOS/Omega`). Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../tools/docs/landing.md).
+This guide covers coordinating concurrent in-session subagents in an Antigravity Cloud Linux VM (`exebox` sandbox, `/home/antigravity/CathedralOS/Omega`). Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../wiki/development/landing.md).
 
 ## 1. Subagent Invocation & Worktree Setup
 
@@ -19,4 +19,4 @@ This guide covers coordinating concurrent in-session subagents in an Antigravity
 
 The observed `exebox` container lacked a local `rustc`/`cargo` toolchain and mapped `/home` and `/tmp` to UID `65534` (`nobody:nogroup`) under its user namespace. Omega's cache-ancestry ownership verification (`verify_cache_ancestry`) refused execution there. Verify the current executor through [cloud launch preflight](cloud-launch.md); do not assume those historical limits still apply.
 
-For the focused checks required by [testing](../../../../tools/docs/testing.md), use an authorized executor that has the pinned toolchain and passes the cache ownership checks. If this executor cannot provide them, report the exact limitation and preserve the source and evidence while continuing feasible work. Admission does not replace behavioral validation. Follow the current landing route once the assigned validation is complete; the retired hosted compiler-pilot workflow supplies no acceptance evidence.
+For the focused checks required by [testing](../../../../wiki/development/testing.md), use an authorized executor that has the pinned toolchain and passes the cache ownership checks. If this executor cannot provide them, report the exact limitation and preserve the source and evidence while continuing feasible work. Admission does not replace behavioral validation. Follow the current landing route once the assigned validation is complete; the retired hosted compiler-pilot workflow supplies no acceptance evidence.

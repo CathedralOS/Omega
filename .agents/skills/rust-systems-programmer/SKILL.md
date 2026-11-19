@@ -64,7 +64,7 @@ logged exit. Carry the reason (a string or error variant) to the diagnostic. App
 
 For a proposed change, name the work it avoids and the behavior that must survive. Inspect the whole path, including post-processing and derived equality, hashing, formatting or serialization. Measure peak RAM and time; never infer them.
 
-For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/docs/testing.md#validation-scope). Test the ownership, ordering or boundary behavior you changed; measure any claimed speedup. Report what changed, what you verified, and any copy or bottleneck that remains.
+For implementation, carry the smallest justified change through formatting and [scoped validation](../../../wiki/development/testing.md#validation-scope). Test the ownership, ordering or boundary behavior you changed; measure any claimed speedup. Report what changed, what you verified, and any copy or bottleneck that remains.
 
 Follow [Explain the change](../../../AGENTS.md#explain-the-change) in PRs,
 reports and comments: say what the program needs before naming the mechanism.
@@ -75,11 +75,11 @@ before rewriting the explanation.
 Test the changed path with programs that must pass and must be refused;
 reuse earlier results when the rules below allow. Run nothing wider without a
 reason in this change ([AGENTS.md](../../../AGENTS.md#commands)). Land through
-[landing](../../../tools/docs/landing.md).
+[landing](../../../wiki/development/landing.md).
 
 For compiler work and review, apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence),
-[main-change validation](../../../tools/docs/testing.md#main-change-validation), and
-the [independent semantic review boundary](../../../tools/docs/testing.md#independent-semantic-review)
+[main-change validation](../../../wiki/development/testing.md#main-change-validation), and
+the [independent semantic review boundary](../../../wiki/development/testing.md#independent-semantic-review)
 when the assignment requires it. Before reusing an earlier result, check that
 the change's premise and chosen meaning still hold, that both outcomes of each
 comparison were checked, and which artifact or format changes happen on every

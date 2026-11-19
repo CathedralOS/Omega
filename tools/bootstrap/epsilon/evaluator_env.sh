@@ -23,13 +23,13 @@ EPSILON_EVALUATOR_PACKED_SIZE=616939
 EPSILON_EVALUATOR_PACKED_SHA256=a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c
 
 # Bound edge adapter and reconstructed obligation. The canonical execution
-# driver tests/epsilon/interpreted-omega-experiment/execution_driver.delta is
+# driver bootstrap/interpreted/drivers/execution_driver.delta is
 # the Delta adapter every cross-rung consumer appends after the packed
 # evaluator; compiling the bound evaluator plus this driver and the bound
 # Delta support section through the bound Delta compiler reconstructs exactly
 # one evaluator receipt, which those consumers then execute. The identical
-# pins in tests/epsilon/interpreted-omega-experiment/{README.md,run.sh},
-# tests/epsilon/array-storage/gate.py, and tests/bootstrap/omega-*/gate.py are
+# pins in bootstrap/interpreted/tests/epsilon/interpreted-omega-experiment/{README.md,run.sh},
+# bootstrap/interpreted/tests/epsilon/array-storage/gate.py, and bootstrap/interpreted/tests/omega-*/gate.py are
 # records of this one obligation, not independent identities. A digest here is
 # an identity check on the driver or the reconstructed bytes; it is not a
 # proof of evaluation. Changing the driver or any bound input changes the
@@ -40,7 +40,7 @@ EPSILON_EVALUATOR_RECEIPT_SIZE=719006
 EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340
 
 # Bound canonical section-11 entry and its reconstructed obligation. The
-# canonical evaluator entry tests/epsilon/evaluator-entry/evaluator_entry.delta
+# canonical evaluator entry bootstrap/tests/conformance/epsilon/evaluator_entry.delta
 # is the evaluator's real `main`: appended after the packed evaluator it forms
 # the Delta subject whose compilation through the bound Delta compiler and
 # support section reconstructs exactly one canonical evaluator receipt - the
@@ -50,7 +50,7 @@ EPSILON_EVALUATOR_RECEIPT_SHA256=f368dfc90787025cdde8067ca81b83778ceec4779105532
 # closure because the closure's source inventory owns every .delta file under
 # bootstrap/interpreted/4_epsilon/; it sits beside its boundary gate under the same
 # placement rule as the diagnostic driver. The identical pins in
-# tests/epsilon/evaluator-entry/{README.md,run.sh} and
+# bootstrap/interpreted/tests/epsilon/evaluator-entry/{README.md,run.sh} and
 # bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md are records of this one obligation,
 # not independent identities. A digest here is an identity check on the entry
 # source or the reconstructed bytes; it is not a proof of evaluation. Changing
@@ -119,7 +119,7 @@ require_epsilon_execution_driver_identity() {
   require_bound_identity "execution_driver.delta" \
     "$OMEGA_PATH_EPSILON_EXECUTION_DRIVER" \
     "$EPSILON_EXECUTION_DRIVER_SIZE" "$EPSILON_EXECUTION_DRIVER_SHA256" \
-    "tests/epsilon/interpreted-omega-experiment/README.md"
+    "_recycling/tests/epsilon/interpreted-omega-experiment/README.md"
 }
 
 # require_epsilon_evaluator_receipt_identity RECEIPT : the receipt a caller
@@ -130,7 +130,7 @@ require_epsilon_execution_driver_identity() {
 require_epsilon_evaluator_receipt_identity() {
   require_bound_identity "Epsilon evaluator receipt" "$1" \
     "$EPSILON_EVALUATOR_RECEIPT_SIZE" "$EPSILON_EVALUATOR_RECEIPT_SHA256" \
-    "tests/epsilon/interpreted-omega-experiment/README.md"
+    "_recycling/tests/epsilon/interpreted-omega-experiment/README.md"
 }
 
 # require_epsilon_evaluator_entry_identity : the canonical section-11 entry
@@ -141,9 +141,9 @@ require_epsilon_evaluator_receipt_identity() {
 # not run during materialization.
 require_epsilon_evaluator_entry_identity() {
   require_bound_identity "evaluator_entry.delta" \
-    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/tests/epsilon/evaluator-entry/evaluator_entry.delta}" \
+    "${OMEGA_PATH_EPSILON_EVALUATOR_ENTRY:-$OMEGA_REPO_ROOT/bootstrap/tests/conformance/epsilon/evaluator_entry.delta}" \
     "$EPSILON_EVALUATOR_ENTRY_SIZE" "$EPSILON_EVALUATOR_ENTRY_SHA256" \
-    "tests/epsilon/evaluator-entry/README.md"
+    "_recycling/tests/epsilon/evaluator-entry/README.md"
 }
 
 # require_epsilon_evaluator_entry_receipt_identity RECEIPT : the canonical
@@ -155,7 +155,7 @@ require_epsilon_evaluator_entry_receipt_identity() {
   require_bound_identity "Epsilon evaluator canonical receipt" "$1" \
     "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SIZE" \
     "$EPSILON_EVALUATOR_ENTRY_RECEIPT_SHA256" \
-    "tests/epsilon/evaluator-entry/README.md"
+    "_recycling/tests/epsilon/evaluator-entry/README.md"
 }
 
 # require_epsilon_checking_driver_identity : the checking gate's
@@ -165,7 +165,7 @@ require_epsilon_checking_driver_identity() {
   require_bound_identity "checking_driver.delta" \
     "$OMEGA_PATH_EPSILON_CHECKING_DRIVER" \
     "$EPSILON_CHECKING_DRIVER_SIZE" "$EPSILON_CHECKING_DRIVER_SHA256" \
-    "tests/epsilon/checking/README.md"
+    "_recycling/tests/epsilon/checking/README.md"
 }
 
 # require_epsilon_array_storage_driver_identity : the array-storage gate's
@@ -176,7 +176,7 @@ require_epsilon_array_storage_driver_identity() {
     "$OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER" \
     "$EPSILON_ARRAY_STORAGE_DRIVER_SIZE" \
     "$EPSILON_ARRAY_STORAGE_DRIVER_SHA256" \
-    "tests/epsilon/array-storage/README.md"
+    "_recycling/tests/epsilon/array-storage/README.md"
 }
 
 # require_epsilon_controls_identity LABEL SOURCES MANIFEST_SIZE
@@ -212,7 +212,7 @@ require_epsilon_checking_invariants_controls_identity() {
     "$EPSILON_CHECKING_INVARIANTS_CONTROLS_MANIFEST_SHA256" \
     "$EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SIZE" \
     "$EPSILON_CHECKING_INVARIANTS_CONTROLS_PACKED_SHA256" \
-    "tests/epsilon/checking-invariants/README.md"
+    "_recycling/tests/epsilon/checking-invariants/README.md"
 }
 
 # require_epsilon_runtime_invariants_controls_identity : the
@@ -224,7 +224,7 @@ require_epsilon_runtime_invariants_controls_identity() {
     "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_MANIFEST_SHA256" \
     "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SIZE" \
     "$EPSILON_RUNTIME_INVARIANTS_CONTROLS_PACKED_SHA256" \
-    "tests/epsilon/runtime-invariants/README.md"
+    "_recycling/tests/epsilon/runtime-invariants/README.md"
 }
 
 # require_epsilon_runtime_references_controls_identity : the
@@ -236,7 +236,7 @@ require_epsilon_runtime_references_controls_identity() {
     "$EPSILON_RUNTIME_REFERENCES_CONTROLS_MANIFEST_SHA256" \
     "$EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SIZE" \
     "$EPSILON_RUNTIME_REFERENCES_CONTROLS_PACKED_SHA256" \
-    "tests/epsilon/runtime-references/README.md"
+    "_recycling/tests/epsilon/runtime-references/README.md"
 }
 
 # require_epsilon_source_views_controls_identity : the source-views gate's
@@ -248,7 +248,7 @@ require_epsilon_source_views_controls_identity() {
     "$EPSILON_SOURCE_VIEWS_CONTROLS_MANIFEST_SHA256" \
     "$EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SIZE" \
     "$EPSILON_SOURCE_VIEWS_CONTROLS_PACKED_SHA256" \
-    "tests/epsilon/source-views/README.md"
+    "_recycling/tests/epsilon/source-views/README.md"
 }
 
 # materialize_epsilon_evaluator DEST : write the canonical packed evaluator

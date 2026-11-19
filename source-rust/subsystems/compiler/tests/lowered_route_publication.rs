@@ -40,7 +40,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     use optimization_unit::{AcceptedObligationFact, AcceptedObligationOwner};
 
     let _compilation = serialize_fixture_compilation();
-    let product = default_product("tests/fixtures/run/calls/indexed_case_discriminator");
+    let product = default_product("tests/fixtures/calls/run/indexed_case_discriminator");
     let proposal = product
         .native_realization_proposal()
         .expect("the selected application retains its native proposal");
@@ -120,7 +120,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
         terminal_interpreter::TerminalExecutionStatus::Complete(_)
     ));
 
-    let fixture = repo_root().join("tests/fixtures/fail/calls/indexed_case_discriminator");
+    let fixture = repo_root().join("tests/fixtures/calls/fail/indexed_case_discriminator");
     let main = fixture.join("main.omg");
     let diagnostics = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -212,7 +212,7 @@ fn published_fixture(
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = serialize_fixture_compilation();
     let (publication, root, signature, checked) =
-        published_fixture("tests/fixtures/run/calls/scalar_contract_route_exit");
+        published_fixture("tests/fixtures/calls/run/scalar_contract_route_exit");
 
     // The artifact holds exactly the module the route checked.
     assert_eq!(
@@ -286,7 +286,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         .expect("the published program runs");
     let expected_exit = std::fs::read_to_string(
         repo_root()
-            .join("tests/fixtures/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
+            .join("tests/fixtures/calls/run/scalar_contract_route_exit/expected_native_exit.txt"),
     )
     .unwrap();
     assert_eq!(expected_exit.trim(), "0");
@@ -305,7 +305,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = serialize_fixture_compilation();
-    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
+    let fixture = "tests/fixtures/calls/run/scalar_contract_route_exit";
     let (check_publication, _, _, checked) = published_fixture(fixture);
     let (signature, _) =
         compiler::prepare_program_entry(&checked.clone().into_published().unwrap()).unwrap();
@@ -398,7 +398,7 @@ fn repo_root() -> &'static std::path::Path {
 #[test]
 fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
     let _compilation = serialize_fixture_compilation();
-    let product = default_product("tests/fixtures/run/calls/uninhabited_payload_coverage");
+    let product = default_product("source-rust/subsystems/compiler/tests/fixtures/calls/run/uninhabited_payload_coverage");
     let module = product.artifact().semantic_module();
     assert!(
         module
@@ -425,7 +425,7 @@ fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
     ));
 
     let main =
-        repo_root().join("tests/fixtures/fail/calls/inhabited_payload_missing_case/main.omg");
+        repo_root().join("source-rust/subsystems/compiler/tests/fixtures/calls/fail/inhabited_payload_missing_case/main.omg");
     let diagnostics = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             orchestration::check_source(
@@ -452,7 +452,7 @@ fn empty_payload_coverage_survives_the_actual_product_and_interpreter() {
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = serialize_fixture_compilation();
-    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
+    let fixture = "tests/fixtures/calls/run/scalar_contract_route_exit";
     let (publication, _, _, checked) = published_fixture(fixture);
     let published = publication.artifact.semantic_module();
     // The compilation's accepted source is the code published for the
