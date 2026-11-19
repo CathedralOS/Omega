@@ -1398,7 +1398,7 @@ pub(crate) mod external_provider_wire {
         };
         let numeric_intrinsic = if reader.boolean()? {
             Some(
-                declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+                numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(
                     reader.array()?,
                 )
                 .ok_or(CodecError::MalformedStructuralFoundation(
@@ -2963,7 +2963,7 @@ mod external_provider_tests {
     use super::{entry_tests::identity_table, module_wire::encode_raw, numeric_intrinsic_tests};
     use crate::{decode_module, encode_module, semantic_fingerprint};
     use declaration_contracts::ExternalBindingIdentity;
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericIntrinsic;
     use semantic_vocabulary::PackageKeyIdentity;
     use terminal_psi::*;
 
@@ -3106,9 +3106,9 @@ mod numeric_intrinsic_tests {
     use super::entry_tests::{identity_table, unit_machine};
     use super::module_wire::encode_raw;
     use crate::{decode_module, encode_module, semantic_fingerprint};
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-    use declaration_contracts::numeric_intrinsics::NumericResult;
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericResult;
+    use numerics::intrinsics::NumericType;
     use semantic_vocabulary::{
         BoundaryMachineId, MachineId, QualifiedScalarType, ScalarQualificationSetId, ScalarType,
     };
@@ -3121,7 +3121,7 @@ mod numeric_intrinsic_tests {
         module.identities = identity_table(3);
         let signature = meaning.signature().unwrap();
         let result = match signature.result {
-            NumericResult::Primitive(primitive) => primitive.scalar_type().unwrap(),
+            NumericResult::Primitive(primitive) => ScalarType::from_numeric_type(primitive).unwrap(),
             NumericResult::Boolean => ScalarType::Boolean,
             NumericResult::FloatClass => panic!("this helper creates scalar boundaries"),
         };
@@ -3138,7 +3138,7 @@ mod numeric_intrinsic_tests {
             attachment: None,
             parameter_order: vec![BoundaryParameterKind::Scalar; signature.operand_count],
             scalar_parameters: vec![
-                signature.operand.scalar_type().unwrap();
+                ScalarType::from_numeric_type(signature.operand).unwrap();
                 signature.operand_count
             ],
             structural_parameters: Vec::new(),
@@ -3169,13 +3169,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_meaning_survives_portable_round_trip_and_changes_program_identity() {
-        let meaning = declaration_contracts::numeric_intrinsics::NamedNumericIntrinsic::resolve(
-            "F64",
-            "is_nan",
-            numerics::arithmetic::ArithmeticDomain::Exact,
-        )
-        .unwrap()
-        .execution;
+        let meaning = numerics::intrinsics::FloatBuiltin::IS_NAN.intrinsic(numerics::intrinsics::FloatFormat::F64);
         let module = module(meaning);
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
@@ -3200,13 +3194,13 @@ mod numeric_intrinsic_tests {
             let mut module = module(meaning);
             let boundary = &mut module.boundary_machines[0];
             match mutation {
-                0 => boundary.scalar_parameters[0] = NumericType::F64.scalar_type().unwrap(),
+                0 => boundary.scalar_parameters[0] = ScalarType::from_numeric_type(NumericType::F64).unwrap(),
                 1 => boundary.result = BoundaryMachineResult::Unit,
                 2 => boundary.role = BoundaryDeclarationRole::ContractEvidence,
                 3 => {
                     boundary
                         .scalar_parameters
-                        .push(NumericType::F32.scalar_type().unwrap());
+                        .push(ScalarType::from_numeric_type(NumericType::F32).unwrap());
                     boundary.parameter_order.push(BoundaryParameterKind::Scalar);
                 }
                 _ => unreachable!(),
@@ -3225,7 +3219,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn integer_width_numeric_meanings_round_trip_without_carrier_substitution() {
-        use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
+        use numerics::intrinsics::PrimitiveIntegerComparisonOperation;
         use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
         for meaning in [
             NumericIntrinsic::IntegerComparison {
@@ -3243,8 +3237,7 @@ mod numeric_intrinsic_tests {
             assert_eq!(decode_module(&bytes).unwrap(), original);
             let mut substituted = original.clone();
             substituted.boundary_machines[0].scalar_parameters[0] =
-                NumericType::Integer(FixedInteger::unsigned(16))
-                    .scalar_type()
+                ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(16)))
                     .unwrap();
             assert!(decode_module(&encode_raw(&substituted).unwrap()).is_err());
         }

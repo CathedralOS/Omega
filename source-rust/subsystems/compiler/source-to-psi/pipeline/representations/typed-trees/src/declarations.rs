@@ -2560,12 +2560,11 @@ pub mod numeric_intrinsics {
     use crate::source_state::signature::StateParameter;
     use crate::source_state::types::PrimitiveType;
     use crate::source_state::types::TypeReferenceHandle;
-    use declaration_contracts::numeric_intrinsics::NamedNumericIntrinsic;
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-    use declaration_contracts::numeric_intrinsics::NumericResult;
-    use declaration_contracts::numeric_intrinsics::NumericType;
-    use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation;
-    use declaration_contracts::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
+    use numerics::intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericResult;
+    use numerics::intrinsics::NumericType;
+    use numerics::intrinsics::PrimitiveFloatBinaryOperation;
+    use numerics::intrinsics::PrimitiveIntegerComparisonOperation;
 
     pub const fn primitive_numeric_type(primitive: PrimitiveType) -> Option<NumericType> {
         Some(match primitive {
@@ -2637,7 +2636,7 @@ pub mod numeric_intrinsics {
             {
                 return Some(execution);
             }
-            let intrinsic = NamedNumericIntrinsic::resolve(
+            let intrinsic = crate::numeric_declarations::resolve(
                 namespace,
                 name,
                 self.type_reference_table.arithmetic_domain(return_type),

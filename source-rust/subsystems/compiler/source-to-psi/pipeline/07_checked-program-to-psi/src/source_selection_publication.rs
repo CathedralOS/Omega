@@ -12,7 +12,7 @@ use crate::source_state::TypedTrees;
 use crate::source_state::callable_values::RuntimeCallableContractHandle;
 use crate::source_state::references::StaticArgumentRole;
 use record_storage::Record;
-use declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature;
+use numerics::intrinsics::CoreIntegerOperatorSignature;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::{
@@ -3295,7 +3295,7 @@ machine entry() reaches Input {}
 #[cfg(test)]
 mod core_catalog_tests {
     use super::*;
-    use declaration_contracts::numeric_intrinsics::{CoreIntegerOperand, ScalarBinaryOperation};
+    use numerics::intrinsics::{CoreIntegerOperand, ScalarBinaryOperation};
 
     #[test]
     fn core_operator_declarations_keep_their_actual_applied_signatures() {

@@ -36,8 +36,8 @@ fn i16_u16_float_integer_conversions_publish_all_result_policies() {
 fn assert_integer_conversion_policies(fixture: &str, width: u64) {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{
                 BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
@@ -185,8 +185,8 @@ fn unqualified_float_integer_conversions_keep_the_normal_input_contract() {
 fn trapping_float_integer_conversions_retain_the_guarded_crash_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+use numerics::intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
             use semantic_vocabulary::{CrashCause, Proposition};
             let main =
@@ -295,8 +295,8 @@ use declaration_contracts::numeric_intrinsics::NumericType;
 }
 
 fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
-    use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericIntrinsic;
+    use numerics::intrinsics::NumericType;
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
     use terminal_psi::NominalDeclarationIdentity;
     let original = NumericIntrinsic::Conversion {
@@ -356,8 +356,7 @@ fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
     }
     boundary.numeric_intrinsic = Some(invented);
     boundary.scalar_parameters = vec![
-        NumericType::Integer(FixedInteger::unsigned(13))
-            .scalar_type()
+        semantic_vocabulary::ScalarType::from_numeric_type(NumericType::Integer(FixedInteger::unsigned(13)))
             .unwrap(),
     ];
     boundary.scalar_ensures = terminal_semantics::numeric_primitives::ensures(invented).unwrap();
@@ -400,7 +399,7 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
             let module = publication.artifact.semantic_module();
             let mut conversions = 0;
             for boundary in &module.boundary_machines {
-                let Some(declaration_contracts::numeric_intrinsics::NumericIntrinsic::Conversion {
+                let Some(numerics::intrinsics::NumericIntrinsic::Conversion {
                     source,
                     ..
                 }) = boundary.numeric_intrinsic
@@ -415,11 +414,11 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
                 else {
                     panic!("conversion keeps its complete result equation");
                 };
-                if let declaration_contracts::numeric_intrinsics::NumericType::Integer(_) = source {
+                if let numerics::intrinsics::NumericType::Integer(_) = source {
                     assert!(
                         clause
                             .sources()
-                            .any(|term| term.scalar_type() == source.scalar_type().unwrap())
+                            .any(|term| term.scalar_type() == semantic_vocabulary::ScalarType::from_numeric_type(source).unwrap())
                     );
                     assert_eq!(clause.projection_sources().count(), 1);
                 }
@@ -587,8 +586,8 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
 fn canonical_float_arithmetic_keeps_meaning_contracts_and_actual_source_classes() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::PrimitiveFloatBinaryOperation as Operation;
+            use numerics::intrinsics::NumericIntrinsic;
+use numerics::intrinsics::PrimitiveFloatBinaryOperation as Operation;
             use semantic_vocabulary::{
                 FloatMeaningClauseOperand, FloatMeaningClauseValue, ScalarTerm, ScalarType,
             };
@@ -931,8 +930,8 @@ fn float_zero_locals_keep_positive_bits_and_require_the_default_domain() {
 fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_operand() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             use semantic_vocabulary::{
                 FloatMeaningClauseValue, IeeeFloatFormat, ScalarType, ValueId,
             };
@@ -1180,8 +1179,8 @@ fn exact_float_narrowing_uses_a_prior_guarantee_and_refuses_precision_loss() {
 fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{IeeeFloatFormat, Proposition, ScalarType};
@@ -1316,8 +1315,8 @@ fn exact_float_integer_casts_require_integrality_and_keep_the_converter_contract
 fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             let main =
                 repository().join("tests/fixtures/run/float/exact_integer_to_float/main.omg");
@@ -1391,8 +1390,8 @@ fn exact_integer_float_casts_require_precision_and_keep_the_converter_contract()
 fn saturating_float_integer_conversions_keep_the_result_policy_and_total_contract() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+use numerics::intrinsics::NumericType;
             use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
             use semantic_vocabulary::{
                 BoundaryRequirementKind, Proposition, ScalarQualificationSetId,
@@ -1634,7 +1633,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
 
 #[test]
 fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "trapping_integer_conversion",
@@ -1673,7 +1672,7 @@ fn trapping_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn wide_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "wide_integer_conversion",
@@ -1712,7 +1711,7 @@ fn wide_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "byte_integer_conversion",
@@ -1751,7 +1750,7 @@ fn byte_float_integer_bad_inputs_crash_at_the_named_boundary() {
 
 #[test]
 fn i16_u16_float_integer_bad_inputs_crash_at_the_named_boundary() {
-    use declaration_contracts::numeric_intrinsics::NumericType;
+    use numerics::intrinsics::NumericType;
     use numerics::integer_carrier::FixedInteger;
     assert_bad_integer_conversion_inputs(
         "i16_u16_conversion",
@@ -1794,7 +1793,7 @@ fn assert_bad_integer_conversion_inputs(
         &str,
         &str,
         &str,
-        declaration_contracts::numeric_intrinsics::NumericType,
+        numerics::intrinsics::NumericType,
         numerics::integer_carrier::FixedInteger,
     )],
 ) {
@@ -1803,8 +1802,8 @@ fn assert_bad_integer_conversion_inputs(
     };
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+use numerics::intrinsics::NumericType;
             use numerics::arithmetic::ArithmeticDomain;
             let fixture = repository().join("tests/fixtures/run/float").join(fixture_name);
             let kept = std::fs::read_to_string(fixture.join("main.omg")).unwrap();

@@ -1,8 +1,8 @@
 //! Core integer policy declarations retain their exact applied signatures.
 //! Selecting one never makes its qualified operands eligible for builtin fallback.
 
-use numerics::arithmetic::ArithmeticDomain;
-use numerics::integer_carrier::FixedInteger;
+use crate::arithmetic::ArithmeticDomain;
+use crate::integer_carrier::FixedInteger;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum ScalarBinaryOperation {

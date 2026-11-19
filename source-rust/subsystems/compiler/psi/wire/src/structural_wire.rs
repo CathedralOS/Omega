@@ -1553,12 +1553,12 @@ pub(crate) mod structural_signature_wire {
     }
 
     struct NumericIntrinsic;
-    impl Field<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>>
+    impl Field<Option<numerics::intrinsics::NumericIntrinsic>>
         for NumericIntrinsic
     {
         fn write(
             writer: &mut Writer,
-            value: &Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>,
+            value: &Option<numerics::intrinsics::NumericIntrinsic>,
         ) -> Result<(), CodecError> {
             writer.boolean(value.is_some());
             if let Some(meaning) = value {
@@ -1571,17 +1571,17 @@ pub(crate) mod structural_signature_wire {
         }
         fn read(
             reader: &mut Reader<'_>,
-        ) -> Result<Option<declaration_contracts::numeric_intrinsics::NumericIntrinsic>, CodecError>
+        ) -> Result<Option<numerics::intrinsics::NumericIntrinsic>, CodecError>
         {
             if !reader.boolean()? {
                 return Ok(None);
             }
             let mut bytes =
-                [0; declaration_contracts::numeric_intrinsics::NumericIntrinsic::ENCODED_SIZE];
+                [0; numerics::intrinsics::NumericIntrinsic::ENCODED_SIZE];
             for byte in &mut bytes {
                 *byte = reader.u8()?;
             }
-            declaration_contracts::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(
+            numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(
                 bytes,
             )
             .map(Some)

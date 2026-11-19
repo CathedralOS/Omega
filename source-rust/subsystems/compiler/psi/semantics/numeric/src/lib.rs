@@ -9,6 +9,7 @@ pub(crate) use ::wire::digest_encoder;
 
 pub mod float_semantics;
 pub mod integer_carrier;
+pub mod intrinsics;
 
 pub use float_semantics as float_semantics_catalog;
 

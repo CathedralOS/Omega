@@ -707,7 +707,6 @@ mod machine_termination {
         }
     }
 }
-pub mod numeric_intrinsics;
 mod permissions {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash, record_storage::Record)]
     pub enum PermissionEventKind {

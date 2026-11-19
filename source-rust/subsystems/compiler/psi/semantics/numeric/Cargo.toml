@@ -9,6 +9,7 @@ name = "numerics"
 path = "src/lib.rs"
 
 [dependencies]
+language-core = { path = "../../../foundation/language-core" }
 bignum = { path = "../../../../../foundation/bignum" }
 wire = { path = "../../../../../foundation/wire" }
 record-storage = { path = "../../../../../foundation/record-storage" }

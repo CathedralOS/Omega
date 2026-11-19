@@ -151,8 +151,8 @@ impl Program<'_> {
         } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::IeeeFloat(to))) =
             (source_type.scalar(), target.scalar())
         {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             let numeric = |format| match format {
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => NumericType::F32,
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => NumericType::F64,
@@ -204,8 +204,8 @@ impl Program<'_> {
         } else if let (Some(ScalarType::IeeeFloat(from)), Some(ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
         {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(to)
                 .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
@@ -243,8 +243,8 @@ impl Program<'_> {
         } else if let (Some(ScalarType::Integer(from)), Some(ScalarType::IeeeFloat(to))) =
             (source_type.scalar(), target.scalar())
         {
-            use declaration_contracts::numeric_intrinsics::NumericIntrinsic;
-            use declaration_contracts::numeric_intrinsics::NumericType;
+            use numerics::intrinsics::NumericIntrinsic;
+            use numerics::intrinsics::NumericType;
             let carrier = semantic_vocabulary::fixed_integer_type(from)
                 .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?;
             let source_term = semantic_vocabulary::ScalarTerm::value(
@@ -326,7 +326,7 @@ impl Program<'_> {
     fn exact_numeric_conversion(
         &mut self,
         id: MachineId,
-        meaning: declaration_contracts::numeric_intrinsics::NumericIntrinsic,
+        meaning: numerics::intrinsics::NumericIntrinsic,
         operand: Expression,
         source: SourceOrigin,
     ) -> Checked<Expression> {

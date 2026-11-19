@@ -1361,7 +1361,7 @@ impl CaseSelector {
 }
 
 /// Scalar operation identities shared by checked expressions and Core’s catalog.
-pub use declaration_contracts::numeric_intrinsics::ScalarBinaryOperation as Strict;
+pub use numerics::intrinsics::ScalarBinaryOperation as Strict;
 
 #[cfg(test)]
 mod qualification_tests {

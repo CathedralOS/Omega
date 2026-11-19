@@ -83,40 +83,7 @@ pub struct IntegerLanding {
     pub domain: numerics::arithmetic::ArithmeticDomain,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub enum FloatFormat {
-    F32,
-    F64,
-}
-
-impl FloatFormat {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::F32 => "f32",
-            Self::F64 => "f64",
-        }
-    }
-
-    pub fn widen_representation(self, bits: u64) -> Option<f64> {
-        match self {
-            Self::F32 => Some(bignum::float_bits::binary32_from_bits(
-                u32::try_from(bits).ok()?,
-            )),
-            Self::F64 => Some(f64::from_bits(bits)),
-        }
-    }
-
-    pub fn capture_wide_representation(self, value: f64) -> Option<u64> {
-        match self {
-            Self::F32 => {
-                let bits = bignum::float_bits::binary32_to_bits(value);
-                (bignum::float_bits::binary32_from_bits(bits).to_bits() == value.to_bits())
-                    .then_some(u64::from(bits))
-            }
-            Self::F64 => Some(value.to_bits()),
-        }
-    }
-}
+pub use numerics::intrinsics::FloatFormat;
 
 #[derive(Debug, Clone, record_storage::Record)]
 pub struct FloatLiteral {
