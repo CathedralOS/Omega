@@ -214,12 +214,8 @@ dependencies = [
 name = "boundary-applications"
 version = "0.1.0"
 dependencies = [
- "effects",
- "numeric-literals",
- "numerics",
- "optimization-core",
+ "native-intrinsics",
  "semantic-vocabulary",
- "source-audit",
  "terminal-psi",
  "wire",
 ]
@@ -2162,10 +2158,8 @@ dependencies = [
 name = "package-manager"
 version = "0.1.0"
 dependencies = [
- "host-provider-inputs",
  "arena",
  "artifacts",
- "boundary-applications",
  "build-declarations",
  "build-output",
  "build-settings",
@@ -2180,6 +2174,7 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
+ "host-provider-inputs",
  "language-core",
  "package-compilation",
  "platform-custody",

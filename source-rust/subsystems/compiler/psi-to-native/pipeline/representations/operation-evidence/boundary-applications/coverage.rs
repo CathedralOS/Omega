@@ -7,15 +7,15 @@ retain compact, independently reconstructible references without claiming
 realization authority on their own.
 */
 
-use super::demands::{
-    BoundaryApplication, BoundaryApplicationArgument, TerminalBoundaryApplicationDemand,
-    TerminalBoundaryApplicationDemands,
-};
 use super::realization::{
     BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
     TerminalBoundaryApplicationRealizations,
 };
 use semantic_vocabulary::OperationId;
+use terminal_psi::{
+    BoundaryApplication, BoundaryApplicationArgument, TerminalBoundaryApplicationDemand,
+    TerminalBoundaryApplicationDemands,
+};
 
 const COVERAGE_IDENTITY_DOMAIN: &[u8] = b"omega.d29-operator-application-coverage.sha256.v1\0";
 
@@ -73,7 +73,7 @@ fn coverage_identity(
     demand: &TerminalBoundaryApplicationDemand,
     companion: &BoundaryApplicationRealizationCompanion,
 ) -> BoundaryApplicationCoverageIdentity {
-    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(COVERAGE_IDENTITY_DOMAIN);
+    let mut digest = wire::digest_encoder::DomainDigestEncoder::new(COVERAGE_IDENTITY_DOMAIN);
     digest.u16(terminal.vocabulary_marker.get());
     digest.raw(terminal.program_fingerprint.as_bytes());
     digest.u64(demand.terminal_operation().get());
@@ -100,7 +100,7 @@ fn coverage_identity(
 }
 
 fn encode_application(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut wire::digest_encoder::DomainDigestEncoder,
     application: &BoundaryApplication,
 ) {
     match application {
@@ -137,7 +137,7 @@ fn encode_application(
 }
 
 fn encode_realization(
-    digest: &mut crate::digest_encoder::DomainDigestEncoder,
+    digest: &mut wire::digest_encoder::DomainDigestEncoder,
     realization: &BoundaryApplicationRealization,
 ) {
     match realization {
@@ -177,27 +177,26 @@ fn encode_realization(
         }
         BoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {
             digest.byte(2);
-            digest.raw(&effects::compiler_intrinsic_execution_identity_bytes(
-                *execution,
-            ));
+            digest.raw(&native_intrinsics::compiler_intrinsic_execution_identity_bytes(*execution));
         }
     }
 }
 
-fn hash_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
+fn hash_bytes(digest: &mut wire::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
     digest.bytes(bytes);
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        BoundaryApplication, BoundaryApplicationRealization,
-        BoundaryApplicationRealizationCompanion, BoundaryOperatorRequirement,
-        NominalDeclarationIdentity, TerminalBoundaryApplicationCoverage,
-        TerminalBoundaryApplicationDemand, TerminalBoundaryApplicationDemands,
-        TerminalBoundaryApplicationRealizations,
+        BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
+        TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationRealizations,
     };
     use semantic_vocabulary::OperationId;
+    use terminal_psi::{
+        BoundaryApplication, BoundaryOperatorRequirement, NominalDeclarationIdentity,
+        TerminalBoundaryApplicationDemand, TerminalBoundaryApplicationDemands,
+    };
 
     fn terminal() -> terminal_psi::TerminalPsiIdentity {
         terminal_psi::TerminalPsiIdentity {

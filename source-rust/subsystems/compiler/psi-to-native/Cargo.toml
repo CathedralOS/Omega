@@ -57,7 +57,7 @@ object-file = { path = "pipeline/15_placed-functions-to-objects" }
 placement = { package = "selected-form-encoding-to-resolved-layout", path = "pipeline/12_selected-form-encoding-to-resolved-layout" }
 relaxation = { package = "resolved-layout-to-resolved-layout", path = "pipeline/13_resolved-layout-to-resolved-layout" }
 calling-conventions = { path = "targets/calling-conventions" }
-boundary-applications = { path = "installation/boundary-applications" }
+boundary-applications = { path = "pipeline/representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 image-emission = { path = "pipeline/16_objects-to-image/image-emission" }
 machine-code = { path = "pipeline/representations/machine-code" }

@@ -29,7 +29,6 @@ artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/build-declarations" }
 build-settings = { path = "../compiler/build/build-settings" }
 build-output = { path = "../compiler/build/build-output" }
-boundary-applications = { path = "../compiler/psi-to-native/installation/boundary-applications" }
 compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 effects = { path = "../compiler/psi-to-native/installation/native-effects" }

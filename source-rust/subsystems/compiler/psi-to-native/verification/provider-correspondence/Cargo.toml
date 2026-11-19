@@ -14,7 +14,7 @@ function-identity = { path = "../../pipeline/representations/function-identity" 
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }
 graphs = { path = "../../../foundation/graphs" }
-boundary-applications = { path = "../../installation/boundary-applications" }
+boundary-applications = { path = "../../pipeline/representations/operation-evidence/boundary-applications" }
 backend-plan = { path = "../../installation/provider-plans" }
 terminal-psi = { path = "../../../psi" }
 effects = { path = "../../installation/native-effects" }

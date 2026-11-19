@@ -6,8 +6,8 @@ contract/specialization commitments at construction and enforce one-to-one
 operation alignment against `TerminalBoundaryApplicationDemands`.
 */
 
-use super::demands::{NominalDeclarationIdentity, TerminalBoundaryApplicationDemands};
 use semantic_vocabulary::OperationId;
+use terminal_psi::{NominalDeclarationIdentity, TerminalBoundaryApplicationDemands};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryApplicationRealizationRole {
@@ -37,7 +37,7 @@ pub enum BoundaryApplicationRealization {
         realization_contract_commitment: [u8; 32],
     },
     ExactCompilerIntrinsic {
-        execution: effects::CompilerIntrinsicExecutionIdentity,
+        execution: native_intrinsics::CompilerIntrinsicExecutionIdentity,
     },
 }
 
@@ -203,8 +203,8 @@ impl TerminalBoundaryApplicationRealizations {
 #[cfg(test)]
 mod tests {
     use super::{BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion};
-    use crate::NominalDeclarationIdentity;
     use semantic_vocabulary::OperationId;
+    use terminal_psi::NominalDeclarationIdentity;
 
     #[test]
     fn checked_roles_require_strong_plan_and_contract_commitments() {

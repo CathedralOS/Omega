@@ -83,6 +83,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/scalar-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/stack-demand",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence/boundary-applications",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/optimization-records",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine",
