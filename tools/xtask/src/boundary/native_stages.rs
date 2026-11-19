@@ -1,6 +1,6 @@
 //! Production readers of the numbered native pipeline. Each exception is one
 //! Cargo package consuming one named API. Nested packages have their own identity.
-use super::linear_pipeline::STAGES;
+use super::linear_pipeline::NATIVE_STAGES;
 use super::{Allowance, Rule, under};
 
 macro_rules! native {
@@ -11,7 +11,6 @@ macro_rules! native {
 
 pub(super) const DRIVER: &str = native!("");
 const HOST_PROVIDERS: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/host-providers");
-const DEMAND: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/provider-demand");
 const ENTRY: &str =
     native!("/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts");
 const ENTRY_PLANNING: &str =
@@ -27,24 +26,13 @@ const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-en
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
 pub(super) const OBJECT_REPLAY: &str = native!("/replay/published-objects");
-const PSI_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/build/package-compilation/psi-publication";
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/build-output/product-publication";
 
-fn stages() -> Vec<&'static str> {
-    // The shared ordering also contains the source stages and file publication.
-    std::iter::once(STAGES[0])
-        .chain(STAGES[3..19].iter().copied())
-        .collect()
-}
-
 pub(super) fn scoped_readers() -> Vec<Allowance> {
-    let stages = stages();
+    let stages = &NATIVE_STAGES;
     let mut readers = vec![
         ("source-rust/subsystems/package-manager", HOST_PROVIDERS),
-        (PSI_PUBLICATION, HOST_PROVIDERS),
-        (PSI_PUBLICATION, DEMAND),
         (ENTRY_PLANNING, ENTRY),
         (VERIFIED_INPUT, ENTRY),
         (IMAGE_EMISSION, ENTRY),
@@ -77,7 +65,7 @@ pub(super) fn scoped_readers() -> Vec<Allowance> {
 }
 
 pub(super) fn rules() -> Vec<Rule> {
-    let stages = stages();
+    let stages = &NATIVE_STAGES;
     let readers = scoped_readers();
     let mut rules = Vec::new();
     for (index, &stage) in stages.iter().enumerate() {

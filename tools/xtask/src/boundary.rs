@@ -71,7 +71,7 @@ const BUILD_COORDINATOR: &str = "omega-rust/omega/build-system/orchestration";
 const CLI_APPLICATION: &str = "omega-rust/omega/application";
 const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
 #[cfg(test)]
-const PSI_FACADE: &str = linear_pipeline::STAGES[1];
+const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
 const OMEGA_COMPILATION: &[&str] = &[
     NATIVE_ROOT,
@@ -166,7 +166,7 @@ fn normalize_relative(root: &Path, target: &Path) -> Result<String, String> {
 }
 
 pub fn forbidden_rules() -> Vec<Rule> {
-    use linear_pipeline::STAGES;
+    use linear_pipeline::{NATIVE_STAGES, SOURCE_DRIVER};
     let rule = |owners, forbidden, reason| Rule {
         owners,
         forbidden,
@@ -193,7 +193,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         ),
         rule(
             vec![PRODUCT_COORDINATOR],
-            STAGES[3..].to_vec(),
+            NATIVE_STAGES[1..].iter().copied().chain([native_stages::PRODUCT_PUBLICATION]).collect(),
             "the native driver orders target compilation",
         ),
         Rule {
@@ -227,23 +227,15 @@ pub fn forbidden_rules() -> Vec<Rule> {
             "provider correspondence compares admitted declarations",
         ),
     ];
-    // Portable publication takes the accepted source result and ends that
-    // ownership. Other native phases may never import a source operation.
-    rules.push(rule(
-        vec![STAGES[2]],
-        FRONTEND_OPERATIONS.to_vec(),
-        "portable publication takes the accepted source result",
-    ));
     // Only the source driver runs the full numbered source pipeline. The text reader
     // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
-        except_package: Some(STAGES[1]),
+        except_package: Some(SOURCE_DRIVER),
         except_owners: linear_pipeline::PSI_STAGES.to_vec(),
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/execution/result", linear_pipeline::PSI_STAGES[7]),
-            (STAGES[2], linear_pipeline::PSI_STAGES[7]),
             ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
@@ -253,7 +245,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![STAGES[1], STAGES[2], STAGES[19]],
+        forbidden_packages: vec![SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION],
         ..rule(
             vec![PACKAGE_MANAGER],
             vec![],
@@ -262,7 +254,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     });
     rules.extend(native_stages::rules());
     rules.push(rule(
-        STAGES[7..=11].to_vec(),
+        NATIVE_STAGES[5..=9].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
         "physical planning reads the retained target operations",
     ));
@@ -280,7 +272,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![STAGES[1]],
+        forbidden_packages: vec![SOURCE_DRIVER],
         ..rule(
             vec!["source-rust/subsystems/compiler/source-to-psi/pipeline/representations"],
             vec![],
@@ -1172,7 +1164,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         // Native planning now owns trust reconstruction as a private operation.
         violations.extend(dependency_violations(
             &metadata,
-            linear_pipeline::STAGES[3],
+            linear_pipeline::NATIVE_STAGES[1],
             provider_selection_owners,
         )?);
         let mut runtime_owners = vec![
@@ -1261,13 +1253,13 @@ mod tests {
             (CLI_APPLICATION, FRONTEND_OPERATIONS[0], BUILD_COORDINATOR),
             (
                 BUILD_COORDINATOR,
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 PRODUCT_COORDINATOR,
             ),
             (PRODUCT_COORDINATOR, FRONTEND_OPERATIONS[0], PSI_FACADE),
             (
                 "samples/scientific-driver",
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 BUILD_COORDINATOR,
             ),
         ] {
@@ -1317,7 +1309,7 @@ mod tests {
                 ),
                 pkg(
                     "source-driver",
-                    linear_pipeline::STAGES[1],
+                    linear_pipeline::SOURCE_DRIVER,
                     &[("lower", stages[5], None)],
                 ),
                 pkg(
@@ -1352,19 +1344,21 @@ mod tests {
 
     #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        let library = linear_pipeline::STAGES[16];
-        let stages = linear_pipeline::STAGES;
+        let library = linear_pipeline::NATIVE_STAGES[14];
+        let stages = linear_pipeline::NATIVE_STAGES;
         for (owner, dependency, kind, permitted) in [
-            (native_stages::DRIVER, stages[9], None, true),
-            (library, stages[4], None, false),
-            (library, stages[4], Some("build"), false),
-            (library, stages[4], Some("dev"), true),
-            (PACKAGE_MANAGER, stages[3], None, false),
+            (native_stages::DRIVER, stages[7], None, true),
+            ("source-rust/subsystems/compiler/build/package-compilation", linear_pipeline::PSI_STAGES[7], None, false),
+            ("source-rust/subsystems/compiler/build/package-compilation", stages[0], None, false),
+            (library, stages[2], None, false),
+            (library, stages[2], Some("build"), false),
+            (library, stages[2], Some("dev"), true),
             (PACKAGE_MANAGER, stages[1], None, false),
+            (PACKAGE_MANAGER, linear_pipeline::SOURCE_DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
-            (library, stages[3], None, false),
-            (library, stages[9], None, false),
-            (native_stages::IMAGE_EMISSION, stages[4], None, false),
+            (library, stages[1], None, false),
+            (library, stages[7], None, false),
+            (native_stages::IMAGE_EMISSION, stages[2], None, false),
             (
                 native_stages::PRODUCT_PUBLICATION,
                 native_stages::NATIVE_ARTIFACT,
@@ -1401,16 +1395,16 @@ mod tests {
     #[test]
     fn shared_receipt_consumers_preserve_stage_boundaries() {
         for (owner, dependency, permitted) in [
-            (linear_pipeline::STAGES[4], linear_pipeline::STAGES[3], true),
+            (linear_pipeline::NATIVE_STAGES[2], linear_pipeline::NATIVE_STAGES[1], true),
             (
-                linear_pipeline::STAGES[5],
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[3],
+                linear_pipeline::NATIVE_STAGES[1],
                 false,
             ),
-            (linear_pipeline::STAGES[5], linear_pipeline::STAGES[4], true),
+            (linear_pipeline::NATIVE_STAGES[3], linear_pipeline::NATIVE_STAGES[2], true),
             (
-                linear_pipeline::STAGES[6],
-                linear_pipeline::STAGES[3],
+                linear_pipeline::NATIVE_STAGES[4],
+                linear_pipeline::NATIVE_STAGES[1],
                 false,
             ),
         ] {
@@ -1810,7 +1804,7 @@ mod tests {
                 workspace_root: "/repo".to_owned(),
                 packages: vec![pkg(
                     "selection",
-                    linear_pipeline::STAGES[7],
+                    linear_pipeline::NATIVE_STAGES[5],
                     &[("dependency", dependency, kind)],
                 )],
             };

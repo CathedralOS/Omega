@@ -15,7 +15,7 @@ resolution and typing loop for deferred bodies. [Connected program route](../../
 | [Prepare typed source](04_typed-trees-to-typed-trees/src/driver.rs) | Preparation and [evaluation](../evaluation/source/README.md) complete the requested work and freeze its input to lowering. |
 | [Lower to Terminal](05_typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../language/terminal-psi/check-tables/src/compilation.rs), including demanded generic bodies and witnesses. |
 | [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
-| [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [Portable publication](../../build/package-compilation/psi-publication/src/lib.rs) carries those choices to native planning. |
+| [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [The source compiler](../source_to_psi.rs) binds those choices to the published artifact and deployment for [native admission](../../psi-to-native/pipeline/prepare/published_application.rs). |
 
 The Psi 03 trace identifies typing. The following
 notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a

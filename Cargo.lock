@@ -761,7 +761,6 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "platform-custody",
- "portable-publication",
  "products",
  "program-entry-contracts",
  "proof-admission",
@@ -2354,24 +2353,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "portable-publication"
-version = "0.1.0"
-dependencies = [
- "checked-program-to-psi",
- "provider-acceptance",
- "provider-demand",
- "host-provider-inputs",
- "declaration-scope",
- "diagnostics",
- "optimization",
- "package-compilation",
- "semantic-vocabulary",
- "target",
- "terminal-psi",
- "typed-trees",
-]
-
-[[package]]
 name = "post-allocation-machine"
 version = "0.1.0"
 dependencies = [
@@ -2468,7 +2449,6 @@ dependencies = [
  "optimization-requests",
  "package-compilation",
  "platform-custody",
- "portable-publication",
  "product-publication",
  "program-entry-plan",
  "provider-admission",

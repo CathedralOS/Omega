@@ -144,6 +144,45 @@ fn authored_build_returns_its_application_and_target_bindings() {
             .requirement_identity
             .contains("HostProcessId::get")
     );
+    // A saved program enters with the receiving host's installation. The
+    // source Build's syscall choice cannot authorize an otherwise empty host.
+    let reopened = std::sync::Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.psi_artifact().to_bytes())
+            .unwrap(),
+    );
+    let profile = TargetProfile::LinuxX64;
+    let host = psi_authorization::HostProducerTrust::accept("checked project fixture");
+    let authorized = psi_authorization::authorize_terminal_artifact(reopened, Some(&host)).unwrap();
+    let settings = Default::default();
+    let saved = compiler::Program::Psi {
+        target: compiler::NativeTarget {
+            profile,
+            installation: compiler::TargetProviderInstallation::new(
+                authorized.identity(),
+                profile,
+                Default::default(),
+            ),
+            requested_boundaries: Vec::new(),
+            application: Default::default(),
+            optimizations: &settings,
+            behavior_exclusions: &[],
+            x86_scalar_fma_provider: None,
+        },
+        program: authorized,
+    };
+    let refusal = compiler::compile(compiler::CompileRequest::Native {
+        program: saved,
+        entry_memory: &[],
+    })
+    .err()
+    .expect("a saved program needs the receiving host's process-ID provider");
+    assert!(
+        refusal
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("has no provider")
+                && diagnostic.message.contains("HostProcessId")),
+        "{refusal:?}",
+    );
 }
 
 fn configure_library() {

@@ -13,6 +13,15 @@ use super::{SourceNativeBinding, SourceProviderDemand};
 
 /// The source producer alone can attach an issued judgment and deployment to these facts.
 /// The weak handle checks provenance without retaining trees for use by the receiver.
+///
+/// A consumer cannot rewrite a checked root roster while retaining its issuer.
+///
+/// ```compile_fail,E0616
+/// use checked_program_to_psi::provider_supply::{SourceProviderDemand, SourceProviderFacts};
+/// fn replace_roots(mut demand: SourceProviderFacts<SourceProviderDemand>) {
+///     demand.facts = SourceProviderDemand::Unscoped { roots: Vec::new() };
+/// }
+/// ```
 pub struct SourceProviderFacts<T> {
     issuer: Weak<AcceptedTerminalSource>,
     target: Option<String>,

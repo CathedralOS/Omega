@@ -32,7 +32,6 @@ members = [
     "source-rust/subsystems/compiler/build/evaluation/values",
     "source-rust/subsystems/compiler/build/optimization-policy/requests",
     "source-rust/subsystems/compiler/build/package-compilation",
-    "source-rust/subsystems/compiler/build/package-compilation/psi-publication",
     "source-rust/subsystems/compiler/build/providers/acceptance",
     "source-rust/subsystems/compiler/build/providers/plans",
     "source-rust/subsystems/compiler/build/providers/selections",

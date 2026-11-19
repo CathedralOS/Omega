@@ -61,10 +61,7 @@ The local lock accepts this exact source and compiler, not a portable
 result. A source or compiler change needs fresh review, not copied bindings
 or a deleted stale lock.
 
-The source-based check of target and provider records runs in the SDK suite:
-`mbx nextest run -p compiler --test package_review historical_constant_closure_requires_exact_target_and_provider`.
-It checks canonical transport, exact target and provider inputs, and Windows
-Terminal execution, without running a foreign native image.
+The maintained host-provider tests check that reopened bytes retain their installation and that substituting another artifact or target fails. Run `mbx test -p host-provider-inputs --lib`. The [project planning test](../build/tests/planning_stage.rs) compiles the captured Build and its selected native binding.
 
 ## Shared multi-target pipeline observations
 

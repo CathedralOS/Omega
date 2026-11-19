@@ -7,10 +7,8 @@ use std::path::Path;
 
 pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
 
-pub(super) const STAGES: [&str; 20] = [
+pub(super) const NATIVE_STAGES: [&str; 17] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
-    "source-rust/subsystems/compiler/source-to-psi",
-    "source-rust/subsystems/compiler/build/package-compilation/psi-publication",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
@@ -27,8 +25,9 @@ pub(super) const STAGES: [&str; 20] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
-    "source-rust/subsystems/compiler/build/build-output/product-publication",
 ];
+pub(super) const SOURCE_DRIVER: &str = "source-rust/subsystems/compiler/source-to-psi";
+
 const RETIRED: [&str; 4] = [
     "omega-rust/omega/compilation/pipeline/07_native-layout",
     "omega-rust/omega/compilation/backend",
@@ -56,23 +55,44 @@ pub(super) const PSI_STAGES: [&str; 8] = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
 ];
 
-fn stage(path: &str) -> Option<(usize, usize)> {
-    if let Some(index) = PSI_STAGES.iter().position(|root| under(path, &[*root])) {
-        return Some((1, index));
-    }
-    STAGES
-        .iter()
-        .position(|root| path == *root || (*root != STAGES[1] && under(path, &[*root])))
-        .map(|position| (position, usize::MAX))
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Phase {
+    NativeAdmission,
+    Source(usize),
+    Native(usize),
+    ProductPublication,
 }
 
-/// Native admission precedes the two source/publication slots in the combined order.
-fn native_number((phase, _): (usize, usize)) -> Option<usize> {
-    match phase {
-        0 => Some(0),
-        3..=18 => Some(phase - 2),
-        _ => None,
+impl Phase {
+    fn native_number(self) -> Option<usize> {
+        match self {
+            Self::NativeAdmission => Some(0),
+            Self::Native(index) => Some(index),
+            _ => None,
+        }
     }
+}
+
+fn stage(path: &str) -> Option<Phase> {
+    if path == SOURCE_DRIVER {
+        return Some(Phase::Source(usize::MAX));
+    }
+    if let Some(index) = PSI_STAGES.iter().position(|root| under(path, &[*root])) {
+        return Some(Phase::Source(index));
+    }
+    if under(path, &[native_stages::PRODUCT_PUBLICATION]) {
+        return Some(Phase::ProductPublication);
+    }
+    NATIVE_STAGES
+        .iter()
+        .position(|root| under(path, &[*root]))
+        .map(|index| {
+            if index == 0 {
+                Phase::NativeAdmission
+            } else {
+                Phase::Native(index)
+            }
+        })
 }
 
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
@@ -136,7 +156,11 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         }
         adjacency.entry(owner).or_default().push(dependency);
     }
-    for root in STAGES.into_iter().chain(PSI_STAGES[2..].iter().copied()) {
+    for root in NATIVE_STAGES
+        .into_iter()
+        .chain([SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION])
+        .chain(PSI_STAGES[2..].iter().copied())
+    {
         if !names.keys().any(|path| under(path, &[root])) {
             errors.push(format!("numbered pipeline owner has no package: {root}"));
         }
@@ -176,8 +200,8 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     .is_some_and(|number| phase.is_some_and(|start| number > start));
                 // Follow shared dependencies until the next stage API. Each numbered
                 // owner is checked separately, so its own predecessor starts a new walk.
-                let native = phase.and_then(native_number);
-                let native_pair = native.zip(dependency_phase.and_then(native_number));
+                let native = phase.and_then(Phase::native_number);
+                let native_pair = native.zip(dependency_phase.and_then(Phase::native_number));
                 // Follow the actual importing edge. Another helper that reaches the
                 // same destination must still justify its own access.
                 let scoped_reader = readers
@@ -226,7 +250,7 @@ mod tests {
             packages: vec![
                 pkg(
                     "optimizer",
-                    STAGES[5],
+                    NATIVE_STAGES[3],
                     &[("checked", allowed.owner, None), ("helper", "other", None)],
                 ),
                 pkg(
@@ -269,8 +293,9 @@ mod tests {
         const SHARED: &str = "shared";
         const ENCODER: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/test-encoder";
         const FIXTURE: &str = "omega-rust/test-support/image-fixtures";
-        let paths = STAGES
+        let paths = NATIVE_STAGES
             .into_iter()
+            .chain([SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION])
             .chain(FRONTEND)
             .chain(PSI_STAGES[2..].iter().copied())
             .chain([TEXT_READER, SHARED, ENCODER, FIXTURE]);
@@ -299,19 +324,19 @@ mod tests {
             });
         };
         edge(SHARED, FIXTURE, None);
-        edge(STAGES[1], FIXTURE, Some("dev"));
+        edge(SOURCE_DRIVER, FIXTURE, Some("dev"));
         edge(TEXT_READER, SHARED, None);
         edge(PSI_STAGES[6], SHARED, None);
         edge(PSI_STAGES[6], PSI_STAGES[5], Some("dev"));
-        edge(STAGES[4], SHARED, None);
-        edge(STAGES[9], SHARED, None);
-        edge(SHARED, STAGES[3], None);
-        edge(STAGES[8], STAGES[10], None);
+        edge(NATIVE_STAGES[2], SHARED, None);
+        edge(NATIVE_STAGES[7], SHARED, None);
+        edge(SHARED, NATIVE_STAGES[1], None);
+        edge(NATIVE_STAGES[6], NATIVE_STAGES[8], None);
         edge(FRONTEND[0], FRONTEND[1], Some("dev"));
         edge(FRONTEND[1], SHARED, Some("build"));
         edge(SHARED, ENCODER, None);
         edge(SHARED, FRONTEND[0], None);
-        edge(SHARED, STAGES[1], None);
+        edge(SHARED, SOURCE_DRIVER, None);
         let errors = violations(&Metadata {
             workspace_root: "/repo".into(),
             packages,
