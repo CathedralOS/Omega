@@ -1129,6 +1129,7 @@ pub(super) fn normalize(
     selection: &ConstantSelection<'_>,
     declarations: &[&SyntaxTrees],
 ) -> Result<(), Vec<Diagnostic>> {
+    super::type_equations::normalize_applied_operands(syntax).map_err(|error| vec![error])?;
     if !needs_normalization(syntax, declarations) {
         return Ok(());
     }

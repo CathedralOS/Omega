@@ -108,3 +108,46 @@ fn proof_expression_membership_rejects_a_domain_competing_with_a_case() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn explicit_domain_application_resolves_to_the_same_declared_type_equation() {
+    let source = "
+        domain<const Bound: u64> u64::AtMost<Bound> requires self <= Bound;
+        machine ordinary<const Bound: u64>() -> u64 { Bound }
+        machine capacity<Length, const Capacity: u64>() -> u64
+        requires Length == u64::AtMost::<Capacity>
+        { Capacity }
+    ";
+    let definition = |source: &str| {
+        let resolved = resolve_source(source);
+        let mut equations = resolved.tables.declarations.declared_type_equations.iter();
+        let (_, equation) = equations
+            .next()
+            .expect("the machine declares the type equation");
+        assert!(equations.next().is_none());
+        assert_eq!(equation.parameter.display_name(), "Length");
+        assert!(matches!(
+            equation.definition,
+            crate::source_resolved::types::TypeReference::Constrained(_)
+                | crate::source_resolved::types::TypeReference::Generic(_)
+        ));
+        equation.definition.display_name()
+    };
+    assert_eq!(
+        definition(source),
+        definition(&source.replace("AtMost::<", "AtMost<"))
+    );
+    let wrong_role = source.replace("Length == u64::AtMost::<", "Length == ordinary::<")
+        + "machine use_closed_type() -> u64 { capacity::<u64>() }";
+    let rejected = |source: &str| {
+        let errors =
+            resolve_result(source).expect_err("a machine cannot supply the type constructor");
+        errors
+            .into_iter()
+            .map(|error| error.message)
+            .collect::<Vec<_>>()
+    };
+    let expected = rejected(&wrong_role.replace("ordinary::<", "ordinary<"));
+    assert!(!expected.is_empty());
+    assert_eq!(rejected(&wrong_role), expected);
+}
