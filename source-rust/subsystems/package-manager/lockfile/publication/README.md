@@ -43,6 +43,6 @@ non-atomic copy fallback.
 A reader ignoring the mutex may see one rename without the other. This
 coordinates processes and recovers interruptions; it does not stop a hostile
 process running as the same user. Do not delete pending journals as
-build-cache cleanup. [Package commands](../../../README.md#install-and-update)
+build-cache cleanup. [Package commands](../../README.md#install-and-update)
 save and resume review files and pick pins for selective updates. Their `proposal` restart
 record is separate from this publication journal.
