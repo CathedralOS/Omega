@@ -53,7 +53,7 @@ impl ReturnedBuild {
                         .into(),
                 )
             } else {
-                Ok(())
+                self.join_dependency_sources(inputs, &[])
             };
         }
         let selections = inputs
