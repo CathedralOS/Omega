@@ -40,15 +40,14 @@ the shared input owner.
   direct or Build-selected provider implementations; demand completion checks
   them, then binds the final choices. Original build choices stay
   separate from it.
-- [retained_terminal.rs](selected_execution.rs) runs lowering and native
-  provider preparation from the shared proposal and execution records. It joins
-  package permissions and prepares callbacks, imports and builtins for
-  admission. Derived import evidence stays invocation-owned through admission
+- [Selected execution](selected_execution.rs) lowers the program entry or a
+  component callable. [Provider admission](admit_providers.rs) uses that execution's
+  demands to prepare callbacks, imports and builtins and check package permissions. Derived import evidence stays invocation-owned through admission
   and emission; the compiler forwards this stage's request rather than copying
   its fields. The [saved-input codec](../../saved-inputs/saved_inputs.rs)
   writes the selected derivation and reopens it against the authorized program
   using the same proposal checks.
-- [native_execution_scope.rs](admit_providers.rs) is the complete
+- [Provider admission](admit_providers.rs) is the complete
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input
   before stage 03.

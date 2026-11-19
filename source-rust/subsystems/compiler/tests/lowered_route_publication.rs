@@ -52,7 +52,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
         .unwrap()
         .with_operation_evidence(product.artifact(), Some(seals.clone()))
         .unwrap();
-    let (input, _) = artifact_lowering::lower_native_execution(proposal, execution, &[], None)
+    let input = artifact_lowering::lower_native_execution(proposal, &execution, &[], None)
         .expect("lower the checked entry and its selected callees with their evidence");
     let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input.into_optimization_input(),
