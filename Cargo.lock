@@ -2882,7 +2882,6 @@ dependencies = [
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
- "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",

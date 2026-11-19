@@ -20,7 +20,7 @@ record-storage = { path = "../../../../foundation/record-storage" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"
 source-acquisition = { path = "../../../package-manager/source-acquisition" }
-evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../evaluation/accounting" }
 artifacts = { path = "../../foundation/measurements" }
 flow-effects = { path = "../../source-to-psi/language/source-effects" }
 optimization-selections = { path = "../../foundation/optimization-selections" }

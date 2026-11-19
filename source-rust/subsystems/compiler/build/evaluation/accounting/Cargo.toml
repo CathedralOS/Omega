@@ -4,8 +4,12 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[lib]
+path = "accounting.rs"
+
 [dependencies]
-evaluation-contracts = { path = "../evaluation-contracts" }
+evaluation-contracts = { path = "../usage" }
+
 [dev-dependencies]
 record-storage = { path = "../../../../../foundation/record-storage" }
-semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }

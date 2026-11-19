@@ -55,7 +55,6 @@ artifact-evaluation = { path = "evaluation/artifact-evaluation" }
 build-time-values = { path = "evaluation/build-time-values" }
 record-storage = { path = "../../../foundation/record-storage" }
 diagnostics = { path = "../../../foundation/diagnostics" }
-evaluation-accounting = { path = "evaluation/evaluation-accounting" }
 worker-budget = { path = "../foundation/worker-budget" }
 filesystem-authority = { path = "evaluation/filesystem-authority" }
 flow-effects = { path = "language/source-effects" }

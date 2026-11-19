@@ -16,6 +16,7 @@ members = [
     "source-rust/subsystems/compiler/build/build-output",
     "source-rust/subsystems/compiler/build/build-output/product-publication",
     "source-rust/subsystems/compiler/build/build-settings",
+    "source-rust/subsystems/compiler/build/evaluation/accounting",
     "source-rust/subsystems/compiler/build/evaluation/receipts",
     "source-rust/subsystems/compiler/build/evaluation/usage",
     "source-rust/subsystems/compiler/build/optimization-policy/requests",

@@ -20,7 +20,7 @@ record-storage = { path = "../../foundation/record-storage" }
 access-admission = { path = "../compiler/psi/access/admission" }
 arena = { path = "../../foundation/arena" }
 extents = { path = "memory/extents" }
-evaluation-accounting = { path = "../evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 layout-plans = { path = "../compiler/psi/layout" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 numerics = { path = "../compiler/psi/semantics/numeric" }

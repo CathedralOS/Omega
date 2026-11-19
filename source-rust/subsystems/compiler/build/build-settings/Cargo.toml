@@ -19,7 +19,7 @@ terminal-work = { path = "../../psi/work" }
 terminal-codec = { path = "../../psi/codec" }
 syntax-trees = { path = "../../source-to-psi/pipeline/representations/syntax-trees" }
 source-compiler = { path = "../../source-to-psi" }
-evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../evaluation/accounting" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 artifacts = { path = "../../foundation/measurements" }
 products = { path = "../../compilation/products" }
