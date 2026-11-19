@@ -1,10 +1,12 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{MachineEffects, PauseEffects, ServiceApplication, TypeError, TypedStage};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(crate) fn check_machine_effects(
     catalog: &DeclarationCatalog<'_>,
     graph: &super::effect_propagation::ExecutionCalls,
+    dependencies: &PreparationDependencies<'_>,
     boundary_slots: &[crate::BoundarySlot],
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
@@ -114,7 +116,9 @@ pub(crate) fn check_machine_effects(
         }
     }
     for obligation in &out.obligations {
-        if let crate::ObligationKind::RefineCallable { contract, machine, arguments } = &obligation.kind {
+        if let crate::ObligationKind::RefineCallable { contract, machine, arguments } = &obligation.kind
+            && dependencies.node_is_ready(obligation.node)
+        {
             let pause = formulas[machine].upper();
             if pause.suspend && !contract.pause.suspend
                 || pause.block && !contract.pause.block
@@ -140,6 +144,9 @@ pub(crate) fn check_machine_effects(
     }
     let mut invokes = super::callback_invocations::compose_callback_invocations(catalog, graph, boundary_slots, out)?;
     for &id in &catalog.local_machines {
+        if !dependencies.declaration_is_ready(id) {
+            continue;
+        }
         let mut row = reach.remove(id).unwrap().into_iter().collect::<Vec<_>>();
         row.sort_by_cached_key(|r| format!("{r:?}"));
         let mut entries: Vec<_> = invokes.remove(id).unwrap().into_iter().collect();
@@ -156,7 +163,7 @@ pub(crate) fn check_machine_effects(
         }));
     }
 
-    check_fact_effects(out, catalog, &formulas)
+    check_fact_effects(out, catalog, &formulas, dependencies)
 }
 #[derive(Clone, Default)]
 struct PauseEffectFormula {
@@ -315,11 +322,13 @@ fn check_fact_effects(
     out: &TypedStage,
     catalog: &DeclarationCatalog<'_>,
     formulas: &HashMap<&omega_resolver::DeclarationId, PauseEffectFormula>,
+    dependencies: &PreparationDependencies<'_>,
 ) -> Result<(), TypeError> {
     use crate::{CallUse, ValueType};
     let effects: HashMap<_, _> = out.machine_effects.iter().map(|e| (&e.machine, e)).collect();
     for call in &out.indirect_calls {
         if call.use_site != CallUse::Execution
+            && dependencies.node_is_ready(call.node)
             && (call.contract.pause.suspend || call.contract.pause.block || call.contract.reach.as_ref().is_none_or(|r| !r.is_empty()))
         {
             return Err(TypeError::for_site(&call.site, "fact requires an admitted effect-free callable"));
@@ -328,7 +337,7 @@ fn check_fact_effects(
     for call in out
         .calls
         .iter()
-        .filter(|call| call.use_site != CallUse::Execution)
+        .filter(|call| call.use_site != CallUse::Execution && dependencies.node_is_ready(call.node))
     {
         let pause = specialize(call, formulas, catalog).upper();
         if pause.suspend || pause.block || !effects[&call.machine].reach.is_empty() {
@@ -344,6 +353,9 @@ fn check_fact_effects(
             crate::ObligationKind::RefineMathematicalCitation { machine, .. } => machine,
             _ => continue,
         };
+        if !dependencies.node_is_ready(obligation.node) {
+            continue;
+        }
         let effect = effects[candidate];
         if effect.pause.suspend
             || effect.pause.block

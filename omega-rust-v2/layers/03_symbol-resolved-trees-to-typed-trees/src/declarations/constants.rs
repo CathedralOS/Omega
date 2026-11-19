@@ -36,8 +36,13 @@ pub(crate) fn infer<'a>(
         dependencies,
         |i| {
             let (unit, id, expr) = inferred[i];
-            let value = declaration_bodies::infer_constant(unit, catalog, expr, output)?;
-            catalog.constants.insert(id, value);
+            match declaration_bodies::infer_constant(unit, catalog, expr, output) {
+                Ok(value) => {
+                    catalog.constants.insert(id, value);
+                }
+                Err(error) if error.waiting_for_static_value => catalog.types.indices.defer_constant(id),
+                Err(error) => return Err(error),
+            }
             Ok(())
         },
         |i| {

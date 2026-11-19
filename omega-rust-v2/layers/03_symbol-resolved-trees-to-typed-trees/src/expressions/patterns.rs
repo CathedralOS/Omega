@@ -145,7 +145,7 @@ impl BodyTyper<'_, '_> {
         }
     }
     fn pattern_value(
-        &self,
+        &mut self,
         node_index: usize,
     ) -> Result<ValueType, TypeError> {
         match self.unit.symbol(node_index) {
@@ -155,7 +155,7 @@ impl BodyTyper<'_, '_> {
                 .get(span)
                 .cloned()
                 .ok_or_else(|| TypeError::unsupported(self.unit.file, node_index)),
-            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Const => Ok(self.catalog.constants[id].clone()),
+            Some(Symbol::Declaration(id)) if id.kind == NodeKind::Const => self.constant_reference(node_index, id),
             _ => Err(TypeError::unsupported(self.unit.file, node_index)),
         }
     }

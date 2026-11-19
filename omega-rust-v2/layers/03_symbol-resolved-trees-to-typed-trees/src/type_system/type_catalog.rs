@@ -293,6 +293,8 @@ impl TypeCatalog<'_> {
     ) -> Result<ValueType, String> {
         let mut requirements = Vec::new();
         let normalized = self.normalize(ty, &mut HashSet::new(), &mut requirements)?;
+        self.indices
+            .retain_demands_at(unit.file.node_id(node), &normalized);
         self.formations.retain(unit, node, requirements);
         Ok(normalized)
     }

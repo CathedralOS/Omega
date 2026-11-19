@@ -12,6 +12,9 @@ impl BodyTyper<'_, '_> {
         declaration: &omega_resolver::DeclarationId,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
+        if self.catalog.types.indices.constant_is_pending(declaration) {
+            return Err(self.catalog.types.indices.wait(source, node));
+        }
         let ty = self
             .catalog
             .constants
@@ -313,7 +316,10 @@ impl BodyTyper<'_, '_> {
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source_file, node_index, reason))?;
-        self.catalog.types.indices.retain_demands(&value);
+        self.catalog
+            .types
+            .indices
+            .retain_demands_at(source_file.node_id(node_index), &value);
         self.record_expression_with_static_argument(node_index, value.clone(), static_argument_slot);
         Ok(value)
     }

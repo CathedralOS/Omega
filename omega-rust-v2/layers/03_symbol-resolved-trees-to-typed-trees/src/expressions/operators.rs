@@ -1,4 +1,4 @@
-use super::call_arguments::{CallOperand, SelectedMachine};
+use super::call_arguments::{CallOperand, PendingComparisons, SelectedMachine};
 use crate::declarations::operator_declarations::nominal_operator_operand;
 use crate::evaluation::numeric_literals;
 use crate::expressions::body_typer::BodyTyper;
@@ -16,7 +16,9 @@ impl BodyTyper<'_, '_> {
         let Some(family) = self.catalog.token_bindings.get(token) else {
             return Ok(None);
         };
-        let mut selected = None;
+        let mut selected = Vec::new();
+        let indices = &self.catalog.types.indices;
+        let mut waiting = false;
         for binding in family {
             let id = &binding.declaration.machine;
             let signature = &self.catalog.signatures[id];
@@ -69,9 +71,12 @@ impl BodyTyper<'_, '_> {
                 };
                 let mut args = vec![None; self.catalog.types.arity(id)];
                 let mut subjects = Vec::with_capacity(operands.len());
+                let mut pending = PendingComparisons::default();
                 for (position, ((_, param), operand)) in signature.parameters.iter().zip(operands).enumerate() {
                     let formal = capture(param).instantiate_subjects(signature, &subjects);
-                    if !self.infer_operand(source.nodes[node_index].kind, position, operand, &formal, id, &mut args) {
+                    if !self.infer_operand_with(source.nodes[node_index].kind, position, operand, &formal, id, &mut args, &mut |a, b| {
+                        pending.compare(indices, a, b)
+                    }) {
                         break;
                     }
                     subjects.push(operand.subject(self.unit, &formal));
@@ -79,27 +84,33 @@ impl BodyTyper<'_, '_> {
                 if subjects.len() != operands.len() {
                     continue;
                 }
+                if pending.retain_demands(indices) {
+                    waiting = true;
+                    continue;
+                }
                 let Some(args) = args.into_iter().collect::<Option<Vec<_>>>() else {
                     continue;
                 };
-                if selected
-                    .replace(SelectedMachine {
-                        machine: id,
-                        explicit_arguments: &[],
-                        arguments: args,
-                        enclosing: owner
-                            .into_iter()
-                            .map(|s| (s.declaration, s.trait_arguments))
-                            .collect(),
-                        evidence,
-                    })
-                    .is_some()
-                {
-                    return Err(TypeError::at(source, node_index, format!("ambiguous operator {token}")));
-                }
+                selected.push(SelectedMachine {
+                    machine: id,
+                    explicit_arguments: &[],
+                    arguments: args,
+                    enclosing: owner
+                        .into_iter()
+                        .map(|s| (s.declaration, s.trait_arguments))
+                        .collect(),
+                    evidence,
+                });
             }
         }
+        if waiting {
+            return Err(indices.wait(source, node_index));
+        }
+        if selected.len() > 1 {
+            return Err(TypeError::at(source, node_index, format!("ambiguous operator {token}")));
+        }
         selected
+            .pop()
             .map(|target| self.apply_machine(node_index, target, operands))
             .transpose()
     }

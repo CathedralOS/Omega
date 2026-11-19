@@ -116,10 +116,10 @@ fn refusal(
     site: &omega_typer::Site,
     reason: &str,
 ) -> TypeError {
-    TypeError {
-        package: site.package.clone(),
-        file: site.file.clone(),
-        span: site.span,
-        message: format!("static evaluation cannot admit this invocation: {reason}"),
-    }
+    TypeError::new(
+        &site.package,
+        &site.file,
+        site.span,
+        format!("static evaluation cannot admit this invocation: {reason}"),
+    )
 }

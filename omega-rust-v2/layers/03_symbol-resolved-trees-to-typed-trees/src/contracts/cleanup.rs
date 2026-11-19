@@ -1,5 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{CleanupSelection, ObligationKind, Site, TypeError, TypedStage, TypingObligation, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
@@ -8,6 +9,7 @@ use std::collections::HashMap;
 pub(crate) fn check_cleanup_selections(
     units: &[ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
+    dependencies: &PreparationDependencies<'_>,
     stage: &mut TypedStage,
 ) -> Result<(), TypeError> {
     for unit in units {
@@ -23,6 +25,9 @@ pub(crate) fn check_cleanup_selections(
             let Some(Symbol::Declaration(machine)) = unit.symbol(head) else {
                 return Err(TypeError::at(f, head, "cleanup must select one exact machine"));
             };
+            if !dependencies.node_is_ready(f.node_id(n)) || !dependencies.declaration_is_ready(machine) {
+                continue;
+            }
             let sig = catalog
                 .signatures
                 .get(machine)
@@ -76,14 +81,16 @@ pub(crate) fn check_cleanup_selections(
     let plans: HashMap<_, _> = stage.cleanups.iter().map(|plan| (&plan.owner, plan)).collect();
     for unit in units {
         for (n, node) in unit.file.nodes.iter().enumerate() {
-            if node.kind == NodeKind::QualifiedType {
+            if node.kind == NodeKind::QualifiedType && dependencies.node_is_ready(unit.file.node_id(n)) {
                 let ty = unit.annotation(n, &catalog.types)?;
                 compatible(&ty, &plans, catalog).map_err(|m| TypeError::at(unit.file, n, m))?;
             }
         }
     }
     for expression in &stage.expressions {
-        compatible(&expression.ty, &plans, catalog).map_err(|m| TypeError::for_site(&expression.site, m))?;
+        if dependencies.node_is_ready(expression.node) {
+            compatible(&expression.ty, &plans, catalog).map_err(|m| TypeError::for_site(&expression.site, m))?;
+        }
     }
     Ok(())
 }
