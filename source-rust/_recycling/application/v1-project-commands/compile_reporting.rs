@@ -1,4 +1,33 @@
 // V1 request conversion and report presentation during the project driver migration.
+fn run_project(arguments: CompileArguments, output: DiagnosticOutput) {
+    let started = arguments.timings.then(Instant::now);
+    let report_file = arguments.report_file;
+    let installation_assumptions = arguments.installation_assumptions.clone();
+    for row in &installation_assumptions {
+        println!("{}", assumption_text(row));
+    }
+    // The enumerated set depends on this compiler's registry, so a report of
+    // it names the compiler and the roster it enumerated.
+    let roster = arguments.stage_validators.enumerates_every().then(|| {
+        format!(
+            "stage validator roster (omega {} {}): {}\n",
+            env!("OMEGA_VERSION"),
+            env!("OMEGA_COMMIT"),
+            compiler::stage_validators::StageValidator::ROSTER
+                .iter()
+                .map(|validator| validator.name())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    });
+    let roster = roster.as_deref().unwrap_or_default();
+    let target_names = arguments.target_names;
+    let targets = match resolve_targets(&target_names) {
+        Ok(RequestedTargets::Host) => BuildTargets::Host,
+        Ok(RequestedTargets::Single(profile)) => BuildTargets::Single(profile),
+        Ok(RequestedTargets::Batch(set)) => BuildTargets::Batch(set),
+        Err(diagnostics) => exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)]),
+    };
     let request = BuildRequest {
         stage_validators: arguments.stage_validators,
         build_directory: arguments.build_dir,
