@@ -1,5 +1,6 @@
 //! Expressions: binary operators by precedence, casts, prefixes, postfixes and primaries.
 
+use crate::errors::parse_error_kind::ParseErrorKind;
 use crate::grammar::contexts::expression_context::ExpressionContext;
 use crate::grammar::contexts::type_position::TypePosition;
 use crate::parsing::closed_node::ClosedNode;
@@ -7,6 +8,18 @@ use crate::parsing::parse_failed::Parsed;
 use crate::parsing::syntax_parser::SyntaxParser;
 use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
+
+/// What the expression being parsed is the right-hand side of. See :ComparisonsDoNotChain.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OperandOf {
+    Comparison,
+    Other,
+}
+
+/// The binding levels of `== !=` and of `< <= > >=`, the six operators that do not chain.
+fn is_comparison_level(binding_level: u8) -> bool {
+    binding_level == 3 || binding_level == 4
+}
 
 /// A binary operator at the cursor: how tightly it binds, and how many tokens spell it.
 struct BinaryOperator {
@@ -19,7 +32,7 @@ impl SyntaxParser<'_> {
         &mut self,
         context: ExpressionContext,
     ) -> Parsed<ClosedNode> {
-        self.parse_binary(context, 1)
+        self.parse_binary(context, 1, OperandOf::Other)
     }
 
     /*
@@ -52,22 +65,54 @@ impl SyntaxParser<'_> {
         &mut self,
         context: ExpressionContext,
         minimum_level: u8,
+        operand_of: OperandOf,
     ) -> Parsed<ClosedNode> {
         let mut left_side = self.parse_cast(context)?;
+        let mut left_side_is_comparison = false;
 
         while let Some(binary_operator) = self.peek_binary_operator(context) {
             if binary_operator.binding_level < minimum_level {
                 break;
             }
 
+            /*
+                :ComparisonsDoNotChain
+                A comparison may not be the operand of another comparison unless
+                it is in parentheses. `a < b < c`, `a == b == c` and
+                `a < b == c` are all refused; `(a < b) == c` is fine.
+
+                The grouping has to be something the writer wrote. Read as
+                mathematics, `0 <= index < length` says the index is in range;
+                grouped to the left it compares a true-or-false answer with
+                `length`. The typer would refuse that one. It would not refuse
+                `a == b == c` on three booleans, which type-checks as
+                `(a == b) == c` and is false when all three are false. Nothing
+                downstream objects, so this is the layer that has to. Rust, Zig
+                and Lean make the same choice.
+
+                There are two ways a comparison can become an operand here. It
+                can be on the left: it was built by the previous turn of this
+                loop. Or this whole call can be parsing the right side of a
+                comparison, in which case any comparison we accept would be
+                handed back as that operand. Every other operator stays
+                left-associative.
+            */
+            let is_comparison = is_comparison_level(binary_operator.binding_level);
+
+            if is_comparison && (left_side_is_comparison || operand_of == OperandOf::Comparison) {
+                return Err(self.error_of_kind(ParseErrorKind::ChainedComparison, "parentheses around one of the comparisons"));
+            }
+
+            let right_side_of = if is_comparison { OperandOf::Comparison } else { OperandOf::Other };
             let binary = self.open_before(left_side);
 
             for _ in 0..binary_operator.token_count {
                 self.bump();
             }
 
-            self.parse_binary(context, binary_operator.binding_level + 1)?;
+            self.parse_binary(context, binary_operator.binding_level + 1, right_side_of)?;
             left_side = self.close(binary, NodeKind::Binary);
+            left_side_is_comparison = is_comparison;
         }
 
         Ok(left_side)

@@ -54,6 +54,57 @@ File
         Binary
           PathExpression 'a'
           '=='
+          Paren
+            '('
+            Binary
+              PathExpression 'b'
+              '<'
+              PathExpression 'c'
+            ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Paren
+            '('
+            Binary
+              PathExpression 'a'
+              '=='
+              PathExpression 'b'
+            ')'
+          '<'
+          PathExpression 'c'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Paren
+            '('
+            Binary
+              PathExpression 'a'
+              '<'
+              PathExpression 'b'
+            ')'
+          '=='
+          Paren
+            '('
+            Binary
+              PathExpression 'c'
+              '<'
+              PathExpression 'd'
+            ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Binary
+          Binary
+            PathExpression 'a'
+            '<'
+            PathExpression 'b'
+          '&&'
           Binary
             PathExpression 'b'
             '<'

@@ -24,6 +24,9 @@ pub enum ParseErrorKind {
     /// A statement after a nested machine declaration.
     StatementAfterMachine,
 
+    /// A comparison used as the operand of another comparison without parentheses.
+    ChainedComparison,
+
     /// Brackets, types, patterns or declarations nested more deeply than the parser follows.
     NestingTooDeep,
 
@@ -45,6 +48,9 @@ impl ParseErrorKind {
             Self::SeparatorBeforeBody => "nothing goes between a header and its body; remove this `;` or `,`".to_string(),
             Self::TransitionNotLast => "a `transition` must be the last statement of a body".to_string(),
             Self::StatementAfterMachine => "statements cannot follow a nested machine; move this above the nested declarations".to_string(),
+            Self::ChainedComparison => {
+                "a comparison cannot be compared again without parentheses; write `(a < b) == c`, or `a < b && b < c` for a range".to_string()
+            }
             Self::NestingTooDeep => "this is nested more deeply than the parser follows".to_string(),
             Self::SourceTooLarge => "this source has more tokens than one file may hold".to_string(),
         }

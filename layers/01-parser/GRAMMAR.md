@@ -434,6 +434,13 @@ tiers language/expressions.md gives):
 
 Bitwise operators bind tighter than comparisons, unlike C.
 
+- **Comparisons do not chain** (decision 11). The six comparison operators,
+  `==` `!=` `<` `<=` `>` `>=`, do not take a comparison as an operand unless
+  it is in parentheses. `a < b < c`, `a == b == c` and `a < b == c` are
+  refused; `(a < b) == c` and `a < b && b < c` are fine. A range is written
+  as two comparisons joined by `&&`. Every other operator still groups to
+  the left: `a - b - c`, `a || b || c`.
+
 - **Right shift** is two `>` tokens with nothing between them, and its policy
   suffix is a `%`, `|` or `!` directly after the second. The lexer has no `>>`
   token; this layer joins them by checking that their byte ranges touch
@@ -566,7 +573,7 @@ language/generics.md:636), and the many examples that are fragments
 
 Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
-error it must produce. 22 accept, 94 reject.
+error it must produce. 22 accept, 99 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
@@ -584,7 +591,7 @@ error it must produce. 22 accept, 94 reject.
 | statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
 | match, transition | `match_and_transition` | `missing_arm_comma`, `missing_arm_comma_in_transition`, `fat_arrow_arm`, `arm_without_result`, `arm_result_is_block`, `match_without_arms`, `record_literal_as_subject`, `transition_as_expression` |
 | patterns | `patterns` | `record_pattern_rest_not_last`, `field_pattern_as_without_name` |
-| binary operators | `expressions_binary` | `missing_operand`, `two_operators` |
+| binary operators | `expressions_binary` | `missing_operand`, `two_operators`, `chained_relational_comparison`, `chained_equality_comparison`, `comparison_of_a_comparison`, `comparison_as_right_operand`, `range_written_as_mathematics` |
 | right shift | `right_shift` | `right_shift_with_space` |
 | prefixes, postfixes, primaries | `expressions_unary_postfix` | `unary_plus`, `unclosed_call`, `unclosed_index`, `unclosed_parenthesis`, `field_access_by_number`, `path_ending_in_colons`, `record_literal_missing_comma`, `record_literal_omission_not_last`, `selection_without_trait` |
 | casts | `casts` | `cast_then_arithmetic`, `cast_then_less_than` |
@@ -622,14 +629,11 @@ the grammar had missed; all 132 parse now.
 Two things came up that are questions, not fixes. Both are in PLAN.md's
 owner questions.
 
-- **Comparisons chain, so an old-style generic call parses.** With bare `<`
-  as less-than and every operator grouping to the left, `apply<set_time>(x)`
-  is a valid expression: `(apply < set_time) > (x)`. Nobody means that. The
-  typer will refuse it, with a message about comparing a machine. Refusing a
-  comparison whose operand is itself a comparison would catch it here, with a
-  message that says to write `::<`. That departs from "all left-associative"
-  (decision 6), so it is not done. None of the 132 examples is affected: no
-  spec example chains comparisons.
+- **Comparisons chained.** Every operator grouped to the left, so
+  `0 <= index < length` parsed, as `(0 <= index) < length`: a true-or-false
+  answer compared with a number. Decided 2026-11-18 (decision 11): a
+  comparison is not the operand of another without parentheses. None of the
+  132 examples was affected.
 - **`&&` is one token.** A reference to a reference has to be written
   `& &T`, and a borrow of a borrow `& &x`. Splitting the token in type and
   prefix position would remove the corner. V1's lexer has the same token.
@@ -650,6 +654,7 @@ Made by Jarod on 2026-11-18, with Zac on two of them.
 | 8 | Is assembly parsed now? | The spec defines it. | "just parse it" | **Yes.** |
 | 9 | `satisfies` expressions and `some` binders? | In the spec since 2026-11-10. | "obviously in" | **In.** |
 | 10 | How is the spec corpus tagged? | 132 examples of mixed kinds. | "I dont care" | **Claude's choice.** |
+| 11 | May a comparison be the operand of another? | Grouped to the left, `a == b == c` on three booleans type-checks as `(a == b) == c`, which is not "all three are equal", and nothing downstream objects. Rust, Zig and Lean refuse such chains, all six operators as one group; Rocq defines a chain as both comparisons holding; Odin groups to the left. No spec example chains comparisons. | Decided, then dropped ("just keep the chaining"), then on the boolean case: "this hole seems bad and it sounds like magic, which I hate" and "bring it back". | **No, not without parentheses.** All six comparison operators. This revises decision 6 for those six. |
 
 A rule that `iN` and `uN` cannot be declared as type names came up under
 decision 5. It is a rule about names, so it belongs to the layer that

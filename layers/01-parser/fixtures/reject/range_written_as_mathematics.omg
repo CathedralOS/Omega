@@ -1,0 +1,6 @@
+// A range written as mathematics. In Omega it is two comparisons: `0 <= index && index < length`.
+machine read(view: &[u8], index: u64) -> u8
+requires 0 <= index < view.length
+{
+    view[index]
+}

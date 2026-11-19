@@ -1,0 +1,4 @@
+// :ComparisonsDoNotChain. The comparison on the right needs parentheses: `a == (b < c)`.
+machine f(a: bool, b: u32, c: u32) -> bool {
+    a == b < c
+}

@@ -40,6 +40,8 @@ MUTATIONS=(
   "case is always a case|grammar/data.rs|s/if self.at_keyword(\"case\") \&\& self.nth_at_word(1) {/if self.at_keyword(\"case\") {/"
   "generic argument before a comma is a value|grammar/generics.rs|s/Some(Punctuation::Comma | Punctuation::Greater) => !is_inside_brackets,/Some(Punctuation::Comma | Punctuation::Greater) => false,/"
   "bracketed generic argument is never a type|grammar/generics.rs|s/Some(Punctuation::RightBracket | Punctuation::Semicolon) => is_inside_brackets,/Some(Punctuation::RightBracket | Punctuation::Semicolon) => false,/"
+  "comparisons may chain|grammar/expressions.rs|s/if is_comparison && (left_side_is_comparison || operand_of == OperandOf::Comparison) {/if false {/"
+  "a comparison may be the right side of another|grammar/expressions.rs|s/ || operand_of == OperandOf::Comparison) {/) {/"
   "every instruction needs a semicolon|grammar/assembly.rs|s/if !self.eat(Punctuation::Semicolon) {/self.expect(Punctuation::Semicolon, \"x\")?; if false {/"
   "nesting limit removed|parsing/syntax_parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 4000000;/"
   "a token is dropped from the tree|parsing/syntax_parser.rs|s/^        self.events.push(TreeEvent::Token);$/        if self.token_position % 97 != 96 { self.events.push(TreeEvent::Token); }/"
@@ -59,7 +61,17 @@ for mutation in "${MUTATIONS[@]}"; do
     continue
   fi
 
-  if cargo test -q -p omega-parser > "$BACKUP/out.txt" 2>&1; then
+  # The linker sometimes cannot write its output because something else has the file open
+  # (another build, or a virus scanner). That says nothing about the mutation, so try again.
+  for attempt in 1 2 3; do
+    cargo test -q -p omega-parser > "$BACKUP/out.txt" 2>&1 && test_status=0 || test_status=$?
+
+    if ! grep -q "linking with" "$BACKUP/out.txt"; then
+      break
+    fi
+  done
+
+  if [ "$test_status" -eq 0 ]; then
     echo "MISSED       $name"
     missed=$((missed + 1))
   else
