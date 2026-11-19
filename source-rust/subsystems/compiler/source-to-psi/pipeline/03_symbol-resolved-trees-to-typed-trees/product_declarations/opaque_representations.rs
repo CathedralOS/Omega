@@ -1,7 +1,7 @@
 //! A Build choice names the storage of an opaque value. Check each authored
 //! choice, then retain only the ones the authoritative Build actually executed.
 
-use super::authored_requests::{AuthoredRequests, refusal};
+use super::authored_requests::{AuthoredRequests, has_operation, refusal};
 use crate::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
 };
@@ -20,9 +20,9 @@ use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeRefe
 use application_identity::conformance_identity::{
     ConformanceIdentityDescription, source_identity_commitments,
 };
-use declaration_contracts::{DataSupplyMode, Multiplicity};
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::CoreVocabulary;
+use language_core::{DataSupplyMode, Multiplicity};
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
@@ -262,14 +262,14 @@ fn form(
     })
 }
 
-pub fn collect(
+pub fn collect_opaque_representations(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     declared: &[Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
 ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
     let operation = BuildOperation::RepresentationSelection;
-    if !super::build_requests_any(declared, executed, &[operation]) {
+    if !has_operation(declared, executed, operation) {
         return Ok(Vec::new());
     }
     let authored = AuthoredRequests::new(typed, declared, operation)?;

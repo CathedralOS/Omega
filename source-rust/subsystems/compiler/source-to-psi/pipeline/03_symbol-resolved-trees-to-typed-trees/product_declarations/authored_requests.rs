@@ -11,6 +11,15 @@ use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+pub(super) fn has_operation(
+    declared: &[Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    operation: BuildOperation,
+) -> bool {
+    declared.iter().any(|request| request.operation == operation)
+        || executed.iter().any(|event| event.request.operation == operation)
+}
+
 type OccurrenceKey = (usize, usize, usize);
 
 fn key(typed: &TypedTrees, request: &ProductDeclarationRequest) -> OccurrenceKey {

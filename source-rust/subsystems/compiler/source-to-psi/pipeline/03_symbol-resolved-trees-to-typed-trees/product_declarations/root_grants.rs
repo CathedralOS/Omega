@@ -1,7 +1,7 @@
 //! Build acceptance records intent for one exact subject. Selected-plan and
 //! package trust settlement decide whether that subject can be admitted.
 
-use super::authored_requests::{AuthoredRequests, refusal};
+use super::authored_requests::{AuthoredRequests, has_operation, refusal};
 use crate::declaration_selection::product_operands::ProductStaticEnvironment;
 use crate::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest, ProductOperandRole,
@@ -121,13 +121,7 @@ pub fn collect_product_root_grants(
     declared: &[Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
 ) -> Result<Vec<AuthoredRootGrant>, Vec<Diagnostic>> {
-    if !declared
-        .iter()
-        .any(|r| r.operation == BuildOperation::BoundaryAcceptance)
-        && !executed
-            .iter()
-            .any(|e| e.request.operation == BuildOperation::BoundaryAcceptance)
-    {
+    if !has_operation(declared, executed, BuildOperation::BoundaryAcceptance) {
         return Ok(Vec::new());
     }
     let authored = AuthoredRequests::new(typed, declared, BuildOperation::BoundaryAcceptance)?;

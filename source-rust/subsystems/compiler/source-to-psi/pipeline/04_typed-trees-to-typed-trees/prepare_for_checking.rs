@@ -8,6 +8,7 @@ use crate::declaration_selection::ProductDeclarationRequest;
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::product_declarations::collect_opaque_representations;
 
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
@@ -64,7 +65,7 @@ impl ProductRepresentationInput<'_> {
         &self,
         typed: &crate::source_state::TypedTrees,
     ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
-        let selected = crate::evaluation::opaque_representations::collect(
+        let selected = collect_opaque_representations(
             typed,
             self.activation,
             self.declared,

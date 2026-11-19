@@ -509,7 +509,7 @@ mod product_policy {
                 }
             }
             let typed = self.typed();
-            let representations = crate::evaluation::opaque_representations::collect(
+            let representations = super::product_declarations::collect_opaque_representations(
                 typed,
                 request.activation,
                 request.declared,
