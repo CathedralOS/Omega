@@ -87,8 +87,8 @@ impl NativePipelineObservation {
 
     pub fn native_body(
         &self,
-    ) -> crate::pipeline::realization::lower_body::NativeBodyObservation<'_> {
-        crate::pipeline::realization::lower_body::NativeBodyObservation {
+    ) -> crate::compile_body::NativeBodyObservation<'_> {
+        crate::compile_body::NativeBodyObservation {
             abstract_optimization: self.counter(NativePipelineStage::AbstractOptimization),
             target_lowering: self.counter(NativePipelineStage::AbstractToTarget),
         }

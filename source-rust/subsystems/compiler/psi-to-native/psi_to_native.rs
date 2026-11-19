@@ -1,20 +1,33 @@
 //! Compile an authorized Psi program for one receiving target.
 #![forbid(unsafe_code)]
 
-mod pipeline;
-#[path = "replay/stage_validators.rs"]
+mod compile_body;
+mod component_inputs;
+mod driver;
+mod emit_program;
+mod foreign_adapters;
+mod observations;
+mod request;
+mod runtime_provisions;
+mod target_inputs;
+
+#[cfg(test)]
+#[path = "tests/physical_publication/mod.rs"]
+mod physical_publication_tests;
+
+#[path = "verification/stage_validators.rs"]
 pub mod stage_validators;
 
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
-pub use pipeline::prepare::published_application::{
+pub use target_inputs::published_application::{
     NativeApplicationSettings, SavedProgramTarget, SourceNativeTarget,
     prepare_saved_program, prepare_source_program,
 };
 
 use diagnostics::Diagnostic;
-use pipeline::prepare::published_application::complete_entry_scalars;
-use pipeline::request::NativeCompileRequest;
+use target_inputs::published_application::complete_entry_scalars;
+use request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;
 use psi_entry_memory::PrivateEntryRamInitialization;
@@ -24,13 +37,13 @@ use verified_optimization_input::RetainedTerminalArtifact;
 /// observe how often ordinary compilation enters a stage.
 #[cfg(feature = "test-support")]
 pub mod test_support {
-    pub use crate::pipeline::observations::{
+    pub use crate::observations::{
         NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations,
     };
-    pub use crate::pipeline::prepare::published_application::complete_entry_scalars;
-    pub use crate::pipeline::realization::compile_runtime_foreign_adapter;
-    pub use crate::pipeline::request::NativeCompileRequest;
-    pub use crate::pipeline::{admit_runtime, compile};
+    pub use crate::target_inputs::published_application::complete_entry_scalars;
+    pub use crate::foreign_adapters::compile_runtime_foreign_adapter;
+    pub use crate::request::NativeCompileRequest;
+    pub use crate::driver::{admit_runtime, compile};
 }
 
 /// Emit the requested native image from a published Psi program.
@@ -127,7 +140,7 @@ impl NativeProgram {
             entry_memory,
             &mut Vec::new(),
             retain_native_stage_inputs,
-            |terminal, request| pipeline::compile(&terminal, request),
+            |terminal, request| driver::compile(&terminal, request),
         )
     }
 
@@ -136,7 +149,7 @@ impl NativeProgram {
         entry_memory: &[PrivateEntryRamInitialization],
         accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
     ) -> Result<AdmittedRuntimeProgram, Vec<Diagnostic>> {
-        self.finish(entry_memory, accounting, false, pipeline::admit_runtime)
+        self.finish(entry_memory, accounting, false, driver::admit_runtime)
     }
 
     fn finish<T>(

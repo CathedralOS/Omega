@@ -24,7 +24,7 @@ pub struct NativeCompileRequest<'request> {
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub image_request: ExecutableImageEmissionRequest,
     pub imports: &'request [SourceEvaluatedImportSettlement<'request>],
-    pub components: &'request [super::components::ComponentCompilation<'request>],
+    pub components: &'request [crate::component_inputs::ComponentCompilation<'request>],
     /// Completed scalar values read by the program entry.
     pub scalars: Option<&'request psi_scalar_applications::AdmittedScalarApplications>,
 }

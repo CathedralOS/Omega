@@ -9,6 +9,8 @@ handler body and verifies that reentry never changes the parent installation,
 artifact, or callback association.
 */
 
+mod handler_order;
+
 use super::plan_callables::{CallableTargetProduct, PrivateEntryContract};
 use diagnostics::Diagnostic;
 use image_emission::PrivateFunctionObject;
@@ -175,7 +177,7 @@ impl<'contract> PreparedCallbackBodies<'contract> {
             edges[index] = installed_plans.dependencies(&body.target, &selected)?;
         }
         let (before_root, after_root) =
-            super::handler_order::handler_planning_order(&edges, &root_handlers, &order)
+            handler_order::handler_planning_order(&edges, &root_handlers, &order)
                 .map_err(|reason| realization_error("installed handler stack", reason))?;
         let mut bodies = Self {
             selected,
@@ -212,7 +214,7 @@ impl<'contract> PreparedCallbackBodies<'contract> {
 /// Measure only placements that a surviving guard actually references, after
 /// physical planning has closed the callback roster.
 pub(super) fn retained_handler_measurements(
-    root: &super::physical_body::PreparedPhysicalBody,
+    root: &crate::compile_body::PreparedPhysicalBody,
     private: &[PlannedPrivateBody],
 ) -> Result<installation_binding::RetainedHandlerMeasurements, Vec<Diagnostic>> {
     use std::collections::{BTreeMap, BTreeSet};

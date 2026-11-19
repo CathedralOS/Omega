@@ -3,7 +3,7 @@
 // cost, matching the independent object readback route.
 
 use super::callback_thunks::PlannedPrivateBody;
-use super::physical_body::PreparedPhysicalBody;
+use crate::compile_body::PreparedPhysicalBody;
 use diagnostics::Diagnostic;
 use frame_planning::stack_demand::{StackDemand, derive_physical_stack_demand};
 use provider_admission::realization_error;

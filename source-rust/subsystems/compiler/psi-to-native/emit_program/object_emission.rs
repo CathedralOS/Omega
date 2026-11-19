@@ -3,7 +3,7 @@
 // membership; merely available callbacks do not become emission roots.
 
 use super::callback_thunks::{PreparedCallbackBodies, prepare_installed_callbacks};
-use super::physical_body::{self, BodyEmissionError};
+use crate::compile_body::{self, BodyEmissionError};
 use super::selected_physical_pipeline_failed;
 use verified_optimization_input::ValidatedNativeProgramEntrySettlement;
 use diagnostics::Diagnostic;
@@ -47,11 +47,11 @@ pub(crate) fn emit_realization_object(
     roster: super::plan_callables::PlannedProgramBodies<'_>,
     program_entry: Option<&ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        super::runtime_provisions::NativeRuntimePlan<
-            super::runtime_provisions::NativeForeignAdapterRequest,
+        crate::runtime_provisions::NativeRuntimePlan<
+            crate::runtime_provisions::NativeForeignAdapterRequest,
         >,
     >,
-    observation: &crate::pipeline::observations::NativePipelineObservation,
+    observation: &crate::observations::NativePipelineObservation,
 ) -> Result<EmittedRealizationObject, Vec<Diagnostic>> {
     let (target, prepared_callbacks) = PreparedCallbackBodies::from_roster(roster)?;
     let physical_root = program_entry
@@ -79,7 +79,7 @@ pub(crate) fn emit_realization_object(
         }
         BodyEmissionError::Object(diagnostics) => diagnostics,
     };
-    let physical = physical_body::prepare_physical_body(target, None, requirements, observation)
+    let physical = compile_body::prepare_physical_body(target, None, requirements, observation)
         .map_err(root_error)?;
     let private_bodies = prepared_callbacks.finish_physical()?;
     let hosted_entry = if entry_planning::hosted_program::needs_hosted_entry(
@@ -197,14 +197,14 @@ pub(crate) fn emit_realization_object(
     let physical_entry = physical_entry.map(installation_binding::entries::bind_physical_entry);
     let runtime_provisions = runtime_provisions.map(|runtime| {
         runtime.map_adapters(|request| {
-            super::auxiliary_native::plan(request)
+            crate::foreign_adapters::plan(request)
                 .map(installation_binding::entries::bind_foreign_adapter)
         })
     });
     // Body membership, entry transport and installation resources are now closed.
     // Encoding consumes these plans and cannot discover or request another body.
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::encode));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::encode));
     let hosted_entry = hosted_entry
         .map(native_encoding::hosted_program::encode_hosted_program_entry)
         .transpose()
@@ -218,11 +218,11 @@ pub(crate) fn emit_realization_object(
         private: private_bodies,
     }
     .try_map(
-        |body| physical_body::encode_physical_body(body, observation).map_err(root_error),
+        |body| compile_body::encode_physical_body(body, observation).map_err(root_error),
         |body| body.encode(),
     )?;
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::place));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::place));
     let hosted_entry = hosted_entry
         .map(placement::program_entry_layout::resolve_hosted_program)
         .transpose()
@@ -236,17 +236,17 @@ pub(crate) fn emit_realization_object(
         .map(relaxation::retain_fixed_entry)
         .map(function_layout::place_fixed_entry);
     let layouts = encoded.try_map(
-        |body| physical_body::layout_encoded_body(body, observation).map_err(root_error),
+        |body| compile_body::layout_encoded_body(body, observation).map_err(root_error),
         |body| body.layout(),
     )?;
     let runtime_provisions =
-        runtime_provisions.map(|runtime| runtime.map_adapters(super::auxiliary_native::construct));
+        runtime_provisions.map(|runtime| runtime.map_adapters(crate::foreign_adapters::construct));
     let hosted_entry =
         hosted_entry.map(object_file::program_entry_object::HostedProgramObject::from_placement);
     let physical_entry = physical_entry
         .map(object_file::program_entry_object::PhysicalProgramObject::from_placement);
     let objects = layouts.try_map(
-        |body| physical_body::construct_body_object(body).map_err(root_error),
+        |body| compile_body::construct_body_object(body).map_err(root_error),
         |body| body.construct_object(),
     )?;
     let mut private_functions = Vec::with_capacity(objects.private.len());

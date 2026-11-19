@@ -1,10 +1,10 @@
 // Realize one exact callable while retaining its original Terminal namespace.
 // Callback and component export entries use the same source-free admission and
-// native pipeline (`physical_body::lower_to_target`, physical planning and encoding)
+// native pipeline (`compile_body::lower_to_target`, physical planning and encoding)
 // while leaving their identity, installation, and publication contracts with
 // the caller.
 
-use super::physical_body::{self, BodyEmissionError};
+use crate::compile_body::{self, BodyEmissionError};
 use super::plan_callables::CallableTargetProduct;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
@@ -14,7 +14,7 @@ pub(super) struct CallableObjectProduct {
     pub physical_original: native_artifact::PrivatePhysicalOriginal,
     pub projection: native_artifact::FragmentObjectProjection,
     pub runtime: native_artifact::TerminalCallableRuntimeProvisions<
-        super::auxiliary_native::ObjectForeignAdapter,
+        crate::foreign_adapters::ObjectForeignAdapter,
     >,
     pub authority: provider_admission::AdmittedNativeCallableAuthority,
 }
@@ -29,21 +29,21 @@ struct CallableCustody {
     code: terminal_codec::RetainedTerminalCode,
     coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     authority: provider_admission::AdmittedNativeCallableAuthority,
-    observation: crate::pipeline::observations::NativePipelineObservation,
+    observation: crate::observations::NativePipelineObservation,
 }
 
 pub(super) type CallablePhysicalProduct = CallableProduct<
-    physical_body::PreparedPhysicalBody,
-    super::auxiliary_native::PlannedForeignAdapter,
+    compile_body::PreparedPhysicalBody,
+    crate::foreign_adapters::PlannedForeignAdapter,
 >;
 pub(super) type BoundCallable = CallableProduct<
-    physical_body::BoundPhysicalBody,
+    compile_body::BoundPhysicalBody,
     installation_binding::entries::BoundForeignAdapter,
 >;
 pub(super) type EncodedCallable =
-    CallableProduct<physical_body::EncodedBody, super::auxiliary_native::EncodedForeignAdapter>;
+    CallableProduct<compile_body::EncodedBody, crate::foreign_adapters::EncodedForeignAdapter>;
 pub(super) type LaidOutCallable =
-    CallableProduct<physical_body::LaidOutBody, super::auxiliary_native::PlacedForeignAdapter>;
+    CallableProduct<compile_body::LaidOutBody, crate::foreign_adapters::PlacedForeignAdapter>;
 
 fn callable_error(error: BodyEmissionError) -> Vec<Diagnostic> {
     match error {
@@ -70,14 +70,14 @@ pub(super) fn prepare_callable_physical(
         authority,
         observation,
     } = prepared;
-    let body = physical_body::prepare_physical_body(
+    let body = compile_body::prepare_physical_body(
         optimized_target,
         execution,
         requirements,
         &observation,
     )
     .map_err(callable_error)?;
-    let runtime = runtime.map_adapters(super::auxiliary_native::plan);
+    let runtime = runtime.map_adapters(crate::foreign_adapters::plan);
     Ok(CallableProduct {
         body,
         runtime,
@@ -106,11 +106,11 @@ impl CallablePhysicalProduct {
 }
 impl BoundCallable {
     pub(super) fn encode(self) -> Result<EncodedCallable, Vec<Diagnostic>> {
-        let body = physical_body::encode_physical_body(self.body, &self.custody.observation)
+        let body = compile_body::encode_physical_body(self.body, &self.custody.observation)
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
-            runtime: self.runtime.map_adapters(super::auxiliary_native::encode),
+            runtime: self.runtime.map_adapters(crate::foreign_adapters::encode),
             custody: self.custody,
         })
     }
@@ -118,11 +118,11 @@ impl BoundCallable {
 
 impl EncodedCallable {
     pub(super) fn layout(self) -> Result<LaidOutCallable, Vec<Diagnostic>> {
-        let body = physical_body::layout_encoded_body(self.body, &self.custody.observation)
+        let body = compile_body::layout_encoded_body(self.body, &self.custody.observation)
             .map_err(callable_error)?;
         Ok(CallableProduct {
             body,
-            runtime: self.runtime.map_adapters(super::auxiliary_native::place),
+            runtime: self.runtime.map_adapters(crate::foreign_adapters::place),
             custody: self.custody,
         })
     }
@@ -136,10 +136,10 @@ impl LaidOutCallable {
             observation,
             authority,
         } = self.custody;
-        let physical_body::BodyObject {
+        let compile_body::BodyObject {
             projection,
             originals,
-        } = physical_body::construct_body_object(self.body).map_err(callable_error)?;
+        } = compile_body::construct_body_object(self.body).map_err(callable_error)?;
         let physical_original = native_artifact::PrivatePhysicalOriginal::new(
             projection.object().psi(),
             code,
@@ -153,7 +153,7 @@ impl LaidOutCallable {
             projection,
             runtime: self
                 .runtime
-                .map_adapters(super::auxiliary_native::construct),
+                .map_adapters(crate::foreign_adapters::construct),
             authority,
         })
     }

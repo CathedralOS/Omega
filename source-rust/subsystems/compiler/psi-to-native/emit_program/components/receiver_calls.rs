@@ -13,7 +13,7 @@ use provider_stack_contribution::{
     SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
 };
 
-use super::component_exports::{ComponentExportImage, component_export_slot};
+use super::exports::{ComponentExportImage, component_export_slot};
 
 pub struct ComponentNativeCall<'input> {
     image: &'input ComponentExportImage<'input>,

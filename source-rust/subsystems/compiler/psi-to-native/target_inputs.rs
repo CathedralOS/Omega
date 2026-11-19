@@ -8,7 +8,7 @@
 
 mod program_entry;
 pub(crate) mod published_application;
-pub(in crate::pipeline) mod required_scalars;
+pub(crate) mod required_scalars;
 
 use verified_optimization_input::{PreparedNativeExecution, RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use super::request::NativeCompileRequest;
@@ -24,7 +24,7 @@ pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) execution: PreparedNativeExecution,
     pub(crate) private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
     pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
-    pub(crate) components: Vec<crate::pipeline::components::PreparedComponent<'input>>,
+    pub(crate) components: Vec<crate::component_inputs::PreparedComponent<'input>>,
 }
 
 pub(crate) fn prepare<'input>(
@@ -40,7 +40,7 @@ pub(crate) fn prepare<'input>(
             request.installation_assumptions,
         )?;
         let components =
-            crate::pipeline::components::prepare_components(request.components, artifact.view())?;
+            crate::component_inputs::prepare_components(request.components, artifact.view())?;
         let selections = psi_target_layouts::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),

@@ -1,6 +1,6 @@
 //! Plan every reachable private native body before physical resource planning begins.
 use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
-use super::lower_body::NativeBodyPlanningError;
+use crate::compile_body::NativeBodyPlanningError;
 use artifact_lowering::admit_prepared_native_realization;
 use diagnostics::Diagnostic;
 use provider_admission::realization_error;
@@ -21,11 +21,11 @@ pub struct CallableTargetProduct {
     pub code: terminal_codec::RetainedTerminalCode,
     pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
     pub target: target_lowering::NativeBodyPlan,
-    pub runtime: super::runtime_provisions::TerminalCallableRuntimeProvisions<
-        super::runtime_provisions::NativeForeignAdapterRequest,
+    pub runtime: crate::runtime_provisions::TerminalCallableRuntimeProvisions<
+        crate::runtime_provisions::NativeForeignAdapterRequest,
     >,
     pub authority: provider_admission::AdmittedNativeCallableAuthority,
-    pub observation: crate::pipeline::observations::NativePipelineObservation,
+    pub observation: crate::observations::NativePipelineObservation,
 }
 
 pub fn plan_callable(
@@ -36,13 +36,13 @@ pub fn plan_callable(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     retain_native_stage_inputs: bool,
 ) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
-    let observation = crate::pipeline::observations::NativePipelineObservation::new(
+    let observation = crate::observations::NativePipelineObservation::new(
         admission.providers.profile,
-        crate::pipeline::observations::NativePipelineUnit::Callable,
+        crate::observations::NativePipelineUnit::Callable,
     );
     let callable_entry = admitted.input.plan().entry;
     let authority = admitted.providers.callable_authority().clone();
-    let host = super::runtime_provisions::plan_host_provisions(
+    let host = crate::runtime_provisions::plan_host_provisions(
         admitted
             .providers
             .installation
@@ -53,7 +53,7 @@ pub fn plan_callable(
             .settlements
             .iter()
             .map(
-                |settlement| super::runtime_provisions::TerminalRuntimeHostProvision {
+                |settlement| crate::runtime_provisions::TerminalRuntimeHostProvision {
                     boundary: settlement.boundary,
                     realization: settlement.realization.clone(),
                 },
@@ -62,13 +62,13 @@ pub fn plan_callable(
         admitted.input.optimization_input().runtime_input(),
         admission.providers.selected_provider_plans,
         admission.providers.external_binding_rows,
-        super::runtime_provisions::NativeBindingRuntimeInputs {
+        crate::runtime_provisions::NativeBindingRuntimeInputs {
             bindings: admission.providers.native_bindings,
             calling: admission.providers.installed_calling,
         },
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let runtime = super::runtime_provisions::TerminalCallableRuntimeProvisions::admit(
+    let runtime = crate::runtime_provisions::TerminalCallableRuntimeProvisions::admit(
         artifact.view(),
         admitted.input.optimization_input().runtime_input(),
         callable_entry,
@@ -76,7 +76,7 @@ pub fn plan_callable(
         host,
     )
     .map_err(|reason| realization_error("callable runtime companions", reason))?;
-    let optimized_target = super::lower_body::plan_native_body(
+    let optimized_target = crate::compile_body::plan_native_body(
         admitted.input,
         target_lowering::OptimizedTargetLoweringRequest {
             target: admission.providers.target(),
@@ -162,9 +162,9 @@ pub struct PlannedNativeProgram<'contract> {
 pub fn plan_program<'contract>(
     mut admitted: artifact_lowering::AdmittedNativeRealization<'contract>,
     request: &NativeProgramPlanningRequest<'_, 'contract>,
-    observation: super::lower_body::NativeBodyObservation<'_>,
+    observation: crate::compile_body::NativeBodyObservation<'_>,
 ) -> Result<PlannedNativeProgram<'contract>, Vec<Diagnostic>> {
-    let root = super::lower_body::plan_native_body(
+    let root = crate::compile_body::plan_native_body(
         admitted.input,
         target_lowering::OptimizedTargetLoweringRequest {
             target: request.admission.providers.target(),
