@@ -47,10 +47,6 @@ pub use source_supply::{
     TargetSupplySource, judge_supplied_product, prepare_supplied_target,
 };
 
-#[path = "../inputs/source-admission/source_catalogue.rs"]
-pub(crate) mod source_preparation;
-pub use source_preparation::SourcePreparation;
-
 pub use checked_program_to_psi::source_roster::{
     SourceCallingContext, SourceCallingInputs, SourceCompilationRoster, SourceNormalizationInputs,
     SourceProgramEntryInput,
@@ -86,6 +82,7 @@ pub use source_checking::{
 pub use source_compilation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,
     ResolveAndTypeRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
+    SourcePreparation,
 };
 
 pub use crate::production::{

@@ -1461,6 +1461,23 @@ impl SourceCompletionInput {
     }
 }
 
+/// The admitted files and reusable frontend results for one invocation.
+#[derive(Clone, Default)]
+pub struct SourcePreparation {
+    catalogue: Arc<std::sync::Mutex<crate::source_inputs::SourceCatalogue>>,
+    pub frontends: SourceFrontends,
+}
+
+impl SourcePreparation {
+    pub fn catalogue(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, crate::source_inputs::SourceCatalogue>, Vec<Diagnostic>> {
+        self.catalogue
+            .lock()
+            .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SourceFrontends {
     entries: Arc<std::sync::Mutex<Vec<Arc<SourceCompletionInput>>>>,
