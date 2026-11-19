@@ -118,7 +118,6 @@ pub(crate) use object::object_artifact::{
 
 pub use object::function_fragments::build_function_fragment_object_artifact;
 
-pub(crate) use entries::hosted_receiver::HostedReceiverBinding;
 mod hosted_loader;
 mod hosted_program;
 pub use hosted_program::{EncodedHostedProgramEntry, bind_hosted_program_entry};

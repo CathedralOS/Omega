@@ -5,7 +5,7 @@ use machine_code::hosted_entry::{EntryFixupKind, EntrySymbol, HostedEntryMode};
 use object_file::{ObjectSymbolHandle, RelocationOrigin, RelocationRecord, SectionKind};
 
 pub type EncodedHostedProgramEntry = object_file::program_entry_object::HostedProgramObject<
-    program_entry_plan::hosted_receiver::HostedProgramContext<
+    physical_recipes::hosted_program::HostedProgramContext<
         verified_optimization_input::hosted_receiver::AdmittedHostedReceiver,
     >,
 >;
@@ -15,10 +15,10 @@ pub fn bind_hosted_program_entry(
 ) -> Result<(), Diagnostic> {
     if artifact.hosted_entry.is_some()
         || artifact.physical_entry.is_some()
-        || artifact.psi != encoded.context().psi()
-        || artifact.entry != encoded.context().entry()
+        || artifact.psi != encoded.context().demand.psi()
+        || artifact.entry != encoded.context().demand.entry()
         || artifact.target != encoded.program().target
-        || artifact.profile != encoded.context().profile()
+        || artifact.profile != encoded.context().profile
     {
         return Err(Diagnostic::error(
             "hosted entry program belongs to another body, target or arrival binding",
@@ -39,20 +39,17 @@ pub(crate) fn prepare(
     };
     let code = binding.program();
     let invalid = || hosted_receiver::invalid(artifact.target);
-    let recipes = binding
-        .context()
-        .receiver()
-        .map_or(&[][..], |receiver| receiver.private_entry_ram());
-    let (mut object, placed) = if code.mode == HostedEntryMode::LoaderStack {
-        (artifact.object.clone(), None)
-    } else {
-        let (object, partitions, storage) = hosted_entry_storage::provision(
-            artifact,
-            binding.context().demand(),
-            recipes,
-            code.call_overhead,
-        )?;
-        (object, Some((partitions, storage)))
+    use physical_recipes::hosted_program::HostedStackBacking;
+    let (mut object, placed) = match (code.mode, &binding.context().backing) {
+        (HostedEntryMode::LoaderStack, HostedStackBacking::Loader) => {
+            (artifact.object.clone(), None)
+        }
+        (HostedEntryMode::OwnedStack, HostedStackBacking::Owned(layout))
+        | (HostedEntryMode::Receiver, HostedStackBacking::Receiver { layout, .. }) => {
+            let (object, partitions, storage) = hosted_entry_storage::provision(artifact, layout)?;
+            (object, Some((partitions, storage)))
+        }
+        _ => return Err(invalid()),
     };
     let mut imports = Vec::with_capacity(code.imports.len());
     for locator in &code.imports {
@@ -193,7 +190,7 @@ pub(crate) fn prepare(
     let mut shim = surface.shim(symbol, offset);
     if code.mode == HostedEntryMode::OwnedStack {
         shim = shim.with_stack(
-            binding.context().demand().clone(),
+            binding.context().demand.clone(),
             placed.ok_or_else(invalid)?.0,
         );
     }

@@ -3,7 +3,10 @@ use crate::{PhysicalFrameProgram, hosted_entry::ReceiverStorage};
 use diagnostics::Diagnostic;
 use machine_code::hosted_entry::HostedEntryMode;
 use machine_code::physical_stack::StackDemand;
-use physical_recipes::hosted_program::{HostedProgram, HostedProgramParts};
+use physical_recipes::hosted_program::{
+    HostedProgram, HostedProgramContext, HostedProgramParts, HostedStackBacking, HostedStackLayout,
+    PrivateRamExtent,
+};
 use program_entry_plan::hosted_receiver::HostedReceiverCustody;
 use target_vocabulary::publication::EmissionProgramFacts;
 
@@ -13,8 +16,6 @@ pub struct HostedProgramEntryRequest<'a, Receiver> {
     pub receiver: Option<Receiver>,
     pub demand: StackDemand,
 }
-
-pub use program_entry_plan::hosted_receiver::{HostedProgramContext, HostedReceiverBinding};
 
 pub type PlannedHostedProgramEntry<R> =
     HostedProgram<crate::PhysicalRecipeOrigin, HostedProgramContext<R>>;
@@ -105,26 +106,32 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
         .collect::<Vec<_>>();
     let entry_program = crate::hosted_entry::plan_hosted_entry(target, mode, &storage)
         .map_err(Diagnostic::error)?;
-    if mode != HostedEntryMode::LoaderStack {
-        // Prove finite storage geometry now. The actual BSS origin is a later
-        // placement input; it cannot change this stack demand or helper program.
-        program_entry_plan::hosted_receiver::partitions(
+    let backing = if mode == HostedEntryMode::LoaderStack {
+        HostedStackBacking::Loader
+    } else {
+        let layout = plan_storage(
             target,
             input.demand.ceiling_bytes(),
-            recipes,
             entry_program.call_overhead(),
-            0,
+            recipes.iter().map(|recipe| PrivateRamExtent {
+                alignment: recipe.alignment(),
+                contents_bytes: recipe.contents().len() as u64,
+                observation_header_bytes: recipe.observation_header().len() as u64,
+            }),
         )?;
-    }
+        match receiver {
+            Some(receipt) => HostedStackBacking::Receiver { receipt, layout },
+            None => HostedStackBacking::Owned(layout),
+        }
+    };
     Ok(HostedProgram::from_planner(
         crate::PhysicalRecipeOrigin(()),
         HostedProgramParts {
-            context: HostedProgramContext::from_demand(
-                program.contracts.profile(),
-                input.demand,
-                receiver,
-                entry_program.call_overhead(),
-            ),
+            context: HostedProgramContext {
+                profile: program.contracts.profile(),
+                demand: input.demand,
+                backing,
+            },
             imports: crate::imports::plan_import_program(
                 target,
                 entry_program.imports().iter().cloned().map(|locator| {
@@ -135,4 +142,84 @@ pub fn plan_hosted_program_entry<R: HostedReceiverCustody>(
             entry: entry_program,
         },
     ))
+}
+
+fn plan_storage(
+    target: target::NativeTarget,
+    finite_stack_bytes: Option<u64>,
+    call_overhead: u64,
+    recipes: impl Iterator<Item = PrivateRamExtent>,
+) -> Result<HostedStackLayout, Diagnostic> {
+    let invalid = || {
+        Diagnostic::error(format!(
+            "hosted entry lost exact stack or auxiliary backing for {target:?}"
+        ))
+    };
+    let stack_byte_count = finite_stack_bytes
+        .ok_or_else(|| {
+            Diagnostic::error("fixed hosted stack needs an admitted finite foreign-stack bound")
+        })?
+        .max(16)
+        .checked_add(call_overhead)
+        .and_then(|size| size.checked_next_multiple_of(16))
+        .ok_or_else(invalid)?;
+    // If the stack and recipes cannot fit even at origin zero, refuse them
+    // here. Stage 16 will locate each extent using the actual BSS origin.
+    let mut minimum_end = 16u64.checked_add(stack_byte_count).ok_or_else(invalid)?;
+    let mut private_ram = Vec::new();
+    for recipe in recipes {
+        if !recipe.alignment.is_power_of_two() {
+            return Err(invalid());
+        }
+        minimum_end = minimum_end
+            .checked_next_multiple_of(recipe.alignment)
+            .and_then(|offset| offset.checked_add(recipe.contents_bytes))
+            .and_then(|offset| offset.checked_add(recipe.observation_header_bytes))
+            .ok_or_else(invalid)?;
+        private_ram.push(recipe);
+    }
+    Ok(HostedStackLayout {
+        stack_byte_count,
+        private_ram,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixed_stack_closes_overhead_alignment_and_minimum_storage() {
+        let target = target::NativeTarget::windows_x64();
+        let recipe = PrivateRamExtent {
+            alignment: 64,
+            contents_bytes: 3,
+            observation_header_bytes: 5,
+        };
+        let plan = plan_storage(target, Some(1), 40, [recipe].into_iter()).unwrap();
+        assert_eq!(plan.stack_byte_count, 64);
+        assert_eq!(plan.private_ram, [recipe]);
+        assert!(plan_storage(target, None, 40, [].into_iter()).is_err());
+        assert!(plan_storage(target, Some(u64::MAX), 40, [].into_iter()).is_err());
+        for bad in [
+            PrivateRamExtent {
+                alignment: 0,
+                ..recipe
+            },
+            PrivateRamExtent {
+                alignment: 3,
+                ..recipe
+            },
+            PrivateRamExtent {
+                contents_bytes: u64::MAX,
+                ..recipe
+            },
+            PrivateRamExtent {
+                observation_header_bytes: u64::MAX,
+                ..recipe
+            },
+        ] {
+            assert!(plan_storage(target, Some(1), 40, [bad].into_iter()).is_err());
+        }
+    }
 }
