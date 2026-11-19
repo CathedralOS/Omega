@@ -184,15 +184,16 @@ impl ValueShape {
     /// schema reflection and native placement share the selected defaults
     /// through `layout_plans`.
     pub fn standalone_integer(integer: ClosedIntegerType) -> Self {
-        Self::integer_geometry(layout_planning::standalone_integer_geometry(integer))
+        Self::integer_geometry(layout_planning::standalone_integer_geometry(integer.bits()))
     }
 
     /// The same integer as a structural record field: alignment capped at 16.
     pub fn field_integer(integer: ClosedIntegerType) -> Self {
-        Self::integer_geometry(layout_planning::field_integer_geometry(integer))
+        Self::integer_geometry(layout_planning::field_integer_geometry(integer.bits()))
     }
 
-    fn integer_geometry(geometry: layout_plans::StorageGeometry) -> Self {
+    fn integer_geometry(geometry: Option<layout_plans::StorageGeometry>) -> Self {
+        let geometry = geometry.expect("closed integer has a supported width");
         // IntegerType admits at most 128 bits, so both native coordinates fit.
         Self::integer(
             u32::try_from(geometry.byte_size).expect("admitted integer size fits a native shape"),

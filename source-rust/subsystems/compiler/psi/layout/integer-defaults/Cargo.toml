@@ -9,4 +9,3 @@ path = "integer_defaults.rs"
 
 [dependencies]
 layout-plans = { path = ".." }
-semantic-vocabulary = { path = "../../../source-to-psi/_recycling/language/semantic-vocabulary" }

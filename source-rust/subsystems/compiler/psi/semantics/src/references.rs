@@ -4038,7 +4038,8 @@ pub(crate) mod reference_storage_geometry {
             ScalarType::Integer(integer) => {
                 let integer = semantic_vocabulary::ClosedIntegerType::try_from(integer)
                     .map_err(|_| StorageGeometryError::UnsupportedScalar(scalar))?;
-                let layout = layout_planning::standalone_integer_geometry(integer);
+                let layout = layout_planning::standalone_integer_geometry(integer.bits())
+                    .ok_or(StorageGeometryError::UnsupportedScalar(scalar))?;
                 Ok((layout.byte_size, layout.byte_alignment))
             }
             _ => scalar_geometry(scalar).ok_or(StorageGeometryError::UnsupportedScalar(scalar)),
