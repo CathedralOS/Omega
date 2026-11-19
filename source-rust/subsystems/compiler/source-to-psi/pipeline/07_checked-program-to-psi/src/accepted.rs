@@ -582,7 +582,7 @@ impl AcceptedTerminalSource {
         crate::source_state::service_declarations::projection::from_typed(
             crate::source_state::provider_declarations::ProviderPlanningContext::new(
                 &self.source,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
             declaration,
         )
@@ -916,7 +916,7 @@ mod tests {
                 Some(package),
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         let tokens = crate::production::frontend_fixture::Lexer::new(&text)
@@ -949,7 +949,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[Some(package)],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 calling: None,
@@ -1017,7 +1017,7 @@ mod tests {
                 Some(package),
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         let tokens = crate::production::frontend_fixture::Lexer::new(TEXT)
@@ -1047,7 +1047,7 @@ mod tests {
                 declaration_metadata: &[],
                 entries: &[entry.symbol],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 calling: None,

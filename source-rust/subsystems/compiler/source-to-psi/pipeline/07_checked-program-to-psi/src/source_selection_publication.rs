@@ -262,7 +262,7 @@ impl<'source> Questions<'source> {
                 &sources,
                 requester_span,
                 selected_span,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ) {
                 questions.push(id);
             }
@@ -1482,7 +1482,7 @@ impl<'source> Declarations<'source> {
             .and_then(|span| source.source().symbols.source_file(span))
             .filter(|file| {
                 file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Build
+                    == source_provenance::DependencyScope::Build
             });
         Ok(Self {
             typed: source.source(),
@@ -1549,10 +1549,10 @@ impl<'source> Declarations<'source> {
             .and_then(|span| self.typed.symbols.source_file(span))
             .ok_or_else(|| refused("source declaration has no retained source purpose"))?;
         let purpose = match source.dependency_scope {
-            declaration_contracts::source_identity::DependencyScope::Build => {
+            source_provenance::DependencyScope::Build => {
                 SelectionPurpose::Build
             }
-            declaration_contracts::source_identity::DependencyScope::Product => {
+            source_provenance::DependencyScope::Product => {
                 SelectionPurpose::Product
             }
         };
@@ -2051,7 +2051,7 @@ machine entry() -> u64 crashes none {
                 Some(semantic_vocabulary::PackageKeyIdentity::from_digest([0xc3; 32]).unwrap()),
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         let tokens = crate::production::frontend_fixture::Lexer::new(text)
@@ -2132,7 +2132,7 @@ machine entry() -> u64 crashes none {
                 declaration_metadata: &metadata,
                 entries: &[entry],
                 subjects: &[],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &selected,
                 bindings: &[],
                 calling: None,
@@ -2178,12 +2178,12 @@ machine entry() -> u32 crashes none {{
             (
                 "scope/build.omg",
                 BUILD,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ),
             (
                 "scope/main.omg",
                 product.as_str(),
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             ),
         ] {
             let id = sources
@@ -2197,7 +2197,7 @@ machine entry() -> u32 crashes none {{
                     scope,
                 )
                 .source_id;
-            if scope == declaration_contracts::source_identity::DependencyScope::Build {
+            if scope == source_provenance::DependencyScope::Build {
                 build_source = Some(id);
             }
             let tokens = crate::production::frontend_fixture::Lexer::new(text)
@@ -2293,7 +2293,7 @@ machine entry() -> u32 crashes none {{
                 declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[Some(package)],
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
+                purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
                 calling: None,

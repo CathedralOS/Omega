@@ -5,7 +5,7 @@ use super::{
 use crate::provider_choice_inputs::ProviderSelection;
 use crate::{AcceptedTerminalSource, SourcePublication};
 use diagnostics::Diagnostic;
-use provider_choices::NativeBuildSupply;
+use crate::provider_choice_inputs::NativeBuildSupply;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use std::sync::{Arc, Weak};
 

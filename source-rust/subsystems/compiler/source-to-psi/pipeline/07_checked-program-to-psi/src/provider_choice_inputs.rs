@@ -1,8 +1,75 @@
 //! Source-owned provider selection inputs retain the exact authored origin.
 //! Native planning receives the closed canonical selections instead.
-use provider_choices::ProviderApplicationId;
-use semantic_vocabulary::source_selections::CompositionMode;
+use semantic_vocabulary::PackageKeyIdentity;
+use semantic_vocabulary::source_selections::{CompositionMode, NativeBindingProducer, ProductTarget};
 use symbols::SymbolHandle;
+
+/// Exact prepared application coordinate. Only the source owner can join it
+/// to its private arena; native consumers use the full canonical identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProviderApplicationId {
+    index: u32,
+    generation: u32,
+}
+
+impl ProviderApplicationId {
+    pub const fn from_parts(index: u32, generation: u32) -> Self {
+        Self { index, generation }
+    }
+    pub const fn arena_index(self) -> u32 {
+        self.index
+    }
+    pub const fn generation(self) -> u32 {
+        self.generation
+    }
+    pub const fn is_valid(self) -> bool {
+        self.index != 0
+    }
+}
+
+impl Default for ProviderApplicationId {
+    fn default() -> Self {
+        Self::from_parts(0, 0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingSelection {
+    pub application: Option<ProviderApplicationId>,
+    pub subject: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub service_declaration: [u8; 32],
+    pub target: ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub producer: NativeBindingProducer,
+    pub source_occurrence_digest: [u8; 32],
+    pub supplier_package: PackageKeyIdentity,
+    pub source_span: source_text::SourceSpan,
+}
+
+/// One completed Build invocation and the exact binding it produced.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBuildSupply {
+    pub selection: NativeBindingSelection,
+    pub evaluation: std::sync::Arc<evaluation_receipts::NativeBuildEvaluation>,
+}
+
+impl NativeBuildSupply {
+    pub fn materialization(&self) -> evaluation_receipts::NativeBindingMaterialization {
+        evaluation_receipts::NativeBindingMaterialization {
+            requirement_identity: self.selection.requirement_identity.clone(),
+            service_declaration: self.selection.service_declaration,
+            target: self.selection.target.canonical_name().to_owned(),
+            locator: self.selection.locator.clone(),
+            producer_identity: self.selection.producer.callable_identity.clone(),
+            supplier_package: self.selection.supplier_package,
+            source_occurrence_digest: self.selection.source_occurrence_digest,
+            evaluation: std::sync::Arc::clone(&self.evaluation),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelectionIdentity {
     pub symbol: SymbolHandle,
@@ -34,7 +101,7 @@ pub enum ProviderSelectionSubject {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderSelection {
-    pub target: Option<semantic_vocabulary::source_selections::ProductTarget>,
+    pub target: Option<ProductTarget>,
     pub subject: ProviderSelectionSubject,
     pub provider_type: ProviderSelectionIdentity,
     pub composition_mode: CompositionMode,
@@ -121,7 +188,7 @@ impl ProviderSelectionSubject {
 }
 
 pub fn source_application(
-    id: provider_choices::ProviderApplicationId,
+    id: ProviderApplicationId,
 ) -> arena::Handle<crate::source_state::product_operand::ProductOperandApplication> {
     arena::Handle::from_parts(id.arena_index(), id.generation())
 }
@@ -129,7 +196,7 @@ pub fn source_application(
 /// Publication needs the same boundary and closed arguments that Build
 /// selected. The evaluation receipt separately authenticates the locator.
 pub fn require_canonical_requirement(
-    selection: &provider_choices::NativeBindingSelection,
+    selection: &NativeBindingSelection,
     typed: &crate::source_state::TypedTrees,
 ) -> Result<(), String> {
     let (subject, requirement) = requirement_owner(typed, selection.requirement)?;
