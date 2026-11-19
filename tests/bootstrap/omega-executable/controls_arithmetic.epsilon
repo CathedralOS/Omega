@@ -33,6 +33,7 @@ machine Main::main(&mut self) {
             5 -> batch_5()
             6 -> batch_6()
             7 -> batch_7()
+            8 -> batch_8()
             _ -> self.console.exit_process(99)
         }
     }
@@ -186,6 +187,15 @@ machine Main::main(&mut self) {
         self.refusal("machine choose(v:u64)->u8 {transition true {true->take(v*3)} machine take(n:u64)->u8 {42}} machine main()->u8 {choose(3)}",2,163);
         self.positive("data I {n:u32 in Trapping;} machine go(input:&mut I)->u8 {let n:u32 in Trapping=input.n; transition true {true->block rows(input,n+1)} machine rows(input:&mut I,n:u32 in Trapping)->u8 blocks {43}} machine main()->u8 blocks {let mut x:I;block go(&mut x)}",43,164);
         self.positive("machine step(index:u64)->u8 requires index<4 {transition true {true->next(index+1)} machine next(n:u64)->u8 requires n<=4 {44}} machine main()->u8 {step(2)}",44,165);
+    }
+
+    state batch_8() {
+        // Keyword spellings bind as names after literal and match dispatch.
+        self.positive("machine main()->u8 {let target:u8=3;let host:u8=4;let data:u8=5;transition target<host && data==5 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",42,170);
+        self.refusal("machine main()->u8 {transition true && target<4 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}}",1,171);
+        self.refusal("machine unused()->u8 {transition true && target<4 {true->pass() _->miss()} machine pass()->u8 {42} machine miss()->u8 {1}} machine main()->u8 {0}",1,172);
+        self.refusal("machine main()->u8 {let x:bool=true;transition (match x {true -> false, _ -> true}) {true->miss() _->pass()} machine pass()->u8 {42} machine miss()->u8 {1}}",2,173);
+        self.positive("machine main()->u8 {transition false {true->miss() _->pass()} machine pass()->u8 {44} machine miss()->u8 {1}}",44,174);
     }
 
 }

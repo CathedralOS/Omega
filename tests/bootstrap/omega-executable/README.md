@@ -229,14 +229,15 @@ valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](controls_arithmetic.epsilon) checks arithmetic
 limits, five abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-fifty-three refusal/reset checks. The terminal-call cases exercise precedence,
+fifty-six refusal/reset checks. The terminal-call cases exercise precedence,
 grouping, nested calls, left-to-right argument evaluation, skipped and selected
 crashes, loans, blocking markers and entry preconditions. An unsupported
 indexed carrier returns a coverage refusal. An unknown name in a checked
 scalar operand remains a source error. Each refusal leaves the tape empty
-and unsealed.
+and unsealed. Transition predicates also exercise keyword-spelled local names,
+lookup in an uncalled machine and Boolean literal selection.
 
-Eight fresh evaluator processes bound cumulative allocation. The first receives
+Nine fresh evaluator processes bound cumulative allocation. The first receives
 the full decoder source. Each refusal batch reuses one compiler instance and
-ends with a successful compilation. The host stamps and runs all thirty-four
+ends with a successful compilation. The host stamps and runs all thirty-six
 published tapes, distinguishing Linux SIGILL from a normal process exit.

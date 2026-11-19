@@ -3170,7 +3170,9 @@ machine OmegaParser::append_unit(&mut self, source: &[u8], unit_start: i32) {
             OmegaKeywordKind::SelfValue -> begin_self_transition_subject()
             OmegaKeywordKind::True -> begin_boolean_transition_subject(1)
             OmegaKeywordKind::False -> begin_boolean_transition_subject(0)
-            _ -> incomplete_root()
+            OmegaKeywordKind::Match -> incomplete_root()
+            OmegaKeywordKind::SelfType -> incomplete_root()
+            _ -> begin_named_transition_subject()
         }
     }
 
