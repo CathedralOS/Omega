@@ -7,6 +7,7 @@ version.workspace = true
 
 [dependencies]
 behavior-exclusion-requests = { path = "../behavior-exclusions" }
+numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
 selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }

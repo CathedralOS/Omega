@@ -8,13 +8,13 @@ version.workspace = true
 path = "scalar_applications.rs"
 
 [dependencies]
+numeric-intrinsic-admission = { path = "../../../verification/numeric-intrinsics" }
 target-provider-admission = { path = "../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../build/providers/selections" }
 build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
 psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/providers" }
 psi-target-layouts = { path = "../../../../psi/layout/admission" }
-provider-admission = { path = "../../../verification/provider-admission" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }

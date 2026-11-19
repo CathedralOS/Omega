@@ -1,0 +1,23 @@
+[package]
+name = "numeric-intrinsic-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "admission.rs"
+
+[dependencies]
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+language-core = { path = "../../../foundation/language-core" }
+native-intrinsics = { path = "../../targets/intrinsics" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+numerics = { path = "../../../psi/semantics/numeric" }
+provider-correspondence = { path = "../provider-correspondence" }
+provider-plans = { path = "../../../build/providers/plans" }
+selected-provider-plans = { path = "../../../build/providers/selections" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+terminal-codec = { path = "../../../psi/codec" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
