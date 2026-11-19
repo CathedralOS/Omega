@@ -13,13 +13,18 @@ pub(super) struct ConstantEvaluation<'trees, 'text> {
     pub(super) trees: &'trees TypedTrees<'text>,
     pub(super) definitions: HashMap<&'trees DeclarationId, &'trees TypedConstant>,
     pub(super) values: HashMap<DeclarationId, PreparedValue>,
+    pub(super) boundary_slots: &'trees [omega_typer::BoundarySlot],
     signatures: OnceCell<HashMap<&'trees DeclarationId, &'trees TypedSignature>>,
 }
 
 impl<'trees, 'text> ConstantEvaluation<'trees, 'text> {
-    pub(super) fn new(trees: &'trees TypedTrees<'text>) -> Self {
+    pub(super) fn new(
+        trees: &'trees TypedTrees<'text>,
+        boundary_slots: &'trees [omega_typer::BoundarySlot],
+    ) -> Self {
         Self {
             trees,
+            boundary_slots,
             definitions: trees
                 .constants
                 .iter()

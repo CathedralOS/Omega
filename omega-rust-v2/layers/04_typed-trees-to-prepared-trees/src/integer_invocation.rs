@@ -201,6 +201,17 @@ impl ConstantEvaluation<'_, '_> {
         carrier: &ValueType,
         visited: &mut HashSet<omega_resolver::TreeNodeId>,
     ) -> Result<CallResult<'a>, EvaluationError> {
+        // Only unapplied local calls can execute here. A Build-selected
+        // boundary has runtime meaning even when its authored effects are empty.
+        if call.type_arguments.is_empty()
+            && call.enclosing_arguments.iter().all(|(_, args)| args.is_empty())
+            && self
+                .boundary_slots
+                .iter()
+                .any(|slot| slot.requirement.declaration == call.machine && slot.arguments.is_empty() && slot.requirement.trait_arguments.is_empty())
+        {
+            return Err("the selected runtime boundary slot cannot execute during preparation".into());
+        }
         if call.machine.kind != NodeKind::Machine
             || call.evidence.is_some()
             || !call.type_arguments.is_empty()
