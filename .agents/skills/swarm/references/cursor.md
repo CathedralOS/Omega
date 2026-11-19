@@ -2,7 +2,7 @@
 
 This reference defines the Cursor cloud `Task` transport for running each subagent on its own cloud VM and branch.
 
-Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../tools/docs/landing.md).
+Session ownership, execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../wiki/development/landing.md).
 
 ## 1. Cursor Cloud `Task` Tool & Environment
 
@@ -22,6 +22,6 @@ Inspect the `Task` schema from the `cursor` namespace before dispatch:
 
 ## 2. Dispatch, Reactive Drain & Reuse
 
-1. **Dispatch:** Check live claims and open PRs, reserve the worktree, and complete [claim registration](../../../../tools/docs/claims.md), then launch concurrent background `Task` calls. Give each subagent its capability, witness, fixed base, and instruction to test the change and verify it on main after landing.
+1. **Dispatch:** Check live claims and open PRs, reserve the worktree, and complete [claim registration](../../../../wiki/development/claims.md), then launch concurrent background `Task` calls. Give each subagent its capability, witness, fixed base, and instruction to test the change and verify it on main after landing.
 2. **Reactive wakeup only:** Background cloud subagents notify the coordinator when they finish. Never poll, sleep, or schedule timers.
 3. **Reuse pod:** After a subagent verifies its landing and reports the PR URL, submitted head, published commit and observed limits, resume the **same** agent ID on its warm VM for the next requirement of its parent capability; compact only when switching to a different capability outcome.

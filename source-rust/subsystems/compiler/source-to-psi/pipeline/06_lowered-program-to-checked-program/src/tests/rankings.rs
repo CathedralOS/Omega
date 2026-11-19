@@ -363,7 +363,7 @@ fn ranks_value(cycle: &TerminalNaturalCycle) -> semantic_vocabulary::ValueId {
 fn borrowed_slice_iterations_keep_their_measure_and_backing() {
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/ranked_slice_iteration/main.omg"
     ));
     let source = format!("{program}\nmachine entry() crashes Trap {{ main(); }}\n");
     let results =
@@ -601,7 +601,7 @@ machine entry() crashes none {{ measured({actual}); }}
 fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
     let original = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/ranked_slice_iteration/main.omg"
     ));
     let source = original.replace("checksum(bytes[1..],", "checksum(bytes,");
     assert_ne!(source, original);

@@ -2,7 +2,7 @@
 //! group where each one stops.
 //!
 //! A full sweep checks every tracked `main.omg` under `samples/` and
-//! `tests/fixtures/` (about 9,000 programs, an hour on one workstation).
+//! shared and owner-local fixture directories (about 9,000 programs, an hour on one workstation).
 //! Two smaller selections answer most questions in minutes:
 //!
 //! - `--quick` keeps every program outside `samples/cli/facts/` and, for each
@@ -187,7 +187,7 @@ fn quick_selection(programs: &[String]) -> Vec<String> {
 }
 
 /// The programs to check: tracked `main.omg` files under `samples/` and
-/// `tests/fixtures/`, as directories relative to the repository root.
+/// shared and owner-local fixture directories, as paths relative to the repository root.
 fn tracked_programs(root: &Path) -> Result<Vec<String>, String> {
     let output = Command::new("git")
         .args([
@@ -195,6 +195,8 @@ fn tracked_programs(root: &Path) -> Result<Vec<String>, String> {
             "--",
             "samples/*main.omg",
             "tests/fixtures/*main.omg",
+            "source-rust/*/tests/fixtures/*main.omg",
+            "tools/*/tests/fixtures/*main.omg",
         ])
         .current_dir(root)
         .output()
@@ -1201,7 +1203,7 @@ mod tests {
     #[test]
     fn negatives_are_fail_folders_and_invalid_twins() {
         assert!(expects_rejection(
-            "tests/fixtures/fail/arithmetic/x/main.omg"
+            "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/x/main.omg"
         ));
         assert!(expects_rejection(
             "samples/cli/facts/f/invalid_local/main.omg"
@@ -1324,7 +1326,7 @@ mod tests {
         assert_eq!(project.rejection, ["may overflow `u64`"]);
         let positive = "samples/cli/facts/abi_multi_arg_spill/call_result/main.omg";
         assert!(matches!(expectation(&root, positive), Expectation::Check));
-        let fail = "tests/fixtures/fail/arithmetic/exact_divisor_unproven/main.omg";
+        let fail = "tests/fixtures/arithmetic/fail/exact_divisor_unproven/main.omg";
         let Expectation::Reject(Ok(project)) = expectation(&root, fail) else {
             panic!("{fail} pins its refusal in expected.txt");
         };

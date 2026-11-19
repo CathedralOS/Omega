@@ -45,7 +45,7 @@ fn measure() {
         let (mut requests, custody) = discover(
             &mut session,
             &mut completed,
-            &root.join("tests/fixtures/pass/effects/root_service_audit/consumer/main.omg"),
+            &root.join("source-rust/subsystems/compiler/tests/fixtures/effects/pass/root_service_audit/consumer/main.omg"),
             &[TargetProfile::host_if_supported().expect("Build host")],
             CompilationProduct::Check,
         );
@@ -95,7 +95,7 @@ fn measure() {
         measure_inspection_roots(
             &mut session,
             &mut completed,
-            &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+            &root.join("source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/debug_identity_complete_module/main.omg"),
             ["constant", "state_graph"],
         );
         session.close().expect("close batch resources");
@@ -105,7 +105,7 @@ fn measure() {
         measure_inspection_roots(
             &mut session,
             &mut completed,
-            &root.join("tests/fixtures/run/ownership/incoming_record_reference_return/main.omg"),
+            &root.join("tests/fixtures/ownership/run/incoming_record_reference_return/main.omg"),
             ["retained", "verify"],
         );
         session.close().expect("close batch resources");
@@ -119,7 +119,7 @@ fn measure() {
     let (mut first, first_custody) = discover(
         &mut session,
         &mut completed,
-        &root.join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg"),
+        &root.join("source-rust/subsystems/compiler/tests/fixtures/targets/pass/shared_program_distinct_roots_exit/main.omg"),
         &[TargetProfile::WindowsX64, TargetProfile::LinuxX64],
         native_product(),
     );
@@ -132,7 +132,7 @@ fn measure() {
     let (mut second, second_custody) = discover(
         &mut session,
         &mut completed,
-        &root.join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
+        &root.join("source-rust/subsystems/compiler/tests/fixtures/optimizer/pass/rollback_to_no_selection_empty_entry/main.omg"),
         &[TargetProfile::LinuxX64],
         native_product(),
     );
@@ -408,24 +408,24 @@ fn measure_component_scalars(
     let targets = [TargetProfile::WindowsX64, TargetProfile::MacosArm64];
     let mut observed = Vec::new();
     for (fixture, expected_failure) in [
-        ("pass/layouts/runtime_constant_layout_contract_exit", None),
+        ("source-rust/subsystems/compiler/tests/fixtures/layouts/pass/runtime_constant_layout_contract_exit", None),
         (
-            "fail/layouts/false_constant_layout_contract",
+            "source-rust/subsystems/compiler/tests/fixtures/layouts/fail/false_constant_layout_contract",
             Some("scalar predicate is false"),
         ),
         (
-            "pass/build/component_declaration_scalar_conditions_exit",
+            "source-rust/subsystems/compiler/tests/fixtures/build/pass/component_declaration_scalar_conditions_exit",
             None,
         ),
         (
-            "fail/build/component_declaration_scalar_conditions",
+            "source-rust/subsystems/compiler/tests/fixtures/build/fail/component_declaration_scalar_conditions",
             Some("cause: Trap"),
         ),
     ] {
         let (requests, custody) = discover(
             session,
             completed,
-            &root.join("tests/fixtures").join(fixture).join("main.omg"),
+            &root.join(fixture).join("main.omg"),
             &targets,
             native_product(),
         );
@@ -499,22 +499,22 @@ fn measure_inspection_scalars(
     let mut observed = Vec::new();
     for (fixture, machine, expected_failure) in [
         (
-            "pass/layouts/runtime_constant_layout_contract_exit",
+            "source-rust/subsystems/compiler/tests/fixtures/layouts/pass/runtime_constant_layout_contract_exit",
             "program",
             None,
         ),
         (
-            "fail/layouts/false_constant_layout_contract",
+            "source-rust/subsystems/compiler/tests/fixtures/layouts/fail/false_constant_layout_contract",
             "program",
             Some("scalar predicate is false"),
         ),
         (
-            "pass/terminal_psi/inspection_scalar_library",
+            "source-rust/subsystems/compiler/tests/fixtures/terminal_psi/pass/inspection_scalar_library",
             "extent",
             None,
         ),
         (
-            "fail/terminal_psi/inspection_scalar_library",
+            "source-rust/subsystems/compiler/tests/fixtures/terminal_psi/fail/inspection_scalar_library",
             "extent",
             Some("cause: Trap"),
         ),
@@ -522,7 +522,7 @@ fn measure_inspection_scalars(
         let (requests, custody) = discover(
             session,
             completed,
-            &root.join("tests/fixtures").join(fixture).join("main.omg"),
+            &root.join(fixture).join("main.omg"),
             &targets,
             CompilationProduct::Inspection(machine.to_owned()),
         );

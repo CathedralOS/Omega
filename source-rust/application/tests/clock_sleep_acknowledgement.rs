@@ -17,7 +17,6 @@ const MISSING_BLOCK: &str = "call may block and requires a block acknowledgement
 
 fn fixture(relative: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
         .join(relative)
 }
 
@@ -33,7 +32,7 @@ fn omega_check(directory: &Path) -> String {
 
 #[test]
 fn an_unmarked_clock_sleep_is_refused() {
-    let stderr = omega_check(&fixture("fail/effects/clock_sleep_unacknowledged"));
+    let stderr = omega_check(&fixture("source-rust/application/tests/fixtures/effects/fail/clock_sleep_unacknowledged"));
     assert!(
         stderr.contains(&format!("{MISSING_BLOCK} in machine `entry_start`")),
         "{stderr}"
@@ -42,6 +41,6 @@ fn an_unmarked_clock_sleep_is_refused() {
 
 #[test]
 fn a_marked_clock_sleep_passes_the_acknowledgement_check() {
-    let stderr = omega_check(&fixture("pass/effects/clock_sleep_acknowledged"));
+    let stderr = omega_check(&fixture("source-rust/application/tests/fixtures/effects/pass/clock_sleep_acknowledged"));
     assert!(!stderr.contains(MISSING_BLOCK), "{stderr}");
 }

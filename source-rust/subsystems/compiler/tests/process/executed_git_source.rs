@@ -35,7 +35,7 @@ fn fixture_process(workspace: bool) {
     let remote = directory.join("remote");
     std::fs::create_dir(&remote).unwrap();
     if workspace {
-        let authored = repository.join("tests/fixtures/packages/executed-workspace");
+        let authored = repository.join("source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace");
         std::fs::copy(authored.join("build.omg"), remote.join("build.omg")).unwrap();
         for member in ["member", "sibling", "unselected"] {
             std::fs::create_dir(remote.join(member)).unwrap();
@@ -49,7 +49,7 @@ fn fixture_process(workspace: bool) {
         }
     } else {
         let library =
-            repository.join("tests/fixtures/pass/build/executed_dependency_source_library");
+            repository.join("tests/fixtures/build/pass/executed_dependency_source_library");
         for name in ["build.omg", "main.omg"] {
             std::fs::copy(library.join(name), remote.join(name)).unwrap();
         }
@@ -76,7 +76,7 @@ fn fixture_process(workspace: bool) {
         for name in ["build.omg", "main.omg"] {
             std::fs::copy(
                 repository
-                    .join("tests/fixtures/packages/executed-workspace/catalog-helper")
+                    .join("source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace/catalog-helper")
                     .join(name),
                 helper.join(name),
             )
@@ -140,7 +140,7 @@ fn fixture_process(workspace: bool) {
 fn execute_workspace_fixture() {
     let directory = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_DIRECTORY").unwrap());
     let authored = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/packages/executed-workspace/client");
+        .join("source-rust/subsystems/compiler/tests/fixtures/packages/executed-workspace/client");
     let project = directory.join("project");
     std::fs::create_dir(&project).unwrap();
     for name in ["main.omg", "build.omg"] {
@@ -362,7 +362,7 @@ fn accept_workspace_project(project: &std::path::Path, profile: target::TargetPr
 fn execute_fixture() {
     let directory = PathBuf::from(std::env::var_os("OMEGA_FIXTURE_GIT_DIRECTORY").unwrap());
     let fixture = fixture_package_inputs::repo_root()
-        .join("tests/fixtures/pass/build/executed_git_source_join_exit");
+        .join("source-rust/subsystems/compiler/tests/fixtures/build/pass/executed_git_source_join_exit");
     let profile = target::TargetProfile::host_if_supported().unwrap();
     let project = directory.join("project");
     std::fs::create_dir(&project).unwrap();
@@ -396,7 +396,7 @@ fn execute_fixture() {
         if private_call {
             std::fs::copy(
                 fixture_package_inputs::repo_root()
-                    .join("tests/fixtures/fail/build/executed_dependency_private_call/main.omg"),
+                    .join("source-rust/subsystems/compiler/tests/fixtures/build/fail/executed_dependency_private_call/main.omg"),
                 project.join("main.omg"),
             )
             .unwrap();

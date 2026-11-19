@@ -26,7 +26,7 @@ const REJECTIONS: &[(&str, &str)] = &[
     // route's rules cannot decide, which it reports as `Incomplete`, not as
     // a rejection (`terminal-psi-to-terminal-psi`, `prove/reach`).
     (
-        "tests/fixtures/fail/arithmetic/signed_zero_does_not_prove_positive",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/signed_zero_does_not_prove_positive",
         "check",
     ),
     // The same, where the fixture pins the whole sentence: the fact the
@@ -34,37 +34,37 @@ const REJECTIONS: &[(&str, &str)] = &[
     // program's sum states a bound on each case's payload, so its `main`
     // is judged only when that data `requires` is read.
     (
-        "tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/facts/fail/four_variant_enum_payload_bound_through_local_rejected",
         "main",
     ),
     // A nested callee.
     (
-        "tests/fixtures/fail/calls/state_arrival_call_result_above_bound",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/fail/state_arrival_call_result_above_bound",
         "main",
     ),
     // An `ensures` clause, authored text over the machine's own formals.
     (
-        "tests/fixtures/fail/arithmetic/truncating_reconstruction_negative_dividend",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/truncating_reconstruction_negative_dividend",
         "shifted",
     ),
     // An overflow, with the local the value lands in.
     (
-        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/unformed_contradiction_cannot_hide_overflow",
         "unsafe",
     ),
     // A division whose divisor is not shown nonzero.
     (
-        "tests/fixtures/fail/arithmetic/exact_divisor_unproven",
+        "tests/fixtures/arithmetic/fail/exact_divisor_unproven",
         "quotient",
     ),
     // A case payload read where no case was selected.
     (
-        "tests/fixtures/fail/contracts/case_payload_requires_declared_premise",
+        "source-rust/subsystems/compiler/tests/fixtures/contracts/fail/case_payload_requires_declared_premise",
         "main",
     ),
     // A shift count.
     (
-        "tests/fixtures/fail/arithmetic/boolean_shift_guard_missing_lower_bound",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/fail/boolean_shift_guard_missing_lower_bound",
         "calculate",
     ),
 ];

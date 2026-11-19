@@ -166,7 +166,7 @@ the closed capture envelope `60,672*N*N + 5,680*N + 2,980*S + 1,118 + 128*(5*Dec
 selected arena — remains open as a general containment proof: the
 envelope exceeds the 3,422,453,760-pair arena from `N = 238`, so it cannot
 serve as the containment proof. The
-[measured worst-shape study](../../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+[measured worst-shape study](../../../../../_recycling/tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 runs the canonical closure under an instrumented reference interpreter that
 counts every immutable-pair allocation, measures selected scaled shapes on
 each admitted extent axis, and projects 417,063,339 pairs at the full
@@ -204,7 +204,7 @@ evaluator tape.
 Each admitted extent was driven to its retired-profile boundary with the
 shape that maximizes cumulative pairs for that extent. Sources below are
 named by content; digests and generators match the
-[resource-boundary](../../../../../tests/delta/resource-boundary/README.md)
+[resource-boundary](../../../../../_recycling/tests/delta/resource-boundary/README.md)
 fixture families except where stated. Arena share is of the retired
 40,265,318-pair arena.
 

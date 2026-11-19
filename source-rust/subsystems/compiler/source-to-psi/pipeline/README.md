@@ -21,7 +21,7 @@ The [Product driver](../product.rs) coordinates the numbered stages. Its [consta
 
 The Psi 03 trace identifies typing. The following
 notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a
-`tests/fixtures/` path refer to the [former corpus](../../../../../tests/README.md#the-former-corpus).
+`tests/fixtures/` path refer to the [former corpus](../../../../../_recycling/tests/README.md#the-former-corpus).
 
 ## Lexing and parsing
 

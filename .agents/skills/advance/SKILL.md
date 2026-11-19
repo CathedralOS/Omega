@@ -121,7 +121,7 @@ Never make a kept test program pass by changing its fact, bound or operation
      around it> | <clean, or what failed and what it turned out to be>`.
 2. **Leave no build output behind:** Ensure no leftover `omega.lock` or
    `build/` directories sit inside the kept fixtures under
-   `tests/fixtures/` (never delete its `pass/build/` group).
+   `tests/fixtures/` (never delete its `build/pass/` group).
 3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
@@ -129,7 +129,7 @@ Never make a kept test program pass by changing its fact, bound or operation
 ## Step 5: Publish and Land
 
 During the source-rust migration, CI runs the standalone V2 workspace tests
-when V2 or its CI toolchain changes. See [landing](../../../tools/docs/landing.md)
+when V2 or its CI toolchain changes. See [landing](../../../wiki/development/landing.md)
 for the checks that currently run after merge.
 
 1. **Push HEAD to a remote `work/` branch and open the PR as ready for review:**

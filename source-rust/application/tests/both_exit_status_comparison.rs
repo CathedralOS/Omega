@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
 fn project() -> PathBuf {
-    support::repository_root().join("tests/fixtures/run/cli/both_comparison_verdict")
+    support::repository_root().join("source-rust/application/tests/fixtures/cli/run/both_comparison_verdict")
 }
 
 fn run_both(extra: &[&str]) -> (Output, String) {

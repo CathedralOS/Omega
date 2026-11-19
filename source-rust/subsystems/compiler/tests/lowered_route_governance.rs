@@ -92,7 +92,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
 fn a_rejection_is_reported_as_the_route_reports_it() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
-        rejected("tests/fixtures/fail/termination/productive_scalar_loop_arrival_unproved");
+        rejected("source-rust/subsystems/compiler/tests/fixtures/termination/fail/productive_scalar_loop_arrival_unproved");
     let RouteVerdict::Rejected { unproved, .. } = &verdict else {
         panic!("{verdict:?}");
     };
@@ -121,7 +121,7 @@ fn a_rejection_is_reported_as_the_route_reports_it() {
 fn an_invalid_bound_entry_reports_the_routes_rejection() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
-        rejected("tests/fixtures/fail/build/unrequested_target_entry_returns_value");
+        rejected("source-rust/subsystems/compiler/tests/fixtures/build/fail/unrequested_target_entry_returns_value");
     let RouteVerdict::Rejected { formations, .. } = verdict else {
         panic!("the entry calling shape must reject: {verdict:?}");
     };
@@ -141,19 +141,19 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
 
     for (fixture, callee, clause, expected_calls) in [
         (
-            "tests/fixtures/fail/build/program_entry_unestablished_requires",
+            "source-rust/subsystems/compiler/tests/fixtures/build/fail/program_entry_unestablished_requires",
             "launch",
             "false",
             3,
         ),
         (
-            "tests/fixtures/fail/build/unrequested_target_entry_unestablished_requires",
+            "source-rust/subsystems/compiler/tests/fixtures/build/fail/unrequested_target_entry_unestablished_requires",
             "other",
             "0 == 1",
             1,
         ),
         (
-            "tests/fixtures/fail/build/program_entry_named_predicate_requires",
+            "source-rust/subsystems/compiler/tests/fixtures/build/fail/program_entry_named_predicate_requires",
             "launch",
             "is_zero(1)",
             4,
@@ -201,7 +201,7 @@ fn an_invalid_bound_entry_reports_the_routes_rejection() {
 fn a_named_predicate_is_formed_at_its_declaration() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
-        rejected("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate");
+        rejected("source-rust/subsystems/compiler/tests/fixtures/proofs/fail/unused_partial_mathematical_predicate");
     let RouteVerdict::Rejected { violations, .. } = verdict else {
         panic!("the partial predicate must be refused: {verdict:?}");
     };
@@ -218,7 +218,7 @@ fn a_named_predicate_is_formed_at_its_declaration() {
         .site
         .expect("the refusal is placed at the declaration");
     let main = repo_root()
-        .join("tests/fixtures/fail/proofs/unused_partial_mathematical_predicate/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/proofs/fail/unused_partial_mathematical_predicate/main.omg");
     let source = std::fs::read_to_string(main).unwrap();
     assert!(
         source[site.span.start..].starts_with("reflexive("),
@@ -227,7 +227,7 @@ fn a_named_predicate_is_formed_at_its_declaration() {
     assert!(messages.contains(&violation.message()), "{messages:#?}");
 
     let main =
-        repo_root().join("tests/fixtures/pass/proofs/wrapping_mathematical_predicate/main.omg");
+        repo_root().join("source-rust/subsystems/compiler/tests/fixtures/proofs/pass/wrapping_mathematical_predicate/main.omg");
     let checked = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
@@ -248,7 +248,7 @@ fn named_predicate_terms_form_under_their_own_inputs() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let source = std::fs::read_to_string(
-        repo_root().join("tests/fixtures/pass/proofs/wrapping_mathematical_predicate/main.omg"),
+        repo_root().join("source-rust/subsystems/compiler/tests/fixtures/proofs/pass/wrapping_mathematical_predicate/main.omg"),
     )
     .unwrap();
     for (name, program, accepted, dependency) in [

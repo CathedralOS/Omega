@@ -29,7 +29,7 @@ use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 
-const FIXTURE: &str = "tests/fixtures/pass/filesystem/windows_canonicalize_exit/main.omg";
+const FIXTURE: &str = "source-rust/subsystems/compiler/tests/fixtures/filesystem/pass/windows_canonicalize_exit/main.omg";
 const TARGET: &str = "windows_x86_64";
 
 #[test]

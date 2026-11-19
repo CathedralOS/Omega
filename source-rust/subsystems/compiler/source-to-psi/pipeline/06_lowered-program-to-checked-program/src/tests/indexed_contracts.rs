@@ -203,7 +203,7 @@ machine entry(buffer: @Buffer) -> u16 { buffer.large[4095] }
 }
 
 const NATIVE: &str =
-    include_str!("../../../../../../../../tests/fixtures/run/calls/indexed_array_contract/main.omg");
+    include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
 #[test]
 fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {

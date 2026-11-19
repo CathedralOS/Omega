@@ -27,7 +27,7 @@ fn call_arguments_read_fields_beside_a_sibling_loan() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (directory, refused) in [("pass", false), ("fail", true)] {
-        let fixture = format!("tests/fixtures/{directory}/borrows/sibling_field_call_loans");
+        let fixture = format!("source-rust/subsystems/compiler/tests/fixtures/borrows/{directory}/sibling_field_call_loans");
         let frontier = fixture_frontier(&fixture);
         let verdicts = source_compiler::checking::judge_compilation(
             source_compiler::lowering::prepare_compilation(
@@ -82,7 +82,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (directory, rejected) in [("pass", false), ("fail", true)] {
-        let fixture = format!("tests/fixtures/{directory}/borrows/exclusive_formation_attenuation");
+        let fixture = format!("source-rust/subsystems/compiler/tests/fixtures/borrows/{directory}/exclusive_formation_attenuation");
         let frontier = fixture_frontier(&fixture);
         let verdicts = source_compiler::checking::judge_compilation(
             source_compiler::lowering::prepare_compilation(
@@ -324,7 +324,7 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for (directory, rejected) in [("pass", false), ("fail", true)] {
-        let fixture = format!("tests/fixtures/{directory}/borrows/borrowed_runtime_element");
+        let fixture = format!("source-rust/subsystems/compiler/tests/fixtures/borrows/{directory}/borrowed_runtime_element");
         let frontier = fixture_frontier(&fixture);
         let verdicts = source_compiler::checking::judge_compilation(
             source_compiler::lowering::prepare_compilation(
@@ -406,7 +406,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier = fixture_frontier(
-        "tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/pass/runtime_affine_record_call_results_reused_exit",
     );
     // Match the default router's complete scope, including every generic
     // check form it claims; one undecided form refuses the whole compilation.
@@ -489,7 +489,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let frontier = fixture_frontier("tests/fixtures/fail/borrows/owned_address_after_operand_move");
+    let frontier = fixture_frontier("source-rust/subsystems/compiler/tests/fixtures/borrows/fail/owned_address_after_operand_move");
     let verdicts = source_compiler::checking::judge_compilation(
         source_compiler::lowering::prepare_compilation(
             &frontier.typed,
@@ -525,7 +525,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         }
     }
     let expected = std::fs::read_to_string(repository(
-        "tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt",
+        "source-rust/subsystems/compiler/tests/fixtures/borrows/fail/owned_address_after_operand_move/expected.txt",
     ))
     .unwrap();
     assert!(

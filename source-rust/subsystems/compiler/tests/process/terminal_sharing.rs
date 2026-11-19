@@ -57,7 +57,7 @@ fn main() {
         }
     }
     let root = fixture_package_inputs::repo_root().join(arguments.next().unwrap_or_else(|| {
-        "tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg".to_owned()
+        "source-rust/subsystems/compiler/tests/fixtures/targets/pass/shared_program_distinct_roots_exit/main.omg".to_owned()
     }));
     let mut target_names: Vec<_> = arguments.collect();
     if target_names.is_empty() {

@@ -1029,11 +1029,11 @@ machine build_entry() {
 fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
     let valid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/shared_byte_view_join/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/shared_byte_view_join/main.omg"
     ));
     let invalid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/fail/views/shared_byte_view_join/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/fail/shared_byte_view_join/main.omg"
     ));
     let build_source = |source: &str| {
         source
@@ -1067,11 +1067,11 @@ fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
 fn a_shared_array_prefix_uses_its_own_backing_membership() {
     let valid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/shared_fixed_array_prefix/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/shared_fixed_array_prefix/main.omg"
     ));
     let invalid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/fail/views/shared_fixed_array_prefix/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/fail/shared_fixed_array_prefix/main.omg"
     ));
     let build_source = |source: &str| {
         source
@@ -1138,7 +1138,7 @@ machine build_entry() {
 fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/mutable_domain_buffer/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/mutable_domain_buffer/main.omg"
     ))
     .replace("use omega::language::core::byte_observation;", "")
     .replace("machine main()", "machine build_entry()");

@@ -601,7 +601,7 @@ bootstrap. The [compiler board](TASKS.md),
 [completion criteria](wiki/drafts/reference/rust_compiler_completion.md) describe the work.
 
 Read [repository conventions](AGENTS.md#conventions-and-workflow) before changing
-code. [Local testing](tools/docs/testing.md) covers focused checks and supported
+code. [Local testing](wiki/development/testing.md) covers focused checks and supported
 development hosts.
 
 Code kept for reference or piecemeal migration lives in the repository-root

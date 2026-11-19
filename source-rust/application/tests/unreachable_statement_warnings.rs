@@ -21,7 +21,7 @@ use std::process::Command;
 #[test]
 fn statements_after_a_call_that_never_returns_warn_once_and_compile() {
     let directory = support::repository_root()
-        .join("tests/fixtures/pass/contracts/statement_after_never_returning_call_exit");
+        .join("source-rust/application/tests/fixtures/contracts/pass/statement_after_never_returning_call_exit");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
         .arg("main.omg")

@@ -633,7 +633,7 @@ fn prepare_for_target(
 #[test]
 fn process_exit_retains_its_external_demand_and_requires_supply() {
     let frontier = unbuilt_frontier::bound_fixture_frontier(
-        "tests/fixtures/run/calls/published_process_exit",
+        "tests/fixtures/calls/run/published_process_exit",
         Some("entry_start"),
         &[],
     );

@@ -381,7 +381,7 @@ this, for three separate reasons:
    Build's output would be a cycle. V1 enforces this: the probe
    `samples/cli/probes/build_retry_reseal/controls/invalid_authored_selects_generated`
    expects `call 'generated_value' selects no declaration`, and the passing
-   fixture `tests/fixtures/pass/build/captured_source_generated_constant`
+   fixture `source-rust/subsystems/compiler/tests/fixtures/build/pass/captured_source_generated_constant`
    notes that "no authored body references the later stratum". The spec says a
    generated entry "needs a separately staged compilation" and that "an
    authored wrapper cannot call it".

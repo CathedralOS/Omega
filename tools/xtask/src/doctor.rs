@@ -103,7 +103,7 @@ fn check_git_repository(root: &Path) -> CheckEntry {
             "warn",
             format!("{detail}; pull.rebase is not true"),
             Some(
-                "git config pull.rebase true — pull requests land by squash merge after `admission` (tools/docs/landing.md)",
+                "git config pull.rebase true — pull requests land by squash merge after `admission` (wiki/development/landing.md)",
             ),
         );
     }

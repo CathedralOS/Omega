@@ -49,7 +49,7 @@ fingerprint and consumed token/root counts.
 
 For paired comparisons, build without running with
 `mbx bench -p source-compiler --features test-support --bench lexing_lexer_timing --no-run`. Retain the
-executable at the printed path and use [omega-bench](../../../../../../tools/benchmark/README.md)'s `reported_work`
+executable at the printed path and use [omega-bench](../../../../../../_recycling/tools/benchmark/README.md)'s `reported_work`
 plans. Keep input files and executables unchanged during a run. The
 [initial comparison](../../../../../../wiki/drafts/measurements/rust_lexer_2026_11_16.md)
 records the measured changes and host limitations.

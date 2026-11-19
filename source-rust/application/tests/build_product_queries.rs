@@ -24,7 +24,6 @@ use std::process::Command;
 
 fn check(fixture: &str) -> (bool, String) {
     let directory = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
@@ -41,13 +40,13 @@ fn check(fixture: &str) -> (bool, String) {
 
 #[test]
 fn an_entry_described_through_a_product_dependency_alias_compiles() {
-    let (compiled, stderr) = check("pass/build/product_entry_query_product_scope_alias");
+    let (compiled, stderr) = check("source-rust/application/tests/fixtures/build/pass/product_entry_query_product_scope_alias");
     assert!(compiled, "{stderr}");
 }
 
 #[test]
 fn an_entry_asked_through_a_build_scope_alias_names_nothing() {
-    let (compiled, stderr) = check("fail/build/product_entry_query_build_scope_alias");
+    let (compiled, stderr) = check("tests/fixtures/build/fail/product_entry_query_build_scope_alias");
     assert!(!compiled);
     assert!(
         stderr.contains(

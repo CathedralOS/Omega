@@ -27,7 +27,7 @@ use std::path::PathBuf;
 /// installation, object custody, physical evidence and image emission. Every
 /// one of those used to decode the artifact's semantic section for itself.
 const FIXTURE: &str =
-    "tests/fixtures/pass/providers/checked_boundary_requirement_dispatch_exit/main.omg";
+    "source-rust/subsystems/compiler/tests/fixtures/providers/pass/checked_boundary_requirement_dispatch_exit/main.omg";
 
 #[test]
 fn realization_and_execution_borrow_the_retained_terminal_module() {
@@ -285,7 +285,7 @@ fn exercise_owned_and_borrowed_instances() {
     use terminal_work::WorkMeter;
 
     let root = repo_root()
-        .join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");
+        .join("source-rust/subsystems/compiler/tests/fixtures/optimizer/pass/rollback_to_no_selection_empty_entry/main.omg");
     let prepared = reviewed_repository_fixture_package_inputs(&root, Some("linux_x86_64"))
         .unwrap_or_else(|diagnostics| panic!("empty-entry package inputs: {diagnostics:#?}"));
     let mut request = CompileRequest::new(CompileOptions {

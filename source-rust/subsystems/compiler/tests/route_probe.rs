@@ -423,7 +423,7 @@ fn trapping_normal_results_are_retained_in_guarantees() {
 #[test]
 fn trapping_primitives_run_and_overflow_at_their_own_site() {
     let kept = std::fs::read_to_string(unbuilt_frontier::repository(
-        "tests/fixtures/run/arithmetic/trapping_primitives/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/arithmetic/run/trapping_primitives/main.omg",
     ))
     .expect("the focused runtime witness is kept beside its test");
     let overflowing = kept.replace("added(3, 4)", "added(4294967295, 4)");
@@ -468,7 +468,7 @@ fn closed_domain_applications_keep_carriers_and_indices_through_checking() {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut frontier =
-            unbuilt_frontier::fixture_frontier("tests/fixtures/run/domains/applied_carriers");
+            unbuilt_frontier::fixture_frontier("source-rust/subsystems/compiler/tests/fixtures/domains/run/applied_carriers");
         let found = judge(&frontier);
         assert!(
             matches!(found.as_slice(), [Ok(RouteVerdict::Accepted(_))]),
@@ -1095,7 +1095,7 @@ fn a_program_applying_a_generic_machine_at_types_is_judged() {
     assert_eq!(
         verdicts(
             "type_parameter",
-            &fixture("tests/fixtures/run/generics/type_parameter_contract")
+            &fixture("source-rust/subsystems/compiler/tests/fixtures/generics/run/type_parameter_contract")
         ),
         ["accepted", "accepted", "accepted"]
     );
@@ -1109,7 +1109,7 @@ fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
     assert_eq!(
         verdicts(
             "type_parameter_exceeds",
-            &fixture("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee")
+            &fixture("source-rust/subsystems/compiler/tests/fixtures/generics/fail/type_parameter_contract_exceeds_callee")
         ),
         ["rejected", "accepted", "rejected"]
     );
@@ -1148,7 +1148,7 @@ fn a_program_applying_a_finite_family_is_judged() {
     assert_eq!(
         verdicts(
             "finite_family",
-            &fixture("tests/fixtures/run/generics/finite_family_contract")
+            &fixture("source-rust/subsystems/compiler/tests/fixtures/generics/run/finite_family_contract")
         ),
         ["accepted", "accepted", "accepted"]
     );
@@ -1162,7 +1162,7 @@ fn a_finite_family_alternative_that_breaks_its_contract_is_rejected() {
     assert_eq!(
         verdicts(
             "finite_family_wrong_alternative",
-            &fixture("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative")
+            &fixture("source-rust/subsystems/compiler/tests/fixtures/generics/fail/finite_family_contract_wrong_alternative")
         ),
         ["rejected", "accepted", "rejected"]
     );
@@ -1178,7 +1178,7 @@ fn a_finite_family_alternative_that_breaks_its_contract_is_rejected() {
 fn a_program_applying_a_generic_machine_at_implementations_is_judged() {
     let parts = judged(
         "implementation_parameter",
-        &fixture("tests/fixtures/run/generics/implementation_parameter_contract"),
+        &fixture("tests/fixtures/generics/run/implementation_parameter_contract"),
     );
     let [Ok(RouteVerdict::Accepted(closure)), form, hold, shift] = &parts[..] else {
         panic!("four parts, the entry closure accepted: {parts:?}");
@@ -1217,7 +1217,7 @@ fn a_generic_machine_valid_only_for_its_selections_is_rejected_as_written() {
         verdicts(
             "implementation_parameter_only_selection",
             &fixture(
-                "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection"
+                "source-rust/subsystems/compiler/tests/fixtures/generics/fail/implementation_parameter_contract_only_holds_for_selection"
             )
         ),
         ["rejected", "rejected", "accepted", "accepted"]
@@ -1236,7 +1236,7 @@ fn a_generic_machine_valid_only_for_its_selections_is_rejected_as_written() {
 /// `Shift::apply`'s own weaker one.
 #[test]
 fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
-    let source = fixture("tests/fixtures/run/generics/implementation_parameter_contract");
+    let source = fixture("tests/fixtures/generics/run/implementation_parameter_contract");
     let weaker = source.replace("ensures result <= 17", "ensures result <= 25");
     assert_ne!(source, weaker, "the fixture states Shift's promise");
     assert_eq!(
@@ -1264,7 +1264,7 @@ fn judged_with_dependencies(
     .map(|frontier| judge(&frontier))
 }
 
-const CONSOLE_PROGRAM: &str = "tests/fixtures/run/providers/default_console_provider_reached";
+const CONSOLE_PROGRAM: &str = "tests/fixtures/providers/run/default_console_provider_reached";
 
 /// Registering the standard library makes the program's Console import resolve.
 /// Its two output calls and separate ProcessExit call are then checked against
@@ -1297,7 +1297,7 @@ fn an_import_without_its_dependency_edge_selects_nothing() {
     );
 }
 
-const EXIT_PROGRAM: &str = "tests/fixtures/run/calls/process_exit_conditional_helper";
+const EXIT_PROGRAM: &str = "source-rust/subsystems/compiler/tests/fixtures/calls/run/process_exit_conditional_helper";
 
 /// The verdict word of each judged part of the kept program in `directory`,
 /// with `entry_start` bound and no dependency: core is bundled.
@@ -1372,7 +1372,7 @@ fn a_program_that_ends_through_process_exit_is_judged() {
 #[test]
 fn a_process_exit_outside_the_written_reach_is_rejected() {
     assert_eq!(
-        exit_verdicts("tests/fixtures/fail/calls/process_exit_outside_reach"),
+        exit_verdicts("source-rust/subsystems/compiler/tests/fixtures/calls/fail/process_exit_outside_reach"),
         ["rejected"]
     );
 }
@@ -1384,7 +1384,7 @@ fn a_process_exit_outside_the_written_reach_is_rejected() {
 #[test]
 fn a_returning_arm_beside_a_process_exit_still_owes_its_guarantee() {
     assert_eq!(
-        exit_verdicts("tests/fixtures/fail/calls/process_exit_returning_arm_breaks_guarantee"),
+        exit_verdicts("source-rust/subsystems/compiler/tests/fixtures/calls/fail/process_exit_returning_arm_breaks_guarantee"),
         ["rejected"]
     );
 }
@@ -1395,7 +1395,7 @@ fn a_returning_arm_beside_a_process_exit_still_owes_its_guarantee() {
 #[test]
 fn a_call_that_never_returns_carries_the_storage_it_is_lent() {
     let parts = judged_with_dependencies(
-        "tests/fixtures/run/calls/non_returning_call_lends_storage",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/run/non_returning_call_lends_storage",
         "entry_start",
         &[],
     )
@@ -1421,7 +1421,7 @@ fn a_call_that_never_returns_carries_the_storage_it_is_lent() {
 #[test]
 fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
     assert_eq!(
-        exit_verdicts("tests/fixtures/fail/borrows/non_returning_call_lends_twice"),
+        exit_verdicts("source-rust/subsystems/compiler/tests/fixtures/borrows/fail/non_returning_call_lends_twice"),
         ["rejected"]
     );
 }
@@ -1439,7 +1439,7 @@ fn a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier = unbuilt_frontier::frontier(
-        &unbuilt_frontier::repository("tests/fixtures/run/calls/statement_after_process_exit")
+        &unbuilt_frontier::repository("source-rust/subsystems/compiler/tests/fixtures/calls/run/statement_after_process_exit")
             .join("main.omg"),
         Some("entry_start"),
         &[],
@@ -1496,7 +1496,7 @@ fn a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning() {
 #[test]
 fn a_statement_after_a_call_that_may_return_is_checked() {
     assert_eq!(
-        exit_verdicts("tests/fixtures/fail/calls/statement_after_conditional_exit"),
+        exit_verdicts("source-rust/subsystems/compiler/tests/fixtures/calls/fail/statement_after_conditional_exit"),
         ["rejected"]
     );
 }
@@ -1514,7 +1514,7 @@ fn a_statement_after_a_call_that_may_return_is_checked() {
 fn a_call_that_never_returns_inside_an_expression_ends_only_its_own_path() {
     let parts = judged(
         "never_returning_call_in_expressions",
-        &fixture("tests/fixtures/run/calls/never_returning_call_in_expressions"),
+        &fixture("source-rust/subsystems/compiler/tests/fixtures/calls/run/never_returning_call_in_expressions"),
     );
     let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
         panic!("the entry closure accepted: {parts:?}");
@@ -1541,7 +1541,7 @@ fn the_returning_path_past_a_call_that_never_returns_is_checked() {
     assert_eq!(
         verdicts(
             "never_returning_call_in_conjunction",
-            &fixture("tests/fixtures/fail/calls/never_returning_call_in_expressions")
+            &fixture("source-rust/subsystems/compiler/tests/fixtures/calls/fail/never_returning_call_in_expressions")
         ),
         ["rejected"]
     );
@@ -1557,7 +1557,7 @@ fn the_returning_path_past_a_call_that_never_returns_is_checked() {
 #[test]
 fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
     let parts = judged_with_dependencies(
-        "tests/fixtures/fail/calls/unknown_machine_after_process_exit",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/fail/unknown_machine_after_process_exit",
         "entry_start",
         &[],
     )
@@ -1575,7 +1575,7 @@ fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
         "{violation:?}"
     );
     let site = violation.site.expect("the call is authored");
-    let text = fixture("tests/fixtures/fail/calls/unknown_machine_after_process_exit");
+    let text = fixture("source-rust/subsystems/compiler/tests/fixtures/calls/fail/unknown_machine_after_process_exit");
     assert!(
         text[site.span.start..site.span.end].starts_with("undeclared_machine"),
         "{site:?}"

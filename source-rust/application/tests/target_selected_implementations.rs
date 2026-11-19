@@ -20,7 +20,6 @@ use std::process::{Command, Output};
 
 fn fixture(relative: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
         .join(relative)
 }
 
@@ -45,7 +44,7 @@ fn printed(output: &Output) -> String {
 
 #[test]
 fn each_target_runs_the_implementation_its_build_row_selects() {
-    let directory = fixture("run/providers/target_selected_implementation");
+    let directory = fixture("tests/fixtures/providers/run/target_selected_implementation");
     let output = omega_run(&directory, &["--both"]);
     let text = printed(&output);
     assert!(output.status.success(), "{text}");
@@ -66,7 +65,7 @@ fn each_target_runs_the_implementation_its_build_row_selects() {
 
 #[test]
 fn a_target_without_a_build_row_has_no_implementation() {
-    let directory = fixture("fail/build/target_selected_implementation_missing_row");
+    let directory = fixture("source-rust/application/tests/fixtures/build/fail/target_selected_implementation_missing_row");
     let output = omega_run(
         &directory,
         // Both requirements share one cause; ask for every diagnostic so the
@@ -86,7 +85,7 @@ fn a_target_without_a_build_row_has_no_implementation() {
 
 #[test]
 fn applied_services_keep_their_separate_selected_implementations() {
-    let directory = fixture("run/providers/applied_boundary_providers");
+    let directory = fixture("source-rust/application/tests/fixtures/providers/run/applied_boundary_providers");
     let output = omega_run(&directory, &["--both"]);
     let text = printed(&output);
     assert!(output.status.success(), "{text}");
@@ -96,7 +95,7 @@ fn applied_services_keep_their_separate_selected_implementations() {
 
 #[test]
 fn an_implementation_of_another_service_application_is_refused() {
-    let directory = fixture("fail/providers/applied_boundary_providers");
+    let directory = fixture("source-rust/application/tests/fixtures/providers/fail/applied_boundary_providers");
     let output = omega_run(&directory, &["--both"]);
     let text = printed(&output);
     assert!(!output.status.success(), "{text}");

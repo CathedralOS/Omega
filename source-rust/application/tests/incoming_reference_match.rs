@@ -9,7 +9,6 @@ use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
     let project = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -29,7 +28,7 @@ fn run_both(fixture: &str) -> (bool, String) {
 
 #[test]
 fn a_match_of_one_incoming_reference_passes_to_a_borrowing_call() {
-    let (success, report) = run_both("run/ownership/incoming_reference_match");
+    let (success, report) = run_both("source-rust/application/tests/fixtures/ownership/run/incoming_reference_match");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -38,10 +37,9 @@ fn a_match_of_one_incoming_reference_passes_to_a_borrowing_call() {
 
 #[test]
 fn a_match_of_two_incoming_references_has_no_single_lender() {
-    let fixture = "fail/ownership/incoming_reference_match_two_lenders";
+    let fixture = "source-rust/application/tests/fixtures/ownership/fail/incoming_reference_match_two_lenders";
     let expected = std::fs::read_to_string(
         support::repository_root()
-            .join("tests/fixtures")
             .join(fixture)
             .join("expected.txt"),
     )

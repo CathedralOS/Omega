@@ -37,12 +37,12 @@ DELTA_COMPILER_SUPPORT_PACKED_SIZE=2998
 DELTA_COMPILER_SUPPORT_PACKED_SHA256=cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255
 
 # Bound diagnostic prefix. The staged-compiler gate's
-# tests/delta/staged-compiler/development_driver.gamma is a separate entry
+# bootstrap/interpreted/tests/delta/staged-compiler/development_driver.gamma is a separate entry
 # packed on top of the bound member closure as an unmarked raw-source
 # transformer; it never selects a compiler application profile, so the packed
 # development compiler is a diagnostic subject, not a second canonical
 # compiler. The identical pins in
-# tests/delta/staged-compiler/{README.md,run.sh} and
+# bootstrap/interpreted/tests/delta/staged-compiler/{README.md,run.sh} and
 # tools/xtask/src/source_closure.rs are records of this one subject, not
 # independent identities. A digest here is an identity check on the entry
 # bytes; it is not a proof of the staged pipeline. Changing the driver changes
@@ -155,7 +155,7 @@ require_delta_compiler_development_entry_identity() {
     "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY" \
     "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SIZE" \
     "$DELTA_COMPILER_DEVELOPMENT_ENTRY_SHA256" \
-    "tests/delta/staged-compiler/README.md"
+    "_recycling/tests/delta/staged-compiler/README.md"
 }
 
 # require_delta_lowering_plan_driver_identity : the lowering-plan gate's
@@ -165,7 +165,7 @@ require_delta_lowering_plan_driver_identity() {
   require_bound_identity "height_driver.gamma" \
     "$OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER" \
     "$DELTA_LOWERING_PLAN_DRIVER_SIZE" "$DELTA_LOWERING_PLAN_DRIVER_SHA256" \
-    "tests/delta/lowering-plan/README.md"
+    "_recycling/tests/delta/lowering-plan/README.md"
 }
 
 # require_delta_normalization_driver_identity : the normalization gate's
@@ -174,7 +174,7 @@ require_delta_normalization_driver_identity() {
   require_bound_identity "normalization_driver.gamma" \
     "$OMEGA_PATH_DELTA_NORMALIZATION_DRIVER" \
     "$DELTA_NORMALIZATION_DRIVER_SIZE" "$DELTA_NORMALIZATION_DRIVER_SHA256" \
-    "tests/delta/normalization/README.md"
+    "_recycling/tests/delta/normalization/README.md"
 }
 
 # require_delta_controls_identity LABEL SOURCES MANIFEST_SIZE MANIFEST_SHA256
@@ -209,7 +209,7 @@ require_delta_internal_boundary_controls_identity() {
     "$DELTA_INTERNAL_BOUNDARY_CONTROLS_MANIFEST_SHA256" \
     "$DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SIZE" \
     "$DELTA_INTERNAL_BOUNDARY_CONTROLS_PACKED_SHA256" \
-    "tests/delta/internal-boundary/README.md"
+    "_recycling/tests/delta/internal-boundary/README.md"
 }
 
 # require_delta_emission_controls_identity : the emission gate's packed
@@ -221,7 +221,7 @@ require_delta_emission_controls_identity() {
     "$DELTA_EMISSION_CONTROLS_MANIFEST_SHA256" \
     "$DELTA_EMISSION_CONTROLS_PACKED_SIZE" \
     "$DELTA_EMISSION_CONTROLS_PACKED_SHA256" \
-    "tests/delta/emission/README.md"
+    "_recycling/tests/delta/emission/README.md"
 }
 
 # materialize_delta_compiler DEST : write the canonical entry-plus-member

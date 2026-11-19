@@ -36,11 +36,11 @@ its parser, checking, execution and independent-model migration remains under
 wrappers contain only their native AST value and no duplicated cursor or span.
 The closure deliberately still has no `main` of its own: the canonical
 evaluator `main` is the bound edge source
-[`tests/epsilon/evaluator-entry/evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta),
+[`bootstrap/tests/conformance/epsilon/evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta),
 appended after the packed closure to form the canonical Delta subject. Its
 receipt, EREQ request envelope, canonical observation grammar, and EEOUT
 refusal frame are defined in [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) and
-executed by `tests/epsilon/evaluator-entry/run.sh`. The staging execution
+executed by `bootstrap/interpreted/tests/epsilon/evaluator-entry/run.sh`. The staging execution
 path starts from `Main::main` accepted by the current
 checking pipeline; the remaining conformance obligations below still apply.
 Local, machine-parameter, state-parameter, and transition-payload bindings retain
@@ -115,7 +115,7 @@ trap carries the closed trap kind and exact output prefix; rejection carries
 the closed reason and exact source offset. Internal failure and malformed
 private input have separate tags; the retired staging tag 4 stays unassigned.
 This avoids collapsing exits modulo 256 or discarding checking evidence. The
-[execution gate](../../../tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
+[execution gate](../../../_recycling/tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 documents the exact byte layout. Outer Gamma failures are not converted into
 these diagnostic results.
 
@@ -206,11 +206,11 @@ prove their semantics: contract-derived conformance and independent refinement
 remain required. The evaluator boundary and `main` are now realized by
 [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) within current construct coverage.
 Complete Omega D composition and independent `RunEpsilon` refinement are now
-exercised gates — [`tests/epsilon/d-composition/`](../../../tests/epsilon/d-composition/README.md)
+exercised gates — [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md)
 runs the full eight-member D closure through the canonical edge, including
 `OmegaScalarCompiler::compile` emitting the exact Alpha tape, and compares
 the same base executions against the contract-derived model in
-[`tests/epsilon/refinement/`](../../../tests/epsilon/refinement/README.md).
+[`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
 The synthetic language corpus runs separately there. Resource containment beyond the derived
 lower-chain profile remains an implementation gap. New execution work
 must name a concrete failing program or required conformance/refinement
@@ -284,7 +284,7 @@ type formation also reverses only the list spine and preserves exactly
 `min(parameters, min(body, suffix))`. Conflict precedence makes reassociation
 invalid even when ordinary distinct-coordinate errors would select the same
 minimum. State width therefore consumes no pending return frame per state.
-The [checking-invariant controls](../../../tests/epsilon/checking-invariants/README.md)
+The [checking-invariant controls](../../../_recycling/tests/epsilon/checking-invariants/README.md)
 pin this association with synthetic overlapping coordinates. They test the
 private candidate algebra, not acceptance of an Epsilon source with those spans.
 Data-shape selection and catalog unknown-owner selection likewise reverse only
@@ -638,9 +638,9 @@ observation.
   ([`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md); the diagnostic edge's derived
   profile stays in [`EVALUATOR_PROFILE.md`](EVALUATOR_PROFILE.md));
 - composition with the exact Epsilon-written Omega D source is exercised by
-  [`tests/epsilon/d-composition/`](../../../tests/epsilon/d-composition/README.md);
+  [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md);
 - the independent reconstruction of `CheckEpsilon`/`RunEpsilon` lives under
-  [`tests/epsilon/refinement/`](../../../tests/epsilon/refinement/README.md) and
+  [`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md) and
   checks direct `RunEpsilon` refinement and negative mutations byte-for-byte;
 - validating every Epsilon expression, statement, state, trap, and Console
   execution rule remains the standing conformance clause — implemented

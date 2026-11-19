@@ -10,7 +10,7 @@ fn schema_and_named_provider_queries_resume_the_original_build() {
     use build_execution::host::bindings::BuildProductDescription;
     use source_compiler::TerminalBuildQueryOperation;
     let repository = fixture_repository::root();
-    let root = repository.join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");
+    let root = repository.join("tests/fixtures/build/pass/product_description_paths_exit/main.omg");
     let mut session = CompilationSession::default();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))
@@ -93,7 +93,7 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
         "product_entry_query_foreign_helper_private_entry",
         "product_entry_query_build_scope_alias",
     ] {
-        let root = repository.join("tests/fixtures/fail/build").join(fixture);
+        let root = repository.join("tests/fixtures/build/fail").join(fixture);
         // The fixture suspends while its Build dependency is prepared. The
         // ordinary scheduler serves that pause and resumes the same activation
         // before checking the query's original helper/package visibility.
@@ -116,7 +116,7 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
 fn authored_product_query_retains_lexical_occurrence_and_pauses() {
     let repository = fixture_repository::root();
     let root =
-        repository.join("tests/fixtures/pass/build/described_runner_entry_left_exit/main.omg");
+        repository.join("source-rust/subsystems/compiler/tests/fixtures/build/pass/described_runner_entry_left_exit/main.omg");
     let mut session = CompilationSession::default();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))
@@ -172,13 +172,13 @@ mod fixture_package_inputs;
 fn typed_product_descriptions_use_the_named_capture_and_reject_another_role() {
     let repository = fixture_package_inputs::repo_root();
     let positive =
-        repository.join("tests/fixtures/run/reflection/build_parameter_description/main.omg");
+        repository.join("source-rust/subsystems/compiler/tests/fixtures/reflection/run/build_parameter_description/main.omg");
     // Discovery runs the actual Build and its text/position oracle under the
     // acquired package's lineage. No fixture package key substitutes for it.
     fixture_package_inputs::discover_fixture(&positive, Default::default())
         .unwrap_or_else(|diagnostics| panic!("{diagnostics:?}"));
     let negative =
-        repository.join("tests/fixtures/fail/reflection/build_parameter_wrong_kind/main.omg");
+        repository.join("source-rust/subsystems/compiler/tests/fixtures/reflection/fail/build_parameter_wrong_kind/main.omg");
     let Err(diagnostics) = fixture_package_inputs::discover_fixture(&negative, Default::default())
     else {
         panic!("a field cannot satisfy a formal query");
@@ -194,7 +194,7 @@ fn typed_product_descriptions_use_the_named_capture_and_reject_another_role() {
 #[test]
 fn runtime_formal_descriptions_publish_without_reading_parameter_values() {
     let repository = fixture_package_inputs::repo_root();
-    let positive = repository.join("tests/fixtures/run/reflection/parameter_description/main.omg");
+    let positive = repository.join("tests/fixtures/reflection/run/parameter_description/main.omg");
     let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &positive,
         Some("macos_arm64"),
@@ -215,7 +215,7 @@ fn runtime_formal_descriptions_publish_without_reading_parameter_values() {
     assert!(published.view().module().entry.is_some());
 
     let negative =
-        repository.join("tests/fixtures/fail/reflection/parameter_description_wrong_kind/main.omg");
+        repository.join("tests/fixtures/reflection/fail/parameter_description_wrong_kind/main.omg");
     let diagnostics = match fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &negative,
         Some("macos_arm64"),

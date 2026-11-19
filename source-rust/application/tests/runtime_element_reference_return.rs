@@ -9,7 +9,6 @@ use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
     let project = support::repository_root()
-        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -29,7 +28,7 @@ fn run_both(fixture: &str) -> (bool, String) {
 
 #[test]
 fn a_runtime_element_field_reference_returns_to_the_caller_in_both_engines() {
-    let (success, report) = run_both("run/ownership/runtime_element_reference_return");
+    let (success, report) = run_both("source-rust/application/tests/fixtures/ownership/run/runtime_element_reference_return");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -38,7 +37,7 @@ fn a_runtime_element_field_reference_returns_to_the_caller_in_both_engines() {
 
 #[test]
 fn a_returned_element_reference_leaves_the_other_fields_of_its_argument_free() {
-    let (success, report) = run_both("run/ownership/returned_reference_disjoint_field");
+    let (success, report) = run_both("source-rust/application/tests/fixtures/ownership/run/returned_reference_disjoint_field");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -47,10 +46,9 @@ fn a_returned_element_reference_leaves_the_other_fields_of_its_argument_free() {
 
 #[test]
 fn a_returned_runtime_element_reference_keeps_its_array_borrowed() {
-    let fixture = "fail/ownership/runtime_element_reference_overlap";
+    let fixture = "source-rust/application/tests/fixtures/ownership/fail/runtime_element_reference_overlap";
     let expected = std::fs::read_to_string(
         support::repository_root()
-            .join("tests/fixtures")
             .join(fixture)
             .join("expected.txt"),
     )

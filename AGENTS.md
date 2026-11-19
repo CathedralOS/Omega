@@ -221,10 +221,10 @@ A pull request proves the thing it built. Test the changed code, then a very
 small area around it. If that is fine, land. If it is not, investigate that
 failure; do not widen the run. There is no fixture corpus to run and no ledger:
 the corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13
-([tests/README.md](tests/README.md) says how to recover a fixture from
+([tests/README.md](_recycling/tests/README.md) says how to recover a fixture from
 history), and nothing replaces it.
 
-A program a test reads lives beside that test, under `tests/fixtures/`. The
+A program a test reads lives under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners share an input under the repository’s `tests/fixtures/`. The
 test pins the exact result the program must produce (its output or its
 error), which records what the program asks of the compiler. Do not make a test pass by changing the
 program: a different fact, a looser bound or a different operation turns it
@@ -300,7 +300,7 @@ unqualified, install or update it before building (from the checkout root):
   mbx setup --yes; mbx xtask doctor
   ```
 
-See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin
+See [wiki/development/testing.md](wiki/development/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` invocations so
 background processes never hang on open stdin:
 
@@ -344,7 +344,7 @@ run.
 
 Builds, test runs and compiled programs from every local agent share one
 machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](tools/docs/build_slot.md): cap the total
+other agents, apply the [host build budget](wiki/development/build_slot.md): cap the total
 load of all agents so the machine never reaches 100%, run at the lowest
 operating-system priority on a workstation its owner is using, and write the
 budget into every worker prompt. On the test VMs, run one heavy job per machine
@@ -455,7 +455,7 @@ reads the allowed lanes from this table:
 | --- | --- |
 | `alpha`, `beta`, `gamma`, `delta`, `epsilon` | The corresponding language rung in `bootstrap/interpreted/<N>_<rung>/`, including its compiler/evaluator, Rust reference tooling, and rung-specific tests. |
 | `bootstrap-omega` | The Epsilon-written first Omega compiler D in `bootstrap/interpreted/5_omega/` and its tests. Never shorten to `omega`. |
-| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `tests/bootstrap/`, and `tools/bootstrap/`. |
+| `bootstrap` | Cross-rung reconstruction, trust-chain edges, artifact provenance, `bootstrap/interpreted/tests/`, and `tools/bootstrap/`. |
 | `psi` | Target-neutral source semantics and Psi publication in `source-rust/subsystems/compiler/source-to-psi/`, portable Psi in its sibling `psi/`, and self-hosted `source/psi/`. |
 | `omega` | Native planning, representations and verification in `source-rust/subsystems/compiler/psi-to-native/`, or self-hosted `source/omega/`. |
 | `backend` | Native targets and ABIs under `psi-to-native/targets/`, and encoding, layout, objects and images in native stages 11–16. |

@@ -34,7 +34,7 @@ Alpha tape whose execution is governed by
 ## Beta compiler
 
 The admitted tape is a 1,773-byte Alpha program.
-`tests/beta/compiler/reconstruction.sh` requires the readable source to
+`bootstrap/interpreted/tests/beta/compiler/reconstruction.sh` requires the readable source to
 reproduce it byte-for-byte.
 
 The compiler accepts mnemonic opcodes, complete-token lowercase hexadecimal
@@ -62,7 +62,7 @@ Comments aid the finite audit but never select target identity or affect encodin
 
 Materialization and disposable builds live under `tools/bootstrap/beta/`.
 Reconstruction, the independent compiler, regressions, and examples live under
-`tests/beta/compiler/`.
+`bootstrap/interpreted/tests/beta/compiler/`.
 
 ## Retention inventory
 

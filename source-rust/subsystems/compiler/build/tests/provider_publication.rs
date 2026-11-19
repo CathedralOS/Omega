@@ -68,7 +68,7 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
         TargetProfile::WindowsX64,
     ];
     let fixture = fixture_repository::root()
-        .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg");
+        .join("tests/fixtures/calls/run/scalar_contract_route_exit/main.omg");
     let project = open_project(&fixture, &targets);
     let stage = project.product_stage(&targets).unwrap();
     let Artifact::Psi(published) = compiler::compile(CompileRequest::Psi(stage.source())).unwrap()
@@ -132,7 +132,7 @@ fn one_portable_program_carries_the_four_selected_entry_contracts() {
 fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
     let profile = TargetProfile::WindowsX64;
     let path = fixture_repository::root()
-        .join("tests/fixtures/run/providers/native_boundary_supply/main.omg");
+        .join("tests/fixtures/providers/run/native_boundary_supply/main.omg");
     let product = open_project(&path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
     let Artifact::Native(direct) = compiler::compile(CompileRequest::Native {

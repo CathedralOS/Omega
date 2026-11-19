@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    support::repository_root().join("tests/fixtures").join(name)
+    support::repository_root().join(name)
 }
 
 fn run_both(name: &str) -> (bool, String) {
@@ -71,7 +71,7 @@ fn runtime_visitors_reject_callbacks_that_exclude_an_actual_field_type() {
 
 #[test]
 fn inspecting_a_record_calls_the_callback_once_per_field_in_both_engines() {
-    let (success, report) = run_both("run/reflection/inspect_record_fields");
+    let (success, report) = run_both("source-rust/application/tests/fixtures/reflection/run/inspect_record_fields");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -80,7 +80,7 @@ fn inspecting_a_record_calls_the_callback_once_per_field_in_both_engines() {
 
 #[test]
 fn a_callback_with_a_precondition_the_binder_does_not_publish_is_refused() {
-    let name = "fail/reflection/inspect_record_fields_input_precondition";
+    let name = "source-rust/application/tests/fixtures/reflection/fail/inspect_record_fields_input_precondition";
     let expected = std::fs::read_to_string(fixture(name).join("expected.txt")).unwrap();
     let (success, report) = run_both(name);
     assert!(!success, "{report}");
@@ -90,7 +90,7 @@ fn a_callback_with_a_precondition_the_binder_does_not_publish_is_refused() {
 
 #[test]
 fn a_parameter_description_retains_a_non_first_formal_in_both_engines() {
-    let (success, report) = run_both("run/reflection/parameter_description");
+    let (success, report) = run_both("tests/fixtures/reflection/run/parameter_description");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -99,7 +99,7 @@ fn a_parameter_description_retains_a_non_first_formal_in_both_engines() {
 
 #[test]
 fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
-    let name = "fail/reflection/parameter_description_wrong_kind";
+    let name = "tests/fixtures/reflection/fail/parameter_description_wrong_kind";
     let expected = std::fs::read_to_string(fixture(name).join("expected.txt")).unwrap();
     let (success, report) = run_both(name);
     assert!(!success, "{report}");
@@ -108,7 +108,7 @@ fn an_address_field_cannot_substitute_for_a_parameter_declaration() {
 
 #[test]
 fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
-    let (success, report) = run_both("run/reflection/borrowed_context");
+    let (success, report) = run_both("source-rust/application/tests/fixtures/reflection/run/borrowed_context");
     assert!(success, "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");

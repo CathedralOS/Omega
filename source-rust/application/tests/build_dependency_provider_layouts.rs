@@ -4,7 +4,7 @@ End-to-end CLI check that a dependency's provider default is laid out only for
 a target that chooses it (`wiki/spec/layouts/plans.md`, "Layout demand and
 validation").
 
-The kit package `tests/fixtures/packages/layout-default-kit` declares target
+The kit package `source-rust/application/tests/fixtures/packages/layout-default-kit` declares target
 defaults for `Measure`. Its Windows default stores an `Overlapping` record
 whose layout policy places both fields at offset 0, which layout validation
 refuses. Before this repair, every program depending on the kit was refused on
@@ -44,14 +44,14 @@ fn omega(arguments: &[&str], directory: &Path) -> String {
 }
 
 fn fixture() -> PathBuf {
-    repository().join("tests/fixtures/pass/providers/default_provider_layout_demand_exit")
+    repository().join("source-rust/application/tests/fixtures/providers/pass/default_provider_layout_demand_exit")
 }
 
 /// A copy of the kept program whose Build keeps every kit default, with `main`
 /// as its entry source.
 fn default_only(name: &str, main: &str) -> PathBuf {
     let kit = repository()
-        .join("tests/fixtures/packages/layout-default-kit")
+        .join("source-rust/application/tests/fixtures/packages/layout-default-kit")
         .canonicalize()
         .expect("kit package");
     let build = std::fs::read_to_string(fixture().join("build.omg")).expect("kept Build");

@@ -7,7 +7,7 @@ mod fixture_package_inputs;
 
 #[test]
 fn native_and_psi_execute_with_extended_product_scalar_conditions() {
-    let fixture = "tests/fixtures/pass/layouts/runtime_constant_layout_contract_exit/main.omg";
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/layouts/pass/runtime_constant_layout_contract_exit/main.omg";
     let root = fixture_package_inputs::repo_root().join(fixture);
     let discovered = fixture_package_inputs::discover_fixture(&root, Default::default())
         .unwrap_or_else(|errors| panic!("{fixture} discovery: {errors:#?}"));

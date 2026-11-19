@@ -10,9 +10,9 @@ use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
     support::repository_root()
-        .join("tests/fixtures")
+        .join("source-rust/application/tests/fixtures/numeric")
         .join(tier)
-        .join("numeric/policy_operators")
+        .join("policy_operators")
 }
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {

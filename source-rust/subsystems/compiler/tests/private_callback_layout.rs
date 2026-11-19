@@ -50,7 +50,7 @@ fn gate_placements(main: &Path) -> Result<Vec<LayoutPlacementReport>, Vec<Diagno
 #[test]
 fn interrupt_gate_retains_the_executed_fragments_of_its_own_callback() {
     let root = fixture_repository::root();
-    let fixture = root.join("tests/fixtures/pass/layouts/private_callback_gate");
+    let fixture = root.join("source-rust/subsystems/compiler/tests/fixtures/layouts/pass/private_callback_gate");
     let placements = gate_placements(&fixture.join("main.omg")).unwrap();
     let bits = |container, width, source_lsb| LayoutPlacementReport::Bits {
         container,

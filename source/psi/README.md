@@ -691,10 +691,10 @@ are outside it unless the compiler executable imports them.
 The Rust implementation at `omega-rust/psi/` is a differential comparator
 and may keep developing in parallel; no Rust code belongs here.
 
-Each phase has a gate package under `tests/psi/`, driven by
-[`tests/product/gate.sh`](../../tests/product/gate.sh), the driver the
+The former phase gates are archived under [`_recycling/tests/psi/`](../../_recycling/tests/psi/). Their original entry points and expected observations are recorded below for anyone restoring a gate. They used
+[`tests/product/gate.sh`](../../_recycling/tests/product/gate.sh), the driver the
 product compiler gates share.
-[`tests/psi/parser/test-parser.sh`](../../tests/psi/parser/test-parser.sh)
+[`tests/psi/parser/test-parser.sh`](../../_recycling/tests/psi/parser/test-parser.sh)
 compiles the gate's own Omega harness once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff and determinism cases
 against that one native program. Its Python helper only decodes and compares
@@ -711,14 +711,14 @@ when an equal or stronger product-source gate covers every failure class it
 catches, and the harness only when an equal or stronger semantics-free gate
 keeps all its cases.
 
-[`tests/psi/typing/test-typing.sh`](../../tests/psi/typing/test-typing.sh)
+[`tests/psi/typing/test-typing.sh`](../../_recycling/tests/psi/typing/test-typing.sh)
 does the same for typing over the resolver gate's framed source sets; its
 harness observes the type table, every expression's span, type, selection,
 adaptation and anonymous value, and every binder's type, and exits 248
 without an observation when resolution rejects. It types the whole psi
 package as one source set, and a source set filling the expression table.
 
-[`tests/psi/checking/test-checking.sh`](../../tests/psi/checking/test-checking.sh)
+[`tests/psi/checking/test-checking.sh`](../../_recycling/tests/psi/checking/test-checking.sh)
 does the same for checking. Its harness observes each rejection's diagnostic
 and span and each machine's declared and derived crash causes. It exits 247
 with an observation when checking rejects, and without one when an earlier
@@ -726,7 +726,7 @@ phase rejects. Each case pins one judgment with an accepted program and its
 invalid twin. The whole psi package must reach a checking verdict, and the gate
 prints every rejection; it does not require every body to be proved.
 
-[`tests/psi/resolver/test-resolver.sh`](../../tests/psi/resolver/test-resolver.sh)
+[`tests/psi/resolver/test-resolver.sh`](../../_recycling/tests/psi/resolver/test-resolver.sh)
 does the same for name resolution. Its input is a source set laid out like
 the request's subject tables: the packages (a toolchain flag and a name),
 the dependency edges (requester, scope, alias and target), then each unit's
@@ -791,7 +791,7 @@ Unicode identifier table, so none belongs here or under `generated/`.
 bounded subset of checked scalar code into value and callable operations for
 Omega's Alpha realization. It keeps the existing portable operation meanings and
 is not a second serialized product. Unsupported forms and recursive call
-cycles refuse before publication. The [Alpha execution gate](../../tests/product/alpha/README.md)
+cycles refuse before publication. The [Alpha execution gate](../../_recycling/tests/product/alpha/README.md)
 runs the whole frontend, lowers the program and executes the resulting tape.
 Full portable publication still needs canonical declaration, contract and
 obligation identities; the checker currently records only verdicts and counts.

@@ -1494,7 +1494,7 @@ mod requirement_preparation_tests {
     #[test]
     fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
         let root = fixture_repository::root()
-            .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
+            .join("tests/fixtures/calls/run/scalar_contract_route_exit/main.omg")
             .canonicalize()
             .expect("the existing scalar fixture's exact source path");
         let core = crate::source::source_imports::bundled_core_root().unwrap();
@@ -1594,7 +1594,7 @@ mod requirement_preparation_tests {
         // the normal source owner. Preparing their calls supplies no receiver,
         // provider, invocation verdict or host activation ticket.
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(
-            "../../../../tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
+            "../../../../tests/fixtures/generics/run/implementation_parameter_contract/main.omg",
         );
         let mut catalogue = source_compiler::source_inputs::SourceCatalogue::default();
         let mut timings = CompileTimings::default();
@@ -1681,7 +1681,7 @@ mod requirement_preparation_tests {
                 .file_at(binding.source_span)
                 .expect("the Build request retains its authored source");
             assert!(authored.path.ends_with(
-                "tests/fixtures/run/generics/implementation_parameter_contract/build.omg"
+                "tests/fixtures/generics/run/implementation_parameter_contract/build.omg"
             ));
             occurrences.push(binding.source_span);
         }

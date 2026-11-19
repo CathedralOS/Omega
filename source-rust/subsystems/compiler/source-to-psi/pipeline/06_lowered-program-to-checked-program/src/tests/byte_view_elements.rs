@@ -1305,7 +1305,7 @@ fn a_shared_reference_kept_across_a_byte_store_prevents_the_write() {
 fn byte_store_array_backing_program_is_checked_without_changing_its_operations() {
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../../tests/fixtures/run/views/byte_view_store/main.omg"
+        "/../../../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/fixtures/views/run/byte_view_store/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     assert_eq!(verdict(&program), "accepted");

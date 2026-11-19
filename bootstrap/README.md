@@ -49,7 +49,7 @@ A host Rust toolchain builds the Rust comparator, which can compile Omega
 sources during development. Record that dependency when reporting a
 Rust-assisted build. [Rust comparator](../omega-rust)
 
-Each path owns its source, invocation and construction evidence. Retain only
+Each path owns its construction tests and evidence. When promoting a chain, take its candidate tests and the [portable conformance checks](tests/conformance/README.md). The compiled routes share their in-repository comparison helpers in [compiled.py](tests/compiled.py). They also share the common seed and compiler sources described above. Retain only
 machinery needed by real successors or necessary validation. Record seed/trust
 assumptions, actual cold runs, development acceleration and failed experiments.
 The [edge contracts](CONTRACT.md) describe the retained language edges.

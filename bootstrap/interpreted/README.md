@@ -32,7 +32,7 @@ small without changing the semantics of supported Omega facilities.
 
 Cross-rung invocation resolves paths through
 [`tools/bootstrap/paths.sh`](../../tools/bootstrap/paths.sh). Existing identity,
-source-closure and executable gates remain under `tests/bootstrap/` and the
+source-closure and executable gates remain under `bootstrap/interpreted/tests/` and the
 language-specific test directories. Reused artifacts and development accelerators
 must remain distinguished from fresh reference-chain execution.
 

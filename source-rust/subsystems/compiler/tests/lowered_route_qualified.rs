@@ -48,8 +48,8 @@ fn data_qualified_declarations_are_rejected_independently_of_their_bodies() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     for fixture in [
-        "tests/fixtures/pass/calls/attached_terminal_machine_call_exit",
-        "tests/fixtures/fail/calls/free_machine_named_transition_rejected",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/pass/attached_terminal_machine_call_exit",
+        "source-rust/subsystems/compiler/tests/fixtures/calls/fail/free_machine_named_transition_rejected",
     ] {
         let verdict = route_verdict(fixture, "start");
         let RouteVerdict::Rejected { violations, .. } = verdict else {
@@ -93,13 +93,13 @@ fn type_scoped_constants_read_their_checked_initializers() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let verdict = route_verdict(
-        "tests/fixtures/pass/constants/attached_predicate_handoff",
+        "source-rust/subsystems/compiler/tests/fixtures/constants/pass/attached_predicate_handoff",
         "main",
     );
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
     let negative = unbuilt_frontier::repository(
-        "tests/fixtures/fail/constants/attached_predicate_handoff/main.omg",
+        "source-rust/subsystems/compiler/tests/fixtures/constants/fail/attached_predicate_handoff/main.omg",
     );
     let Err(messages) = unbuilt_frontier::frontier(&negative, None, &[]) else {
         panic!("the initializer must establish its record's predicate");
@@ -132,7 +132,7 @@ fn a_public_carrier_does_not_expose_its_private_constant() {
         None,
         &[(
             "dependency",
-            "tests/fixtures/pass/constants/attached_predicate_handoff",
+            "source-rust/subsystems/compiler/tests/fixtures/constants/pass/attached_predicate_handoff",
         )],
     );
     std::fs::remove_dir_all(root).unwrap();

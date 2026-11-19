@@ -9,13 +9,11 @@
 //! - `cargo xtask check-portable-services [--observe] [--list]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
 //! - `cargo xtask qualify --samples <paths> --output <new-directory> [--target <host>]`
-//! - `cargo xtask measure-service-correspondence --before PATH --after PATH --allocations-before PATH --allocations-after PATH --output PATH`
 //! - `cargo xtask doctor [--json <path>]`
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
 //! - `cargo xtask worktree <status|acquire|begin|release|clean> [options]`
 //! - `cargo xtask managed-cache-retention [--repository <dir>]`
-//! - `cargo xtask retire-attached-machines [--write] <path>...`
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
@@ -24,7 +22,6 @@
 //! - `cargo xtask sweep fleet <start|status|collect|restart>`
 
 mod alpha_forge;
-mod attached_machines;
 mod boundary;
 mod boundary_contracts;
 mod branch_cleanup;
@@ -42,7 +39,6 @@ mod repository;
 mod rules;
 mod rust_producer_omission;
 mod samples;
-mod service_correspondence;
 mod source_closure;
 mod sweep;
 mod work_interval;
@@ -83,14 +79,12 @@ verification and gates:
   check-portable-services   Diff std's POSIX and Windows adapters for each portable call against a baseline
   sample-gate               Run differential native + Psi sample verification
   qualify                   Run exact sample selections with retained producer evidence
-  measure-service-correspondence  Compare saved service-check timing and allocation drivers
   sweep                     Run omega --check over the programs and group where each one stops;
                             `sweep fleet` splits one target's sweep across machines
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
 
-formatting and migration:
+formatting:
   fmt                       Format all workspace targets in bounded rustfmt chunks
-  retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
 
 coordination and workspace:
   doctor                    Run host toolchain and repository preflight checks
@@ -123,13 +117,11 @@ fn main() -> ExitCode {
         "rust-producer-omission" => rust_producer_omission::run(&args),
         "sample-gate" => samples::run(&args),
         "qualify" => qualification::run(&args),
-        "measure-service-correspondence" => service_correspondence::run(&args),
         "doctor" => doctor::run(&args),
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
         "managed-cache-retention" => managed_cache_retention::run(&args),
-        "retire-attached-machines" => attached_machines::run(&args),
         "alpha-forge" => alpha_forge::run(&args),
         "gamma-invoke" => gamma_invoke::run(&args),
         "source-closure" => source_closure::run(&args),
@@ -165,13 +157,11 @@ mod tests {
             "rust-producer-omission",
             "sample-gate",
             "qualify",
-            "measure-service-correspondence",
             "doctor",
             "claims",
             "provenance",
             "worktree",
             "managed-cache-retention",
-            "retire-attached-machines",
             "alpha-forge",
             "gamma-invoke",
             "source-closure",

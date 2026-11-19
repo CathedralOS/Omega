@@ -152,7 +152,7 @@ other live region. Static validation resets this environment for every function
 and visits unreachable bodies; runtime non-tail calls retain caller rows,
 whereas tail calls replace the current activation.
 
-The [Delta generated-environment control](../../../tests/delta/resource-boundary/README.md#generated-validation-environments)
+The [Delta generated-environment control](../../../_recycling/tests/delta/resource-boundary/README.md#generated-validation-environments)
 requires this headroom: 65,534 authored parameters plus three checked-arithmetic
 bindings exceeded the former 65,536-row provision even though Delta admitted
 the source. This fixes that measured admission gap, not all generated-Gamma
@@ -226,7 +226,7 @@ syntax-depth, and call-context boundaries; the fixed identity makes the remainin
 arithmetic extent arguments above reviewable against one immutable subject
 rather than a host model.
 
-The separate [heap-boundary gate](../../../tests/gamma/heap-boundary/README.md)
+The separate [heap-boundary gate](../../../_recycling/tests/gamma/heap-boundary/README.md)
 executes ordinary Gamma allocation loops past the entire retired V4 arena
 under scalar and application publication; the 3.4-billion-node exact boundary
 is no longer executable in gate time. It also crosses the
@@ -256,7 +256,7 @@ Under the former map, region rebalance (moving buffered output out of the
 stack margin) would have admitted about 2,274 contexts, but required a
 rebuilt evaluator tape, re-pinned
 identity records in this profile, `tools/bootstrap/gamma/evaluator_env.sh`,
-`tests/gamma/heap-boundary/evaluator.tsv`, and
+`bootstrap/proofs/tests/heap-boundary/evaluator.tsv`, and
 `bootstrap/interpreted/3_delta/delta_compiler.composed`, re-derived exact/adjacent
 context and environment controls, a new subject for the Beta-encoding
 proof, and a permanent coupling of Delta's `parse_depth` to this profile's
@@ -276,7 +276,7 @@ attempted and fails at depth 256 under this profile; do not repeat it.
 ## Expression scanning
 
 Retain structural scanning for the
-[complete-D customer](../../../tests/bootstrap/omega-parser/README.md#gamma-scanning-review).
+[complete-D customer](../../../_recycling/tests/bootstrap/omega-parser/README.md#gamma-scanning-review).
 `skip_expression` has four call sites: declaration census, false tail `if`,
 and the two ordinary `if` paths. Census establishes the syntax-depth bound;
 ordinary evaluation must leave the cursor after the complete expression.

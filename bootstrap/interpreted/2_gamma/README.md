@@ -13,7 +13,7 @@ Beta compiler
 ```
 
 The first executable customer is the test-owned 85-line `const` augmenter under
-`tests/gamma/self-augmentation-experiment/`. The direct evaluator executes that
+`bootstrap/proofs/tests/self-augmentation-experiment/`. The direct evaluator executes that
 source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
 Gamma's language-chain customer is the [staged Delta compiler](../3_delta/README.md).
@@ -62,6 +62,6 @@ an AST nor a Gamma operation. The addressed Beta source and
 selected Beta compiler are the only reconstruction route; no host label
 resolver participates.
 
-The [Delta-generated census gate](../../../tests/delta/generated-function-census/README.md)
+The [Delta-generated census gate](../../../_recycling/tests/delta/generated-function-census/README.md)
 retains the source that compiled successfully but could not execute under the
 former census, and executes a receipt at Delta's full authored-function allowance.
