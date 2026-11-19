@@ -400,7 +400,7 @@ mathematical declarations and in machine parameters
 ## Patterns
 
     pattern = '_'
-            | '(' ( pattern % ',' )? ')'
+            | '(' ( pattern ',' )* ( pattern | '..' )? ')'
             | path '{' ( field_pattern % ',' )? '..'? '}'
             | expression
     field_pattern = word ( 'as' ( word | '_' ) | ':' expression )?
@@ -413,9 +413,10 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
   condition, and with one it may be a literal, a constant or a computed
   value. An expression pattern cannot hold a record literal at its top level,
   since `Name {` there begins a record pattern.
-- **A pattern that is one bare word** is recorded as a binding. Whether the
-  word binds a new name or names a constant or a case is a question about
-  what it refers to, which the resolver answers.
+- **A pattern that is one bare word** is recorded as a `BindingPattern`.
+  In a subject arm an ordinary name introduces a binding. Boolean literals
+  test their values, and subjectless arms read their conditions. A qualified
+  constant is an expression inside a `ValuePattern`.
 - **Tuple pattern or parenthesized condition?** Both start with `(`. The
   parser finds the matching `)` and looks at the one token after it: `->`,
   `,`, `)`, `=`, `:` or `;` ends a pattern, so the parentheses were a pattern;
@@ -423,8 +424,9 @@ and `field: value` is ordinary projected equality" (language/patterns.md,
   `(a, b) -> ...` is a tuple pattern and `(a + b) > c -> ...` is a condition.
 - One pattern in parentheses with no comma is that pattern, grouped. `()`,
   `(a,)` and `(a, b)` are tuples.
-- `..` stands for every field not written, so it comes last, in a record
-  pattern and in a record literal.
+- A final `..` in a positional pattern waives the remaining components,
+  as in `(first, ..)`. The parser records a `RestPattern` child in both
+  positional and named patterns. A record literal also takes `..` last.
 
 ## Expressions
 

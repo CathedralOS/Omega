@@ -224,3 +224,13 @@ Executable domain tests require pure, finite runtime-checkable predicates and
 any routed provenance required by [domain membership](domains.md#refinement-and-executable-membership).
 A proof-visible proposition alone does not imply an executable test. Overlapping
 domain alternatives use first-match order; unordered union proofs do not.
+
+## Bare names in dispatch arms
+
+In a `match` or `transition` with a subject, an ordinary bare name such as
+`x` binds the subject (or the positional component being matched) for that
+arm. Adding a local, import or constant named `x` leaves the binding intact.
+To match a named constant by value, write its qualified path, as in
+`limits::x -> 1`. This arm covers the matching value. The literals `true`
+and `false` test their Boolean values. In a dispatch without a subject, an
+arm condition such as `ready -> 1` reads the existing value of `ready`.

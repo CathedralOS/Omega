@@ -33,7 +33,11 @@ fn termination_parts_keep_their_source_expressions_and_clause_parent() {
 fn pause_flags_preserve_exactly_what_was_written() {
     use omega_parser::PauseFlag;
     for (word, kind) in [("blocks", NodeKind::Blocks), ("suspends", NodeKind::Suspends)] {
-        for (suffix, expected) in [("", PauseFlag::Omitted), (" true", PauseFlag::Explicit(true)), (" false", PauseFlag::Explicit(false))] {
+        for (suffix, expected) in [
+            ("", PauseFlag::Omitted),
+            (" true", PauseFlag::Explicit(true)),
+            (" false", PauseFlag::Explicit(false)),
+        ] {
             let source = format!("machine f() {word}{suffix} {{}}");
             let tokens = lex(source.as_bytes()).unwrap();
             let parsed = parse_file(source.as_bytes(), &tokens).unwrap();
@@ -346,5 +350,46 @@ fn machine_headers_and_callable_types_expose_each_named_annotation() {
             }
             _ => {}
         }
+    }
+}
+
+#[test]
+fn positional_rest_is_a_final_tuple_pattern_child_with_its_own_span() {
+    for (text, owner, components) in [
+        ("machine f(x:u8) { let (first, /* omitted */ ..) = x; }", NodeKind::Let, 2),
+        ("machine f(x:u8) { match x { (first, ..) -> first, } }", NodeKind::Arm, 2),
+        ("machine f(x:u8) { let (..) = x; }", NodeKind::Let, 1),
+    ] {
+        let tokens = lex(text.as_bytes()).unwrap();
+        let parsed = parse_file(text.as_bytes(), &tokens).unwrap();
+        let syntax = parsed.index(text, &tokens).unwrap();
+        let pattern = syntax
+            .nodes
+            .iter()
+            .position(|n| n.kind == NodeKind::TuplePattern)
+            .unwrap();
+        let node = &syntax.nodes[pattern];
+        assert_eq!(node.children.len(), components, "{text}");
+        if let [first, _] = node.children.as_slice() {
+            assert_eq!(syntax.nodes[*first].kind, NodeKind::BindingPattern);
+            assert_eq!(syntax.nodes[*first].parent, Some(pattern));
+            assert_eq!(syntax.span(*first).slice(text.as_bytes()), Some(b"first".as_slice()));
+        }
+        let rest = *node.children.last().unwrap();
+        assert_eq!(syntax.nodes[rest].kind, NodeKind::RestPattern);
+        assert_eq!(syntax.nodes[rest].parent, Some(pattern));
+        assert_eq!(syntax.nodes[node.parent.unwrap()].kind, owner);
+        assert_eq!(syntax.span(rest).slice(text.as_bytes()), Some(b"..".as_slice()));
+    }
+}
+
+#[test]
+fn positional_rest_refuses_more_components_and_a_second_rest() {
+    for pattern in ["(.., last)", "(first, .., ..)"] {
+        let text = format!("machine f(x:u8) {{ let {pattern} = x; }}");
+        let tokens = lex(text.as_bytes()).unwrap();
+        let error = parse_file(text.as_bytes(), &tokens).unwrap_err();
+        assert_eq!(error.get_span().get_start_offset(), text.find("..,").unwrap() + 2);
+        assert_eq!(error.get_span().slice(text.as_bytes()), Some(b",".as_slice()));
     }
 }

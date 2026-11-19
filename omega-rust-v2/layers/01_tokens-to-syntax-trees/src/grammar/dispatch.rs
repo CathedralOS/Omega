@@ -95,7 +95,7 @@ impl SyntaxParser<'_> {
     /*
         A pattern.
 
-            pattern = '_' | '(' ( pattern % ',' )? ')'
+            pattern = '_' | '(' ( pattern ',' )* ( pattern | '..' )? ')'
                     | path '{' ( field_pattern % ',' )? '..'? '}'
                     | expression
 
@@ -107,9 +107,9 @@ impl SyntaxParser<'_> {
         `=`, `:`, `;`), and a parenthesized condition is followed by the rest of
         the condition. See :ParenthesizedPattern.
 
-        A pattern that is a single bare word becomes a BindingPattern. Whether
-        that word binds a new name or names a constant or a case is a question
-        about what the word refers to, which the resolver answers.
+        A single bare word becomes a BindingPattern. The resolver uses the
+        arm's subject and the word's spelling to distinguish a binder from a
+        guard or Boolean literal. A qualified constant goes through ValuePattern.
     */
     pub(crate) fn parse_pattern(&mut self) -> Parsed {
         self.enter_nesting()?;
@@ -206,7 +206,7 @@ impl SyntaxParser<'_> {
         )
     }
 
-    /// `'(' ( pattern % ',' )? ')'`
+    /// `'(' ( pattern ',' )* ( pattern | '..' )? ')'`
     ///
     /// As with expressions, one pattern in parentheses with no comma is that pattern, grouped;
     /// `()`, `(a,)` and `(a, b)` are tuples.
@@ -218,6 +218,12 @@ impl SyntaxParser<'_> {
         self.bump();
 
         while !self.at(Punctuation::RightParenthesis) {
+            if self.parse_pattern_rest() {
+                self.expect(Punctuation::RightParenthesis, "`)` after `..`")?;
+                self.close(tuple_pattern, NodeKind::TuplePattern);
+                return Ok(());
+            }
+
             self.parse_pattern()?;
             pattern_count += 1;
 
@@ -254,13 +260,7 @@ impl SyntaxParser<'_> {
         self.bump();
 
         while !self.at(Punctuation::RightBrace) {
-            if self.at(Punctuation::DotDot) {
-                let rest_pattern = self.open();
-
-                self.bump();
-                self.close(rest_pattern, NodeKind::RestPattern);
-
-                // `..` stands for every field not written, so it comes last.
+            if self.parse_pattern_rest() {
                 self.expect(Punctuation::RightBrace, "`}` after `..`")?;
                 self.close(record_pattern, NodeKind::RecordPattern);
 
@@ -288,5 +288,16 @@ impl SyntaxParser<'_> {
         self.close(record_pattern, NodeKind::RecordPattern);
 
         Ok(())
+    }
+
+    fn parse_pattern_rest(&mut self) -> bool {
+        if !self.at(Punctuation::DotDot) {
+            return false;
+        }
+
+        let rest = self.open();
+        self.bump();
+        self.close(rest, NodeKind::RestPattern);
+        true
     }
 }

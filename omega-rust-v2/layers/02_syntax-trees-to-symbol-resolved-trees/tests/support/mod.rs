@@ -1,9 +1,9 @@
 use omega_lexer::SourceSpan;
-use omega_resolver::{DeclarationId, ResolvedStage, StageSource, Symbol};
+use omega_resolver::{DeclarationId, StageSource, Symbol, SymbolResolvedTrees};
 
 /// Check provenance against the input files and declarations independently of lookup order.
 pub fn check_origins(
-    stage: &ResolvedStage,
+    stage: &SymbolResolvedTrees<'_>,
     sources: &[StageSource<'_, '_>],
 ) {
     let source = |package: &str, file: &str| {
@@ -21,61 +21,80 @@ pub fn check_origins(
         );
     };
     let declared = |id: &DeclarationId| assert_eq!(stage.declarations.iter().filter(|d| *d == id).count(), 1, "{id:?}");
-    assert_eq!(stage.declarations.len(), stage.definition_sites.len());
-    for (id, site) in stage.declarations.iter().zip(&stage.definition_sites) {
-        valid_span(&id.package, &site.file, site.span);
-    }
-    for usage in &stage.uses {
-        valid_span(&usage.package, &usage.file, usage.span);
-        let mut targets = vec![&usage.target];
-        while let Some(target) = targets.pop() {
-            match target {
-                Symbol::Declaration(id) => declared(id),
-                Symbol::Candidates(ids) => {
-                    assert!(ids.len() > 1);
-                    for id in ids {
-                        declared(id);
+    let definitions = stage
+        .trees()
+        .flat_map(|tree| tree.declaration_nodes().map(|(_, id)| id));
+    assert!(
+        definitions.eq(stage.declarations.iter()),
+        "source declarations differ from their defining trees"
+    );
+    for tree in stage.trees() {
+        for usage in tree.occurrences() {
+            assert_eq!(usage.node, tree.file.node_id(usage.node.node));
+            valid_span(tree.file.package, tree.file.path, usage.span);
+            let mut targets = vec![&usage.target];
+            while let Some(target) = targets.pop() {
+                match target {
+                    Symbol::Declaration(id) => declared(id),
+                    Symbol::Candidates(ids) => {
+                        assert!(ids.len() > 1);
+                        for id in ids {
+                            declared(id);
+                        }
                     }
-                }
-                Symbol::ByOverload(options) => {
-                    assert!(options.len() > 1);
-                    for option in options {
-                        declared(&option.candidate);
-                        targets.extend(option.target.as_deref());
+                    Symbol::DomainCandidates { candidates, .. } => {
+                        for c in candidates {
+                            declared(&c.declaration);
+                            if let Some((owner, _)) = &c.type_binder {
+                                declared(owner);
+                            }
+                        }
                     }
+                    Symbol::ScopedNames { names, .. } => targets.extend(names),
+                    Symbol::Binding { span, .. } | Symbol::StaticMember { binder: span, .. } => valid_span(tree.file.package, tree.file.path, *span),
+                    _ => {}
                 }
-                Symbol::Binding { span, .. } | Symbol::StaticGuarantee { binder: span } => valid_span(&usage.package, &usage.file, *span),
-                Symbol::EvidenceMember { binder, requirements } => {
-                    valid_span(&usage.package, &usage.file, *binder);
-                    for id in requirements {
-                        declared(id);
-                    }
-                }
-                _ => {}
             }
         }
     }
     for operator in &stage.operator_declarations {
         declared(&operator.machine);
-        if let Some(home) = &operator.home {
-            declared(home);
+        let tree = stage.trees().nth(operator.node.file).unwrap();
+        let node = &tree.file.nodes[operator.node.node];
+        assert_eq!(node.kind, omega_parser::NodeKind::OperatorToken);
+        assert_eq!(tree.declaration_at(node.parent.unwrap()), Some(&operator.machine));
+        match &operator.declared_home {
+            Some(Symbol::Declaration(id)) => declared(id),
+            Some(Symbol::DomainCandidates { candidates, .. }) => {
+                for c in candidates {
+                    declared(&c.declaration);
+                }
+            }
+            Some(name) => panic!("invalid operator home {name:?}"),
+            None => {}
         }
     }
-    for operator in &stage.operators {
-        valid_span(&operator.package, &operator.file, operator.span);
-        let text = source(&operator.package, &operator.file).source.text;
-        let spelling = &text[operator.span.get_start_offset()..operator.span.get_end_offset()];
-        if operator.token == "[]" {
-            assert!(spelling.starts_with('[') && spelling.ends_with(']'));
-        } else {
-            assert_eq!(spelling, operator.token);
+    for tree in stage.trees() {
+        for (span, id) in tree.definitions() {
+            assert_eq!(id.package, tree.file.package);
+            valid_span(tree.file.package, tree.file.path, span);
         }
-    }
-    for app in &stage.applications {
-        let name = &stage.uses[app.name_use];
-        assert_eq!(name.node.file, app.section.file);
-        for &arg in &app.arguments {
-            valid_span(&name.package, &name.file, arg);
+        for operator in (0..tree.file.nodes.len()).filter_map(|n| tree.file.operator(n)) {
+            valid_span(tree.file.package, tree.file.path, operator.span);
+            let text = source(tree.file.package, tree.file.path).source.text;
+            let spelling = &text[operator.span.get_start_offset()..operator.span.get_end_offset()];
+            if operator.token == "[]" {
+                assert!(spelling.starts_with('[') && spelling.ends_with(']'));
+            } else {
+                assert_eq!(spelling, operator.token);
+            }
+        }
+        for (section, name) in tree.applications() {
+            assert_eq!(tree.file.nodes[section].parent, Some(name.node.node));
+            assert_eq!(tree.application_name(section), Some(name));
+            for &argument in &tree.file.nodes[section].children {
+                valid_span(tree.file.package, tree.file.path, tree.file.span(argument));
+            }
         }
     }
 }

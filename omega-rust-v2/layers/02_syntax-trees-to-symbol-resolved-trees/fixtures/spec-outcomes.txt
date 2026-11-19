@@ -1,8 +1,8 @@
 build/assumed_binding_contracts.md:27  unresolved name Build::assume_binding_contract
 build/assumed_binding_contracts.md:50  unresolved name Range
 build/behavior_exclusions.md:61  unresolved name Build
-build/behavior_exclusions.md:81  unresolved name Build
-build/boundary_shapes.md:52  unresolved name Ptr
+build/behavior_exclusions.md:81  unresolved machine owner Build
+build/boundary_shapes.md:52  unresolved machine owner NativeConsole
 build/calling_plans.md:40  unresolved name CallingPolicy
 build/configuration.md:73  unresolved name builder
 build/foreign_bindings.md:15  unresolved name Build::bind
@@ -53,8 +53,8 @@ language/domains.md:701  accepted
 language/domains.md:736  unresolved name Km
 language/domains.md:759  unresolved name Km
 language/domains.md:805  unresolved name Km
-language/domains.md:897  unresolved name Km
-language/domains.md:910  unresolved name Small
+language/domains.md:897  unresolved machine owner Km
+language/domains.md:910  unresolved machine owner Small
 language/domains.md:995  unresolved name Socket
 language/domains.md:1020  unresolved name Unit
 language/effects.md:51  unresolved trait ClockOps
@@ -128,5 +128,5 @@ resources/access.md:83  unresolved name Folder
 resources/bounded_input.md:38  accepted
 resources/carry.md:6  accepted
 resources/content_custody.md:129  unresolved name core::Identity
-resources/content_custody.md:235  unresolved name IntervalSet
+resources/content_custody.md:235  unresolved machine owner Installed
 resources/typed_runs.md:114  unresolved name RunParts
