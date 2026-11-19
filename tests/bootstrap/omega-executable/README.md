@@ -229,11 +229,14 @@ valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](controls_arithmetic.epsilon) checks arithmetic
 limits, five abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-fourteen explicit refusal controls. Unsupported indexed carriers return coverage
-refusals without inventing a byte type; diagnosed missing names remain source
-errors. Four fresh evaluator processes bound cumulative immutable allocation.
-Only the first receives the full decoder source; the others compile small
-generic programs. The final process retains a success, all refusal controls and
-a successful reset in one compiler instance. These are source-to-Alpha customers, not full
-Omega compiler construction or a self-rebuild. The host distinguishes Alpha's
-Linux SIGILL Trap from every normal process exit.
+fifty-three refusal/reset checks. The terminal-call cases exercise precedence,
+grouping, nested calls, left-to-right argument evaluation, skipped and selected
+crashes, loans, blocking markers and entry preconditions. An unsupported
+indexed carrier returns a coverage refusal. An unknown name in a checked
+scalar operand remains a source error. Each refusal leaves the tape empty
+and unsealed.
+
+Eight fresh evaluator processes bound cumulative allocation. The first receives
+the full decoder source. Each refusal batch reuses one compiler instance and
+ends with a successful compilation. The host stamps and runs all thirty-four
+published tapes, distinguishing Linux SIGILL from a normal process exit.
