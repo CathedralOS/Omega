@@ -272,11 +272,12 @@ eager and short-circuit control.
 Extracting the shared binary operator and scalar outcome declarations preserved
 the 617,354-byte Epsilon source and the canonical Gamma and native evaluator
 artifacts measured for that experiment.
-`epsilon/composition.py` selects those complete files plus the checked scalar
-implementation and a small named result adapter. It performs no host semantic
-extraction or dead-code selection. The compiler executable currently includes
-the full shared Epsilon closure; narrowing that retained checking dependency is
-still a whole-chain cost opportunity.
+The [test source packer](../../tests/epsilon/compiled-native/composition.py)
+takes whole files from the verified Epsilon manifest in declaration order.
+The Epsilon-to-Delta compiler uses the source view, representations, lexer,
+parser and checker. The reference evaluator also includes its execution
+functions and entry. Compiled programs receive the runtime files required by
+their calling convention. The Delta compiler checks each assembled program.
 
 The PR2737 scalar milestone first compiled four lexical machines. An initial implementation threaded generic runtime values and stores through
 every scalar node. Its lexical target was 123,827 Delta source bytes and
