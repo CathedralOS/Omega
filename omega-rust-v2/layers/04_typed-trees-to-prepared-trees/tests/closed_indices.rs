@@ -97,6 +97,28 @@ fn lowering_consumes_the_prepared_array_element_and_extent() {
     assert_eq!(error.span.slice(overflow.as_bytes()), Some(b"width(7)".as_slice()));
 }
 
+#[test]
+fn guarded_division_closes_array_returns_and_preserves_identity_errors() {
+    let source = "machine divide(n:u64,d:u64)->u64 requires d != 0 reaches none crashes none terminates {n / d}
+                  const SIZE:u64=divide(12,3);
+                  machine carry(x:[u8; SIZE])->[u8; 4]{x}";
+    prepare(source).unwrap();
+    prepare(&source.replace("x:[u8; SIZE])->[u8; 4]", "x:[u8; 4])->[u8; SIZE]")).unwrap();
+    for (divisor, message, site) in [
+        ("2", "expected [u8; 4], found [u8; 6]", "x"),
+        (
+            "0",
+            "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments",
+            "divide(12,0)",
+        ),
+    ] {
+        let source = source.replace("12,3", &format!("12,{divisor}"));
+        let error = prepare(&source).unwrap_err();
+        assert_eq!(error.message, message);
+        assert_eq!(error.span.slice(source.as_bytes()), Some(site.as_bytes()));
+    }
+}
+
 fn buffer_with_index(
     literal: &ValueType,
     expected: u8,
@@ -203,7 +225,7 @@ fn a_failed_precondition_cannot_supply_a_closed_index() {
     let diagnostic = &error.message;
     assert_eq!(
         diagnostic,
-        "static evaluation cannot admit this invocation: the selected contract needs proof outside the total integer fragment"
+        "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments"
     );
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"width(8)".as_slice()));
 }

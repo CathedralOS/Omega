@@ -72,38 +72,18 @@ impl<'a> IndexEvaluations<'a> {
         }
     }
 
-    /// A nominal landing can wait for its evaluated arguments only when the
-    /// declaration, arity, and every known argument already agree.
+    /// Preparation may postpone equality only when the known structure agrees
+    /// and a requested integer value can settle the remaining difference.
     pub(crate) fn defer_indexed_landing(
         &self,
         actual: &ValueType,
         expected: &ValueType,
     ) -> bool {
-        let (ValueType::Applied(a, actual), ValueType::Applied(b, expected)) = (actual, expected) else {
-            return false;
-        };
-        if !self.allow_pending || a != b || actual.len() != expected.len() {
+        if !self.allow_pending || actual == expected || !compatible_pending_indices(actual, expected) {
             return false;
         }
-        let pending_index = |value: &ValueType| match value {
-            ValueType::StaticFormula { term, .. } => term.demands().next().is_some(),
-            _ => false,
-        };
-        let carrier = |value: &ValueType| match value {
-            ValueType::StaticFormula { carrier, .. } | ValueType::StaticInteger { carrier, .. } => Some(carrier.clone()),
-            _ => None,
-        };
-        if !actual
-            .iter()
-            .zip(expected)
-            .all(|(a, b)| a == b || { (pending_index(a) || pending_index(b)) && carrier(a).is_some_and(|carrier_a| Some(carrier_a) == carrier(b)) })
-        {
-            return false;
-        }
-        actual
-            .iter()
-            .chain(expected)
-            .for_each(|i| self.retain_demands(i));
+        self.retain_demands(actual);
+        self.retain_demands(expected);
         true
     }
 
@@ -112,6 +92,38 @@ impl<'a> IndexEvaluations<'a> {
         request: &StaticIntegerRequest,
     ) -> bool {
         self.supplied.contains_key(request)
+    }
+}
+
+fn compatible_pending_indices(
+    actual: &ValueType,
+    expected: &ValueType,
+) -> bool {
+    use ValueType::{Applied, Array, IndexedArray, StaticFormula, StaticInteger};
+    if actual == expected {
+        return true;
+    }
+    match (actual, expected) {
+        (Applied(a, left), Applied(b, right)) => {
+            a == b
+                && left.len() == right.len()
+                && left
+                    .iter()
+                    .zip(right)
+                    .all(|(a, b)| compatible_pending_indices(a, b))
+        }
+        (Array(a, left), Array(b, right)) => left == right && compatible_pending_indices(a, b),
+        (IndexedArray(a, left), IndexedArray(b, right)) => compatible_pending_indices(a, b) && compatible_pending_indices(left, right),
+        (Array(a, length), IndexedArray(b, index)) | (IndexedArray(b, index), Array(a, length)) => {
+            compatible_pending_indices(a, b) && compatible_pending_indices(index, &ValueType::static_size(*length))
+        }
+        (StaticFormula { carrier: a, term }, StaticInteger { carrier: b, .. }) | (StaticInteger { carrier: b, .. }, StaticFormula { carrier: a, term }) => {
+            a == b && term.demands().next().is_some()
+        }
+        (StaticFormula { carrier: a, term: left }, StaticFormula { carrier: b, term: right }) => {
+            a == b && (left.demands().next().is_some() || right.demands().next().is_some())
+        }
+        _ => false,
     }
 }
 

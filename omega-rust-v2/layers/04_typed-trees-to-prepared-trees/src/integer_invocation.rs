@@ -22,6 +22,7 @@ impl From<&'static str> for EvaluationError {
 
 const UNSUPPORTED_BODY: &str = "the selected body is outside the total integer fragment";
 const UNSUPPORTED_ARGUMENT: &str = "the static call has an argument without a supported closed value";
+const UNSUPPORTED_CONTRACT: &str = "the selected contract needs proof outside the total integer fragment";
 
 struct Evaluation<'a, 'text> {
     trees: &'a TypedTrees<'text>,
@@ -167,8 +168,7 @@ impl Evaluation<'_, '_> {
         if file.nodes[declaration].has_public_modifier() && !signature.terminates {
             return Err("the selected public machine does not declare termination".into());
         }
-        if signature.requires
-            || signature.has_guarantee
+        if signature.has_guarantee
             || signature.satisfies.is_some()
             || signature.reach.as_ref().is_some_and(|reach| !reach.is_empty())
             || signature
@@ -180,11 +180,12 @@ impl Evaluation<'_, '_> {
             || &signature.result != carrier
             || !signature.multiplicity_bounds.is_empty()
             || file.child(declaration, NodeKind::GenericParams).is_some()
+            || file.child(declaration, NodeKind::Hypothesis).is_some()
             || file.nodes[declaration].children.iter().any(|&node| {
                 file.nodes[node].kind == NodeKind::Terminates && file.nodes[node].termination_clause() != Some(omega_parser::TerminationClause::Bare)
             })
         {
-            return Err("the selected contract needs proof outside the total integer fragment".into());
+            return Err(UNSUPPORTED_CONTRACT.into());
         }
 
         let parameters = file
@@ -206,6 +207,25 @@ impl Evaluation<'_, '_> {
             })
             .collect::<Result<_, EvaluationError>>()?;
 
+        let bound = Scope::Body(&arguments);
+        let mut requirements = file.nodes[declaration]
+            .children
+            .iter()
+            .copied()
+            .filter(|&node| file.nodes[node].kind == NodeKind::Requires)
+            .peekable();
+        if signature.requires != requirements.peek().is_some() {
+            return Err(UNSUPPORTED_CONTRACT.into());
+        }
+        for clause in requirements {
+            let [predicate] = *file.nodes[clause].children.as_slice() else {
+                return Err(UNSUPPORTED_CONTRACT.into());
+            };
+            if !self.integer_precondition(&body_tree, predicate, &bound)? {
+                return Err("the selected integer precondition is false for the supplied arguments".into());
+            }
+        }
+
         // A single tail expression in this scope cannot call or transfer
         // control. Its only premises are discharged scalar values.
         let body = file
@@ -220,7 +240,51 @@ impl Evaluation<'_, '_> {
         if file.nodes[tail].kind != NodeKind::Tail {
             return Err(UNSUPPORTED_BODY.into());
         }
-        self.expression(&body_tree, returned, carrier, &Scope::Body(&arguments))
+        self.expression(&body_tree, returned, carrier, &bound)
+    }
+
+    fn integer_precondition(
+        &self,
+        tree: &TypedTree<'_>,
+        predicate: usize,
+        scope: &Scope<'_>,
+    ) -> Result<bool, EvaluationError> {
+        let file = tree.resolved().file;
+        let node = file.ungroup(predicate);
+        let [left, right] = *file.nodes[node].children.as_slice() else {
+            return Err(UNSUPPORTED_CONTRACT.into());
+        };
+        if file.nodes[node].kind != NodeKind::Binary {
+            return Err(UNSUPPORTED_CONTRACT.into());
+        }
+        let mut operation = None;
+        for record in tree.semantics_at(node) {
+            match record {
+                NodeSemantics::Operation(selected) if selected.result == ValueType::Bool && operation.is_none() => operation = Some(selected),
+                NodeSemantics::Expression(_) => {}
+                _ => return Err(UNSUPPORTED_CONTRACT.into()),
+            }
+        }
+        let selected = operation.ok_or(UNSUPPORTED_CONTRACT)?;
+        let [left_type, right_type] = selected.operands.as_slice() else {
+            return Err(UNSUPPORTED_CONTRACT.into());
+        };
+        if IntegerRange::for_type(left_type).is_none() || IntegerRange::for_type(right_type).is_none() {
+            return Err(UNSUPPORTED_CONTRACT.into());
+        }
+        // Each operand has its own selected carrier. Compare mathematical
+        // values directly even when width or signedness differs.
+        let left = self.expression(tree, left, left_type, scope)?;
+        let right = self.expression(tree, right, right_type, scope)?;
+        Ok(match selected.token.as_str() {
+            "==" => left == right,
+            "!=" => left != right,
+            "<" => left < right,
+            "<=" => left <= right,
+            ">" => left > right,
+            ">=" => left >= right,
+            _ => return Err(UNSUPPORTED_CONTRACT.into()),
+        })
     }
 
     fn argument(
