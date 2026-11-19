@@ -10,7 +10,7 @@ admitted compilation outputs without granting `InstalledCode` authority.
 use crate::component_description::{
     ComponentDescriptionFacts, StackDemandFacts, publish_component_description,
 };
-use provider_admission::provider_admission::AdmittedNativeCallableAuthority;
+use provider_admission::AdmittedNativeCallableAuthority;
 use std::path::PathBuf;
 use std::sync::Arc;
 use verified_optimization_input::AdmittedNativeComponentCall;

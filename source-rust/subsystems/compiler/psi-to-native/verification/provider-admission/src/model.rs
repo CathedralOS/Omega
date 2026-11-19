@@ -66,7 +66,7 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
     pub provider_plan: &'execution provider_plans::ProviderPlan,
     pub semantic_schema: &'execution provider_plans::ServiceSchema, // Contract authenticated by intrinsic classification before callable-identity replacement.
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub settlement: crate::provider_admission::TerminalCompilerBuiltinSettlement,
+    pub settlement: crate::TerminalCompilerBuiltinSettlement,
 }
 
 #[derive(Clone, Copy)]

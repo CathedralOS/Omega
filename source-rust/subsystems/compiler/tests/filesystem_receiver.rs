@@ -17,7 +17,6 @@
 #[path = "support/fixture_repository.rs"]
 mod fixture_repository;
 
-use ::provider_admission::provider_admission;
 use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };

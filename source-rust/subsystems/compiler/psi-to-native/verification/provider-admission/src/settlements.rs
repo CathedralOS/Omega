@@ -31,10 +31,10 @@ mod source_imports;
 use numeric_intrinsic_admission::signature::boundary_contract_matches_selected_schema;
 use crate::AdmittedBoundarySettlement;
 use crate::ProviderExecutionEvidence;
-use crate::provider_admission::terminal_authority_policy::TerminalAuthorityPolicyRow;
-use crate::provider_admission::{
+use crate::terminal_authority_policy::TerminalAuthorityPolicyRow;
+use crate::{
     AdmittedTerminalMechanism, NativeBoundaryRealization, NativeProviderSettlement,
-    NativeRealizationInput, ProviderAdmissionRequest,
+    AdmissionSource, ProviderAdmissionRequest,
 };
 use calling_conventions::{CallSignature, CallingPolicy, ExternalBindingKind, ExternalBindingRow};
 use diagnostics::Diagnostic;
@@ -46,7 +46,7 @@ use target_operations::{
 };
 
 pub(crate) fn settle_provider_executions<'request>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
     receiver: terminal_psi::TerminalPsiIdentity,
 ) -> Result<
@@ -90,7 +90,7 @@ pub(crate) fn settle_provider_executions<'request>(
 }
 
 fn settle_boundary<'request>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     request: &ProviderAdmissionRequest<'_, 'request>,
     settlement: &NativeProviderSettlement<'request>,
     receiver: terminal_psi::TerminalPsiIdentity,

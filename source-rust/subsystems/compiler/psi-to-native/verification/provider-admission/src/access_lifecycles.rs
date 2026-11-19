@@ -14,7 +14,7 @@
 
 use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
-    NativeRealizationInput, SettledCompilerBuiltin, TerminalAuthorityPolicy,
+    AdmissionSource, SettledCompilerBuiltin, TerminalAuthorityPolicy,
 };
 use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
@@ -32,7 +32,7 @@ use terminal_semantics::descriptor_results::{
 };
 
 pub(super) fn settle_native_lifecycles<'execution>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     installation: Option<&AdmittedProviderInstallation>,
     policy: &TerminalAuthorityPolicy,
 ) -> Result<
@@ -166,7 +166,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
 }
 
 pub(super) fn settle_empty_releases<'execution>(
-    input: &NativeRealizationInput,
+    input: &AdmissionSource,
     policy: &TerminalAuthorityPolicy,
 ) -> Result<
     (

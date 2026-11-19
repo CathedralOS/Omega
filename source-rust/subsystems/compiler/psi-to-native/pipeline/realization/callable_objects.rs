@@ -7,7 +7,7 @@
 use super::physical_body::{self, BodyEmissionError};
 use super::plan_callables::CallableTargetProduct;
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::realization_error;
+use provider_admission::realization_error;
 
 pub(super) struct CallableObjectProduct {
     pub stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
@@ -16,7 +16,7 @@ pub(super) struct CallableObjectProduct {
     pub runtime: native_artifact::TerminalCallableRuntimeProvisions<
         super::auxiliary_native::ObjectForeignAdapter,
     >,
-    pub authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+    pub authority: provider_admission::AdmittedNativeCallableAuthority,
 }
 
 pub(super) struct CallableProduct<Body, Adapter> {
@@ -28,7 +28,7 @@ pub(super) struct CallableProduct<Body, Adapter> {
 struct CallableCustody {
     code: terminal_codec::RetainedTerminalCode,
     coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+    authority: provider_admission::AdmittedNativeCallableAuthority,
     observation: crate::pipeline::observations::NativePipelineObservation,
 }
 

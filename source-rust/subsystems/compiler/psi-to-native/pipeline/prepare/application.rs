@@ -8,7 +8,7 @@ use artifact_lowering::{
     project_terminal_native_realization_proposal,
 };
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
+use provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 
 pub struct TerminalApplication {
@@ -49,7 +49,7 @@ pub fn admit_package_permissions(
     permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     identities: terminal_psi::TerminalIdentityTable,
 ) -> Result<TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
-    use provider_admission::provider_admission::{
+    use provider_admission::{
         terminal_authority_permission_policy_with_rows,
         terminal_authority_permissions::validate_package_terminal_authority_permission_custody,
     };

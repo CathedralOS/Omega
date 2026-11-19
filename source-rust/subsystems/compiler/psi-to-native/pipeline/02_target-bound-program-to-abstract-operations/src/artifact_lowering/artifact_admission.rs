@@ -1088,7 +1088,7 @@ mod scalar_applications {
                 );
             }
             let full_adapters =
-                crate::artifact_lowering::providers::provider_admission::retain_selected_provider_adapters(
+                provider_admission::retain_selected_provider_adapters(
                     selection.plans,
                 )?;
             if selection

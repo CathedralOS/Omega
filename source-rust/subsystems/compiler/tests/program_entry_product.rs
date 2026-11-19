@@ -585,7 +585,7 @@ fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_repor
                 retain_native_stage_inputs: false,
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
-                terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: Default::default(),
             });

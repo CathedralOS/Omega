@@ -13,7 +13,7 @@
 // registers, and to require interrupt-gate handlers to keep maskable arrivals
 // disabled.
 
-use super::super::{NativeRealizationInput, ProviderAdmissionRequest};
+use super::super::{AdmissionSource, ProviderAdmissionRequest};
 use crate::{
     AdmittedFatalInterruptEntry, AdmittedInstalledInterruptEntry, AdmittedInstalledInterruptScope,
     AdmittedInterruptContextAnchor,
@@ -27,7 +27,7 @@ use terminal_psi::{
 };
 
 pub(super) fn prepare(
-    input: &NativeRealizationInput<'_>,
+    input: &AdmissionSource<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
     installation: Option<&psi_provider_selections::AdmittedProviderSelections>,

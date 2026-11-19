@@ -102,7 +102,7 @@ fn assert_integer_conversion_policies(fixture: &str, width: u64) {
                                 0
                             }
                         );
-                        provider_admission::provider_admission::numeric_boundary_execution(
+                        provider_admission::numeric_boundary_execution(
                             module, boundary,
                         )
                         .unwrap();
@@ -540,7 +540,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             let demands = module.boundary_machines.iter().map(|boundary|
                 module.identities.text(boundary.identity).unwrap().to_owned()).collect();
             let settle = |direct: &[direct_boundary_bindings::DirectBoundaryLeaf]| {
-                provider_admission::provider_admission::derive_selected_intrinsic_settlement_proposals(
+                provider_admission::derive_selected_intrinsic_settlement_proposals(
                     &selection, selection.plans().iter().zip(&executions).map(|(plan, row_executions)|
                         provider_correspondence::CompilerIntrinsicPlanProvenance { plan, semantic_schema: &plan.schema, row_executions }),
                     &demands, module, direct)
@@ -548,7 +548,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             let proposals = settle(&leaves).unwrap();
             assert_eq!(proposals.len(), 12);
             assert!(proposals.iter().all(|proposal| matches!(proposal.settlement(),
-                provider_admission::provider_admission::TerminalCompilerBuiltinSettlement::Execution { .. })));
+                provider_admission::TerminalCompilerBuiltinSettlement::Execution { .. })));
             assert!(settle(&[]).is_err(), "a numeric meaning alone supplies no execution custody");
             let mut missing_target = leaves.clone();
             missing_target[0].target_realization = None;
@@ -1454,7 +1454,7 @@ use numerics::intrinsics::NumericType;
                         module, meaning, result
                     ));
                     let execution =
-                        provider_admission::provider_admission::numeric_boundary_execution(
+                        provider_admission::numeric_boundary_execution(
                             module, boundary,
                         )
                         .unwrap();
@@ -1475,7 +1475,7 @@ use numerics::intrinsics::NumericType;
                     let mut missing_meaning = boundary.clone();
                     missing_meaning.numeric_intrinsic = None;
                     assert!(
-                        provider_admission::provider_admission::numeric_boundary_execution(
+                        provider_admission::numeric_boundary_execution(
                             module,
                             &missing_meaning
                         )

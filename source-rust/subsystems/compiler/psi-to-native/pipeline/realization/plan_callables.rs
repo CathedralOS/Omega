@@ -2,7 +2,7 @@
 use super::lower_body::NativeBodyPlanningError;
 use artifact_lowering::admit_prepared_native_realization;
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::realization_error;
+use provider_admission::realization_error;
 use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 use std::sync::Arc;
 
@@ -23,7 +23,7 @@ pub struct CallableTargetProduct {
     pub runtime: super::runtime_provisions::TerminalCallableRuntimeProvisions<
         super::runtime_provisions::NativeForeignAdapterRequest,
     >,
-    pub authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
+    pub authority: provider_admission::AdmittedNativeCallableAuthority,
     pub observation: crate::pipeline::observations::NativePipelineObservation,
 }
 
@@ -153,7 +153,7 @@ impl<'a> From<&'a TerminalCallbackOccurrenceProposal> for PrivateEntryContract<'
 
 pub struct PlannedNativeProgram<'contract> {
     pub bodies: PlannedProgramBodies<'contract>,
-    pub providers: provider_admission::provider_admission::AdmittedNativeProviders<'contract>,
+    pub providers: provider_admission::AdmittedNativeProviders<'contract>,
     pub boundary_application_coverage:
         Option<boundary_applications::TerminalBoundaryApplicationCoverage>,
 }
@@ -213,7 +213,7 @@ impl<'contract> PlannedProgramBodies<'contract> {
         root: target_lowering::NativeBodyPlan,
         request: &NativeProgramPlanningRequest<'_, 'contract>,
         program_provider_context: &Arc<
-            provider_admission::provider_admission::AdmittedProgramProviderContext,
+            provider_admission::AdmittedProgramProviderContext,
         >,
     ) -> Result<Self, Vec<Diagnostic>> {
         let occurrences = &request.proposal.occurrences().callbacks;
@@ -340,7 +340,7 @@ fn plan_callback_target(
     request: &NativeProgramPlanningRequest<'_, '_>,
     occurrence: &TerminalCallbackOccurrenceProposal,
     program_provider_context: &Arc<
-        provider_admission::provider_admission::AdmittedProgramProviderContext,
+        provider_admission::AdmittedProgramProviderContext,
     >,
 ) -> Result<CallableTargetProduct, Vec<Diagnostic>> {
     let body = occurrence.callback_thunk_artifact();
@@ -348,7 +348,7 @@ fn plan_callback_target(
     let admission = artifact_lowering::NativeAdmissionRequest {
         private_entry_ram: &[],
         entry: terminal_psi::TargetMachineCallable::Machine(body.entry()),
-        providers: provider_admission::provider_admission::ProviderAdmissionRequest {
+        providers: provider_admission::ProviderAdmissionRequest {
             program_provider_context: Some(program_provider_context),
             ..request.admission.providers
         },

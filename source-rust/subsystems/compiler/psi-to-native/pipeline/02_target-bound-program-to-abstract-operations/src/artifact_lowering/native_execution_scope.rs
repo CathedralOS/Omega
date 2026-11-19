@@ -1,6 +1,6 @@
 /* Native admission orchestrates the shared verified input and provider evidence. */
 pub(crate) mod native_admission {
-    use crate::artifact_lowering::providers::provider_admission::{
+    use provider_admission::{
         AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
         realization_error,
     };

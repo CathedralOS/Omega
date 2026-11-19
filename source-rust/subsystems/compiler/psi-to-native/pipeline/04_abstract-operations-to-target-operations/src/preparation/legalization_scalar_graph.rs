@@ -2546,7 +2546,7 @@ pub(crate) mod call_origin {
             if canonical_declaration != Some(declaration) {
                 return Err(LegalizationError::custody());
             }
-            let execution = provider_admission::provider_admission::numeric_boundary_execution(
+            let execution = provider_admission::numeric_boundary_execution(
                 module,
                 declaration,
             )
