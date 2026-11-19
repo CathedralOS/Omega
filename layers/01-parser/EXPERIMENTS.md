@@ -143,7 +143,51 @@ nothing, because it is "one pass". It was the most expensive pass in the
 parser. I also guessed the wrong cost inside the grammar; it was the spelling
 comparisons, not the token reads.
 
-## Candidates, not tried
+## 8. Build the meaningful-token index during lexing (2026-11-18)
+
+On the `@` grammar at `a2fcd81`, the lexer still emits every token, including
+comments and whitespace. The experiment also had it emit the `u32` positions
+of meaningful tokens and transfer ownership of that vector into the parser.
+The existing path builds this vector by walking the token list after lexing.
+Keyword handling, grammar, tree events and token spans were identical.
+
+Two placements were tested. Checking `is_trivia()` at the scanner's common
+token-emission point made little difference on 13,445-byte files. Emitting
+the index inside the word, punctuation, number and literal branches avoided
+that second classification. In twelve balanced three-way blocks, the median
+paired changes against the original release binary were −0.10% and −2.09%,
+respectively. The branch version won all twelve blocks. Median stage times
+on that version moved from 147.1 to 160.3 ms in lexing and from 111.5 to
+93.0 ms in parsing. Changing the index's initial capacity alone gave no
+reliable improvement in a separate eight-pair control.
+
+| Same 64 MiB of source, one thread | Original median | Branch version median | Median paired time change |
+| --- | ---: | ---: | ---: |
+| 23 fixtures kept as individual files, repeated | 282.5 ms | 269.1 ms | −4.37% (7 of 7 faster) |
+| 23 fixtures concatenated into 13,445-byte files, repeated | 258.4 ms | 253.2 ms | −2.09% (12 of 12 faster) |
+| One contiguous 64 MiB file | 450.3 ms | 449.1 ms | +0.32% (2 of 5 faster) |
+
+The middle row uses the existing `parse_throughput --files --passes 1`
+harness. The other two rows time the full in-memory loop including tree
+destruction, average two measured passes per invocation after two warmups,
+and alternate separately built executables. The change column is computed
+within pairs. An eight-pair same-path control on 13 KB files varied by a
+median of 0.11%. Tests used rustc 1.100.0 on Windows and a Ryzen 9 7950X.
+
+Both placements matched the original token vectors and index positions,
+syntax trees and diagnostics on all 160 lexer/parser fixtures and 132 spec
+examples, through the file and fragment entry points. The release benchmark
+fingerprint was `ea73705f46fd5d3c` in all three builds.
+
+**Decision.** The branch placement is a candidate for an opt-in handoff on
+many small files. The large-file control showed no reliable gain. The
+prototype reserved one index slot per three input bytes, which can overreserve
+on comment-heavy source, and limited inputs to `u32::MAX` bytes. A production
+API would need to preserve the existing token-index overflow behavior and
+keep each index paired with its own tokens. These timings cover in-memory
+L0 and L1 only.
+
+## Remaining candidates
 
 A (fewer spelling tests) and B (a small error) became experiments 3 and 5.
 C was done for statements and single-name patterns in experiment 4; what is
@@ -152,7 +196,7 @@ left of it is the first row here.
 | # | Idea | Why it might help | What the findings above say |
 | --- | --- | --- | --- |
 | C | Stop shifting events for the nodes that still wrap their first child: binary operators, calls, field accesses, casts. A link ("my parent starts N events back") resolved in one pass at the end would do it, at the price of a second pass over the events. | A call into `memmove` per wrapped node. | In the spec examples about 4% of tokens begin such a node, so a few percent at most, less on source with fewer expressions. |
-| D | Have the lexer hand over what the parser's setup pass computes: the list of meaningful tokens, and for each word which keyword it is spelled like. | The lexer already has each word's bytes in hand and knows which tokens are trivia. Experiment 1 shows the grammar would run 27% faster if keyword identity were free. | Supported, but the cost moves to the lexer and has to be measured there. Needs the lexer to be free to change. |
+| D | Supply keyword identity along with the meaningful-token index measured in experiment 8. | The lexer has the spelling in hand. Experiment 1 timed the grammar with preclassified keywords. | The cost of keyword classification in the lexer and its effect on combined throughput remain unmeasured. |
 | E | Check the nesting counter less often. | It is incremented and decremented in every prefix, type and pattern. | Probably small. |
 | F | Let a caller hand the parser the lists to fill, as `lex_into` does, so a thread parsing many files allocates nothing after the first few. | Three allocations per file today. | Experiment 7 shows threads are not queuing for the allocator at 12 KB per file. Worth re-measuring on much smaller files. |
 | G | A sampling profiler, which this machine does not have. | It would replace guessing about the 96 ms of grammar. | Three of the guesses in the ledger were wrong. |
