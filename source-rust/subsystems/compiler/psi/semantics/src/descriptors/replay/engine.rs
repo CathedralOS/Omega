@@ -36,7 +36,8 @@ pub(crate) type InvocationStates =
     BTreeMap<(DescriptorPosition, DescriptorInvocationOwner), State>;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum StorageResolution {    Unique(DescriptorLocation),
+pub(crate) enum StorageResolution {
+    Unique(DescriptorLocation),
     CapturedEntry {
         location: DescriptorLocation,
         entry: DescriptorLocation,
@@ -50,48 +51,62 @@ pub(crate) enum StorageResolution {    Unique(DescriptorLocation),
     OpaqueAlternatives(Vec<DescriptorCallOrigin>, &'static str),
 }
 
+/// The singular coordinate visible to logical storage and origin queries.
+/// Capture authority stays on the resolution and is checked by checked_storage_family.
+pub(super) enum StorageCoordinate<'a> {
+    Local(&'a DescriptorLocation),
+    Projected(&'a DescriptorCallOrigin),
+}
+
+impl StorageCoordinate<'_> {
+    pub(super) fn origin(self) -> Origin {
+        match self {
+            Self::Local(location) => Origin::Storage(location.clone()),
+            Self::Projected(origin) => Origin::Backing(origin.clone()),
+        }
+    }
+
+    fn projection(
+        self,
+        replay: &Replay<'_>,
+        machine: &DescriptorMachine,
+    ) -> Option<DescriptorCallOrigin> {
+        match self {
+            Self::Local(location) => replay.storage_projection(machine, location),
+            Self::Projected(origin) => Some(origin.clone()),
+        }
+    }
+}
+
 impl StorageResolution {
-    /// A logical name for alias and liveness queries, even when its current
-    /// pointer is unknown. This never establishes a captured address.
-    pub(super) fn local_coordinate(&self) -> Option<&DescriptorLocation> {
+    pub(super) fn singular_coordinate(&self) -> Option<StorageCoordinate<'_>> {
         match self {
             Self::Unique(location)
             | Self::CapturedEntry { location, .. }
-            | Self::OpaqueLocation(location, _) => Some(location),
-            Self::Projected(_)
-            | Self::OpaqueProjection(..)
-            | Self::Alternatives(_)
-            | Self::OpaqueAlternatives(..) => None,
+            | Self::OpaqueLocation(location, _) => Some(StorageCoordinate::Local(location)),
+            Self::Projected(origin) | Self::OpaqueProjection(origin, _) => {
+                Some(StorageCoordinate::Projected(origin))
+            }
+            Self::Alternatives(_) | Self::OpaqueAlternatives(..) => None,
+        }
+    }
+
+    pub(super) fn local_coordinate(&self) -> Option<&DescriptorLocation> {
+        match self.singular_coordinate()? {
+            StorageCoordinate::Local(location) => Some(location),
+            StorageCoordinate::Projected(_) => None,
         }
     }
 
     /// Slot transfers and unknown-contents packets use the original carrier
     /// for a singular projected address. A family has no single carrier.
     pub(super) fn slot_coordinate(
-        self,
+        &self,
         carrier: &DescriptorLocation,
     ) -> Option<DescriptorLocation> {
-        match self {
-            Self::Unique(location)
-            | Self::CapturedEntry { location, .. }
-            | Self::OpaqueLocation(location, _) => Some(location),
-            Self::Projected(_) | Self::OpaqueProjection(..) => Some(carrier.clone()),
-            Self::Alternatives(_) | Self::OpaqueAlternatives(..) => None,
-        }
-    }
-
-    /// Contents and result summaries need one known backing. An opaque
-    /// coordinate cannot supply payload or be exported as a captured origin.
-    pub(super) fn captured_origin(&self) -> Option<Origin> {
-        match self {
-            Self::Unique(location) | Self::CapturedEntry { location, .. } => {
-                Some(Origin::Storage(location.clone()))
-            }
-            Self::Projected(origin) => Some(Origin::Backing(origin.clone())),
-            Self::Alternatives(_)
-            | Self::OpaqueLocation(..)
-            | Self::OpaqueProjection(..)
-            | Self::OpaqueAlternatives(..) => None,
+        match self.singular_coordinate()? {
+            StorageCoordinate::Local(location) => Some(location.clone()),
+            StorageCoordinate::Projected(_) => Some(carrier.clone()),
         }
     }
 
@@ -1034,18 +1049,7 @@ impl<'a> Replay<'a> {
     ) -> Option<bool> {
         // This is a declared-type check. append_storage_capture retains the
         // original capture or its reason for being opaque.
-        let origin = match account {
-            StorageResolution::Unique(location)
-            | StorageResolution::CapturedEntry { location, .. }
-            | StorageResolution::OpaqueLocation(location, _) => {
-                self.storage_projection(machine, location)?
-            }
-            StorageResolution::Projected(origin)
-            | StorageResolution::OpaqueProjection(origin, _) => origin.clone(),
-            StorageResolution::Alternatives(_) | StorageResolution::OpaqueAlternatives(..) => {
-                return None;
-            }
-        };
+        let origin = account.singular_coordinate()?.projection(self, machine)?;
         let DescriptorCallOrigin::Argument { source, projection } = origin else {
             return None;
         };
@@ -1979,11 +1983,7 @@ impl<'a> Replay<'a> {
                         projection.has_captured_reference_crossing().unwrap_or(true).then_some(
                         "projected captured reference crossing needs its actual prestate")
                     });
-                    let origin = match account {
-                        StorageResolution::OpaqueLocation(location, _) => Origin::Storage(location),
-                        StorageResolution::OpaqueProjection(origin, _) => Origin::Backing(origin),
-                        other => other.captured_origin()?,
-                    };
+                    let origin = account.singular_coordinate()?.origin();
                     let mut values = self.project(
                         machine,
                         Some(BTreeSet::from([origin])),
@@ -2190,7 +2190,8 @@ impl<'a> Replay<'a> {
         let (before, base) = states;
         let reads = transfer.reads();
         let position = transfer.position();
-        let canonical = |location: &DescriptorLocation| {            if position.is_some() {
+        let canonical = |location: &DescriptorLocation| {
+            if position.is_some() {
                 self.resolve_storage(machine, before, location, None)?
                     .slot_coordinate(location)
             } else {
@@ -3534,7 +3535,7 @@ impl<'a> Replay<'a> {
             return self.exported_result(
                 machine,
                 states,
-                &account.captured_origin()?,
+                &account.singular_coordinate()?.origin(),
                 slot,
                 depth,
             );
@@ -3761,7 +3762,7 @@ impl<'a> Replay<'a> {
                 ))
             }
             Origin::CapturedStorage(account) => {
-                self.exported(machine, &account.captured_origin()?)
+                self.exported(machine, &account.singular_coordinate()?.origin())
             }
             Origin::Backing(DescriptorCallOrigin::Invocation {
                 carrier_type,
@@ -4153,13 +4154,9 @@ impl<'a> Replay<'a> {
         origins
             .into_iter()
             .map(|origin| match origin {
-                Origin::CapturedStorage(account) => {
-                    let mut origins = self.symbolic(
-                        machine,
-                        BTreeSet::from([account.captured_origin()?]),
-                    )?;
-                    (origins.len() == 1).then(|| origins.remove(0))
-                }
+                Origin::CapturedStorage(account) => Some(DescriptorSourceOrigin::Backing(
+                    account.singular_coordinate()?.projection(self, machine)?,
+                )),
                 Origin::Provider(provider) => Some(DescriptorSourceOrigin::Provider(
                     provider.map_dependencies(|dependency| {
                         let mut origins =

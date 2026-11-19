@@ -136,12 +136,7 @@ impl Replay<'_> {
                 }
                 for origin in origins {
                     let backing = match origin {
-                        Origin::CapturedStorage(account) => {
-                            let Origin::Storage(backing) = account.captured_origin()? else {
-                                return None;
-                            };
-                            backing
-                        }
+                        Origin::CapturedStorage(account) => account.local_coordinate()?.clone(),
                         Origin::Storage(backing) => backing,
                         _ => return None,
                     };
@@ -746,7 +741,7 @@ impl Replay<'_> {
             return self.reference_targets(
                 machine,
                 state,
-                account.captured_origin()?,
+                account.singular_coordinate()?.origin(),
                 reference,
                 referent,
                 suffix,
@@ -990,7 +985,7 @@ impl Replay<'_> {
             return self.view_element_targets(
                 machine,
                 state,
-                account.captured_origin()?,
+                account.singular_coordinate()?.origin(),
                 element,
                 suffix,
                 depth,

@@ -2070,16 +2070,16 @@ fn exact_incoming_contents_keep_entry_identity_without_blessing_unknown_state() 
         Some(expected.clone()),
         "a retained incoming value can publish its captured address"
     );
+    let logical = Origin::Storage(opaque.local_coordinate().unwrap().clone());
     assert_eq!(
         replay.resolved(machine, replay.captured_storage_origins(opaque.clone())),
-        None,
-        "an opaque coordinate cannot publish a symbolic backing"
+        replay.resolved(machine, BTreeSet::from([logical.clone()])),
+        "unknown pointers retain their logical source for symbolic queries"
     );
-    assert!(
-        replay
-            .exported(machine, &Origin::CapturedStorage(opaque.clone()))
-            .is_none(),
-        "an opaque coordinate cannot become an exact stored result"
+    assert_eq!(
+        replay.exported(machine, &Origin::CapturedStorage(opaque.clone())),
+        replay.exported(machine, &logical),
+        "summary queries retain the same coordinate, without establishing a capture"
     );
     Arc::make_mut(&mut state.arrival_backing).insert(
         known.clone(),
