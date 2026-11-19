@@ -77,11 +77,11 @@ fn admit_memberships(
 ) -> Result<Memberships, String> {
     let mut bindings = Vec::new();
     for source in source_module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .filter(|row| row.carrier == source_type)
     {
-        let mut matches = target_module.structural_domains.iter().filter(|row| {
+        let mut matches = target_module.types.structural_domains.iter().filter(|row| {
             row.carrier == target_type && same_domain(source_module, source, target_module, row)
         });
         if let Some(destination) = matches.next() {
@@ -115,10 +115,10 @@ fn same_domain(
     target: &StructuralDomainDeclaration,
 ) -> bool {
     if source
-        .required_domain_closure(&left.structural_domains)
+        .required_domain_closure(&left.types.structural_domains)
         .is_none()
         || target
-            .required_domain_closure(&right.structural_domains)
+            .required_domain_closure(&right.types.structural_domains)
             .is_none()
     {
         return false;
@@ -233,12 +233,12 @@ fn same_domain_definition(
         (Some(a), Some(b))
             if a.proposition == b.proposition
                 && terminal_semantics::domain_predicate_observes_no_storage(
-                    left.structural_types.iter(),
+                    left.types.structural_types.iter(),
                     source.carrier,
                     a,
                 )
                 && terminal_semantics::domain_predicate_observes_no_storage(
-                    right.structural_types.iter(),
+                    right.types.structural_types.iter(),
                     target.carrier,
                     b,
                 ) => {}

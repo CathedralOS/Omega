@@ -97,7 +97,7 @@ impl crate::TerminalModule {
         use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
         use language_core::core_vocabulary::{CoreVocabulary, CoreVocabularyCatalog};
 
-        let mut services = self.services.iter().filter(|row| row.id == service);
+        let mut services = self.interfaces.services.iter().filter(|row| row.id == service);
         let (Some(service), None) = (services.next(), services.next()) else {
             return Err("filesystem service has no unique retained declaration".into());
         };
@@ -105,7 +105,7 @@ impl crate::TerminalModule {
             return Err("core filesystem capability has unexpected parent services".into());
         }
         let mut schemas = self
-            .service_schemas
+            .interfaces.service_schemas
             .iter()
             .filter(|row| row.application == service.identity);
         let (Some(schema), None) = (schemas.next(), schemas.next()) else {
@@ -162,7 +162,7 @@ impl crate::TerminalModule {
             return Err("service schema selection has an absent identity".into());
         }
         let mut rows = self
-            .service_schemas
+            .interfaces.service_schemas
             .iter()
             .filter(|row| row.declaration == declaration && row.application == application);
         let (Some(row), None) = (rows.next(), rows.next()) else {
@@ -218,7 +218,7 @@ impl crate::TerminalModule {
         target: &str,
     ) -> Result<&TerminalProgramEntryContract, String> {
         let mut rows = self
-            .program_entry_contracts
+            .interfaces.program_entry_contracts
             .iter()
             .filter(|row| row.target == target);
         let (Some(row), None) = (rows.next(), rows.next()) else {
@@ -246,7 +246,7 @@ impl crate::TerminalModule {
         schema_declaration: TerminalIdentityIndex,
         schema_application: TerminalIdentityIndex,
     ) -> Result<&TerminalProviderSelection, String> {
-        let mut rows = self.provider_selections.iter().filter(|row| {
+        let mut rows = self.interfaces.provider_selections.iter().filter(|row| {
             row.target == target
                 && row.schema_declaration == schema_declaration
                 && row.schema_application == schema_application

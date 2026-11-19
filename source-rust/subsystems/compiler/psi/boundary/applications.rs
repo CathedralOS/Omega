@@ -181,12 +181,12 @@ impl crate::TerminalModule {
         if !machines.is_sorted() {
             return Err("boundary demand machine roster is not ordered");
         }
-        if self.boundary_application_demands.windows(2).any(|rows| {
+        if self.interfaces.boundary_application_demands.windows(2).any(|rows| {
             rows[0].terminal_operation().get() >= rows[1].terminal_operation().get()
         }) {
             return Err("Terminal boundary demand catalog is not strictly ordered");
         }
-        let catalog = &self.boundary_application_demands;
+        let catalog = &self.interfaces.boundary_application_demands;
         if catalog.is_empty() {
             return Ok(Vec::new());
         }

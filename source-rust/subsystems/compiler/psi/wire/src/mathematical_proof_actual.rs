@@ -51,7 +51,7 @@ pub(crate) mod applications {
                         return Err(Error::SourceCarrierMismatch);
                     }
                     let carrier = expected
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| row.type_identity == trusted.type_identity)
                         .ok_or(Error::KernelCarrierMismatch)?;
@@ -87,7 +87,7 @@ pub(crate) mod applications {
                         }
                     }
                     let carrier = expected
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| {
                             expected.identities.text(row.type_identity)
@@ -698,7 +698,7 @@ pub fn verify_module_mathematical_actuals(
             .zip(trusted.actuals)
         {
             let carrier = expected
-                .mathematical_carriers
+                .types.mathematical_carriers
                 .iter()
                 .find(|row| row.type_identity == formal.type_identity);
             match (term, carrier) {
@@ -855,10 +855,10 @@ pub(crate) mod indexed_theorem_roots {
         mut grants: impl FnMut(&TerminalIndexedTheorem) -> Result<BTreeSet<u32>, Error>,
         budget: &mut Budget,
     ) -> Result<(), Error> {
-        if module.proofs.indexed_theorems.len() != expected.indexed_theorems.len() {
+        if module.proofs.indexed_theorems.len() != expected.proofs.indexed_theorems.len() {
             return Err(Error::KernelCarrierMismatch);
         }
-        let mut matched = vec![false; expected.indexed_theorems.len()];
+        let mut matched = vec![false; expected.proofs.indexed_theorems.len()];
         let mut pending = Vec::new();
         for actual in &module.proofs.indexed_theorems {
             if actual.evidence_source_position as usize
@@ -879,7 +879,7 @@ pub(crate) mod indexed_theorem_roots {
                 return Err(Error::SourceCarrierMismatch);
             }
             let candidates = expected
-                .indexed_theorems
+                .proofs.indexed_theorems
                 .iter()
                 .enumerate()
                 .filter(|(_, row)| {
