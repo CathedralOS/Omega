@@ -6,9 +6,9 @@ use super::{PlanningServices, refusal};
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
-    BuildSubjectValidation, settle_rejoined_build_slice,
-    BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
-    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    BuildEvaluationRequest, BuildStageRequest, BuildSubjectValidation, CompileFailure,
+    EvaluatedBuild, PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    settle_rejoined_build_slice,
 };
 use diagnostics::Diagnostic;
 use package_compilation::source_assembly::{
@@ -136,6 +136,14 @@ impl PlannedProduct {
             .map_err(refusal)
     }
 
+    pub fn attribute_diagnostics(&self, rows: &mut [Diagnostic]) {
+        let sources = self
+            .generated
+            .as_ref()
+            .map_or(&self.source.sources, |extension| &extension.sources);
+        package_compilation::attribute_diagnostics(rows, sources, self.package_inputs());
+    }
+
     pub fn preparation(&self) -> &SourcePreparation {
         &self.preparation
     }
@@ -185,7 +193,8 @@ pub fn prepare(
             artifact_only: request.artifact_only,
         },
         &mut timings,
-    )?;
+    )
+    .map_err(|failure| locate_failure(failure, &assembled, inputs))?;
     Ok(PreparedPlanningStage {
         evaluation,
         source: PlanningSource {
@@ -208,12 +217,31 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<(SourceContinuation, BuildStage), CompileFailure> {
-    Ok(stage_source(assembled)?.prepare(
-        index,
-        preparation,
-        profile.target_name(),
-        inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
-    )?)
+    stage_source(assembled)?
+        .prepare(
+            index,
+            preparation,
+            profile.target_name(),
+            inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+        )
+        .map_err(|rows| locate_failure(rows.into(), assembled, inputs))
+}
+
+fn locate_failure(
+    mut failure: CompileFailure,
+    source: &AssembledSyntax,
+    inputs: Option<&PackageCompilationInputs>,
+) -> CompileFailure {
+    match &mut failure {
+        CompileFailure::Diagnostics(rows)
+        | CompileFailure::SourceCompletion {
+            diagnostics: rows, ..
+        } => {
+            package_compilation::attribute_diagnostics(rows, &source.sources, inputs);
+        }
+        CompileFailure::BuildConsentRequired { .. } => {}
+    }
+    failure
 }
 
 fn stage_source(assembled: &mut AssembledSyntax) -> Result<BuildStageSource, CompileFailure> {
@@ -285,16 +313,18 @@ impl PlanningSource {
             )]
             .into());
         }
-        evaluation.continue_stage(
-            BuildStageRequest {
-                source_acquisition: assembled.build_source_acquisition.as_ref(),
-                typed: source.typed(),
-                build_source: assembled.build_source,
-                package_inputs: authority.as_ref(),
-                anonymous_source: assembled.anonymous_owner.as_ref(),
-            },
-            &mut self.timings,
-        )?;
+        evaluation
+            .continue_stage(
+                BuildStageRequest {
+                    source_acquisition: assembled.build_source_acquisition.as_ref(),
+                    typed: source.typed(),
+                    build_source: assembled.build_source,
+                    package_inputs: authority.as_ref(),
+                    anonymous_source: assembled.anonymous_owner.as_ref(),
+                },
+                &mut self.timings,
+            )
+            .map_err(|failure| locate_failure(failure, &assembled, authority.as_ref()))?;
         self.deferred = deferred(assembled)?;
         self.stage = stage;
         self.initial = source;
@@ -317,9 +347,9 @@ impl PlanningSource {
     ) -> Result<PackageCompilationInputs, CompileFailure> {
         let graph = match &self.original {
             Some(original) => original.clone(),
-            None => services.declared_source(activation)?.ok_or_else(|| {
-                refusal("named Build requires its acquired root".into())
-            })?,
+            None => services
+                .declared_source(activation)?
+                .ok_or_else(|| refusal("named Build requires its acquired root".into()))?,
         };
         let declaration = activation.project_declaration().map_err(refusal)?;
         let name = match &declaration {

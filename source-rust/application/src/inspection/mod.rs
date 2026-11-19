@@ -43,11 +43,21 @@ pub fn inspect_terminal(
     let profile = target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
         .map_err(|error| InspectTerminalError::Diagnostics(vec![error]))?;
     let product = crate::project_sources::open_product(
-        &request.root_path, &[profile], false, true, None, None,
-    ).map_err(InspectTerminalError::Diagnostics)?;
-    let stage = product.product_stage(&[profile]).map_err(InspectTerminalError::Diagnostics)?;
-    let artifact = compiler::inspect(stage.source(), &request.machine)
+        &request.root_path,
+        &[profile],
+        false,
+        true,
+        None,
+        None,
+    )
+    .map_err(InspectTerminalError::Diagnostics)?;
+    let stage = product
+        .product_stage(&[profile])
         .map_err(InspectTerminalError::Diagnostics)?;
+    let artifact = compiler::inspect(stage.source(), &request.machine).map_err(|mut rows| {
+        product.attribute_diagnostics(&mut rows);
+        InspectTerminalError::Diagnostics(rows)
+    })?;
     Ok(TerminalInspection { artifact })
 }
 
