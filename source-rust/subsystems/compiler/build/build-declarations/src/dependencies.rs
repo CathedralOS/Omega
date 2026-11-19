@@ -13,7 +13,7 @@ registration journey from
 let math: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "math" }));
 
 let mut host: DependencyDescription = dependency::from_source(Source::Path { location: "host" });
-dependency::with_alias(&mut host, "host");
+dependency::with_alias(@mut host, "host");
 let host_registration: DependencyRegistration = Build::build_dependency(builder, host);
 ```
 
@@ -40,7 +40,7 @@ use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands}
 pub const DEPENDENCY_HELPER_OWNER: &str = "dependency";
 /// `dependency::from_source(source) -> DependencyDescription`.
 pub const FROM_SOURCE_HELPER_NAME: &str = "from_source";
-/// `dependency::with_alias(&mut description, alias)`.
+/// `dependency::with_alias(@mut description, alias)`.
 pub const WITH_ALIAS_HELPER_NAME: &str = "with_alias";
 /// The configured, unregistered description type.
 pub const DEPENDENCY_DESCRIPTION_TYPE_NAME: &str = "DependencyDescription";
@@ -433,7 +433,7 @@ mod tests {
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
     fn rows(source: &str) -> Result<(SyntaxTrees, Vec<DependencyRow>), DependencyRowError> {
-        let syntax_trees = source_compiler::parse_text(source)
+        let syntax_trees = source_syntax::parse_text(source)
             .unwrap_or_else(|error| panic!("parse build {source}: {error:?}"))
             .syntax;
         let build = project_build_entry_syntax(&syntax_trees).expect("valid build entry");
@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn rows_require_the_canonical_build_entry() {
-        let syntax_trees = source_compiler::parse_text(
+        let syntax_trees = source_syntax::parse_text(
             "machine helper() {\n    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: \"x\" }));\n}\n",
         )
         .expect("parse")

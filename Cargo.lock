@@ -241,7 +241,7 @@ dependencies = [
  "optimization-selections",
  "record-storage",
  "semantic-vocabulary",
- "source-compiler",
+ "source-syntax",
  "syntax-trees",
 ]
 
