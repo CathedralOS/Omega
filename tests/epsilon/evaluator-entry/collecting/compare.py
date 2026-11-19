@@ -74,6 +74,8 @@ def main():
         for profile, producer, expected in [('stock', stock, ordinary), ('native', tiny_native, tiny), ('alpha', tiny_alpha, tiny)]:
             executable = work / f'{name}-{profile}'
             if profile == 'alpha':
+                # The stamped Alpha seed is large. Reuse it after each observed tape.
+                executable = work / 'alpha-customer'
                 tape = work / f'{name}.tape'
                 with tape.open('xb') as stream:
                     subprocess.run([producer], input=customer, stdout=stream, check=True)
