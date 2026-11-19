@@ -2,10 +2,10 @@
 use super::*;
 
 const SOURCE: &str = include_str!(
-    "../../../../../../../../../../tests/fixtures/run/ownership/inferred_generic_record/main.omg"
+    "../../../../../../../tests/fixtures/run/ownership/inferred_generic_record/main.omg"
 );
 const REPEATED: &str = include_str!(
-    "../../../../../../../../../../tests/fixtures/fail/ownership/inferred_generic_record_reuse/main.omg"
+    "../../../../../../../tests/fixtures/fail/ownership/inferred_generic_record_reuse/main.omg"
 );
 
 fn judged(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {

@@ -3047,7 +3047,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let text = include_str!(
-            "../../../../../../../../../tests/fixtures/run/calls/record_callback_loop/main.omg"
+            "../../../../../../tests/fixtures/run/calls/record_callback_loop/main.omg"
         )
         .replace("machine main()", "machine entry()");
         let source = accepted_source(&text, &[]);
