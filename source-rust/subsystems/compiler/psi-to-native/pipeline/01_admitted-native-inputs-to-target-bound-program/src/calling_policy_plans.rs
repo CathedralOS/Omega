@@ -50,7 +50,7 @@ pub(super) mod scalar_completion {
     use semantic_vocabulary::ScalarAddressModel;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_codec::CanonicalTerminalArtifact;
-    use terminal_installation::{
+    use psi_scalar_applications::{
         AdmittedScalarApplications, ScalarApplicationClosure, ScalarApplicationObservations,
     };
     use terminal_work::WorkMeter;

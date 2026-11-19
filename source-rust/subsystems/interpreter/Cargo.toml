@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "interpreter.rs"
 
 [dependencies]
+psi-scalar-applications = { path = "../compiler/psi/scalar-applications" }
 psi-provider-selections = { path = "../compiler/psi/providers" }
 psi-entry-memory = { path = "../compiler/psi/access/entry-memory" }
 psi-target-layouts = { path = "../compiler/psi/layout/admission" }

@@ -34,6 +34,8 @@ pub mod callable_values;
 pub mod entry_values;
 pub mod synchronous_calls;
 pub mod evaluation_crashes;
+pub mod evaluation_scope;
+pub mod scalar_conditions;
 pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};

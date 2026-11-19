@@ -26,7 +26,7 @@ mod evaluation_and_synchronous_calls;
 mod evaluation_requirements;
 pub mod logical_reach;
 mod provider_and_target_installation;
-mod scalar_applications;
+
 pub mod selection_questions;
 
 pub use psi_authorization::{
@@ -80,8 +80,9 @@ pub use provider_installation::{
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
-pub use scalar_applications::{
-    AdmittedScalarApplications, AdmittedScalarEntry, CallingAbiStorageDemand, ScalarAddressModel,
+pub use semantic_vocabulary::ScalarAddressModel;
+pub use psi_scalar_applications::{
+    AdmittedScalarApplications, AdmittedScalarEntry, CallingAbiStorageDemand,
     ScalarApplicationClosure, ScalarApplicationObservations, ScalarApplicationValues,
     ScalarConditionSelection, ScalarEntryChecks, ScalarEntryPrerequisites,
     ScalarLayoutObservationError, ScalarScopeInputs,

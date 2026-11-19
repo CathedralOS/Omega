@@ -142,7 +142,7 @@ mod native {
     use crate::artifact_lowering::lowering::lower_decoded_module;
     use abstract_operations::AbstractOperationPlan;
     use psi_target_layouts::TerminalTargetContext;
-    use terminal_installation::AdmittedScalarApplications;
+    use psi_scalar_applications::AdmittedScalarApplications;
     use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
     use verified_optimization_input::{
         VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
@@ -1005,7 +1005,7 @@ mod retention {
 }
 mod scalar_applications {
     use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
-    use terminal_installation::AdmittedScalarApplications;
+    use psi_scalar_applications::AdmittedScalarApplications;
 
     pub struct NativeScalarApplications<'request> {
         pub completed: &'request AdmittedScalarApplications,

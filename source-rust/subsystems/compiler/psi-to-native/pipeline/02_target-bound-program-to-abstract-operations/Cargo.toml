@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 provider-correspondence = { path = "../../verification/provider-correspondence" }
+psi-scalar-applications = { path = "../../../psi/scalar-applications" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }
@@ -22,7 +23,6 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 psi-authorization = { path = "../../../psi/authorization" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }

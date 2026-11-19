@@ -8,6 +8,7 @@ version.workspace = true
 path = "scalar_applications.rs"
 
 [dependencies]
+psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/providers" }
 psi-target-layouts = { path = "../../../../psi/layout/admission" }
 artifact-evaluation = { path = "../../../../../psi/evaluation/artifact-evaluation" }
@@ -19,7 +20,6 @@ runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }
 terminal-codec = { path = "../../../../psi/codec" }
-terminal-installation = { path = "../../../../psi-admission" }
 terminal-interpreter = { path = "../../../../../interpreter" }
 terminal-psi = { path = "../../../../psi" }
 terminal-runtime = { path = "../../../../../interpreter/host" }

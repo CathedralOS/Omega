@@ -171,7 +171,7 @@ impl RuntimeExecutionProvisions {
     }
     pub fn scalar_applications(
         &self,
-    ) -> Option<&terminal_installation::AdmittedScalarApplications> {
+    ) -> Option<&psi_scalar_applications::AdmittedScalarApplications> {
         self.plan.scalar_applications()
     }
     pub fn host_provisions(&self) -> &RuntimeHostProvisions {

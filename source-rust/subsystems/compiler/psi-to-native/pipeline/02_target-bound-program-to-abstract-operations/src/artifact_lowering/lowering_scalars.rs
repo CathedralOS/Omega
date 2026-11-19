@@ -463,7 +463,7 @@ pub(crate) mod scalar_applications {
     use abstract_operations::AbstractOperation;
     use semantic_vocabulary::ScalarApplicationId;
     use terminal_semantics::entry_values::TerminalScalarValue;
-    use terminal_installation::AdmittedScalarApplications;
+    use psi_scalar_applications::AdmittedScalarApplications;
     use terminal_psi::Operation;
 
     use crate::artifact_lowering::lowering::LoweringError;
