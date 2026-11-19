@@ -46,7 +46,10 @@ mod staged_output_tree;
 mod tree_from_entries;
 
 pub use capture::capture;
-pub use captured_source::{CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind};
+pub use captured_source::{
+    CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, SourceSnapshotEntry,
+    SourceSnapshotError, SourceSnapshotMetadata,
+};
 pub(crate) use staged_output_tree::BuildStagedOutputMaterializationError;
 pub use staged_output_tree::{
     BuildStagedOutputEntryInput, BuildStagedOutputEntryKind, BuildStagedOutputTree,

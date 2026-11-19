@@ -5,12 +5,11 @@
 // limits in package vocabulary without exposing physical host paths or live
 // capabilities.
 
-use super::BuildCapturedSourceInventory;
+use super::{BuildCapturedSourceInventory, BuildMachineExecutionMode, BuildMachineFilesystemAccess};
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
-use source_compiler::evaluation::{
-    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineExecutionMode,
-    BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
-};
+use evaluation_accounting::BuildEvaluationSponsor;
+use evaluation_contracts::BuildEvaluationSponsorLimits;
+use filesystem_authority::FilesystemGrantRoot;
 
 pub trait RestrictedBuildGrants: Send {
     fn admit(
@@ -213,7 +212,7 @@ impl BuildMachineFilesystemScope {
             BuildMachineFilesystemAccess::Virtual => return Vec::new(),
         };
         let captured = self.captured_source_inventory();
-        let grant = |grant_root: &BuildMachineFilesystemGrantRoot| {
+        let grant = |grant_root: &FilesystemGrantRoot| {
             let identity = grant_root.identity();
             let (root, captured) = if identity == BUILD_SOURCE_ROOT_IDENTITY {
                 (RestrictedBuildGrantRoot::SourceInventory, captured)

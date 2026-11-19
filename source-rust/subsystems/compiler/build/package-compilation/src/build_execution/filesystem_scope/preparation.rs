@@ -15,7 +15,7 @@
 use crate::BuildMachineFilesystemScope;
 use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
-use source_compiler::evaluation::BuildMachineFilesystemSponsor;
+use filesystem_authority::{FilesystemSponsor, FilesystemSponsorLimits};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -28,7 +28,7 @@ pub fn prepare_filesystem_scope(
     required_sources: &source_compiler::source_inputs::SourceMap,
     build_execution_profile: Option<target::TargetProfile>,
     build_dir: Option<&Path>,
-    filesystem_sponsor: Option<BuildMachineFilesystemSponsor>,
+    filesystem_sponsor: Option<FilesystemSponsor>,
     build_snapshot: Option<&crate::BuildSnapshotRequest>,
 ) -> Result<BuildMachineFilesystemScope, Vec<Diagnostic>> {
     if package_inputs.is_some() && anonymous_source.is_some() {
@@ -98,9 +98,9 @@ pub fn prepare_filesystem_scope(
                     std::process::id(),
                     NEXT_PRIVATE_OUTPUT.fetch_add(1, Ordering::Relaxed),
                 ));
-                match BuildMachineFilesystemSponsor::create_private(
+                match FilesystemSponsor::create_private(
                     &root,
-                    source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+                    FilesystemSponsorLimits::COMPILER_DEFAULT,
                 ) {
                     Ok(sponsor) => break sponsor,
                     Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,

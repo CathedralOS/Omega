@@ -41,7 +41,6 @@ layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/usage" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
-source-capture = { path = "../../../../host-support/source-capture" }
 source-admission = { path = "pipeline/representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }

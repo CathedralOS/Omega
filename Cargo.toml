@@ -156,6 +156,7 @@ members = [
     "source-rust/subsystems/package-manager",
     "source-rust/subsystems/package-manager/review/evidence",
     "source-rust/subsystems/package-manager/source-acquisition",
+    "source-rust/subsystems/package-manager/source-acquisition/capture",
     "source-rust/subsystems/package-manager/source-acquisition/git/execution",
     "tools/xtask",
     "tools/benchmark",

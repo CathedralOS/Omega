@@ -69,7 +69,7 @@ impl BuildMachineFilesystemScope {
         &self,
         account: EvaluationInvocationAccount,
     ) -> Result<BuildFilesystemRuntime, String> {
-        if self.captured_source_view.is_none() && self.live_source.is_none() {
+        if self.captured_source_input.is_none() && self.live_source.is_none() {
             return Err("Terminal Build requires admitted Source backing".into());
         }
         if !self
@@ -132,12 +132,12 @@ impl BuildFilesystemRuntime {
     fn snapshot(
         &self,
         root: FilesystemGrantRootIdentity,
-    ) -> Result<&source_capture::SourceSnapshot, String> {
+    ) -> Result<&build_output::CapturedBuildSourceInput, String> {
         if root == BUILD_SOURCE_ROOT_IDENTITY {
             return self
                 .effects
                 .scope
-                .captured_source_view
+                .captured_source_input
                 .as_ref()
                 .ok_or_else(|| "Source capture is absent".into());
         }
@@ -146,7 +146,7 @@ impl BuildFilesystemRuntime {
             .named_inputs
             .iter()
             .find(|input| input.root == root)
-            .map(|input| &input.snapshot)
+            .map(|input| &input.input)
             .ok_or_else(|| "unknown Build input root".into())
     }
 
@@ -297,11 +297,11 @@ impl BuildFilesystemRuntime {
             .flatten();
         if live_source.is_none() {
             match self.snapshot(root)?.lookup(path) {
-                Ok(source_capture::SourceSnapshotEntry::File(_)) => {}
-                Ok(source_capture::SourceSnapshotEntry::Directory) => {
+                Ok(build_output::SourceSnapshotEntry::File(_)) => {}
+                Ok(build_output::SourceSnapshotEntry::Directory) => {
                     return Ok(self.complete_attempt(ordinal, -1, 21) as i32);
                 }
-                Ok(source_capture::SourceSnapshotEntry::Symlink(_)) => {
+                Ok(build_output::SourceSnapshotEntry::Symlink(_)) => {
                     return Ok(self.complete_attempt(ordinal, -1, 40) as i32);
                 }
                 _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),

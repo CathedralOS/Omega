@@ -14,6 +14,9 @@ source capture; matching paths, kinds, and lengths alone would allow substituted
 file bytes.
 */
 
+mod snapshot;
+pub use snapshot::{SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata};
+
 use diagnostics::Diagnostic;
 use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind,

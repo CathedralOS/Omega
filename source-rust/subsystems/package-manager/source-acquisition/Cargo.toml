@@ -11,7 +11,7 @@ path = "lib.rs"
 test-fixtures = []
 
 [dependencies]
-source-capture = { path = "../../../host-support/source-capture" }
+source-capture = { path = "capture" }
 wire = { path = "../../../foundation/wire" }
 record-storage = { path = "../../../foundation/record-storage" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
