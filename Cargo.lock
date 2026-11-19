@@ -1220,7 +1220,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "symbols",
  "target",
  "target-aarch64",
  "target-operations",
@@ -1253,7 +1252,6 @@ dependencies = [
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
- "symbols",
  "target",
  "target-operations",
  "target-x86_64",
@@ -2187,7 +2185,6 @@ dependencies = [
  "provider-correspondence",
  "runtime-abi",
  "semantic-vocabulary",
- "symbols",
  "target",
  "target-operations",
  "task-plans",
@@ -2395,7 +2392,6 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
- "symbols",
  "target",
  "target-vocabulary",
  "task-plans",
@@ -3024,9 +3020,10 @@ name = "symbols"
 version = "0.1.0"
 dependencies = [
  "arena",
- "record-storage",
+ "language-core",
  "numeric-literals",
  "numerics",
+ "record-storage",
  "source-text",
 ]
 
@@ -3654,7 +3651,6 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source-text",
- "symbols",
  "target",
  "target-operations",
  "target-vocabulary",

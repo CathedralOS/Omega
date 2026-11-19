@@ -1083,14 +1083,15 @@ pub(crate) mod selection_exclusions {
     }
 }
 pub(crate) mod symbol_rebinding {
-    use symbols::{SymbolHandle, SymbolMap};
+    use arena::HandleKeyMap;
+    use symbols::SymbolHandle;
 
     type SymbolPairs = [(SymbolHandle, SymbolHandle)];
 
     #[derive(Debug, Default)]
     struct IndexedPairs {
         pairs: Vec<(SymbolHandle, SymbolHandle)>,
-        index: SymbolMap<SymbolHandle>,
+        index: HandleKeyMap<SymbolHandle, SymbolHandle>,
     }
 
     impl IndexedPairs {

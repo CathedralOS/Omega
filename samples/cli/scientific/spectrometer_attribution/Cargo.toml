@@ -25,5 +25,5 @@ terminal-interpreter = { path = "../../../../source-rust/subsystems/interpreter"
 terminal-psi = { path = "../../../../source-rust/subsystems/compiler/psi" }
 published-object-verification = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/replay/published-objects" }
 effects = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/installation/native-effects" }
-symbols = { path = "../../../../source-rust/subsystems/compiler/source-to-psi/language/declaration-identity" }
+symbols = { path = "../../../../source-rust/subsystems/compiler/foundation/declaration-identity" }
 mimalloc = { version = "0.1", default-features = false }

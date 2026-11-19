@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::fmt;
 
-type Membership<Key> = HashSet<Key, symbols::BuildSymbolHasher>;
+type Membership<Key> = HashSet<Key, arena::BuildIndexHasher>;
 
 use crate::declaration_selection::AuthoredDeclarationSelectionIntrinsic;
 use crate::declaration_selection::AuthoredDeclarationSelectionLateBinding;

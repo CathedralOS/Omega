@@ -32,7 +32,7 @@ language-core = { path = "../../../foundation/language-core" }
 numerics = { path = "../../../psi/semantics/numeric" }
 optimization = { path = "../../../psi/optimization-selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-symbols = { path = "../../language/declaration-identity" }
+symbols = { path = "../../../foundation/declaration-identity" }
 terminal-check-tables = { path = "../representations/lowered-program" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }

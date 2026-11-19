@@ -12,7 +12,7 @@ pub(crate) mod data_definitions {
     use arena::{Arena, Handle, HandleSpan, OwnedIndex};
     use symbols::SymbolHandle;
 
-    type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+    use arena::HandleKeyMap as HashMap;
 
     #[cfg(test)]
     pub(crate) mod tests {
@@ -1340,7 +1340,7 @@ pub mod declaration_index {
         }
     }
 
-    type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+    use arena::HandleKeyMap as HashMap;
 
     type StatePositionIndex = SymbolRows<(u32, u32)>;
 
@@ -1363,11 +1363,11 @@ pub mod declaration_index {
 
     #[derive(Clone, Default)]
     pub struct CallTargetIndex {
-        pub boundary_machine_by_state: symbols::SymbolKeyMap<SymbolHandle, u32>,
-        pub parameter_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
-        pub trait_by_symbol: symbols::SymbolKeyMap<SymbolHandle, u32>,
-        pub trait_signature: symbols::SymbolKeyMap<SymbolHandle, (u32, u32)>,
-        pub parameter_contract: symbols::SymbolKeyMap<SymbolHandle, Handle<data::TypeParameter>>,
+        pub boundary_machine_by_state: arena::HandleKeyMap<SymbolHandle, u32>,
+        pub parameter_signature: arena::HandleKeyMap<SymbolHandle, (u32, u32)>,
+        pub trait_by_symbol: arena::HandleKeyMap<SymbolHandle, u32>,
+        pub trait_signature: arena::HandleKeyMap<SymbolHandle, (u32, u32)>,
+        pub parameter_contract: arena::HandleKeyMap<SymbolHandle, Handle<data::TypeParameter>>,
     }
 
     #[derive(Clone, Default)]
@@ -2097,7 +2097,7 @@ pub(crate) mod declaration_tables {
             removed: impl Fn(symbols::SymbolHandle) -> bool,
         ) {
             let mut captured_supplies =
-                std::collections::HashMap::<_, Vec<_>, symbols::BuildSymbolHasher>::default();
+                std::collections::HashMap::<_, Vec<_>, arena::BuildIndexHasher>::default();
             for (_, capture) in self.captured_machine_applications.iter() {
                 if self.machine_by_symbol(capture.instance).is_some() {
                     captured_supplies
@@ -3067,13 +3067,13 @@ pub(crate) mod machine_parameter_signatures {
 
     pub struct MachineParameterSignatureQueries<'program> {
         program: &'program TypedTrees,
-        scope_parents: symbols::SymbolKeyMap<SymbolHandle, SymbolHandle>,
-        templates: symbols::SymbolKeyMap<SymbolHandle, LifetimeTemplateCandidates>,
+        scope_parents: arena::HandleKeyMap<SymbolHandle, SymbolHandle>,
+        templates: arena::HandleKeyMap<SymbolHandle, LifetimeTemplateCandidates>,
     }
 
     impl TypedTrees {
         pub fn machine_parameter_signature_queries(&self) -> MachineParameterSignatureQueries<'_> {
-            let mut templates: symbols::SymbolKeyMap<SymbolHandle, LifetimeTemplateCandidates> =
+            let mut templates: arena::HandleKeyMap<SymbolHandle, LifetimeTemplateCandidates> =
                 Default::default();
             for (instance, template) in self
                 .machine_specializations

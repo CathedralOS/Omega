@@ -374,10 +374,10 @@ impl Lowerer {
         let mut authored_by_owner: std::collections::HashMap<
             symbols::SymbolHandle,
             &crate::source_resolved::signature::AuthoredServiceReachRow,
-            symbols::BuildSymbolHasher,
+            arena::BuildIndexHasher,
         > = std::collections::HashMap::with_capacity_and_hasher(
             base.authored_service_reach_rows.len(),
-            symbols::BuildSymbolHasher,
+            arena::BuildIndexHasher,
         );
         for row in &base.authored_service_reach_rows {
             authored_by_owner.entry(row.owner).or_insert(row);

@@ -2,19 +2,19 @@
 use std::sync::Mutex;
 
 use crate::source_resolved::{signature, statement};
-use arena::{Handle, OwnedIndex};
+use arena::{Handle, HandleKeyMap, OwnedIndex};
 use record_storage::{RecordError, RecordReader, RecordWriter};
-use symbols::{SymbolHandle, SymbolKeyMap};
+use symbols::SymbolHandle;
 
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
+use arena::HandleKeyMap as HashMap;
 
 #[derive(Clone, Default)]
 pub struct GenericOriginIndex {
-    pub origins_by_symbol: SymbolKeyMap<
+    pub origins_by_symbol: HandleKeyMap<
         SymbolHandle,
         Vec<Handle<crate::source_resolved::types::GenericApplicationOrigin>>,
     >,
-    pub definitions_by_symbol: SymbolKeyMap<SymbolHandle, Vec<usize>>,
+    pub definitions_by_symbol: HandleKeyMap<SymbolHandle, Vec<usize>>,
     pub malformed: bool,
 }
 
@@ -22,7 +22,7 @@ pub struct GenericOriginIndex {
 struct PrefixPositions {
     watermark: usize,
     samples: [usize; 3],
-    by_symbol: SymbolKeyMap<SymbolHandle, u32>,
+    by_symbol: HandleKeyMap<SymbolHandle, u32>,
 }
 
 #[derive(Clone, Default)]
@@ -69,7 +69,7 @@ impl PrefixPositionMaps {
 #[derive(Default)]
 pub struct ResolvedIndexes {
     generic_origins: OwnedIndex<GenericOriginIndex>,
-    data_positions: OwnedIndex<SymbolKeyMap<SymbolHandle, u32>>,
+    data_positions: OwnedIndex<HandleKeyMap<SymbolHandle, u32>>,
     statements: Mutex<PrefixPositionMaps>,
     parameters: Mutex<PrefixPositionMaps>,
 }
@@ -142,7 +142,7 @@ impl ResolvedIndexes {
         self.data_positions.with(
             definitions.revision(),
             || {
-                let mut positions = SymbolKeyMap::default();
+                let mut positions = HandleKeyMap::default();
                 for (position, definition) in definitions.iter().enumerate() {
                     positions
                         .entry(definition.symbol)

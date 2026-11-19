@@ -1232,7 +1232,7 @@ pub use source_occurrences::{
     authored_type_occurrences, collect_authored_program_type_occurrences,
 };
 
-type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
+type HashSet<T> = std::collections::HashSet<T, arena::BuildIndexHasher>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum StaticArgumentRole {

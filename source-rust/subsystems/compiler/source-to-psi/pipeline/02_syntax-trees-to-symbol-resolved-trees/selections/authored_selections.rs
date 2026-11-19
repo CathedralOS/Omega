@@ -26,7 +26,6 @@ use crate::source_selections::{
 use diagnostics::Diagnostic;
 use source_text::SourceSpan;
 /* Handle-keyed maps take the integer hasher; none is iterated for output order. */
-type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
 use crate::resolution::names::qualified_payload_free_case_type;
 use crate::resolution::names::type_predicates::type_operand_nodes;
 use crate::source_resolved::domain::ProofFact;
@@ -36,6 +35,7 @@ use crate::source_resolved::{
     expression::{ExpressionHandle, ExpressionNode},
 };
 use crate::source_symbols::{JoinedPath, SymbolLookup};
+use arena::HandleKeyMap as HashMap;
 use std::collections::HashSet;
 use symbols::SymbolHandle;
 
@@ -1175,7 +1175,7 @@ fn collect_statement_static_argument_candidates(
 */
 fn contract_clause_expression_handles(
     program: &SymbolResolvedTrees,
-) -> HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
+) -> HashSet<ExpressionHandle, arena::BuildIndexHasher> {
     let mut handles = HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
         for fact in resolved_declarations(program)
@@ -1195,7 +1195,7 @@ fn contract_clause_expression_handles(
 fn collect_expression_subtree(
     program: &SymbolResolvedTrees,
     root: ExpressionHandle,
-    handles: &mut HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
+    handles: &mut HashSet<ExpressionHandle, arena::BuildIndexHasher>,
 ) {
     if !root.is_valid() || !handles.insert(root) {
         return;
@@ -1305,8 +1305,8 @@ fn package_qualifier_member_count(
 fn expression_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
-    type_operands: &HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
-    contract_clause_expressions: &HashSet<ExpressionHandle, symbols::BuildSymbolHasher>,
+    type_operands: &HashSet<ExpressionHandle, arena::BuildIndexHasher>,
+    contract_clause_expressions: &HashSet<ExpressionHandle, arena::BuildIndexHasher>,
 ) -> Result<Vec<Candidate>, Diagnostic> {
     let expressions = &program.tables.bodies.expressions;
     let expression_span = expressions.source_span(expression);

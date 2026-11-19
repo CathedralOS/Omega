@@ -28,8 +28,10 @@ pub(super) struct ApplicationArguments<'source> {
 pub(super) struct ApplicationBindings<'source> {
     pub(super) parameters: arena::RootRows<'source, crate::source_state::data::TypeParameter>,
     pub(super) inherited: bool,
-    pub(super) bindings:
-        symbols::SymbolMap<&'source crate::source_state::static_applications::StaticMachineBinding>,
+    pub(super) bindings: arena::HandleKeyMap<
+        SymbolHandle,
+        &'source crate::source_state::static_applications::StaticMachineBinding,
+    >,
 }
 
 impl<'source> Program<'source> {
@@ -164,7 +166,7 @@ impl<'source> Program<'source> {
                 "generic application has no complete exact binder tuple",
             ));
         }
-        let mut retained = symbols::SymbolMap::default();
+        let mut retained = arena::HandleKeyMap::<SymbolHandle, _>::default();
         for binding in bindings {
             if !typed.symbols.symbols().nodes().is_valid(binding.parameter) {
                 return Err(unavailable(

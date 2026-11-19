@@ -130,7 +130,7 @@ pub fn prepare_compilation(
             .iter()
             .copied()
             .map(|template| (template, ()))
-            .collect::<symbols::SymbolMap<_>>();
+            .collect::<arena::HandleKeyMap<SymbolHandle, _>>();
         rows.extend(
             std::mem::take(&mut closure.conformance_witnesses)
                 .into_iter()

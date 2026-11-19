@@ -2138,7 +2138,7 @@ pub mod types {
 
     #[derive(Clone, Default)]
     struct NamedRowIndex(
-        std::sync::OnceLock<symbols::SymbolKeyMap<SymbolHandle, TypeReferenceHandle>>,
+        std::sync::OnceLock<arena::HandleKeyMap<SymbolHandle, TypeReferenceHandle>>,
     );
 
     impl PartialEq for NamedRowIndex {
@@ -2152,7 +2152,7 @@ pub mod types {
     #[derive(Clone, Default)]
     struct ArithmeticRowIndex(
         std::sync::OnceLock<
-            symbols::SymbolKeyMap<
+            arena::HandleKeyMap<
                 SymbolHandle,
                 Vec<(numerics::arithmetic::ArithmeticDomain, TypeReferenceHandle)>,
             >,
@@ -2882,7 +2882,7 @@ pub mod types {
             self.named_rows
                 .0
                 .get_or_init(|| {
-                    let mut rows = symbols::SymbolKeyMap::default();
+                    let mut rows = arena::HandleKeyMap::default();
                     for (handle, node) in self.type_references.iter() {
                         if let Some(symbol) = node.as_named_symbol() {
                             rows.entry(symbol).or_insert(handle);
@@ -2909,7 +2909,7 @@ pub mod types {
             self.arithmetic_rows
                 .0
                 .get_or_init(|| {
-                    let mut rows = symbols::SymbolKeyMap::<
+                    let mut rows = arena::HandleKeyMap::<
                         SymbolHandle,
                         Vec<(ArithmeticDomain, TypeReferenceHandle)>,
                     >::default();

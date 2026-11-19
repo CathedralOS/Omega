@@ -34,10 +34,8 @@ impl Program<'_> {
     ) -> Checked<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>> {
         self.scope.clear();
         self.lifetime_owner = source;
-        let mut bound = std::collections::HashSet::<
-            symbols::SymbolHandle,
-            symbols::BuildSymbolHasher,
-        >::default();
+        let mut bound =
+            std::collections::HashSet::<symbols::SymbolHandle, arena::BuildIndexHasher>::default();
         let bindings = substitutions
             .iter()
             .map(|(parameter, actual)| {

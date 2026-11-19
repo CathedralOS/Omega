@@ -39,6 +39,7 @@ retaining `owned_index.rs` alongside `lib.rs`.
 #![forbid(unsafe_code)]
 
 mod arena;
+mod index_map;
 mod owned_index;
 mod paged;
 mod retained;
@@ -53,6 +54,7 @@ pub use arena::{
     HierarchyArena, HierarchyNode, HierarchyStorage, OrderedRootArena, OrderedRootArenaIter,
     SpanHandles, unique_handles_in_order,
 };
+pub use index_map::{BuildIndexHasher, HandleKeyMap, IndexHasher};
 pub use owned_index::*;
 pub use paged::{
     ConcurrentArenaPage, ConcurrentPagedArena, GenerationalPagedArena, IncompletePagePublication,
