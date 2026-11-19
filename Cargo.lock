@@ -655,6 +655,7 @@ name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "evaluation-receipts",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
@@ -726,7 +727,6 @@ dependencies = [
  "cap-std",
  "component-description",
  "declaration-contracts",
- "declaration-scope",
  "diagnostics",
  "entry-planning",
  "evaluation-accounting",
@@ -735,7 +735,6 @@ dependencies = [
  "extents",
  "function-layout",
  "image",
- "installation-conditions",
  "image-emission",
  "installation-admission",
  "isa-aarch64",
@@ -2565,9 +2564,10 @@ dependencies = [
 name = "provider-demand"
 version = "0.1.0"
 dependencies = [
+ "declaration-scope",
  "diagnostics",
- "evaluation-receipts",
  "host-provider-inputs",
+ "psi-provider-selections",
  "semantic-vocabulary",
  "target",
  "terminal-codec",

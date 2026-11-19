@@ -17,7 +17,7 @@ use psi_authorization::{
 
 pub use native_compiler::{
     NativeApplicationSettings, SavedProgramTarget as NativeTarget, TargetProviderInstallation,
-    stage_validators,
+    SourceNativeTarget, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
@@ -46,14 +46,6 @@ pub enum Program<'a> {
         program: AuthorizedTerminalArtifact,
         target: NativeTarget<'a>,
     },
-}
-
-pub struct SourceNativeTarget<'a> {
-    pub profile: target::TargetProfile,
-    pub settings: NativeApplicationSettings<'a>,
-    pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
-    pub semantic_bindings: std::sync::Arc<[host_provider_inputs::AcceptedSemanticBinding]>,
-    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
 pub enum Artifact {
@@ -149,78 +141,12 @@ impl Program<'_> {
             Self::Source { source, target } => {
                 let publication =
                     source_to_psi::compile_for_target(source, target.profile.target_name())?;
-                target.prepare(publication)
+                let (artifact, providers, exclusions) = publication.into_parts();
+                let producer = HostProducerTrust::accept("current compiler invocation");
+                let authorized = authorize_terminal_artifact(artifact, Some(&producer))
+                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+                native_compiler::prepare_source_program(authorized, providers, &exclusions, target)
             }
         }
-    }
-}
-
-impl SourceNativeTarget<'_> {
-    fn prepare(
-        self,
-        publication: source_compiler::PublishedTargetProgram,
-    ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
-        use provider_demand::{
-            IssuedProviderDemand, PackageReviewRequirements, ProviderDemandInputs,
-        };
-        use source_compiler::provider_supply::SourceProviderDemand;
-        use std::sync::Arc;
-
-        let (artifact, demand) = publication.into_parts();
-        let SourceProviderDemand::Target {
-            closed,
-            labels,
-            bindings,
-            review,
-        } = demand
-        else {
-            return Err(vec![Diagnostic::error(
-                "source provider demand lost its selected deployment",
-            )]);
-        };
-        let producer = HostProducerTrust::accept("current compiler invocation");
-        let authorized = authorize_terminal_artifact(Arc::clone(&artifact), Some(&producer))
-            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-        let manifest = artifact.manifest().identity();
-        let has_bound_applications = artifact
-            .publication_metadata()
-            .ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "checked source lost its publication metadata",
-                )]
-            })?
-            .has_bound_applications();
-        let inputs = host_provider_inputs::ProviderInstallationInputs {
-            bindings,
-            package_permissions: self.package_permissions,
-            semantic_bindings: self.semantic_bindings,
-        };
-        let origins = host_provider_inputs::ProviderExecutionOrigins::from_inputs(
-            artifact,
-            self.profile,
-            inputs,
-        );
-        let (logical, bodies) = closed.into_parts();
-        let issued = IssuedProviderDemand::issue(
-            manifest,
-            ProviderDemandInputs::Target {
-                profile: self.profile,
-                logical,
-                bodies,
-                has_bound_applications,
-                origins,
-                labels,
-                review: review.map(|requirements| PackageReviewRequirements {
-                    numeric: requirements.numeric,
-                    bindings: requirements.bindings,
-                }),
-            },
-        );
-        native_compiler::prepare_issued_program(
-            authorized,
-            issued,
-            self.settings,
-            self.installation_assumptions,
-        )
     }
 }

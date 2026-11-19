@@ -9,7 +9,7 @@
 | Native image | Stage source and target | Publish Psi in memory and lower it for the target. |
 | Native image | Authorized Psi and target | Lower the supplied Psi for the target. |
 
-The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/psi_to_native.rs) meet at [Psi](psi/). For a source program, its checked publication supplies the exact target’s reachable provider choices and completed Build bindings. The host adds accepted package permissions and any reviewed installation assumptions for that deployment. For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests runtime provisions or native code.
+The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/psi_to_native.rs) meet at [Psi](psi/). For a source program, its checked publication supplies the exact target’s reachable provider choices, completed Build bindings and the behavior exclusions admitted in that same source stage. The host adds accepted package permissions and any reviewed installation assumptions for that deployment. For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests runtime provisions or native code.
 
 Each pipeline keeps its own [source program forms](source-to-psi/pipeline/representations/) or [native program forms](psi-to-native/pipeline/representations/). Their shared [Psi format](psi/) is the handoff between them.
 

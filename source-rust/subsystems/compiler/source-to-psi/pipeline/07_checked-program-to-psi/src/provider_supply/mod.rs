@@ -25,8 +25,10 @@ use terminal_psi::TerminalModule;
 
 mod demand;
 mod package_review;
-pub use demand::{SourceNativeBinding, SourceProviderDemand, SourceProviderFacts};
-pub use package_review::SourcePackageReviewRequirements;
+pub use demand::SourceProviderFacts;
+pub use psi_provider_selections::publication::{
+    SourceNativeBinding, SourcePackageReviewRequirements, SourceProviderDemand,
+};
 
 pub use psi_provider_selections::logical_reach::ClosedLogicalProviderReach;
 

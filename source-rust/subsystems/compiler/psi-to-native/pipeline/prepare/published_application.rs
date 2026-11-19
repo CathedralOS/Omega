@@ -266,8 +266,41 @@ pub struct SavedProgramTarget<'a> {
 pub struct NativeApplicationSettings<'a> {
     pub application: target::NativeApplicationMetadata,
     pub optimizations: &'a optimization_core::OptimizationSelections,
-    pub behavior_exclusions: &'a [behavior_exclusion_requests::AuthoredBehaviorExclusion],
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
+pub struct SourceNativeTarget<'a> {
+    pub profile: target::TargetProfile,
+    pub settings: NativeApplicationSettings<'a>,
+    pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
+    pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+}
+
+/// Receive the ordinary source publisher's target-bound program and Build choices.
+pub fn prepare_source_program(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    publication: psi_provider_selections::publication::PublishedTargetProviders,
+    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    target: SourceNativeTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let artifact = authorization.shared_artifact();
+    let demand = publication.receive(artifact, target.profile.target_name())?;
+    let issued = provider_demand::IssuedProviderDemand::from_publication(
+        artifact.manifest().identity(),
+        Arc::clone(artifact),
+        Some(target.profile),
+        demand,
+        target.package_permissions,
+        target.semantic_bindings,
+    )?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        target.settings,
+        exclusions,
+        target.installation_assumptions,
+    )
 }
 
 pub fn prepare_saved_program(
@@ -319,19 +352,20 @@ pub fn prepare_saved_program(
         NativeApplicationSettings {
             application: target.application,
             optimizations: target.optimizations,
-            behavior_exclusions: target.behavior_exclusions,
             x86_scalar_fma_provider: target.x86_scalar_fma_provider,
         },
+        target.behavior_exclusions,
         Vec::new(),
     )
 }
 
 /// Admit an issued target demand against its authorized Psi, then use its selected
 /// providers and application settings to prepare one native invocation.
-pub fn prepare_issued_program<Publisher>(
+fn prepare_issued_program<Publisher>(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     issued: provider_demand::IssuedProviderDemand<Publisher>,
     settings: NativeApplicationSettings<'_>,
+    behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
@@ -360,7 +394,7 @@ pub fn prepare_issued_program<Publisher>(
         package_permissions: package_permissions.as_ref(),
         application: settings.application,
         optimizations: settings.optimizations,
-        behavior_exclusions: settings.behavior_exclusions,
+        behavior_exclusions,
         x86_scalar_fma_provider: settings.x86_scalar_fma_provider,
     })?;
     Ok(crate::NativeProgram {
