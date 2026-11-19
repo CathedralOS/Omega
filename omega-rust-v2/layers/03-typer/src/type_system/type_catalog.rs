@@ -251,18 +251,6 @@ impl TypeCatalog<'_> {
         }
         Ok(())
     }
-    fn check_domain_universes(
-        &self,
-        app: &crate::DomainApplication,
-        memberships: &mut Vec<(ValueType, ValueType)>,
-    ) -> Result<(), String> {
-        self.check_universe_arguments(
-            &app.declaration,
-            &app.arguments,
-            |bound| bound.substitute(&app.declaration, &app.arguments),
-            memberships,
-        )
-    }
     fn expand_domain(
         &self,
         app: &crate::DomainApplication,
@@ -276,7 +264,13 @@ impl TypeCatalog<'_> {
                 .into_iter()
                 .map(|argument| self.normalize(argument, active, memberships))
                 .collect::<Result<_, _>>()?;
-            self.check_domain_universes(applied, memberships)
+            let arguments = self.domains.bind_arguments(applied, carrier);
+            self.check_universe_arguments(
+                &applied.declaration,
+                &arguments,
+                |bound| bound.substitute(&applied.declaration, &arguments),
+                memberships,
+            )
         })
     }
     pub(crate) fn expanded_domain_at(
@@ -291,17 +285,6 @@ impl TypeCatalog<'_> {
         let atoms = self.expand_domain(app, carrier, ancestors, &mut HashSet::new(), &mut memberships)?;
         self.retain_universe_memberships(source, node, memberships);
         Ok(atoms)
-    }
-    pub(crate) fn check_domain_at(
-        &self,
-        app: &crate::DomainApplication,
-        source: &omega_resolver::IndexedSource<'_>,
-        node: usize,
-    ) -> Result<(), String> {
-        let mut memberships = Vec::new();
-        self.check_domain_universes(app, &mut memberships)?;
-        self.retain_universe_memberships(source, node, memberships);
-        Ok(())
     }
     pub(crate) fn record_type_universe_memberships(
         &mut self,

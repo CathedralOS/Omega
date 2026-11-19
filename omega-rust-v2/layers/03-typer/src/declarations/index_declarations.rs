@@ -32,11 +32,11 @@ impl<'a> ResolvedSourceFile<'a> {
                         .expanded_domain_at(
                             &DomainApplication {
                                 declaration: id.clone(),
-                                arguments: catalog
-                                    .types
-                                    .formals(id)
-                                    .into_iter()
-                                    .take(catalog.types.domains.index_arity(id))
+                                arguments: (0..catalog.types.domains.index_arity(id))
+                                    .map(|position| ValueType::Parameter {
+                                        owner: Box::new(id.clone()),
+                                        index: catalog.types.domains.index_binder(id, position),
+                                    })
                                     .collect(),
                             },
                             catalog.types.domains.carrier(id),

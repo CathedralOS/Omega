@@ -310,6 +310,12 @@ impl Catalog<'_> {
                         (_, None) => true,
                         (Carrier::Generic, Some(name)) => {
                             super::builtin(name)
+                                || ctx
+                                    .locals
+                                    .get(name)
+                                    .into_iter()
+                                    .flatten()
+                                    .any(|l| l.type_binding && l.static_binding && node >= l.start && node < l.end)
                                 || owners
                                     .iter()
                                     .any(|&owner| self.entries[owner].id.kind == NodeKind::Data)
@@ -328,6 +334,56 @@ impl Catalog<'_> {
         owners
     }
 
+    /// A generic domain gets its carrier from this qualifier. An inherited
+    /// requirement gets its parent trait arguments from the named child trait.
+    pub(super) fn application_qualifier(
+        &self,
+        file: &File<'_>,
+        file_number: usize,
+        ctx: &Context<'_>,
+        n: usize,
+        path: &str,
+        candidates: &[usize],
+    ) -> Result<Option<NameUse>, NameError> {
+        let Some((prefix, _)) = path.rsplit_once("::") else { return Ok(None) };
+        let generic = matches!(candidates,[slot] if matches!(self.carriers.get(slot),Some(Carrier::Generic)));
+        if !generic && !candidates.iter().any(|&s| callable(self.entries[s].id.kind)) {
+            return Ok(None);
+        }
+        let words = &file.nodes[n];
+        let first = words.words().next().unwrap();
+        let last = words.words().rev().nth(1).unwrap();
+        let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
+        let target = if generic && super::builtin(prefix) {
+            Symbol::Builtin(prefix.to_owned())
+        } else if generic
+            && let Some(local) = ctx
+                .locals
+                .get(prefix)
+                .into_iter()
+                .flatten()
+                .rev()
+                .find(|l| l.type_binding && l.static_binding && n >= l.start && n < l.end)
+        {
+            Symbol::Binding {
+                span: local.span,
+                kind: local.kind,
+            }
+        } else {
+            let owners = self.lookup(file, file_number, ctx, n, prefix);
+            let [owner] = owners.as_slice() else { return Ok(None) };
+            let id = &self.entries[*owner].id;
+            if !generic
+                && !self
+                    .trait_parents
+                    .contains_key(&(id.package.clone(), id.path.clone()))
+            {
+                return Ok(None);
+            }
+            Symbol::Declaration(id.clone())
+        };
+        Ok(Some(usage(file, span, target)))
+    }
     pub(super) fn occurrence_symbol(
         &self,
         file: &File<'_>,

@@ -46,6 +46,18 @@ impl<'a> ResolvedSourceFile<'a> {
             .get(&SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()))
             .copied()
     }
+    pub fn qualifier(
+        &self,
+        node: usize,
+    ) -> Option<&'a Symbol> {
+        let mut words = self.file.nodes[node].words();
+        words.next_back()?;
+        let first = words.next()?;
+        let last = words.next_back().unwrap_or(first);
+        self.names
+            .get(&SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()))
+            .copied()
+    }
     pub fn access(
         &self,
         node_index: usize,

@@ -153,6 +153,30 @@ impl BodyTyper<'_, '_> {
                 _ => explicit = source.nodes[section].children.as_slice(),
             }
         }
+        if let Some(Symbol::Declaration(owner)) = self.unit.qualifier(callee)
+            && owner.kind == NodeKind::Trait
+            && self.catalog.trait_parents.contains_key(owner)
+        {
+            let supplied = enclosing_arguments
+                .iter()
+                .find(|(decl, _)| decl == owner)
+                .map(|(_, args)| args.clone())
+                .unwrap_or_default();
+            if supplied.len() != self.catalog.types.arities[owner] {
+                return Err(TypeError::at(source, callee, "incorrect enclosing application arity"));
+            }
+            let slot = crate::RequirementSlot {
+                declaration: owner.clone(),
+                trait_arguments: supplied,
+            };
+            enclosing_arguments.extend(
+                self.catalog
+                    .trait_lineage(&slot)
+                    .into_iter()
+                    .skip(1)
+                    .map(|s| (s.declaration, s.trait_arguments)),
+            );
+        }
         let capture = |t: &ValueType| {
             enclosing_arguments
                 .iter()

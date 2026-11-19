@@ -340,6 +340,9 @@ impl Catalog<'_> {
                 {
                     return Err(file.error(span, format!("public signature exposes private declaration {path}")));
                 }
+                if let Some(qualifier) = self.application_qualifier(file, file_number, ctx, n, &path, &candidates)? {
+                    uses.push(qualifier);
+                }
                 for &arg_list in node
                     .children
                     .iter()

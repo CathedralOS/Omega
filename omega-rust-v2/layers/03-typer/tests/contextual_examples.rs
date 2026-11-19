@@ -431,3 +431,252 @@ fn published_record_pattern_binds_the_version_only_in_its_arm() {
     assert_eq!(error.file, "pattern.omg");
     assert_eq!(error.span.slice(body.as_bytes()), Some(b"accept".as_slice()));
 }
+
+#[test]
+fn published_quantity_keeps_its_carrier_and_unit_index() {
+    let declaration = block(DOMAINS, 1020);
+    for (carrier, spelling) in [
+        ("u16", "u16 in Quantity<1>"),
+        ("u32", "u32::Quantity<1>"),
+        ("Word", "Word::Quantity<1>"),
+        ("Box<u8>", "Box<u8>::Quantity<1>"),
+    ] {
+        let defs = "data Unit = u8; data Word = u16; data Box<X>{value:X;}";
+        let caller = format!("machine keep(x:{spelling})->{carrier} in Quantity<1> {{x}}");
+        let stage = check(&[
+            ("unit.omg", defs),
+            ("quantity.omg", &declaration),
+            ("caller.omg", &caller),
+        ])
+        .unwrap();
+        let signature = &stage.signatures[0];
+        assert_eq!(signature.parameters[0].1, signature.result);
+        let [atom] = signature.result.domains() else {
+            panic!("expected one Quantity index")
+        };
+        assert_eq!(atom.declaration.path, "T::Quantity");
+        assert_eq!(atom.arguments[0].to_string(), "1");
+        let wrong = caller.replace(" in Quantity<1> {x}", " in Quantity<2> {x}");
+        let error = check(&[
+            ("unit.omg", defs),
+            ("quantity.omg", &declaration),
+            ("caller.omg", &wrong),
+        ])
+        .unwrap_err();
+        assert_eq!(error.file, "caller.omg");
+        assert_eq!(error.span.slice(wrong.as_bytes()), Some(b"x".as_slice()));
+        assert!(error.message.contains("Quantity<2>") && error.message.contains("Quantity<1>"), "{error:?}");
+    }
+}
+
+const EFFECTS: &str = include_str!("../../../wiki/spec/language/effects.md");
+const GENERICS: &str = include_str!("../../../wiki/spec/language/generics.md");
+
+#[test]
+fn published_inherited_call_contributes_its_declared_reach() {
+    let text = block(EFFECTS, 51);
+    let defs = "data NoState {} data Entry {at:u64;} boundary trait TimeObservation {} boundary trait ClockOps<S>{machine now(s:@mut S)->u64 reaches TimeObservation;}";
+    let rejected = text.replace("    entry.at =", "    let mut none:NoState;\n    entry.at =");
+    let error = check(&[("defs.omg", defs), ("clock.omg", &rejected)]).unwrap_err();
+    assert_eq!(error.message, "call exceeds service reach for TimeObservation");
+    assert_eq!(error.file, "clock.omg");
+    assert_eq!(error.span.slice(rejected.as_bytes()), Some(b"WallClock::now(@mut none)".as_slice()));
+    let admitted = rejected.replace(") reaches WallClock", ") reaches TimeObservation");
+    let stage = check(&[("defs.omg", defs), ("clock.omg", &admitted)]).unwrap();
+    let [call] = stage.calls.as_slice() else { panic!("expected inherited now") };
+    assert_eq!(call.machine.path, "ClockOps::now");
+    assert!(
+        call.enclosing_arguments
+            .iter()
+            .any(|(owner, args)| owner.path == "ClockOps" && args[0].to_string() == "game::NoState")
+    );
+}
+
+#[test]
+fn published_counter_fields_retain_their_callable_contracts() {
+    let fields = block(EFFECTS, 201);
+    let caller = "machine invoke(o:CounterOps,a:@mut Counter,b:@Counter)->u64 {(o.clear)(a);(o.value)(b)}";
+    let defs = "data Counter {}";
+    let stage = check(&[
+        ("counter.omg", defs),
+        ("fields.omg", &fields),
+        ("invoke.omg", caller),
+    ])
+    .unwrap();
+    let contracts: Vec<_> = stage.indirect_calls.iter().map(|c| &c.contract).collect();
+    assert_eq!(contracts.len(), 2);
+    for (c, authority) in contracts
+        .iter()
+        .zip([omega_typer::Access::Mut, omega_typer::Access::Shared])
+    {
+        assert!(matches!(c.parameters.as_slice(),[ValueType::Reference(a,t)] if a==&authority && t.to_string()=="game::Counter"));
+        assert!(c.closed_runtime && c.terminates && c.reach.as_ref().is_some_and(Vec::is_empty) && c.crash_ceiling.as_ref().is_some_and(Vec::is_empty));
+    }
+    let wrong = caller.replace("a:@mut Counter", "a:@Counter");
+    let err = check(&[
+        ("counter.omg", defs),
+        ("fields.omg", &fields),
+        ("invoke.omg", &wrong),
+    ])
+    .unwrap_err();
+    assert_eq!(err.message, "expected @mut game::Counter, found @game::Counter");
+}
+
+#[test]
+fn published_pause_markers_cover_each_required_effect() {
+    let defs = "machine ordinary_call() {} machine may_park() suspends {} machine may_wait() blocks {} machine may_do_either() suspends blocks {}";
+    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 871));
+    let stage = check(&[("defs.omg", defs), ("calls.omg", &body)]).unwrap();
+    assert_eq!(
+        stage
+            .calls
+            .iter()
+            .map(|c| (c.machine.path.as_str(), c.acknowledgements.suspend, c.acknowledgements.block))
+            .collect::<Vec<_>>(),
+        [
+            ("ordinary_call", false, false),
+            ("may_park", true, false),
+            ("may_wait", false, true),
+            ("may_do_either", true, true)
+        ]
+    );
+    for (proper, missing, effect) in [
+        ("suspend may_park", "may_park", "suspend"),
+        ("block may_wait", "may_wait", "block"),
+        ("suspend block may_do_either", "block may_do_either", "suspend"),
+        ("suspend block may_do_either", "suspend may_do_either", "block"),
+    ] {
+        let wrong = body.replace(proper, missing);
+        let error = check(&[("defs.omg", defs), ("calls.omg", &wrong)]).unwrap_err();
+        assert_eq!(error.file, "calls.omg");
+        assert!(error.message.contains(effect) && error.message.contains("acknowledgement"), "{error:?}");
+    }
+}
+
+#[test]
+fn published_sort_requirement_binds_each_calls_element_and_ordering() {
+    let sorting = block(GENERICS, 61);
+    let ordering = "trait Ordering<T>{machine precedes(a:T,b:T)->bool;} ByteOrder satisfies Ordering<u8>{machine precedes(a:u8,b:u8)->bool{a<b}} WideOrder satisfies Ordering<u16>{machine precedes(a:u16,b:u16)->bool{a<b}}";
+    let calls = "machine byte(xs:@mut [u8]) {Sorting::sort::<u8,ByteOrder>(xs)} machine wide(xs:@mut [u16]) {Sorting::sort::<u16,WideOrder>(xs)}";
+    let stage = check(&[
+        ("defs.omg", ordering),
+        ("sort.omg", &sorting),
+        ("calls.omg", calls),
+    ])
+    .unwrap();
+    for (call, ty) in stage.calls.iter().zip(["u8", "u16"]) {
+        assert_eq!(call.machine.path, "Sorting::sort");
+        assert_eq!(call.type_arguments[0].to_string(), ty);
+    }
+    assert_eq!(stage.calls.len(), 2);
+    let wrong = calls.replace("u8,ByteOrder", "u8,WideOrder");
+    let error = check(&[
+        ("defs.omg", ordering),
+        ("sort.omg", &sorting),
+        ("calls.omg", &wrong),
+    ])
+    .unwrap_err();
+    assert_eq!(error.message, "selected evidence has the wrong trait application");
+}
+
+#[test]
+fn published_static_parameters_require_the_declared_argument_role() {
+    let binders = block(GENERICS, 636).replace("{ ... }", "{     }");
+    let defs = "trait Ranked<T>{machine before(a:T,b:T)->bool;} trait HookProcedure {machine call(x:u32);} data HookSlot{} machine identity(v:u32)->u32{v} ByteRank satisfies Ranked<u8>{machine before(a:u8,b:u8)->bool{a<b}} machine handle(x:u32) satisfies HookProcedure::call {}";
+    let caller = "machine examples(xs:@mut [u8],slot:@mut HookSlot)->u32{sort::<u8,ByteRank>(xs);install::<handle>(slot);apply::<identity>(1)}";
+    let stage = check(&[
+        ("defs.omg", defs),
+        ("binders.omg", &binders),
+        ("caller.omg", caller),
+    ])
+    .unwrap();
+    assert_eq!(
+        stage
+            .calls
+            .iter()
+            .filter(|c| c.site.file == "caller.omg")
+            .map(|c| c.machine.path.as_str())
+            .collect::<Vec<_>>(),
+        ["sort", "install", "apply"]
+    );
+    for (bad_defs, bad_call, reason) in [
+        (
+            defs.replace(" satisfies HookProcedure::call {}", " {}"),
+            caller.to_owned(),
+            "exact satisfaction edge",
+        ),
+        (defs.to_owned(), caller.replace("::<identity>", "::<handle>"), "signature"),
+        (
+            defs.replace("ByteRank satisfies Ranked<u8>", "ByteRank satisfies Ranked<u16>")
+                .replace("before(a:u8,b:u8)", "before(a:u16,b:u16)"),
+            caller.to_owned(),
+            "wrong trait application",
+        ),
+    ] {
+        let error = check(&[
+            ("defs.omg", &bad_defs),
+            ("binders.omg", &binders),
+            ("caller.omg", &bad_call),
+        ])
+        .unwrap_err();
+        assert_eq!(error.file, "caller.omg");
+        assert!(error.message.contains(reason), "{error:?}");
+    }
+}
+
+#[test]
+fn published_record_call_selects_the_shared_counter_field() {
+    let text = block(include_str!("../../../wiki/spec/language/machine_values.md"), 17);
+    let (decls, operations) = text.split_once("let operations").unwrap();
+    let caller = format!("machine observe(counter:Counter) {{ let operations{operations} }}");
+    let stage = check(&[("defs.omg", decls), ("observe.omg", &caller)]).unwrap();
+    let [call] = stage.indirect_calls.as_slice() else {
+        panic!("expected field call")
+    };
+    assert_eq!(call.contract.result.to_string(), "u64");
+    assert_eq!(call.contract.parameters[0].to_string(), "@game::Counter");
+    assert!(call.contract.terminates);
+    let wrong = decls.replace("machine value(counter: @Counter)", "machine value(counter: @mut Counter)");
+    let error = check(&[("defs.omg", &wrong), ("observe.omg", &caller)]).unwrap_err();
+    assert_eq!(error.file, "observe.omg");
+    assert!(error.message.contains("incompatible callable signature"));
+}
+
+#[test]
+fn published_static_type_disjunction_reaches_typing() {
+    let clause = block(GENERICS, 306);
+    let source = format!("machine restrict<T>() {clause} {{}}");
+    let stage = check(&[("clause.omg", &source)]).unwrap();
+    let comparisons = stage
+        .expressions
+        .iter()
+        .filter(|e| matches!(e.site.span.slice(source.as_bytes()), Some(b"T == u16" | b"T == u32" | b"T == u64")) && e.ty == ValueType::Bool)
+        .count();
+    assert_eq!(comparisons, 3);
+}
+
+#[test]
+fn explicit_quantity_carrier_matches_the_subject_in_every_domain_position() {
+    let declaration = block(DOMAINS, 1020);
+    let defs = "data Unit=u8;";
+    for body in [
+        "machine f(x:u16 in u16::Quantity<1>) {}",
+        "machine f(x:u16){let y=x as +u16::Quantity<1>;}",
+        "machine f(x:u16)->bool{x in u16::Quantity::<1>}",
+    ] {
+        check(&[
+            ("defs.omg", defs),
+            ("quantity.omg", &declaration),
+            ("use.omg", body),
+        ])
+        .unwrap();
+        let wrong = body.replace("x:u16", "x:u8");
+        let error = check(&[
+            ("defs.omg", defs),
+            ("quantity.omg", &declaration),
+            ("use.omg", &wrong),
+        ])
+        .unwrap_err();
+        assert_eq!(error.message, "domain qualifier names u16, found u8");
+    }
+}

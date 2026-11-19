@@ -200,11 +200,12 @@ impl<'a> ResolvedSourceFile<'a> {
                     .children
                     .split_first()
                     .ok_or_else(|| TypeError::unsupported(source, node_index))?;
+                let carrier = self.raw_type(*base, candidate, types)?;
                 let domains = atoms
                     .iter()
-                    .map(|&d| self.domain_application(d, types))
+                    .map(|&d| self.domain_application(d, &carrier, types))
                     .collect::<std::result::Result<_, _>>()?;
-                Ok(ValueType::Qualified(Box::new(self.raw_type(*base, candidate, types)?), domains))
+                Ok(ValueType::Qualified(Box::new(carrier), domains))
             }
             ReferenceType | SliceType => {
                 let inner = Box::new(self.raw_type(self.single_child(node_index)?, candidate, types)?);
@@ -312,16 +313,18 @@ impl<'a> ResolvedSourceFile<'a> {
                 if let Some(Symbol::Declaration(id)) = symbol
                     && id.kind == Domain
                 {
+                    let last = node.words().next_back().unwrap().span.get_end_offset();
                     let args = node
                         .children
                         .iter()
+                        .filter(|&&section| source.span(section).get_start_offset() >= last)
                         .flat_map(|&a| source.nodes[a].children.iter().copied())
                         .enumerate()
-                        .map(|(i, a)| self.raw_argument(a, types, id, i, candidate))
+                        .map(|(i, a)| self.raw_argument(a, types, id, types.domains.index_binder(id, i), candidate))
                         .collect::<std::result::Result<Vec<_>, _>>()?;
                     if let Some(carrier) = types.domains.known_carrier(id) {
                         return Ok(ValueType::Qualified(
-                            Box::new(carrier.clone()),
+                            Box::new(self.explicit_domain_carrier(node_index, carrier, types, candidate)?),
                             vec![crate::DomainApplication {
                                 declaration: id.clone(),
                                 arguments: args,

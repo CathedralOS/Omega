@@ -281,6 +281,33 @@ pub fn resolve_stage_with_exports(
     for (slot, position) in universe_binders {
         entries[slot].generic_roles[position].takes_type = true;
     }
+    // A use supplies the domain head's indices. The carrier binder is supplied
+    // by the qualified value, and has no argument position of its own.
+    for entry in entries[..source_count]
+        .iter_mut()
+        .filter(|entry| entry.id.kind == NodeKind::Domain)
+    {
+        let (file_number, node) = entry.source.expect("source domain");
+        let file = &files[file_number];
+        let context = &contexts[file_number];
+        let head = file.child(node, NodeKind::PathType).expect("domain head");
+        entry.generic_roles = file
+            .child(head, NodeKind::TypeArgs)
+            .into_iter()
+            .flat_map(|section| &file.nodes[section].children)
+            .filter_map(|&arg| {
+                context
+                    .locals
+                    .get(file.nodes[arg].path().as_str())?
+                    .iter()
+                    .find(|local| local.owner == node)
+                    .map(|local| GenericBinder {
+                        kind: local.kind,
+                        takes_type: local.type_binding,
+                    })
+            })
+            .collect();
+    }
     for (i, signature_owners) in owners.into_iter().enumerate() {
         entries[i].id.signature_owners = signature_owners;
         if let Some(owner) = entries[i].lexical_owner.and_then(|n| {
