@@ -1,0 +1,15 @@
+// Expected exit: 0
+// Even an ignored helper argument must form under its domain's own bounds.
+machine always(input: u64) -> bool { true }
+domain u64::Safe requires always(1u64 / self);
+
+machine main() crashes Trap {
+    let value: u64 in Safe = 7u64 as +Safe;
+    let plain: u64 = value as -Safe;
+    transition plain == 7u64 {
+        true -> done()
+        false -> fail()
+    }
+    machine done() {}
+    machine fail() { crash Trap; }
+}
