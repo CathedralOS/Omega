@@ -6,9 +6,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
 fn recycled(root: &str, path: &str) -> bool {
-    Path::new(path).strip_prefix(root).is_ok_and(|relative| {
-        relative.iter().any(|component| component == "_recycling")
-    })
+    Path::new(path)
+        .strip_prefix(root)
+        .is_ok_and(|relative| relative.iter().any(|component| component == "_recycling"))
 }
 
 pub(super) const NATIVE_STAGES: [&str; 17] = [
@@ -31,15 +31,21 @@ pub(super) const NATIVE_STAGES: [&str; 17] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
 ];
 pub(super) const SOURCE_DRIVER: &str = "source-rust/subsystems/compiler/source-to-psi";
+const SOURCE_PIPELINE: &str = "source-rust/subsystems/compiler/source-to-psi/pipeline";
+const NATIVE_PIPELINE: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline";
+const REPRESENTATIONS: [&str; 2] = [
+    "source-rust/subsystems/compiler/source-to-psi/representations",
+    "source-rust/subsystems/compiler/psi-to-native/representations",
+];
 
-const RETIRED: [&str; 4] = [
+const RETIRED: [&str; 5] = [
+    "source-rust/subsystems/compiler/psi-to-native/saved-inputs",
     "omega-rust/omega/compilation/pipeline/07_native-layout",
     "omega-rust/omega/compilation/backend",
     "omega-rust/omega/compilation/realization",
     "omega-rust/omega/foundation",
 ];
-pub(super) const TEXT_READER: &str =
-    "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax";
+pub(super) const TEXT_READER: &str = "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax";
 
 pub(super) const FRONTEND: [&str; 4] = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens",
@@ -123,6 +129,38 @@ fn forbidden_frontend(start: &str, dependency: &str) -> bool {
     }
 }
 
+/// A module included from the driver need not be a Cargo package. Check the
+/// physical directories as well as Cargo metadata to catch both kinds of additions.
+pub(super) fn layout_violations(root: &Path) -> Result<Vec<String>, String> {
+    let mut errors = Vec::new();
+    for (pipeline, stages) in [
+        (SOURCE_PIPELINE, &PSI_STAGES[..]),
+        (NATIVE_PIPELINE, &NATIVE_STAGES[..]),
+    ] {
+        let mut missing = stages.iter().copied().collect::<BTreeSet<_>>();
+        let entries =
+            std::fs::read_dir(root.join(pipeline)).map_err(|e| format!("{pipeline}: {e}"))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("{pipeline}: {e}"))?;
+            let kind = entry.file_type().map_err(|e| format!("{pipeline}: {e}"))?;
+            let relative = format!("{pipeline}/{}", entry.file_name().to_string_lossy());
+            if kind.is_dir() && missing.remove(relative.as_str()) {
+                continue;
+            }
+            if !(kind.is_file() && entry.file_name() == "README.md") {
+                errors.push(format!("{relative}: only the numbered transformation directories and README.md belong in the pipeline"));
+            }
+        }
+        errors.extend(
+            missing
+                .into_iter()
+                .map(|path| format!("{path}: numbered transformation directory is missing")),
+        );
+    }
+    errors.sort();
+    Ok(errors)
+}
+
 pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     let mut names = BTreeMap::new();
     for package in &metadata.packages {
@@ -140,12 +178,21 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     // sample binaries and build dependencies compiled alongside the compiler.
     for package in &metadata.packages {
         if recycled(&metadata.workspace_root, &package.manifest_path) {
-            errors.push(format!("workspace member is under _recycling: {}", package.name));
+            errors.push(format!(
+                "workspace member is under _recycling: {}",
+                package.name
+            ));
         }
         for dep in &package.dependencies {
-            if dep.path.as_deref().is_some_and(|path| recycled(&metadata.workspace_root, path))
+            if dep
+                .path
+                .as_deref()
+                .is_some_and(|path| recycled(&metadata.workspace_root, path))
             {
-                errors.push(format!("{} -> {}: Cargo dependency points into _recycling", package.name, dep.name));
+                errors.push(format!(
+                    "{} -> {}: Cargo dependency points into _recycling",
+                    package.name, dep.name
+                ));
             }
             if dep.kind.as_deref() != Some("dev")
                 && dep.path.is_some()
@@ -181,7 +228,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     for start in names.keys() {
         let phase = stage(start);
         if under(start, &RETIRED)
-            || (under(start, &["omega-rust/psi/compilation/pipeline", "omega-rust/omega/compilation/pipeline"]) && phase.is_none())
+            || (under(start, &[SOURCE_PIPELINE, NATIVE_PIPELINE]) && phase.is_none())
         {
             errors.push(format!(
                 "pipeline package is outside its declared numbered owner: {start}"
@@ -189,7 +236,8 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         }
         let runtime =
             [super::RUNTIME_ROOT, super::NATIVE_PROVIDER_RUNTIME_ROOT].contains(&start.as_str());
-        if phase.is_none() && !runtime && !FRONTEND.contains(&start.as_str()) {
+        let representation = under(start, &REPRESENTATIONS);
+        if phase.is_none() && !runtime && !representation && !FRONTEND.contains(&start.as_str()) {
             continue;
         }
         let mut visited = BTreeSet::from([start.as_str()]);
@@ -212,9 +260,16 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                 let scoped_reader = readers
                     .iter()
                     .any(|edge| edge.owner == here && edge.dependency == next);
-                let enters_coordinator = native.is_some()
-                    && [native_stages::DRIVER, native_stages::OBJECT_REPLAY]
-                        .contains(&next.as_str());
+                let stage_or_representation =
+                    representation || native.is_some() || under(start, &PSI_STAGES);
+                let enters_coordinator = stage_or_representation
+                    && [
+                        SOURCE_DRIVER,
+                        native_stages::DRIVER,
+                        native_stages::OBJECT_REPLAY,
+                        super::PRODUCT_COORDINATOR,
+                    ]
+                    .contains(&next.as_str());
                 if enters_coordinator
                     || (runtime && dependency_phase.is_some())
                     || forbidden_frontend(start, next)
@@ -241,6 +296,53 @@ mod tests {
     use super::*;
     use crate::boundary::tests::pkg;
     use crate::boundary::{Dependency, Package};
+
+    #[test]
+    fn loose_packages_and_loose_driver_modules_cannot_reenter_the_pipeline() {
+        let temp = std::env::temp_dir().join(format!(
+            "omega-xtask-numbered-pipeline-{}",
+            std::process::id()
+        ));
+        for stage in PSI_STAGES.iter().chain(&NATIVE_STAGES) {
+            std::fs::create_dir_all(temp.join(stage)).unwrap();
+        }
+        std::fs::write(temp.join(SOURCE_PIPELINE).join("README.md"), "").unwrap();
+        assert!(layout_violations(&temp).unwrap().is_empty());
+        std::fs::create_dir(temp.join(NATIVE_PIPELINE).join("helper")).unwrap();
+        std::fs::write(temp.join(SOURCE_PIPELINE).join("driver.rs"), "").unwrap();
+        let errors = layout_violations(&temp).unwrap();
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert!(errors.iter().any(|e| e.contains("/helper:")));
+        assert!(errors.iter().any(|e| e.contains("/driver.rs:")));
+        std::fs::remove_dir_all(temp).unwrap();
+    }
+
+    #[test]
+    fn shared_representations_cannot_reenter_a_public_compiler_or_replay_driver_through_a_helper() {
+        for representation in REPRESENTATIONS {
+            for driver in [
+                SOURCE_DRIVER,
+                native_stages::DRIVER,
+                native_stages::OBJECT_REPLAY,
+                super::super::PRODUCT_COORDINATOR,
+            ] {
+                let metadata = Metadata {
+                    workspace_root: "/repo".into(),
+                    packages: vec![
+                        pkg("records", representation, &[("helper", "helper", None)]),
+                        pkg("helper", "helper", &[("compile", driver, None)]),
+                        pkg("compile", driver, &[]),
+                    ],
+                };
+                assert!(
+                    violations(&metadata)
+                        .unwrap()
+                        .iter()
+                        .any(|error| error.contains("records -> helper -> compile"))
+                );
+            }
+        }
+    }
 
     #[test]
     fn a_shared_helper_cannot_reenter_a_driver_or_borrow_another_readers_permission() {
@@ -362,9 +464,19 @@ mod tests {
         assert!(errors.iter().any(|v| v.contains(
             "07_selected-instructions-to-register-homes -> shared -> 01_admitted-native-inputs-to-target-bound-program"
         )));
-        assert!(errors.iter().any(|v| v.contains("workspace member is under _recycling: image-fixtures")));
-        assert!(errors.iter().any(|v| v.contains("shared -> alias: Cargo dependency points into _recycling")));
-        assert!(errors.iter().any(|v| v.contains("source-to-psi -> alias: Cargo dependency points into _recycling")));
+        assert!(
+            errors
+                .iter()
+                .any(|v| v.contains("workspace member is under _recycling: image-fixtures"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|v| v.contains("shared -> alias: Cargo dependency points into _recycling"))
+        );
+        assert!(errors.iter().any(|v| {
+            v.contains("source-to-psi -> alias: Cargo dependency points into _recycling")
+        }));
         let feature_errors: Vec<_> = errors
             .iter()
             .filter(|error| error.contains("enables test-support"))

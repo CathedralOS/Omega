@@ -4,7 +4,7 @@
 //! target-specific edges, excluding dev-dependencies for production boundaries)
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
-mod build_invocations;
+mod driver_calls;
 mod linear_pipeline;
 mod native_stages;
 
@@ -1033,8 +1033,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     };
 
     let check_all = || -> Result<Vec<String>, String> {
-        let mut violations = linear_pipeline::violations(&metadata)?;
-        violations.extend(build_invocations::violations(&root)?);
+        let mut violations = linear_pipeline::layout_violations(&root)?;
+        violations.extend(linear_pipeline::violations(&metadata)?);
+        violations.extend(driver_calls::violations(&root)?);
         let rules = forbidden_rules();
         violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
         violations.extend(stale_allowance_violations(&metadata, &rules)?);
