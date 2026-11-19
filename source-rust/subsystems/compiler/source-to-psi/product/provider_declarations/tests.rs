@@ -244,13 +244,13 @@ impl Fixture {
 #[test]
 fn a_runnable_product_batch_requires_a_named_implementation() {
     let pass = include_str!(
-        "../../../../../../../tests/fixtures/pass/build/product_declaration_batch/main.omg"
+        "../../../../../../tests/fixtures/pass/build/product_declaration_batch/main.omg"
     );
     let fail = include_str!(
-        "../../../../../../../tests/fixtures/fail/build/product_declaration_batch/main.omg"
+        "../../../../../../tests/fixtures/fail/build/product_declaration_batch/main.omg"
     );
     let expected = include_str!(
-        "../../../../../../../tests/fixtures/fail/build/product_declaration_batch/expected.txt"
+        "../../../../../../tests/fixtures/fail/build/product_declaration_batch/expected.txt"
     )
     .trim();
     assert_eq!(

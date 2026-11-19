@@ -60,7 +60,7 @@ fn typed_requirement_at(
     if dependency {
         sources.retain_product_dependency_scope([(package(7), "dep", package(8))]);
     }
-    let external = include_str!("../../../../../../source/library/core/external_binding.omg");
+    let external = include_str!("../../../../../source/library/core/external_binding.omg");
     let inputs = [
         (
             "root/build.omg",

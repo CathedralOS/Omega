@@ -1,7 +1,7 @@
 use super::*;
 
 const AUTHORED: &str =
-    include_str!("../../../../../../../samples/cli/facts/fixed_layout_storage/local/main.omg");
+    include_str!("../../../../../../samples/cli/facts/fixed_layout_storage/local/main.omg");
 
 fn with_reflection(source: &str) -> TypedTrees {
     let library = crate::stages::fixture_repository::root().join("source/library");

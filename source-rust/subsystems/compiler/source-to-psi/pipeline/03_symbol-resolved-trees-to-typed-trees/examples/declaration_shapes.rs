@@ -105,5 +105,5 @@ fn main() {
     }
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+#[path = "../../../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
