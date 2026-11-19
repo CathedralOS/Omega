@@ -6,7 +6,9 @@ use crate::encoding::encode::{
 };
 use crate::record::PackagePolicyServiceMethod;
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::service_surface::ServiceResultProjection;
+use declaration_contracts::service_surface::{
+    ServiceResultProjection, ServiceSynchronousInvocation,
+};
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceProgressEstablishmentRouteKind, ServiceProgressSubject,
 };
@@ -113,9 +115,19 @@ pub(in crate::encoding::encode) fn method(
         })
     })?;
     encoder.field("synchronous_invocations", |encoder| {
-        encoder.sequence(&method.synchronous_invocations, |encoder, value| {
-            encoder.field("value", |encoder| encoder.string(value))
-        })
+        encoder.sequence(
+            &method.synchronous_invocations,
+            |encoder, entry| match entry {
+                ServiceSynchronousInvocation::Parameter(position) => {
+                    encoder.tag("parameter", 1);
+                    encoder.u32_field("position", *position)
+                }
+                ServiceSynchronousInvocation::Service(name) => {
+                    encoder.tag("service", 2);
+                    encoder.string_field("name", name)
+                }
+            },
+        )
     })?;
     encoder.boolean_field("may_suspend", method.may_suspend)?;
     encoder.boolean_field("may_block", method.may_block)?;

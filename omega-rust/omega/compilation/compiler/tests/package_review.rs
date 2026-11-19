@@ -638,7 +638,14 @@ fn selected_affine_provider_reopens_with_its_published_authority() {
         method.service_reach(),
         ["AffineObservation", "AffineTransforms"]
     );
-    assert_eq!(method.synchronous_invocations(), ["AffineTransforms"]);
+    assert_eq!(
+        method.synchronous_invocations(),
+        [
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                "AffineTransforms".into(),
+            )
+        ]
+    );
     let [invocation] = method.authority().synchronous_invocations() else {
         panic!("the selected requirement publishes one synchronous entry");
     };

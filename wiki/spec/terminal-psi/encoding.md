@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 288 retains promised normal-result domain facts separately from
+Current marker 289 distinguishes callable parameter positions from named services
+in provider invocation contracts. Earlier markers cannot represent that distinction.
+Saved native input record `OMGNTI41` preserves the same distinction.
+
+Marker 255 introduced term tables. Marker 288 retained promised normal-result domain facts separately from
 declared result types. It records the owning machine before each callback
 registrar and interrupt installation operation.
 Operation identities remain local to that machine; earlier payloads do not

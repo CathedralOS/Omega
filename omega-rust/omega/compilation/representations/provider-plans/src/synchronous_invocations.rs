@@ -5,6 +5,7 @@ the same exact-slot join and cycle prohibition while preserving declared
 ceilings on opaque rows.
 */
 
+use declaration_contracts::service_surface::ServiceSynchronousInvocation;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 
 pub fn validate_declared_synchronous_invocation_cycles(
@@ -331,27 +332,27 @@ fn exact_authored_invocations(
     plan: &ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
 ) -> Result<Vec<String>, diagnostics::Diagnostic> {
-    if method
+    ServiceSynchronousInvocation::validate_entries(
+        &method.synchronous_invocations,
+        method.parameter_count,
+    )
+    .map_err(|reason| {
+        diagnostics::Diagnostic::error(format!(
+            "ProviderPlan `{}` exact overload `{}`: {reason}",
+            plan.name,
+            plan.schema.identity_text(method.requirement_identity),
+        ))
+    })?;
+    method
         .synchronous_invocations
         .iter()
-        .any(|target| target.is_empty())
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` has an empty synchronous-invocation identity",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    if method
-        .synchronous_invocations
-        .windows(2)
-        .any(|pair| pair[0] >= pair[1])
-    {
-        return Err(diagnostics::Diagnostic::error(format!(
-            "ProviderPlan `{}` exact overload `{}` synchronous-invocation identities are not strictly increasing",
-            plan.name,
-            plan.schema.identity_text(method.requirement_identity),
-        )));
-    }
-    Ok(method.synchronous_invocations.clone())
+        .map(|entry| match entry {
+            ServiceSynchronousInvocation::Service(name) => Ok(name.clone()),
+            ServiceSynchronousInvocation::Parameter(position) => Err(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` exact overload `{}` has no checked invocation target for callable parameter {position}",
+                plan.name,
+                plan.schema.identity_text(method.requirement_identity),
+            ))),
+        })
+        .collect()
 }

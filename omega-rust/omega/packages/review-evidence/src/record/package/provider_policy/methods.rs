@@ -6,6 +6,7 @@ use crate::record::{
 };
 
 use crate::record::accessors::field_projection_accessors;
+use declaration_contracts::service_surface::ServiceSynchronousInvocation;
 use effects::provider_plan::{
     ProviderIdentityTable, ServiceEntryClaim, ServiceProgressPremise, ServiceResultClaim,
 };
@@ -27,7 +28,7 @@ pub struct PackagePolicyServiceMethod {
         Vec<declaration_contracts::service_surface::ServiceNormalResultMembership>,
     pub(crate) result_claims: Vec<ServiceResultClaim>,
     pub(crate) service_reach: Vec<String>,
-    pub(crate) synchronous_invocations: Vec<String>,
+    pub(crate) synchronous_invocations: Vec<ServiceSynchronousInvocation>,
     pub(crate) may_suspend: bool,
     pub(crate) may_block: bool,
     pub(crate) terminates_guarantee: bool,
@@ -59,7 +60,7 @@ impl PackagePolicyServiceMethod {
     field_projection_accessors!(sliced normal_result_memberships: &[declaration_contracts::service_surface::ServiceNormalResultMembership]);
     field_projection_accessors!(sliced result_claims: &[ServiceResultClaim]);
     field_projection_accessors!(sliced service_reach: &[String]);
-    field_projection_accessors!(sliced synchronous_invocations: &[String]);
+    field_projection_accessors!(sliced synchronous_invocations: &[ServiceSynchronousInvocation]);
     field_projection_accessors!(copied may_suspend: bool, may_block: bool);
     field_projection_accessors!(copied terminates_guarantee: bool);
     field_projection_accessors!(sliced termination_premises: &[ServiceProgressPremise]);
