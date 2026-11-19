@@ -220,6 +220,76 @@ pub(crate) mod content {
         CountedQuantity(ContentProjectionScalar),
     }
 
+    impl ContentProjectionScalar {
+        fn encode_report(&self, output: &mut Vec<u8>) {
+            match self {
+                Self::SubjectField(path) | Self::RuntimeScalarEmbedding(path) => {
+                    output.push(if matches!(self, Self::SubjectField(_)) {
+                        1
+                    } else {
+                        2
+                    });
+                    wire::codec_bytes::push_encoded(output, (path.len() as u64).to_le_bytes());
+                    for segment in path {
+                        encode_fingerprint_string(segment, output);
+                    }
+                }
+                Self::Natural(value) => {
+                    output.push(3);
+                    encode_fingerprint_string(value, output);
+                }
+                Self::Successor(value) => {
+                    output.push(4);
+                    value.encode_report(output);
+                }
+                Self::Add(left, right)
+                | Self::Subtract(left, right)
+                | Self::Multiply(left, right) => {
+                    output.push(5);
+                    output.push(match self {
+                        Self::Add(_, _) => 1,
+                        Self::Subtract(_, _) => 2,
+                        Self::Multiply(_, _) => 3,
+                        _ => unreachable!(),
+                    });
+                    left.encode_report(output);
+                    right.encode_report(output);
+                }
+            }
+        }
+    }
+
+    impl ContentProjectionExpression {
+        /// Reports the canonical content projection checked against the published domain.
+        pub fn report_fingerprint(&self, algebra: &ContentAlgebra) -> u64 {
+            let mut bytes = vec![match algebra.kind {
+                ContentAlgebraKind::IntervalSet => 3,
+                ContentAlgebraKind::CountedQuantity => 2,
+            }];
+            encode_fingerprint_string(&algebra.parameter, &mut bytes);
+            match self {
+                Self::IntervalSet(members) => {
+                    bytes.push(3);
+                    wire::codec_bytes::push_encoded(
+                        &mut bytes,
+                        (members.len() as u64).to_le_bytes(),
+                    );
+                    for (start, end) in members {
+                        start.encode_report(&mut bytes);
+                        end.encode_report(&mut bytes);
+                    }
+                }
+                Self::CountedQuantity(magnitude) => {
+                    bytes.push(2);
+                    magnitude.encode_report(&mut bytes);
+                }
+            }
+            let mut hash = wire::fnv1a::Fnv1a::new();
+            hash.bytes(&bytes);
+            hash.finish()
+        }
+    }
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
     pub enum ContentPlaceVersion {
         Entry,
