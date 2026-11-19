@@ -192,6 +192,27 @@ pub(crate) fn qualified(
     }
 }
 impl ValueType {
+    pub(crate) fn can_infer_result_domains(
+        &self,
+        owner: &DeclarationId,
+        destination: &Self,
+    ) -> bool {
+        if matches!(self, Self::Parameter { owner: binder, .. } if binder.as_ref() == owner) {
+            return true;
+        }
+        let domains = self.domains();
+        // Qualification sorts its applications. Substitution can merge two indices
+        // of one domain, but cannot change the identity of that domain.
+        fn declarations(domains: &[DomainApplication]) -> impl Iterator<Item = &DeclarationId> {
+            domains
+                .chunk_by(|a, b| a.declaration == b.declaration)
+                .map(|group| &group[0].declaration)
+        }
+        domains
+            .iter()
+            .any(|d| d.arguments.iter().any(Self::depends_on_call_input))
+            && declarations(domains).eq(declarations(destination.domains()))
+    }
     pub fn domains(&self) -> &[DomainApplication] {
         match self {
             Self::Qualified(_, atoms) => atoms,

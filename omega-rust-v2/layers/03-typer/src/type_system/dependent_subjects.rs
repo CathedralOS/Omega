@@ -152,8 +152,8 @@ impl ValueType {
                 subjects: subjects.iter().map(part).collect(),
             },
             Applied(id, args) => Applied(id.clone(), args.iter().map(part).collect()),
-            Qualified(t, domains) => Qualified(
-                Box::new(part(t)),
+            Qualified(t, domains) => crate::type_system::domains::qualified(
+                part(t),
                 domains
                     .iter()
                     .map(|d| DomainApplication {

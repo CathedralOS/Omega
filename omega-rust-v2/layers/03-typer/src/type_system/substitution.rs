@@ -57,23 +57,32 @@ impl ValueType {
         }
     }
     pub(crate) fn contains_parameter(&self) -> bool {
+        self.contains_component(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. }))
+    }
+    pub(crate) fn depends_on_call_input(&self) -> bool {
+        self.contains_component(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. } | Self::Subject { .. }))
+    }
+    fn contains_component(
+        &self,
+        predicate: fn(&Self) -> bool,
+    ) -> bool {
+        if predicate(self) {
+            return true;
+        }
+        let visit = |child: &Self| child.contains_component(predicate);
         match self {
-            Self::MathematicalValue { subjects, .. } => subjects.iter().any(Self::contains_parameter),
-            Self::FamilyApplication { family, subjects } => family.contains_parameter() || subjects.iter().any(Self::contains_parameter),
-            Self::Squash(t) | Self::LevelOf(t) => t.contains_parameter(),
-            Self::Universe { level, .. } => level.contains_parameter(),
-            Self::Parameter { .. } | Self::StaticFormula { .. } => true,
-            Self::Array(t, _) | Self::Reference(_, t) | Self::Slice(t) | Self::IndexedInteger { width: t, .. } => t.contains_parameter(),
-            Self::Qualified(t, ds) => {
-                t.contains_parameter()
-                    || ds
-                        .iter()
-                        .any(|d| d.arguments.iter().any(Self::contains_parameter))
-            }
-            Self::IndexedArray(a, b) | Self::Function(a, b) => a.contains_parameter() || b.contains_parameter(),
-            Self::Tuple(items) => items.iter().any(Self::contains_parameter),
-            Self::Applied(_, args) => args.iter().any(Self::contains_parameter),
-            Self::AtLifetime(t, r) => t.contains_parameter() || r.contains_parameter(),
+            Self::MathematicalValue { subjects, .. } => subjects.iter().any(visit),
+            Self::FamilyApplication { family, subjects } => visit(family) || subjects.iter().any(visit),
+            Self::Squash(t)
+            | Self::LevelOf(t)
+            | Self::Universe { level: t, .. }
+            | Self::Array(t, _)
+            | Self::Reference(_, t)
+            | Self::Slice(t)
+            | Self::IndexedInteger { width: t, .. } => visit(t),
+            Self::Qualified(t, ds) => visit(t) || ds.iter().any(|d| d.arguments.iter().any(visit)),
+            Self::IndexedArray(a, b) | Self::Function(a, b) | Self::AtLifetime(a, b) => visit(a) || visit(b),
+            Self::Tuple(items) | Self::Applied(_, items) => items.iter().any(visit),
             _ => false,
         }
     }

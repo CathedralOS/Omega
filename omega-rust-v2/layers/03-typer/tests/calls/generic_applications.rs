@@ -235,3 +235,70 @@ fn canonical_open_index_signatures_cannot_redeclare_the_same_overload() {
             .contains("duplicate typed operand signature")
     );
 }
+
+#[test]
+fn generic_calls_preserve_the_inferred_result_domain() {
+    let prefix = "domain u8::A; domain u8::B; machine id<T>(x:T)->T{x} machine take(x:u8 in A){}";
+    let source = format!("{prefix} machine direct(x:u8 in A)->u8 in A{{id(x)}} machine nested(x:u8 in A){{take(id(x))}}");
+    let stage = check(&[("a.omg", &source)]).unwrap();
+    let identities: Vec<_> = stage.calls.iter().filter(|c| c.machine.path == "id").collect();
+    assert_eq!(identities.len(), 2);
+    for call in identities {
+        assert_eq!(call.type_arguments, std::slice::from_ref(&call.result));
+        assert_eq!(call.result.domains()[0].declaration.path, "u8::A");
+    }
+    for destination in ["u8", "u8 in B"] {
+        let source = format!("{prefix} machine wrong(x:u8 in A)->{destination}{{id(x)}}");
+        let error = check(&[("a.omg", &source)]).unwrap_err();
+        assert!(error.message.contains("no matching overload for id"), "{error:?}");
+        assert_eq!(error.span.slice(source.as_bytes()).unwrap(), b"id");
+    }
+}
+
+#[test]
+fn indexed_result_domains_match_after_inferring_the_index_from_operands() {
+    let prefix = "domain<const N:u8> u8::Label<N>; data B<const N:u8>{}
+        machine tag<const N:u8>(b:B<N>,x:u8 in Label<N>)->u8 in Label<N>{x}";
+    let source = format!("{prefix}
+        machine inferred(b:B<2>,x:u8 in Label<2>)->u8 in Label<2>{{tag(b,x)}}
+        machine explicit(b:B<2>,x:u8 in Label<2>)->u8 in Label<2>{{tag::<2>(b,x)}}");
+    let stage = check(&[("index.omg", &source)]).unwrap();
+    let [inferred, explicit] = &stage.calls[..] else { panic!("expected both tag calls"); };
+    assert_eq!(inferred.machine, explicit.machine);
+    assert_eq!(inferred.type_arguments, explicit.type_arguments);
+    assert_eq!(inferred.result, explicit.result);
+    let wrong = format!("{prefix} machine wrong(b:B<2>,x:u8 in Label<2>)->u8 in Label<3>{{tag(b,x)}}");
+    assert!(check(&[("index.omg", &wrong)]).unwrap_err().message.contains("no matching overload"));
+}
+
+#[test]
+fn result_domains_retain_the_actual_runtime_index() {
+    let prefix = "domain<K:u8> u8::Label<K>; machine tag(n:u8,x:u8 in Label<n>)->u8 in Label<n>{x}";
+    let source = format!("{prefix}
+        machine forward(k:u8,x:u8 in Label<k>)->u8 in Label<k>{{tag(k,x)}}
+        machine fixed(x:u8 in Label<2>)->u8 in Label<2>{{tag(2,x)}}");
+    let stage = check(&[("runtime.omg",&source)]).unwrap();
+    for call in &stage.calls {
+        let caller=call.caller.as_ref().unwrap();
+        let signature=stage.signatures.iter().find(|signature| &signature.machine==caller).unwrap();
+        assert_eq!(call.result,signature.result);
+    }
+    let wrong = format!("{prefix} machine wrong(k:u8,m:u8,x:u8 in Label<k>)->u8 in Label<m>{{tag(k,x)}}");
+    let error = check(&[("runtime.omg",&wrong)]).unwrap_err();
+    assert!(error.message.contains("no matching overload for tag"));
+}
+
+#[test]
+fn runtime_domain_sets_normalize_when_call_arguments_coincide_or_change_order() {
+    let prefix = "domain<K:u8> u8::Label<K>;
+        machine both(a:u8,b:u8,x:u8 in Label<a> & Label<b>)->u8 in Label<a> & Label<b>{x}";
+    let source = format!("{prefix}
+        machine same(k:u8,x:u8 in Label<k>)->u8 in Label<k>{{both(k,k,x)}}
+        machine swapped(k:u8,m:u8,x:u8 in Label<k> & Label<m>)->u8 in Label<k> & Label<m>{{both(m,k,x)}}");
+    let stage=check(&[("sets.omg",&source)]).unwrap();
+    let [same,swapped]=&stage.calls[..] else {panic!("expected both calls")};
+    assert_eq!(same.result.domains().len(),1);
+    assert_eq!(swapped.result.domains().len(),2);
+    let wrong=format!("{prefix} machine drop_one(k:u8,m:u8,x:u8 in Label<k> & Label<m>)->u8 in Label<k>{{both(m,k,x)}}");
+    assert!(check(&[("sets.omg",&wrong)]).unwrap_err().message.contains("no matching overload for both"));
+}
