@@ -407,14 +407,10 @@ mod tests {
     }
 
     fn revision(namespace: &str, file: &str) -> [u8; 32] {
-        let site = CoreVocabularyCatalog::declaration(CoreVocabulary::FilesystemService(
-            FilesystemService::MetadataQuery,
-        ))
-        .unwrap();
         declaration_contracts::source_identity::toolchain_owned_identity_digest(
             namespace,
             vec![file.to_owned()],
-            bundled_declarations::bytes(site.source),
+            include_bytes!("../../../../../source/library/core/filesystem_authority.omg"),
         )
         .unwrap()
     }

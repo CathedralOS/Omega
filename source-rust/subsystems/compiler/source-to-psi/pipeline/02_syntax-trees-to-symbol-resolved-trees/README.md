@@ -9,6 +9,7 @@ Start at [resolver.rs](resolver.rs). A spelling such as `kit::pick` becomes a re
 | Who can supply this bodyless machine? | [Machine supply](lowering/machine_supply.rs) authenticates compiler-provided signatures. [Machine token bindings](selections/machine_token_bindings.rs) checks the resolved operand shapes for token-bearing declarations. |
 | What runs, and in what order? | [`resolve` and `resolve_forest`](resolver.rs). Lower the items, select operator homes, assign symbol identities, then settle constants and calls. |
 | What does a build pay for up front? | [`resolve_deferred`](resolver.rs) indexes declarations. [`complete_machine_bodies`](deferred_bodies.rs) completes the requested owners and the dependencies they need. |
+| Which declarations come from the toolchain library? | The [bundled declaration catalog](bundled-declarations/src/lib.rs) supplies exact library bytes to the resolver after source admission establishes ownership. |
 | Which names are visible at this use? | [Lexical scopes](names/scopes.rs), [qualified paths](names/paths.rs), and [lookup in the symbol table](names/lookup.rs). |
 | How do an alias, generic, or trait default become ordinary declarations? | [Declaration preparation](declarations/mod.rs) rewrites the parsed forest before assigning symbols. |
 | Where do mnemonics acquire targets, clobbers and flag effects? | [Assembly preparation](declarations/assembly/mod.rs) reads authored instructions and builds the block graph consumed by [statement lowering](lowering/statement/assembly.rs). |

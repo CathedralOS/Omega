@@ -28,6 +28,3 @@ flow-effects = { path = "../../source-to-psi/language/source-effects" }
 
 access-admission = { path = "../../source-to-psi/access-admission" }
 layout-plans = { path = "layout" }
-
-[dev-dependencies]
-bundled-declarations = { path = "../../source-to-psi/inputs/bundled-declarations" }
