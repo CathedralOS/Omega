@@ -55,23 +55,33 @@ impl<'text> PreparedTrees<'text> {
 /// Prepare one admitted source package. Only the supported integer invocation
 /// fragment may execute before a general proof checker is available.
 pub fn prepare_source_package<'text>(source: &SourcePackage<'text>) -> Result<PreparedTrees<'text>, TypeError> {
+    prepare_source_package_with_boundary_slots(source, &[])
+}
+
+/// Use the same Build-selected boundary slots in every typing pass, including
+/// the strict pass that checks the computed identities.
+pub fn prepare_source_package_with_boundary_slots<'text>(
+    source: &SourcePackage<'text>,
+    boundary_slots: &[omega_typer::BoundarySlot],
+) -> Result<PreparedTrees<'text>, TypeError> {
     let mut evaluated_indices = Vec::new();
     let mut specialized_indices: Vec<SpecializedIndexValue> = Vec::new();
     loop {
         let environment = TypingEnvironment {
             evaluated_indices: &evaluated_indices,
             specialized_indices: &specialized_indices,
-            ..Default::default()
+            boundary_slots,
+            ..TypingEnvironment::default()
         };
         let pending = match type_source_package_for_preparation(source, &environment)? {
             TypingProgress::Complete(typed) => {
-                let constants = ConstantEvaluation::new(&typed).finish()?;
+                let constants = ConstantEvaluation::new(&typed, boundary_slots).finish()?;
                 return Ok(PreparedTrees { typed, constants });
             }
             TypingProgress::Pending(pending) => pending,
         };
         let previous_count = evaluated_indices.len() + specialized_indices.len();
-        let mut evaluation = ConstantEvaluation::new(pending.trees());
+        let mut evaluation = ConstantEvaluation::new(pending.trees(), boundary_slots);
         for demand in pending.demands() {
             let (request, arguments) = match demand {
                 StaticIntegerDemand::Closed(request) => (request, None),

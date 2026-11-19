@@ -346,3 +346,92 @@ fn public_machine_needs_a_declared_termination_promise() {
     );
     assert_eq!(error.span.slice(no_promise.as_bytes()), Some(b"width(7)".as_slice()));
 }
+
+#[test]
+fn resumed_typing_retains_build_selected_boundary_directions() {
+    use omega_preparation::prepare_source_package_with_boundary_slots;
+    use omega_typer::{BoundarySlot, InvocationTarget, RequirementSlot, SlotDirection};
+    let source = "trait Host{machine enter();} machine direct(){Host::enter()}
+                  machine width(n:u64)->u64{n+1}
+                  machine carry(x:[u8; width(3)])->[u8;4]{x}";
+    let package = resolve(source);
+    let selected = package
+        .declarations
+        .iter()
+        .find(|id| id.path == "Host::enter")
+        .unwrap()
+        .clone();
+    for direction in [
+        SlotDirection::EnvironmentToProgram,
+        SlotDirection::ProgramToProvider,
+    ] {
+        let slots = [BoundarySlot {
+            requirement: RequirementSlot {
+                declaration: selected.clone(),
+                trait_arguments: vec![],
+            },
+            arguments: vec![],
+            direction,
+        }];
+        let prepared = prepare_source_package_with_boundary_slots(&package, &slots).unwrap();
+        let stage = prepared.typed();
+        let [(site, slot)] = stage.boundary_calls.as_slice() else {
+            panic!("expected the applied boundary call")
+        };
+        assert_eq!(slot, &slots[0]);
+        assert_eq!(site.span.slice(source.as_bytes()), Some(b"Host::enter()".as_slice()));
+        let effects = stage
+            .machine_effects
+            .iter()
+            .find(|effects| effects.machine.path == "direct")
+            .unwrap();
+        assert_eq!(
+            effects
+                .invokes
+                .contains(&InvocationTarget::Declaration(slot.requirement.clone())),
+            direction == SlotDirection::EnvironmentToProgram
+        );
+        let carry = stage
+            .signatures
+            .iter()
+            .find(|s| s.machine.path == "carry")
+            .unwrap();
+        assert_eq!(
+            carry.parameters[0].1,
+            ValueType::Array(Box::new(ValueType::Integer { signed: false, width: Some(8) }), 4)
+        );
+    }
+}
+
+#[test]
+fn preparation_refuses_an_applied_runtime_boundary_at_its_use() {
+    use omega_preparation::prepare_source_package_with_boundary_slots;
+    use omega_typer::{BoundarySlot, RequirementSlot, SlotDirection};
+    let source = "trait Host{machine width(n:u64)->u64;} machine carry(x:[u8; Host::width(4)])->[u8;4]{x}";
+    let package = resolve(source);
+    let selected = package
+        .declarations
+        .iter()
+        .find(|id| id.path == "Host::width")
+        .unwrap()
+        .clone();
+    for direction in [
+        SlotDirection::EnvironmentToProgram,
+        SlotDirection::ProgramToProvider,
+    ] {
+        let slots = [BoundarySlot {
+            requirement: RequirementSlot {
+                declaration: selected.clone(),
+                trait_arguments: vec![],
+            },
+            arguments: vec![],
+            direction,
+        }];
+        let error = prepare_source_package_with_boundary_slots(&package, &slots).unwrap_err();
+        assert_eq!(
+            error.message,
+            "static evaluation cannot admit this invocation: the selected runtime boundary slot cannot execute during preparation"
+        );
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"Host::width(4)".as_slice()));
+    }
+}
