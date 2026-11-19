@@ -418,7 +418,7 @@ mod tests {
             symbol_handle: symbol,
             import,
         });
-        image_fixtures::encode_imports(&mut image);
+        image::test_support::install_imports(&mut image);
         image
     }
 
@@ -576,7 +576,7 @@ mod tests {
             symbol_handle: symbol,
             import: FinalImageImportPlan::Normalized((locator).into()),
         });
-        image_fixtures::encode_imports(&mut image);
+        image::test_support::install_imports(&mut image);
         image
     }
 

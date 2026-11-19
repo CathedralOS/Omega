@@ -4,6 +4,9 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+test-support = []
+
 [lib]
 name = "image"
 path = "src/lib.rs"
@@ -19,4 +22,4 @@ object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
 
 [dev-dependencies]
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+image = { path = ".", features = ["test-support"] }

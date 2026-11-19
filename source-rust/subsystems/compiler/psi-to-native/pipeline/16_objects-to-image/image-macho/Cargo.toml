@@ -21,4 +21,4 @@ target-x86_64 = { path = "../../../targets/target-x86_64" }
 sha2 = "0.10"
 
 [dev-dependencies]
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+image = { path = "../image", features = ["test-support"] }

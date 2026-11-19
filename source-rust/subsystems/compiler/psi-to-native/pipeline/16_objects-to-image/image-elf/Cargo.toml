@@ -19,4 +19,4 @@ object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
 
 [dev-dependencies]
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+image = { path = "../image", features = ["test-support"] }

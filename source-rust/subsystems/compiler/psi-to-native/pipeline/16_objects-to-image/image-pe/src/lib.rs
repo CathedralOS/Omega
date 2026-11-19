@@ -451,7 +451,7 @@ mod tests {
                                 library: "KERNEL32.dll".into(),
                             },
                         });
-                        image_fixtures::encode_imports(&mut image);
+                        image::test_support::install_imports(&mut image);
                         names.push(b".rdata\0\0");
                     }
                     if has_data {

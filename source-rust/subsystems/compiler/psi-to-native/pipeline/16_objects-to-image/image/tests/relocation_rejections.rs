@@ -121,7 +121,7 @@ fn image_with(
         text_bytes: text,
         data_bytes: data,
     });
-    image_fixtures::encode_imports(&mut image);
+    image::test_support::install_imports(&mut image);
     image
 }
 

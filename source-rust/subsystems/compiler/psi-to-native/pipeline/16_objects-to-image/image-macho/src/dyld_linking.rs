@@ -687,7 +687,7 @@ pub(crate) mod imports {
                     library: "/usr/lib/libSystem.B.dylib".into(),
                 },
             });
-            image_fixtures::encode_imports(image);
+            image::test_support::install_imports(image);
             image
                 .relocation_table
                 .relocations
@@ -737,7 +737,7 @@ pub(crate) mod imports {
                 .0;
             image.symbol_table.imports.get_mut(import_handle).import =
                 FinalImageImportPlan::Normalized((locator).into());
-            image_fixtures::encode_imports(&mut image);
+            image::test_support::install_imports(&mut image);
             image
         }
 
@@ -911,7 +911,7 @@ pub(crate) mod imports {
                 symbol_handle: second_symbol,
                 import: FinalImageImportPlan::Normalized((second_locator).into()),
             });
-            image_fixtures::encode_imports(&mut image);
+            image::test_support::install_imports(&mut image);
             image
                 .relocation_table
                 .relocations
@@ -998,7 +998,7 @@ pub(crate) mod imports {
                 symbol_handle: second_symbol,
                 import: FinalImageImportPlan::Normalized(locator),
             });
-            image_fixtures::encode_imports(&mut image);
+            image::test_support::install_imports(&mut image);
             let before = image.clone();
 
             let diagnostic = install_import_thunks(&mut image, MachoIsa::Aarch64)
@@ -1030,7 +1030,7 @@ pub(crate) mod imports {
                     symbol_handle: symbol,
                     import: FinalImageImportPlan::Normalized((locator).into()),
                 });
-                image_fixtures::encode_imports(&mut image);
+                image::test_support::install_imports(&mut image);
                 image
                     .relocation_table
                     .relocations

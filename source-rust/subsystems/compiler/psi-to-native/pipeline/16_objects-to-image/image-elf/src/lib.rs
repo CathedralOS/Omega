@@ -298,7 +298,7 @@ pub(crate) mod test_support {
             symbol_handle: imported,
             import,
         });
-        image_fixtures::encode_imports(image);
+        image::test_support::install_imports(image);
         for &offset in offsets {
             image
                 .relocation_table
@@ -669,7 +669,7 @@ pub(crate) mod test_support {
                 .into(),
             ),
         });
-        image_fixtures::encode_imports(image);
+        image::test_support::install_imports(image);
         imported
     }
 

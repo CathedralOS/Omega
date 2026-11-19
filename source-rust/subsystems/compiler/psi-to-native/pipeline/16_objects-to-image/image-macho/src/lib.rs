@@ -437,7 +437,7 @@ mod tests {
                 library: String::new(),
             },
         });
-        image_fixtures::encode_imports(&mut image);
+        image::test_support::install_imports(&mut image);
         image
             .relocation_table
             .relocations
@@ -516,7 +516,7 @@ mod tests {
                     library: String::new(),
                 },
             });
-            image_fixtures::encode_imports(&mut image);
+            image::test_support::install_imports(&mut image);
             image
                 .relocation_table
                 .relocations
