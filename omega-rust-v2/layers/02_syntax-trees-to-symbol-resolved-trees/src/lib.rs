@@ -13,7 +13,8 @@ use omega_parser::SyntaxTree;
 
 pub use stage::{
     Application, ArgumentAlternative, AssemblyVocabulary, DeclarationId, DefinitionSite, Dependency, EnclosingMachine, InterfaceExport, NameError, NameRole,
-    NameUse, OperatorDeclaration, OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target, resolve_stage_with_exports,
+    NameUse, OperatorDeclaration, OperatorRole, OperatorUse, ResolvedStage, StageSource, Symbol, resolve_stage, resolve_stage_for_target,
+    resolve_stage_with_exports,
 };
 pub use syntax::{File as IndexedSource, TreeNodeId};
 

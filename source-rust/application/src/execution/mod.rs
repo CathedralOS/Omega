@@ -13,9 +13,9 @@ We support two entry points:
   An explicit target makes `Native` and `Both` stop after publication
   (`ExecutionOutcome::TargetOnly`), even when the target matches the host.
   - `Native`: emits and publishes the native executable
-    (`NativeDestination::Retained`) and spawns it on the host.
+    (`ExecutionProduct::Native`) and spawns it on the host.
   - `Terminal`: stops compilation after Build, package, trust, provider, and
-    entry admission (`NativeDestination::RuntimeAdmission`) without emitting any
+    entry admission (`ExecutionProduct::Runtime`) without emitting any
     object file or native executable, and runs the admitted Terminal Psi program
     directly on `terminal_runtime` with the caller's live `stdin`.
   - `Both`: runs the produced Terminal Psi artifact on `terminal_runtime`,
@@ -98,7 +98,7 @@ pub enum ExecutionSelection {
 
 pub struct RunRequest {
     pub build_snapshot: Option<BuildSnapshotRequest>,
-    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
+    pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub target_name: Option<String>,
     pub selection: ExecutionSelection,
@@ -212,7 +212,7 @@ pub fn run_project(
             build_snapshot: request.build_snapshot,
             target_name: request.target_name.clone(),
         },
-        orchestration::NativeDestination::Retained,
+        crate::saved_program::ExecutionProduct::Native,
         Vec::new(),
         psi_work_budget,
     )
@@ -245,7 +245,7 @@ pub fn run_project(
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        orchestration::publication::publish_native_artifact(report, &build_dir)
+        report.publish(&build_dir)
             .map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -263,7 +263,7 @@ pub fn run_project(
             let mut command = Command::new(&executable);
             command.stdin(standard_input);
             let (output, private_entry_ram, private_frames) =
-                private_observation::capture(command, report.runtime_provisions())
+                private_observation::capture(command, report.private_entry_ram())
                     .map_err(|error| RunError::Spawn { executable, error })?;
             if request.keep_artifacts {
                 if !private_frames.is_empty() {
@@ -326,7 +326,7 @@ fn run_terminal(
             build_snapshot: request.build_snapshot,
             target_name: request.target_name,
         },
-        orchestration::NativeDestination::RuntimeAdmission,
+        crate::saved_program::ExecutionProduct::Runtime,
         Vec::new(),
         psi_work_budget,
     )
@@ -403,7 +403,7 @@ fn format_work_tsv(
 
 pub struct CaseRunRequest {
     pub build_snapshot: Option<BuildSnapshotRequest>,
-    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
+    pub private_entry_ram: Vec<psi_entry_memory::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
     pub psi_work_budget: Option<std::num::NonZeroU64>,
@@ -457,7 +457,7 @@ pub fn run_project_cases(
             build_snapshot: request.build_snapshot,
             target_name: None,
         },
-        orchestration::NativeDestination::Retained,
+        crate::saved_program::ExecutionProduct::Native,
         reference_inputs,
         psi_work_budget,
     )
@@ -466,7 +466,7 @@ pub fn run_project_cases(
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        orchestration::publication::publish_native_artifact(report, &build_dir)
+        report.publish(&build_dir)
             .map_err(RunError::Publication)?;
     let mut interpretations = interpretations.into_iter();
     let mut cases = Vec::new();
@@ -484,7 +484,7 @@ pub fn run_project_cases(
             std::fs::File::open(input).map_err(RunError::StandardInput)?,
         ));
         let (output, private_entry_ram, private_frames) =
-            private_observation::capture(command, report.runtime_provisions()).map_err(
+            private_observation::capture(command, report.private_entry_ram()).map_err(
                 |error| RunError::Spawn {
                     executable: executable.clone(),
                     error,

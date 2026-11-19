@@ -306,11 +306,12 @@ impl PortableTerminalProgram {
         application: &crate::production::TerminalApplicationCustody<'_>,
         observer: &mut impl crate::production::PsiCompilationObserver,
     ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
-        application.attach(
+        crate::production::application::attach(
+            application,
             self.artifact.view().into(),
             Ok(&self.artifact),
             self.machine_provenance(),
-            &mut crate::production::ApplicationReceiptObserver(observer),
+            observer,
         )
     }
 

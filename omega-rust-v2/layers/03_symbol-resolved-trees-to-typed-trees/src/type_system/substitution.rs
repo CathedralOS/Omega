@@ -5,8 +5,7 @@ use omega_resolver::DeclarationId;
 impl ValueType {
     pub(crate) fn validate_closed_indices(&self) -> Result<(), String> {
         use ValueType::*;
-        let mut pending = vec![self];
-        while let Some(t) = pending.pop() {
+        for t in self.components() {
             match t {
                 StaticFormula {
                     term: crate::IntegerIndex::Invalid(message),
@@ -27,23 +26,6 @@ impl ValueType {
                     {
                         return Err("integer width must be positive".into());
                     }
-                    pending.push(width);
-                }
-                Applied(_, v) | Tuple(v) => pending.extend(v),
-                Array(t, _) | Slice(t) | Reference(_, t) => pending.push(t),
-                Function(a, b) | AtLifetime(a, b) | IndexedArray(a, b) => {
-                    pending.push(a);
-                    pending.push(b);
-                }
-                Qualified(t, d) => {
-                    pending.push(t);
-                    for atom in d {
-                        pending.extend(&atom.arguments);
-                    }
-                }
-                Callable(c) => {
-                    pending.push(&c.result);
-                    pending.extend(&c.parameters);
                 }
                 _ => {}
             }
@@ -57,34 +39,78 @@ impl ValueType {
         }
     }
     pub(crate) fn contains_parameter(&self) -> bool {
-        self.contains_component(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. }))
+        self.components()
+            .any(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. }))
     }
     pub(crate) fn depends_on_call_input(&self) -> bool {
-        self.contains_component(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. } | Self::Subject { .. }))
+        self.components()
+            .any(|ty| matches!(ty, Self::Parameter { .. } | Self::StaticFormula { .. } | Self::Subject { .. }))
     }
-    fn contains_component(
-        &self,
-        predicate: fn(&Self) -> bool,
-    ) -> bool {
-        if predicate(self) {
-            return true;
-        }
-        let visit = |child: &Self| child.contains_component(predicate);
-        match self {
-            Self::MathematicalValue { subjects, .. } => subjects.iter().any(visit),
-            Self::FamilyApplication { family, subjects } => visit(family) || subjects.iter().any(visit),
-            Self::Squash(t)
-            | Self::LevelOf(t)
-            | Self::Universe { level: t, .. }
-            | Self::Array(t, _)
-            | Self::Reference(_, t)
-            | Self::Slice(t)
-            | Self::IndexedInteger { width: t, .. } => visit(t),
-            Self::Qualified(t, ds) => visit(t) || ds.iter().any(|d| d.arguments.iter().any(visit)),
-            Self::IndexedArray(a, b) | Self::Function(a, b) | Self::AtLifetime(a, b) => visit(a) || visit(b),
-            Self::Tuple(items) | Self::Applied(_, items) => items.iter().any(visit),
-            _ => false,
-        }
+    /// Structural queries use the same children. Binder-sensitive transformations
+    /// still control how they enter a binder and what they replace.
+    fn components(&self) -> impl Iterator<Item = &Self> {
+        let mut pending = Vec::new();
+        let mut root = Some(self);
+        std::iter::from_fn(move || {
+            let ty = root.take().or_else(|| pending.pop())?;
+            use ValueType::*;
+            match ty {
+                Squash(t)
+                | LevelOf(t)
+                | Universe { level: t, .. }
+                | IndexedInteger { width: t, .. }
+                | Reference(_, t)
+                | Array(t, _)
+                | Slice(t)
+                | StaticInteger { carrier: t, .. }
+                | StaticFormula { carrier: t, .. } => pending.push(t.as_ref()),
+                Function(a, b) | AtLifetime(a, b) | IndexedArray(a, b) => {
+                    pending.push(a.as_ref());
+                    pending.push(b.as_ref());
+                }
+                MathematicalValue { subjects, .. } | Tuple(subjects) | Applied(_, subjects) => pending.extend(subjects),
+                FamilyApplication { family, subjects } => {
+                    pending.push(family.as_ref());
+                    pending.extend(subjects);
+                }
+                Qualified(carrier, domains) => {
+                    pending.push(carrier.as_ref());
+                    pending.extend(domains.iter().flat_map(|domain| &domain.arguments));
+                }
+                Evidence(slot) => pending.extend(&slot.trait_arguments),
+                Callable(callable) => {
+                    if let Some(slot) = &callable.requirement {
+                        pending.extend(&slot.trait_arguments);
+                    }
+                    if let Some(reach) = &callable.reach {
+                        pending.extend(reach.iter().flat_map(|service| &service.arguments));
+                    }
+                    pending.push(&callable.result);
+                    pending.extend(&callable.parameters);
+                }
+                Bool
+                | LevelKind
+                | Subject { .. }
+                | BoundSubject(_)
+                | MathematicalDefinition(_)
+                | Level(_)
+                | Integer { .. }
+                | Address
+                | Float32
+                | Float64
+                | Nominal(_)
+                | Exact { .. }
+                | Witness { .. }
+                | MachineSelection(_)
+                | LogicalRequirement(_)
+                | ProofCitation(_)
+                | ProofTerm(_)
+                | Implementation(_)
+                | Parameter { .. }
+                | NoResult => {}
+            }
+            Some(ty)
+        })
     }
     pub(crate) fn nominal_parts(&self) -> Option<(&DeclarationId, &[ValueType])> {
         match self {

@@ -13,6 +13,7 @@ impl Catalog<'_> {
         ctx: &Context<'_>,
         uses: &mut Vec<NameUse>,
         applications: &mut Vec<Application>,
+        operators: &mut Vec<super::OperatorUse>,
     ) -> Result<(), NameError> {
         use NodeKind::*;
         let mut argument_roles = HashMap::new();
@@ -480,23 +481,6 @@ impl Catalog<'_> {
                 });
             }
         }
-        for (n, node) in file
-            .nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.kind == Binary && node.leaves.iter().any(|t| t.text == "=="))
-        {
-            let mut roles = node.children.iter().map(|&child| {
-                let mut i = child;
-                while file.nodes[i].kind == Paren && file.nodes[i].children.len() == 1 {
-                    i = file.nodes[i].children[0];
-                }
-                type_operands.contains(&i)
-            });
-            if roles.next() != roles.next() {
-                return Err(file.error(file.span(n), "type equality mixes a type and a value"));
-            }
-        }
-        Ok(())
+        super::operators::collect_operator_uses(file, &type_operands, operators)
     }
 }

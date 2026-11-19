@@ -1,0 +1,21 @@
+[package]
+name = "direct-boundary-bindings"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "bindings.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../targets/calling-conventions" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+language-core = { path = "../../../../foundation/language-core" }
+native-intrinsics = { path = "../../../targets/intrinsics" }
+provider-plans = { path = "../../../../build/providers/plans" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+service-surface = { path = "../../../../psi/service-surface" }
+symbols = { path = "../../../../foundation/declaration-identity" }
+target = { path = "../../../targets/target" }
+terminal-psi = { path = "../../../../psi" }
+terminal-semantics = { path = "../../../../psi/semantics" }

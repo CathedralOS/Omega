@@ -27,7 +27,7 @@ impl DirectBoundaryInput {
         boundary: semantic_vocabulary::BoundaryMachineId,
         mechanism: DirectBoundaryMechanism,
     ) -> Result<Self, Diagnostic> {
-        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary)
+        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, boundary)
             .map_err(Diagnostic::error)?;
         let boundary = module
             .boundary_machine(boundary)
@@ -95,8 +95,8 @@ impl DirectBoundaryInput {
     pub fn finish(
         &self,
         original: &ProviderPlan,
-        mut execution: backend_plan::DirectBoundaryExecution,
-    ) -> Result<backend_plan::DirectBoundaryLeaf, Diagnostic> {
+        mut execution: direct_boundary_bindings::DirectBoundaryExecution,
+    ) -> Result<direct_boundary_bindings::DirectBoundaryLeaf, Diagnostic> {
         let row = original.rows.get(self.row_index).ok_or_else(|| {
             Diagnostic::error("direct boundary projection lost its original provider row")
         })?;
@@ -138,12 +138,14 @@ impl DirectBoundaryInput {
             method.requirement_identity = declaration.identities.intern(&self.callable_identity);
         }
         plan.schema.calling_applications.clear();
-        if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut execution {
+        if let direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) =
+            &mut execution
+        {
             binding.trait_name = self.callable_identity.clone();
             binding.requirement_identity = self.callable_identity.clone();
             binding.provider_type = self.realization_owner.clone();
         }
-        let leaf = backend_plan::DirectBoundaryLeaf {
+        let leaf = direct_boundary_bindings::DirectBoundaryLeaf {
             declaration_identity: self.declaration_identity.clone(),
             callable_identity: self.callable_identity.clone(),
             satisfied_schema,
@@ -167,7 +169,7 @@ pub fn direct_compiler_primitive_leaves(
     schemas: &[provider_plans::ServiceSchema],
     target: &str,
     requested: impl IntoIterator<Item = semantic_vocabulary::BoundaryMachineId>,
-) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+) -> Result<Vec<direct_boundary_bindings::DirectBoundaryLeaf>, Vec<Diagnostic>> {
     let fail = |reason: &str| vec![Diagnostic::error(reason)];
     if target.is_empty() {
         return Err(fail("hosted primitive requires one explicit native target"));
@@ -274,7 +276,7 @@ pub fn direct_compiler_primitive_leaves(
         let mut leaf = input
             .finish(
                 &original,
-                backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)),
+                direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(execution)),
             )
             .map_err(|diagnostic| vec![diagnostic])?;
         leaf.target_realization = target_realization;
@@ -379,7 +381,7 @@ mod tests {
         let leaf = input
             .finish(
                 &original,
-                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(
                     native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32,
                 )),
             )

@@ -19,7 +19,7 @@ pub struct SelectedProviderResult {
     target_profile: Option<target::TargetProfile>,
     folded: Option<Arc<crate::FoldedTargetProgram>>,
     realization: Arc<SelectedProviderRealization>,
-    package_review: Option<Arc<backend_plan::package_review::PackageTargetReview>>,
+    package_review: Option<Arc<crate::package_review::PackageTargetReview>>,
     entry: Result<crate::program_entry::PublishedEntryNomination, Vec<Diagnostic>>,
 }
 
@@ -182,7 +182,7 @@ impl SelectedProviderResult {
         self.entry.as_ref().map_err(Clone::clone)
     }
 
-    pub fn package_review(&self) -> Option<&backend_plan::package_review::PackageTargetReview> {
+    pub fn package_review(&self) -> Option<&crate::package_review::PackageTargetReview> {
         self.package_review.as_deref()
     }
 

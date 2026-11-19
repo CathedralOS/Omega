@@ -25,7 +25,8 @@ fallback artifact.
 correspondence for portable reuse and invocation-local production.
 Companion records are in [build_bindings.rs](src/build_bindings.rs).
 
-The [codec entry-receipt owner](../representations/terminal-psi/codec/src/entry_receipt.rs)
-checks a published artifact's unique Unit entry and binds its exact semantic
-identity. Application attachment and later reuse use the
-same receipt without reopening source trees.
+The [entry receipt](../../../psi/codec/src/entry_receipt.rs) binds the selected
+Unit declaration to the canonical artifact. Both source publication and native
+preparation [attach application roots](../../../psi/codec/src/entry_receipt/application.rs)
+to the current execution view. [Source publication](src/application.rs) records
+the receipt check as a separate compilation stage when an entry was requested.

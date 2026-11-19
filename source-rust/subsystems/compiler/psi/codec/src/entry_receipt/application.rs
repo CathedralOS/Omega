@@ -1,42 +1,16 @@
-//! Check application roots and entry receipts against the exact current artifact.
-//! This operation requires neither a source tree nor a source producer handle.
-
+//! Attach nominal application roots to one current execution view. A portable
+//! artifact with the same custody identity can also issue an entry receipt.
+use crate::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError, TerminalExecutionView};
 use diagnostics::Diagnostic;
-use terminal_psi::CheckedProgramEntryTerminalReceipt;
+use terminal_psi::{
+    CheckedProgramEntryTerminalReceipt, PreparedNominalRoot, TerminalMachineProvenance,
+};
 
-#[derive(Debug, PartialEq, Eq, record_storage::Record)]
-pub struct ProducedTerminalApplication {
-    pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<Diagnostic>>,
-    pub roots: Vec<Result<TerminalAdmissionRoot, Vec<Diagnostic>>>,
-}
-
-pub trait EntryReceiptObserver {
-    fn record_result<Value, Error>(
-        &mut self,
-        operation: impl FnOnce() -> Result<Value, Error>,
-    ) -> Result<Value, Error>;
-}
-
-pub struct UnmeasuredEntryReceipt;
-impl EntryReceiptObserver for UnmeasuredEntryReceipt {
-    fn record_result<Value, Error>(
-        &mut self,
-        operation: impl FnOnce() -> Result<Value, Error>,
-    ) -> Result<Value, Error> {
-        operation()
-    }
-}
-
-fn entry_diagnostics(
-    error: terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
-) -> Vec<Diagnostic> {
+fn entry_diagnostics(error: super::ProgramEntryTerminalReceiptError) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
         "terminal-artifact production failed: EntryReceipt({error:?})"
     ))]
 }
-
-use terminal_codec::entry_receipt::prepare_program_entry_receipt;
-use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
 
 #[derive(Debug, PartialEq, Eq, record_storage::Record)]
 pub struct TerminalAdmissionRoot {
@@ -50,15 +24,33 @@ pub struct TerminalCompositionRoots<'a> {
     pub physical_adapter: Option<&'a PreparedNominalRoot>,
 }
 
-struct PreparedComposition<'a> {
-    callbacks: Option<&'a terminal_psi::PreparedTerminalRoots>,
-    adapter: Option<&'a PreparedNominalRoot>,
+/// The request retains the declaration and artifact checked during attachment.
+/// The source publisher may measure this operation independently of root projection.
+pub struct ProgramEntryReceiptRequest<'a> {
+    entry: &'a PreparedNominalRoot,
+    identity: [u8; 32],
+    artifact: Result<&'a CanonicalTerminalArtifact, CanonicalTerminalArtifactError>,
+}
+
+impl ProgramEntryReceiptRequest<'_> {
+    pub fn check(self) -> Result<CheckedProgramEntryTerminalReceipt, Vec<Diagnostic>> {
+        let artifact = self
+            .artifact
+            .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+        super::prepare_program_entry_receipt(self.entry, self.identity, artifact)
+            .map_err(entry_diagnostics)
+    }
+}
+
+pub struct AttachedApplicationRoots<'a> {
+    pub roots: Vec<Result<TerminalAdmissionRoot, Vec<Diagnostic>>>,
+    pub entry_receipt: Option<ProgramEntryReceiptRequest<'a>>,
 }
 
 pub struct TerminalApplicationCustody<'a> {
     entry: Option<Result<PreparedNominalRoot, Vec<Diagnostic>>>,
     entry_identity: Option<[u8; 32]>,
-    composition: Option<PreparedComposition<'a>>,
+    composition: Option<TerminalCompositionRoots<'a>>,
 }
 
 impl<'a> TerminalApplicationCustody<'a> {
@@ -74,10 +66,6 @@ impl<'a> TerminalApplicationCustody<'a> {
                 composition: None,
             };
         }
-        let composition = composition.map(|composition| PreparedComposition {
-            callbacks: composition.callbacks,
-            adapter: composition.physical_adapter,
-        });
         Self {
             entry: Some(entry),
             entry_identity,
@@ -85,25 +73,21 @@ impl<'a> TerminalApplicationCustody<'a> {
         }
     }
 
-    pub fn attach(
-        &self,
-        view: terminal_codec::TerminalExecutionView<'_>,
-        artifact: Result<
-            &terminal_codec::CanonicalTerminalArtifact,
-            terminal_codec::CanonicalTerminalArtifactError,
-        >,
+    pub fn attach<'artifact>(
+        &'artifact self,
+        view: TerminalExecutionView<'_>,
+        artifact: Result<&'artifact CanonicalTerminalArtifact, CanonicalTerminalArtifactError>,
         provenance: &TerminalMachineProvenance,
-        observer: &mut impl EntryReceiptObserver,
-    ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
+    ) -> Result<AttachedApplicationRoots<'artifact>, Vec<Diagnostic>> {
         let Some(entry) = &self.entry else {
-            return Ok(ProducedTerminalApplication {
-                receipt: Ok(None),
+            return Ok(AttachedApplicationRoots {
+                entry_receipt: None,
                 roots: Vec::new(),
             });
         };
         let entry = entry.as_ref().map_err(Clone::clone)?;
         if let Ok(artifact) = artifact.as_ref() {
-            let canonical: terminal_codec::TerminalExecutionView<'_> = artifact.view().into();
+            let canonical: TerminalExecutionView<'_> = artifact.view().into();
             if canonical.custody_identity() != view.custody_identity() {
                 return Err(vec![Diagnostic::error(
                     "application roots and receipt belong to different artifacts or invocations",
@@ -132,21 +116,20 @@ impl<'a> TerminalApplicationCustody<'a> {
                     })
                 }));
             }
-            if let Some(adapter) = &composition.adapter {
+            if let Some(adapter) = &composition.physical_adapter {
                 roots.push(project_root(module, provenance, adapter));
             }
         }
-        let receipt = match self.entry_identity {
-            Some(identity) => observer.record_result(|| {
-                let artifact =
-                    artifact.map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-                prepare_program_entry_receipt(entry, identity, artifact)
-                    .map(Some)
-                    .map_err(entry_diagnostics)
-            }),
-            None => Ok(None),
-        };
-        Ok(ProducedTerminalApplication { receipt, roots })
+        Ok(AttachedApplicationRoots {
+            roots,
+            entry_receipt: self
+                .entry_identity
+                .map(|identity| ProgramEntryReceiptRequest {
+                    entry,
+                    identity,
+                    artifact,
+                }),
+        })
     }
 }
 

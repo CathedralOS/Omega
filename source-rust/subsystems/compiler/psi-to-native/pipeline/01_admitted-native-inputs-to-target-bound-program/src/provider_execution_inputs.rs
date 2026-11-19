@@ -161,7 +161,7 @@ pub(crate) fn plan_inputs_and_review(
             ));
         }
         let schema =
-            backend_plan::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
+            direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, boundary).map_err(refuse)?;
         let declaration = module
             .boundary_machine(boundary)
             .ok_or_else(|| refuse("native binding lost its actual requirement".into()))?;
@@ -195,7 +195,7 @@ pub(crate) fn plan_inputs_and_review(
                 "native requirement has competing completed Build supplies".into(),
             ));
         }
-        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, boundary)
+        let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, boundary)
             .map_err(refuse)?;
         requirements.push(
             module
@@ -229,7 +229,7 @@ pub(crate) fn plan_inputs_and_review(
         .map(|choice| (choice.schema_declaration, choice.schema_application))
         .collect::<Vec<_>>();
     for supply in &native_bindings {
-        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
             .map_err(refuse)?;
         schemas.push((schema.declaration, schema.application));
     }
@@ -317,7 +317,7 @@ pub(crate) fn plan_inputs_and_review(
     // cannot silently become a default ABI.
     let mut default_bindings = Vec::new();
     for supply in &native_bindings {
-        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+        let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
             .map_err(refuse)?
             .identity(&module.identities)
             .map_err(refuse)?;
@@ -327,7 +327,7 @@ pub(crate) fn plan_inputs_and_review(
         {
             continue;
         }
-        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
             .map_err(refuse)?;
         require_unselected_calling_policy(&requested_instances, schema.application)
             .map_err(refuse)?;
@@ -347,9 +347,9 @@ pub(crate) fn plan_inputs_and_review(
     let mut evaluated_native_bindings = Vec::with_capacity(native_bindings.len());
     for supply in native_bindings {
         let evaluated = supply.binding;
-        let schema = backend_plan::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
+        let schema = direct_boundary_bindings::DirectBoundaryLeaf::declared_schema(module, supply.boundary)
             .map_err(refuse)?;
-        let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
+        let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(module, supply.boundary)
             .map_err(refuse)?
             .identity(&module.identities)
             .map_err(refuse)?;
@@ -413,7 +413,7 @@ pub(crate) fn plan_inputs_and_review(
     )?;
     let policy = provider_admission::provider_admission::current_terminal_authority_policy();
     for leaf in primitives {
-        let backend_plan::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
+        let direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(execution)) = leaf.execution
         else {
             return Err(refuse(
                 "core primitive lost its exact native execution".into(),

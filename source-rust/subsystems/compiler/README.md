@@ -5,10 +5,11 @@
 | Requested artifact | Input | Work |
 | --- | --- | --- |
 | Psi | Stage source | Check the source and return its published Psi. |
+| Interpreter runtime | Stage source or authorized Psi, target and entry memory | Admit the selected entry and providers for the Psi engine. |
 | Native image | Stage source and target | Publish Psi in memory and lower it for the target. |
 | Native image | Authorized Psi and target | Lower the supplied Psi for the target. |
 
-The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/psi_to_native.rs) meet at [Psi](psi/). For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests native code.
+The [source pipeline](source-to-psi/source_to_psi.rs) and the [native pipeline](psi-to-native/psi_to_native.rs) meet at [Psi](psi/). For a saved program, the receiving host decodes the file and authorizes the exact artifact before it requests runtime provisions or native code.
 
 Each pipeline keeps its own [source program forms](source-to-psi/pipeline/representations/) or [native program forms](psi-to-native/pipeline/representations/). Their shared [Psi format](psi/) is the handoff between them.
 

@@ -30,9 +30,7 @@ pub use psi_authorization::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
-pub(crate) use provider_and_target_installation::{
-    provider_installation, target_context,
-};
+pub(crate) use provider_and_target_installation::{provider_installation, target_context};
 
 pub(crate) mod entry_values {
     pub use terminal_semantics::entry_values::{
@@ -55,13 +53,12 @@ pub(crate) mod target_layouts {
     };
 }
 
+pub use entry_values::{
+    TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
+};
 pub use evaluation_admission::{
     AdmittedCompilerEvaluation, InvocationSourceSelection, admit_compiler_evaluation,
     admit_compiler_evaluation_with_source_consent, admit_declaration_selections,
-};
-pub use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};
-pub use entry_values::{
-    TerminalAccessViewEstablishment, TerminalScalarValue, TerminalStructuralValue,
 };
 pub use layout_plans::LayoutTargetFacts;
 pub use private_entry_ram::{
@@ -76,17 +73,16 @@ pub use provider_installation::{
     admit_provider_installation_from_artifact,
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
-pub use semantic_vocabulary::ScalarAddressModel;
+pub use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};
 pub use psi_scalar_applications::{
     AdmittedScalarApplications, AdmittedScalarEntry, CallingAbiStorageDemand,
     ScalarApplicationClosure, ScalarApplicationObservations, ScalarApplicationValues,
     ScalarConditionSelection, ScalarEntryChecks, ScalarEntryPrerequisites,
     ScalarLayoutObservationError, ScalarScopeInputs,
 };
+pub use semantic_vocabulary::ScalarAddressModel;
 pub use target_context::{TerminalEntryError, TerminalTargetContext, terminal_target_context};
 pub use target_layouts::{
     AdmittedTargetLayouts, TargetLayoutClosure, TargetLayoutGeometry, TargetLayoutSelectionError,
     admit_target_layouts,
 };
-
-pub mod application;

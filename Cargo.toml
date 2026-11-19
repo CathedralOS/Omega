@@ -115,6 +115,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/same-stack",
     "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence",
+    "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence/direct-boundaries",
     "source-rust/subsystems/compiler/psi-to-native/verification/runtime-publication",
     "source-rust/subsystems/compiler/psi-to-native/verification/target-providers",
     "source-rust/subsystems/compiler/psi/access",

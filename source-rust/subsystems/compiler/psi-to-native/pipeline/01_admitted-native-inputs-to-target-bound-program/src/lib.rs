@@ -6,7 +6,7 @@
 // provider authority never becomes a source fallback or a fabricated proof.
 
 pub mod calling_policy_plans;
-pub use backend_plan::{compiler_primitive_schemas, hosted_requirement_schema};
+pub use direct_boundary_bindings::{compiler_primitive_schemas, hosted_requirement_schema};
 pub mod native_bindings;
 pub(crate) use ::wire::digest_encoder;
 pub mod program_entry;
@@ -30,6 +30,10 @@ pub use host_provider_inputs::ProviderExecutionOrigins;
 pub use provider_execution_inputs::plan_provider_execution_inputs;
 mod folded_entry;
 mod package_review;
+pub use package_review::{
+    PackageTargetReview, ReviewedNativeBinding, ReviewedNativeBindings, ReviewedNumericBinding,
+    ReviewedProviderRow,
+};
 mod selected_execution;
 pub use execution::{
     NativeProgramPlanningError, plan_target_execution,

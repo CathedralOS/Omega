@@ -2,31 +2,7 @@ use source_text::SourceSpan;
 
 use symbols::SymbolHandle;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthoredRootGrant {
-    /// Authored display text; settlement uses `subject`.
-    pub selector: String,
-    pub subject: RootGrantSubject,
-    pub subject_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: source_text::SourceSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RootGrantSubject {
-    Provider {
-        declaration: String,
-        application: Option<String>,
-    },
-    BoundaryRequirement {
-        declaration: String,
-        callable: String,
-    },
-    AcceptedMachine {
-        declaration: String,
-        machine: SymbolHandle,
-    },
-}
+pub use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
 
 pub use behavior_exclusion_requests::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
 

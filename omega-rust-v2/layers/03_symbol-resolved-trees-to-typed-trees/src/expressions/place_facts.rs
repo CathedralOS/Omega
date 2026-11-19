@@ -47,38 +47,13 @@ impl BodyTyper<'_, '_> {
         }
         Some((self.fact_subject(subject)?, id.clone()))
     }
-    pub(super) fn type_term(
-        &self,
-        node_index: usize,
-    ) -> bool {
-        match self.unit.symbol(node_index) {
-            Some(Symbol::Builtin(name)) => matches!(name.as_str(), "bool" | "f32" | "f64") || ValueType::integer(name).is_some(),
-            Some(Symbol::Declaration(id)) => matches!(id.kind, NodeKind::Data | NodeKind::Domain),
-            Some(Symbol::Binding {
-                kind: NodeKind::TypeParam | NodeKind::SomeParam,
-                ..
-            }) => true,
-            Some(Symbol::Binding {
-                span,
-                kind: NodeKind::KindedParam | NodeKind::ConstParam,
-                ..
-            }) => self
-                .unit
-                .parameters
-                .get(span)
-                .and_then(|parameter| self.catalog.types.parameter_carrier(parameter))
-                .is_some_and(|carrier| matches!(carrier, ValueType::Universe { .. })),
-            _ => false,
-        }
-    }
     pub(super) fn type_equality(
         &mut self,
         node_index: usize,
+        left: usize,
+        right: usize,
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
-        let [left, right] = *source.nodes[node_index].children.as_slice() else {
-            return Err(TypeError::unsupported(source, node_index));
-        };
         let a = self.unit.annotation(left, &self.catalog.types)?;
         let b = self.unit.annotation(right, &self.catalog.types)?;
         self.record_operator(node_index, "type ==", vec![a, b], &ValueType::Bool);

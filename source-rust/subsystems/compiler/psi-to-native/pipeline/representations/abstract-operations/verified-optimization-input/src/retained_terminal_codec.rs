@@ -277,7 +277,7 @@ mod admissions {
         }
     }
 
-    impl RecordValue for backend_plan::DirectBoundaryLeaf {
+    impl RecordValue for direct_boundary_bindings::DirectBoundaryLeaf {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.validate_calling_custody()
                 .map_err(|reason| output.error(reason))?;
@@ -1955,7 +1955,7 @@ struct DerivationInputs {
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
     provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
-    leaves: Vec<backend_plan::DirectBoundaryLeaf>,
+    leaves: Vec<direct_boundary_bindings::DirectBoundaryLeaf>,
     profile: Option<target::TargetProfile>,
     selected: selected_provider_plans::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,

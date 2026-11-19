@@ -10,6 +10,7 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
+diagnostics = { path = "../../../../foundation/diagnostics" }
 record-storage = { path = "../../../../foundation/record-storage" }
 wire = { path = "../../../../foundation/wire" }
 optimization = { path = "../optimization-selections" }

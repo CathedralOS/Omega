@@ -124,8 +124,15 @@ pub struct OperatorDeclaration {
     pub machine: DeclarationId,
     pub home: Option<DeclarationId>,
 }
+/// Type equality consumes the resolved type nodes inside any grouping parentheses.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum OperatorRole {
+    Value,
+    TypeEquality { left: usize, right: usize },
+}
 #[derive(Debug, Eq, PartialEq)]
 pub struct OperatorUse {
+    pub role: OperatorRole,
     pub node: crate::TreeNodeId,
     pub package: String,
     pub file: String,

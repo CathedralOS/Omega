@@ -481,6 +481,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "direct-boundary-bindings"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "language-core",
+ "native-intrinsics",
+ "provider-plans",
+ "semantic-vocabulary",
+ "service-surface",
+ "symbols",
+ "target",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "evaluation-admission"
 version = "0.1.0"
 dependencies = [
@@ -617,6 +634,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "direct-boundary-bindings",
  "project-build",
  "provider-demand",
  "host-provider-inputs",
@@ -628,7 +646,6 @@ dependencies = [
  "application-identity",
  "arena",
  "artifacts",
- "backend-plan",
  "boundary-applications",
  "bounded-process",
  "build-declarations",
@@ -1775,7 +1792,6 @@ dependencies = [
  "target-operations-to-selected-instructions",
  "target-provider-admission",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
@@ -1964,6 +1980,7 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
+ "product-publication",
  "psi-entry-memory",
  "worker-budget",
  "libc",
@@ -2351,7 +2368,6 @@ name = "products"
 version = "0.1.0"
 dependencies = [
  "artifacts",
- "backend-plan",
  "boundary-applications",
  "build-declarations",
  "build-output",
@@ -2470,11 +2486,11 @@ dependencies = [
  "abstract-operations",
  "application-identity",
  "arena",
- "backend-plan",
  "bound-installations",
  "calling-conventions",
  "component-description",
  "diagnostics",
+ "direct-boundary-bindings",
  "effects",
  "function-identity",
  "installation-conditions",
@@ -2512,11 +2528,11 @@ name = "provider-correspondence"
 version = "0.1.0"
 dependencies = [
  "application-identity",
- "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "declaration-contracts",
  "diagnostics",
+ "direct-boundary-bindings",
  "effects",
  "function-identity",
  "graphs",
@@ -2544,6 +2560,7 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "direct-boundary-bindings",
  "evaluation-admission",
  "build-scalar-evaluation",
  "native-intrinsics",
@@ -2551,7 +2568,6 @@ dependencies = [
  "host-provider-inputs",
  "application-identity",
  "arena",
- "backend-plan",
  "build-time-values",
  "calling-conventions",
  "declaration-scope",
@@ -2617,7 +2633,6 @@ name = "published-program"
 version = "0.1.0"
 dependencies = [
  "artifact-evaluation",
- "backend-plan",
  "psi-to-admitted-native-inputs",
  "diagnostics",
  "effects",
@@ -2785,10 +2800,10 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "backend-plan",
  "calling-conventions",
  "declaration-contracts",
  "diagnostics",
+ "direct-boundary-bindings",
  "effects",
  "evaluation-receipts",
  "language-core",
@@ -3393,6 +3408,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "record-storage",
+ "source-provenance",
  "source-text",
 ]
 
@@ -3615,6 +3631,7 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "record-storage",
  "optimization",
  "semantic-vocabulary",
@@ -3978,10 +3995,10 @@ dependencies = [
  "abstract-operations",
  "application-identity",
  "arena",
- "backend-plan",
  "behavior-exclusion-requests",
  "boundary-applications",
  "calling-conventions",
+ "direct-boundary-bindings",
  "installation-conditions",
  "native-binding-admission",
  "native-intrinsics",

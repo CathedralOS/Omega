@@ -460,7 +460,7 @@ mod providers {
         5 => GreaterOrEqual,
     });
 
-    record_variants!(backend_plan::DirectBoundaryExecution {
+    record_variants!(direct_boundary_bindings::DirectBoundaryExecution {
         0 => Foreign(value0),
         1 => Intrinsic(value0),
     });

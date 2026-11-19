@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use backend_plan::DirectBoundaryLeaf;
+use direct_boundary_bindings::DirectBoundaryLeaf;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_plans::ProviderPlan;
 use terminal_psi::TerminalModule;
@@ -284,7 +284,7 @@ impl RealizedTargetSupply {
                     &input.evaluated_native_bindings,
                     &input.evaluated_binding_identities,
                 )?;
-                let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &leaf.execution
+                let direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) = &leaf.execution
                 else {
                     return Err("plain native requirement lost its completed execution".into());
                 };
@@ -319,7 +319,7 @@ impl RealizedTargetSupply {
             };
             source.validate(&module.identities)?;
             match &leaf.execution {
-                backend_plan::DirectBoundaryExecution::Intrinsic(retained) => {
+                direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(retained) => {
                     if source.binding
                         != semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic
                         || effects::external_providers::canonical_external_execution(
@@ -332,7 +332,7 @@ impl RealizedTargetSupply {
                         );
                     }
                 }
-                backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) => {
+                direct_boundary_bindings::DirectBoundaryExecution::Foreign(Ok(binding)) => {
                     if let calling_conventions::ExternalBindingKind::Syscall { number } =
                         &binding.binding
                     {
@@ -358,7 +358,7 @@ impl RealizedTargetSupply {
                         }
                     }
                 }
-                backend_plan::DirectBoundaryExecution::Foreign(Err(_)) => {}
+                direct_boundary_bindings::DirectBoundaryExecution::Foreign(Err(_)) => {}
             }
         }
         for application in &input.calling_applications {
