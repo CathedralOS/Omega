@@ -9,6 +9,8 @@ The [entry point](psi_to_native.rs) takes a Psi program [authorized by the recei
 3. [Realization](pipeline/realization.rs) drives the common body sequence for the application, callbacks, and component exports. Follow [one physical body](pipeline/realization/physical_body.rs) from instruction selection through object construction. Generated foreign adapters have their own representation at each applicable stage. [Image emission](pipeline/16_objects-to-image/image-emission/) consumes the finished objects.
 4. [Replay](replay/README.md) consumes retained originals on an explicit validation request. [Frame and encoding checks](pipeline/representations/machine-code/) validate the corresponding machine-code forms. [Admission](verification/README.md) also has callers during ordinary compilation and execution.
 
+The ELF, Mach-O and PE writer tests start from [fixed encoded imports](pipeline/16_objects-to-image/image/src/test_support.rs). The samples include the instruction bytes, each relocation field, register effects and stack use the writer receives.
+
 ## Placement during the repair
 
 | Code | Owner |

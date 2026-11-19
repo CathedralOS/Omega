@@ -21,5 +21,5 @@ machine-code = { path = "../../representations/machine-code" }
 [dev-dependencies]
 entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+image = { path = "../image", features = ["test-support"] }
 runtime-abi = { path = "../../../targets/runtime-abi" }

@@ -77,6 +77,9 @@ macro_rules! rejection_carrier {
     };
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
+
 mod builder;
 mod import_code;
 pub mod codec_bytes {
@@ -345,7 +348,12 @@ mod tests {
 
         let image = build_final_image(FinalImageInput {
             target,
-            import_program: &image_fixtures::encode_locator_import(&locator),
+            import_program: &crate::test_support::import_program(
+                target,
+                vec![machine_code::import_code::ImportCodeIdentity::Normalized(
+                    locator.clone().into(),
+                )],
+            ),
             object: &object,
             relocations: &relocations,
             text_bytes: &[],
