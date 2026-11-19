@@ -38,6 +38,7 @@ mod commands;
 mod diagnostic_output;
 mod execution;
 mod inspection;
+mod saved_program;
 
 use arguments::Invocation;
 use std::process::ExitCode;

@@ -1741,6 +1741,7 @@ dependencies = [
  "package-manager",
  "platform-custody",
  "products",
+ "project-build",
  "psi-authorization",
  "resolver-execution",
  "semantic-vocabulary",
@@ -2159,6 +2160,15 @@ dependencies = [
  "terminal-installation",
  "terminal-psi",
  "wire",
+]
+
+[[package]]
+name = "project-build"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "diagnostics",
+ "platform-custody",
 ]
 
 [[package]]

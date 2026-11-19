@@ -17,7 +17,8 @@ orchestration = { path = "../build-system/orchestration" }
 terminal-runtime = { path = "../subsystems/interpreter/host" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../foundation/bounded-process" }
-compiler = { path = "../compilation/compiler" }
+compiler = { path = "../subsystems/compiler" }
+project-build = { path = "../subsystems/compiler/build" }
 products = { path = "../compilation/products" }
 artifacts = { path = "../subsystems/compiler/foundation/measurements" }
 platform-custody = { path = "../foundation/filesystem" }
