@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 mod pipeline;
+#[path = "replay/stage_validators.rs"]
+pub mod stage_validators;
 
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
@@ -34,12 +36,50 @@ pub fn emit(
     target: SavedProgramTarget<'_>,
     entry_memory: &[PrivateEntryRamInitialization],
 ) -> Result<native_artifact::FinishedNativeImage, Vec<Diagnostic>> {
+    emit_image(program, target, entry_memory, false).map(|(image, _)| image)
+}
+
+/// Check the requested stages against originals from this emission before releasing its image.
+pub fn emit_with_validators(
+    program: AuthorizedTerminalArtifact,
+    target: SavedProgramTarget<'_>,
+    entry_memory: &[PrivateEntryRamInitialization],
+    validators: &stage_validators::StageValidatorRequest,
+) -> Result<
+    (
+        native_artifact::FinishedNativeImage,
+        Vec<stage_validators::StageValidationRow>,
+    ),
+    stage_validators::NativeValidationError,
+> {
+    let profile = target.profile;
+    let (image, replay) = emit_image(program, target, entry_memory, !validators.is_empty())
+        .map_err(stage_validators::NativeValidationError::Compilation)?;
+    let results = validators.check(profile, &image, &replay)?;
+    Ok((image, results))
+}
+
+fn emit_image(
+    program: AuthorizedTerminalArtifact,
+    target: SavedProgramTarget<'_>,
+    entry_memory: &[PrivateEntryRamInitialization],
+    retain_native_stage_inputs: bool,
+) -> Result<
+    (
+        native_artifact::FinishedNativeImage,
+        published_object_verification::NativeStageReplay,
+    ),
+    Vec<Diagnostic>,
+> {
     with_published_request(
         program,
         target,
         entry_memory,
         &mut Vec::new(),
-        |terminal, request| pipeline::compile(&terminal, request).map(|(image, _)| image),
+        |terminal, mut request| {
+            request.retain_native_stage_inputs = retain_native_stage_inputs;
+            pipeline::compile(&terminal, request)
+        },
     )
 }
 
