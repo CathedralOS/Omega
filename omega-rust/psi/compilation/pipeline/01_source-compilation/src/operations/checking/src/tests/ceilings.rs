@@ -389,7 +389,11 @@ machine entry() invokes Handler {}
     .unwrap();
     assert_eq!(
         surface.declaration.methods[0].synchronous_invocations,
-        [handler_path]
+        [
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                handler_path
+            )
+        ]
     );
     let frozen: crate::source_state::FrozenTypedTrees = program.into();
     let signature = frozen

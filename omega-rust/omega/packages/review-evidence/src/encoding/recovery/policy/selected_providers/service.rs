@@ -11,7 +11,7 @@ use declaration_contracts::CarryPolicy;
 use declaration_contracts::CarrySuspension;
 use declaration_contracts::DomainPredicatePresence;
 use declaration_contracts::service_surface::{
-    ServiceNormalResultMembership, ServiceResultProjection,
+    ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceProgressEstablishmentRoute,
@@ -73,7 +73,12 @@ pub(in crate::encoding::recovery) fn method(
             })
         })?,
         service_reach: reader.sequence(8, Reader::string)?,
-        synchronous_invocations: reader.sequence(8, Reader::string)?,
+        synchronous_invocations: reader.sequence(5, |reader| {
+            Ok(super::super::tag!(reader => {
+                1 => ServiceSynchronousInvocation::Parameter(reader.u32()?),
+                2 => ServiceSynchronousInvocation::Service(reader.string()?),
+            }))
+        })?,
         may_suspend: reader.boolean()?,
         may_block: reader.boolean()?,
         terminates_guarantee: reader.boolean()?,

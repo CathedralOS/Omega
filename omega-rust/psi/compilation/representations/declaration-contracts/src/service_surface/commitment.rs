@@ -45,12 +45,12 @@ pub fn declared_type_signature<Parameter: AsRef<str>>(
 
 impl ServiceSurface {
     pub fn declaration_commitment(&self) -> [u8; 32] {
-        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v8\0");
+        let mut digest = DomainDigestEncoder::new(b"omega.service-schema.sha256.v9\0");
         self.encode_contract(&mut digest, |_, output| output.len(0));
         digest.finish()
     }
 
-    /// Write the declaration in v8 order. The caller writes its method suffix
+    /// Write the declaration in v9 order. The caller writes its method suffix
     /// at the exact boundary between that method's contract and the next one.
     /// Target-neutral declarations write an empty calling-application count.
     pub fn encode_contract<Output: ServiceContractSink>(
@@ -89,7 +89,7 @@ impl ServiceSurface {
             encoder.service_method(method, &self.identities);
             method_suffix(method, encoder.output);
         }
-        // The v8 trailer pairs each declaration's canonical type signature
+        // The trailer pairs each declaration's canonical type signature
         // with the same sorted method roster as the preceding contract.
         for method in methods {
             encoder
@@ -223,7 +223,19 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
         }
 
         self.strings(&method.service_reach);
-        self.strings(&method.synchronous_invocations);
+        self.len(method.synchronous_invocations.len());
+        for entry in &method.synchronous_invocations {
+            match entry {
+                ServiceSynchronousInvocation::Parameter(position) => {
+                    self.byte(1);
+                    self.output.service_contract_bytes(&position.to_le_bytes());
+                }
+                ServiceSynchronousInvocation::Service(name) => {
+                    self.byte(2);
+                    self.string(name);
+                }
+            }
+        }
         self.bool(method.may_suspend);
         self.bool(method.may_block);
         self.bool(method.terminates_guarantee);

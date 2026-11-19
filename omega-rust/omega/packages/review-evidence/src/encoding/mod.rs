@@ -24,7 +24,7 @@ pub(crate) use recovery::{PackagePolicyRecoveryError, PackagePolicyRecoveryUsage
 // expanded class vocabulary even though existing class tags are unchanged.
 // Ordinary public requirements preserve open reach/crash separately from
 // authored empty ceilings; predecessor payloads are not reinterpreted.
-pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 36;
+pub(crate) const PACKAGE_POLICY_BASELINE_VERSION: u16 = 37;
 pub(crate) const PACKAGE_POLICY_BASELINE_MAGIC: &[u8] = b"OMEGA-PACKAGE-POLICY\0";
 
 pub(crate) const PACKAGE_EXTERNAL_SUPPLY_POLICY_VERSION: u16 = 10;
@@ -36,10 +36,10 @@ pub(crate) const CALLING_POLICY_MAGIC: &[u8] = b"OMEGA-CALLING-POLICY\0";
 pub(crate) const PACKAGE_REPRESENTATION_POLICY_VERSION: u16 = 15;
 pub(crate) const REPRESENTATION_POLICY_MAGIC: &[u8] = b"OMEGA-REPRESENTATION-POLICY\0";
 
-pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 26;
+pub(crate) const PACKAGE_SELECTED_PROVIDER_POLICY_VERSION: u16 = 27;
 pub(crate) const SELECTED_PROVIDER_POLICY_MAGIC: &[u8] = b"OMEGA-SELECTED-PROVIDER-POLICY\0";
 
-pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 14;
+pub(crate) const PACKAGE_TERMINAL_PERMISSION_POLICY_VERSION: u16 = 15;
 pub(crate) const TERMINAL_PERMISSION_POLICY_MAGIC: &[u8] = b"OMEGA-TERMINAL-PERMISSION-POLICY\0";
 
 pub(crate) const PACKAGE_CALLABLE_POLICY_VERSION: u16 = 19;

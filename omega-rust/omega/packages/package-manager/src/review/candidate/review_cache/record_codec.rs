@@ -1,6 +1,6 @@
 /*
     We encode and decode persisted compiled-review records (`OMGCREV\x01`,
-    version 19). Sequences are `u64` length-prefixed, byte strings are framed,
+    version 20). Sequences are `u64` length-prefixed, byte strings are framed,
     every enum uses a checked tag, and the provider identity table is serialized
     ahead of every service-schema field that indexes into it so recovery
     re-mints identical `ProviderIdentityId`s. Unknown tags, retired versions,
@@ -14,7 +14,7 @@ use build_record_codec::{recover_observation_summary, recover_restricted_build_r
 use declaration_contracts::CarryPolicy;
 use declaration_contracts::DomainPredicatePresence;
 use declaration_contracts::service_surface::{
-    ServiceNormalResultMembership, ServiceResultProjection,
+    ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
 use effects::provider_plan::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ProviderIdentityTable,
@@ -43,7 +43,7 @@ use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 19;
+const RECORD_VERSION: u16 = 20;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -327,7 +327,16 @@ fn encode_service_method(
     }
     push_count_u64(out, method.synchronous_invocations.len());
     for invocation in &method.synchronous_invocations {
-        encode_string(invocation, out);
+        match invocation {
+            ServiceSynchronousInvocation::Parameter(position) => {
+                out.push(1);
+                push_encoded(out, position.to_le_bytes());
+            }
+            ServiceSynchronousInvocation::Service(name) => {
+                out.push(2);
+                encode_string(name, out);
+            }
+        }
     }
     out.push(u8::from(method.may_suspend));
     out.push(u8::from(method.may_block));
@@ -480,8 +489,13 @@ fn recover_service_method(
         return None;
     }
     let service_reach = cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
-    let synchronous_invocations =
-        cursor_vec(cursor, |cursor| cursor_string(cursor).map(str::to_owned))?;
+    let synchronous_invocations = cursor_vec(cursor, |cursor| match cursor.u8()? {
+        1 => cursor.u32().map(ServiceSynchronousInvocation::Parameter),
+        2 => {
+            cursor_string(cursor).map(|name| ServiceSynchronousInvocation::Service(name.to_owned()))
+        }
+        _ => None,
+    })?;
     let may_suspend = cursor_bool(cursor)?;
     let may_block = cursor_bool(cursor)?;
     let terminates_guarantee = cursor_bool(cursor)?;
