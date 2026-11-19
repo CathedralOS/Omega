@@ -89,11 +89,76 @@ pub(super) fn rules() -> Vec<Rule> {
         rules.push(Rule {
             owners: vec![""],
             forbidden: vec![stage],
+            forbidden_packages: vec![],
             reason: "native stages are consumed by the native driver, their successor, or an explicitly scoped reader",
             except_package: Some(DRIVER),
             except_owners: stages[index..(index + 2).min(stages.len())].to_vec(),
             allowed,
         });
     }
+    let earlier_forms = vec![
+        native!("/pipeline/representations/abstract-operations"),
+        native!("/pipeline/representations/target-operations"),
+        native!("/pipeline/representations/target-operations/legalized-operations"),
+    ];
+    // The image package still contains the requested object correspondence audit.
+    // Its accessor and validator call sites are also restricted by boundary.rs.
+    let retained_image_readers = earlier_forms
+        .iter()
+        .map(|&dependency| Allowance {
+            owner: IMAGE_EMISSION,
+            dependency,
+        })
+        .collect();
+    rules.push(Rule {
+        owners: stages[6..].to_vec(),
+        forbidden: vec![],
+        forbidden_packages: earlier_forms,
+        reason: "selected and later stages must read operands from the owning vocabulary",
+        except_package: None,
+        except_owners: vec![],
+        allowed: retained_image_readers,
+    });
     rules
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::boundary::tests::pkg;
+    use crate::boundary::{Metadata, forbidden_dependency_violations};
+
+    #[test]
+    fn physical_stages_can_read_shared_operands_without_importing_the_earlier_program() {
+        let target = native!("/pipeline/representations/target-operations");
+        let vocabulary = native!("/pipeline/representations/target-operations/target-vocabulary");
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg(
+                    "frame",
+                    stages()[9],
+                    &[("record", vocabulary, None), ("earlier", target, None)],
+                ),
+                pkg("audit", IMAGE_EMISSION, &[("earlier", target, None)]),
+                pkg(
+                    "artifact",
+                    NATIVE_ARTIFACT,
+                    &[("earlier", target, Some("build"))],
+                ),
+            ],
+        };
+        let violations = forbidden_dependency_violations(&metadata, &rules()).unwrap();
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|message| message.starts_with("frame -> target-operations:"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|message| message.starts_with("artifact -> target-operations:"))
+        );
+    }
 }

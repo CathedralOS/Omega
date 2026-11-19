@@ -102,10 +102,17 @@ pub struct Allowance {
 pub struct Rule {
     pub owners: Vec<&'static str>,
     pub forbidden: Vec<&'static str>,
+    pub forbidden_packages: Vec<&'static str>,
     pub reason: &'static str,
     pub except_owners: Vec<&'static str>,
     pub except_package: Option<&'static str>,
     pub allowed: Vec<Allowance>,
+}
+
+impl Rule {
+    fn forbids(&self, dependency: &str) -> bool {
+        self.forbidden_packages.contains(&dependency) || under(dependency, &self.forbidden)
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -162,6 +169,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     let rule = |owners, forbidden, reason| Rule {
         owners,
         forbidden,
+        forbidden_packages: vec![],
         reason,
         except_owners: vec![],
         except_package: None,
@@ -292,7 +300,7 @@ pub fn forbidden_dependency_violations(
             if under(&owner, &rule.owners)
                 && !under(&owner, &rule.except_owners)
                 && Some(owner.as_str()) != rule.except_package
-                && under(&relative, &rule.forbidden)
+                && rule.forbids(&relative)
                 && !rule
                     .allowed
                     .iter()
@@ -330,7 +338,7 @@ pub fn stale_allowance_violations(
         let covered = rules.iter().any(|rule| {
             rule.allowed.contains(&allowed)
                 && under(allowed.owner, &rule.owners)
-                && under(allowed.dependency, &rule.forbidden)
+                && rule.forbids(allowed.dependency)
         });
         if !covered {
             violations.push(format!(
