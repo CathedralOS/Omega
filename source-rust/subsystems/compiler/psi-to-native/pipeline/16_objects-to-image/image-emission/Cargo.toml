@@ -63,7 +63,6 @@ entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/en
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
-image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }

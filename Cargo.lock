@@ -1007,7 +1007,6 @@ dependencies = [
  "image",
  "image-elf",
  "image-emission",
- "image-fixtures",
  "image-macho",
  "image-pe",
  "installation-admission",
