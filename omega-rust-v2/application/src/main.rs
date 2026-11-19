@@ -65,10 +65,24 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
     }
 }
 
+fn write_help() -> io::Result<()> {
+    // Rust's Unix stdout treats EBADF as a successful write. Use the actual
+    // descriptor so redirecting help to a read-only stream reports the error.
+    #[cfg(unix)]
+    let mut output = {
+        use std::os::fd::AsFd;
+        std::fs::File::from(io::stdout().as_fd().try_clone_to_owned()?)
+    };
+    #[cfg(not(unix))]
+    let mut output = io::stdout().lock();
+    writeln!(output, "{USAGE}\n\n{HELP}")?;
+    output.flush()
+}
+
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
     let result = match command(&arguments) {
-        Ok(Command::Help) => writeln!(io::stdout().lock(), "{USAGE}\n\n{HELP}").map_err(|e| format!("omega: could not write help: {e}")),
+        Ok(Command::Help) => write_help().map_err(|e| format!("omega: could not write help: {e}")),
         Ok(Command::Parse(path)) => source::parse_file(path),
         Ok(Command::Stage(paths, stage)) => source::check_files(paths, stage),
         Err(message) => {
