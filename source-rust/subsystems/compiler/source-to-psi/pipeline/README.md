@@ -752,7 +752,7 @@ requirement lifetime names settle binder membership/ordinals during typing.
 Measures retain their own declaration and parameter symbols in full and seeded
 resolution. A body name cannot become its parameter merely through matching
 spelling or a missing symbol; ranking classification consumes the resolved binding.
-Proof-only `zero_value<T>()` retains the resolved type graph without deciding
+Proof-only `zero_value::<T>()` retains the resolved type graph without deciding
 all-zero validity. Named-transition evidence stays separate from runtime arguments.
 
 Signature-free requirement compatibility is checked before normalization consumes

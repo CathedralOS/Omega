@@ -16,7 +16,7 @@ program, and nothing here is an acceptance.
 
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
-| [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay<u8>(..)`, `advance<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
+| [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay::<u8>(..)`, `advance::<Hold>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
 | [record patterns](src/passes/record_patterns.rs) | For `let { a, b as _ } = subject;`, the subject's record symbol on the marker local and each named field's symbol on its roster row | Structural elaboration (`read/places.rs`, `record_pattern`), which refuses a marker without them |
 
 For a reflected sum visitor, specialization checks both callback interfaces and
@@ -36,7 +36,7 @@ for that requirement and records the requirement it was written against
 (`StaticRequirementDispatch`), which structural elaboration reads
 (`read/calls.rs`, `requirement_call`). Two names of one implementation value
 are one application. A call that names a trait's requirement and applies the
-requirement's own parameters (`Probe::take<Reading>(..)`) is served the same
+requirement's own parameters (`Probe::take::<Reading>(..)`) is served the same
 way, except that a requirement has no body to copy: the application selects
 the requirement's signature and contract at the arguments
 (`TypedTrees::instantiate_requirement_application`), one closed requirement
@@ -52,7 +52,7 @@ and re-decides those proofs in each generated machine.
 
 A value parameter (`const Tag: u64`, `const Flag: bool`) is given an integer
 literal, `true` or `false`. A number written as a calculation over literals,
-`configure<(8u64 + 9u64)>(..)`, reaches this pass already as the literal of
+`configure::<(8u64 + 9u64)>(..)`, reaches this pass already as the literal of
 its value: typing folds it where it reads the argument
 (`typed_trees::const_integer::closed_literal`), so `17u64`, `(8u64 + 9u64)`
 and `(20 - 3)` are one application. A calculation typing does not close (two
@@ -60,7 +60,7 @@ integer types, a result outside its type, a name or a call) stays a request
 on the machine that holds the call.
 
 A Build selection inside a generic helper,
-`Build::select_provider<Reading<Tag>, FirstReading<Tag>>(builder, target)`, is
+`Build::select_provider::<Reading<Tag>, FirstReading<Tag>>(builder, target)`, is
 copied as written. Its operands are the request the call was authored with,
 not static arguments of a machine to generate, so the generated helper holds
 the same request, and the reader of the selection takes each parameter's
