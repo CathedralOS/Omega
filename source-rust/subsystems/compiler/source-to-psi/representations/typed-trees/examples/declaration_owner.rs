@@ -1,6 +1,8 @@
 //! Compare actual declaration-owner APIs from two explicitly built revisions.
 //! The generated tables are metadata payloads, not executable Omega programs.
 
+mod support;
+
 use source_symbol_table::source_symbols::SymbolTableBuilder;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
@@ -385,7 +387,7 @@ fn plans(directory: &Path, baseline: &Path, candidate: &Path) {
                 } else {
                     1
                 };
-            let plan = serde_json::json!({"schema":"omega-performance-plan/1","name":name,"working_directory":std::env::current_dir().unwrap(),"inputs":[concat!(env!("CARGO_MANIFEST_DIR"), "/../../representations/typed-trees/examples/declaration_owner.rs")],"baseline":command(baseline),"candidate":command(candidate),"warmups":2,"pairs":9,"timeout_ms":60000,"measurement":{"kind":"reported_work","stdin":"","work_units":work,"checksum":checksum.to_string()}});
+            let plan = serde_json::json!({"schema":"omega-performance-plan/1","name":name,"working_directory":std::env::current_dir().unwrap(),"inputs":[support::typed_trees_directory().join("examples/declaration_owner.rs")],"baseline":command(baseline),"candidate":command(candidate),"warmups":2,"pairs":9,"timeout_ms":60000,"measurement":{"kind":"reported_work","stdin":"","work_units":work,"checksum":checksum.to_string()}});
             let filename = format!("{name}.json");
             std::fs::write(
                 directory.join(&filename),

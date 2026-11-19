@@ -3,6 +3,8 @@
 //! `audit <bindings|fields> <size> [queries]` reports allocation/work counts.
 //! Generated graphs isolate lookup cost and do not represent whole compilations.
 
+mod support;
+
 use source_symbol_table::source_symbols::SymbolTableBuilder;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::hint::black_box;
@@ -315,8 +317,7 @@ fn run(kind: &str, candidate: bool, size: usize, queries: usize, mode: &str) {
 fn plans(directory: &std::path::Path, sizes: &[usize], selected_kind: &str) {
     std::fs::create_dir_all(directory).unwrap();
     let executable = std::env::current_exe().unwrap();
-    let owner =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../representations/typed-trees");
+    let owner = support::typed_trees_directory();
     let inputs: Vec<_> = [
         "examples/declaration_lookups.rs",
         "src/declared_bindings.rs",
