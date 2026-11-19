@@ -17,6 +17,11 @@ compiler passes selection evidence through without building that list itself.
 The two image products share the emission-parts shape, not result type or
 replay.
 
+[Component publication](src/component_description.rs) writes the selected provider
+receipts, emitted stack demand and image identity into the component description.
+The [component reader](../../../../psi/component-description/description.rs) reconstructs
+the verified export and authority rosters from the embedded Psi artifact.
+
 The rest of the lifecycle is in `native_artifact.rs`.
 `from_emitted_parts` derives physical evidence once and seals the artifact
 over the parts this compile produced, without replaying them.

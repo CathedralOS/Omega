@@ -29,6 +29,7 @@ compiler drivers install executables or macOS `.app` bundles.
 
 pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
+mod component_description;
 mod component_product;
 mod fragment_object_publication;
 mod native_artifact;

@@ -27,5 +27,6 @@ numerics = { path = "../../../source-to-psi/language/scalar-values" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
+component-description = { path = "../../../../psi/component-description" }
 # The source guards delegate their scan to the shared audit crate.
 source-audit = { path = "../../../../test-support/source-audit" }

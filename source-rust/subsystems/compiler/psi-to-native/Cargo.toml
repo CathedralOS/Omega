@@ -43,7 +43,7 @@ wire = { path = "../../../foundation/wire" }
 bound-installations = { path = "verification/installation-admission/bound-installations" }
 installation-conditions = { path = "verification/installation-admission/conditions" }
 provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
-component-description = { path = "components/description" }
+component-description = { path = "../psi/component-description" }
 effects = { path = "installation/native-effects" }
 selected-instruction-analyses = { path = "pipeline/06_selected-instructions-to-selected-instructions/analyses" }
 native-encoding = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding" }

@@ -1,3 +1,5 @@
+mod selected_exports;
+
 use crate::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
@@ -239,8 +241,7 @@ impl RetainedComponentNativeInputs {
         if proposal.target_profile().target_name() != plan.target {
             return Err("component native target differs from the selected provider plan".into());
         }
-        let candidates = component
-            .selected_plan_export_positions(plan)
+        let candidates = selected_exports::selected_plan_export_positions(&component, plan)
             .map_err(|error| error.to_string())?;
         let mut exports = Vec::with_capacity(candidates.len());
         for candidate_position in candidates {

@@ -1,0 +1,18 @@
+[package]
+name = "component-description"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "description.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+wire = { path = "../../../../foundation/wire" }
+service-surface = { path = "../service-surface" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../codec" }
+terminal-psi = { path = ".." }
