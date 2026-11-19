@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+build-evaluation-result = { path = "../../../compiler/build/build-settings/result" }
 provider-acceptance = { path = "../../../compiler/build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../../compiler/psi-to-native/verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }

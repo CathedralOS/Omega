@@ -55,11 +55,10 @@ admitted target context. The first check covers the selected Build source and
 its helpers; Product roots wait until the run returns and its requested sources
 join.
 
-[Compilation products](../../compilation/products/src/evaluated_build.rs)
-defines the `BuildConfig` and `ComputedBuildConfig` records, re-exported here.
-Consumers need not import the evaluator to keep its result.
+Build and package review share the returned configuration, accepted source and execution receipts
+through the [evaluated Build result](result/result.rs).
 
-The [Build-value protocol](../../packages/package-compilation/src/build_execution/build_value.rs)
+The [Build-value protocol](../package-compilation/src/build_execution/build_value.rs)
 admits the vocabulary and defines the initial Build facets and normalized
 settings, including optimization counters and application and privileged-service
 fields. One admission object follows the value from initialization through

@@ -185,8 +185,8 @@ pub fn produce_fixture_products(
                     cause:
                         package_manager::review::CompileResolvedPackageReviewCause::Compilation {
                             failure:
-                                products::CompileFailure::Diagnostics(diagnostics)
-                                | products::CompileFailure::SourceCompletion { diagnostics, .. },
+                                build_evaluation_result::CompileFailure::Diagnostics(diagnostics)
+                                | build_evaluation_result::CompileFailure::SourceCompletion { diagnostics, .. },
                             ..
                         },
                     ..

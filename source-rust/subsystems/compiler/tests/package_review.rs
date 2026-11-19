@@ -2991,13 +2991,13 @@ fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
     session.resources().record_source_completion(history);
     let staging = force_build_cleanup_failure(workspace.path());
     let primary = package_manager::operations::PackageInspectionError::from(
-        products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+        build_evaluation_result::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
             "actual primary inspection failure",
         )]),
     );
     assert!(primary.source_completion_accounting().receipts().is_empty());
     let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
-    let Some(products::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
+    let Some(build_evaluation_result::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
     else {
         panic!("cleanup must preserve the original typed compilation cause")
     };

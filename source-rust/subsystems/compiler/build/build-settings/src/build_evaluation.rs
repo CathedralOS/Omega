@@ -38,7 +38,7 @@ use package_compilation::build_execution::{RestrictedBuildRequest, select_build_
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
-use products::CompileFailure;
+use build_evaluation_result::CompileFailure;
 use source_compiler::source_state::TypedTrees;
 use std::path::Path;
 use std::sync::Arc;
@@ -68,13 +68,14 @@ pub struct BuildStageRequest<'request> {
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
-pub use products::{BuildSubjectValidation, EvaluatedBuild};
+pub use build_evaluation_result::EvaluatedBuild;
+use build_evaluation_result::BuildSubjectValidation;
 
 pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    constants: products::BuildConstants,
+    constants: build_evaluation_result::BuildConstants,
     source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,

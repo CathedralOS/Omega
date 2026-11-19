@@ -5,6 +5,7 @@
 // source continuations, cohort checking, component custody, and Terminal/native
 // production inside the compiler.
 
+use products::ComputedBuildConfigExt as _;
 use super::CompilationSession;
 use diagnostics::Diagnostic;
 use products::{CheckedCompileRequest, CompileFailure, NativeProductRequest, PreparedPackageBuild};

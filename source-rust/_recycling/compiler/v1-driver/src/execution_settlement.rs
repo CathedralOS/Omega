@@ -3,6 +3,7 @@
 // the same call query substitutes actual arguments through those bodies. Code
 // retained by a map or descriptor never becomes an independent entry root.
 
+use products::ComputedBuildConfigExt as _;
 use crate::checked::CheckedCompilation;
 use crate::checked::{PreparedProductTarget, PreparedRuntimeConsent};
 use artifacts::compile_timings::CompileTimings;

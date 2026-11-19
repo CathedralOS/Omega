@@ -80,7 +80,7 @@ pub use compile_request::{
     NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
 };
 pub use evaluated_build::{
-    BuildAdmission, BuildConfig, BuildConstants, BuildSubjectValidation, ComputedBuildConfig,
+    BuildAdmission, BuildConfig, BuildConfigExt, BuildConstants, BuildSubjectValidation, ComputedBuildConfig, ComputedBuildConfigExt,
     EvaluatedBuild, IndependentComponentDiscovery, IndependentComponentSelection,
     ProviderDeployment, ServiceAuditRegistration,
 };
