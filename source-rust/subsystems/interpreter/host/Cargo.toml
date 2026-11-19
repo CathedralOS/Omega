@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+interpreter-numeric-imports = { path = "../numeric-imports" }
 target-provider-admission = { path = "../../compiler/psi-to-native/verification/target-providers" }
 psi-provider-selections = { path = "../../compiler/psi/providers" }
 psi-entry-memory = { path = "../../compiler/psi/access/entry-memory" }
@@ -13,11 +14,9 @@ published-runtime-input = { path = "../../compiler/psi-to-native/verification/ru
 access-vocabulary = { path = "../../compiler/psi/access" }
 storage-access = { path = "../memory/storage-access" }
 extent-contracts = { path = "../../compiler/psi/extent-contracts" }
-bignum = { path = "../../../foundation/bignum" }
 extents = { path = "../memory/extents" }
 native-provider-runtime = { path = "native-worker" }
 runtime-abi = { path = "../../compiler/psi-to-native/targets/runtime-abi" }
-numerics = { path = "../../compiler/psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
 target = { path = "../../compiler/psi-to-native/targets/target" }
 terminal-psi = { path = "../../compiler/psi" }

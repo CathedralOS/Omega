@@ -21,4 +21,4 @@ target = { path = "../../../targets/target" }
 terminal-codec = { path = "../../../../psi/codec" }
 terminal-interpreter = { path = "../../../../../interpreter" }
 terminal-psi = { path = "../../../../psi" }
-terminal-runtime = { path = "../../../../../interpreter/host" }
+interpreter-numeric-imports = { path = "../../../../../interpreter/numeric-imports" }

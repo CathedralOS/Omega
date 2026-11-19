@@ -1,8 +1,6 @@
-// We evaluate admitted IEEE-754 floating-point host realizations using the pure
-// numerics semantics shared with constant folding, proof, and ordinary Terminal
-// operations. Payload-preserving operations retain operand bits, and trapping
-// integer conversions report a Crash(CrashCause::Trap) for the core to admit
-// against the boundary declaration.
+//! Interpret selected IEEE operations against the demanded Psi import signature.
+//! The same adapter runs Build scalar applications and installed host imports.
+#![forbid(unsafe_code)]
 
 use bignum::BigInt;
 use numerics::float_semantics::FloatClass;
@@ -19,9 +17,28 @@ use terminal_interpreter::{
 };
 use terminal_psi::{BoundaryCompletion, BoundaryMachineDeclaration, CrashCause};
 
-use super::super::TerminalRuntimeError;
+/// An instance can refuse the declared numeric contract or the binding itself.
+#[derive(Debug)]
+pub enum NumericImportError {
+    InvalidProvision(&'static str),
+    Binding(terminal_interpreter::TerminalBindingRejection),
+}
 
-pub(super) struct NumericImport {
+/// Bind a selected numeric operation to a demanded slot on an interpreter instance.
+pub fn bind_numeric_import_slot(
+    instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
+    slot: semantic_vocabulary::BoundaryMachineId,
+    realization: NearestIeeeFloatArithmeticRealization,
+) -> Result<(), NumericImportError> {
+    let adapter = NumericImport::for_import(instance.program(), instance.import(slot), realization)
+        .map_err(NumericImportError::InvalidProvision)?;
+    instance
+        .bind_import(slot, adapter)
+        .map_err(NumericImportError::Binding)
+}
+
+/// A result-aware interpreter adapter checked against a scalar or classification signature.
+pub struct NumericImport {
     signature: TerminalImportSignature,
     realization: NearestIeeeFloatArithmeticRealization,
     classification: Option<ClassificationResult>,
@@ -34,30 +51,28 @@ struct ClassificationResult {
 }
 
 impl NumericImport {
-    pub(super) fn for_import(
+    /// Prepare the adapter for a demanded declaration on an instance or component.
+    pub fn for_import(
         program: &terminal_interpreter::TerminalProgram,
-        declaration: &BoundaryMachineDeclaration,
+        declaration: Option<&BoundaryMachineDeclaration>,
         realization: NearestIeeeFloatArithmeticRealization,
-    ) -> Result<Self, TerminalRuntimeError> {
+    ) -> Result<Self, &'static str> {
+        let declaration = declaration.ok_or("numeric host provision names no demanded import")?;
         let signature = TerminalImportSignature::from(declaration);
         let classification = if realization.operation == IeeeFloatArithmeticOperation::Classify {
             let terminal_psi::BoundaryMachineResult::Structural(result) = &signature.result else {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "classification result is not structural",
-                ));
+                return Err("classification result is not structural");
             };
-            let declaration = program.structural_type(result.structural_type).ok_or(
-                TerminalRuntimeError::InvalidProvision("classification result type is absent"),
-            )?;
+            let declaration = program
+                .structural_type(result.structural_type)
+                .ok_or("classification result type is absent")?;
             if target_vocabulary::conventional_float_class_layout(declaration).is_none()
                 || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || signature.scalar_parameters != [ScalarType::IeeeFloat(realization.format)]
             {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "classification result differs from its admitted sum contract",
-                ));
+                return Err("classification result differs from its admitted sum contract");
             }
             let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
                 unreachable!("validated sum");
@@ -71,18 +86,14 @@ impl NumericImport {
             if !signature.result.scalar().is_some_and(|result| {
                 realization.signature_matches(&signature.scalar_parameters, result)
             }) {
-                return Err(TerminalRuntimeError::InvalidProvision(
-                    "numeric realization differs from its admitted scalar contract",
-                ));
+                return Err("numeric realization differs from its admitted scalar contract");
             }
             None
         };
         if signature.completion != BoundaryCompletion::NormalReturn
             || !signature.structural_parameters.is_empty()
         {
-            return Err(TerminalRuntimeError::InvalidProvision(
-                "numeric realization differs from its admitted contract",
-            ));
+            return Err("numeric realization differs from its admitted contract");
         }
         Ok(Self {
             signature,
@@ -92,22 +103,33 @@ impl NumericImport {
     }
 }
 
-import_signature_via_clone!(NumericImport);
+impl TerminalImportAdapter for NumericImport {
+    fn implemented_signature(&self) -> TerminalImportSignature {
+        self.signature.clone()
+    }
+}
 
 impl TerminalEffectHandler for NumericImport {
-    handle_effect_requires_dispatch!(rejected("numeric import requires result-aware dispatch"));
+    fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+        Err(rejected("numeric import requires result-aware dispatch"))
+    }
 
     fn handle_effect_result(
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let call = super::call_operands(effect, || {
-            rejected("numeric import received a non-boundary effect")
-        })?;
-        if !call.structural_arguments.is_empty()
-            || call.arguments.len() != self.signature.scalar_parameters.len()
-            || !call
-                .arguments
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            structural_arguments,
+            ..
+        } = effect
+        else {
+            return Err(rejected("numeric import received a non-boundary effect"));
+        };
+        let arguments = arguments.as_slice();
+        if !structural_arguments.is_empty()
+            || arguments.len() != self.signature.scalar_parameters.len()
+            || !arguments
                 .iter()
                 .zip(&self.signature.scalar_parameters)
                 .all(|(value, expected)| {
@@ -123,7 +145,7 @@ impl TerminalEffectHandler for NumericImport {
             return Err(rejected("numeric operands differ from the bound contract"));
         }
         if let Some(classification) = &self.classification {
-            let [TerminalScalarValue::IeeeFloat(value)] = call.arguments else {
+            let [TerminalScalarValue::IeeeFloat(value)] = arguments else {
                 return Err(rejected("classification requires one IEEE payload"));
             };
             let format = match self.realization.format {
@@ -156,7 +178,7 @@ impl TerminalEffectHandler for NumericImport {
                 ),
             ));
         }
-        let result = evaluate(self.realization, call.arguments)?;
+        let result = evaluate(self.realization, arguments)?;
         if let TerminalEffectResult::Scalar(value) = result
             && Some(value.scalar_type()) != self.signature.result.scalar()
         {
