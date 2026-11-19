@@ -1,7 +1,6 @@
-# 05 - Typed trees to lowered program
+# 05 - Prepared typed trees to lowered program
 
-This crate turns the finished typed trees into a lowered program, and fills the [check tables](../../representations/lowered-program/README.md)
-that the checker reads beside it. It covers scalar code and plain data:
+This stage accepts the `PreparedTypedTrees` issued by [stage 04](../04_typed-trees-to-prepared-typed-trees/prepare.rs). It lowers those trees and fills the [check tables](../../representations/lowered-program/README.md) that stage 06 reads. It covers scalar code and plain data:
 records (literals, field reads, stores, whole copies) and sums (case literals,
 case tests, dispatch and `match` with payload bindings). It is the second
 piece of [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):

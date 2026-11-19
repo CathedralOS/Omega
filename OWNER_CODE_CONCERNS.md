@@ -86,18 +86,10 @@ framework or a list of unimplemented features.
 ### Several source stages perform generic data preparation in the typed-tree representation
 
 - Category: Knowledge crossing a boundary.
-- Where: [Generic data preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/data_applications.rs#L60), [typing](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1892), [specialization](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src/passes/specialization.rs#L189) and [compile-time argument evaluation](source-rust/subsystems/compiler/source-to-psi/compile_time/calls/arguments.rs#L58).
+- Where: [Generic data preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/data_applications.rs#L60), [typing](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1892), [specialization](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs#L189) and [compile-time argument evaluation](source-rust/subsystems/compiler/source-to-psi/compile_time/calls/arguments.rs#L58).
 - Saw: Typing, specialization and compile-time argument evaluation ask the representation to substitute constants and rebuild generic member payloads. The operation also invalidates applications affected by the substitutions.
 - Cost: Changing the timing or meaning of these substitutions requires tracing three callers through a file presented as data storage. Give the shared transformation an explicit owner and keep the stored rows with the representation.
 - Reported: 2026-11-19, Codex, while moving domain preparation into stage 04.
-
-### Stage 05 accepts frozen trees that can skip the stage 04 passes
-
-- Category: The documents disagree.
-- Where: [Stage 04's contract](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/README.md#typed-preparation-psi-04), the [frozen tree constructor](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/lib.rs#L898) and the [stage 05 entry](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs#L47).
-- Saw: Stage 04 promises every frozen program has run specialization, domain preparation and record-pattern preparation. Any caller can construct the same type by sealing declaration indexes alone. [Checker tests](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/qualified_terms.rs#L157) do this directly.
-- Cost: A lowering caller can skip required work. A test using this shortcut cannot establish what a program passing through the public compiler would do.
-- Reported: 2026-11-19, Codex, while checking the strict source frontend.
 
 ### Instruction encoding reaches earlier forms through the installation binder
 

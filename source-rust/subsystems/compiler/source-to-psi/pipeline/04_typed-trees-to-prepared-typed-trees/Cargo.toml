@@ -11,7 +11,7 @@ autobenches = false
 test-support = []
 
 [lib]
-path = "lib.rs"
+path = "prepare.rs"
 
 [dependencies]
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }

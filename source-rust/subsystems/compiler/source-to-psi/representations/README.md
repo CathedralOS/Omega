@@ -1,6 +1,6 @@
 # Source pipeline representations
 
-Tokens, syntax trees, resolved trees, typed trees, and the lowered program are the forms passed between source stages. The checked result keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../psi/).
+Tokens, syntax trees, resolved trees, typed trees, prepared typed trees and the lowered program are the forms passed between source stages. The checked result keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../psi/).
 
 ## Program forms along the pipeline
 
@@ -13,6 +13,7 @@ shows which records its operations produce and what the next operation reads.
 | [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
 | [Resolved source](symbol-resolved-trees/lib.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
 | [Typed source](typed-trees/src/lib.rs) | Typing | [Source preparation](../pipeline/04_typed-trees-to-prepared-typed-trees/README.md) and [structural lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/lib.rs) |
+| [Prepared typed trees](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) | Stage 04 runs specialization, domain preparation and record-pattern preparation | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) |
 | [Terminal Psi](../../psi/psi.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 
 The [Terminal interpreter](../../../interpreter/README.md) runs the published

@@ -785,7 +785,7 @@ pub(super) fn form(
     retained.binding_declaration = declaration;
     retained.lexical_owner = author;
     let selected = if role == ProductOperandRole::Requirement {
-        use crate::preparation::passes::specialization::{
+        use crate::passes::specialization::{
             Stop as RequirementStop, prepare_requirement_application,
         };
         prepare_requirement_application(program, declaration, supplying, &closed)
@@ -868,7 +868,7 @@ fn prepare_boundary_requirements(
                 .static_machine_application_mut(application);
             row.lexical_owner = author;
             row.binding_declaration = requirement;
-            crate::preparation::passes::specialization::prepare_requirement_in_scope(
+            crate::passes::specialization::prepare_requirement_in_scope(
                 program,
                 &environment,
                 requirement,
@@ -876,13 +876,13 @@ fn prepare_boundary_requirements(
                 &[],
             )
             .map_err(|stop| match stop {
-                crate::preparation::passes::specialization::Stop::Unserved(reason) => {
+                crate::passes::specialization::Stop::Unserved(reason) => {
                     Stop::Unserved(reason)
                 }
-                crate::preparation::passes::specialization::Stop::Rejected(reason) => {
+                crate::passes::specialization::Stop::Rejected(reason) => {
                     Stop::Rejected(reason)
                 }
-                crate::preparation::passes::specialization::Stop::Defect(reason) => {
+                crate::passes::specialization::Stop::Defect(reason) => {
                     Stop::Rejected(reason.into())
                 }
             })?;

@@ -7,6 +7,24 @@
 //! for a program changes nothing. Only a program that has completed the list
 //! can enter source lowering. The checker judges what the passes write.
 
+#![forbid(unsafe_code)]
+
+use source_declarations::declaration_selection;
+#[cfg(test)]
+use source_symbol_table::source_inputs;
+use source_symbol_table::source_symbols;
+use typed_trees::source_state;
+
+mod passes;
+mod product_operands;
+
+#[cfg(any(test, feature = "test-support"))]
+pub use product_operands::PreparedProductRequirement;
+pub use product_operands::{
+    prepare_product_operand_application, prepare_product_requirement_operand,
+    prepare_retained_product_application,
+};
+
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
 
@@ -22,15 +40,15 @@ struct Pass {
 const PASSES: &[Pass] = &[
     Pass {
         name: "specialization",
-        run: crate::preparation::passes::specialization::prepare,
+        run: crate::passes::specialization::prepare,
     },
     Pass {
         name: "domain applications",
-        run: crate::preparation::passes::domain_applications::prepare,
+        run: crate::passes::domain_applications::prepare,
     },
     Pass {
         name: "record patterns",
-        run: crate::preparation::passes::record_patterns::prepare,
+        run: crate::passes::record_patterns::prepare,
     },
 ];
 
@@ -120,9 +138,6 @@ impl PreparationAdmission {
     }
 }
 
-/// Compatibility name for the request metadata; it has no judgment output.
-pub type TypedPreparation = PreparationAdmission;
-
 /// The one wording of a refusal from this stage, so a reader can tell which
 /// pass declined which request.
 fn refusal(pass: &str, request: &str) -> Diagnostic {
@@ -137,7 +152,7 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
 ///
 /// ```
 /// use typed_trees::source_state::TypedTrees;
-/// use typed_trees_to_prepared_typed_trees::preparation::{PreparationRequest, prepare_typed_trees};
+/// use typed_trees_to_prepared_typed_trees::{PreparationRequest, prepare_typed_trees};
 /// let (prepared, _) = prepare_typed_trees(TypedTrees::default(), &PreparationRequest::settled()).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(&prepared, &prepared.clone()));
 /// ```
@@ -146,7 +161,7 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
 ///
 /// ```compile_fail,E0277
 /// use typed_trees::source_state::FrozenTypedTrees;
-/// use typed_trees_to_prepared_typed_trees::preparation::PreparedTypedTrees;
+/// use typed_trees_to_prepared_typed_trees::PreparedTypedTrees;
 /// let _: PreparedTypedTrees = FrozenTypedTrees::default().into();
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,7 +185,7 @@ impl std::ops::Deref for PreparedTypedTrees {
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
-) -> Result<(PreparedTypedTrees, TypedPreparation), Vec<Diagnostic>> {
+) -> Result<(PreparedTypedTrees, PreparationAdmission), Vec<Diagnostic>> {
     request.require_served()?;
     for pass in PASSES {
         (pass.run)(&mut program).map_err(|refused| {
