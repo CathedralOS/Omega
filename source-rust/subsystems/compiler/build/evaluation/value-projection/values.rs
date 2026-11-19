@@ -1,28 +1,7 @@
-/*
-Marshal `BuildTimeValue` arguments and results across the Terminal interpreter
-boundary (`input_contents`, `scalar_argument`, `result_value`).
+//! Project Build values into an interpreter entry and read its declared result.
+#![forbid(unsafe_code)]
 
-Build-time evaluation and Build calling-policy execution both run admitted
-Terminal entries on compiler-materialized values, so they share this single
-projection rather than each keeping a private copy.
-
-`input_contents` projects a value into the formal parameter's
-`StructuralTypeId` namespace (`TerminalStructuralContents`), sorting paths
-canonically so the interpreter can verify field completeness, stored scalar
-widths, predicates, erased-field exclusions, and memory custody before
-materializing storage. When matching sum variants (`BuildTimeValue::Case`), we
-strip any leading `Type::` prefix from the compiler-owned descriptor label
-because the formal `StructuralTypeId` already owns the case namespace. When
-writing unsigned integer scalars (`<= 64` bits), we reinterpret the `i64`
-carrier bit-pattern as `u64` because `BuildTimeValue::Int` transports `u64` IDs
-and bitmasks in two's-complement form.
-
-`result_value` observes the completed structural return value from the
-`TerminalInstance` using only the instance's own canonical structural catalog;
-`scalar_result` converts a returned scalar the same way a scalar leaf is read.
-*/
-
-use crate::BuildTimeValue;
+use build_time_values::BuildTimeValue;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, ClosedScalarType, IntegerValue, ScalarType,
     StructuralTypeId,
@@ -229,15 +208,6 @@ fn write_fields(
         result?;
     }
     Ok(())
-}
-
-/// Convert one scalar argument to the entry parameter's declared scalar type.
-pub fn scalar_argument(
-    program: &TerminalProgram<'_>,
-    scalar: ScalarType,
-    value: &BuildTimeValue,
-) -> Result<TerminalScalarValue, String> {
-    scalar_value(closed_module(program)?, scalar, value)
 }
 
 fn scalar_value(
@@ -480,10 +450,7 @@ fn read_fields(
     Ok(values)
 }
 
-pub fn read_leaf(
-    instance: &TerminalInstance<'_, '_>,
-    path: &[Path],
-) -> Result<BuildTimeValue, String> {
+fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<BuildTimeValue, String> {
     closed_module(instance.program())?;
     match instance
         .observe_result(path)
