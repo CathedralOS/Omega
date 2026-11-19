@@ -74,7 +74,4 @@ pub use theorems::*;
 
 pub use crate::Psi as TerminalModule;
 
-
-#[path = "types/module_queries.rs"]
-mod module_queries;
-pub use module_queries::OpaqueStorageShapes;
+pub use crate::OpaqueStorageShapes;

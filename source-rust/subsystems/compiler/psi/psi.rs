@@ -6,40 +6,47 @@
 /// A concrete program, its declared boundaries, and the evidence carried in its canonical encoding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Psi {
+    /// The instruction and type vocabulary used to interpret these records.
     pub vocabulary_marker: VocabularyMarker,
     pub identities: TerminalIdentityTable,
+    /// The default executable entry, when the publication selects one.
     pub entry: Option<TargetMachineCallable>,
+    /// Executable bodies, each containing its blocks, operations and terminators.
     pub machines: Vec<TerminalMachine>,
     pub types: TypeDeclarations,
     pub scalars: ScalarDeclarations,
+    /// Declared services, calling conventions, providers and boundary demands.
     pub interfaces: ProgramInterfaces,
     pub access: AccessDeclarations,
+    /// Callable declarations, dispatch, suspension and task activation.
     pub execution: ExecutionDeclarations,
+    /// Propositions, evidence, proof outputs and checked operation obligations.
     pub proofs: ProgramProofs,
+    /// Declared layout applications and their retained target descriptions.
     pub layouts: LayoutDeclarations,
 }
 
 #[path = "types/declarations.rs"]
-mod types_declarations;
-pub use types_declarations::TypeDeclarations;
+mod type_declarations;
+pub use type_declarations::TypeDeclarations;
 #[path = "types/scalars.rs"]
-mod scalars_declarations;
-pub use scalars_declarations::ScalarDeclarations;
+mod scalar_declarations;
+pub use scalar_declarations::ScalarDeclarations;
 #[path = "boundary/interfaces.rs"]
-mod interfaces_declarations;
-pub use interfaces_declarations::ProgramInterfaces;
+mod program_interfaces;
+pub use program_interfaces::ProgramInterfaces;
 #[path = "ownership/declarations.rs"]
 mod access_declarations;
 pub use access_declarations::AccessDeclarations;
 #[path = "machines/execution.rs"]
-mod execution_declarations;
-pub use execution_declarations::ExecutionDeclarations;
+mod machine_declarations;
+pub use machine_declarations::ExecutionDeclarations;
 #[path = "evidence/program_proofs.rs"]
-mod proofs_declarations;
-pub use proofs_declarations::ProgramProofs;
+mod program_proofs;
+pub use program_proofs::ProgramProofs;
 #[path = "types/layouts/declarations.rs"]
-mod layouts_declarations;
-pub use layouts_declarations::LayoutDeclarations;
+mod layout_declarations;
+pub use layout_declarations::LayoutDeclarations;
 
 #[path = "machines/published_entry.rs"]
 mod published_entry;
@@ -93,5 +100,42 @@ pub mod target_layouts;
 #[path = "machines/direct_calls.rs"]
 pub mod direct_calls;
 
+#[path = "types/opaque_storage.rs"]
+mod opaque_storage;
+pub use opaque_storage::OpaqueStorageShapes;
+#[path = "boundary/queries.rs"]
+mod boundary_queries;
+#[path = "machines/instructions.rs"]
+mod instruction_queries;
+#[path = "machines/contracts.rs"]
+mod machine_contracts;
+#[path = "types/queries.rs"]
+mod type_queries;
+
 mod exports;
 pub use exports::*;
+
+impl Psi {
+    pub fn for_entry(entry: semantic_vocabulary::MachineId) -> Self {
+        Self {
+            entry: Some(TargetMachineCallable::Machine(entry)),
+            ..Self::declarations()
+        }
+    }
+
+    pub fn declarations() -> Self {
+        Self {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            identities: Default::default(),
+            entry: None,
+            machines: Vec::new(),
+            types: Default::default(),
+            scalars: Default::default(),
+            interfaces: Default::default(),
+            access: Default::default(),
+            execution: Default::default(),
+            proofs: Default::default(),
+            layouts: Default::default(),
+        }
+    }
+}
