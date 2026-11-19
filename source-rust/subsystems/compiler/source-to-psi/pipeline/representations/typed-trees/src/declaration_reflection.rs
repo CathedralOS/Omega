@@ -116,7 +116,7 @@ pub mod reflection {
                 }
                 let mut revision = b"omega.reflect.primitive.v2\0".to_vec();
                 revision.extend_from_slice(
-                    application_identity::type_identity::builtin_type_identity(atom).as_bytes(),
+                    crate::source_state::type_identity::builtin_type_identity(atom).as_bytes(),
                 );
                 return Ok(revision);
             }
@@ -1267,7 +1267,7 @@ pub mod reflection {
             }
             let subject = schema_subject_symbol(typed, reference)?;
             if let Some(atom) = typed.symbols.builtin_type_atom(subject) {
-                let identity = application_identity::type_identity::builtin_type_name(atom);
+                let identity = crate::source_state::type_identity::builtin_type_name(atom);
                 let application = schema_type_identity(typed, reference, subject)?;
                 let root = SchemaNodeHandle::from_index(1);
                 return SemanticSchemaGraph::from_nodes(

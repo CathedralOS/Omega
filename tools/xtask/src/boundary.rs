@@ -41,7 +41,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi/layout/integer-defaults",
     "omega-rust/psi/compilation/representations/terminal-psi",
     "omega-rust/psi/compilation/representations/access-vocabulary",
-    "omega-rust/psi/compilation/representations/application-identity",
+    "source-rust/subsystems/compiler/psi/application-identity",
     "omega-rust/psi/compilation/representations/declaration-contracts",
     "omega-rust/psi/compilation/representations/declaration-identity",
     "omega-rust/psi/compilation/representations/extent-contracts",

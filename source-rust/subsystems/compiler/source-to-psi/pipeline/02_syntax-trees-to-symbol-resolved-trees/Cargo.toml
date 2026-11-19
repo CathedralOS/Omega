@@ -18,7 +18,7 @@ bundled-declarations = { path = "bundled-declarations" }
 source-declarations = { path = "../../language/source-declarations" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
-application-identity = { path = "../../language/application-identity" }
+application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }

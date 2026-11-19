@@ -1,0 +1,13 @@
+[package]
+name = "application-identity"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+bignum = { path = "../../../../foundation/bignum" }
+numeric-literals = { path = "../../foundation/numeric-literals" }
+numerics = { path = "../semantics/numeric" }
+record-storage = { path = "../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+wire = { path = "../../../../foundation/wire" }

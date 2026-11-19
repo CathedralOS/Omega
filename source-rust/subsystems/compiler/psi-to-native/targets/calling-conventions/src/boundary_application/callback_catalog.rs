@@ -17,11 +17,11 @@ use crate::{
     LayoutPlanId, LayoutSlotId, NativeParameterApplication, NativePlace, StaticMachineBinderId,
     callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
 };
-use application_identity::callback_declarations::PrivateCallbackSlotSelection;
 use arena::{Arena, HandleSpan};
 use layout_plans::LayoutPlacementReport;
 use target::NativeTarget;
 use terminal_psi::TerminalModule;
+use terminal_psi::native_layouts::PrivateCallbackSlotSelection;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackDataGeometry {

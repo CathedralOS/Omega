@@ -119,7 +119,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "semantic-vocabulary",
- "symbols",
  "wire",
 ]
 
@@ -325,7 +324,6 @@ dependencies = [
 name = "calling-conventions"
 version = "0.1.0"
 dependencies = [
- "application-identity",
  "arena",
  "layout-planning",
  "layout-plans",
@@ -1304,10 +1302,8 @@ dependencies = [
  "calling-conventions",
  "diagnostics",
  "layout-plans",
- "numerics",
  "runtime-abi",
  "semantic-vocabulary",
- "symbols",
  "target",
  "terminal-psi",
  "terminal-semantics",
@@ -1318,7 +1314,6 @@ name = "layout-planning"
 version = "0.1.0"
 dependencies = [
  "layout-plans",
- "semantic-vocabulary",
 ]
 
 [[package]]

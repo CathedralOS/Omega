@@ -13,7 +13,7 @@ artifacts = { path = "../../../../foundation/measurements" }
 access-vocabulary = { path = "../../../../psi/access" }
 declaration-contracts = { path = "../../../language/declaration-contracts" }
 schema-reflection = { path = "../../../language/schema-reflection" }
-application-identity = { path = "../../../language/application-identity" }
+application-identity = { path = "../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
 source-admission = { path = "../../../inputs/source-admission" }
 source-text = { path = "../../../../../../foundation/source-text" }

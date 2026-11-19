@@ -4,6 +4,16 @@ across open indices, constraints, lifetimes, portable machine applications, and
 callable signatures in `TypedTrees`.
 */
 
+/// Encode the builtin symbol that source typing selected.
+pub fn builtin_type_name(builtin: symbols::BuiltinTypeAtom) -> String {
+    application_identity::type_identity::compiler_type_name(&builtin.identity())
+}
+
+/// Encode the complete named type for the builtin symbol.
+pub fn builtin_type_identity(builtin: symbols::BuiltinTypeAtom) -> String {
+    application_identity::type_identity::compiler_type_identity(&builtin.identity())
+}
+
 pub(crate) mod callable_identity {
     use super::constraint_identity::{atom, compound};
     use super::coordinates::CoordinateTag;
@@ -2579,7 +2589,7 @@ pub(crate) mod identity_context {
                 return path;
             }
             if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
-                return application_identity::type_identity::builtin_type_name(builtin_atom);
+                return super::builtin_type_name(builtin_atom);
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())
