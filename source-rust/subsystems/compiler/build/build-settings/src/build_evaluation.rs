@@ -222,6 +222,20 @@ impl PreparedBuildEvaluation {
         Some(&mut self.execution)
     }
 
+    /// Settle the returned activation against the source graph supplied for Product.
+    pub fn complete_with_sources(
+        self,
+        returned: crate::ReturnedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<EvaluatedBuild, CompileFailure> {
+        self.validate_source_join(
+            Some(&returned),
+            inputs,
+            self.base_source_consumption_commitment.is_none(),
+        )?;
+        self.complete(Some(returned))
+    }
+
     pub fn complete(
         self,
         returned: Option<crate::ReturnedBuild>,

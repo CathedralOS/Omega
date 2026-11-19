@@ -1,16 +1,19 @@
 //! Drive a project build. Each plan describes a whole new compilation.
 
 pub mod output_directory;
+pub mod planning;
 pub mod published_terminal;
 
-use compiler::{Artifact, CompileRequest, PublishedPsi, StageSource, compile};
+use build_settings::PreparedBuildEvaluation;
+use compiler::{Artifact, CompileRequest, compile};
 use diagnostics::Diagnostic;
+use planning::{PlanningServices, ReturnedPlanningStage};
 
 /// The host resolves the inert plan into exact inputs and granted services.
 pub enum NextStage<'a, Services, Grants> {
     Run {
         name: String,
-        source: StageSource<'a>,
+        evaluation: Box<PreparedBuildEvaluation>,
         services: Services,
         grants: Grants,
     },
@@ -20,7 +23,7 @@ pub enum NextStage<'a, Services, Grants> {
 /// The interpreter returns plan data. Only the host can issue service handles.
 pub trait BuildHost {
     type Plan;
-    type Services;
+    type Services: PlanningServices;
     type Grants;
 
     /// The service-free core stage selects the first inputs from the invocation.
@@ -36,7 +39,7 @@ pub trait BuildHost {
 
     fn interpret_plan(
         &mut self,
-        program: PublishedPsi,
+        stage: ReturnedPlanningStage,
         services: Self::Services,
     ) -> Result<Self::Plan, Vec<Diagnostic>>;
 }
@@ -81,8 +84,8 @@ fn run_stages<H: BuildHost, T, E: From<Vec<Diagnostic>>>(
             NextStage::Emit(request) => return emit(request),
             NextStage::Run {
                 name,
-                source,
-                services,
+                evaluation,
+                mut services,
                 grants: next_grants,
             } => {
                 stages.push(name);
@@ -93,13 +96,9 @@ fn run_stages<H: BuildHost, T, E: From<Vec<Diagnostic>>>(
                     ))]
                     .into());
                 }
-                let Artifact::Psi(program) = compile(CompileRequest::Psi(source))? else {
-                    return Err(vec![Diagnostic::error(
-                        "build stage requested Psi and received a native artifact",
-                    )]
-                    .into());
-                };
-                plan = host.interpret_plan(program, services)?;
+                let stage = planning::interpret(*evaluation, &mut services)
+                    .map_err(build_settings::CompileFailure::into_diagnostics)?;
+                plan = host.interpret_plan(stage, services)?;
                 grants = next_grants;
             }
         }

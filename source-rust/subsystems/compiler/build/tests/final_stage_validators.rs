@@ -29,7 +29,11 @@ impl BuildHost for FinalStage<'_> {
         Ok(NextStage::Emit(self.0.take().expect("one final emission")))
     }
 
-    fn interpret_plan(&mut self, _: compiler::PublishedPsi, (): ()) -> Result<(), Vec<Diagnostic>> {
+    fn interpret_plan(
+        &mut self,
+        _: project_build::planning::ReturnedPlanningStage,
+        (): (),
+    ) -> Result<(), Vec<Diagnostic>> {
         panic!("a final emission must not be executed as a planning program")
     }
 }

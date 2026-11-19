@@ -9,6 +9,8 @@ build = false
 path = "build.rs"
 
 [dependencies]
+build-settings = { path = "build-settings" }
+package-compilation = { path = "package-compilation" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-runtime = { path = "../../interpreter/host" }
 target = { path = "../psi-to-native/targets/target" }
@@ -18,6 +20,11 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 platform-custody = { path = "../../../foundation/filesystem" }
 
 [dev-dependencies]
+artifacts = { path = "../foundation/measurements" }
+build-declarations = { path = "build-declarations" }
+semantic-vocabulary = { path = "../foundation/semantic-records" }
+source-acquisition = { path = "../../package-manager/source-acquisition" }
+source-compiler = { path = "../source-to-psi" }
 psi-authorization = { path = "../psi/authorization" }
 terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }
