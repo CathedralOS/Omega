@@ -14,6 +14,7 @@ path = "lib.rs"
 test-support = ["typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
 
 [dependencies]
+numeric-literals = { path = "../../../foundation/numeric-literals" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
 source-declarations = { path = "../../language/source-declarations" }
 typed-trees = { path = "../representations/typed-trees" }
@@ -26,8 +27,8 @@ wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-language-core = { path = "../../language/source-vocabulary" }
-numerics = { path = "../../language/scalar-values" }
+language-core = { path = "../../../foundation/language-core" }
+numerics = { path = "../../../psi/semantics/numeric" }
 optimization = { path = "../../../representations/psi/optimization-selections" }
 semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
 symbols = { path = "../../language/declaration-identity" }

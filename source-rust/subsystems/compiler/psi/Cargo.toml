@@ -20,9 +20,9 @@ symbols = { path = "../../source-to-psi/language/declaration-identity" }
 record-storage = { path = "../../../../foundation/record-storage" }
 arena = { path = "../../../../foundation/arena" }
 optimization = { path = "optimization-selections" }
-numerics = { path = "../../source-to-psi/language/scalar-values" }
+numerics = { path = "semantics/numeric" }
 semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
-language-core = { path = "../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../foundation/language-core" }
 flow-effects = { path = "../../source-to-psi/language/source-effects" }
 
 access-admission = { path = "../../source-to-psi/access-admission" }

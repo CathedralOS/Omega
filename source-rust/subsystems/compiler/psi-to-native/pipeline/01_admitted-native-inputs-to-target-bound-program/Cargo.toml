@@ -20,7 +20,7 @@ effects = { path = "../../installation/native-effects" }
 evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }
 evaluation-contracts = { path = "../../../../psi/evaluation/evaluation-contracts" }
 evaluation-receipts = { path = "../../../../psi/evaluation/evaluation-receipts" }
-language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
 optimization = { path = "../../../psi/optimization-selections" }
 optimization-core = { path = "../../optimization-contracts" }

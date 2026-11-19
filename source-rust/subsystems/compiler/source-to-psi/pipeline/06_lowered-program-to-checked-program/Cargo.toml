@@ -16,15 +16,15 @@ test-support = []
 [dependencies]
 declaration-contracts = { path = "../../language/declaration-contracts" }
 application-identity = { path = "../../language/application-identity" }
-numeric-literals = { path = "../../language/numeric-literals" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
 arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 worker-budget = { path = "../../../foundation/worker-budget" }
-language-core = { path = "../../language/source-vocabulary" }
-numerics = { path = "../../language/scalar-values" }
+language-core = { path = "../../../foundation/language-core" }
+numerics = { path = "../../../psi/semantics/numeric" }
 optimization = { path = "../../../representations/psi/optimization-selections" }
 proof-admission = { path = "../../proof-admission" }
 rayon = "1.11"

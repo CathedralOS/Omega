@@ -221,7 +221,7 @@ impl Program<'_> {
         let value = constant
             .evaluated_value
             .as_ref()
-            .and_then(language_core::constant_value::EvaluatedConstant::encoding)
+            .and_then(numeric_literals::EvaluatedConstant::encoding)
             .and_then(decode_declaration_value)
             .ok_or_else(|| unserved("constant has no evaluated canonical value"))?;
         if !self

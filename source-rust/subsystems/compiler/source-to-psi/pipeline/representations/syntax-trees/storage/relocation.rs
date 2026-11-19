@@ -113,6 +113,6 @@ coordinate_free!(
     language_core::atomic::AtomicOrderingPlan,
     language_core::CarryPolicy,
     language_core::CastForm,
-    language_core::constant_value::EvaluatedConstant,
+    numeric_literals::EvaluatedConstant,
     language_core::Multiplicity,
 );

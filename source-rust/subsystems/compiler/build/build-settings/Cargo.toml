@@ -27,7 +27,7 @@ filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 artifacts = { path = "../../compilation/products/measurements" }
 products = { path = "../../compilation/products" }
 arena = { path = "../../../../foundation/arena" }
-language-core = { path = "../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../foundation/language-core" }
 build-output = { path = "../../packages/build-output" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
 optimization-core = { path = "../../psi-to-native/optimization-contracts" }

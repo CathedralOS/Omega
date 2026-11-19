@@ -15,7 +15,7 @@ access-admission = { path = "../../../psi/compilation/access-admission" }
 native-provider-runtime = { path = "../native-provider-runtime" }
 terminal-installation = { path = "../../compiler/psi-admission" }
 runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
-numerics = { path = "../../compiler/source-to-psi/language/scalar-values" }
+numerics = { path = "../../compiler/psi/semantics/numeric" }
 semantic-vocabulary = { path = "../../compiler/source-to-psi/language/semantic-vocabulary" }
 backend-plan = { path = "../../compiler/psi-to-native/installation/provider-plans" }
 target = { path = "../../compilation/target-description/target" }
@@ -31,7 +31,7 @@ provider-admission = { path = "../../compilation/verification/provider-admission
 [dev-dependencies]
 native-provider-sponsor = { path = "../../host-support/native-provider-sponsor" }
 application-identity = { path = "../../compiler/source-to-psi/language/application-identity" }
-language-core = { path = "../../compiler/source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../compiler/foundation/language-core" }
 declaration-contracts = { path = "../../compiler/source-to-psi/language/declaration-contracts" }
 orchestration = { path = "../../build-system/orchestration" }
 platform-custody = { path = "../../../foundation/filesystem" }

@@ -86,7 +86,7 @@ pub struct ConstInitializerNormalization {
     pub authored_custody: ConstInitializerCustody,
     pub declaration_custody: ConstInitializerCustody,
     pub authored_expression: ExpressionHandle,
-    pub result_value: language_core::constant_value::EvaluatedConstant,
+    pub result_value: numeric_literals::EvaluatedConstant,
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
     pub builtin_operators: Vec<source_text::SourceSpan>,
     pub call_selections: Vec<(source_text::SourceSpan, source_text::SourceSpan)>,

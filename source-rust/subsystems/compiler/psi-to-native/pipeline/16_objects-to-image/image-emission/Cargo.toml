@@ -21,7 +21,7 @@ wire = { path = "../../../../../../foundation/wire" }
 native-vocabulary = { path = "../../../native-vocabulary" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
-language-core = { path = "../../../../source-to-psi/language/source-vocabulary" }
+language-core = { path = "../../../../foundation/language-core" }
 provider-admission = { path = "../../../verification/provider-admission" }
 register-model = { path = "../../../targets/register-model" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }

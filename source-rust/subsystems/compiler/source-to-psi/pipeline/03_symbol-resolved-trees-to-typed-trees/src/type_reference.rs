@@ -1649,7 +1649,7 @@ pub(crate) mod const_arguments {
                         declared_type: carrier,
                         materialized_initializer,
                         evaluated_value: Some(
-                            language_core::constant_value::EvaluatedConstant::Encoded(
+                            numeric_literals::EvaluatedConstant::Encoded(
                                 application_identity::const_value::CanonicalConstIdentity::integer(
                                     LandedIntegerType::U64, 0,
                                 )
@@ -1907,7 +1907,7 @@ pub(crate) mod const_arguments {
                         program.push_const_declaration(ConstDeclaration {
                             symbol,
                             declared_type,
-                            evaluated_value: Some(language_core::constant_value::EvaluatedConstant::Encoded(
+                            evaluated_value: Some(numeric_literals::EvaluatedConstant::Encoded(
                                 application_identity::const_value::CanonicalConstIdentity::integer(LandedIntegerType::U8, 1).encoding,
                             )),
                             ..Default::default()
