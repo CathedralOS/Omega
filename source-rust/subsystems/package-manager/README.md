@@ -26,7 +26,7 @@ package-manager/
 ├── lockfile/                     recovery and journaled file publication
 ├── review/                       candidate evidence, comparisons and decisions
 ├── transaction/                  install, update, discard and resume
-└── revsision-control-providers/  source acquisition
+└── source-acquisition/  source acquisition
 ```
 
 `PackageCommandTransaction` holds the project lock and the review-file root

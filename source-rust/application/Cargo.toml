@@ -22,9 +22,9 @@ products = { path = "../compilation/products" }
 artifacts = { path = "../subsystems/compiler/foundation/measurements" }
 platform-custody = { path = "../foundation/filesystem" }
 package-manager = { path = "../subsystems/package-manager" }
-source-acquisition = { path = "../subsystems/package-manager/revsision-control-providers" }
+source-acquisition = { path = "../subsystems/package-manager/source-acquisition" }
 package-compilation = { path = "../subsystems/compiler/build/package-compilation" }
-resolver-execution = { path = "../subsystems/package-manager/revsision-control-providers/git/execution" }
+resolver-execution = { path = "../subsystems/package-manager/source-acquisition/git/execution" }
 target = { path = "../subsystems/compiler/psi-to-native/targets/target" }
 semantic-vocabulary = { path = "../subsystems/compiler/foundation/semantic-records" }
 diagnostics = { path = "../foundation/diagnostics" }

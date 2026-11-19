@@ -4,10 +4,10 @@ This crate turns untrusted local or Git input into a read-only,
 content-verified source tree. It owns source identity, bounded tree capture,
 snapshot publication, the cache and resolved-source records.
 
-Start at `src/lib.rs`, then follow the source lifecycle:
+Start at [lib.rs](lib.rs) and follow the source through acquisition and verification.
 
 ```text
-src/
+source-acquisition/
 ├── lib.rs          stable resolution entrance and public results
 ├── identity/       lineages, locators, immutable revisions, and digests
 ├── tree/           source-neutral tree model and bounded no-follow capture
@@ -38,13 +38,13 @@ src/
 ```
 
 Native process handling, concrete resource limits and bounded duplex capture
-live in [`bounded-process`](../../foundation/bounded-process/README.md).
+live in [`bounded-process`](../../../foundation/bounded-process/README.md).
 `git/git_command.rs` launches every Git process: ordinary calls, blob batches
 and exact-object probes. Callers supply arguments, stdin and stdout limits;
 it applies command policy, counts the launch, limits capture and
 checks the shared resolution budget. Batch callers still interpret the
 protocol and own the cache. A failed Git exit never counts as object absence.
-The sibling [`execution/`](../resolver-execution/README.md) crate prepares
+The [Git execution](git/execution/README.md) crate prepares
 the resolver's executable, phases and roots. Acquisition keeps no executable
 identity, command/completion history, platform-guarantee row or fetch
 receipt. Successful Git resolution returns the authored canonical lineage,

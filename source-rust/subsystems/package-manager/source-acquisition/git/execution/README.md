@@ -70,5 +70,5 @@ filesystem control, executable/write allowlists, native-guarantee tables and
 canonical records of commands, policies or completions do not exist.
 Stronger host or CI isolation is the operator's job, not package evidence.
 
-The [resolver security contract](../../../../wiki/spec/packages/resolver_security.md)
+The [resolver security contract](../../../../../../wiki/spec/packages/resolver_security.md)
 defines the source-resolution rules this crate enforces.

@@ -16,7 +16,7 @@ review-evidence = { path = "../../../../source-rust/subsystems/package-manager/r
 build-declarations = { path = "../../../../source-rust/subsystems/compiler/build/build-declarations" }
 package-compilation = { path = "../../../../source-rust/subsystems/compiler/build/package-compilation" }
 package-manager = { path = "../../../../source-rust/subsystems/package-manager" }
-source-acquisition = { path = "../../../../source-rust/subsystems/package-manager/revsision-control-providers" }
+source-acquisition = { path = "../../../../source-rust/subsystems/package-manager/source-acquisition" }
 semantic-vocabulary = { path = "../../../../source-rust/subsystems/compiler/foundation/semantic-records" }
 syntax-trees = { path = "../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees" }
 diagnostics = { path = "../../../../source-rust/foundation/diagnostics" }

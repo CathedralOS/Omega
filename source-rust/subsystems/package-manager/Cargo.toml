@@ -31,7 +31,7 @@ compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 effects = { path = "../compiler/psi-to-native/installation/native-effects" }
 review-evidence = { path = "review/evidence" }
-source-acquisition = { path = "revsision-control-providers" }
+source-acquisition = { path = "source-acquisition" }
 package-compilation = { path = "../compiler/build/package-compilation" }
 platform-custody = { path = "../../foundation/filesystem" }
 target = { path = "../compiler/psi-to-native/targets/target" }
