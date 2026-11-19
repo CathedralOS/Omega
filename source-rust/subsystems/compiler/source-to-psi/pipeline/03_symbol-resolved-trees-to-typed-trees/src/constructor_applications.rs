@@ -3,6 +3,7 @@
 //! This forms types and selections; the lowered checker still judges fields,
 //! argument admission, generic eligibility and declaration requirements.
 
+use crate::declaration_selection::AuthoredDeclarationSelectionKind;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
 use crate::source_state::name::Identifier;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
@@ -476,6 +477,20 @@ fn select_call(
     call: &mut CallInput,
     caller: SymbolHandle,
 ) -> Result<(), Diagnostic> {
+    // Token operators are already selected by their operand types. A later
+    // walk sees their lowered call form, but its result keeps that selection.
+    if call.selection
+        .and_then(|id| program.authored_declaration_selections().get(id))
+        .is_some_and(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::Operator
+                && selection
+                    .target()
+                    .as_resolved()
+                    .is_some_and(|target| target.selected_symbol() == call.target)
+        })
+    {
+        return Ok(());
+    }
     if call.target.is_valid()
         && call.ordinary
         && let Some(machine) = program.machine_by_own_or_state_symbol(call.target)
