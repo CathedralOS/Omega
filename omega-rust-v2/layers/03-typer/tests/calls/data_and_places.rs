@@ -161,3 +161,84 @@ fn authored_brackets_borrow_only_the_collection_operand() {
             .contains("ambiguous operator")
     );
 }
+
+#[test]
+fn parentheses_preserve_field_authority_and_collection_write_selection() {
+    let cell = "data Cell {value:u8;}";
+    for place in ["view.value", "(view.value)", "((view.value))", "((view).value)"] {
+        for action in [
+            format!("{place}=7;"),
+            format!("let ref_to_field=@mut {place};"),
+            format!("let output=@write {place};"),
+        ] {
+            let shared = format!("{cell} machine f(input:@Cell) {{let mut view:@Cell=input; {action}}}");
+            let error = check(&[("place.omg", &shared)]).unwrap_err();
+            assert_eq!(error.message, "place requires writable authority");
+            let exclusive = format!("{cell} machine f(view:@mut Cell) {{{action}}}");
+            check(&[("place.omg", &exclusive)]).unwrap();
+        }
+        let write_only = format!("{cell} machine f(view:@write Cell) {{{place}=7;}}");
+        check(&[("place.omg", &write_only)]).unwrap();
+        let read = format!("{cell} machine f(view:@write Cell)->u8 {{{place}}}");
+        assert_eq!(
+            check(&[("place.omg", &read)]).unwrap_err().message,
+            "cannot read through a write-only reference"
+        );
+    }
+    for site in ["view[0]", "(view[0])", "((view[0]))"] {
+        for target in [format!("{site}=7;"), format!("let r=@mut {site};")] {
+            let source = format!("machine f(view:@mut [u8]) {{{target}}}");
+            let stage = check(&[("index.omg", &source)]).unwrap();
+            let [access] = stage.collection_accesses.as_slice() else {
+                panic!("expected one mutable indexing selection")
+            };
+            assert_eq!(access.machine.path, "indexing::element_mut");
+        }
+    }
+    for place in ["array.len", "((array.len))"] {
+        let source = format!("machine f() {{let mut array:[u8;2]; {place}=3;}}");
+        assert_eq!(check(&[("metadata.omg", &source)]).unwrap_err().message, "collection metadata is read-only");
+    }
+}
+
+#[test]
+fn nested_runtime_callables_require_both_effect_ceilings_at_their_own_type() {
+    for context in [
+        "machine f(cb:[CALLBACK;2]) {}",
+        "machine f(cb:@CALLBACK) {}",
+        "data Box<T>{item:T;} machine f(cb:Box<CALLBACK>) {}",
+        "machine f(cb:machine(g:CALLBACK) reaches none crashes none) {}",
+        "machine f<const F:machine(g:CALLBACK)>() {}",
+        "machine f<const F:machine()->CALLBACK>() {}",
+    ] {
+        let closed = context.replace("CALLBACK", "machine(x:u8)->u8 reaches none crashes none");
+        check(&[("callback.omg", &closed)]).unwrap();
+        for (clause, missing) in [
+            (" reaches none", "crash"),
+            (" crashes none", "reach"),
+            ("", "reach"),
+        ] {
+            let callback = format!("machine(x:u8)->u8{clause}");
+            let source = context.replace("CALLBACK", &callback);
+            let error = check(&[("callback.omg", &source)]).unwrap_err();
+            assert!(error.message.contains(missing), "{error:?}");
+            assert_eq!(error.span.slice(source.as_bytes()), Some(callback.as_bytes()));
+        }
+    }
+    check(&[("static.omg", "machine invoke<const F:machine(x:u8)->u8>(x:u8)->u8{F(x)}")]).unwrap();
+}
+
+#[test]
+fn a_write_only_field_loan_cannot_be_strengthened_to_readable_access() {
+    let defs = "data Cell {value:u8;}";
+    for place in ["cell.value", "(cell.value)"] {
+        let source = format!("{defs} machine observe(cell:@write Cell)->u8 {{let view=@mut {place}; view}}");
+        let error = check(&[("loan.omg", &source)]).unwrap_err();
+        assert_eq!(error.message, "cannot read through a write-only reference");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(b"cell.value".as_slice()));
+        let allowed = source.replace("cell:@write Cell", "cell:@mut Cell");
+        check(&[("loan.omg", &allowed)]).unwrap();
+        let forwarded = format!("{defs} machine forward(cell:@write Cell) {{let out=@write {place};}}");
+        check(&[("loan.omg", &forwarded)]).unwrap();
+    }
+}

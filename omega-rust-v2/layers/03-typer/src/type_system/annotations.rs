@@ -55,15 +55,6 @@ impl<'a> ResolvedSourceFile<'a> {
         candidate: Option<&DeclarationId>,
     ) -> Result<ValueType, TypeError> {
         let raw = self.raw_type(node_index, candidate, types)?;
-        if let ValueType::Callable(c) = &raw
-            && !c.closed_runtime
-        {
-            return Err(TypeError::at(
-                &self.file,
-                node_index,
-                "runtime callable requires explicit reach and crash ceilings",
-            ));
-        }
         types
             .normalize_at(raw, &self.file, node_index)
             .map_err(|reason| TypeError::at(&self.file, node_index, reason))
@@ -165,6 +156,19 @@ impl<'a> ResolvedSourceFile<'a> {
                         Terminates if source.nodes[part].children.is_empty() => {}
                         _ => return Err(TypeError::unsupported(source, part)),
                     }
+                }
+                // Only the bound on a static callable may leave these effects open.
+                // Its own runtime parameters and result still need closed contracts.
+                let binder_bound = node
+                    .parent
+                    .is_some_and(|p| matches!(source.nodes[p].kind, ConstParam | KindedParam));
+                if !binder_bound && closed != [true, true] {
+                    let missing = match closed {
+                        [true, false] => "an explicit crash ceiling",
+                        [false, true] => "an explicit reach ceiling",
+                        _ => "explicit reach and crash ceilings",
+                    };
+                    return Err(TypeError::at(source, node_index, format!("runtime callable requires {missing}")));
                 }
                 Ok(ValueType::Callable(Box::new(crate::CallableType {
                     requirement: None,

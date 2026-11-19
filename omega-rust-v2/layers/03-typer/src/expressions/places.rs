@@ -125,6 +125,15 @@ impl BodyTyper<'_, '_> {
         self.record_operator(node_index, "as", vec![source], &target);
         Ok(target)
     }
+    pub(super) fn ungrouped_place(
+        &self,
+        mut node_index: usize,
+    ) -> Result<usize, TypeError> {
+        while self.unit.file.nodes[node_index].kind == NodeKind::Paren {
+            node_index = self.unit.single_child(node_index)?;
+        }
+        Ok(node_index)
+    }
     pub(super) fn require_writable(
         &self,
         mut node_index: usize,
@@ -132,8 +141,9 @@ impl BodyTyper<'_, '_> {
         let source = &self.unit.file;
         let site = node_index;
         while matches!(source.nodes[node_index].kind, NodeKind::FieldAccess | NodeKind::Paren) {
+            let selects_field = source.nodes[node_index].kind == NodeKind::FieldAccess;
             node_index = self.unit.single_child(node_index)?;
-            if source.nodes[site].kind == NodeKind::FieldAccess
+            if selects_field
                 && let Some(expr) = self
                     .output
                     .expressions
@@ -167,8 +177,9 @@ impl BodyTyper<'_, '_> {
         let [place, right_type] = *source.nodes[node_index].children.as_slice() else {
             return Err(TypeError::unsupported(source, node_index));
         };
+        let place = self.ungrouped_place(place)?;
         let ty = if source.nodes[place].kind == NodeKind::FieldAccess {
-            let ty = self.project_fields(place, true)?;
+            let ty = self.project_fields(place, &Access::Write)?;
             self.require_writable(place)?;
             ty
         } else if source.nodes[place].kind == NodeKind::Index {
@@ -321,12 +332,12 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
     ) -> Result<ValueType, TypeError> {
-        self.project_fields(node_index, false)
+        self.project_fields(node_index, &Access::Shared)
     }
     pub(super) fn project_fields(
         &mut self,
         mut node_index: usize,
-        write: bool,
+        access: &Access,
     ) -> Result<ValueType, TypeError> {
         let destination = node_index;
         let source = &self.unit.file;
@@ -348,7 +359,7 @@ impl BodyTyper<'_, '_> {
                 other => other,
             };
             let receiver = match receiver {
-                ValueType::Reference(Access::Write, _) if !write || node_index != destination => {
+                ValueType::Reference(Access::Write, _) if *access != Access::Write || node_index != destination => {
                     return Err(TypeError::at(source, node_index, "cannot read through a write-only reference"));
                 }
                 ValueType::Reference(_, inner) => inner.as_ref(),
@@ -360,7 +371,7 @@ impl BodyTyper<'_, '_> {
                     .next()
                     .is_some_and(|w| matches!(w.text, "len" | "address"))
             {
-                if write {
+                if *access != Access::Shared {
                     return Err(TypeError::at(source, node_index, "collection metadata is read-only"));
                 }
                 let address = source.nodes[node_index]
