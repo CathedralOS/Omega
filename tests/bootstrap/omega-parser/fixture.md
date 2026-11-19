@@ -84,10 +84,11 @@ failure, rather than becoming an internal lookahead failure.
 
 The cast fixture distinguishes `as u32`, `as +Trapping` and `as -Trapping`.
 Carrier rows have empty domain spans; domain rows have no target-type reference.
-Qualified domain paths retain the whole span. The retired `as u32 in Trapping`,
-multiple entries, carrier-plus-domain entries, unsupported `=Domain`, and a
-missing domain all refuse. In particular, a following `+` or `-` cannot silently
-become arithmetic; the language requires grouping around the cast for that.
+Qualified domain paths retain the whole span. The combined `as u32 +Trapping` owns two cast rows. The domain addition
+points to the completed carrier conversion, with distinct end positions.
+The retired `as u32 in Trapping`, multiple domain entries, unsupported
+`=Domain` and a missing domain all refuse. The bare `+` in `as u32 + 1`
+requires a domain name. Arithmetic on the cast result requires parentheses.
 
 The final invocation checks statement-leading `!`, `-`, and `~` through the shared expression frame and verifies that prefix, group, and call stacks are empty afterward.
 

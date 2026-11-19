@@ -57,12 +57,12 @@ MEMBER_RECORDS = [
      "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
     ("lexer.epsilon", 44432,
      "2a9c30ce9e66959bb33070937aba53e955461686bb221b128ec54801813f4c89"),
-    ("parser.epsilon", 403236,
-     "717b82d31c58deecf1bd300e89abd3e77bf9c85160da0cbab9867200749a17af"),
+    ("parser.epsilon", 403766,
+     "68c8deb5685e491f1db79e544d0d7d80ed0aa958f5c1f752314861fd544ca6d7"),
     ("alpha_tape.epsilon", 30832,
      "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    ("scalar_compilation.epsilon", 249450,
-     "f75e601334bd1fca628d9256b37fe2db418c8f0b0bf2bc94d7fe174f37e2b23a"),
+    ("scalar_compilation.epsilon", 249725,
+     "42813f11bf4abe02f2f76b8402c70bc896b41d926b38489123bba00a3a14406d"),
     ("outcome.epsilon", 13989,
      "a36fabd20ccecd3c15ba8dc10044567a11c0f60e92661277c11728121be65a4e"),
     ("source_set.epsilon", 6151,
@@ -71,8 +71,8 @@ MEMBER_RECORDS = [
      "d5327eeb7bb744f40653f17b37ef25505c92b782148070745d554ccb3a6f4329"),
 ]
 
-PACKED_RECORD = (838497,
-                 "5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2")
+PACKED_RECORD = (839302,
+                 "e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601")
 
 CUSTOMER_RECORDS = {
     "omega_lexical": (1486,
@@ -249,8 +249,8 @@ def customers():
         packed + composition_main,
         omega_source,
         bytes.fromhex((dcomp / "expected.hex").read_text(encoding="ascii")),
-        [("scalar_compilation: invalid byte at packed 543264",
-          byte_at(543264, 0x01)),
+        [("scalar_compilation: invalid byte at packed 543794",
+          byte_at(543794, 0x01)),
          ("representations: invalid byte at packed 754",
           byte_at(754, 0x01))]))
     cases.append(Customer(
@@ -259,5 +259,5 @@ def customers():
         packed + check_only_main,
         b"", b"\x00\x00\x00\x00\x00",
         [("parser: invalid byte at packed 110215", byte_at(110215, 0x01)),
-         ("outcome: invalid byte at packed 793905", byte_at(793905, 0x01))]))
+         ("outcome: invalid byte at packed 794710", byte_at(794710, 0x01))]))
     return cases

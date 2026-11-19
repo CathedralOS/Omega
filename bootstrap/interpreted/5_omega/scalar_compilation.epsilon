@@ -1599,7 +1599,7 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state carrier_cast(row: OmegaCastExpressionSyntax, target: i32) {
-        transition (target == 8) || (target == 32) {
+        transition (target == 8) || (target == 32) || (target == 64) {
             true -> carrier_result(row, target)
             _ -> unsupported(row.start)
         }
@@ -1618,8 +1618,14 @@ machine OmegaScalarCompiler::check_value(
         }
     }
     state carrier_widen(row: OmegaCastExpressionSyntax, target: i32, kind: i32) {
-        transition (kind == 8) && (target == 32) {
-            true -> cast_value(row.value, 8)
+        transition ((kind == 8) || (kind == 32)) && (kind < target) {
+            true -> cast_value(row.value, kind)
+            _ -> carrier_source_domain(row, kind)
+        }
+    }
+    state carrier_source_domain(row: OmegaCastExpressionSyntax, kind: i32) {
+        transition (kind == 288) || (kind == 320) {
+            true -> rejected(row.start)
             _ -> unsupported(row.start)
         }
     }

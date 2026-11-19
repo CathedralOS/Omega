@@ -137,6 +137,8 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { x = value as +Trapping -Other; }");
     self.check_refused();
     self.parser.parse_view("machine p() { x = value as u32 +Trapping; }");
+    self.check_carrier_and_domain();
+    self.parser.parse_view("machine p() { x = value as u32 + 1; }");
     self.check_refused();
     self.parser.parse_view("machine p() { x = value as =Trapping; }");
     self.check_incomplete(27, 28);
@@ -719,6 +721,27 @@ machine Main::check_nested_call_rows(&mut self) {
             OmegaExpressionKind::Call -> return
             _ -> self.console.exit_process(1)
         }
+    }
+}
+
+machine Main::check_carrier_and_domain(&mut self) {
+    self.check_complete();
+    assert self.parser.cast_expression_count == 2;
+    assert self.parser.binary_expression_count == 0;
+    self.check_cast_kind(0, 0);
+    self.check_cast_kind(1, 1);
+    assert self.parser.cast_expressions[0].start == 18;
+    assert self.parser.cast_expressions[0].end == 30;
+    assert self.parser.cast_expressions[1].start == 18;
+    assert self.parser.cast_expressions[1].domain.start == 32;
+    assert self.parser.cast_expressions[1].end == 40;
+    let inner: i32 = self.parser.cast_expressions[1].value;
+    transition self.parser.expressions[inner].kind {
+        OmegaExpressionKind::Cast -> carrier_row(inner)
+        _ -> self.console.exit_process(1)
+    }
+    state carrier_row(inner: i32) {
+        assert self.parser.expressions[inner].payload0 == 0;
     }
 }
 

@@ -43,10 +43,10 @@ members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member
-manifest materializes 22,591 lines / 838,497 bytes with SHA-256
-`5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2`.
+manifest materializes 22,610 lines / 839,302 bytes with SHA-256
+`e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601`.
 The manifest itself is 1,674 bytes, SHA-256
-`eec439467f1c1224a37a79c718bf44adbd3fd81d2cc1611106045da9a60fbdd7`;
+`e9b4ccc60317a1845d59232c053bad32ff8b63eaac23f298de574120b45b7d41`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -173,9 +173,12 @@ than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
 plain peer of the same carrier, as specified by the policy-domain operator
-family; that does not qualify the peer. Carrier casts currently cover plain
-identity/anonymous landing and exact `u8` to `u32` widening. Other casts and
-context-dependent domain inference inside compound expressions refuse explicitly.
+family; that does not qualify the peer. Carrier casts accept plain `u8`, `u32` and `u64` identity,
+anonymous landing within the supported literal range, and exact widening
+between these carriers. On `u32` or `u64`, `value as T +Trapping` checks
+the carrier conversion and then the destination domain, evaluating the
+operand once. A value already qualified by Trapping must first remove it.
+Narrowing and unsupported domain establishment remain coverage refusals.
 
 This closed slice projects the primitive operators and the fixed core policy
 comparison and arithmetic families specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
@@ -513,12 +516,13 @@ initializers share the statement-call target, static-argument, runtime-argument,
 and delimiter parser but own a distinct expression row with an explicit
 optional receiver handle. Call arguments retain the existing primary slice and
 reuse the same reducer.
-Path-valued casts reuse the same expression and type engines in assignments,
-locals and both kinds of call argument. They retain the value and target-type
-handles, exact cast span, and an optional single-name `in Domain` suffix.
-These casts may also wrap a completed grouped primary and then continue
-through the shared binary tail. Richer postfix values, recasts, domain arguments, arbitrary bound
-expressions, and other richer initializers remain implementation-incomplete.
+Casts reuse the expression and type engines for assignments, locals and
+both kinds of call argument. A carrier target retains its type handle.
+An explicit domain addition or removal retains its domain span. In
+`value as T +D` the added-domain row owns the completed carrier expression.
+The carrier span ends at `T` and the outer span ends at `D`. A bare sign
+following a cast starts a domain entry. Parentheses permit arithmetic on its
+result. Multiple domain entries and the retired `as T in D` refuse.
 One terminal expression statement may close a state directly. Its current
 values are a self/name/member path, boolean, unsuffixed nonnegative decimal
 integer, string, or a path followed by one or more indexes with path, decimal,
