@@ -74,6 +74,7 @@ pub fn bound_program_entry_shapes(
                 )
                 .map_err(Diagnostic::error)?,
                 visible_parameters,
+                has_entry_bridge: profile.entry_contract.is_some(),
                 address_model: profile.address_model.clone(),
             })
         })();

@@ -150,6 +150,8 @@ pub struct BoundCallableShape {
     pub semantic_schema: RetainedDeclaration,
     pub requirement: RetainedDeclaration,
     pub visible_parameters: Vec<ParameterOccurrence>,
+    /// The profile provides a physical entry contract for checking its arrival.
+    pub has_entry_bridge: bool,
     /// The selected binding's exact mathematical address interpretation.
     pub address_model: Option<CallableAddressModel>,
 }

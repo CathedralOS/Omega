@@ -42,9 +42,12 @@ pub fn prepare_compilation(
         }
     }
     let captures = crate::lowering::shared_reading(typed);
+    // Every bound machine has passed the source shape checks above. A logical
+    // arrival witnesses an invocation by a bridge supplied by the profile.
     let arrivals = compilation
         .bindings
         .iter()
+        .filter(|binding| binding.has_entry_bridge)
         .map(|binding| {
             let requirement = crate::source_symbols::rejoin_declaration(
                 &binding.requirement,
