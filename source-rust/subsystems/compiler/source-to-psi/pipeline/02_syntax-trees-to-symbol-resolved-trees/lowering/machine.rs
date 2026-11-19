@@ -173,8 +173,8 @@ use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::state::State;
 use crate::source_selections::CompilerDerivedSelectionPartition;
 use arena::{Handle, HandleSpan};
-use declaration_contracts::RankingViewId;
 use diagnostics::Diagnostic;
+use semantic_vocabulary::RankingViewId;
 use std::mem::replace;
 use symbols::SymbolHandle;
 use syntax::expression::BinaryOperator;
@@ -382,7 +382,7 @@ fn lower_lexical_machine_parts(
         let binding = lowerer
             .symbol_resolved_trees
             .external_bindings
-            .intern(declaration_contracts::ExternalBindingIdentity::CompilerIntrinsic);
+            .intern(semantic_vocabulary::ExternalBindingIdentity::CompilerIntrinsic);
         for edge in lowerer
             .symbol_resolved_trees
             .tables
@@ -456,7 +456,7 @@ fn lower_lexical_machine_parts(
         } else if let Some(binding) = inferred_float_binding {
             declaration_contracts::MachineSupplyMode::ExternalRealization {
                 binding: Some(binding),
-                mechanism: Some(declaration_contracts::ExternalBindingMechanism::CompilerIntrinsic),
+                mechanism: Some(semantic_vocabulary::ExternalBindingMechanism::CompilerIntrinsic),
             }
         } else if machine.bodyless && (via_binding.is_some() || has_via_expression) {
             let (binding, mechanism) = via_binding
@@ -539,7 +539,7 @@ fn lower_lexical_machine_parts(
         structural_type_equations_pending: declares_equations
             && (lowerer.structural_type_equations_pending || !requires_argument_recovery),
         termination_plan,
-        service_reach_row: declaration_contracts::ServiceReachRowId::NULL,
+        service_reach_row: semantic_vocabulary::ServiceReachRowId::NULL,
         service_reach_is_installation_bound: machine.service_reach_is_installation_bound,
         admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
         declares_no_crash_route: machine.declares_no_crash_route,
@@ -841,7 +841,7 @@ fn authored_ranking_view(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> (RankingViewId, String) {
-    use declaration_contracts::RankingViewId;
+    use semantic_vocabulary::RankingViewId;
 
     let order = syntax_items(syntax_trees).identifier_path_members(machine.ranking_view);
     if !order.is_empty() {
@@ -937,8 +937,8 @@ fn lower_machine_trait_conformances(
 fn external_binding_identity(
     syntax_trees: &syntax_trees::SyntaxTrees,
     binding: &ExternalBinding,
-) -> declaration_contracts::ExternalBindingIdentity {
-    use declaration_contracts::ExternalBindingIdentity;
+) -> semantic_vocabulary::ExternalBindingIdentity {
+    use semantic_vocabulary::ExternalBindingIdentity;
 
     match binding {
         ExternalBinding::Syscall { number } => ExternalBindingIdentity::Syscall { number: *number },

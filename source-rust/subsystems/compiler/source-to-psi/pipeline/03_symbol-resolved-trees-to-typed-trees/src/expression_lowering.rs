@@ -1338,7 +1338,7 @@ pub(crate) mod expression {
                                         semantic_domain_arguments,
                                         semantic_domain_symbol: cast.semantic_domain_symbol,
                                         semantic_domain_id:
-                                            declaration_contracts::SemanticDomainId::NULL,
+                                            semantic_vocabulary::SemanticDomainId::NULL,
                                         form: cast.form,
                                     },
                                 )))

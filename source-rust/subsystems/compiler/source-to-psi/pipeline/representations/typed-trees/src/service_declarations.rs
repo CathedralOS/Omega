@@ -159,7 +159,7 @@ pub mod provider_declarations {
     pub fn requirement_reach(
         typed: &crate::source_state::TypedTrees,
         symbol: symbols::SymbolHandle,
-    ) -> Option<(String, bool, declaration_contracts::ServiceReachRowId)> {
+    ) -> Option<(String, bool, semantic_vocabulary::ServiceReachRowId)> {
         if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
             return Some((
                 typed.trait_requirement_callable_identity_text(owner, requirement),
@@ -1344,7 +1344,7 @@ pub mod projection {
 
     fn service_progress_establishment_routes(
         program: &crate::source_state::TypedTrees,
-        profile: declaration_contracts::SemanticDomainId,
+        profile: semantic_vocabulary::SemanticDomainId,
         identities: &mut ProviderIdentityTable,
     ) -> Vec<ServiceProgressEstablishmentRoute> {
         let domain = program
@@ -1620,7 +1620,7 @@ pub mod projection {
 
     fn service_reach_row_names(
         program: &crate::source_state::TypedTrees,
-        row: declaration_contracts::ServiceReachRowId,
+        row: semantic_vocabulary::ServiceReachRowId,
     ) -> Vec<String> {
         let mut names = program
             .service_reach_rows

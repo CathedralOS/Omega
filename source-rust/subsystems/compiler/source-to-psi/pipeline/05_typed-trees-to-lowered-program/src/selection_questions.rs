@@ -1526,7 +1526,7 @@ mod tests {
                 semantic_domain: Default::default(),
                 semantic_domain_arguments: Default::default(),
                 semantic_domain_symbol: SymbolHandle::invalid(),
-                semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
                 form: language_core::cast_form::CastForm::Value,
             },
         ));
@@ -1636,7 +1636,7 @@ mod tests {
                 semantic_domain: Default::default(),
                 semantic_domain_arguments: Default::default(),
                 semantic_domain_symbol: SymbolHandle::invalid(),
-                semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                semantic_domain_id: semantic_vocabulary::SemanticDomainId::NULL,
                 form,
             },
         ));
@@ -1747,7 +1747,7 @@ mod tests {
             match malformed {
                 0 => cast.semantic_domain = domain_name,
                 1 => cast.semantic_domain_arguments = arguments,
-                2 => cast.semantic_domain_id = declaration_contracts::SemanticDomainId(1),
+                2 => cast.semantic_domain_id = semantic_vocabulary::SemanticDomainId(1),
                 3 => {
                     cast.form = CastForm::Entry(CastEntry {
                         kind: CastEntryKind::Add,
@@ -1983,7 +1983,7 @@ mod tests {
                         } else {
                             SymbolHandle::invalid()
                         },
-                        semantic_domain_id: declaration_contracts::SemanticDomainId(u32::from(
+                        semantic_domain_id: semantic_vocabulary::SemanticDomainId(u32::from(
                             fault == 2,
                         )),
                         form: Default::default(),

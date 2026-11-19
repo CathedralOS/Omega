@@ -54,26 +54,6 @@ mod carry_policies {
     }
 }
 
-mod machine_termination {
-    use crate::RankingViewId;
-
-    #[test]
-    fn canonical_view_catalog_round_trips() {
-        for id in [
-            RankingViewId::NAT_DESCENDING,
-            RankingViewId::NAT_BOUNDED_DISTANCE,
-            RankingViewId::SLICE_LENGTH,
-            RankingViewId::NAT_INCREASING_TO,
-        ] {
-            assert!(id.is_valid());
-            let path = id.canonical_path().expect("builtin has a spelling");
-            assert_eq!(RankingViewId::canonical(path), Some(id));
-        }
-        assert_eq!(RankingViewId::canonical("Card::PowerOrder"), None);
-        assert_eq!(RankingViewId::NULL.canonical_path(), None);
-    }
-}
-
 mod semantic_domains {
     use crate::{DomainEstablishmentRoute, DomainPredicatePresence, QualificationEvidenceOrigin};
 

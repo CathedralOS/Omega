@@ -119,8 +119,7 @@ pub(crate) fn require_catalog_signature(
     spelling alone selects nothing.
 */
 #[derive(Clone, Copy)]
-enum CatalogFamily {
-    Collection(CollectionPrimitive),
+enum CatalogFamily {    Collection(CollectionPrimitive),
     ByteObservation(ByteSequencePredicate),
     /* Place-free portable fence (`atomic.omg`). */
     AtomicFence,
@@ -135,7 +134,7 @@ enum CatalogFamily {
         A canonical ranking view with a declaration row (`Nat::Descending` in
         `nat.omg`).
     */
-    RankingView(declaration_contracts::RankingViewDeclaration),
+    RankingView(semantic_vocabulary::RankingViewDeclaration),
 }
 
 impl CatalogFamily {
@@ -149,7 +148,7 @@ impl CatalogFamily {
         if numerics::float_semantics_catalog::FloatSemanticOperation::names_a_row(namespace, leaf) {
             return Some(Self::FloatSemantics);
         }
-        declaration_contracts::RankingViewId::from_catalog_declaration(namespace, leaf)
+        semantic_vocabulary::RankingViewId::from_catalog_declaration(namespace, leaf)
             .map(Self::RankingView)
     }
 
@@ -175,7 +174,7 @@ fn require_exact_ranking_view_row(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
     entry: &syntax::item::State,
-    declaration: declaration_contracts::RankingViewDeclaration,
+    declaration: semantic_vocabulary::RankingViewDeclaration,
 ) -> Result<(), Diagnostic> {
     let name = machine.name.as_str(syntax_trees);
     let drift = |detail: String| {

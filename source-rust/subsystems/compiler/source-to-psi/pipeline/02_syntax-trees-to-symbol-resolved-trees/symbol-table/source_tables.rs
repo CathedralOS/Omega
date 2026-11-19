@@ -2,11 +2,11 @@
 //! completed semantic records remain in their representation vocabulary; these
 //! interners and seeded language choices never enter native compilation.
 
-use declaration_contracts::ExternalBindingId;
-use declaration_contracts::ExternalBindingIdentity;
-use declaration_contracts::SemanticDomainId;
-use declaration_contracts::ServiceReachId;
-use declaration_contracts::ServiceReachRowId;
+use semantic_vocabulary::ExternalBindingId;
+use semantic_vocabulary::ExternalBindingIdentity;
+use semantic_vocabulary::SemanticDomainId;
+use semantic_vocabulary::ServiceReachId;
+use semantic_vocabulary::ServiceReachRowId;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct ExternalBindingTable {

@@ -274,7 +274,7 @@ pub mod declarations {
             pub facts: HandleSpan<ProofFact>,
             pub operators: HandleSpan<crate::source_resolved::operator::OperatorDefinition>,
             pub semantic_clause_token_count: usize,
-            pub semantic_id: declaration_contracts::SemanticDomainId,
+            pub semantic_id: semantic_vocabulary::SemanticDomainId,
             pub semantic_roles: declaration_contracts::DomainSemanticRoles,
             pub establishment_routes: Vec<declaration_contracts::DomainEstablishmentRoute>,
         }

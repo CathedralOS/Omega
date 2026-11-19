@@ -4139,7 +4139,7 @@ pub(crate) mod qualification_casts {
                     handle,
                     authored_occurrence,
                     SymbolHandle::invalid(),
-                    declaration_contracts::SemanticDomainId::NULL,
+                    semantic_vocabulary::SemanticDomainId::NULL,
                 ));
                 continue;
             };

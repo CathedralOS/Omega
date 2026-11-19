@@ -3304,7 +3304,7 @@ pub mod trait_definition {
                                 )?
                                 .row,
                         };
-                        if row == declaration_contracts::ServiceReachRowId::NULL {
+                        if row == semantic_vocabulary::ServiceReachRowId::NULL {
                             return Err("refinement callable view lost its authored reach row");
                         }
                         if signature.service_reach_is_installation_bound {
@@ -4655,17 +4655,16 @@ pub mod trait_definition {
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum TraitRefinementReach {
-        #[default]
+    pub enum TraitRefinementReach {        #[default]
         Inherited,
-        Concrete(declaration_contracts::ServiceReachRowId),
+        Concrete(semantic_vocabulary::ServiceReachRowId),
         IndependentBounded(Vec<ClauseAbstractReachRow>),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct ClauseAbstractReachRow {
         pub requirement: Identifier,
-        pub row: declaration_contracts::ServiceReachRowId,
+        pub row: semantic_vocabulary::ServiceReachRowId,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]

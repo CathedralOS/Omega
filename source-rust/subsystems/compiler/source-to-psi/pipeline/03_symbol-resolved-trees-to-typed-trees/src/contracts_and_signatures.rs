@@ -123,7 +123,7 @@ pub(crate) mod contracts {
             symbols::SymbolHandle,
             String,
             Vec<typed::types::TypeReferenceHandle>,
-            declaration_contracts::SemanticDomainId,
+            semantic_vocabulary::SemanticDomainId,
         )> {
             use typed::types::{TypeConstraintNode, TypeReferenceNode};
             let mut domains = Vec::new();
@@ -156,7 +156,7 @@ pub(crate) mod contracts {
                                     symbols::SymbolHandle::invalid(),
                                     domain.name.as_str().to_owned(),
                                     Vec::new(),
-                                    declaration_contracts::SemanticDomainId::NULL,
+                                    semantic_vocabulary::SemanticDomainId::NULL,
                                 ));
                             }
                         }
@@ -180,7 +180,7 @@ pub(crate) mod contracts {
             symbols::SymbolHandle,
             String,
             Vec<typed::types::TypeReferenceHandle>,
-            declaration_contracts::SemanticDomainId,
+            semantic_vocabulary::SemanticDomainId,
         );
 
         pub(crate) fn lower_state_parameters_collecting_domain_constraints(
@@ -647,7 +647,7 @@ pub(crate) mod contracts {
                     };
                     membership.domain = second;
                     membership.domain_symbol = symbols::SymbolHandle::invalid();
-                    membership.semantic_domain = declaration_contracts::SemanticDomainId::NULL;
+                    membership.semantic_domain = semantic_vocabulary::SemanticDomainId::NULL;
                     let owners =
                         crate::source_state::references::collect_program_operand_owners(&program);
                     let error = normalize(&resolved, &mut program, &owners).unwrap_err();
@@ -793,7 +793,7 @@ pub(crate) mod contracts {
                                         domain_symbol: atom.symbol,
                                         domain_arguments,
                                         semantic_domain:
-                                            declaration_contracts::SemanticDomainId::NULL,
+                                            semantic_vocabulary::SemanticDomainId::NULL,
                                         authored_domain_selection: membership
                                             .authored_domain_selection,
                                     },
@@ -985,7 +985,7 @@ pub(crate) mod contracts {
                         membership.domain_symbol,
                         None,
                         arguments,
-                        declaration_contracts::SemanticDomainId::NULL,
+                        semantic_vocabulary::SemanticDomainId::NULL,
                     ));
                 } else {
                     instances.push((
@@ -993,7 +993,7 @@ pub(crate) mod contracts {
                         membership.domain_symbol,
                         carrier,
                         arguments,
-                        declaration_contracts::SemanticDomainId::NULL,
+                        semantic_vocabulary::SemanticDomainId::NULL,
                     ));
                 }
             }

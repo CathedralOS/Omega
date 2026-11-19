@@ -4,12 +4,12 @@
 use crate::source_state::machine::Machine;
 use crate::source_state::signature::StateSignature;
 use crate::source_tables::ServiceReachRowTable;
-use declaration_contracts::ExternalBindingIdentity;
 use declaration_contracts::MachineSupplyMode;
-use declaration_contracts::ServiceReachRowId;
 use declaration_contracts::TerminationGuarantee;
 use language_core::sealed_intrinsics::SealedIntrinsic;
+use semantic_vocabulary::ExternalBindingIdentity;
 use semantic_vocabulary::MachineId;
+use semantic_vocabulary::ServiceReachRowId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
@@ -433,16 +433,16 @@ fn has_native_provider_owner(typed: &crate::source_state::TypedTrees, machine: &
 fn numeric_catalog_supply(
     sealed: Option<SealedIntrinsic>,
     binding: Option<(
-        declaration_contracts::ExternalBindingId,
+        semantic_vocabulary::ExternalBindingId,
         &ExternalBindingIdentity,
     )>,
-    mechanism: Option<declaration_contracts::ExternalBindingMechanism>,
-    edges: impl IntoIterator<Item = Option<declaration_contracts::ExternalBindingId>>,
+    mechanism: Option<semantic_vocabulary::ExternalBindingMechanism>,
+    edges: impl IntoIterator<Item = Option<semantic_vocabulary::ExternalBindingId>>,
 ) -> bool {
     let (
         Some(SealedIntrinsic::NativeFloatOperation),
         Some((binding, ExternalBindingIdentity::CompilerIntrinsic)),
-        Some(declaration_contracts::ExternalBindingMechanism::CompilerIntrinsic),
+        Some(semantic_vocabulary::ExternalBindingMechanism::CompilerIntrinsic),
     ) = (sealed, binding, mechanism)
     else {
         return false;
@@ -459,7 +459,7 @@ fn native_binding(
     machine: &Machine,
     owner: SymbolHandle,
     required: &StateSignature,
-    retained: Option<declaration_contracts::ExternalBindingId>,
+    retained: Option<semantic_vocabulary::ExternalBindingId>,
 ) -> Checked<(
     ExternalBindingIdentity,
     Option<terminal_psi::TerminalSealedNativeIntrinsic>,
@@ -527,7 +527,7 @@ fn native_binding(
 mod numeric_supply_tests {
     use super::*;
     use crate::source_tables::ExternalBindingTable;
-    use declaration_contracts::ExternalBindingMechanism as Mechanism;
+    use semantic_vocabulary::ExternalBindingMechanism as Mechanism;
 
     #[test]
     fn numeric_catalog_supply_requires_sealed_owner_and_exact_binding() {
