@@ -21,7 +21,7 @@ machine build(builder: @mut Build) {
 
 machine settle_first(builder: @mut Build, completion: OutputCompletion, writer: i32, generated: BuildPath) {
     transition completion {
-        OutputCompletion::Sealed { receipt } -> sealed(builder)
+        OutputCompletion::Sealed { receipt } -> sealed(builder),
         OutputCompletion::Retry { obligation, file } -> reseal(builder, obligation, file, writer)
     }
     machine sealed(builder: @mut Build) {
@@ -36,7 +36,7 @@ machine settle_first(builder: @mut Build, completion: OutputCompletion, writer: 
 
 machine settle_second(builder: @mut Build, completion: OutputCompletion) {
     transition completion {
-        OutputCompletion::Sealed { receipt } -> sealed(builder)
+        OutputCompletion::Sealed { receipt } -> sealed(builder),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
     machine sealed(builder: @mut Build) {

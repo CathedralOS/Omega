@@ -23,7 +23,7 @@ machine arithmetic_domains() {
     let t2: u8 in Trapping = 50;
     let trapped_free: u8 in Trapping = t1 + t2;
     transition clamped == 127 && wrapped == -56 && trapped_free == 150 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

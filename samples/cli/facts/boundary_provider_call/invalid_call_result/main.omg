@@ -17,7 +17,7 @@ machine acquire() -> u64 reaches Provider ensures result >= 99u64 && result <= 9
 machine main() reaches Provider crashes Trap {
     let diff: u64 = acquire() - 100u64;
     transition diff == 0u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

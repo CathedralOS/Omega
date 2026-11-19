@@ -25,7 +25,7 @@ machine walk(grid: @mut Grid) {
         requires y <= grid.rows && x <= grid.columns
     {
         transition x < grid.columns {
-            true -> column(grid, y, x + 1)
+            true -> column(grid, y, x + 1),
             _ -> next_row(grid, y)
         }
     }
@@ -33,7 +33,7 @@ machine walk(grid: @mut Grid) {
         requires y <= grid.rows
     {
         transition y < grid.rows {
-            true -> row(grid, y + 1)
+            true -> row(grid, y + 1),
             _ -> done()
         }
     }

@@ -19,11 +19,11 @@ requires second == 2
 }
 
 machine observe_four(values: @[u8; 4]) -> u64 {
-    apply<FOUR, measure>(values)
+    apply::<FOUR, measure>(values)
 }
 
 machine observe_two(values: @[u8; 2]) -> u64 {
-    apply<TWO, measure>(values)
+    apply::<TWO, measure>(values)
 }
 
 machine main() crashes Trap {
@@ -32,7 +32,7 @@ machine main() crashes Trap {
     let first: u64 = observe_four(@four);
     let second: u64 = observe_two(@two);
     transition hold(first, second) && first == 4 && second == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

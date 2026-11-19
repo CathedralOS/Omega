@@ -19,7 +19,7 @@ requires seed <= 73
         header: 10,
     };
     let view: @Outer = match flag {
-        true -> @outer
+        true -> @outer,
         false -> @outer
     };
     let quota: u64 = view.inner.quota;
@@ -30,7 +30,7 @@ requires seed <= 73
 machine main() crashes Trap {
     let diff: u64 = evaluate(30, true);
     transition diff == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

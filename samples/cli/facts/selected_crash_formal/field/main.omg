@@ -13,8 +13,8 @@ requires input.value >= 0
 { Implementation::read(input.value) }
 machine main() crashes Trap {
     let input: Input = (Input { value: 7 });
-    let observed: i32 = safe<Provider<Zero>>(@input);
-    transition observed == 7 { true -> done() _ -> bad() }
+    let observed: i32 = safe::<Provider<Zero>>(@input);
+    transition observed == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -7,13 +7,13 @@ data Pair {
 }
 
 machine main() crashes Trap {
-    let s: u64 = size_of<Pair>();
-    let a: u64 = align_of<Pair>();
+    let s: u64 = size_of::<Pair>();
+    let a: u64 = align_of::<Pair>();
     let local_size: u64 = s;
     let local_align: u64 = a;
     let diff: u64 = local_size - (local_align * 2u64);
     transition diff == 0 && local_size == 16u64 && local_align == 8u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

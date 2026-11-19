@@ -26,7 +26,7 @@ public X86TaskRegisterControl satisfies TaskRegisterControl {
     reaches MachineControl
     {
         let mut observed: [u8; 10] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        activate_task_register<Entries>(gdt, task_state, selector, @mut observed) == 1
+        activate_task_register::<Entries>(gdt, task_state, selector, @mut observed) == 1
     }
 
     machine selector() -> u16 reaches MachineControl {

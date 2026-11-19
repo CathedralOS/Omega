@@ -61,7 +61,7 @@ crashes Trap
     let indirect: Comparison = Tables::compare(@functions, @left, 5, @right, 5, 1);
     let forwarded: Comparison = compare_folded(@functions, @left, @right);
     transition imported.code == 2 && indirect.code == 2 && forwarded.code == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

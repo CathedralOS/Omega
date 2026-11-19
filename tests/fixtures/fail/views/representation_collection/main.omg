@@ -7,12 +7,12 @@ requires words.len <= 0xffff_ffff_ffff_ffffu64
 }
 machine inspect(bytes: @[u8]) crashes Trap {
     transition bytes.len == 8 {
-        true -> check(bytes)
+        true -> check(bytes),
         _ -> bad()
     }
     machine check(bytes: @[u8]) requires bytes.len == 8 {
         transition bytes[0] == 4u8 && bytes[3] == 1u8 && bytes[4] == 8u8 && bytes[7] == 5u8 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }
@@ -29,12 +29,12 @@ machine main() crashes Trap {
 }
 machine inspect_tail(bytes: @[u8]) crashes Trap {
     transition bytes.len == 4 {
-        true -> check(bytes)
+        true -> check(bytes),
         _ -> bad()
     }
     machine check(bytes: @[u8]) requires bytes.len == 4 {
         transition bytes[0] == 8u8 && bytes[3] == 5u8 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

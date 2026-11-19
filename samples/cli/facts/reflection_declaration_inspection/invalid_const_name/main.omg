@@ -14,7 +14,7 @@ requires Kind == u64
     counts.order = ((counts.order as u64 in Wrapping) * (131u64 as u64 in Wrapping) + ((field.declaration_position as u64 in Wrapping) + (1u64 as u64 in Wrapping))) as u64;
     counts.valid = counts.valid && field.owner_identity.len > 0u64 && field.owner_application.len > 0u64
         && field.member_identity.len > 0u64 && field.qualified_type.len > 0u64 && field.name.len > 0u64;
-    transition field.is_erased { true -> erased(counts) false -> done() }
+    transition field.is_erased { true -> erased(counts), false -> done() }
     machine erased(counts: @mut Counts) {
         counts.erased = ((counts.erased as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;
     }
@@ -27,8 +27,8 @@ machine valid(counts: @Counts) -> bool {
 const INITIAL: Counts = Counts { fields: 0u64, erased: 0u64, order: 0u64, evaluations: 0u64, valid: true };
 machine main() crashes Trap {
     let mut counts: Counts = INITIAL;
-    reflect::inspect_record_fields<Subject, describe>(once(@mut counts));
-    transition valid(@counts) { true -> done() false -> bad() }
+    reflect::inspect_record_fields::<Subject, describe>(once(@mut counts));
+    transition valid(@counts) { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

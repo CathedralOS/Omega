@@ -15,7 +15,7 @@ ensures result == 0
 machine main() crashes Trap {
     let res: u64 = shift_right_const();
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

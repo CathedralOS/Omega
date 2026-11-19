@@ -14,8 +14,6 @@
 // Dot may share its inputs but its output must be disjoint; ordinary axpy
 // needs disjoint x and an exclusive y loan, and x == y uses try_axpy_self_f64
 // with one exclusive loan.
-module linear_algebra;
-
 use omega::language::core::F64::negate;
 use omega::language::core::F64::square_root;
 use omega::language::core::F64::maximum;
@@ -27,13 +25,13 @@ machine is_finite_f64(value: f64) -> bool {
 
 public machine try_dot_f64(left: @[f64], right: @[f64], output: @mut f64) -> bool {
     transition left.len == right.len {
-        true -> step(left, right, output, 0, 0.0)
+        true -> step(left, right, output, 0, 0.0),
         _ -> (false)
     }
     machine step(left: @[f64], right: @[f64], output: @mut f64,
         index: u64 in Wrapping, total: f64) -> bool {
         transition index < left.len && index < right.len {
-            true -> add(left, right, output, index, total)
+            true -> add(left, right, output, index, total),
             _ -> finish(output, total)
         }
     }
@@ -45,7 +43,7 @@ public machine try_dot_f64(left: @[f64], right: @[f64], output: @mut f64) -> boo
         let valid: bool = is_finite_f64(left[index as u64]) && is_finite_f64(right[index as u64])
             && is_finite_f64(product) && is_finite_f64(next);
         transition valid {
-            true -> step(left, right, output, index + 1, next)
+            true -> step(left, right, output, index + 1, next),
             _ -> (false)
         }
     }
@@ -63,7 +61,7 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mut f64) -> bool {
     machine step(values: @[f64], output: @mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64) -> bool {
         transition index < values.len {
-            true -> inspect(values, output, index, scale, squares)
+            true -> inspect(values, output, index, scale, squares),
             _ -> finish(output, scale, squares)
         }
     }
@@ -73,15 +71,15 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mut f64) -> bool {
         let value: f64 = F64::maximum(values[index as u64], F64::negate(values[index as u64]));
         let valid: bool = is_finite_f64(values[index as u64]);
         transition valid {
-            false -> (false)
+            false -> (false),
             _ -> update(values, output, index, scale, squares, value)
         }
     }
     machine update(values: @[f64], output: @mut f64, index: u64 in Wrapping,
         scale: f64, squares: f64, value: f64) -> bool {
         transition {
-            value == 0.0 -> step(values, output, index + 1, scale, squares)
-            scale < value -> rescale(values, output, index, scale, squares, value)
+            value == 0.0 -> step(values, output, index + 1, scale, squares),
+            scale < value -> rescale(values, output, index, scale, squares, value),
             _ -> accumulate(values, output, index, scale, squares, value)
         }
     }
@@ -101,7 +99,7 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mut f64) -> bool {
         let result: f64 = scale * F64::square_root(squares);
         let valid: bool = is_finite_f64(result);
         transition valid {
-            true -> publish(output, result)
+            true -> publish(output, result),
             _ -> (false)
         }
     }
@@ -117,13 +115,13 @@ public machine try_scaled_norm_f64(values: @[f64], output: @mut f64) -> bool {
 public machine try_axpy_f64(alpha: f64, input: @[f64], output: @mut [f64]) -> bool {
     let valid: bool = is_finite_f64(alpha) && input.len == output.len;
     transition valid {
-        true -> validate(alpha, input, output, 0)
+        true -> validate(alpha, input, output, 0),
         _ -> (false)
     }
     machine validate(alpha: f64, input: @[f64], output: @mut [f64],
         index: u64 in Wrapping) -> bool {
         transition index < input.len && index < output.len {
-            true -> inspect(alpha, input, output, index)
+            true -> inspect(alpha, input, output, index),
             _ -> write(alpha, input, output, 0)
         }
     }
@@ -135,14 +133,14 @@ public machine try_axpy_f64(alpha: f64, input: @[f64], output: @mut [f64]) -> bo
         let valid: bool = is_finite_f64(input[index as u64]) && is_finite_f64(output[index as u64])
             && is_finite_f64(product) && is_finite_f64(result);
         transition valid {
-            true -> validate(alpha, input, output, index + 1)
+            true -> validate(alpha, input, output, index + 1),
             _ -> (false)
         }
     }
     machine write(alpha: f64, input: @[f64], output: @mut [f64],
         index: u64 in Wrapping) -> bool {
         transition index < input.len && index < output.len {
-            true -> store(alpha, input, output, index)
+            true -> store(alpha, input, output, index),
             _ -> (true)
         }
     }
@@ -161,12 +159,12 @@ public machine try_axpy_f64(alpha: f64, input: @[f64], output: @mut [f64]) -> bo
 public machine try_axpy_self_f64(alpha: f64, values: @mut [f64]) -> bool {
     let valid: bool = is_finite_f64(alpha);
     transition valid {
-        true -> validate(alpha, values, 0)
+        true -> validate(alpha, values, 0),
         _ -> (false)
     }
     machine validate(alpha: f64, values: @mut [f64], index: u64 in Wrapping) -> bool {
         transition index < values.len {
-            true -> inspect(alpha, values, index)
+            true -> inspect(alpha, values, index),
             _ -> write(alpha, values, 0)
         }
     }
@@ -177,13 +175,13 @@ public machine try_axpy_self_f64(alpha: f64, values: @mut [f64]) -> bool {
         let valid: bool = is_finite_f64(values[index as u64])
             && is_finite_f64(product) && is_finite_f64(result);
         transition valid {
-            true -> validate(alpha, values, index + 1)
+            true -> validate(alpha, values, index + 1),
             _ -> (false)
         }
     }
     machine write(alpha: f64, values: @mut [f64], index: u64 in Wrapping) -> bool {
         transition index < values.len {
-            true -> store(alpha, values, index)
+            true -> store(alpha, values, index),
             _ -> (true)
         }
     }

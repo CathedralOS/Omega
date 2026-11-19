@@ -1,5 +1,3 @@
-module vec;
-
 use omega::language::core::Extent;
 use omega::language::core::Extent::Granted;
 use omega::language::core::Extent::Vacant;
@@ -65,8 +63,8 @@ data Observed { storage: Extent in Granted & Vacant; value: u32; }
 machine store_cell<Role>(storage: @mut Extent in Granted & Vacant, value: u32)
 crashes Trap
 {
-    transition access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as @mut Extent in Granted) {
-        AccessOutcome::Ready { view } -> change(view, value)
+    transition access::view_extent_mut::<VecCellStorage in VecCell::Controlled, Role>(storage as @mut Extent in Granted) {
+        AccessOutcome::Ready { view } -> change(view, value),
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
     machine change(view: @mut VecCellStorage in VecCell::Controlled, value: u32) {
@@ -83,7 +81,7 @@ crashes Trap
     let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
     let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
     let mut cell: Extent in Granted & Vacant = element.taken;
-    store_cell<Role>(@mut cell, value);
+    store_cell::<Role>(@mut cell, value);
     let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
     let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
     whole
@@ -116,13 +114,13 @@ crashes Trap
     let length: u64 = vec.len;
     let capacity: u64 = vec.capacity;
     let storage: Extent in Granted & Vacant = vec.storage;
-    let changed: Extent in Granted & Vacant = store<Role>(storage, length * 4, value);
+    let changed: Extent in Granted & Vacant = store::<Role>(storage, length * 4, value);
     Vec { storage: changed, len: length + 1, capacity: capacity }
 }
 
 machine inspect_cell<Role>(storage: @Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as @Extent in Granted) {
-        AccessOutcome::Ready { view } -> read(@view.value)
+    transition access::view_extent::<VecCellStorage in VecCell::Controlled, Role>(storage as @Extent in Granted) {
+        AccessOutcome::Ready { view } -> read(@view.value),
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
     machine bad() -> u32 { crash Trap; }
@@ -136,7 +134,7 @@ crashes Trap
     let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
     let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
     let cell: Extent in Granted & Vacant = element.taken;
-    let value: u32 = inspect_cell<Role>(@cell);
+    let value: u32 = inspect_cell::<Role>(@cell);
     let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
     let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
     Observed { storage: whole, value: value }
@@ -154,7 +152,7 @@ crashes Trap
     let length: u64 = vec.len;
     let capacity: u64 = vec.capacity;
     let storage: Extent in Granted & Vacant = vec.storage;
-    let observed: Observed = inspect<Role>(storage, index * 4);
+    let observed: Observed = inspect::<Role>(storage, index * 4);
     Read { vec: Vec { storage: observed.storage, len: length, capacity: capacity }, value: observed.value }
 }
 
@@ -173,7 +171,7 @@ terminates by remaining
 crashes Trap
 {
     transition remaining > 0 {
-        true -> step<Role>(original, replacement, count, remaining)
+        true -> step::<Role>(original, replacement, count, remaining),
         false -> Copied { original: original, replacement: replacement }
     }
     machine step<Role>(original: Extent in Granted & Vacant, replacement: Extent in Granted & Vacant,
@@ -184,9 +182,9 @@ crashes Trap
         result.replacement.base == replacement.base, result.replacement.length == replacement.length
     {
         let offset: u64 = (count - remaining) * 4;
-        let observed: Observed = inspect<Role>(original, offset);
-        let changed: Extent in Granted & Vacant = store<Role>(replacement, offset, observed.value);
-        transition { _ -> copy_prefix<Role>(observed.storage, changed, count, remaining - 1) }
+        let observed: Observed = inspect::<Role>(original, offset);
+        let changed: Extent in Granted & Vacant = store::<Role>(replacement, offset, observed.value);
+        transition { _ -> copy_prefix::<Role>(observed.storage, changed, count, remaining - 1) }
     }
 }
 
@@ -206,7 +204,7 @@ crashes Trap
 {
     let length: u64 = vec.len;
     let original: Extent in Granted & Vacant = vec.storage;
-    let copied: Copied = copy_prefix<Role>(original, replacement, length, length);
+    let copied: Copied = copy_prefix::<Role>(original, replacement, length, length);
     verify_vector(@copied.replacement, length, capacity);
     let grown: Vec = Vec { storage: copied.replacement, len: length, capacity: capacity };
     Growth { vec: grown, retired_storage: copied.original }

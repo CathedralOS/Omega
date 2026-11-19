@@ -6,7 +6,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -14,7 +14,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -78,7 +78,7 @@ ArmReadAll satisfies SelectedReadAll {
 
 machine main() crashes Trap {
     let values: [u64; 4] = [1, 2, 4, 8];
-    transition SelectedReadAll::read_all(values, 0, 1, 2, 3, 0, 1, 2, 2) == 12 { true -> done() _ -> bad() }
+    transition SelectedReadAll::read_all(values, 0, 1, 2, 3, 0, 1, 2, 2) == 12 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

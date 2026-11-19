@@ -9,7 +9,7 @@ ensures result == 0u64
     let b: u8 = bytes[4u64];
     let diff: u64 = bytes.len - 5u64;
     transition b == 97u8 {
-        true -> ok(diff)
+        true -> ok(diff),
         _ -> bad()
     }
     machine ok(d: u64) -> u64 {
@@ -35,7 +35,7 @@ ensures result == 0u64
 
 machine main() crashes Trap {
     transition probe() == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

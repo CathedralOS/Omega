@@ -24,7 +24,7 @@ data Main { choose_first: bool; hits: i32 in Wrapping; }
 machine Main::run(main: @mut Main) -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
     transition main.choose_first {
-        true -> consume_first(receipt)
+        true -> consume_first(receipt),
         _ -> consume_second(receipt)
     }
 

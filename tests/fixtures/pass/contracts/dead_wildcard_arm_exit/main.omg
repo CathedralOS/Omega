@@ -9,9 +9,9 @@ data Light {
 }
 machine next(light: Light) -> u64 {
     transition light {
-        Light::Green -> (1u64)
-        Light::Amber -> (2u64)
-        Light::Red -> (3u64)
+        Light::Green -> (1u64),
+        Light::Amber -> (2u64),
+        Light::Red -> (3u64),
         _ -> (99u64)
     }
 }
@@ -23,7 +23,7 @@ machine short(light: Light) -> u64 {
 }
 machine main() crashes Trap {
     transition next(Light::Amber) + weight(Light::Red) + short(Light::Red) == 39u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -1,4 +1,3 @@
-module chemistry::report;
 use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 
@@ -10,7 +9,7 @@ invokes Console
     transition { _ -> place(value, 1000000000000, false) }
     machine place(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> digit(value, divisor, started)
+            true -> digit(value, divisor, started),
             false -> done()
         }
     }
@@ -18,7 +17,7 @@ invokes Console
     requires divisor > 0 {
         let digit: i64 in Wrapping = value / divisor;
         transition started || digit > 0 || divisor == 1 {
-            true -> emit(value, divisor, digit)
+            true -> emit(value, divisor, digit),
             false -> place(value, divisor / 10, false)
         }
     }

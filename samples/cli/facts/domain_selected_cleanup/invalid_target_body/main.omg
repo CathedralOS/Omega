@@ -10,7 +10,7 @@ machine release_keeper<'storage>(keeper: @mut Keeper<'storage>) requires keeper.
 }
 machine observe(keeper: @Keeper) {}
 machine check(output: @Counter) crashes Trap {
-    transition output.value == 7 && output.invocations == 1 { true -> done() false -> bad() }
+    transition output.value == 7 && output.invocations == 1 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -20,7 +20,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -28,7 +28,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }

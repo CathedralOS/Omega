@@ -18,7 +18,7 @@ machine exercise(x: u64) -> u64 {
 machine main() crashes Trap {
     let diff: u64 = exercise(466u64);
     transition diff == 13u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

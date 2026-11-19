@@ -21,7 +21,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.year = 2024;
 
     transition main.year % 4 == 0 && main.year % 100 != 0 || main.year % 400 == 0 {
-        true -> block leap(main)
+        true -> block leap(main),
         _ -> block common(main)
     }
 

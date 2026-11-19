@@ -55,27 +55,27 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // total==70, split==40, lap==30, elapsed==40.
     transition main.watch.total == 70 {
-        true -> block check_split(main)
+        true -> block check_split(main),
         _ -> block bad_total(main)
     }
 
     machine check_split(main: @mut Main) {
         transition main.watch.last_split == 40 {
-            true -> block check_lap(main)
+            true -> block check_lap(main),
             _ -> block bad_split(main)
         }
     }
 
     machine check_lap(main: @mut Main) {
         transition main.watch.last_lap == 30 {
-            true -> block check_elapsed(main)
+            true -> block check_elapsed(main),
             _ -> block bad_lap(main)
         }
     }
 
     machine check_elapsed(main: @mut Main) {
         transition main.watch.elapsed == 40 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_elapsed(main)
         }
     }
@@ -115,9 +115,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 // Apply a command to the stopwatch.
 machine send(main: @mut Main, cmd: Command) {
     transition cmd {
-        Command::Tick { n } -> do_tick(main, n)
-        Command::Lap -> do_lap(main)
-        Command::Split -> do_split(main)
+        Command::Tick { n } -> do_tick(main, n),
+        Command::Lap -> do_lap(main),
+        Command::Split -> do_split(main),
         _ -> done()
     }
 

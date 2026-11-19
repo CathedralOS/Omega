@@ -46,7 +46,7 @@ LinuxArmEvaluation satisfies Evaluation {
 }
 machine main() crashes Trap {
     let difference: u64 = Evaluation::evaluate();
-    transition difference == 0 { true -> done() _ -> bad() }
+    transition difference == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

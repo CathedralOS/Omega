@@ -27,7 +27,7 @@ data Main {
 
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let valid: bool = block read(@mut main.protocol);
-    transition valid { true -> validate(main) false -> bad_syntax(main) }
+    transition valid { true -> validate(main), false -> bad_syntax(main) }
     machine bad_syntax(main: @mut Main) {
         Console::write_line("ERROR syntax: expected nine integers, maximum 160 bytes");
         ProcessExit::exit_process(64);
@@ -43,7 +43,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             && main.protocol.fields[7] >= -1200 && main.protocol.fields[7] <= 900
             && main.protocol.fields[6] < main.protocol.fields[7]
             && main.protocol.fields[8] >= 1 && main.protocol.fields[8] <= 80 {
-            true -> configure(main)
+            true -> configure(main),
             false -> bad_range(main)
         }
     }
@@ -85,7 +85,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         integer(@mut main.protocol, main.position);
         Console::write(",");
         transition main.solver.status == 3 {
-            true -> absent(main)
+            true -> absent(main),
             false -> present(main)
         }
     }
@@ -98,7 +98,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine present(main: @mut Main) {
         transition main.solver.status == 1 {
-            true -> converged(main)
+            true -> converged(main),
             false -> limited(main)
         }
     }
@@ -132,7 +132,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         main.position = main.position + 1;
         main.source_index = main.source_index + 1.0;
-        transition main.position < main.points { true -> sweep(main) false -> done(main) }
+        transition main.position < main.points { true -> sweep(main), false -> done(main) }
     }
     machine done(main: @mut Main) {
         Console::write("summary,");

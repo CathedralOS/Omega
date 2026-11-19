@@ -33,7 +33,7 @@ machine main(memory: @mut Memory) crashes Trap {
     let number: Number = Number { value: 70 };
     store(@mut packed.value, number.value);
     transition memory.bytes[0] == 70 && memory.bytes[1] == 85 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

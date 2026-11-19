@@ -10,7 +10,7 @@ requires counter == 0
 
 machine select<'a>(chosen: @'a mut i64, other: @'a mut i64, visits: @mut u64) -> @'a mut i64 {
     match choose(visits) {
-        true -> chosen
+        true -> chosen,
         false -> other
     }
 }
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     selected = 41;
     let observed: i64 = selected;
     transition observed == 41 && chosen == 41 && other == 0 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

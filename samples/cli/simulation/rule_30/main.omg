@@ -29,7 +29,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block gen_loop(main) }
 
     machine gen_loop(main: @mut Main) {
-        transition main.g < 16 { true -> block render_init(main) _ -> block finish(main) }
+        transition main.g < 16 { true -> block render_init(main), _ -> block finish(main) }
     }
 
     // --- render the current generation as one row of '#'/' ' bytes ---
@@ -38,20 +38,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block render_loop(main) }
     }
     machine render_loop(main: @mut Main) {
-        transition main.i >= 0 && main.i < 31 { true -> block render_cell(main) _ -> block emit(main) }
+        transition main.i >= 0 && main.i < 31 { true -> block render_cell(main), _ -> block emit(main) }
     }
     machine render_cell(main: @mut Main) {
         main.b = (main.cells >> main.i) as u64;
-        transition main.b % 2 == 1 { true -> block mark(main) _ -> block blank(main) }
+        transition main.b % 2 == 1 { true -> block mark(main), _ -> block blank(main) }
     }
     // Refine the standing owner bound to leave headroom for the increment.
     machine mark(main: @mut Main) {
         Console::write_byte(0x23);
-        transition main.i >= 0 && main.i < 31 { true -> block render_bump(main) _ -> block render_loop(main) }
+        transition main.i >= 0 && main.i < 31 { true -> block render_bump(main), _ -> block render_loop(main) }
     }
     machine blank(main: @mut Main) {
         Console::write_byte(0x20);
-        transition main.i >= 0 && main.i < 31 { true -> block render_bump(main) _ -> block render_loop(main) }
+        transition main.i >= 0 && main.i < 31 { true -> block render_bump(main), _ -> block render_loop(main) }
     }
     machine render_bump(main: @mut Main) {
         main.i = main.i + 1;
@@ -70,7 +70,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     // Re-guard `g < 16` so the increment proves into [1..=16].
     machine gen_next(main: @mut Main) {
-        transition main.g < 16 { true -> block g_bump(main) _ -> block gen_loop(main) }
+        transition main.g < 16 { true -> block g_bump(main), _ -> block gen_loop(main) }
     }
     machine g_bump(main: @mut Main) {
         main.g = main.g + 1;

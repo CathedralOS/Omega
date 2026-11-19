@@ -15,7 +15,7 @@ machine main() reaches ProcessExit crashes Trap {
     };
     let result: Pair = forward(input);
     transition result.left.value == 17u32 && result.right.value == 29u32 {
-        true -> ProcessExit::exit_process(0i32)
+        true -> ProcessExit::exit_process(0i32),
         false -> failed()
     }
     machine failed() { crash Trap; }

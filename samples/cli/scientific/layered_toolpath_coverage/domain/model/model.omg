@@ -1,4 +1,3 @@
-module domain::model;
 // Integer unit-cell fabrication model; private storage, no numeric library.
 public data Job {
     mask: [i32; 256];

@@ -17,12 +17,12 @@ CountdownCode satisfies Countdown {
     ensures result <= 60
     terminates by remaining
     {
-        transition remaining > 0 { true -> block step(remaining, value) false -> (value) }
+        transition remaining > 0 { true -> block step(remaining, value), false -> (value) }
         machine step(remaining: u64, value: u64) -> u64
         requires remaining > 0 && remaining <= 4 && value <= 60 {
             let ready: bool = block tick();
             transition ready {
-                true -> block CountdownCode::countdown(remaining - 1, value)
+                true -> block CountdownCode::countdown(remaining - 1, value),
                 false -> (value)
             }
         }
@@ -48,7 +48,7 @@ machine main() crashes Trap {
     let second: u64 = 60u64 - block choose(false, @mut second_route);
     let difference: u64 = first + second;
     transition difference == 0 && first_route == 17 && second_route == 23 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -16,7 +16,7 @@ machine main() crashes Trap {
  done requires eax == 0:
   mov output, eax
  }
- transition output == 0 { true -> done() false -> bad() }
+ transition output == 0 { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

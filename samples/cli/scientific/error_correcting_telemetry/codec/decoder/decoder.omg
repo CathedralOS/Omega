@@ -1,4 +1,3 @@
-module codec::decoder;
 use codec::field;
 use codec::field::Frame;
 use codec::field::encode;
@@ -12,7 +11,7 @@ public machine recover(frame: @Frame) -> Recovery {
     machine search(frame: @Frame, candidate: i32 in Wrapping, matches: i32 in Wrapping,
         intercept: i32 in Wrapping, slope: i32 in Wrapping) -> Recovery {
         transition candidate < 25 {
-            true -> examine(frame, candidate, matches, intercept, slope)
+            true -> examine(frame, candidate, matches, intercept, slope),
             false -> (Recovery { matches: matches, intercept: intercept, slope: slope })
         }
     }
@@ -23,7 +22,7 @@ public machine recover(frame: @Frame) -> Recovery {
             + discrepancy(frame.second, encoded.second) + discrepancy(frame.third, encoded.third)
             + discrepancy(frame.fourth, encoded.fourth);
         transition weight <= 2 {
-            true -> search(frame, candidate + 1, matches + 1, candidate / 5, candidate % 5)
+            true -> search(frame, candidate + 1, matches + 1, candidate / 5, candidate % 5),
             false -> search(frame, candidate + 1, matches, intercept, slope)
         }
     }

@@ -29,7 +29,7 @@ machine Main::main(main: @mut Main) {
     consume(main.items);
     let first: u32 = view[0];
     transition first == 3 && main.items[1] == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

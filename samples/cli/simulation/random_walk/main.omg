@@ -59,7 +59,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     transition { _ -> block clear(main) }
 
     machine clear(main: @mut Main) {
-        transition main.k >= 0 && main.k < 288 { true -> block clear_cell(main) _ -> block begin(main) }
+        transition main.k >= 0 && main.k < 288 { true -> block clear_cell(main), _ -> block begin(main) }
     }
     machine clear_cell(main: @mut Main) {
         main.grid[main.k] = 0;
@@ -69,7 +69,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     machine begin(main: @mut Main) {
         main.flat = main.py * 24 + main.px;
         main.gen = 0;
-        transition main.flat >= 0 && main.flat < 288 { true -> block begin_mark(main) _ -> block bad(main) }
+        transition main.flat >= 0 && main.flat < 288 { true -> block begin_mark(main), _ -> block bad(main) }
     }
     machine begin_mark(main: @mut Main) {
         main.grid[main.flat] = 1;
@@ -83,17 +83,17 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block show_row(main) }
     }
     machine show_row(main: @mut Main) {
-        transition main.ry >= 0 && main.ry < 12 { true -> block show_col_init(main) _ -> block show_done(main) }
+        transition main.ry >= 0 && main.ry < 12 { true -> block show_col_init(main), _ -> block show_done(main) }
     }
     machine show_col_init(main: @mut Main) {
         main.cx = 0;
         transition { _ -> block show_col(main) }
     }
     machine show_col(main: @mut Main) {
-        transition main.cx >= 0 && main.cx < 24 { true -> block show_cell(main) _ -> block emit_row(main) }
+        transition main.cx >= 0 && main.cx < 24 { true -> block show_cell(main), _ -> block emit_row(main) }
     }
     machine show_cell(main: @mut Main) {
-        transition main.ry == main.py && main.cx == main.px { true -> block put_at(main) _ -> block put_trail(main) }
+        transition main.ry == main.py && main.cx == main.px { true -> block put_at(main), _ -> block put_trail(main) }
     }
     machine put_at(main: @mut Main) {
         main.line[main.cx] = 64; // '@'
@@ -102,11 +102,11 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     }
     machine put_trail(main: @mut Main) {
         main.flat = main.ry * 24 + main.cx;
-        transition main.flat >= 0 && main.flat < 288 { true -> put_trail_w(main) _ -> block bad(main) }
+        transition main.flat >= 0 && main.flat < 288 { true -> put_trail_w(main), _ -> block bad(main) }
     }
     machine put_trail_w(main: @mut Main) {
         main.v = main.grid[main.flat];
-        transition main.v >= 0 && main.v < 2 { true -> put_trail_g(main) _ -> block bad(main) }
+        transition main.v >= 0 && main.v < 2 { true -> put_trail_g(main), _ -> block bad(main) }
     }
     machine put_trail_g(main: @mut Main) {
         main.glyph = main.chars[main.v];
@@ -126,7 +126,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     // --- advance the walk one random step ---
     machine step(main: @mut Main) {
-        transition main.gen < 70 { true -> advance(main) _ -> finish(main) }
+        transition main.gen < 70 { true -> advance(main), _ -> finish(main) }
     }
     machine advance(main: @mut Main) {
         main.sc = main.st << 13;
@@ -139,37 +139,37 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> move(main) }
     }
     machine move(main: @mut Main) {
-        transition main.dir == 0 { true -> go_up(main) _ -> move1(main) }
+        transition main.dir == 0 { true -> go_up(main), _ -> move1(main) }
     }
     machine move1(main: @mut Main) {
-        transition main.dir == 1 { true -> go_down(main) _ -> move2(main) }
+        transition main.dir == 1 { true -> go_down(main), _ -> move2(main) }
     }
     machine move2(main: @mut Main) {
-        transition main.dir == 2 { true -> go_left(main) _ -> go_right(main) }
+        transition main.dir == 2 { true -> go_left(main), _ -> go_right(main) }
     }
     machine go_up(main: @mut Main) {
-        transition main.py > 0 { true -> up_w(main) _ -> mark(main) }
+        transition main.py > 0 { true -> up_w(main), _ -> mark(main) }
     }
     machine up_w(main: @mut Main) {
         main.py = main.py - 1;
         transition { _ -> mark(main) }
     }
     machine go_down(main: @mut Main) {
-        transition main.py < 11 { true -> down_w(main) _ -> mark(main) }
+        transition main.py < 11 { true -> down_w(main), _ -> mark(main) }
     }
     machine down_w(main: @mut Main) {
         main.py = main.py + 1;
         transition { _ -> mark(main) }
     }
     machine go_left(main: @mut Main) {
-        transition main.px > 0 { true -> left_w(main) _ -> mark(main) }
+        transition main.px > 0 { true -> left_w(main), _ -> mark(main) }
     }
     machine left_w(main: @mut Main) {
         main.px = main.px - 1;
         transition { _ -> mark(main) }
     }
     machine go_right(main: @mut Main) {
-        transition main.px < 23 { true -> right_w(main) _ -> mark(main) }
+        transition main.px < 23 { true -> right_w(main), _ -> mark(main) }
     }
     machine right_w(main: @mut Main) {
         main.px = main.px + 1;
@@ -178,7 +178,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     machine mark(main: @mut Main) {
         main.flat = main.py * 24 + main.px;
         main.gen = main.gen + 1;
-        transition main.flat >= 0 && main.flat < 288 { true -> mark_w(main) _ -> block bad(main) }
+        transition main.flat >= 0 && main.flat < 288 { true -> mark_w(main), _ -> block bad(main) }
     }
     machine mark_w(main: @mut Main) {
         main.grid[main.flat] = 1;

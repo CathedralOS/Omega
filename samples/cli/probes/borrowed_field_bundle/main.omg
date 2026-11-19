@@ -38,7 +38,7 @@ machine exercise<'storage>(pair: @'storage mut Pair) -> bool {
 machine main() crashes Trap {
     let mut pair: Pair;
     transition exercise(@mut pair) {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

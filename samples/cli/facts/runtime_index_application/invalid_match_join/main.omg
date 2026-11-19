@@ -11,7 +11,7 @@ requires first>=9 && first<=10 && second>=9 && second<=10
 machine main() crashes Trap {
  let first:u32=probe(9,10,true);
  let second:u32=probe(9,10,false);
- transition first==8 && second==8 { true->done() _->bad() }
+ transition first==8 && second==8 { true->done(), _->bad() }
  machine done(){}
  machine bad(){crash Trap;}
 }

@@ -66,14 +66,14 @@ machine lookup_symbol(alphabet: @[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     transition { _ -> check(alphabet, target, 0) }
     machine check(alphabet: @[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
         transition idx < 5 {
-            true -> compare(alphabet, target, idx)
+            true -> compare(alphabet, target, idx),
             _ -> 5
         }
     }
     machine compare(alphabet: @[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
     requires idx < 5 {
         transition alphabet[idx] == (target as u8) {
-            true -> idx
+            true -> idx,
             _ -> check(alphabet, target, idx + 1)
         }
     }
@@ -129,14 +129,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine clear_freq(main: @mut Main) {
         transition main.cursor < 5 {
-            true -> clear_freq_slot(main)
+            true -> clear_freq_slot(main),
             _ -> start_count(main)
         }
     }
 
     machine clear_freq_slot(main: @mut Main) {
         transition main.cursor < 5 {
-            true -> write_zero_freq(main)
+            true -> write_zero_freq(main),
             _ -> start_count(main)
         }
     }
@@ -157,7 +157,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine count_loop(main: @mut Main) {
         transition main.cursor < 16 {
-            true -> count_byte(main)
+            true -> count_byte(main),
             _ -> init_leaves_start(main)
         }
     }
@@ -166,7 +166,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.cursor < 16 {
         let byte: u8 = main.input[main.cursor];
         transition byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
-            true -> count_valid_symbol(main, byte)
+            true -> count_valid_symbol(main, byte),
             _ -> fail(main)
         }
     }
@@ -175,7 +175,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires byte == 65 || byte == 66 || byte == 67 || byte == 68 || byte == 82 {
         let slot: u64 = lookup_symbol(@main.alphabet, byte);
         transition slot < 5 {
-            true -> bump_slot(main, slot)
+            true -> bump_slot(main, slot),
             _ -> fail(main)
         }
     }
@@ -195,7 +195,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine init_leaves_loop(main: @mut Main) {
         transition main.cursor < 5 {
-            true -> write_leaf(main)
+            true -> write_leaf(main),
             _ -> init_branches_loop(main)
         }
     }
@@ -215,7 +215,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine init_branches_loop(main: @mut Main) {
         transition main.cursor < 9 {
-            true -> write_empty_branch(main)
+            true -> write_empty_branch(main),
             _ -> build_tree_start(main)
         }
     }
@@ -240,7 +240,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine merge_loop(main: @mut Main) {
         transition main.step < 4 {
-            true -> start_find_first(main)
+            true -> start_find_first(main),
             _ -> derive_codes_start(main)
         }
     }
@@ -255,7 +255,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine find_first_loop(main: @mut Main) {
         let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
-            true -> check_first_candidate(main)
+            true -> check_first_candidate(main),
             _ -> after_find_first(main)
         }
     }
@@ -265,7 +265,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let active: bool = main.nodes[main.scan].active;
         let w: u32 in Wrapping = main.nodes[main.scan].weight;
         transition active && w < main.best_weight {
-            true -> take_first_candidate(main, w)
+            true -> take_first_candidate(main, w),
             _ -> next_first_candidate(main)
         }
     }
@@ -284,7 +284,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine after_find_first(main: @mut Main) {
         transition main.first_min < 9 {
-            true -> deactivate_first(main)
+            true -> deactivate_first(main),
             _ -> fail(main)
         }
     }
@@ -301,7 +301,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine find_second_loop(main: @mut Main) {
         let limit: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         transition main.scan < (limit as u64) && main.scan < 9 {
-            true -> check_second_candidate(main)
+            true -> check_second_candidate(main),
             _ -> after_find_second(main)
         }
     }
@@ -311,7 +311,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let active: bool = main.nodes[main.scan].active;
         let w: u32 in Wrapping = main.nodes[main.scan].weight;
         transition active && w < main.best_weight {
-            true -> take_second_candidate(main, w)
+            true -> take_second_candidate(main, w),
             _ -> next_second_candidate(main)
         }
     }
@@ -332,7 +332,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let branch_wrap: u64 in Wrapping = (5 as u64 in Wrapping) + (main.step as u64 in Wrapping);
         let branch_idx: u64 = branch_wrap as u64;
         transition main.first_min < 9 && main.second_min < 9 && branch_idx < 9 {
-            true -> create_branch(main, branch_idx)
+            true -> create_branch(main, branch_idx),
             _ -> fail(main)
         }
     }
@@ -366,7 +366,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine clear_code_bits(main: @mut Main) {
         transition main.cursor < 40 {
-            true -> zero_code_bit(main)
+            true -> zero_code_bit(main),
             _ -> derive_symbol_start(main)
         }
     }
@@ -385,7 +385,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine derive_symbol_loop(main: @mut Main) {
         transition main.cursor < 5 {
-            true -> start_walk_depth(main)
+            true -> start_walk_depth(main),
             _ -> encode_start(main)
         }
     }
@@ -399,7 +399,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine walk_depth_loop(main: @mut Main) {
         transition main.walk_node < 8 && main.walk_depth < 8 {
-            true -> step_walk_depth(main)
+            true -> step_walk_depth(main),
             _ -> store_code_length(main)
         }
     }
@@ -414,7 +414,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine store_code_length(main: @mut Main) {
         transition main.cursor < 5 && main.walk_node == 8 && main.walk_depth >= 1 && main.walk_depth <= 8 {
-            true -> fill_symbol_bits_init(main)
+            true -> fill_symbol_bits_init(main),
             _ -> fail(main)
         }
     }
@@ -429,7 +429,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine fill_symbol_bits_loop(main: @mut Main) {
         transition main.rev_index > 0 && main.rev_index <= 8 && main.walk_node < 8 && main.cursor < 5 {
-            true -> write_symbol_bit(main)
+            true -> write_symbol_bit(main),
             _ -> next_derive_symbol(main)
         }
     }
@@ -439,7 +439,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let bit_pos: u64 = main.rev_index - 1;
         let table_idx: u64 = main.cursor * 8 + bit_pos;
         transition table_idx < 40 {
-            true -> commit_symbol_bit(main, table_idx)
+            true -> commit_symbol_bit(main, table_idx),
             _ -> fail(main)
         }
     }
@@ -472,7 +472,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine encode_byte_loop(main: @mut Main) {
         transition main.cursor < 16 {
-            true -> encode_lookup(main)
+            true -> encode_lookup(main),
             _ -> encode_done(main)
         }
     }
@@ -481,7 +481,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.cursor < 16 {
         let sym: u8 = main.input[main.cursor];
         transition sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
-            true -> encode_valid_symbol(main, sym)
+            true -> encode_valid_symbol(main, sym),
             _ -> fail(main)
         }
     }
@@ -490,7 +490,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires sym == 65 || sym == 66 || sym == 67 || sym == 68 || sym == 82 {
         let slot: u64 = lookup_symbol(@main.alphabet, sym);
         transition slot < 5 {
-            true -> encode_symbol_init(main, slot)
+            true -> encode_symbol_init(main, slot),
             _ -> fail(main)
         }
     }
@@ -504,7 +504,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine encode_bit_loop(main: @mut Main) {
         transition main.step < 5 {
-            true -> encode_bit_check(main)
+            true -> encode_bit_check(main),
             _ -> fail(main)
         }
     }
@@ -513,7 +513,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.step < 5 {
         let len: u64 = main.code_lengths[main.step];
         transition main.scan < len && main.scan < 8 {
-            true -> emit_one_bit(main)
+            true -> emit_one_bit(main),
             _ -> next_encode_byte(main)
         }
     }
@@ -524,7 +524,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let byte_idx: u64 = main.bit_cursor / 8;
         let bit_offset: u64 = main.bit_cursor % 8;
         transition table_idx < 40 && byte_idx < 4 && bit_offset < 8 {
-            true -> pack_bit(main, table_idx, byte_idx, bit_offset)
+            true -> pack_bit(main, table_idx, byte_idx, bit_offset),
             _ -> fail(main)
         }
     }
@@ -533,7 +533,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires table_idx < 40 && byte_idx < 4 && bit_offset < 8 {
         let bit: u8 = main.code_bits[table_idx];
         transition bit == 1 {
-            true -> set_packed_bit(main, byte_idx, bit_offset)
+            true -> set_packed_bit(main, byte_idx, bit_offset),
             _ -> advance_bit_cursor(main)
         }
     }
@@ -575,15 +575,15 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.walk_node < 9 {
         let current: TreeNode = main.nodes[main.walk_node];
         transition current {
-            TreeNode::Leaf { symbol, .. } -> decode_emit_symbol(main, symbol)
-            TreeNode::Branch { left, right, .. } -> decode_step_branch(main, left, right)
+            TreeNode::Leaf { symbol, .. } -> decode_emit_symbol(main, symbol),
+            TreeNode::Branch { left, right, .. } -> decode_step_branch(main, left, right),
             TreeNode::Empty { .. } -> fail(main)
         }
     }
 
     machine decode_emit_symbol(main: @mut Main, symbol: u8) {
         transition main.out_cursor < 16 {
-            true -> store_decoded_symbol(main, symbol)
+            true -> store_decoded_symbol(main, symbol),
             _ -> fail(main)
         }
     }
@@ -594,7 +594,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.out_cursor = main.out_cursor + 1;
         main.walk_node = 8;
         transition main.out_cursor == 16 {
-            true -> verify_start(main)
+            true -> verify_start(main),
             _ -> decode_inspect_node(main)
         }
     }
@@ -604,7 +604,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let byte_idx: u64 = main.bit_cursor / 8;
         let bit_offset: u64 = main.bit_cursor % 8;
         transition main.bit_cursor < main.total_bits && byte_idx < 4 && bit_offset < 8 {
-            true -> read_stream_bit(main, left, right, byte_idx, bit_offset)
+            true -> read_stream_bit(main, left, right, byte_idx, bit_offset),
             _ -> fail(main)
         }
     }
@@ -616,7 +616,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let bit: u8 in Wrapping = (byte_val >> shift_amt) & 1;
         main.bit_cursor = main.bit_cursor + 1;
         transition bit == 0 {
-            true -> move_to_child(main, left)
+            true -> move_to_child(main, left),
             _ -> move_to_child(main, right)
         }
     }
@@ -630,7 +630,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // --- Step 7: Self-verify frequencies, code lengths, bit count, packed bytes, and round-trip ---
     machine verify_start(main: @mut Main) {
         transition main.total_bits == 29 && main.bit_cursor == 29 && main.out_cursor == 16 && main.nodes[8].weight == 16 {
-            true -> verify_frequencies(main)
+            true -> verify_frequencies(main),
             _ -> fail(main)
         }
     }
@@ -641,7 +641,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             && main.frequencies[2] == 1
             && main.frequencies[3] == 1
             && main.frequencies[4] == 2 {
-            true -> verify_lengths_init(main)
+            true -> verify_lengths_init(main),
             _ -> fail(main)
         }
     }
@@ -653,7 +653,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine verify_lengths_loop(main: @mut Main) {
         transition main.cursor < 5 {
-            true -> check_one_length(main)
+            true -> check_one_length(main),
             _ -> verify_packed_init(main)
         }
     }
@@ -661,7 +661,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check_one_length(main: @mut Main)
     requires main.cursor < 5 {
         transition main.code_lengths[main.cursor] == main.expected_lengths[main.cursor] {
-            true -> next_length_check(main)
+            true -> next_length_check(main),
             _ -> fail(main)
         }
     }
@@ -678,7 +678,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine verify_packed_loop(main: @mut Main) {
         transition main.cursor < 4 {
-            true -> check_one_packed(main)
+            true -> check_one_packed(main),
             _ -> verify_roundtrip_init(main)
         }
     }
@@ -686,7 +686,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check_one_packed(main: @mut Main)
     requires main.cursor < 4 {
         transition main.packed[main.cursor] == main.expected_packed[main.cursor] {
-            true -> next_packed_check(main)
+            true -> next_packed_check(main),
             _ -> fail(main)
         }
     }
@@ -703,7 +703,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine verify_roundtrip_loop(main: @mut Main) {
         transition main.cursor < 16 {
-            true -> check_one_decoded(main)
+            true -> check_one_decoded(main),
             _ -> pass(main)
         }
     }
@@ -711,7 +711,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine check_one_decoded(main: @mut Main)
     requires main.cursor < 16 {
         transition main.decoded[main.cursor] == main.input[main.cursor] {
-            true -> next_decoded_check(main)
+            true -> next_decoded_check(main),
             _ -> fail(main)
         }
     }

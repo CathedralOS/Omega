@@ -1,4 +1,3 @@
-module domain::model;
 // Integer coefficients count labeled samples, not equiprobable species sets.
 // Each species contributes 1 + y*sum_{k=1..a} choose(a,k)*x^k.
 // Bounded convolution retains all depths and richness bins, including zeros.
@@ -12,11 +11,11 @@ public data Community {
     next: [[u64 in Wrapping; 13]; 33];
 }
 public machine choose(total: u64 in Wrapping, depth: u64 in Wrapping) -> u64 in Wrapping {
-    transition depth <= total { true -> accumulate(total, depth, 1, 1) false -> 0 }
+    transition depth <= total { true -> accumulate(total, depth, 1, 1), false -> 0 }
     machine accumulate(total: u64 in Wrapping, depth: u64 in Wrapping,
                      position: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition position <= depth && position > 0 {
-            true -> step(total, depth, position, value)
+            true -> step(total, depth, position, value),
             false -> value
         }
     }
@@ -38,14 +37,14 @@ public machine analyze(community: @mut Community) {
     transition { _ -> species(community, 0) }
     machine species(community: @mut Community, species_index: u64 in Wrapping) {
         transition species_index < community.species && species_index < 12 {
-            true -> clear(community, species_index, 0, 0)
+            true -> clear(community, species_index, 0, 0),
             false -> done()
         }
     }
     machine clear(community: @mut Community, species_index: u64 in Wrapping,
                 depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
-            true -> clear_cell(community, species_index, depth, richness)
+            true -> clear_cell(community, species_index, depth, richness),
             false -> source_depth(community, species_index, 0, 0)
         }
     }
@@ -54,14 +53,14 @@ public machine analyze(community: @mut Community) {
     requires depth < 33 && richness < 13 {
         community.next[depth][richness] = 0;
         transition richness < 12 {
-            true -> clear(community, species_index, depth, richness+1)
+            true -> clear(community, species_index, depth, richness+1),
             false -> clear(community, species_index, depth+1, 0)
         }
     }
     machine source_depth(community: @mut Community, species_index: u64 in Wrapping,
                        depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 && species_index < 12 {
-            true -> source_cell(community, species_index, depth, richness)
+            true -> source_cell(community, species_index, depth, richness),
             false -> copy(community, species_index, 0, 0)
         }
     }
@@ -70,7 +69,7 @@ public machine analyze(community: @mut Community) {
     requires depth < 33 && richness < 13 && species_index < 12 {
         let weight: u64 in Wrapping = community.weights[depth][richness];
         transition weight > 0 {
-            true -> contribution(community, species_index, depth, richness, 0, weight)
+            true -> contribution(community, species_index, depth, richness, 0, weight),
             false -> advance(community, species_index, depth, richness)
         }
     }
@@ -79,7 +78,7 @@ public machine analyze(community: @mut Community) {
                        taken: u64 in Wrapping, weight: u64 in Wrapping)
     requires species_index < 12 {
         transition taken <= community.counts[species_index] && depth+taken < 33 {
-            true -> select_richness(community, species_index, depth, richness, taken, weight)
+            true -> select_richness(community, species_index, depth, richness, taken, weight),
             false -> advance(community, species_index, depth, richness)
         }
     }
@@ -87,7 +86,7 @@ public machine analyze(community: @mut Community) {
                          depth: u64 in Wrapping, richness: u64 in Wrapping,
                          taken: u64 in Wrapping, weight: u64 in Wrapping) {
         transition taken == 0 {
-            true -> add(community, species_index, depth, richness, taken, weight, richness)
+            true -> add(community, species_index, depth, richness, taken, weight, richness),
             false -> add(community, species_index, depth, richness, taken, weight, richness+1)
         }
     }
@@ -96,7 +95,7 @@ public machine analyze(community: @mut Community) {
               taken: u64 in Wrapping, weight: u64 in Wrapping,
               target_richness: u64 in Wrapping) {
         transition depth+taken < 33 && target_richness < 13 && species_index < 12 {
-            true -> add_cell(community, species_index, depth, richness, taken, weight, target_richness)
+            true -> add_cell(community, species_index, depth, richness, taken, weight, target_richness),
             false -> advance(community, species_index, depth, richness)
         }
     }
@@ -113,14 +112,14 @@ public machine analyze(community: @mut Community) {
     machine advance(community: @mut Community, species_index: u64 in Wrapping,
                   depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition richness < 12 {
-            true -> source_depth(community, species_index, depth, richness+1)
+            true -> source_depth(community, species_index, depth, richness+1),
             false -> source_depth(community, species_index, depth+1, 0)
         }
     }
     machine copy(community: @mut Community, species_index: u64 in Wrapping,
                depth: u64 in Wrapping, richness: u64 in Wrapping) {
         transition depth < 33 && richness < 13 {
-            true -> copy_cell(community, species_index, depth, richness)
+            true -> copy_cell(community, species_index, depth, richness),
             false -> species(community, species_index+1)
         }
     }
@@ -129,7 +128,7 @@ public machine analyze(community: @mut Community) {
     requires depth < 33 && richness < 13 {
         community.weights[depth][richness] = community.next[depth][richness];
         transition richness < 12 {
-            true -> copy(community, species_index, depth, richness+1)
+            true -> copy(community, species_index, depth, richness+1),
             false -> copy(community, species_index, depth+1, 0)
         }
     }

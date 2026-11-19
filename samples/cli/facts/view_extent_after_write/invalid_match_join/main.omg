@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let first_matches: bool = bytes[0] == 41 && bytes[1020] == 73;
     bytes[0] = 0;
     preserve_suffix(@mut bytes[..], false);
-    transition first_matches && bytes[0] == 41 && bytes[1020] == 73 { true -> done() _ -> bad() }
+    transition first_matches && bytes[0] == 41 && bytes[1020] == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

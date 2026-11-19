@@ -44,7 +44,7 @@ machine choose<'storage>(
     pick_chosen: bool
 ) -> @'storage mut Access<CellPlacement, Cell> {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -61,13 +61,13 @@ machine main() crashes Trap {
     let mut other: Cell = Cell { held: 1 };
     let flag: bool = true;
     let items: [u8; 4] = [4, 7, 8, 9];
-    let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(@mut chosen);
-    let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(@mut other);
+    let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(@mut chosen);
+    let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(@mut other);
     let selected: @mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
     selected.held.write(@mut selected.held, 9);
     let index: u64 = joined_index(other.held, flag);
     transition chosen.held == 9 && items[index] == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -30,7 +30,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block read(main) }
     machine read(main: @mut Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
-            true -> block byte(main)
+            true -> block byte(main),
             _ -> invalid(main)
         }
     }
@@ -39,19 +39,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.bytes = main.bytes + 1;
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> end(main)
+            ByteRead::Eof -> end(main),
             ByteRead::Byte { value } -> block classify(main, value)
         }
     }
     machine classify(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> block digit(main, value)
+            true -> block digit(main, value),
             _ -> block separator(main, value)
         }
     }
     machine digit(main: @mut Main, value: i32) {
         transition main.digits >= 0 && main.digits < 7 {
-            true -> block accumulate(main, value)
+            true -> block accumulate(main, value),
             _ -> invalid(main)
         }
     }
@@ -60,25 +60,25 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.token = main.token * 10 + (value as i32 in Wrapping) - 48;
         main.digits = main.digits + 1;
         transition main.token <= 1000000 {
-            true -> block read(main)
+            true -> block read(main),
             _ -> invalid(main)
         }
     }
     machine separator(main: @mut Main, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> block flush(main)
+            true -> block flush(main),
             _ -> invalid(main)
         }
     }
     machine flush(main: @mut Main) {
         transition main.digits > 0 {
-            true -> block store(main)
+            true -> block store(main),
             _ -> block read(main)
         }
     }
     machine store(main: @mut Main) {
         transition main.position >= 0 && main.position < 13 {
-            true -> block save(main)
+            true -> block save(main),
             _ -> invalid(main)
         }
     }
@@ -92,13 +92,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine end(main: @mut Main) {
         transition main.digits > 0 {
-            true -> last(main)
+            true -> last(main),
             _ -> validate(main)
         }
     }
     machine last(main: @mut Main) {
         transition main.position >= 0 && main.position < 13 {
-            true -> save_last(main)
+            true -> save_last(main),
             _ -> invalid(main)
         }
     }
@@ -110,7 +110,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine validate(main: @mut Main) {
         transition main.position == 13 && main.input[0] <= 4 {
-            true -> terms(main)
+            true -> terms(main),
             _ -> invalid(main)
         }
     }
@@ -120,7 +120,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine term_loop(main: @mut Main) {
         transition main.index >= 0 && main.index < 4 {
-            true -> term(main)
+            true -> term(main),
             _ -> weights(main)
         }
     }
@@ -128,7 +128,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.index >= 0 && main.index < 4 {
         let mask: i32 = main.input[main.index + 1];
         transition mask <= 7 && (main.index < main.input[0] || mask == 0) {
-            true -> copy_term(main, mask)
+            true -> copy_term(main, mask),
             _ -> invalid(main)
         }
     }
@@ -144,7 +144,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine weight_loop(main: @mut Main) {
         transition main.index >= 0 && main.index < 8 {
-            true -> weight(main)
+            true -> weight(main),
             _ -> normalized(main)
         }
     }
@@ -152,7 +152,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.index >= 0 && main.index < 8 {
         main.total = main.total + (main.input[main.index + 5] as i32 in Wrapping);
         transition fails(@main.terms, main.input[0], main.index) {
-            true -> failed_weight(main)
+            true -> failed_weight(main),
             _ -> next_weight(main)
         }
     }
@@ -168,7 +168,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine normalized(main: @mut Main) {
         transition main.total == 1000000 {
-            true -> report(main)
+            true -> report(main),
             _ -> invalid(main)
         }
     }
@@ -181,14 +181,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine cuts(main: @mut Main) {
         transition main.index >= 0 && main.index < 8 {
-            true -> cut(main)
+            true -> cut(main),
             _ -> sensitivity(main)
         }
     }
     machine cut(main: @mut Main)
     requires main.index >= 0 && main.index < 8 {
         transition minimal_cut(@main.terms, main.input[0], main.index) {
-            true -> emit_cut(main)
+            true -> emit_cut(main),
             _ -> next_cut(main)
         }
     }
@@ -209,7 +209,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine event_loop(main: @mut Main) {
         transition main.event >= 0 && main.event < 3 {
-            true -> event_start(main)
+            true -> event_start(main),
             _ -> done(main)
         }
     }
@@ -222,7 +222,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine audit_loop(main: @mut Main) {
         transition main.index >= 0 && main.index < 8 {
-            true -> audit(main)
+            true -> audit(main),
             _ -> emit_audit(main)
         }
     }
@@ -231,7 +231,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let off: i32 = force_event(main.index, main.event, false);
         let on: i32 = force_event(main.index, main.event, true);
         transition off != main.index {
-            true -> marginal(main, off, on)
+            true -> marginal(main, off, on),
             _ -> repair(main, off, on)
         }
     }
@@ -242,7 +242,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine repair(main: @mut Main, off: i32, on: i32) {
         transition fails(@main.terms, main.input[0], off) {
-            true -> add_repair(main, on)
+            true -> add_repair(main, on),
             _ -> force(main, on)
         }
     }
@@ -253,7 +253,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine force(main: @mut Main, on: i32) {
         transition fails(@main.terms, main.input[0], on) {
-            true -> add_force(main)
+            true -> add_force(main),
             _ -> next_audit(main)
         }
     }
@@ -278,7 +278,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         // Refresh the Exact cursor bound after service calls, directly on the
         // increment edge. A state arrival fact is not a post-call guarantee.
         transition main.event >= 0 && main.event < 3 {
-            true -> advance_event(main)
+            true -> advance_event(main),
             _ -> invalid(main)
         }
     }

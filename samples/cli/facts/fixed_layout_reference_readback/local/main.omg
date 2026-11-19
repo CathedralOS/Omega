@@ -36,7 +36,7 @@ machine update<'source, 'storage, const Marker: u64>(pointer: @'source LayoutSto
 }
 // Place: local. The returned reference/scalar carrier remains a local before observation.
 machine observe<'source, 'storage>(pointer: @'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: @'storage u64) -> bool {
-    let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = update<7u64>(pointer, storage);
+    let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = update::<7u64>(pointer, storage);
     result.value == 7u64 && result.pointer.value == 43u64
 }
 machine main() crashes Trap {
@@ -45,7 +45,7 @@ machine main() crashes Trap {
     let storage: u64 = 23u64;
     let result: bool = observe(@pointee, @storage);
     transition result && pointee.value == 43u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let mut flag: Flag = Flag { value: false };
     settle(@mut flag);
     let selected: [@[u8]; 2] = match flag.value {
-        true -> windows
+        true -> windows,
         false -> other
     };
     let first: @[u8] = selected[0];
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let b: u8 = read(selected[1]);
     let observed: bool = a == 11 && b == 29;
     transition observed {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -1,4 +1,3 @@
-module domain::solver;
 use domain::model;
 use domain::model::Records;
 use domain::model::Table;
@@ -17,7 +16,7 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
     }
     machine search(records: @Records, group: i32 in Wrapping, table: @mut Table, logrank: @mut Logrank, previous: f64, survival: f64, greenwood: f64, index: i32 in Wrapping, candidate: f64) {
         transition index >= 0 && index < 32 && index < records.count {
-            true -> inspect(records, group, table, logrank, previous, survival, greenwood, index, candidate)
+            true -> inspect(records, group, table, logrank, previous, survival, greenwood, index, candidate),
             false -> found(records, group, table, logrank, survival, greenwood, candidate)
         }
     }
@@ -25,19 +24,19 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
     requires index >= 0 && index < 32
     {
         transition (group == -1 || records.group[index] == group as i32) && records.time[index] > previous && records.time[index] < candidate {
-            true -> search(records, group, table, logrank, previous, survival, greenwood, index + 1, records.time[index])
+            true -> search(records, group, table, logrank, previous, survival, greenwood, index + 1, records.time[index]),
             false -> search(records, group, table, logrank, previous, survival, greenwood, index + 1, candidate)
         }
     }
     machine found(records: @Records, group: i32 in Wrapping, table: @mut Table, logrank: @mut Logrank, survival: f64, greenwood: f64, time: f64) {
         transition time <= 1000000.0 {
-            true -> tally(records, group, table, logrank, survival, greenwood, time, 0, 0, 0, 0, 0, 0)
+            true -> tally(records, group, table, logrank, survival, greenwood, time, 0, 0, 0, 0, 0, 0),
             false -> finish(logrank)
         }
     }
     machine tally(records: @Records, group: i32 in Wrapping, table: @mut Table, logrank: @mut Logrank, survival: f64, greenwood: f64, time: f64, index: i32 in Wrapping, risk: i32 in Wrapping, event: i32 in Wrapping, censor: i32 in Wrapping, risk0: i32 in Wrapping, event0: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < records.count {
-            true -> count(records, group, table, logrank, survival, greenwood, time, index, risk, event, censor, risk0, event0)
+            true -> count(records, group, table, logrank, survival, greenwood, time, index, risk, event, censor, risk0, event0),
             false -> update(records, group, table, logrank, survival, greenwood, time, risk, event, censor, risk0, event0)
         }
     }
@@ -67,7 +66,7 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
         accumulate(logrank, group, risk, risk0, event, event0);
         let position: i32 in Wrapping = table.count;
         transition position >= 0 && position < 32 {
-            true -> store(records, group, table, logrank, time, risk, event, censor, next_survival, next_greenwood, position)
+            true -> store(records, group, table, logrank, time, risk, event, censor, next_survival, next_greenwood, position),
             false -> finish(logrank)
         }
     }
@@ -80,7 +79,7 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
         table.count = index + 1;
         let reached: bool = half(table);
         transition table.median_status == 0 && reached {
-            true -> median(records, group, table, logrank, time, survival, greenwood)
+            true -> median(records, group, table, logrank, time, survival, greenwood),
             false -> next(records, group, table, logrank, time, survival, greenwood)
         }
     }
@@ -90,7 +89,7 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
     }
     machine finish(logrank: @mut Logrank) {
         logrank.status = 0; logrank.statistic = 0.0;
-        transition logrank.variance > 0.0 { true -> statistic(logrank) false -> {} }
+        transition logrank.variance > 0.0 { true -> statistic(logrank), false -> {} }
     }
     machine statistic(logrank: @mut Logrank) {
         let difference: f64 = logrank.observed - logrank.expected;
@@ -98,19 +97,19 @@ public machine analyze(records: @Records, group: i32 in Wrapping, table: @mut Ta
         logrank.status = 1;
     }
 }
-machine indicator(condition: bool) -> i32 in Wrapping { transition condition { true -> 1 false -> 0 } }
+machine indicator(condition: bool) -> i32 in Wrapping { transition condition { true -> 1, false -> 0 } }
 machine greenwood_step(greenwood: f64, risk: f64, event: f64) -> f64 {
-    transition event < risk { true -> (greenwood + event / (risk * (risk - event))) false -> greenwood }
+    transition event < risk { true -> (greenwood + event / (risk * (risk - event))), false -> greenwood }
 }
 machine accumulate(logrank: @mut Logrank, group: i32 in Wrapping, risk: i32 in Wrapping, risk0: i32 in Wrapping, event: i32 in Wrapping, event0: i32 in Wrapping) {
-    transition group == -1 { true -> moments(logrank, risk, risk0, event, event0) false -> {} }
+    transition group == -1 { true -> moments(logrank, risk, risk0, event, event0), false -> {} }
     machine moments(logrank: @mut Logrank, risk: i32 in Wrapping, risk0: i32 in Wrapping, event: i32 in Wrapping, event0: i32 in Wrapping) {
         let n: f64 = F64::from_i32(risk as i32);
         let n0: f64 = F64::from_i32(risk0 as i32);
         let d: f64 = F64::from_i32(event as i32);
         logrank.observed = logrank.observed + F64::from_i32(event0 as i32);
         logrank.expected = logrank.expected + d * n0 / n;
-        transition risk > 1 { true -> variance(logrank, n, n0, d) false -> {} }
+        transition risk > 1 { true -> variance(logrank, n, n0, d), false -> {} }
     }
     machine variance(logrank: @mut Logrank, risk: f64, risk0: f64, event: f64) {
         logrank.variance = logrank.variance + risk0 * (risk - risk0) * event * (risk - event) / (risk * risk * (risk - 1.0));
@@ -123,7 +122,7 @@ machine accumulate(logrank: @mut Logrank, group: i32 in Wrapping, risk: i32 in W
 machine product(limbs: @mut [u64 in Wrapping; 4], factor: u64 in Wrapping) {
     transition { _ -> position(limbs, factor, 0, 0) }
     machine position(limbs: @mut [u64 in Wrapping; 4], factor: u64 in Wrapping, index: i32 in Wrapping, carry: u64 in Wrapping) {
-        transition index >= 0 && index < 4 { true -> multiply(limbs, factor, index, carry) false -> {} }
+        transition index >= 0 && index < 4 { true -> multiply(limbs, factor, index, carry), false -> {} }
     }
     machine multiply(limbs: @mut [u64 in Wrapping; 4], factor: u64 in Wrapping, index: i32 in Wrapping, carry: u64 in Wrapping)
     requires index >= 0 && index < 4
@@ -136,11 +135,11 @@ machine product(limbs: @mut [u64 in Wrapping; 4], factor: u64 in Wrapping) {
 machine half(table: @Table) -> bool {
     let mut twice: [u64 in Wrapping; 4] = table.numerator;
     product(@mut twice, 2);
-    transition twice[3] != table.denominator[3] { true -> (twice[3] < table.denominator[3]) false -> limb2(table, @twice) }
+    transition twice[3] != table.denominator[3] { true -> (twice[3] < table.denominator[3]), false -> limb2(table, @twice) }
     machine limb2(table: @Table, twice: @[u64 in Wrapping; 4]) -> bool {
-        transition twice[2] != table.denominator[2] { true -> (twice[2] < table.denominator[2]) false -> limb1(table, twice) }
+        transition twice[2] != table.denominator[2] { true -> (twice[2] < table.denominator[2]), false -> limb1(table, twice) }
     }
     machine limb1(table: @Table, twice: @[u64 in Wrapping; 4]) -> bool {
-        transition twice[1] != table.denominator[1] { true -> (twice[1] < table.denominator[1]) false -> (twice[0] <= table.denominator[0]) }
+        transition twice[1] != table.denominator[1] { true -> (twice[1] < table.denominator[1]), false -> (twice[0] <= table.denominator[0]) }
     }
 }

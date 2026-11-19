@@ -18,7 +18,7 @@ machine marked_result(marker: @mut u64, selected: u64) -> Division reaches Integ
 }
 machine select(choice: bool, marker: @mut u64) -> Division reaches IntegerDivision {
  match choice {
-  true -> marked_result(marker, 17u64)
+  true -> marked_result(marker, 17u64),
   _ -> marked_result(marker, 29u64)
  }
 }
@@ -31,7 +31,7 @@ machine observe() -> bool reaches IntegerDivision {
 }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

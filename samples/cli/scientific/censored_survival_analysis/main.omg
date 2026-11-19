@@ -26,7 +26,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     let count: Number = block number(@mut main.reader);
     let integer: i32 in Saturating = I32::from_f64(count.value);
     transition count.valid && count.value >= 1.0 && count.value <= 32.0 && F64::from_i32(integer as i32) == count.value {
-        true -> block configure(main, integer as i32 in Wrapping)
+        true -> block configure(main, integer as i32 in Wrapping),
         false -> invalid(main)
     }
     machine configure(main: @mut Main, count: i32 in Wrapping) {
@@ -35,7 +35,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     }
     machine read(main: @mut Main, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < main.records.count {
-            true -> block record(main, index)
+            true -> block record(main, index),
             false -> block end(main)
         }
     }
@@ -46,7 +46,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let event: Number = block number(@mut main.reader);
         let group: Number = block number(@mut main.reader);
         transition time.valid && event.valid && group.valid && time.value >= 0.0 && (event.value == 0.0 || event.value == 1.0) && (group.value == 0.0 || group.value == 1.0) {
-            true -> block store(main, index, time.value, event.value, group.value)
+            true -> block store(main, index, time.value, event.value, group.value),
             false -> invalid(main)
         }
     }
@@ -62,12 +62,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     }
     machine end(main: @mut Main) {
         let complete: bool = block ended(@mut main.reader);
-        transition complete { true -> calculate(main, -1) false -> invalid(main) }
+        transition complete { true -> calculate(main, -1), false -> invalid(main) }
     }
     machine calculate(main: @mut Main, group: i32 in Wrapping) {
         analyze(@main.records, group, @mut main.table, @mut main.logrank);
         report(@mut main.reader, group, @main.table);
-        transition group < 1 { true -> calculate(main, group + 1) false -> done(main) }
+        transition group < 1 { true -> calculate(main, group + 1), false -> done(main) }
     }
     machine done(main: @mut Main) {
         logrank_report(@mut main.reader, @main.logrank);

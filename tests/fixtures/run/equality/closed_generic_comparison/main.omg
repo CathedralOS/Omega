@@ -13,7 +13,7 @@ machine main() crashes Trap {
     let b: Player = Player { point: first };
     let c: Player = Player { point: other };
     let selected: bool = PlayerEquality::equals(@a, @b);
-    transition selected && a != c { true -> done() false -> bad() }
+    transition selected && a != c { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

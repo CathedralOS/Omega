@@ -28,7 +28,7 @@ machine init(sets: @mut DisjointSet) {
 
     machine loop_init(sets: @mut DisjointSet, index: u64) {
         transition index < 64 {
-            true -> body(sets, index)
+            true -> body(sets, index),
             _ -> done()
         }
     }
@@ -53,7 +53,7 @@ ensures result < 64
     requires element < 64 && cursor < 64 {
         let next: u64 = sets.parent[cursor];
         transition next == cursor {
-            true -> compress(sets, element, cursor)
+            true -> compress(sets, element, cursor),
             _ -> step(sets, element, cursor, next)
         }
     }
@@ -61,7 +61,7 @@ ensures result < 64
     machine step(sets: @mut DisjointSet, element: u64, cursor: u64, next: u64) -> u64
     requires element < 64 && cursor < 64 {
         transition next < 64 {
-            true -> chase(sets, element, next)
+            true -> chase(sets, element, next),
             _ -> done(cursor)
         }
     }
@@ -69,7 +69,7 @@ ensures result < 64
     machine compress(sets: @mut DisjointSet, cursor: u64, root: u64) -> u64
     requires cursor < 64 && root < 64 {
         transition cursor == root {
-            true -> done(root)
+            true -> done(root),
             _ -> compress_step(sets, cursor, root)
         }
     }
@@ -79,7 +79,7 @@ ensures result < 64
         let next: u64 = sets.parent[cursor];
         sets.parent[cursor] = root;
         transition next < 64 {
-            true -> compress(sets, next, root)
+            true -> compress(sets, next, root),
             _ -> done(root)
         }
     }
@@ -96,7 +96,7 @@ requires left < 64 && right < 64
     let root_left: u64 = find(sets, left);
     let root_right: u64 = find(sets, right);
     transition root_left == root_right {
-        true -> unchanged()
+        true -> unchanged(),
         _ -> link(sets, root_left, root_right)
     }
 
@@ -111,7 +111,7 @@ requires left < 64 && right < 64
         let rank_right: u64 in Wrapping = sets.rank[root_right];
         sets.components = sets.components - 1;
         transition rank_left < rank_right {
-            true -> attach_left(sets, root_left, root_right)
+            true -> attach_left(sets, root_left, root_right),
             _ -> compare_greater(sets, root_left, root_right, rank_left, rank_right)
         }
     }
@@ -134,7 +134,7 @@ requires left < 64 && right < 64
     {
         sets.parent[root_right] = root_left;
         transition rank_left == rank_right {
-            true -> bump_rank(sets, root_left, rank_left)
+            true -> bump_rank(sets, root_left, rank_left),
             _ -> merged()
         }
     }
@@ -156,7 +156,7 @@ machine run_waves(sets: @mut DisjointSet) {
 
     machine wave1(sets: @mut DisjointSet, group: u64) {
         transition group < 32 {
-            true -> wave1_step(sets, group)
+            true -> wave1_step(sets, group),
             _ -> wave2(sets, 0)
         }
     }
@@ -166,7 +166,7 @@ machine run_waves(sets: @mut DisjointSet) {
         let first: u64 = group * 2;
         let second: u64 = group * 2 + 1;
         transition first < 64 && second < 64 {
-            true -> wave1_union(sets, group, first, second)
+            true -> wave1_union(sets, group, first, second),
             _ -> wave2(sets, 0)
         }
     }
@@ -179,7 +179,7 @@ machine run_waves(sets: @mut DisjointSet) {
 
     machine wave2(sets: @mut DisjointSet, group: u64) {
         transition group < 16 {
-            true -> wave2_step(sets, group)
+            true -> wave2_step(sets, group),
             _ -> wave3(sets, 0)
         }
     }
@@ -189,7 +189,7 @@ machine run_waves(sets: @mut DisjointSet) {
         let first: u64 = group * 4;
         let second: u64 = group * 4 + 2;
         transition first < 64 && second < 64 {
-            true -> wave2_union(sets, group, first, second)
+            true -> wave2_union(sets, group, first, second),
             _ -> wave3(sets, 0)
         }
     }
@@ -202,7 +202,7 @@ machine run_waves(sets: @mut DisjointSet) {
 
     machine wave3(sets: @mut DisjointSet, group: u64) {
         transition group < 4 {
-            true -> wave3_step(sets, group)
+            true -> wave3_step(sets, group),
             _ -> wave4(sets)
         }
     }
@@ -212,7 +212,7 @@ machine run_waves(sets: @mut DisjointSet) {
         let first: u64 = group * 8;
         let second: u64 = group * 8 + 4;
         transition first < 64 && second < 64 {
-            true -> wave3_union(sets, group, first, second)
+            true -> wave3_union(sets, group, first, second),
             _ -> wave4(sets)
         }
     }
@@ -253,13 +253,13 @@ machine verify_workload(sets: @mut DisjointSet) -> bool {
         && rep_16 != rep_48
         && rep_48 != rep_63;
     transition agreed && sets.components == 8 {
-        true -> checksum_loop(sets, 0, 0 as +Wrapping)
+        true -> checksum_loop(sets, 0, 0 as +Wrapping),
         _ -> failed()
     }
 
     machine checksum_loop(sets: @mut DisjointSet, index: u64, acc: u64 in Wrapping) -> bool {
         transition index < 64 {
-            true -> checksum_step(sets, index, acc)
+            true -> checksum_step(sets, index, acc),
             _ -> check_done(acc)
         }
     }
@@ -287,7 +287,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     run_waves(@mut main.sets);
     let ok: bool = verify_workload(@mut main.sets);
     transition ok {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
 

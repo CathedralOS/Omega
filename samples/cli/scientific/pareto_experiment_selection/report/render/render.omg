@@ -1,4 +1,3 @@
-module report::render;
 use omega::language::core::ProcessExit;
 // Numeric output is computed at runtime through the settled byte console provider.
 // Fixed three-digit fields make reports exact byte oracles without floating tolerance.
@@ -29,14 +28,14 @@ invokes Console
     transition { _ -> next(application, 0, 0) }
     machine next(application: @mut Application, previous: u64, emitted: u64) {
         transition emitted < application.count && emitted < 12 {
-            true -> find(application, previous, emitted, 0, 1000, 0)
+            true -> find(application, previous, emitted, 0, 1000, 0),
             false -> done(application)
         }
     }
     machine find(application: @mut Application, previous: u64, emitted: u64, index: u64, best: u64, slot: u64)
     requires emitted < 12 {
         transition index < application.count && index < 12 {
-            true -> inspect(application, previous, emitted, index, best, slot)
+            true -> inspect(application, previous, emitted, index, best, slot),
             false -> row(application, emitted, slot)
         }
     }
@@ -45,13 +44,13 @@ invokes Console
     requires index < 12 {
         let identifier: u64 = application.rows[index].identifier;
         transition identifier > previous && identifier < best {
-            true -> find(application, previous, emitted, index + 1, identifier, index)
+            true -> find(application, previous, emitted, index + 1, identifier, index),
             false -> find(application, previous, emitted, index + 1, best, slot)
         }
     }
     machine row(application: @mut Application, emitted: u64, slot: u64)
     requires emitted < 12 {
-        transition slot < 12 { true -> render(application, emitted, slot) false -> internal_error(application) }
+        transition slot < 12 { true -> render(application, emitted, slot), false -> internal_error(application) }
     }
     machine render(application: @mut Application, emitted: u64, slot: u64)
     requires emitted < 12
@@ -61,7 +60,7 @@ invokes Console
         let dominator: u64 = witness(application, @experiment);
         transition experiment.identifier <= 999 && experiment.provenance <= 999 && experiment.position <= 999
             && experiment.cost <= 999 && experiment.days <= 999 && experiment.gain <= 999 && experiment.risk <= 999 {
-            true -> values(application, experiment, emitted, mask, dominator)
+            true -> values(application, experiment, emitted, mask, dominator),
             false -> internal_error(application)
         }
     }
@@ -76,16 +75,16 @@ invokes Console
         field(application, experiment.days);
         field(application, experiment.gain);
         field(application, experiment.risk);
-        transition mask > 0 { true -> infeasible(application, experiment.identifier, emitted, mask) false -> feasible(application, experiment.identifier, emitted, dominator) }
+        transition mask > 0 { true -> infeasible(application, experiment.identifier, emitted, mask), false -> feasible(application, experiment.identifier, emitted, dominator) }
     }
     machine infeasible(application: @mut Application, identifier: u64, emitted: u64, mask: u64)
     requires emitted < 12 {
         Console::write("|INFEASIBLE");
-        transition mask <= 7 { true -> finish(application, identifier, emitted, mask) false -> internal_error(application) }
+        transition mask <= 7 { true -> finish(application, identifier, emitted, mask), false -> internal_error(application) }
     }
     machine feasible(application: @mut Application, identifier: u64, emitted: u64, dominator: u64)
     requires emitted < 12 {
-        transition dominator == 0 { true -> selected(application, identifier, emitted) false -> rejected(application, identifier, emitted, dominator) }
+        transition dominator == 0 { true -> selected(application, identifier, emitted), false -> rejected(application, identifier, emitted, dominator) }
     }
     machine selected(application: @mut Application, identifier: u64, emitted: u64)
     requires emitted < 12 {
@@ -95,7 +94,7 @@ invokes Console
     machine rejected(application: @mut Application, identifier: u64, emitted: u64, dominator: u64)
     requires emitted < 12 {
         Console::write("|DOMINATED");
-        transition dominator <= 999 { true -> finish(application, identifier, emitted, dominator) false -> internal_error(application) }
+        transition dominator <= 999 { true -> finish(application, identifier, emitted, dominator), false -> internal_error(application) }
     }
     machine finish(application: @mut Application, identifier: u64, emitted: u64, certificate: u64)
     requires emitted < 12

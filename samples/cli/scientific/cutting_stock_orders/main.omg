@@ -12,19 +12,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 32];
     let observed: LineReadResult = block Console::read_line(@mut bytes[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> line(main, @bytes, count)
-        LineReadResult::EndOfInput { count } -> eof(main, @bytes, count)
+        LineReadResult::LineComplete { count } -> line(main, @bytes, count),
+        LineReadResult::EndOfInput { count } -> eof(main, @bytes, count),
         _ -> invalid(main)
     }
     machine line(main: @mut Main, bytes: @[u8; 32], count: u64) {
         transition count == 26 && bytes[25] == 10 {
-            true -> parse_orders(main, bytes)
+            true -> parse_orders(main, bytes),
             _ -> invalid(main)
         }
     }
     machine eof(main: @mut Main, bytes: @[u8; 32], count: u64) {
         transition count == 25 {
-            true -> parse_orders(main, bytes)
+            true -> parse_orders(main, bytes),
             _ -> invalid(main)
         }
     }
@@ -32,7 +32,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut orders: model::Orders;
         let valid: bool = input::parse(bytes, @mut orders);
         transition valid {
-            true -> plan(main, @orders)
+            true -> plan(main, @orders),
             _ -> invalid(main)
         }
     }
@@ -41,7 +41,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         planner::solve(orders, @mut best);
         let conserved: bool = report::emit(orders, @best);
         transition conserved {
-            true -> done(main)
+            true -> done(main),
             _ -> internal(main)
         }
     }

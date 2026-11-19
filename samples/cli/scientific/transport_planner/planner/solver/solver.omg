@@ -1,4 +1,3 @@
-module planner::solver;
 use planner::input::TransportInput;
 // A 3x3 table with fixed margins has four free cells. Enumerate their entire
 // bounded integer cube and derive the five others from conservation. This is
@@ -20,7 +19,7 @@ public machine solve_transport(input: @TransportInput, plan: @mut TransportPlan)
     machine enumerate(input: @TransportInput, plan: @mut TransportPlan,
                     candidate: i32 in Wrapping) -> bool {
         transition candidate < 10000 {
-            true -> derive(input, plan, candidate)
+            true -> derive(input, plan, candidate),
             false -> (plan.found)
         }
     }
@@ -37,7 +36,7 @@ public machine solve_transport(input: @TransportInput, plan: @mut TransportPlan)
         let ninth: i32 in Wrapping = (input.values[2] as i32 in Wrapping) - seventh - eighth;
         transition third >= 0 && sixth >= 0 && seventh >= 0 && eighth >= 0 && ninth >= 0
                    && third + sixth + ninth == input.values[5] {
-            true -> objective(input, plan, candidate, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth)
+            true -> objective(input, plan, candidate, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth),
             false -> enumerate(input, plan, candidate + 1)
         }
     }
@@ -51,7 +50,7 @@ public machine solve_transport(input: @TransportInput, plan: @mut TransportPlan)
             + sixth * (input.values[11] as i32 in Wrapping) + seventh * (input.values[12] as i32 in Wrapping)
             + eighth * (input.values[13] as i32 in Wrapping) + ninth * (input.values[14] as i32 in Wrapping);
         transition !plan.found || cost < plan.total {
-            true -> retain(input, plan, candidate, cost, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth)
+            true -> retain(input, plan, candidate, cost, first, second, third, fourth, fifth, sixth, seventh, eighth, ninth),
             false -> enumerate(input, plan, candidate + 1)
         }
     }

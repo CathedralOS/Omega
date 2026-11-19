@@ -129,7 +129,7 @@ machine main() crashes Trap {
         && unsigned64_saturating(infinity64) == 65535u16
         && unsigned64_saturating(-1.0f64 / 0.0f64) == 0u16
         && unsigned64_saturating(-0.0f64) == 0u16 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

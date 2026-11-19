@@ -12,7 +12,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     done requires main.output == main.input ensures main.output == 17:
         mov main.output, main.output
     }
-    transition main.output == 17 { true -> good() _ -> bad() }
+    transition main.output == 17 { true -> good(), _ -> bad() }
     machine good() {}
     machine bad() { crash Trap; }
 }

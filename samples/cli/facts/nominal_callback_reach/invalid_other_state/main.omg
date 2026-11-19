@@ -27,13 +27,13 @@ requires machine Step satisfies StepContract::step;
 machine observe(value: u64) -> u64 {
     transition { _ -> measure(value) }
     machine measure(value: u64) -> u64 {
-        walk<noise>(value)
+        walk::<noise>(value)
     }
 }
 
 machine main() crashes Trap {
     transition observe(35) == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

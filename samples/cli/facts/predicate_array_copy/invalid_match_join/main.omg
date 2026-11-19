@@ -17,7 +17,7 @@ machine choose(flag: bool) -> u16 {
 }
 machine main() crashes Trap {
     let answer: u16 = choose(true);
-    transition answer == 65535u16 { true -> done() false -> bad() }
+    transition answer == 65535u16 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

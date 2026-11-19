@@ -1,4 +1,3 @@
-module domain::logic;
 // Three-event monotone DNF. An event ID is a bit, never a separate occurrence.
 // The full assignment table, rather than products of marginals, owns correlation.
 public machine contains_events(assignment: i32, term: i32) -> bool {
@@ -11,14 +10,14 @@ public machine fails(terms: @[i32; 4], count: i32, assignment: i32) -> bool {
     transition { _ -> scan(terms, count, assignment, 0) }
     machine scan(terms: @[i32; 4], count: i32, assignment: i32, index: i32) -> bool {
         transition index >= 0 && index < 4 && index < count {
-            true -> test(terms, count, assignment, index)
+            true -> test(terms, count, assignment, index),
             _ -> false
         }
     }
     machine test(terms: @[i32; 4], count: i32, assignment: i32, index: i32) -> bool
     requires index >= 0 && index < 4 {
         transition contains_events(assignment, terms[index]) {
-            true -> true
+            true -> true,
             _ -> scan(terms, count, assignment, index + 1)
         }
     }
@@ -28,19 +27,19 @@ public machine fails(terms: @[i32; 4], count: i32, assignment: i32) -> bool {
 // subsets also covers the empty cut (an unconditional-failure term).
 public machine minimal_cut(terms: @[i32; 4], count: i32, candidate: i32) -> bool {
     transition fails(terms, count, candidate) {
-        true -> scan(terms, count, candidate, 0)
+        true -> scan(terms, count, candidate, 0),
         _ -> false
     }
     machine scan(terms: @[i32; 4], count: i32, candidate: i32, subset: i32) -> bool {
         transition subset >= 0 && subset < 8 {
-            true -> test(terms, count, candidate, subset)
+            true -> test(terms, count, candidate, subset),
             _ -> true
         }
     }
     machine test(terms: @[i32; 4], count: i32, candidate: i32, subset: i32) -> bool
     requires subset >= 0 && subset < 8 {
         transition subset != candidate && contains_events(candidate, subset) && fails(terms, count, subset) {
-            true -> false
+            true -> false,
             _ -> scan(terms, count, candidate, subset + 1)
         }
     }
@@ -48,21 +47,21 @@ public machine minimal_cut(terms: @[i32; 4], count: i32, candidate: i32) -> bool
 
 public machine force_event(assignment: i32, event: i32, present: bool) -> i32 {
     transition event {
-        0 -> change(assignment, 1, present)
-        1 -> change(assignment, 2, present)
+        0 -> change(assignment, 1, present),
+        1 -> change(assignment, 2, present),
         _ -> change(assignment, 4, present)
     }
     machine change(assignment: i32, bit: i32, present: bool) -> i32
     requires bit > 0 {
         let occupied: bool = (assignment / bit) % 2 == 1;
         transition occupied == present {
-            true -> assignment
+            true -> assignment,
             _ -> alter(assignment, bit, present)
         }
     }
     machine alter(assignment: i32, bit: i32, present: bool) -> i32 {
         transition present {
-            true -> ((assignment as i32 in Wrapping) + (bit as i32 in Wrapping)) as i32
+            true -> ((assignment as i32 in Wrapping) + (bit as i32 in Wrapping)) as i32,
             _ -> ((assignment as i32 in Wrapping) - (bit as i32 in Wrapping)) as i32
         }
     }

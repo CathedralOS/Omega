@@ -44,13 +44,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // After 4 advances the light should be Green and advances == 4.
     transition main.light.advances == 4 {
-        true -> block check_phase(main)
+        true -> block check_phase(main),
         false -> block bad_count(main)
     }
 
     machine check_phase(main: @mut Main) {
         transition main.light.phase {
-            Phase::Green -> block good(main)
+            Phase::Green -> block good(main),
             _ -> block bad_phase(main)
         }
     }
@@ -82,8 +82,8 @@ machine advance(main: @mut Main) {
     main.light.advances = (main.light.advances + 1) % 101;
 
     transition main.light.phase {
-        Phase::Red -> go_green(main)
-        Phase::Green -> go_yellow(main)
+        Phase::Red -> go_green(main),
+        Phase::Green -> go_yellow(main),
         _ -> go_red(main)
     }
 

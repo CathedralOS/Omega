@@ -9,7 +9,7 @@ machine main() crashes Trap {
     holder.slot = 41;
     let observed: i64 = holder.slot;
     transition observed == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

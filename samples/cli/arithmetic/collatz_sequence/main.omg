@@ -20,7 +20,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // One hailstone step, or stop once the sequence has collapsed to 1.
     machine step(value: i32 in Wrapping, steps: i32 in Wrapping) {
         transition value == 1 {
-            true -> block done(steps)
+            true -> block done(steps),
             _ -> block advance(value, steps)
         }
     }
@@ -30,7 +30,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let next_steps: i32 in Wrapping = steps + 1;
         let remainder: i32 = (value % 2) as i32;
         transition remainder == 0 {
-            true -> block halve(value, next_steps)
+            true -> block halve(value, next_steps),
             _ -> block climb(value, next_steps)
         }
     }

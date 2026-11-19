@@ -44,6 +44,6 @@ machine failed() crashes Trap { crash Trap; }
 machine main() crashes Trap {
     transition { _ -> received(Countdown::run(2)) }
     machine received(value: u32) requires value == 0 {
-        transition value == 0 { true -> finished() false -> failed() }
+        transition value == 0 { true -> finished(), false -> failed() }
     }
 }

@@ -10,7 +10,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -18,7 +18,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -50,7 +50,7 @@ ArmExtent satisfies SelectedExtent {
 
 machine main() crashes Trap {
     let entries: [Entry; 4] = [Entry { value: 7 }, Entry { value: 8 }, Entry { value: 9 }, Entry { value: 10 }];
-    transition SelectedExtent::extent(@entries[..]) == 4 { true -> done() _ -> bad() }
+    transition SelectedExtent::extent(@entries[..]) == 4 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module mechanics::model;
 // Private classical laminate model: engineering shear, centered thickness,
 // synthetic plane-stress Q=(12,4,1,2). No external numerical package.
 public data Laminate {
@@ -18,7 +17,7 @@ public data Laminate {
     singular: bool;
 }
 public machine absolute(value: f64) -> f64 {
-    transition value < 0.0 { true -> negative(value) false -> positive(value) }
+    transition value < 0.0 { true -> negative(value), false -> positive(value) }
     machine negative(value: f64) -> f64 { 0.0 - value }
     machine positive(value: f64) -> f64 { value }
 }
@@ -48,16 +47,16 @@ public machine assemble(model: @mut Laminate) {
         model.b[row][column] = model.b[row][column] + stiffness*(top*top-bottom*bottom)/2.0;
         model.d[row][column] = model.d[row][column] + stiffness*(top*top*top-bottom*bottom*bottom)/3.0;
         let next: u64 = column + 1;
-        transition next <= 2 { true -> cell(model, layer_index, row, next) false -> next_row(model, layer_index, row) }
+        transition next <= 2 { true -> cell(model, layer_index, row, next), false -> next_row(model, layer_index, row) }
     }
     machine next_row(model: @mut Laminate, layer_index: u64, row: u64)
     requires layer_index <= 3 requires row <= 2 {
         let next: u64 = row + 1;
-        transition next <= 2 { true -> cell(model, layer_index, next, 0) false -> next_layer(model, layer_index) }
+        transition next <= 2 { true -> cell(model, layer_index, next, 0), false -> next_layer(model, layer_index) }
     }
     machine next_layer(model: @mut Laminate, layer_index: u64) requires layer_index <= 3 {
         let next: u64 = layer_index + 1;
-        transition next < model.count && next <= 3 { true -> layer(model, next) false -> done() }
+        transition next < model.count && next <= 3 { true -> layer(model, next), false -> done() }
     }
     machine done() { }
 }
@@ -70,11 +69,11 @@ public machine prepare_system(model: @mut Laminate) {
         model.augmented[row+3][column] = model.b[row][column];
         model.augmented[row+3][column+3] = model.d[row][column];
         let next: u64 = column + 1;
-        transition next <= 2 { true -> cell(model,row,next) false -> next_row(model,row) }
+        transition next <= 2 { true -> cell(model,row,next), false -> next_row(model,row) }
     }
     machine next_row(model: @mut Laminate,row: u64) requires row <= 2 {
         let next: u64 = row+1;
-        transition next <= 2 { true -> cell(model,next,0) false -> load(model) }
+        transition next <= 2 { true -> cell(model,next,0), false -> load(model) }
     }
     machine load(model: @mut Laminate) {
         model.augmented[0][6] = 1.0;
@@ -95,11 +94,11 @@ public machine layer_stress(model: @mut Laminate) {
             model.stiffness[layer_index][row][1]*(model.response[1]+midpoint*model.response[4]) +
             model.stiffness[layer_index][row][2]*(model.response[2]+midpoint*model.response[5]);
         let next: u64 = row+1;
-        transition next <= 2 { true -> cell(model,layer_index,next) false -> next_layer(model,layer_index) }
+        transition next <= 2 { true -> cell(model,layer_index,next), false -> next_layer(model,layer_index) }
     }
     machine next_layer(model: @mut Laminate,layer_index: u64) requires layer_index <= 3 {
         let next: u64 = layer_index+1;
-        transition next < model.count && next <= 3 { true -> cell(model,next,0) false -> done() }
+        transition next < model.count && next <= 3 { true -> cell(model,next,0), false -> done() }
     }
     machine done() { }
 }

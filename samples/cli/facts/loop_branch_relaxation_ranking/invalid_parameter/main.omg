@@ -7,7 +7,7 @@ terminates by remaining
 ensures result >= 99 && result <= 99
 {
     transition remaining > 0 {
-        true -> step_a(remaining, accumulated)
+        true -> step_a(remaining, accumulated),
         false -> done(accumulated)
     }
 
@@ -40,7 +40,7 @@ ensures result >= 99 && result <= 99
         let s11: u64 = s10 - 1;
         let s12: u64 = s11 - 1;
         transition rem > 1 {
-            true -> step_b(rem - 1, s12)
+            true -> step_b(rem - 1, s12),
             false -> done(s12)
         }
     }
@@ -74,7 +74,7 @@ ensures result >= 99 && result <= 99
         let t11: u64 = t10 - 1;
         let t12: u64 = t11 - 1;
         transition rem > 1 {
-            true -> step_a(rem - 1, t12)
+            true -> step_a(rem - 1, t12),
             false -> done(t12)
         }
     }
@@ -97,7 +97,7 @@ machine main() crashes Trap {
     let res: u64 = loop_calc(10, 99);
     let diff: u64 = evaluate(res);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

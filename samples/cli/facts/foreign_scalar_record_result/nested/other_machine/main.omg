@@ -19,7 +19,7 @@ machine forward(value: Division) -> Division { value }
 machine observe() -> bool reaches IntegerDivision { receive(forward(IntegerDivision::divide(-70000000000, 3))) }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }
 }

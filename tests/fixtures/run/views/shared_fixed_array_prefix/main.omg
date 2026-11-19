@@ -33,7 +33,7 @@ machine entry_start() crashes Trap {
         used: 2
     };
     transition label_live(@label) && !label_live(@other) {
-        true -> {}
+        true -> {},
         false -> fail()
     }
     machine fail() crashes Trap { crash Trap; }

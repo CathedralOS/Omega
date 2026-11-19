@@ -1,4 +1,3 @@
-module planner::output;
 use omega_language_std::Console;
 use planner::solver::TransportPlan;
 
@@ -8,7 +7,7 @@ public machine emit_integer(value: i32 in Wrapping) reaches Console
 invokes Console
 {
     transition value < 0 {
-        true -> negative(0 - value)
+        true -> negative(0 - value),
         false -> positive(value)
     }
     machine negative(value: i32 in Wrapping) {
@@ -25,7 +24,7 @@ invokes Console
         let digit: i32 in Wrapping = value / divisor % 10 + 48;
         Console::write_byte(digit as i32);
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10)
+            true -> digits(value, divisor / 10),
             false -> finish()
         }
     }
@@ -38,7 +37,7 @@ invokes Console
     transition { _ -> cell(plan, 0) }
     machine cell(plan: @TransportPlan, index: u64) {
         transition index < 9 {
-            true -> write_cell(plan, index)
+            true -> write_cell(plan, index),
             false -> total(plan)
         }
     }
@@ -46,7 +45,7 @@ invokes Console
         let digit: i32 in Wrapping = (plan.shipments[index] as i32 in Wrapping) + 48;
         Console::write_byte(digit as i32);
         transition index % 3 == 2 {
-            true -> newline(plan, index)
+            true -> newline(plan, index),
             false -> space(plan, index)
         }
     }

@@ -56,9 +56,9 @@ data Main {
 machine apply(main: @mut Main, event: Event) {
     main.log.event_count = main.log.event_count + 1;
     transition event {
-        Event::Deposit { amount } -> do_deposit(main, amount)
-        Event::Withdraw { amount } -> do_withdraw(main, amount)
-        Event::Reset -> do_reset(main)
+        Event::Deposit { amount } -> do_deposit(main, amount),
+        Event::Withdraw { amount } -> do_withdraw(main, amount),
+        Event::Reset -> do_reset(main),
         _ -> done()
     }
 
@@ -89,7 +89,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify balance == 70.
     transition main.log.stats.balance == 70 {
-        true -> block check_deposits(main)
+        true -> block check_deposits(main),
         _ -> block bad_balance(main)
     }
 
@@ -102,7 +102,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_deposits(main: @mut Main) {
         transition main.log.stats.deposits == 3 {
-            true -> block check_withdrawals(main)
+            true -> block check_withdrawals(main),
             _ -> block bad_deposits(main)
         }
     }
@@ -116,7 +116,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_withdrawals(main: @mut Main) {
         transition main.log.stats.withdrawals == 2 {
-            true -> block check_count(main)
+            true -> block check_count(main),
             _ -> block bad_withdrawals(main)
         }
     }
@@ -130,7 +130,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_count(main: @mut Main) {
         transition main.log.event_count == 5 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_count(main)
         }
     }

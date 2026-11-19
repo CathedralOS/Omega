@@ -15,7 +15,7 @@ public Stops satisfies Answer {
     terminates
     ensures fatal == 0 {
         transition fatal == 0 {
-            true -> 7u32
+            true -> 7u32,
             false -> ProcessExit::exit_process(37)
         }
     }

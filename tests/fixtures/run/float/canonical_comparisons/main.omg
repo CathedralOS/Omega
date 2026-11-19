@@ -3,13 +3,13 @@
 data Reading { before: u32; value: f64; after: u32; }
 
 machine expect(value: bool) crashes Trap {
-    transition value { true -> done() _ -> bad() }
+    transition value { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
 
 machine choose32(flag: bool, left: f32, right: f32) -> f32 {
-    match flag { true -> left false -> right }
+    match flag { true -> left, false -> right }
 }
 machine same32(value: f32) -> f32 { value }
 machine same64(value: f64) -> f64 { value }

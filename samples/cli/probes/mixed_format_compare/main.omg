@@ -40,7 +40,7 @@ machine Main::main(main: @mut Main) {
     let mut calls: u64 = 0;
     let seen: Observations = compare(@mut calls);
     transition seen.widened && !seen.rounded && calls == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

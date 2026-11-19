@@ -46,7 +46,7 @@ machine Main::main(main: @mut Main) {
     let picked: bool = selected_operand(true);
     checked_transfer();
     transition kept && picked && main.flag {
-        true -> done(main)
+        true -> done(main),
         _ -> done(main)
     }
     machine done(main: @mut Main) {}

@@ -41,7 +41,7 @@ machine Main::main(main: @mut Main) {
     drop(tokens[0]);
     drop(tokens[1]);
     transition outcome {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -28,7 +28,7 @@ requires seed <= 73
 machine main() crashes Trap {
     let diff: u64 = evaluate(30);
     transition diff == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

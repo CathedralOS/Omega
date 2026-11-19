@@ -6,7 +6,7 @@ machine observe(choice: Choice) -> u64 { 42 }
 machine peek(choice: @Choice) -> u64 { 31 }
 machine choose_choice(populated: bool) -> Choice {
     transition populated {
-        true -> (Choice::Value { token: Token { value: 7 } })
+        true -> (Choice::Value { token: Token { value: 7 } }),
         _ -> (Choice::Empty {})
     }
 }
@@ -44,7 +44,7 @@ machine main() crashes Trap {
         choice: Choice::Value { token: Token { value: 7 } }
     });
     transition empty == 42 && populated == 42 && temporary == 31 && temporary_empty == 31 && parent_empty == 11 && parent_populated == 13 && captured.value == 23 && forwarded == 29 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

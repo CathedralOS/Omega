@@ -1,4 +1,3 @@
-module io::numbers;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 public data Input [copy] { value: i32 in Saturating; valid: bool; }
@@ -15,25 +14,25 @@ crashes Trap
     machine scan(input: @mut Input, digits: u32, negative: bool, started: bool) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Eof -> finish(input, digits, negative)
+            ByteRead::Eof -> finish(input, digits, negative),
             ByteRead::Byte { value } -> block classify(input, digits, negative, started, value)
         }
     }
     machine classify(input: @mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 10 {
-            true -> finish(input, digits, negative)
+            true -> finish(input, digits, negative),
             false -> block sign(input, digits, negative, started, byte)
         }
     }
     machine sign(input: @mut Input, digits: u32, negative: bool, started: bool, byte: i32) {
         transition byte == 45 && started == false {
-            true -> block scan(input, digits, true, true)
+            true -> block scan(input, digits, true, true),
             false -> block digit(input, digits, negative, byte)
         }
     }
     machine digit(input: @mut Input, digits: u32, negative: bool, byte: i32) {
         transition byte >= 48 && byte <= 57 && digits < 5 {
-            true -> block append(input, digits, negative, byte)
+            true -> block append(input, digits, negative, byte),
             false -> done()
         }
     }
@@ -43,11 +42,11 @@ crashes Trap
         transition { _ -> block scan(input, digits + 1, negative, true) }
     }
     machine finish(input: @mut Input, digits: u32, negative: bool) {
-        transition digits > 0 { true -> signed(input, negative) false -> done() }
+        transition digits > 0 { true -> signed(input, negative), false -> done() }
     }
     machine signed(input: @mut Input, negative: bool) {
         input.valid = true;
-        transition negative { true -> negate(input) false -> done() }
+        transition negative { true -> negate(input), false -> done() }
     }
     machine negate(input: @mut Input) { input.value = 0 - input.value; }
     machine done() { }
@@ -57,12 +56,12 @@ public machine write_integer(value: i32 in Saturating) reaches Console
 invokes Console
 {
     transition value == -2147483648 {
-        true -> minimum()
+        true -> minimum(),
         false -> sign(value)
     }
     machine minimum() { Console::write_line("-2147483648"); }
     machine sign(value: i32 in Saturating) {
-        transition value < 0 { true -> negative(value) false -> positive(value) }
+        transition value < 0 { true -> negative(value), false -> positive(value) }
     }
     machine negative(value: i32 in Saturating) {
         Console::write_byte(45);
@@ -75,7 +74,7 @@ invokes Console
     requires divisor > 0 {
         let character: i32 in Saturating = value / divisor;
         transition character > 0 || started || divisor == 1 {
-            true -> emit(value, divisor, character)
+            true -> emit(value, divisor, character),
             false -> next(value, divisor, false)
         }
     }
@@ -85,7 +84,7 @@ invokes Console
         transition { _ -> next(value % divisor, divisor, true) }
     }
     machine next(value: i32 in Saturating, divisor: i32 in Saturating, started: bool) {
-        transition divisor >= 10 { true -> digit(value, divisor / 10, started) false -> newline() }
+        transition divisor >= 10 { true -> digit(value, divisor / 10, started), false -> newline() }
     }
     machine newline() { Console::write_byte(10); }
 }

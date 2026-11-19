@@ -83,7 +83,7 @@ machine main() crashes Trap {
     ];
     let elem: u64 = read_element(arr, 777);
     transition elem == 777 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

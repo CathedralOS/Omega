@@ -13,14 +13,14 @@ machine lookup_symbol(alphabet: @[u8; 5], target: u8 in HuffmanSymbol) -> u64 {
     transition { _ -> check(alphabet, target, 0) }
     machine check(alphabet: @[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64 {
         transition idx < 5 {
-            true -> compare(alphabet, target, idx)
+            true -> compare(alphabet, target, idx),
             _ -> 5
         }
     }
     machine compare(alphabet: @[u8; 5], target: u8 in HuffmanSymbol, idx: u64) -> u64
     requires idx < 5 {
         transition alphabet[idx] == (target as -HuffmanSymbol) {
-            true -> idx
+            true -> idx,
             _ -> check(alphabet, target, idx + 1)
         }
     }

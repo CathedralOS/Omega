@@ -1,4 +1,3 @@
-module chronology::solver;
 use chronology::model;
 use chronology::model::Chronology;
 use chronology::model::Reconciliation;
@@ -13,7 +12,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     transition { _ -> candidate(model, result, 0) }
     machine candidate(model: @Chronology, result: @mut Reconciliation, code: i32 in Wrapping) {
         transition code < 1000 {
-            true -> decode(model, result, code)
+            true -> decode(model, result, code),
             false -> done()
         }
     }
@@ -24,7 +23,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     machine interval(model: @Chronology, result: @mut Reconciliation, code: i32 in Wrapping,
                    times: @Candidate, event: i32 in Wrapping) {
         transition event >= 0 && event < 3 {
-            true -> inspect_interval(model, result, code, times, event)
+            true -> inspect_interval(model, result, code, times, event),
             false -> edge(model, result, code, times, 0)
         }
     }
@@ -35,14 +34,14 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     {
         let time: i32 = times.ticks[event];
         transition time >= model.lower[event] && time <= model.upper[event] {
-            true -> interval(model, result, code, times, event + 1)
+            true -> interval(model, result, code, times, event + 1),
             false -> candidate(model, result, code + 1)
         }
     }
     machine edge(model: @Chronology, result: @mut Reconciliation, code: i32 in Wrapping,
                times: @Candidate, index: i32 in Wrapping) {
         transition index >= 0 && index < 4 {
-            true -> active(model, result, code, times, index)
+            true -> active(model, result, code, times, index),
             false -> accept(model, result, code, times)
         }
     }
@@ -52,7 +51,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     requires index < 4
     {
         transition model.enabled[index] == 1 {
-            true -> endpoints(model, result, code, times, index)
+            true -> endpoints(model, result, code, times, index),
             false -> edge(model, result, code, times, index + 1)
         }
     }
@@ -64,7 +63,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
         let source: i32 in Wrapping = model.source[index] as i32 in Wrapping;
         let destination: i32 in Wrapping = model.destination[index] as i32 in Wrapping;
         transition source >= 0 && source < 3 && destination >= 0 && destination < 3 {
-            true -> constraint(model, result, code, times, index, source, destination)
+            true -> constraint(model, result, code, times, index, source, destination),
             false -> done()
         }
     }
@@ -82,7 +81,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
         let finish: i32 in Wrapping = times.ticks[destination] as i32 in Wrapping;
         let lag: i32 in Wrapping = model.lag[index] as i32 in Wrapping;
         transition finish >= start + lag {
-            true -> edge(model, result, code, times, index + 1)
+            true -> edge(model, result, code, times, index + 1),
             false -> candidate(model, result, code + 1)
         }
     }
@@ -94,7 +93,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     machine range(model: @Chronology, result: @mut Reconciliation, code: i32 in Wrapping,
                 times: @Candidate, event: i32 in Wrapping) {
         transition event >= 0 && event < 3 {
-            true -> lower(model, result, code, times, event)
+            true -> lower(model, result, code, times, event),
             false -> candidate(model, result, code + 1)
         }
     }
@@ -104,7 +103,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     requires event < 3
     {
         transition times.ticks[event] < result.lower[event] {
-            true -> store_lower(model, result, code, times, event)
+            true -> store_lower(model, result, code, times, event),
             false -> upper(model, result, code, times, event)
         }
     }
@@ -122,7 +121,7 @@ public machine reconcile(model: @Chronology, result: @mut Reconciliation) {
     requires event < 3
     {
         transition times.ticks[event] > result.upper[event] {
-            true -> store_upper(model, result, code, times, event)
+            true -> store_upper(model, result, code, times, event),
             false -> range(model, result, code, times, event + 1)
         }
     }
@@ -143,7 +142,7 @@ public machine contradiction(model: @mut Chronology, result: @mut Reconciliation
     transition { _ -> edge(model, result, 0) }
     machine edge(model: @mut Chronology, result: @mut Reconciliation, index: i32 in Wrapping) {
         transition index >= 0 && index < 4 {
-            true -> active(model, result, index)
+            true -> active(model, result, index),
             false -> finish(model, result)
         }
     }
@@ -152,7 +151,7 @@ public machine contradiction(model: @mut Chronology, result: @mut Reconciliation
     requires index < 4
     {
         transition model.enabled[index] == 1 {
-            true -> remove(model, result, index)
+            true -> remove(model, result, index),
             false -> edge(model, result, index + 1)
         }
     }
@@ -163,7 +162,7 @@ public machine contradiction(model: @mut Chronology, result: @mut Reconciliation
         model.enabled[index] = 0;
         reconcile(model, result);
         transition result.count == 0 {
-            true -> edge(model, result, index + 1)
+            true -> edge(model, result, index + 1),
             false -> restore(model, result, index)
         }
     }

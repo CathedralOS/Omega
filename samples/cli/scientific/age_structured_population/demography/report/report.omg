@@ -1,4 +1,3 @@
-module demography::report;
 use omega_language_std::Console;
 use demography::model;
 use demography::model::Census;
@@ -9,18 +8,18 @@ use omega::language::core::narrow_i64_to_i32_wrapping;
 public machine number(value: i64 in Wrapping) reaches Console
 invokes Console
 {
-    transition value < 0 { true -> negative(value) false -> begin(value) }
+    transition value < 0 { true -> negative(value), false -> begin(value) }
     machine negative(value: i64 in Wrapping) { Console::write_byte(45); transition { _ -> begin(0 - value) } }
     machine begin(value: i64 in Wrapping) { transition { _ -> digit(value, 10000000000, false) } }
     machine digit(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
-        transition divisor > 0 { true -> choose(value, divisor, started) false -> done() }
+        transition divisor > 0 { true -> choose(value, divisor, started), false -> done() }
     }
     machine choose(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool)
     requires divisor > 0
     {
         let quotient: i64 in Wrapping = value / divisor;
         transition quotient > 0 || started || divisor == 1 {
-            true -> emit(value, divisor, quotient)
+            true -> emit(value, divisor, quotient),
             false -> digit(value, divisor / 10, false)
         }
     }

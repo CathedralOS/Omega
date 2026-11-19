@@ -9,7 +9,7 @@ InlineScheduler satisfies Scheduler {
 }
 machine sum(total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
     transition remaining == 0 {
-        true -> total
+        true -> total,
         false -> suspend step(total, remaining)
     }
     machine step(total: u64, remaining: u64) -> u64 reaches Scheduler suspends
@@ -42,7 +42,7 @@ machine check(expected_full: u64, expected_empty: u64) reaches Scheduler Selecte
     let full: u64 = suspend SelectedCycle::run(100000);
     let empty: u64 = suspend SelectedCycle::run(0);
     transition full == expected_full && empty == expected_empty {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

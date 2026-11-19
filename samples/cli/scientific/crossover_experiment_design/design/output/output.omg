@@ -1,4 +1,3 @@
-module design::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use design::model;
@@ -8,8 +7,8 @@ use design::model::treatment;
 
 machine digit(value: i32 in Wrapping) reaches Console {
     transition value {
-        0 -> zero() 1 -> one() 2 -> two() 3 -> three()
-        4 -> four() 5 -> five() 6 -> six() _ -> invalid()
+        0 -> zero(), 1 -> one(), 2 -> two(), 3 -> three(),
+        4 -> four(), 5 -> five(), 6 -> six(), _ -> invalid()
     }
     machine zero() { Console::write("0"); }
     machine one() { Console::write("1"); }
@@ -26,7 +25,7 @@ public machine emit(request: @Request, allocation: @Allocation) reaches ProcessE
     transition { _ -> scan_row(request, allocation, 0) }
     machine scan_row(request: @Request, allocation: @Allocation, subject: i32 in Wrapping) {
         transition subject >= 0 && subject < 6 && subject < request.subjects {
-            true -> row_start(request, allocation, subject)
+            true -> row_start(request, allocation, subject),
             false -> period_start(request, allocation)
         }
     }
@@ -36,13 +35,13 @@ public machine emit(request: @Request, allocation: @Allocation) reaches ProcessE
     }
     machine cell(request: @Request, allocation: @Allocation, subject: i32 in Wrapping, period: i32 in Wrapping) {
         transition period >= 0 && period < 3 && period < request.treatments {
-            true -> cell_index(request, allocation, subject, period, subject * 3 + period)
+            true -> cell_index(request, allocation, subject, period, subject * 3 + period),
             false -> row_end(request, allocation, subject)
         }
     }
     machine cell_index(request: @Request, allocation: @Allocation, subject: i32 in Wrapping, period: i32 in Wrapping, index: i32 in Wrapping) {
         transition index >= 0 && index < 18 {
-            true -> cell_write(request, allocation, subject, period, index)
+            true -> cell_write(request, allocation, subject, period, index),
             false -> done()
         }
     }
@@ -60,25 +59,25 @@ public machine emit(request: @Request, allocation: @Allocation) reaches ProcessE
     }
     machine matrix_scan_row(request: @Request, allocation: @Allocation, row: i32 in Wrapping, carry: bool) {
         transition row >= 0 && row < 3 && row < request.treatments {
-            true -> matrix_column(request, allocation, row, 0, carry)
+            true -> matrix_column(request, allocation, row, 0, carry),
             false -> next_matrix(request, allocation, carry)
         }
     }
     machine matrix_column(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool) {
         transition column >= 0 && column < 3 && column < request.treatments {
-            true -> matrix_index(request, allocation, row, column, carry, row * 3 + column)
+            true -> matrix_index(request, allocation, row, column, carry, row * 3 + column),
             false -> matrix_end(request, allocation, row, carry)
         }
     }
     machine matrix_index(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition index >= 0 && index < 9 {
-            true -> matrix_value(request, allocation, row, column, carry, index)
+            true -> matrix_value(request, allocation, row, column, carry, index),
             false -> done()
         }
     }
     machine matrix_value(request: @Request, allocation: @Allocation, row: i32 in Wrapping, column: i32 in Wrapping, carry: bool, index: i32 in Wrapping) {
         transition carry {
-            true -> carry_write(request, allocation, row, column, carry, index)
+            true -> carry_write(request, allocation, row, column, carry, index),
             false -> period_write(request, allocation, row, column, carry, index)
         }
     }
@@ -96,7 +95,7 @@ public machine emit(request: @Request, allocation: @Allocation) reaches ProcessE
     }
     machine next_matrix(request: @Request, allocation: @Allocation, carry: bool) {
         transition carry {
-            true -> complete()
+            true -> complete(),
             false -> carry_start(request, allocation)
         }
     }

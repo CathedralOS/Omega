@@ -31,7 +31,7 @@ public MacosArm64Clock satisfies Clock {
     blocks
     {
         transition milliseconds > 2147483647 {
-            true -> block in_parts(milliseconds)
+            true -> block in_parts(milliseconds),
             _ -> block at_once(milliseconds)
         }
 

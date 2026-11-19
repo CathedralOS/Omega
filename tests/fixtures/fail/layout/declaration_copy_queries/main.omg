@@ -5,15 +5,15 @@ requires Choice >= 1
 crashes none
 {
     transition Choice == 1 {
-        true -> size_of<Bytes>()
-        false -> align_of<Bytes>()
+        true -> size_of::<Bytes>(),
+        false -> align_of::<Bytes>()
     }
 }
 machine main() crashes Trap {
-    let size: u64 = measure<0>();
-    let alignment: u64 = measure<2>();
+    let size: u64 = measure::<0>();
+    let alignment: u64 = measure::<2>();
     transition size == 13u64 && alignment == 1u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

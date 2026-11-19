@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let kept: bool = match flag { true -> true, false -> true };
     let direct: bool in Held = kept as +Held;
     transition hold(direct as -Held) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

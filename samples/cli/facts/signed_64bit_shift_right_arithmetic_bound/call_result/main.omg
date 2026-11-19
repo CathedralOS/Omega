@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let shifted: i64 = produce_shifted(val);
     let check: i64 = verify_shifted(shifted);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

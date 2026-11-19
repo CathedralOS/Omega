@@ -6,7 +6,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let bins: [u64; 9];
     let impossible: u64 = bins[9];
     transition impossible == 0 {
-        true -> done()
+        true -> done(),
         false -> done()
     }
     machine done() { ProcessExit::exit_process(0); }

@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let buckets: [u8; 4] = [7, 8, 9, 6];
     let window: Window = Window { width: 4 };
     transition pick(10, @buckets[..], window) == 9 && pick(15, @buckets[..], window) == 6 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

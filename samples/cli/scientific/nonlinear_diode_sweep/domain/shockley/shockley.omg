@@ -1,4 +1,3 @@
-module domain::shockley;
 // Scientific model: one ideal Shockley diode in series with one positive
 // resistor. Thermal voltage includes the ideality factor. No breakdown,
 // self-heating, capacitance, or diode series resistance is modeled.
@@ -23,7 +22,7 @@ machine exponential(value: f64) -> f64 {
         let next: f64 = product / denominator;
         let total: f64 = sum + next;
         transition count < 32 {
-            true -> term(reduced, total, next, denominator + 1.0, count + 1)
+            true -> term(reduced, total, next, denominator + 1.0, count + 1),
             false -> square(total)
         }
     }
@@ -53,7 +52,7 @@ public machine circuit_residual(circuit: @Circuit, voltage: f64, source: f64) ->
 }
 
 public machine magnitude(value: f64) -> f64 {
-    transition value < 0.0 { true -> negative(value) false -> positive(value) }
+    transition value < 0.0 { true -> negative(value), false -> positive(value) }
     machine negative(value: f64) -> f64 { 0.0 - value }
     machine positive(value: f64) -> f64 { value }
 }

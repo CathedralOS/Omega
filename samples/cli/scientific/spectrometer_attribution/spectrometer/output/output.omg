@@ -1,4 +1,3 @@
-module spectrometer::output;
 use omega::language::core::abs_f64;
 use spectrometer::model::Spectrometer;
 use omega_language_std::Console;
@@ -8,7 +7,7 @@ use omega::language::core::I32::from_f64;
 // carrier or UTF-8 assertion. Accepted coordinates times 1000 fit signed i32.
 machine print_integer(application: @mut Spectrometer, value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(application, value)
+        true -> negative(application, value),
         false -> digits(application, value, 100000000)
     }
     machine negative(application: @mut Spectrometer, value: i32 in Wrapping) {
@@ -18,7 +17,7 @@ machine print_integer(application: @mut Spectrometer, value: i32 in Wrapping) re
     machine digits(application: @mut Spectrometer, value: i32 in Wrapping,
                  divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(application, value, divisor)
+            true -> emit(application, value, divisor),
             false -> finished()
         }
     }
@@ -36,7 +35,7 @@ machine print_integer(application: @mut Spectrometer, value: i32 in Wrapping) re
 machine rounded_ratio_thousandths(numerator: f64, denominator: f64) -> i32 in Wrapping {
     let scaled: f64 = numerator * 1000.0 / denominator;
     transition scaled < 0.0 {
-        true -> negative(scaled)
+        true -> negative(scaled),
         false -> positive(scaled)
     }
     machine negative(value: f64) -> i32 in Wrapping {
@@ -58,7 +57,7 @@ invokes Console
     transition { _ -> region(application, 0) }
     machine region(application: @mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < application.regions.count && index < 8 {
-            true -> row(application, index)
+            true -> row(application, index),
             false -> finished()
         }
     }
@@ -85,8 +84,8 @@ invokes Console
         Console::write(" nearest=");
         print_integer(application, nearest);
         transition candidate_count {
-            0 -> missing(application, index)
-            1 -> unique(application, index)
+            0 -> missing(application, index),
+            1 -> unique(application, index),
             _ -> ambiguous(application, index)
         }
     }
@@ -105,7 +104,7 @@ invokes Console
     machine identifiers(application: @mut Spectrometer, index: i32 in Wrapping,
                       reference: i32 in Wrapping) {
         transition reference >= 0 && reference < 4 {
-            true -> candidate(application, index, reference)
+            true -> candidate(application, index, reference),
             false -> next(application, index)
         }
     }
@@ -113,7 +112,7 @@ invokes Console
                     reference: i32 in Wrapping) {
         let distance: f64 = abs_f64(application.regions.centroids[index] - application.spectrum.lines[reference]);
         transition distance <= application.spectrum.tolerance {
-            true -> emit_id(application, index, reference)
+            true -> emit_id(application, index, reference),
             false -> identifiers(application, index, reference + 1)
         }
     }

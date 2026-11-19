@@ -15,7 +15,7 @@ machine use_path(builder: @mut Build, path: @[u8]) -> BuildPath {
     file
 }
 machine select_entry(builder: @mut Build, first: u8) {
-    transition first == 97 { true -> correct(builder) false -> wrong(builder) }
+    transition first == 97 { true -> correct(builder), false -> wrong(builder) }
 }
 machine correct(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
@@ -31,7 +31,7 @@ machine wrong(builder: @mut Build) {
 }
 machine settle(builder: @mut Build, settled: OutputCompletion) {
     transition settled {
-        OutputCompletion::Sealed { receipt } -> done()
+        OutputCompletion::Sealed { receipt } -> done(),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
     }
     machine done() {}
@@ -41,5 +41,5 @@ machine settle(builder: @mut Build, settled: OutputCompletion) {
 }
 
 machine select_path(builder: @mut Build, path: @[u8]) {
-    transition path.len > 0 { true -> select_entry(builder, path[0]) false -> wrong(builder) }
+    transition path.len > 0 { true -> select_entry(builder, path[0]), false -> wrong(builder) }
 }

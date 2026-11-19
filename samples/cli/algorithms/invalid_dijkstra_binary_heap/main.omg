@@ -26,7 +26,7 @@ requires machine Less(left: @T, right: @T) -> bool;
 machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     main.heap.len = 0;
     let mut popped: Popped<u64> = Popped { value: 0 };
-    pop_heap<ent_less>(@mut main.heap, @mut popped);
+    pop_heap::<ent_less>(@mut main.heap, @mut popped);
     ProcessExit::exit_process(0);
 }
 

@@ -1,17 +1,16 @@
-module data::fixtures;
 use controller::model;
 use controller::model::Problem;
 // Mirrored input fixtures.
 public machine load_case(problem: @mut Problem, selector: i32) {
     transition selector {
-        0 -> case_0(problem)
-        1 -> case_1(problem)
-        2 -> case_2(problem)
-        3 -> case_3(problem)
-        4 -> case_4(problem)
-        5 -> case_5(problem)
-        6 -> case_6(problem)
-        7 -> case_7(problem)
+        0 -> case_0(problem),
+        1 -> case_1(problem),
+        2 -> case_2(problem),
+        3 -> case_3(problem),
+        4 -> case_4(problem),
+        5 -> case_5(problem),
+        6 -> case_6(problem),
+        7 -> case_7(problem),
         _ -> done()
     }
     machine case_0(problem: @mut Problem) {

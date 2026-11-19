@@ -10,8 +10,8 @@ machine main() crashes Trap {
     let original: [u8; 3] = [7, 11, 13];
     transition { _ -> arrived(original) }
     machine arrived(bytes: [u8; 3]) {
-        let observed: u8 = Bytes::last<3u64>(@bytes);
-        transition observed == 13 { true -> done() _ -> bad() }
+        let observed: u8 = Bytes::last::<3u64>(@bytes);
+        transition observed == 13 { true -> done(), _ -> bad() }
     }
     machine done() {} machine bad() { crash Trap; }
 }

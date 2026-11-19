@@ -44,7 +44,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // --- roll 60 dice, tally each face ---
     machine roll_loop(main: @mut Main) {
-        transition main.n >= 0 && main.n < 60 { true -> block roll(main) _ -> block draw_init(main) }
+        transition main.n >= 0 && main.n < 60 { true -> block roll(main), _ -> block draw_init(main) }
     }
     machine roll(main: @mut Main) {
         main.sc = main.st << 13;
@@ -54,7 +54,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.sc = main.st << 5;
         main.st = main.st ^ main.sc;
         main.v = (main.st % 6) as i32 in Wrapping;
-        transition main.v >= 0 && main.v < 6 { true -> block tally(main) _ -> block bad(main) }
+        transition main.v >= 0 && main.v < 6 { true -> block tally(main), _ -> block bad(main) }
     }
     machine tally(main: @mut Main) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
@@ -70,7 +70,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block draw_loop(main) }
     }
     machine draw_loop(main: @mut Main) {
-        transition main.val >= 0 && main.val < 6 { true -> block draw_row(main) _ -> block finish(main) }
+        transition main.val >= 0 && main.val < 6 { true -> block draw_row(main), _ -> block finish(main) }
     }
     machine draw_row(main: @mut Main) {
         // clear, then label "v: " at the start
@@ -83,11 +83,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block bar_loop(main) }
     }
     machine bar_loop(main: @mut Main) {
-        transition main.k >= 0 && main.k < main.cnt { true -> block bar_cell(main) _ -> block emit_row(main) }
+        transition main.k >= 0 && main.k < main.cnt { true -> block bar_cell(main), _ -> block emit_row(main) }
     }
     machine bar_cell(main: @mut Main) {
         main.bo = main.k + 3;
-        transition main.bo >= 0 && main.bo < 24 { true -> block bar_write(main) _ -> block emit_row(main) }
+        transition main.bo >= 0 && main.bo < 24 { true -> block bar_write(main), _ -> block emit_row(main) }
     }
     machine bar_write(main: @mut Main) {
         main.line[main.bo] = 35; // '#'

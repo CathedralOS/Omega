@@ -5,7 +5,7 @@ machine pick(count: u64) -> u64
 requires count >= 10
 {
     transition count < 5 {
-        true -> helper(count)
+        true -> helper(count),
         false -> (count - 10u64)
     }
     machine helper(value: u64) -> u64

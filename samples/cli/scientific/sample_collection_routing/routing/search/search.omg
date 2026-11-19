@@ -1,4 +1,3 @@
-module routing::search;
 // Exhaust all 4^4 event words, independently testing each word's four visits.
 // A feasible word necessarily visits each pickup/drop once: duplicate pickups
 // and drops reject, drops require pickups, and both deliveries must complete.
@@ -16,7 +15,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     transition { _ -> enumerate(plan, certificate, 0) }
     machine enumerate(plan: @Plan, certificate: @mut Certificate, code: u64) {
         transition code < 256 {
-            true -> candidate(plan, certificate, code)
+            true -> candidate(plan, certificate, code),
             false -> done()
         }
     }
@@ -28,7 +27,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
         tour.route[3] = code % 4;
         let valid: bool = evaluate(plan, @mut tour);
         transition valid {
-            true -> feasible(plan, certificate, code, @tour)
+            true -> feasible(plan, certificate, code, @tour),
             false -> next(plan, certificate, code)
         }
     }
@@ -36,7 +35,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || tour.distance < certificate.best.distance ||
             (tour.distance == certificate.best.distance && tour.time < certificate.best.time) {
-            true -> better(plan, certificate, code, tour)
+            true -> better(plan, certificate, code, tour),
             false -> compare(plan, certificate, code, tour)
         }
     }
@@ -48,7 +47,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     }
     machine compare(plan: @Plan, certificate: @mut Certificate, code: u64, tour: @Tour) {
         transition tour.distance == certificate.best.distance && tour.time == certificate.best.time {
-            true -> tied(plan, certificate, code)
+            true -> tied(plan, certificate, code),
             false -> next(plan, certificate, code)
         }
     }
@@ -58,7 +57,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     }
     machine next(plan: @Plan, certificate: @mut Certificate, code: u64) {
         transition code < 256 {
-            true -> enumerate(plan, certificate, code + 1)
+            true -> enumerate(plan, certificate, code + 1),
             false -> done()
         }
     }
@@ -69,7 +68,7 @@ machine evaluate(plan: @Plan, tour: @mut Tour) -> bool {
     transition { _ -> step(plan, tour, 0) }
     machine step(plan: @Plan, tour: @mut Tour, index: u64) -> bool {
         transition index < 4 {
-            true -> apply(plan, tour, index)
+            true -> apply(plan, tour, index),
             false -> finish(plan, tour)
         }
     }
@@ -77,7 +76,7 @@ machine evaluate(plan: @Plan, tour: @mut Tour) -> bool {
         let event: u64 = tour.route[index];
         let valid: bool = visit(plan, tour, event);
         transition valid {
-            true -> service(plan, tour, index)
+            true -> service(plan, tour, index),
             false -> false
         }
     }
@@ -85,7 +84,7 @@ machine evaluate(plan: @Plan, tour: @mut Tour) -> bool {
         tour.arrivals[index] = tour.time;
         tour.time = tour.time + 1;
         transition index < 4 {
-            true -> step(plan, tour, index + 1)
+            true -> step(plan, tour, index + 1),
             false -> false
         }
     }

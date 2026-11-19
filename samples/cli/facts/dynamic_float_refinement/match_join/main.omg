@@ -20,14 +20,14 @@ machine probe(choice: bool) -> f64 {
     let observed: f64 = Fraction::get(selected);
     // Observe this invocation's chosen branch without widening its contract.
     transition (choice == true && joined.route == 17) || (choice == false && joined.route == 23) {
-        true -> observed
+        true -> observed,
         false -> 0.125
     }
 }
 machine main() crashes Trap {
     let first: f64 = probe(true);
     let second: f64 = probe(false);
-    transition first == 0.25 && second == 0.25 { true -> done() _ -> bad() }
+    transition first == 0.25 && second == 0.25 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

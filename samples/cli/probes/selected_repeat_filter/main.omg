@@ -25,7 +25,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
         -> @'input mut [T]
     requires retained <= cursor && cursor <= values.len {
         transition cursor < values.len {
-            true -> visit(selected, values, cursor, retained)
+            true -> visit(selected, values, cursor, retained),
             false -> (@mut values[..retained])
         }
     }
@@ -34,7 +34,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
         -> @'input mut [T]
     requires retained <= cursor && cursor < values.len {
         transition Retain::test(selected, @values[cursor]) {
-            true -> keep(selected, values, cursor, retained)
+            true -> keep(selected, values, cursor, retained),
             false -> scan(selected, values, cursor + 1, retained)
         }
     }
@@ -73,7 +73,7 @@ machine main() crashes Trap {
         && none_count == 0 && empty_correct
         && readings[0].address == 999 && readings[5].address == 888
         && readings[1].address == 30 && readings[2].address == 40 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}
@@ -84,7 +84,7 @@ machine is_empty(values: @[Reading]) -> bool { values.len == 0 }
 
 machine verify(selected: @[Reading]) -> bool {
     transition selected.len == 2 {
-        true -> inspect(selected)
+        true -> inspect(selected),
         false -> false
     }
     machine inspect(selected: @[Reading]) -> bool

@@ -27,7 +27,7 @@ machine main() crashes Trap {
     let carrier: DiffCarrier = DiffCarrier { diff: compute_diff(lhs, rhs) };
     let check: i32 = verify_diff(carrier.diff);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

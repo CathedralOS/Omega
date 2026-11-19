@@ -67,7 +67,7 @@ ensures result == 0i32
         let margin: u64 = s_res - 40u64;
         let diff: u64 = (headroom + margin) - 40u64;
         transition diff == 0u64 && headroom == 20u64 && margin == 20u64 {
-            true -> ok()
+            true -> ok(),
             _ -> bad()
         }
     }
@@ -81,7 +81,7 @@ ensures result == 0i32
 
 machine main() crashes Trap {
     transition probe() == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

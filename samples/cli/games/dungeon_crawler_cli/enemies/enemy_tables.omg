@@ -21,11 +21,11 @@ machine tier_for_depth(depth: u32 in Wrapping) -> EnemyTier {
     let is_hellhound_depth: bool = depth <= 8;
 
     transition {
-        is_bat_depth -> EnemyTier::Bat
-        is_spider_depth -> EnemyTier::Spider
-        is_skeleton_depth -> EnemyTier::Skeleton
-        is_cultist_depth -> EnemyTier::Cultist
-        is_hellhound_depth -> EnemyTier::Hellhound
+        is_bat_depth -> EnemyTier::Bat,
+        is_spider_depth -> EnemyTier::Spider,
+        is_skeleton_depth -> EnemyTier::Skeleton,
+        is_cultist_depth -> EnemyTier::Cultist,
+        is_hellhound_depth -> EnemyTier::Hellhound,
         _ -> EnemyTier::PitFiend
     }
 }
@@ -37,11 +37,11 @@ machine roll_enemy_kind(
     enemy: @mut Enemy
 ) {
     transition tier_for_depth(depth) {
-        EnemyTier::Bat -> bat(enemy_tables, random, enemy)
-        EnemyTier::Spider -> spider(enemy_tables, random, enemy)
-        EnemyTier::Skeleton -> skeleton(enemy_tables, random, enemy)
-        EnemyTier::Cultist -> cultist(enemy_tables, random, enemy)
-        EnemyTier::Hellhound -> hellhound(enemy_tables, random, enemy)
+        EnemyTier::Bat -> bat(enemy_tables, random, enemy),
+        EnemyTier::Spider -> spider(enemy_tables, random, enemy),
+        EnemyTier::Skeleton -> skeleton(enemy_tables, random, enemy),
+        EnemyTier::Cultist -> cultist(enemy_tables, random, enemy),
+        EnemyTier::Hellhound -> hellhound(enemy_tables, random, enemy),
         EnemyTier::PitFiend -> pit_fiend(enemy_tables, random, enemy)
     }
 

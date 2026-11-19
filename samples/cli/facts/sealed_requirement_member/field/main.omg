@@ -47,13 +47,13 @@ machine probe(operands: Operands) -> i32
 blocks
 ensures 0 <= result && result <= 100
 {
-    block apply<Selected>(operands.left, operands.right)
+    block apply::<Selected>(operands.left, operands.right)
 }
 
 machine main() blocks crashes Trap {
     let wide: i32 = block probe(Operands { left: 20, right: 22 });
     let narrow: i32 = block probe(Operands { left: 10, right: 12 });
-    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+    transition wide == 42 && narrow == 22 { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

@@ -16,7 +16,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: Input;
     _ = block read(@mut input);
     transition input.accepted {
-        true -> model(input)
+        true -> model(input),
         false -> invalid()
     }
     machine model(input: Input) {
@@ -26,7 +26,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             elevation: input.values[6], maximum: input.values[7], demand: input.values[8]
         };
         transition valid(@network) {
-            true -> operating(network)
+            true -> operating(network),
             false -> invalid()
         }
     }
@@ -35,7 +35,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         solver.network = network;
         solve(@mut solver);
         transition solver.feasible > 0 {
-            true -> success()
+            true -> success(),
             false -> infeasible()
         }
     }

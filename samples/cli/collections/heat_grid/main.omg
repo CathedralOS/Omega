@@ -51,7 +51,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         grid.cells[y * 4 + x] = next;
         let heat: u32 = widen_u8_to_u32(next);
         transition heat > hottest {
-            true -> step(grid, y, x, heat)
+            true -> step(grid, y, x, heat),
             _ -> step(grid, y, x, hottest)
         }
     }
@@ -59,7 +59,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         requires 0 <= y && y <= grid.max_y && 0 <= x && x <= grid.max_x
     {
         transition x + 1 <= grid.max_x {
-            true -> cell(grid, y, x + 1, hottest)
+            true -> cell(grid, y, x + 1, hottest),
             _ -> next_row(grid, y, hottest)
         }
     }
@@ -67,7 +67,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         requires 0 <= y && y <= grid.max_y
     {
         transition y + 1 <= grid.max_y {
-            true -> row(grid, y + 1, hottest)
+            true -> row(grid, y + 1, hottest),
             _ -> done(hottest)
         }
     }

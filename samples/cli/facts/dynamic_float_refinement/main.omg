@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let selected: dyn Fraction = Quarter as dyn Fraction;
     let observed: f64 = Fraction::get(selected);
     transition observed == 0.25 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

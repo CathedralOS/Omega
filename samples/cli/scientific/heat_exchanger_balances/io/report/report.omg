@@ -1,4 +1,3 @@
-module io::report;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 use omega::language::core::narrow_i32_to_u32_trapping;
@@ -18,7 +17,7 @@ machine number(value: f64) reaches Console {
     machine digit(value: u32, place: u32, started: bool) requires place >= 1 {
         let character: u32 = value / place;
         transition character != 0 || started || place == 1 {
-            true -> write(value, place, character)
+            true -> write(value, place, character),
             false -> advance(value, place, false)
         }
     }
@@ -29,7 +28,7 @@ machine number(value: f64) reaches Console {
     }
     machine advance(value: u32, place: u32, started: bool) requires place >= 1 {
         transition place >= 10 {
-            true -> digit(value % place, place / 10, started)
+            true -> digit(value % place, place / 10, started),
             false -> done()
         }
     }
@@ -40,7 +39,7 @@ public machine emit(input: @io::input::Input, solution: @model::stages::Solution
     transition { _ -> node(input, solution, 0) }
     machine node(input: @io::input::Input, solution: @model::stages::Solution, position: u32) {
         transition position <= input.stages && position < 9 {
-            true -> row(input, solution, position)
+            true -> row(input, solution, position),
             false -> total(solution)
         }
     }
@@ -51,7 +50,7 @@ public machine emit(input: @io::input::Input, solution: @model::stages::Solution
         number(solution.cold[position]);
         Console::write_line("");
         transition position < input.stages && position < 8 {
-            true -> heat(input, solution, position)
+            true -> heat(input, solution, position),
             false -> total(solution)
         }
     }

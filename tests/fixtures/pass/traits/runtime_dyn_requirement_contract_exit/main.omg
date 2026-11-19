@@ -51,7 +51,7 @@ machine run(main: @mut Main) reaches ProcessExit {
     let second: u64 = difference(three, @main.scale);
     let total: u64 = first + second;
     transition total == 4 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 

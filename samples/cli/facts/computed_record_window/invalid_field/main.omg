@@ -8,7 +8,7 @@ machine window<'row>(holder: @'row mut Holder) -> @'row mut [f64]
 ensures result.len == 2
 {
     match holder.which {
-        0 -> @mut holder.samples[0..holder.which + 1]
+        0 -> @mut holder.samples[0..holder.which + 1],
         _ -> @mut holder.samples[2..4]
     }
 }
@@ -36,7 +36,7 @@ machine exercise(which: i64) crashes Trap {
     let fourth: f64 = holder.samples[3];
     transition (which == 0 && first == 0.0 && second == 1.0 && third == 9.0 && fourth == 9.0)
         || (which != 0 && first == 9.0 && second == 9.0 && third == 0.0 && fourth == 1.0) {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

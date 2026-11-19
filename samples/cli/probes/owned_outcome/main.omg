@@ -16,7 +16,7 @@ machine mint(value: u64) -> Token in Issued { Token { value: value } }
 Provider satisfies Issuer {
     machine issue(present: bool) -> Outcome<Token in Issued> {
         transition present {
-            true -> ready()
+            true -> ready(),
             false -> empty()
         }
         machine ready() -> Outcome<Token in Issued> {
@@ -31,13 +31,13 @@ Provider satisfies Issuer {
 machine observe(value: Token in Issued) -> u64 { value.value }
 machine inspect(outcome: Outcome<Token in Issued>) -> u64 {
     transition outcome {
-        Outcome::Ready { value } -> observe(value)
+        Outcome::Ready { value } -> observe(value),
         Outcome::Empty -> 0
     }
 }
 machine inspect_nested(outcome: Outcome<Wrapper<Wrapper<Token in Issued>>>) -> u64 {
     transition outcome {
-        Outcome::Ready { value } -> observe(value.value.value)
+        Outcome::Ready { value } -> observe(value.value.value),
         Outcome::Empty -> 0
     }
 }
@@ -46,7 +46,7 @@ machine main() reaches Issuer + ProcessExit {
     let absent: u64 = inspect(Issuer::issue(false));
     let nested: u64 = inspect_nested(Issuer::nested());
     transition present == 29 && absent == 0 && nested == 41 {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() { ProcessExit::exit_process(0); }

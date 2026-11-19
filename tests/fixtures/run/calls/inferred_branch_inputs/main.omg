@@ -27,7 +27,7 @@ requires true
         && decoded.length == 2u64 && decoded.first == 150i64
         && decoded.second == 0i64 - 2i64 && decoded.depth == 0i64 - 64i64;
     transition bytes_ok && fields_ok {
-        true -> block good(main)
+        true -> block good(main),
         false -> block bad_fields(main)
     }
 
@@ -68,7 +68,7 @@ machine main() crashes Trap {
     });
     transition matched == 70u64 && matched_marker == 17u8 && missed == 72u64
         && input.pause[0u64] == 29u8 && input.buffer[13u64] == 53u8 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

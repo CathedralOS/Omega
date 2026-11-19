@@ -10,7 +10,7 @@ machine main() crashes Trap {
     publish(@cell, true);
     Atomic::fence(FenceOrdering::Receive);
     let observed: bool = cell.value.load(Receive);
-    transition observed { true -> done() _ -> bad() }
+    transition observed { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -30,7 +30,7 @@ machine Main::main(main: @mut Main) {
     main.a = 3;
     main.b = 9;
     transition main.a <= main.b {
-        true -> go(main)
+        true -> go(main),
         _ -> bad(main)
     }
     machine go(main: @mut Main) {
@@ -38,7 +38,7 @@ machine Main::main(main: @mut Main) {
         Main::helper(main, a_value);
         let diff: u32 = main.b - main.a;
         transition diff == 6 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> bad(main)
         }
     }

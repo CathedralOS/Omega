@@ -1,4 +1,3 @@
-module operations;
 use units;
 
 machine raw_sum(left: u32, right: u32) -> u32 {

@@ -25,7 +25,7 @@ requires machine Step satisfies StepContract::step;
 }
 
 machine measured() -> u64 {
-    walk<noise>(7)
+    walk::<noise>(7)
 }
 
 data Reading {
@@ -34,7 +34,7 @@ data Reading {
 
 machine main() crashes Trap {
     transition Reading::SIZE == 42u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

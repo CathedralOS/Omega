@@ -15,7 +15,7 @@ public boundary trait WindowsDescriptorMode {
     machine set_mode(descriptor: i32, mode: i32) -> i32 reaches crashes none;
 }
 machine demand(result: bool) crashes Trap {
-    transition result { true -> done() false -> bad() }
+    transition result { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

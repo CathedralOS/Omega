@@ -13,7 +13,7 @@ Actual satisfies Provider {
 machine main() reaches Provider crashes Trap {
     let diff: u64 = Provider::get() - 100u64;
     transition diff == 0u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

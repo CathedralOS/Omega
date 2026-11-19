@@ -24,7 +24,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine step(left: i32 in Wrapping, right: i32 in Wrapping, iteration: i32 in Wrapping) {
         transition iteration == 13 {
-            true -> block ratio_calc(left, right)
+            true -> block ratio_calc(left, right),
             _ -> block advance(left, right, iteration)
         }
     }

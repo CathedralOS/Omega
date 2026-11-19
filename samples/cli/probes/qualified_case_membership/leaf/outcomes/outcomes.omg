@@ -1,4 +1,3 @@
-module outcomes;
 public data Outcome {
     common: u32;
     case Empty;

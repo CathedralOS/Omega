@@ -1,4 +1,3 @@
-module mechanics::fixtures;
 // Declared synthetic stacks. Orientation is (cos^2,sin^2,cos*sin).
 use mechanics::model;
 use mechanics::model::Laminate;
@@ -9,14 +8,14 @@ public machine fixture(model: @mut Laminate,mode: u8) {
     model.n2 = [0.0,1.0,0.0,0.0];
     model.mn = [0.0,0.0,0.0,0.0];
     transition mode {
-        49 -> reverse(model)
-        50 -> symmetric(model)
-        51 -> balanced(model)
-        52 -> oblique(model)
-        53 -> done()
-        54 -> negative(model)
-        55 -> empty(model)
-        56 -> orientation(model)
+        49 -> reverse(model),
+        50 -> symmetric(model),
+        51 -> balanced(model),
+        52 -> oblique(model),
+        53 -> done(),
+        54 -> negative(model),
+        55 -> empty(model),
+        56 -> orientation(model),
         _ -> done()
     }
     machine reverse(model: @mut Laminate) { model.m2 = [0.0,1.0,0.0,0.0]; model.n2 = [1.0,0.0,0.0,0.0]; }

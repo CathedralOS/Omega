@@ -20,7 +20,7 @@ requires value >= LOWER && value <= UPPER
 machine main() crashes Trap {
     let reading: f64 = 2.0;
     transition probe(reading) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

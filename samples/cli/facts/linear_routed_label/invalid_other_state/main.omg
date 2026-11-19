@@ -24,7 +24,7 @@ machine exercise(select: bool) -> u64 {
 machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
-    transition first == 29 && second == 29 { true -> done() _ -> wrong() }
+    transition first == 29 && second == 29 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

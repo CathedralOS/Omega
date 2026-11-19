@@ -15,7 +15,7 @@ machine check(value: RangePair) -> Checked {
     transition value.first_length > 0 && value.second_length > 0 &&
         value.first_base <= 18446744073709551615 - value.first_length &&
         value.second_base <= 18446744073709551615 - value.second_length {
-        true -> separate(value)
+        true -> separate(value),
         _ -> Checked::Rejected
     }
     machine separate(value: RangePair) -> Checked
@@ -26,7 +26,7 @@ machine check(value: RangePair) -> Checked {
         let first_end: u64 = value.first_base + value.first_length;
         let second_end: u64 = value.second_base + value.second_length;
         transition first_end <= value.second_base || second_end <= value.first_base {
-            true -> Checked::Ready { value: value }
+            true -> Checked::Ready { value: value },
             _ -> Checked::Rejected
         }
     }
@@ -34,7 +34,7 @@ machine check(value: RangePair) -> Checked {
 machine accepted(value: RangePair) -> bool {
     let result: Checked = check(value);
     transition result {
-        Checked::Ready { value } -> (true)
+        Checked::Ready { value } -> (true),
         Checked::Rejected -> (false)
     }
 }
@@ -49,7 +49,7 @@ machine main() crashes Trap {
     let wrapped: bool = accepted(RangePair { first_base: 18446744073709551615, first_length: 1, second_base: 8192, second_length: 4096 });
     let second_wrapped: bool = accepted(RangePair { first_base: 4096, first_length: 4096, second_base: 18446744073709551615, second_length: 2 });
     transition revalidated && ordered && reversed && adjacent && !overlap && !contained && !empty && !wrapped && !second_wrapped {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}
@@ -68,7 +68,7 @@ machine mutation_cycle(value: Range) -> bool {
         let base: u64 = value.base;
         let length: u64 = value.length;
         transition base <= 18446744073709551615 - length {
-            true -> admitted(value, repeated)
+            true -> admitted(value, repeated),
             _ -> (repeated)
         }
     }
@@ -77,7 +77,7 @@ machine mutation_cycle(value: Range) -> bool {
     {
         let result: RangeChecked = RangeChecked { value: value };
         transition repeated {
-            true -> (false)
+            true -> (false),
             _ -> replace(result.value as Range)
         }
     }

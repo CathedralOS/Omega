@@ -33,7 +33,7 @@ machine main() crashes Trap {
     let selected: Bundle = relay(bundle);
     let replaced: bool = replace(selected, @intermediate, selected.entries[0].first);
     transition replaced && old.value == 17 && sibling.value == 19 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

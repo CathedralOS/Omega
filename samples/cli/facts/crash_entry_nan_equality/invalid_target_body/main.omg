@@ -4,7 +4,7 @@
 machine maybe_ordered(value: f32) -> f32
 crashes Trap value == value
 {
-    transition value == value { true -> bad() false -> (value) }
+    transition value == value { true -> bad(), false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
 boundary trait SelectedBodyCheck {
@@ -12,14 +12,14 @@ boundary trait SelectedBodyCheck {
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
 }
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -50,7 +50,7 @@ reaches SelectedForward invokes SelectedForward
 }
 machine main() crashes Trap {
     let observed: f32 = read_nan();
-    transition observed != observed { true -> done() _ -> bad() }
+    transition observed != observed { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
 machine x86_entry() crashes Trap {

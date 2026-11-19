@@ -22,13 +22,13 @@ data Maybe<T> {
 
 machine zero_is_none<T>()
 ensures
-    zero_value<Maybe<T>>() in Maybe::None
+    zero_value::<Maybe<T>>() in Maybe::None
 {}
 
 machine inspect() -> i32 {
     let maybe: Maybe<i32> = Maybe::Some { value: 7 };
     transition maybe {
-        Maybe::Some { value, proof as _ } -> value
+        Maybe::Some { value, proof as _ } -> value,
         Maybe::None -> 0
     }
 }
@@ -40,7 +40,7 @@ data Main {
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition inspect() == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

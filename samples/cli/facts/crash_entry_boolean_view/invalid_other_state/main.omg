@@ -2,7 +2,7 @@
 machine maybe_clear(value: bool) -> bool
 crashes Trap value == false
 {
-    transition value == false { true -> bad() false -> (value) }
+    transition value == false { true -> bad(), false -> (value) }
     machine bad() -> bool { crash Trap; }
 }
 public data Byte requires value >= 0 && value <= 1 { value: u8; }
@@ -17,6 +17,6 @@ public machine read_flag(byte: Byte) -> bool
 }
 machine main() crashes Trap {
     let observed: bool = read_flag(Byte { value: 1 });
-    transition observed == true { true -> done() false -> bad() }
+    transition observed == true { true -> done(), false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

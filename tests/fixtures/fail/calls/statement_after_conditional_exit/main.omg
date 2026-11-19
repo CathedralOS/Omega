@@ -8,7 +8,7 @@ data Main { status: i32; count: i32; }
 
 machine leave_unless_zero(status: i32) reaches ProcessExit {
     transition status == 0 {
-        true -> {}
+        true -> {},
         false -> ProcessExit::exit_process(status)
     }
 }

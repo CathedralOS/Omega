@@ -30,15 +30,15 @@ public data ErrorKind [copy] {
 
 machine error_kind_reconstruct(error_kind: @ErrorKind) -> ErrorKind {
     transition error_kind {
-        ErrorKind::Other -> ErrorKind::Other
-        ErrorKind::NotFound -> ErrorKind::NotFound
-        ErrorKind::PermissionDenied -> ErrorKind::PermissionDenied
-        ErrorKind::AlreadyExists -> ErrorKind::AlreadyExists
-        ErrorKind::BadDescriptor -> ErrorKind::BadDescriptor
-        ErrorKind::IsADirectory -> ErrorKind::IsADirectory
-        ErrorKind::WouldBlock -> ErrorKind::WouldBlock
-        ErrorKind::Unsupported -> ErrorKind::Unsupported
-        ErrorKind::InvalidInput -> ErrorKind::InvalidInput
+        ErrorKind::Other -> ErrorKind::Other,
+        ErrorKind::NotFound -> ErrorKind::NotFound,
+        ErrorKind::PermissionDenied -> ErrorKind::PermissionDenied,
+        ErrorKind::AlreadyExists -> ErrorKind::AlreadyExists,
+        ErrorKind::BadDescriptor -> ErrorKind::BadDescriptor,
+        ErrorKind::IsADirectory -> ErrorKind::IsADirectory,
+        ErrorKind::WouldBlock -> ErrorKind::WouldBlock,
+        ErrorKind::Unsupported -> ErrorKind::Unsupported,
+        ErrorKind::InvalidInput -> ErrorKind::InvalidInput,
         ErrorKind::WriteZero -> ErrorKind::WriteZero
     }
 }
@@ -130,15 +130,15 @@ public data Permissions [copy] {
 
 public machine permissions_readonly(permissions: @Permissions) -> bool {
     transition permissions {
-        Permissions::Default -> false
-        Permissions::Readonly { value } -> (value)
+        Permissions::Default -> false,
+        Permissions::Readonly { value } -> (value),
         Permissions::Posix { mode } -> ((mode & 146) == 0)
     }
 }
 
 public machine permissions_set_readonly(permissions: @mut Permissions, readonly: bool) {
     transition permissions {
-        Permissions::Posix { mode } -> posix(permissions, mode, readonly)
+        Permissions::Posix { mode } -> posix(permissions, mode, readonly),
         _ -> portable(permissions, readonly)
     }
     machine posix(permissions: @mut Permissions, mode: u32, readonly: bool) {
@@ -153,7 +153,7 @@ public machine permissions_set_readonly(permissions: @mut Permissions, readonly:
 // Change only write bits, retaining sticky/set-ID and other mode bits. The
 // POSIX adapter uses the same operation for a portable read-only request.
 machine posix_mode_with_readonly(mode: u32, readonly: bool) -> u32 {
-    transition readonly { true -> (mode & 4294967149) false -> (mode | 146) }
+    transition readonly { true -> (mode & 4294967149), false -> (mode | 146) }
 }
 
 // Not every native metadata record contains a creation timestamp. Keep that
@@ -206,26 +206,26 @@ public data Metadata [copy] {
 }
 
 public machine metadata_is_file(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::File -> true _ -> false }
+    transition metadata.kind { FileKind::File -> true, _ -> false }
 }
 public machine metadata_is_dir(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::Directory -> true _ -> false }
+    transition metadata.kind { FileKind::Directory -> true, _ -> false }
 }
 public machine metadata_is_symlink(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::Symlink -> true _ -> false }
+    transition metadata.kind { FileKind::Symlink -> true, _ -> false }
 }
 
 public machine metadata_is_char_device(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::CharacterDevice -> true _ -> false }
+    transition metadata.kind { FileKind::CharacterDevice -> true, _ -> false }
 }
 public machine metadata_is_block_device(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::BlockDevice -> true _ -> false }
+    transition metadata.kind { FileKind::BlockDevice -> true, _ -> false }
 }
 public machine metadata_is_fifo(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::Fifo -> true _ -> false }
+    transition metadata.kind { FileKind::Fifo -> true, _ -> false }
 }
 public machine metadata_is_socket(metadata: @Metadata) -> bool {
-    transition metadata.kind { FileKind::Socket -> true _ -> false }
+    transition metadata.kind { FileKind::Socket -> true, _ -> false }
 }
 
 public machine metadata_readonly(metadata: @Metadata) -> bool {

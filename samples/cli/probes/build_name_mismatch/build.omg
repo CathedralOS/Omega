@@ -19,7 +19,7 @@ suspends
     suspend Build::prepare_dependency(builder, depkit_registration);
     let observed: i32 = depkit::value();
     transition observed == 9 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {

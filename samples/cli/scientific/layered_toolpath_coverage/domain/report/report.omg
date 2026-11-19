@@ -1,4 +1,3 @@
-module domain::report;
 use domain::model;
 use domain::model::Job;
 use omega_language_std::Console;
@@ -15,7 +14,7 @@ machine coordinate(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping) r
 public machine segment(kind: bool, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
     end_x: i32 in Wrapping, end_y: i32 in Wrapping, end_z: i32 in Wrapping) reaches Console {
     transition kind {
-        true -> deposition(x, y, z, end_x, end_y, end_z)
+        true -> deposition(x, y, z, end_x, end_y, end_z),
         _ -> travel(x, y, z, end_x, end_y, end_z)
     }
     machine deposition(x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,

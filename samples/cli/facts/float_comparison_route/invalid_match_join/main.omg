@@ -6,12 +6,12 @@ machine equal_operands(left: f64, right: f64, flag: bool) -> bool {
 }
 machine main() crashes Trap {
     transition equal_operands(212.0, 212.0, true) {
-        true -> bad()
+        true -> bad(),
         _ -> second()
     }
     machine second() {
         transition equal_operands(212.0, 212.0, false) {
-            true -> bad()
+            true -> bad(),
             _ -> done()
         }
     }

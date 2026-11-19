@@ -16,11 +16,11 @@ data Main {
 }
 machine main(main: @mut Main) reaches ProcessExit + Console {
  let valid: bool = block read(@mut main.protocol);
- transition valid && main.protocol.position >= 2 { true -> header(main) false -> syntax(main) }
+ transition valid && main.protocol.position >= 2 { true -> header(main), false -> syntax(main) }
  machine header(main: @mut Main) {
   let layers: f64 = main.protocol.fields[0]; let offsets: f64 = main.protocol.fields[1];
   transition layers >= 1.0 && layers <= 4.0 && offsets >= 0.0 && offsets <= 16.0 {
-   true -> counts(main, layers, offsets) false -> range(main)
+   true -> counts(main, layers, offsets), false -> range(main)
   }
  }
  machine counts(main: @mut Main, layers: f64, offsets: f64)
@@ -30,19 +30,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
   main.model.offsets = I32::from_f64(offsets) as i32 in Wrapping;
   let layer_value: f64 = main.model.layers as f64; let offset_value: f64 = main.model.offsets as f64;
   transition layers == layer_value && offsets == offset_value && main.protocol.position == 1 + 2 * main.model.layers + main.model.offsets {
-   true -> velocity(main, 0, 0.0) false -> syntax(main)
+   true -> velocity(main, 0, 0.0), false -> syntax(main)
   }
  }
  machine velocity(main: @mut Main, index: i32 in Wrapping, previous: f64) {
   transition index >= 0 && index < main.model.layers && index < 4 {
-   true -> velocity_record(main, index, previous) false -> thickness(main, 0)
+   true -> velocity_record(main, index, previous), false -> thickness(main, 0)
   }
  }
  machine velocity_record(main: @mut Main, index: i32 in Wrapping, previous: f64)
  requires index >= 0 && index < 4 {
   let value: f64 = main.protocol.fields[2 + index];
   transition value >= 0.000001 && value <= 1000000.0 && value > previous {
-   true -> store_velocity(main, index, value) false -> range(main)
+   true -> store_velocity(main, index, value), false -> range(main)
   }
  }
  machine store_velocity(main: @mut Main, index: i32 in Wrapping, value: f64)
@@ -55,7 +55,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  machine thickness(main: @mut Main, index: i32 in Wrapping) {
   let position: i32 in Wrapping = 2 + main.model.layers + index;
   transition index >= 0 && index < main.model.layers - 1 && index < 3 && position >= 0 && position < 25 {
-   true -> thickness_record(main, index, position) false -> prepare(main, 1)
+   true -> thickness_record(main, index, position), false -> prepare(main, 1)
   }
  }
  machine thickness_record(main: @mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
@@ -63,7 +63,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  requires position >= 0 && position < 25 {
   let value: f64 = main.protocol.fields[position];
   transition value >= 0.000001 && value <= 1000000.0 {
-   true -> store_thickness(main, index, value) false -> range(main)
+   true -> store_thickness(main, index, value), false -> range(main)
   }
  }
  machine store_thickness(main: @mut Main, index: i32 in Wrapping, value: f64)
@@ -73,7 +73,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  }
  machine prepare(main: @mut Main, refractor: i32 in Wrapping) {
   transition refractor >= 1 && refractor < main.model.layers && refractor < 4 {
-   true -> compute_branch(main, refractor) false -> offset(main, 0)
+   true -> compute_branch(main, refractor), false -> offset(main, 0)
   }
  }
  machine compute_branch(main: @mut Main, refractor: i32 in Wrapping)
@@ -88,14 +88,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  machine offset(main: @mut Main, index: i32 in Wrapping) {
   let position: i32 in Wrapping = 1 + 2 * main.model.layers + index;
   transition index >= 0 && index < main.model.offsets && index < 16 && position >= 0 && position < 25 {
-   true -> offset_record(main, index, position) false -> success(main)
+   true -> offset_record(main, index, position), false -> success(main)
   }
  }
  machine offset_record(main: @mut Main, index: i32 in Wrapping, position: i32 in Wrapping)
  requires position >= 0 && position < 25 {
   let distance: f64 = main.protocol.fields[position];
   transition distance >= 0.0 && distance <= 1000000.0 {
-   true -> direct(main, index, distance) false -> range(main)
+   true -> direct(main, index, distance), false -> range(main)
   }
  }
  machine direct(main: @mut Main, index: i32 in Wrapping, distance: f64) {
@@ -109,13 +109,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
  }
  machine head(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping) {
   transition refractor >= 1 && refractor < main.model.layers && refractor < 4 {
-   true -> admissible(main, index, distance, refractor) false -> first(main, index, distance)
+   true -> admissible(main, index, distance, refractor), false -> first(main, index, distance)
   }
  }
  machine admissible(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   transition distance >= main.model.critical[refractor] {
-   true -> arrival(main, index, distance, refractor) false -> head(main, index, distance, refractor + 1)
+   true -> arrival(main, index, distance, refractor), false -> head(main, index, distance, refractor + 1)
   }
  }
  machine arrival(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping)
@@ -126,7 +126,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
   // absorbs roundoff at analytic crossovers without changing reported times.
   let tolerance: f64 = 0.000000000000004 * main.best_time;
   transition time < main.best_time - tolerance {
-   true -> improve(main, index, distance, refractor, time) false -> head(main, index, distance, refractor + 1)
+   true -> improve(main, index, distance, refractor, time), false -> head(main, index, distance, refractor + 1)
   }
  }
  machine improve(main: @mut Main, index: i32 in Wrapping, distance: f64, refractor: i32 in Wrapping, time: f64) {

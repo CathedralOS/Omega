@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let view: @[u8] = (@packet.line as -Utf8)[..];
     transition view.len == 28 && view[12] == 77 && view[13] == 48 && view[14] == 79
         && packet.before == 11 && packet.after == 37 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

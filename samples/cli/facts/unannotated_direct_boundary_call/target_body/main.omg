@@ -12,14 +12,14 @@ boundary trait SelectedBodyCheck {
 }
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
 }
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -41,7 +41,7 @@ ArmReadMark satisfies SelectedReadMark {
     }
 }
 machine main() crashes Trap {
-    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
+    transition SelectedReadMark::read_mark() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

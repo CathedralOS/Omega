@@ -1,6 +1,5 @@
 // Portable atomic ordering events. The compiler supplies this exact sealed
 // declaration; an authored lookalike has no primitive implementation.
-module Atomic;
 use FenceOrdering;
 // The argument must name one proved case at the evaluated call. A fence alone
 // does not establish a publication or a reads-from synchronization relation.

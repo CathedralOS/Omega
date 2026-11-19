@@ -1,4 +1,3 @@
-module io::protocol;
 use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
@@ -15,48 +14,48 @@ reaches Console blocks crashes Trap {
  protocol.scale = 1.0; protocol.decimal = false; protocol.digits = 0; protocol.started = false;
  transition { _ -> scan(protocol) }
  machine scan(protocol: @mut Protocol) -> bool {
-  transition protocol.length < 1024 { true -> observe(protocol) false -> rejected() }
+  transition protocol.length < 1024 { true -> observe(protocol), false -> rejected() }
  }
  machine observe(protocol: @mut Protocol) -> bool {
   let observed: ByteRead = block Console::read_byte();
   protocol.length = protocol.length + 1;
-  transition observed { ByteRead::Eof -> commit(protocol, true) ByteRead::Byte { value } -> character(protocol, value) }
+  transition observed { ByteRead::Eof -> commit(protocol, true), ByteRead::Byte { value } -> character(protocol, value) }
  }
  machine character(protocol: @mut Protocol, value: i32) -> bool {
-  transition value >= 48 && value <= 57 { true -> digit(protocol, value) false -> punctuation(protocol, value) }
+  transition value >= 48 && value <= 57 { true -> digit(protocol, value), false -> punctuation(protocol, value) }
  }
  machine digit(protocol: @mut Protocol, value: i32) -> bool {
-  transition protocol.digits < 12 { true -> accumulate(protocol, value) false -> rejected() }
+  transition protocol.digits < 12 { true -> accumulate(protocol, value), false -> rejected() }
  }
  machine accumulate(protocol: @mut Protocol, value: i32) -> bool {
   let character: i32 in Wrapping = value as i32 in Wrapping;
   let digit: f64 = (character - 48) as f64;
   protocol.accumulator = protocol.accumulator * 10.0 + digit;
   protocol.digits = protocol.digits + 1; protocol.started = true;
-  transition protocol.decimal { true -> fractional(protocol) false -> scan(protocol) }
+  transition protocol.decimal { true -> fractional(protocol), false -> scan(protocol) }
  }
  machine fractional(protocol: @mut Protocol) -> bool {
   protocol.scale = protocol.scale * 10.0;
   transition { _ -> scan(protocol) }
  }
  machine punctuation(protocol: @mut Protocol, value: i32) -> bool {
-  transition value == 46 && !protocol.decimal { true -> decimal(protocol) false -> whitespace(protocol, value) }
+  transition value == 46 && !protocol.decimal { true -> decimal(protocol), false -> whitespace(protocol, value) }
  }
  machine decimal(protocol: @mut Protocol) -> bool {
   protocol.decimal = true; protocol.started = true;
   transition { _ -> scan(protocol) }
  }
  machine whitespace(protocol: @mut Protocol, value: i32) -> bool {
-  transition value == 32 || value == 9 || value == 10 || value == 13 { true -> commit(protocol, false) false -> rejected() }
+  transition value == 32 || value == 9 || value == 10 || value == 13 { true -> commit(protocol, false), false -> rejected() }
  }
  machine commit(protocol: @mut Protocol, final: bool) -> bool {
-  transition protocol.digits > 0 { true -> guard(protocol, final) false -> empty(protocol, final) }
+  transition protocol.digits > 0 { true -> guard(protocol, final), false -> empty(protocol, final) }
  }
  machine empty(protocol: @mut Protocol, final: bool) -> bool {
-  transition protocol.started { true -> rejected() false -> after(protocol, final) }
+  transition protocol.started { true -> rejected(), false -> after(protocol, final) }
  }
  machine guard(protocol: @mut Protocol, final: bool) -> bool {
-  transition protocol.position >= 0 && protocol.position < 25 { true -> store(protocol, final, protocol.position) false -> rejected() }
+  transition protocol.position >= 0 && protocol.position < 25 { true -> store(protocol, final, protocol.position), false -> rejected() }
  }
  machine store(protocol: @mut Protocol, final: bool, position: i32 in Wrapping) -> bool
  requires position >= 0 && position < 25 {
@@ -67,7 +66,7 @@ reaches Console blocks crashes Trap {
   transition { _ -> after(protocol, final) }
  }
  machine after(protocol: @mut Protocol, final: bool) -> bool {
-  transition final { true -> complete() false -> scan(protocol) }
+  transition final { true -> complete(), false -> scan(protocol) }
  }
  machine complete() -> bool { true }
  machine rejected() -> bool { false }
@@ -76,7 +75,7 @@ reaches Console blocks crashes Trap {
 public machine integer(protocol: @mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
-        true -> negative(protocol, value)
+        true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000, false)
     }
     machine negative(protocol: @mut Protocol, value: i32 in Wrapping) {
@@ -90,7 +89,7 @@ reaches ProcessExit + Console {
         let digit: i32 in Wrapping = value / divisor;
         let remainder: i32 in Wrapping = value % divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(protocol, digit, remainder, divisor)
+            true -> emit(protocol, digit, remainder, divisor),
             false -> next(protocol, remainder, divisor, false)
         }
     }
@@ -106,7 +105,7 @@ reaches ProcessExit + Console {
     requires divisor >= 1
     {
         transition divisor > 1 {
-            true -> divide(protocol, value, divisor, started)
+            true -> divide(protocol, value, divisor, started),
             false -> done()
         }
     }
@@ -116,7 +115,7 @@ reaches ProcessExit + Console {
     {
         let next_divisor: i32 in Wrapping = divisor / 10;
         transition next_divisor >= 1 {
-            true -> digits(protocol, value, next_divisor, started)
+            true -> digits(protocol, value, next_divisor, started),
             false -> done()
         }
     }
@@ -128,13 +127,13 @@ reaches ProcessExit + Console {
 public machine number(protocol: @mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
-        true -> zero(protocol)
+        true -> zero(protocol),
         false -> sign(protocol, value)
     }
     machine zero(protocol: @mut Protocol) { Console::write("0"); }
     machine sign(protocol: @mut Protocol, value: f64) {
         transition value < 0.0 {
-            true -> negative(protocol, value)
+            true -> negative(protocol, value),
             false -> normalize(protocol, value, 0)
         }
     }
@@ -144,20 +143,20 @@ reaches ProcessExit + Console {
     }
     machine normalize(protocol: @mut Protocol, value: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 {
-            true -> normalize(protocol, value / 10.0, exponent + 1)
+            true -> normalize(protocol, value / 10.0, exponent + 1),
             false -> small(protocol, value, exponent)
         }
     }
     machine small(protocol: @mut Protocol, value: f64, exponent: i32 in Wrapping) {
         transition value < 1.0 {
-            true -> normalize(protocol, value * 10.0, exponent - 1)
+            true -> normalize(protocol, value * 10.0, exponent - 1),
             false -> emit(protocol, value, exponent)
         }
     }
     machine emit(protocol: @mut Protocol, value: f64, exponent: i32 in Wrapping) {
         let scaled: f64 = value * 100000000.0;
         transition scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0 {
-            true -> land(protocol, scaled, exponent)
+            true -> land(protocol, scaled, exponent),
             false -> invalid(protocol)
         }
     }

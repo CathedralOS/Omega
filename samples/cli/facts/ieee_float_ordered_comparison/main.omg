@@ -19,7 +19,7 @@ machine forward(reading: Reading) -> i32 {
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 2.0 };
     transition forward(reading) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

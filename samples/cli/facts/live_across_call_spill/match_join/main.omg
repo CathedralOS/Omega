@@ -23,7 +23,7 @@ machine run(flag: bool) -> i32 {
     let call_out: u64 = clobber_call(1u64);
     let total: u64 = v1 + v2 + v3 + v4 + v5 + v6 + v7 + v8 + call_out;
     let preserved: u64 = match flag {
-        true -> total
+        true -> total,
         false -> total
     };
     let diff: u64 = preserved - 100u64;
@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let outcome1: i32 = run(true);
     let outcome2: i32 = run(false);
     transition outcome1 == 0 && outcome2 == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

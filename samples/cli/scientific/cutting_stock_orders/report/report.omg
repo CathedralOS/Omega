@@ -1,4 +1,3 @@
-module report;
 use model;
 use omega_language_std::Console;
 // Four decimal digits per integer. Inputs bound every reported sum below 10000.
@@ -25,7 +24,7 @@ invokes Console
                 index: i32 in Wrapping, code: i32 in Wrapping) -> bool {
         let order_index: i32 in Wrapping = index + 3;
         transition index >= 0 && index < 4 && order_index >= 3 && order_index < 7 {
-            true -> row(orders, plan, index, code, order_index)
+            true -> row(orders, plan, index, code, order_index),
             _ -> stock(orders, plan, 0, 0, 0, 0)
         }
     }
@@ -42,7 +41,7 @@ invokes Console
                  source: i32 in Wrapping, kerf: i32 in Wrapping,
                  reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
         transition source >= 0 && source < 3 {
-            true -> capacity(orders, plan, source, kerf, reusable, scrap)
+            true -> capacity(orders, plan, source, kerf, reusable, scrap),
             _ -> certificate(plan, kerf, reusable, scrap)
         }
     }
@@ -50,7 +49,7 @@ invokes Console
                     source: i32 in Wrapping, kerf: i32 in Wrapping,
                     reusable: i32 in Wrapping, scrap: i32 in Wrapping) -> bool {
         transition source == 2 {
-            true -> pattern(orders, plan, source, orders.values[1], kerf, reusable, scrap)
+            true -> pattern(orders, plan, source, orders.values[1], kerf, reusable, scrap),
             _ -> pattern(orders, plan, source, orders.values[0], kerf, reusable, scrap)
         }
     }
@@ -65,7 +64,7 @@ invokes Console
         number(plan.loads[source] - loss);
         number(loss);
         transition plan.counts[source] > 0 {
-            true -> leftover(orders, plan, source, capacity - plan.loads[source], kerf + loss, reusable, scrap)
+            true -> leftover(orders, plan, source, capacity - plan.loads[source], kerf + loss, reusable, scrap),
             _ -> leftover(orders, plan, source, 0, kerf, reusable, scrap)
         }
     }
@@ -75,7 +74,7 @@ invokes Console
         number(remaining);
         Console::write_byte(10);
         transition remaining >= 5 {
-            true -> stock(orders, plan, source + 1, kerf, reusable + remaining, scrap)
+            true -> stock(orders, plan, source + 1, kerf, reusable + remaining, scrap),
             _ -> stock(orders, plan, source + 1, kerf, reusable, scrap + remaining)
         }
     }

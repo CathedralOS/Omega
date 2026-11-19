@@ -12,7 +12,7 @@ machine divide(numerator: u64, denominator: u64) -> u64
 crashes Trap denominator == 0u64
 {
     transition denominator == 0u64 {
-        true -> bad()
+        true -> bad(),
         false -> (numerator / denominator)
     }
     machine bad() -> u64 crashes Trap { crash Trap; }
@@ -34,7 +34,7 @@ public machine main() invokes Endpoint crashes Trap {
     let value: u64 = holder.value;
     let difference: u64 = 7u64 - value;
     transition difference == 0 && limit() == 7u64 && holder.before == 31 && holder.after == 47 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

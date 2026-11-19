@@ -28,9 +28,9 @@ SelectedRead satisfies ReadValue {
 }
 machine main() crashes Trap {
     let selected: dyn ReadValue = SelectedRead as dyn ReadValue;
-    let first: u64 = ReadValue::read<16>(selected);
-    let second: u64 = ReadValue::read<32>(selected);
-    transition first == 7u64 && second == 7u64 { true -> done() _ -> bad() }
+    let first: u64 = ReadValue::read::<16>(selected);
+    let second: u64 = ReadValue::read::<32>(selected);
+    transition first == 7u64 && second == 7u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

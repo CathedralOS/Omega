@@ -10,11 +10,11 @@ ensures result == 0u32
 
 machine produce() -> u32
 ensures result == 0xFFFF_FFFFu32
-{ integer::max<u32>() }
+{ integer::max::<u32>() }
 machine probe() -> u32 { consume(produce()) }
 
 machine main() crashes Trap {
-    transition probe() == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    transition probe() == 0u32 && integer::width_bits::<u32>() == 32u64 && !integer::is_signed::<u32>() { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

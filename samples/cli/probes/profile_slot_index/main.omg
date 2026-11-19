@@ -47,24 +47,24 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     let low_code: i64 = low_scaled as i64;
     let high_code: i64 = high_scaled as i64;
     transition low_code == 2 {
-        true -> upper(high_code, lower, mirrored)
+        true -> upper(high_code, lower, mirrored),
         _ -> bad()
     }
     machine upper(high_code: i64, lower: i32, mirrored: i32) {
         transition high_code == 7 {
-            true -> indices(lower, mirrored)
+            true -> indices(lower, mirrored),
             _ -> bad()
         }
     }
     machine indices(lower: i32, mirrored: i32) {
         transition lower == 2 {
-            true -> mirror(mirrored)
+            true -> mirror(mirrored),
             _ -> bad()
         }
     }
     machine mirror(mirrored: i32) {
         transition mirrored == 2 {
-            true -> report()
+            true -> report(),
             _ -> bad()
         }
     }

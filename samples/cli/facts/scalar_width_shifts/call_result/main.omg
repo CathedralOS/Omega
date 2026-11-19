@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let recovered: u32 in Wrapping = probe(val, shift);
     let shifted: u32 in Wrapping = val << shift;
     transition (shifted as u32) == 42 && (recovered as u32) == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

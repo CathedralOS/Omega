@@ -1,4 +1,3 @@
-module routing::visit;
 use routing::model;
 use routing::model::Plan;
 use routing::model::Tour;
@@ -7,7 +6,7 @@ machine travel(tour: @mut Tour, destination: i32 in Saturating) {
     // Snapshot before transferring the mutable tour to the successor.
     let position: i32 in Saturating = tour.position;
     transition position > destination {
-        true -> move(tour, destination, position - destination)
+        true -> move(tour, destination, position - destination),
         false -> move(tour, destination, destination - position)
     }
     machine move(tour: @mut Tour, destination: i32 in Saturating, length: i32 in Saturating) {
@@ -22,15 +21,15 @@ machine travel(tour: @mut Tour, destination: i32 in Saturating) {
 
 public machine visit(plan: @Plan, tour: @mut Tour, event: u64) -> bool {
     transition event {
-        0 -> pickup_a(plan, tour)
-        1 -> pickup_b(plan, tour)
-        2 -> drop_a(plan, tour)
-        3 -> drop_b(plan, tour)
+        0 -> pickup_a(plan, tour),
+        1 -> pickup_b(plan, tour),
+        2 -> drop_a(plan, tour),
+        3 -> drop_b(plan, tour),
         _ -> false
     }
     machine pickup_a(plan: @Plan, tour: @mut Tour) -> bool {
         transition !tour.picked_a && tour.load < plan.capacity {
-            true -> collect_a(plan, tour)
+            true -> collect_a(plan, tour),
             false -> false
         }
     }
@@ -41,7 +40,7 @@ public machine visit(plan: @Plan, tour: @mut Tour, event: u64) -> bool {
     }
     machine pickup_b(plan: @Plan, tour: @mut Tour) -> bool {
         transition !tour.picked_b && tour.load < plan.capacity {
-            true -> collect_b(plan, tour)
+            true -> collect_b(plan, tour),
             false -> false
         }
     }
@@ -52,7 +51,7 @@ public machine visit(plan: @Plan, tour: @mut Tour, event: u64) -> bool {
     }
     machine window(tour: @mut Tour, ready: i32 in Saturating, latest: i32 in Saturating) -> bool {
         transition tour.time < ready {
-            true -> wait(tour, ready, latest)
+            true -> wait(tour, ready, latest),
             false -> admit(tour, latest)
         }
     }
@@ -63,21 +62,21 @@ public machine visit(plan: @Plan, tour: @mut Tour, event: u64) -> bool {
     }
     machine admit(tour: @mut Tour, latest: i32 in Saturating) -> bool {
         transition tour.time <= latest {
-            true -> loaded(tour)
+            true -> loaded(tour),
             false -> false
         }
     }
     machine loaded(tour: @mut Tour) -> bool {
         tour.load = tour.load + 1;
         transition tour.load > tour.peak {
-            true -> peak(tour)
+            true -> peak(tour),
             false -> true
         }
     }
     machine peak(tour: @mut Tour) -> bool { tour.peak = tour.load; true }
     machine drop_a(plan: @Plan, tour: @mut Tour) -> bool {
         transition tour.picked_a && !tour.dropped_a {
-            true -> unload_a(tour)
+            true -> unload_a(tour),
             false -> false
         }
     }
@@ -89,7 +88,7 @@ public machine visit(plan: @Plan, tour: @mut Tour, event: u64) -> bool {
     }
     machine drop_b(plan: @Plan, tour: @mut Tour) -> bool {
         transition tour.picked_b && !tour.dropped_b {
-            true -> unload_b(tour)
+            true -> unload_b(tour),
             false -> false
         }
     }

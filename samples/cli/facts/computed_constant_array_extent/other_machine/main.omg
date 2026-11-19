@@ -9,7 +9,7 @@ machine Inspector::check(arr: @[u64; SIZE]) -> bool {
 }
 machine main() crashes Trap {
     let local_arr: [u64; SIZE] = ALIAS;
-    transition Inspector::check(@local_arr) { true -> done() _ -> bad() }
+    transition Inspector::check(@local_arr) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

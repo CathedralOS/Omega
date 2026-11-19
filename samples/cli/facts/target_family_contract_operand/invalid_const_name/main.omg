@@ -42,15 +42,15 @@ machine matches(item: @Item, number: u64) -> bool {
 machine forward<Value, machine Callback>(value: @Value) -> bool
 reaches Choosing
 requires machine Callback(argument: @Value, count: u64) -> bool;
-{ Choosing::choose<Value, Callback>(value, 42) }
+{ Choosing::choose::<Value, Callback>(value, 42) }
 
 const NUMBER: u64 = 42;
 machine run_case(item_code: u64, expected: bool) reaches Choosing crashes Trap {
     let item: Item = Item { code: item_code };
-    let direct: bool = Choosing::choose<Item, matches>(@item, NUMBER);
-    let forwarded: bool = forward<Item, matches>(@item);
+    let direct: bool = Choosing::choose::<Item, matches>(@item, NUMBER);
+    let forwarded: bool = forward::<Item, matches>(@item);
     transition direct == expected && forwarded == expected {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

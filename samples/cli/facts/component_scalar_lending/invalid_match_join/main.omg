@@ -19,7 +19,7 @@ machine choose(token: @Token, first_selected: bool) -> u64 reaches Lending Readi
     let observed: u64 = selected.count;
     let correct: bool = match first_selected { true -> first.count == 73 && second.count == 1, _ -> second.count == 73 && first.count == 0 };
     transition reused == 73 && addresses && correct && first.before == 11 && first.after == 29 && second.before == 11 && second.after == 29 {
-        true -> observed
+        true -> observed,
         _ -> bad()
     }
     machine bad() -> u64 { crash Trap; }
@@ -27,12 +27,12 @@ machine choose(token: @Token, first_selected: bool) -> u64 reaches Lending Readi
 machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
     let first: u64 = suspend choose(@token, true);
     let second: u64 = suspend choose(@token, false);
-    transition first == 73 && second == 73 { true -> first _ -> bad() }
+    transition first == 73 && second == 73 { true -> first, _ -> bad() }
     machine bad() -> u64 { crash Trap; }
 }
 machine main() reaches Lending Reading Observation suspends crashes Trap {
     let result: u64 = suspend entry(Token {});
-    transition result == 73 { true -> done() _ -> bad() }
+    transition result == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -19,13 +19,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 256];
     let result: LineReadResult = block Console::read_line(@mut bytes[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> parse(main, @bytes, count)
-        LineReadResult::EndOfInput { count } -> parse(main, @bytes, count)
+        LineReadResult::LineComplete { count } -> parse(main, @bytes, count),
+        LineReadResult::EndOfInput { count } -> parse(main, @bytes, count),
         _ -> malformed(main)
     }
     machine parse(main: @mut Main, bytes: @[u8; 256], count: u64) {
         transition count < bytes.len {
-            true -> decode(main, bytes[..count])
+            true -> decode(main, bytes[..count]),
             false -> malformed(main)
         }
     }
@@ -33,14 +33,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut input: TransportInput;
         let valid: bool = parse_transport(bytes, @mut input);
         transition valid {
-            true -> margins(main, @input)
+            true -> margins(main, @input),
             false -> malformed(main)
         }
     }
     machine margins(main: @mut Main, input: @TransportInput) {
         let valid: bool = valid_margins(input);
         transition valid {
-            true -> balanced(main, input)
+            true -> balanced(main, input),
             false -> malformed(main)
         }
     }
@@ -50,7 +50,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let demand: i32 in Wrapping = (input.values[3] as i32 in Wrapping)
             + (input.values[4] as i32 in Wrapping) + (input.values[5] as i32 in Wrapping);
         transition supply == demand {
-            true -> optimize(main, input)
+            true -> optimize(main, input),
             false -> infeasible(main, supply, demand)
         }
     }
@@ -58,7 +58,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut plan: TransportPlan;
         let found: bool = solve_transport(input, @mut plan);
         transition found {
-            true -> emit(main, @plan)
+            true -> emit(main, @plan),
             false -> internal_error(main)
         }
     }

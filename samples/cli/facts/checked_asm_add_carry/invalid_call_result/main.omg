@@ -17,7 +17,7 @@ machine capture() -> u64 ensures (result & 2261u64) == 85u64 {
 machine main() crashes Trap {
  let snapshot: u64 = capture();
  asm { observed requires (snapshot & 2261u64) == 85u64: nop }
- transition (snapshot & 2261u64) == 85u64 { true -> done() false -> bad() }
+ transition (snapshot & 2261u64) == 85u64 { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

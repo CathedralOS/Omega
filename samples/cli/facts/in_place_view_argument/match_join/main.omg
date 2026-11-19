@@ -5,7 +5,7 @@ data Input<'input> { tag: u8; bytes: @'input [u8]; tail: u8; }
 machine read_third<'input>(packet: Input<'input>) -> u8
 requires packet.bytes.len >= 4 {
     transition packet.tag == 5 && packet.tail == 9 {
-        true -> third(packet.bytes)
+        true -> third(packet.bytes),
         false -> zero()
     }
     machine third(bytes: @[u8]) -> u8 requires bytes.len >= 4 { bytes[2] }
@@ -17,7 +17,7 @@ machine choose(first: bool) -> u8 {
     let mut right: [u8; 4];
     right[2] = 31;
     read_third(match first {
-        true -> Input { tag: 5, bytes: @left, tail: 9 }
+        true -> Input { tag: 5, bytes: @left, tail: 9 },
         _ -> Input { tag: 5, bytes: @right, tail: 9 }
     })
 }
@@ -27,7 +27,7 @@ machine main() crashes Trap {
     let mut packet: [u8; 4];
     let other: u8 = read_third(Input { tag: 6, bytes: @packet, tail: 9 });
     transition third == 29 && second == 31 && other == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

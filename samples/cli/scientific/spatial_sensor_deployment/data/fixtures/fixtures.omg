@@ -1,4 +1,3 @@
-module data::fixtures;
 use domain::model;
 use domain::model::Problem;
 public machine load(problem: @mut Problem, variant: u64 in Wrapping) {
@@ -15,13 +14,13 @@ public machine load(problem: @mut Problem, variant: u64 in Wrapping) {
     problem.powers[0] = 1; problem.powers[1] = 2; problem.powers[2] = 4;
     problem.budget = 4; problem.minimum = 0;
     transition variant {
-        1 -> unreachable(problem)
-        2 -> tied(problem)
-        3 -> capacity(problem)
-        4 -> redundant(problem)
-        5 -> empty(problem)
-        6 -> threshold(problem)
-        7 -> boundary(problem)
+        1 -> unreachable(problem),
+        2 -> tied(problem),
+        3 -> capacity(problem),
+        4 -> redundant(problem),
+        5 -> empty(problem),
+        6 -> threshold(problem),
+        7 -> boundary(problem),
         _ -> done()
     }
     machine unreachable(problem: @mut Problem) { problem.minimum = 14; }

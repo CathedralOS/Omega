@@ -23,12 +23,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> block scenario(main, value)
+        ByteRead::Byte { value } -> block scenario(main, value),
         ByteRead::Eof -> invalid(main)
     }
     machine scenario(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 51 {
-            true -> block length_input(main, value - 48)
+            true -> block length_input(main, value - 48),
             false -> invalid(main)
         }
     }
@@ -36,14 +36,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.scenario = scenario;
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block length(main, value)
+            ByteRead::Byte { value } -> block length(main, value),
             ByteRead::Eof -> invalid(main)
         }
     }
     machine length(main: @mut Main, value: i32) {
         transition value {
-            49 -> block unit_length(main)
-            50 -> block double_length(main)
+            49 -> block unit_length(main),
+            50 -> block double_length(main),
             _ -> invalid(main)
         }
     }
@@ -58,20 +58,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine newline(main: @mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block check_newline(main, value)
+            ByteRead::Byte { value } -> block check_newline(main, value),
             ByteRead::Eof -> invalid(main)
         }
     }
     machine check_newline(main: @mut Main, value: i32) {
         transition value == 10 {
-            true -> block end_input(main)
+            true -> block end_input(main),
             false -> invalid(main)
         }
     }
     machine end_input(main: @mut Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Eof -> initialize(main)
+            ByteRead::Eof -> initialize(main),
             ByteRead::Byte { value } -> invalid(main)
         }
     }
@@ -80,9 +80,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.pendulum.vx = 0.0;
         main.pendulum.vy = 0.0;
         transition main.scenario {
-            0 -> equilibrium(main)
-            1 -> small_angle(main)
-            2 -> released(main)
+            0 -> equilibrium(main),
+            1 -> small_angle(main),
+            2 -> released(main),
             _ -> displaced(main)
         }
     }
@@ -134,7 +134,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         print_micro(main.pendulum.energy);
         Console::write_line("");
         transition main.step >= 0 && main.step < 32 {
-            true -> advance(main)
+            true -> advance(main),
             false -> finish(main)
         }
     }

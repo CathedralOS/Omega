@@ -1,4 +1,3 @@
-module domain::process;
 // Exact finite Markov evolution: transition rows contain integer quarters.
 // The absorbing row is (0,0,4). Distribution numerators share denominator.
 // At horizon <= 8 every intermediate is below 2^24, so Wrapping never wraps.
@@ -24,11 +23,11 @@ machine initialize(process: @mut Process, variant: u64 in Wrapping) {
     process.degraded_repairs = 0;
     process.degraded_stays = 2;
     transition variant {
-        1 -> repair(process)
-        2 -> unreachable(process)
-        3 -> absorbed(process)
-        4 -> deterministic(process)
-        5 -> degraded(process)
+        1 -> repair(process),
+        2 -> unreachable(process),
+        3 -> absorbed(process),
+        4 -> deterministic(process),
+        5 -> degraded(process),
         _ -> done()
     }
     machine repair(process: @mut Process) {

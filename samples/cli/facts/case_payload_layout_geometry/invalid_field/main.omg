@@ -13,12 +13,12 @@ data GeometryCarrier {
 
 machine main() crashes Trap {
     let carrier: GeometryCarrier = GeometryCarrier {
-        size: size_of<Packet>(),
-        align: align_of<Packet>(),
+        size: size_of::<Packet>(),
+        align: align_of::<Packet>(),
     };
     let diff: u64 = carrier.size - (carrier.align * 2u64);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

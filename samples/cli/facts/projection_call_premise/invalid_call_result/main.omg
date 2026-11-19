@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let mark: Mark = produced();
     let direct: bool = project(mark);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

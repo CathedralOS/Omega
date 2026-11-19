@@ -56,7 +56,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     transition { _ -> block frame_loop(main) }
 
     machine frame_loop(main: @mut Main) {
-        transition main.frame < 60 { true -> block frame_start(main) _ -> block finish(main) }
+        transition main.frame < 60 { true -> block frame_start(main), _ -> block finish(main) }
     }
     machine frame_start(main: @mut Main) {
         Console::write(@main.home[..]);
@@ -66,19 +66,19 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     // --- redraw the 30x16 grid one cell at a time, one row per write_line ---
     machine row_loop(main: @mut Main) {
-        transition main.y >= 0 && main.y < 16 { true -> block col_init(main) _ -> block after_frame(main) }
+        transition main.y >= 0 && main.y < 16 { true -> block col_init(main), _ -> block after_frame(main) }
     }
     machine col_init(main: @mut Main) {
         main.x = 0;
         transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 30 { true -> block cell(main) _ -> block emit_row(main) }
+        transition main.x >= 0 && main.x < 30 { true -> block cell(main), _ -> block emit_row(main) }
     }
     // Re-assert the row bound: the row_loop guard sits behind the col_loop
     // join, so the offset arithmetic needs `y` bounded on its own edge.
     machine cell(main: @mut Main) {
-        transition main.y >= 0 && main.y < 16 { true -> block offsets(main) _ -> block bad(main) }
+        transition main.y >= 0 && main.y < 16 { true -> block offsets(main), _ -> block bad(main) }
     }
     machine offsets(main: @mut Main) {
         main.dx = main.x - 15; // offset from centre column
@@ -88,14 +88,14 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // Each abs step's guard also carries the offset's lower bound (always true:
     // dx >= -15, dy >= -8) so the negation is exact.
     machine abs_dx(main: @mut Main) {
-        transition main.dx < 0 && main.dx >= -15 { true -> block neg_dx(main) _ -> block chk_dy(main) }
+        transition main.dx < 0 && main.dx >= -15 { true -> block neg_dx(main), _ -> block chk_dy(main) }
     }
     machine neg_dx(main: @mut Main) {
         main.dx = 0 - main.dx;
         transition { _ -> block chk_dy(main) }
     }
     machine chk_dy(main: @mut Main) {
-        transition main.dy < 0 && main.dy >= -8 { true -> block neg_dy(main) _ -> block level_bounds(main) }
+        transition main.dy < 0 && main.dy >= -8 { true -> block neg_dy(main), _ -> block level_bounds(main) }
     }
     machine neg_dy(main: @mut Main) {
         main.dy = 0 - main.dy;
@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     machine level_bounds(main: @mut Main) {
         transition main.dx >= 0 && main.dx <= 15 && main.dy >= 0 && main.dy <= 8
                 && main.frame >= 0 && main.frame < 60 {
-            true -> block level_calc(main)
+            true -> block level_calc(main),
             _ -> block bad(main)
         }
     }
@@ -122,7 +122,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         // Re-assert both indices right before the write so the prover carries them the
         // single hop into write_cell (the col_loop guard is too many states back).
         transition main.x >= 0 && main.x < 30 && main.level >= 0 && main.level < 8 {
-            true -> block write_cell(main)
+            true -> block write_cell(main),
             _ -> block bad(main)
         }
     }
@@ -137,7 +137,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // loop, so the else arm is unreachable).
     machine emit_row(main: @mut Main) {
         Console::write_line(@main.line[..]);
-        transition main.y < 16 { true -> block y_bump(main) _ -> block bad(main) }
+        transition main.y < 16 { true -> block y_bump(main), _ -> block bad(main) }
     }
     machine y_bump(main: @mut Main) {
         main.y = main.y + 1;
@@ -148,7 +148,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         block Clock::sleep(40);
         // re-guard so the increment's edge carries the frame bound (the keystone
         // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
-        transition main.frame < 60 { true -> block advance(main) _ -> block finish(main) }
+        transition main.frame < 60 { true -> block advance(main), _ -> block finish(main) }
     }
     machine advance(main: @mut Main) {
         main.frame = main.frame + 1;

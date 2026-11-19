@@ -17,17 +17,17 @@ requires value == 17
 machine main() crashes Trap {
     let decide: bool = true;
     let chosen: i64 = match decide {
-        true -> 17
+        true -> 17,
         false -> 5
     };
     let spare: i64 = 5;
     let joined: i64 = match choose() {
-        true -> chosen
+        true -> chosen,
         false -> spare
     };
     let observed: i64 = read_origin(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

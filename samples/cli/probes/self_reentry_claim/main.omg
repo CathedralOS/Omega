@@ -21,7 +21,7 @@ machine consume(receipt: Receipt) -> i32 {
 
 machine spin(receipt: Receipt, left: i32) -> i32 {
     transition left > 0 {
-        true -> spin(receipt, left - 1)
+        true -> spin(receipt, left - 1),
         _ -> finish(receipt)
     }
 
@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     let receipt: Receipt = Receipt { code: 7 };
     let total: i32 = spin(receipt, 3);
     transition total == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

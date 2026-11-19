@@ -1,5 +1,3 @@
-module integer;
-
 // Ordinary exact carrier queries. Static type equations select semantic
 // integer meanings; layouts, providers and arithmetic policies do not choose
 // these endpoints. Qualified and unsupported types do not satisfy the domain.
@@ -20,13 +18,13 @@ ensures
     (T == i64 && result == -0x8000_0000_0000_0000i64)
 {
     transition {
-        T == u8 -> (0u8)
-        T == u16 -> (0u16)
-        T == u32 -> (0u32)
-        T == u64 -> (0u64)
-        T == i8 -> (-0x80i8)
-        T == i16 -> (-0x8000i16)
-        T == i32 -> (-0x8000_0000i32)
+        T == u8 -> (0u8),
+        T == u16 -> (0u16),
+        T == u32 -> (0u32),
+        T == u64 -> (0u64),
+        T == i8 -> (-0x80i8),
+        T == i16 -> (-0x8000i16),
+        T == i32 -> (-0x8000_0000i32),
         _ -> (-0x8000_0000_0000_0000i64)
     }
 }
@@ -45,13 +43,13 @@ ensures
     (T == i64 && result == 0x7FFFFFFFFFFFFFFFi64)
 {
     transition {
-        T == u8 -> (0xFFu8)
-        T == u16 -> (0xFFFFu16)
-        T == u32 -> (0xFFFFFFFFu32)
-        T == u64 -> (0xFFFFFFFFFFFFFFFFu64)
-        T == i8 -> (0x7Fi8)
-        T == i16 -> (0x7FFFi16)
-        T == i32 -> (0x7FFFFFFFi32)
+        T == u8 -> (0xFFu8),
+        T == u16 -> (0xFFFFu16),
+        T == u32 -> (0xFFFFFFFFu32),
+        T == u64 -> (0xFFFFFFFFFFFFFFFFu64),
+        T == i8 -> (0x7Fi8),
+        T == i16 -> (0x7FFFi16),
+        T == i32 -> (0x7FFFFFFFi32),
         _ -> (0x7FFFFFFFFFFFFFFFi64)
     }
 }
@@ -70,13 +68,13 @@ ensures
     (T == i64 && result == 64u64)
 {
     transition {
-        T == u8 -> (8u64)
-        T == u16 -> (16u64)
-        T == u32 -> (32u64)
-        T == u64 -> (64u64)
-        T == i8 -> (8u64)
-        T == i16 -> (16u64)
-        T == i32 -> (32u64)
+        T == u8 -> (8u64),
+        T == u16 -> (16u64),
+        T == u32 -> (32u64),
+        T == u64 -> (64u64),
+        T == i8 -> (8u64),
+        T == i16 -> (16u64),
+        T == i32 -> (32u64),
         _ -> (64u64)
     }
 }
@@ -95,13 +93,13 @@ ensures
     (T == i64 && result == true)
 {
     transition {
-        T == u8 -> (false)
-        T == u16 -> (false)
-        T == u32 -> (false)
-        T == u64 -> (false)
-        T == i8 -> (true)
-        T == i16 -> (true)
-        T == i32 -> (true)
+        T == u8 -> (false),
+        T == u16 -> (false),
+        T == u32 -> (false),
+        T == u64 -> (false),
+        T == i8 -> (true),
+        T == i16 -> (true),
+        T == i32 -> (true),
         _ -> (true)
     }
 }
@@ -132,33 +130,33 @@ public machine carrier<T>() -> Carrier {
 // and states its result as the value that result denotes. A machine that
 // merely returns `true` establishes no carrier family.
 public machine is_integer<T>() -> bool
-ensures result == carrier<T>().integer
+ensures result == carrier::<T>().integer
 crashes none
 terminates
 {
-    carrier<T>().integer
+    carrier::<T>().integer
 }
 
 public machine is_signed_integer<T>() -> bool
-ensures result == (carrier<T>().integer && carrier<T>().signed)
+ensures result == (carrier::<T>().integer && carrier::<T>().signed)
 crashes none
 terminates
 {
-    carrier<T>().integer && carrier<T>().signed
+    carrier::<T>().integer && carrier::<T>().signed
 }
 
 public machine is_unsigned_integer<T>() -> bool
-ensures result == (carrier<T>().integer && !carrier<T>().signed)
+ensures result == (carrier::<T>().integer && !carrier::<T>().signed)
 crashes none
 terminates
 {
-    carrier<T>().integer && !carrier<T>().signed
+    carrier::<T>().integer && !carrier::<T>().signed
 }
 
 public machine is_fixed_width_integer<T>() -> bool
-ensures result == (carrier<T>().integer && carrier<T>().fixed_width)
+ensures result == (carrier::<T>().integer && carrier::<T>().fixed_width)
 crashes none
 terminates
 {
-    carrier<T>().integer && carrier<T>().fixed_width
+    carrier::<T>().integer && carrier::<T>().fixed_width
 }

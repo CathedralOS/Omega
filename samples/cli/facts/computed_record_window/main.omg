@@ -22,7 +22,7 @@ machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'sampl
 ensures result.len == 2
 {
     match which {
-        0 -> @mut samples[0..which + 2]
+        0 -> @mut samples[0..which + 2],
         _ -> @mut samples[2..4]
     }
 }
@@ -32,7 +32,7 @@ ensures result.len == 2
 {
     let index: i64 = which;
     match index {
-        0 -> @mut samples[0..index + 2]
+        0 -> @mut samples[0..index + 2],
         _ -> @mut samples[2..4]
     }
 }
@@ -41,7 +41,7 @@ machine window_field<'row>(holder: @'row mut Holder) -> @'row mut [f64]
 ensures result.len == 2
 {
     match holder.which {
-        0 -> @mut holder.samples[0..holder.which + 2]
+        0 -> @mut holder.samples[0..holder.which + 2],
         _ -> @mut holder.samples[2..4]
     }
 }
@@ -50,7 +50,7 @@ machine window_call<'samples>(samples: @'samples mut [f64; 4], which: i64) -> @'
 ensures result.len == 2
 {
     match which {
-        0 -> @mut samples[0..endpoint()]
+        0 -> @mut samples[0..endpoint()],
         _ -> @mut samples[2..4]
     }
 }
@@ -81,7 +81,7 @@ machine exercise_local() crashes Trap {
         let second: i32 in Saturating = I32::from_f64(samples[1]);
         let third: i32 in Saturating = I32::from_f64(samples[2]);
         transition first == 0 && second == 1 && third == 9 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }
@@ -102,7 +102,7 @@ machine exercise_field() crashes Trap {
         let second: i32 in Saturating = I32::from_f64(holder.samples[1]);
         let third: i32 in Saturating = I32::from_f64(holder.samples[2]);
         transition first == 0 && second == 1 && third == 9 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }
@@ -123,7 +123,7 @@ machine exercise_call() crashes Trap {
         let second: i32 in Saturating = I32::from_f64(samples[1]);
         let third: i32 in Saturating = I32::from_f64(samples[2]);
         transition first == 0 && second == 1 && third == 9 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }
@@ -141,7 +141,7 @@ machine main() crashes Trap {
     write_pair(leading.values);
     let span: u64 = leading.values.len;
     transition span == 2 {
-        true -> tail(@mut trace)
+        true -> tail(@mut trace),
         false -> bad()
     }
     machine tail(trace: @mut [f64; 4]) {
@@ -153,7 +153,7 @@ machine main() crashes Trap {
         let third: i32 in Saturating = I32::from_f64(trace[2]);
         let fourth: i32 in Saturating = I32::from_f64(trace[3]);
         transition first == 0 && second == 1 && third == 0 && fourth == 1 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

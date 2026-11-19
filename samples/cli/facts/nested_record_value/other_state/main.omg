@@ -38,7 +38,7 @@ machine main() crashes Trap {
     };
     let sum: u64 = probe(envelope);
     transition envelope.header.tag == 7 && sum == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -2,8 +2,6 @@
 // `hi` at byte 0, and returns byte 8, so the result is 42 only when the policy
 // ran for the target that chose it. `OverlappingMeasure` uses a policy that
 // places both fields at offset 0, which layout validation refuses.
-module main;
-
 use omega::language::core::FieldEntry;
 use omega::language::core::FieldPlan;
 use omega::language::core::FixedLayout;

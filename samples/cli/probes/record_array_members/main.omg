@@ -30,7 +30,7 @@ machine Main::main(main: @mut Main) {
     transition main.packet.samples[3] == -2
         && main.pair.right[1] == 4
         && main.grid.cells[1][0] == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

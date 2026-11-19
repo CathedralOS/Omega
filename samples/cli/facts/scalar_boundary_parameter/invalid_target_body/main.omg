@@ -17,7 +17,7 @@ TargetSubtractCode satisfies TargetSubtract {
 machine main() reaches Consume, TargetSubtract crashes Trap {
     let difference: u64 = TargetSubtract::target_subtract(issue(START));
     let second_difference: u64 = TargetSubtract::target_subtract(issue(101));
-    transition difference == 0 && second_difference == 1 { true -> done() _ -> wrong() }
+    transition difference == 0 && second_difference == 1 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

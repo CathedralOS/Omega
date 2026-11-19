@@ -16,7 +16,7 @@ requires other in Slot::Present
 requires visits == 0
 {
     let selected: @mut i64 = match choose(visits) {
-        true -> @mut chosen.value
+        true -> @mut chosen.value,
         false -> @mut other.value
     };
     selected = 41;
@@ -37,7 +37,7 @@ machine main() crashes Trap {
     let mut visits: u64 = 0;
     let observed: i64 = forward(@mut chosen, @mut other, @mut visits);
     transition observed == 41 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

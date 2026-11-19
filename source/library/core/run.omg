@@ -30,7 +30,7 @@ public machine Run::release_empty<P, T>(run: Run<P, T> in Live<P, T>)
 requires run.count == 0, run.storage.length == 0
 ensures result.base == run.storage.base, result.length == run.storage.length
 {
-    Run::retire_empty<P, T>(run)
+    Run::retire_empty::<P, T>(run)
 }
 
 boundary machine Run::retire_empty<P, T>(run: Run<P, T> in Live<P, T>)
@@ -57,10 +57,10 @@ ensures (match result {
     AccessOutcome::Rejected { returned, reason } -> returned.source.base == storage.base && returned.source.length == storage.length,
 })
 {
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
+    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(
         @storage as @Extent in Granted
     );
-    Run::initialize_from_profile<P, T, Role>(storage, value, @profile)
+    Run::initialize_from_profile::<P, T, Role>(storage, value, @profile)
 }
 
 public machine Run::extract_cell<P, T, Role>(run: Run<P, T> in Live<P, T>)
@@ -72,8 +72,8 @@ ensures (match result {
     AccessExtraction::Moved { storage, value } -> storage.base == run.storage.base && storage.length == run.storage.length,
 })
 {
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(@run.storage);
-    Run::extract_from_profile<P, T, Role>(run, @profile)
+    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(@run.storage);
+    Run::extract_from_profile::<P, T, Role>(run, @profile)
 }
 
 // The compiler realizes these exact declarations. The ordinary wrappers select
@@ -119,11 +119,11 @@ ensures (match result {
         returned.custody.base == destination.base && returned.custody.length == destination.length,
 })
 {
-    let source_profile: ResourceProfile = ResourceProfileSupply<SourceRole>::profile(@run.storage);
-    let destination_profile: ResourceProfile = ResourceProfileSupply<DestinationRole>::profile(
+    let source_profile: ResourceProfile = ResourceProfileSupply::<SourceRole>::profile(@run.storage);
+    let destination_profile: ResourceProfile = ResourceProfileSupply::<DestinationRole>::profile(
         @destination as @Extent in Granted
     );
-    Run::relocate_from_profiles<P, T, SourceRole, DestinationRole>(
+    Run::relocate_from_profiles::<P, T, SourceRole, DestinationRole>(
         run, destination, @source_profile, @destination_profile
     )
 }

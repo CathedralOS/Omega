@@ -47,7 +47,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     // arr[i] = i, so the value `target` sits at index `target`
     machine init_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 31 { true -> block init_cell(main) _ -> block setup(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block init_cell(main), _ -> block setup(main) }
     }
     machine init_cell(main: @mut Main) {
         main.arr[main.x] = main.x;
@@ -62,14 +62,14 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     }
 
     machine search(main: @mut Main) {
-        transition main.lo <= main.hi { true -> block mid_calc(main) _ -> not_found(main) }
+        transition main.lo <= main.hi { true -> block mid_calc(main), _ -> not_found(main) }
     }
     machine mid_calc(main: @mut Main) {
         // The min/max clamps are the identity for the search's real values
         // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
         // the fold provable bounds, so the midpoint math is Exact -- no domain.
         main.mid = (min_i32(max_i32(main.lo, 0), 31) + min_i32(max_i32(main.hi, 0 - 1), 30)) / 2;
-        transition main.mid >= 0 && main.mid < 31 { true -> block render_init(main) _ -> bad(main) }
+        transition main.mid >= 0 && main.mid < 31 { true -> block render_init(main), _ -> bad(main) }
     }
 
     // --- render one row: priority mid '#' > target '*' > range '-' > excluded ' ' ---
@@ -78,27 +78,27 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block render_loop(main) }
     }
     machine render_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 31 { true -> block cell(main) _ -> block emit(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block cell(main), _ -> block emit(main) }
     }
     machine cell(main: @mut Main) {
-        transition main.x == main.mid { true -> block kind_mid(main) _ -> block chk_target(main) }
+        transition main.x == main.mid { true -> block kind_mid(main), _ -> block chk_target(main) }
     }
     machine chk_target(main: @mut Main) {
-        transition main.x == main.target { true -> block kind_target(main) _ -> block chk_range(main) }
+        transition main.x == main.target { true -> block kind_target(main), _ -> block chk_range(main) }
     }
     machine chk_range(main: @mut Main) {
-        transition main.lo <= main.x && main.x <= main.hi { true -> block kind_range(main) _ -> block kind_none(main) }
+        transition main.lo <= main.x && main.x <= main.hi { true -> block kind_range(main), _ -> block kind_none(main) }
     }
     machine kind_mid(main: @mut Main) { main.kind = 3; transition { _ -> block put_cell(main) } }
     machine kind_target(main: @mut Main) { main.kind = 2; transition { _ -> block put_cell(main) } }
     machine kind_range(main: @mut Main) { main.kind = 1; transition { _ -> block put_cell(main) } }
     machine kind_none(main: @mut Main) { main.kind = 0; transition { _ -> block put_cell(main) } }
     machine put_cell(main: @mut Main) {
-        transition main.kind >= 0 && main.kind < 4 { true -> block glyph_lookup(main) _ -> bad(main) }
+        transition main.kind >= 0 && main.kind < 4 { true -> block glyph_lookup(main), _ -> bad(main) }
     }
     machine glyph_lookup(main: @mut Main) {
         main.glyph = main.chars[main.kind];
-        transition main.x >= 0 && main.x < 31 { true -> block emit_cell(main) _ -> bad(main) }
+        transition main.x >= 0 && main.x < 31 { true -> block emit_cell(main), _ -> bad(main) }
     }
     machine emit_cell(main: @mut Main) {
         main.line[main.x] = main.glyph;
@@ -113,14 +113,14 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     // --- the actual binary search step (reads arr[mid]) ---
     machine probe(main: @mut Main) {
-        transition main.mid >= 0 && main.mid < 31 { true -> block probe_read(main) _ -> bad(main) }
+        transition main.mid >= 0 && main.mid < 31 { true -> block probe_read(main), _ -> bad(main) }
     }
     machine probe_read(main: @mut Main) {
         main.vmid = main.arr[main.mid];
-        transition main.vmid == main.target { true -> block finish(main) _ -> block narrow(main) }
+        transition main.vmid == main.target { true -> block finish(main), _ -> block narrow(main) }
     }
     machine narrow(main: @mut Main) {
-        transition main.vmid < main.target { true -> block go_right(main) _ -> block go_left(main) }
+        transition main.vmid < main.target { true -> block go_right(main), _ -> block go_left(main) }
     }
     // The clamp on `mid` is the identity (mid is always in [0,30] here) and
     // bounds the +1 / -1 folds, keeping the narrowing steps Exact.

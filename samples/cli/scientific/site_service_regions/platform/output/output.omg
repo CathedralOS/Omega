@@ -1,4 +1,3 @@
-module platform::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
@@ -11,21 +10,21 @@ public machine integer(value: i64 in Saturating) reaches ProcessExit + Console
 invokes Console
 {
     let mut output: Digits;
-    transition value < 0 { true -> negative(value, @mut output) false -> collect(value, @mut output) }
+    transition value < 0 { true -> negative(value, @mut output), false -> collect(value, @mut output) }
     machine negative(value: i64 in Saturating, output: @mut Digits) {
         Console::write("-");
         transition { _ -> collect(value, output) }
     }
     machine collect(value: i64 in Saturating, output: @mut Digits) {
         transition output.count < 20 {
-            true -> remainder(value, output, value % 10)
+            true -> remainder(value, output, value % 10),
             false -> failed()
         }
     }
     machine remainder(value: i64 in Saturating, output: @mut Digits, digit: i64 in Saturating)
     {
         transition digit < 0 {
-            true -> store(value, output, 0 - digit)
+            true -> store(value, output, 0 - digit),
             false -> store(value, output, digit)
         }
     }
@@ -33,7 +32,7 @@ invokes Console
     {
         let count: u64 = output.count;
         transition count < 20 && digit >= 0 && digit <= 9 {
-            true -> write_stored(value, output, digit, count)
+            true -> write_stored(value, output, digit, count),
             false -> failed()
         }
     }
@@ -43,13 +42,13 @@ invokes Console
         output.bytes[index] = (digit + 48) as i32;
         output.count = index + 1;
         transition value / 10 == 0 {
-            true -> emit_digits(output, output.count)
+            true -> emit_digits(output, output.count),
             false -> collect(value / 10, output)
         }
     }
     machine emit_digits(output: @Digits, count: u64) {
         transition count > 0 && count <= 20 {
-            true -> write_digit(output, count - 1)
+            true -> write_digit(output, count - 1),
             false -> done()
         }
     }
@@ -67,7 +66,7 @@ invokes Console
 public machine micro(value: f64) reaches ProcessExit + Console
 invokes Console
 {
-    transition value < 0.0 { true -> negative(value) false -> positive(value) }
+    transition value < 0.0 { true -> negative(value), false -> positive(value) }
     machine negative(value: f64) {
         Console::write("-");
         let rounded: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
@@ -85,7 +84,7 @@ invokes Console
     transition { _ -> cell(partition, 0) }
     machine cell(partition: @Partition, owner: u64) {
         transition owner < partition.site_count && owner < 8 {
-            true -> header(partition, owner)
+            true -> header(partition, owner),
             false -> finish(partition)
         }
     }
@@ -100,7 +99,7 @@ invokes Console
     requires owner < 8
     {
         transition index < partition.cells[owner].count && index < 32 {
-            true -> coordinate(partition, owner, index)
+            true -> coordinate(partition, owner, index),
             false -> adjacent(partition, owner, 0)
         }
     }
@@ -115,7 +114,7 @@ invokes Console
     requires owner < 8
     {
         transition rival < partition.site_count && rival < 8 {
-            true -> relation(partition, owner, rival)
+            true -> relation(partition, owner, rival),
             false -> checked(partition, owner)
         }
     }
@@ -123,7 +122,7 @@ invokes Console
     requires owner < 8 && rival < 8
     {
         transition partition.adjacency[owner * 8 + rival] && rival != owner {
-            true -> connected(partition, owner, rival)
+            true -> connected(partition, owner, rival),
             false -> adjacent(partition, owner, rival + 1)
         }
     }

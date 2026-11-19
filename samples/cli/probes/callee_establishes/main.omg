@@ -31,7 +31,7 @@ machine Main::main(main: @mut Main) {
     let champion: Player = Main::recruit(50);
     let power: i32 = champion.health;
     transition power == 50 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

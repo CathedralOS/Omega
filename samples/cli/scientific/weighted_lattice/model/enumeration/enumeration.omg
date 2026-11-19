@@ -1,4 +1,3 @@
-module model::enumeration;
 // Private IND12 model. Trapping arithmetic remains observable if its documented
 // bound is ever violated; no silent wrap or floating-point accumulation.
 public data Lattice {
@@ -17,13 +16,13 @@ public machine enumerate(lattice: @mut Lattice) {
     transition { _ -> capacity(lattice, 0, 1) }
     machine capacity(lattice: @mut Lattice, position: u64, count: u64 in Trapping) {
         transition position < lattice.sites {
-            true -> capacity(lattice, position + 1, count * 2)
+            true -> capacity(lattice, position + 1, count * 2),
             false -> configuration(lattice, 0, count)
         }
     }
     machine configuration(lattice: @mut Lattice, code: u64 in Trapping, count: u64 in Trapping) {
         transition code < count {
-            true -> vertex(lattice, code, count, 0, 1, 0, 0, 0, 1)
+            true -> vertex(lattice, code, count, 0, 1, 0, 0, 0, 1),
             false -> done()
         }
     }
@@ -31,7 +30,7 @@ public machine enumerate(lattice: @mut Lattice) {
                  position: u64, divisor: u64 in Trapping, occupied: u64 in Trapping,
                  previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         transition position < lattice.sites {
-            true -> observe(lattice, code, count, position, divisor, occupied, previous, first, weight)
+            true -> observe(lattice, code, count, position, divisor, occupied, previous, first, weight),
             false -> close(lattice, code, count, occupied, previous, first, weight)
         }
     }
@@ -40,7 +39,7 @@ public machine enumerate(lattice: @mut Lattice) {
                   previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         let bit: u64 in Trapping = code / divisor % 2;
         transition position == 0 {
-            true -> weigh(lattice, code, count, position, divisor, occupied, previous, bit, weight, bit)
+            true -> weigh(lattice, code, count, position, divisor, occupied, previous, bit, weight, bit),
             false -> weigh(lattice, code, count, position, divisor, occupied, previous, first, weight, bit)
         }
     }
@@ -50,7 +49,7 @@ public machine enumerate(lattice: @mut Lattice) {
                 bit: u64 in Trapping) {
         let active_weight: u64 in Trapping = weight * lattice.activity;
         transition bit == 1 {
-            true -> active(lattice, code, count, position, divisor, occupied, previous, first, active_weight)
+            true -> active(lattice, code, count, position, divisor, occupied, previous, first, active_weight),
             false -> vertex(lattice, code, count, position + 1, divisor * 2, occupied, 0, first, weight)
         }
     }
@@ -59,7 +58,7 @@ public machine enumerate(lattice: @mut Lattice) {
                  previous: u64 in Trapping, first: u64 in Trapping, weight: u64 in Trapping) {
         let bonded_weight: u64 in Trapping = weight * lattice.bond;
         transition previous == 1 {
-            true -> vertex(lattice, code, count, position + 1, divisor * 2, occupied + 1, 1, first, bonded_weight)
+            true -> vertex(lattice, code, count, position + 1, divisor * 2, occupied + 1, 1, first, bonded_weight),
             false -> vertex(lattice, code, count, position + 1, divisor * 2, occupied + 1, 1, first, weight)
         }
     }
@@ -68,7 +67,7 @@ public machine enumerate(lattice: @mut Lattice) {
                 weight: u64 in Trapping) {
         let closed_weight: u64 in Trapping = weight * lattice.bond;
         transition lattice.periodic && previous == 1 && first == 1 {
-            true -> accumulate(lattice, code, count, occupied, closed_weight)
+            true -> accumulate(lattice, code, count, occupied, closed_weight),
             false -> accumulate(lattice, code, count, occupied, weight)
         }
     }
@@ -79,7 +78,7 @@ public machine enumerate(lattice: @mut Lattice) {
         lattice.first = lattice.first + weight * occupied;
         lattice.second = lattice.second + weight * occupied * occupied;
         transition (occupied as u64) < 9 {
-            true -> histogram(lattice, code, count, occupied as u64, weight)
+            true -> histogram(lattice, code, count, occupied as u64, weight),
             false -> done()
         }
     }

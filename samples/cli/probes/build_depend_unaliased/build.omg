@@ -14,7 +14,7 @@ suspends
     suspend Build::prepare_dependency(builder, dependency_registration_2);
     let observed: i32 = custody_kernel::seed();
     transition observed == 3 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {

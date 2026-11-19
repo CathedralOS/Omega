@@ -48,11 +48,11 @@ LocalMap satisfies LocalEntry {
 }
 machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
     transition signature.parameter_count == 0 && signature.has_result {
-        true -> select_result(signature, signature.result, allow_vectors, width, convention, register, regime, shadow)
+        true -> select_result(signature, signature.result, allow_vectors, width, convention, register, regime, shadow),
         _ -> reject()
     }
     machine select_result(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
-        transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow) _ -> reject() }
+        transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow), _ -> reject() }
     }
     machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
@@ -94,7 +94,7 @@ data Carrier [copy] { before: u64; value: u64; after: u64; }
 machine main() reaches LocalEntry crashes Trap {
     let carrier: Carrier = Carrier { before: 17, value: LocalEntry::value(), after: 23 };
     let value: u64 = carrier.value;
-    transition carrier.before == 17 && value == 42 && carrier.after == 23 { true -> done() _ -> bad() }
+    transition carrier.before == 17 && value == 42 && carrier.after == 23 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

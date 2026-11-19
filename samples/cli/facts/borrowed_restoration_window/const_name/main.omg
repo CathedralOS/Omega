@@ -17,7 +17,7 @@ machine main() crashes Trap {
     write_cell(@mut cell);
     let val: u64 = cell.value;
     transition val >= TARGET && val <= TARGET {
-        true -> done(val)
+        true -> done(val),
         _ -> bad()
     }
     machine done(v: u64) {

@@ -18,20 +18,20 @@ requires place.kept == 17
 
 machine main() crashes Trap {
     let chosen: Pair = match true {
-        true -> Pair { kept: 17, other: 5 }
+        true -> Pair { kept: 17, other: 5 },
         false -> Pair { kept: 17, other: 5 }
     };
     let spare: Pair = match true {
-        true -> Pair { kept: 0, other: 8 }
+        true -> Pair { kept: 0, other: 8 },
         false -> Pair { kept: 0, other: 8 }
     };
     let joined: @Pair = match choose() {
-        true -> @chosen
+        true -> @chosen,
         false -> @spare
     };
     let observed: i64 = read_field(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

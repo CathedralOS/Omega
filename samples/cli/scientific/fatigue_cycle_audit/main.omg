@@ -22,7 +22,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     block read(@mut main.input);
     validate(@mut main.input);
     transition main.input.valid {
-        true -> calculate(main)
+        true -> calculate(main),
         false -> invalid(main)
     }
     machine calculate(main: @mut Main) {

@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let buckets: [u8; 4] = [7, 8, 9, 6];
     transition pick(10, @buckets[..], true) == 9 && pick(10, @buckets[..], false) == 9
         && pick(15, @buckets[..], true) == 6 && pick(15, @buckets[..], false) == 6 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

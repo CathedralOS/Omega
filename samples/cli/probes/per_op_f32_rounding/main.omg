@@ -24,7 +24,7 @@ machine Main::main(main: @mut Main) {
     main.value = 16777216.0;
     main.hits = 0;
     transition main.value == (16777216.0f32 + 1.0f32 + 1.0f32) {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

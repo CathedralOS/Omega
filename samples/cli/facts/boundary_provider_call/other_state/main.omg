@@ -15,7 +15,7 @@ machine main() reaches Provider crashes Trap {
     machine evaluate(val: u64) requires val >= 100u64 && val <= 100u64 {
         let diff: u64 = val - 100u64;
         transition diff == 0u64 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

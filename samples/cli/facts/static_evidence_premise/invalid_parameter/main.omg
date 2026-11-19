@@ -38,13 +38,13 @@ requires direct == true
 machine observe(kept: bool) -> bool
 requires kept == true
 {
-    project<NoKept>(kept)
+    project::<NoKept>(kept)
 }
 
 machine main() crashes Trap {
     let direct: bool = observe(true);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

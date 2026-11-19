@@ -27,7 +27,7 @@ machine ent_less(left: @u64, right: @u64) -> bool {
 machine push_heap<T [copy], machine Less>(h: @mut Heap<T>, value: @T)
 requires machine Less(left: @T, right: @T) -> bool;
 {
-    transition h.len < 16 { true -> place(h, value, h.len) _ -> full(h) }
+    transition h.len < 16 { true -> place(h, value, h.len), _ -> full(h) }
     machine place(h: @mut Heap<T>, value: @T, at: u64)
         requires at < 16
     {
@@ -41,7 +41,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     {
         let parent: u64 = at / 2;
         transition at > 0 && Less(@h.items[at], @h.items[parent]) {
-            true -> sift(h, at, parent)
+            true -> sift(h, at, parent),
             _ -> {}
         }
     }
@@ -63,7 +63,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     requires h.len >= 1
     requires h.len <= 16
 {
-    transition h.len >= 2 { true -> lift(h, root) _ -> take(h, root) }
+    transition h.len >= 2 { true -> lift(h, root), _ -> take(h, root) }
     machine take(h: @mut Heap<T>, root: @mut Popped<T>)
         requires h.len >= 1
     {
@@ -81,7 +81,7 @@ requires machine Less(left: @T, right: @T) -> bool;
         let moved: T = h.items[n];
         h.items[0] = moved;
         transition n >= 1 && n <= 15 {
-            true -> sink(h, 0, n)
+            true -> sink(h, 0, n),
             _ -> finish(h, n)
         }
     }
@@ -91,7 +91,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     {
         let left: u64 = at * 2 + 1;
         transition left < n {
-            true -> right_child(h, at, left, n)
+            true -> right_child(h, at, left, n),
             _ -> finish(h, n)
         }
     }
@@ -102,7 +102,7 @@ requires machine Less(left: @T, right: @T) -> bool;
     {
         let right: u64 = left + 1;
         transition right < n && Less(@h.items[right], @h.items[left]) {
-            true -> maybe(h, at, right, n)
+            true -> maybe(h, at, right, n),
             _ -> maybe(h, at, left, n)
         }
     }
@@ -112,7 +112,7 @@ requires machine Less(left: @T, right: @T) -> bool;
         requires n <= 16
     {
         transition Less(@h.items[child], @h.items[at]) {
-            true -> swap(h, at, child, n)
+            true -> swap(h, at, child, n),
             _ -> finish(h, n)
         }
     }
@@ -161,7 +161,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires i <= 12
     {
         transition i < 12 {
-            true -> wipe(main, i)
+            true -> wipe(main, i),
             _ -> boot(main)
         }
     }
@@ -175,12 +175,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     machine boot(main: @mut Main) {
         main.dist[0] = 0;
         let e: u64 = 0;
-        push_heap<ent_less>(@mut main.heap, @e);
+        push_heap::<ent_less>(@mut main.heap, @e);
         transition { _ -> step(main) }
     }
     machine step(main: @mut Main) {
         transition main.heap.len >= 1 && main.heap.len <= 16 {
-            true -> take(main)
+            true -> take(main),
             _ -> score(main, 0, 0)
         }
     }
@@ -189,11 +189,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires main.heap.len <= 16
     {
         let mut popped: Popped<u64> = Popped { value: 0 };
-        pop_heap<ent_less>(@mut main.heap, @mut popped);
+        pop_heap::<ent_less>(@mut main.heap, @mut popped);
         let node: u64 = popped.value % 256;
         let nd: u64 = popped.value / 256;
         transition node < 12 && nd <= 1000000 && nd <= main.dist[node] {
-            true -> edges(main, node, nd)
+            true -> edges(main, node, nd),
             _ -> step(main)
         }
     }
@@ -204,7 +204,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let first: u64 = main.graph.off[v];
         let after: u64 = main.graph.off[v + 1];
         transition first <= after && after <= 18 {
-            true -> relax(main, v, vd, first, after)
+            true -> relax(main, v, vd, first, after),
             _ -> step(main)
         }
     }
@@ -215,7 +215,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires after <= 18
     {
         transition edge < after {
-            true -> visit(main, v, vd, edge, after)
+            true -> visit(main, v, vd, edge, after),
             _ -> step(main)
         }
     }
@@ -227,7 +227,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     {
         let w: u64 = main.graph.wgt[edge];
         transition w <= 1000000 {
-            true -> weigh(main, v, vd, w, edge, after)
+            true -> weigh(main, v, vd, w, edge, after),
             _ -> bad(main)
         }
     }
@@ -241,7 +241,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let to: u64 = main.graph.dst[edge];
         let nd: u64 = vd + w;
         transition to < 12 && nd < main.dist[to] {
-            true -> improve(main, to, nd, v, edge, after, vd)
+            true -> improve(main, to, nd, v, edge, after, vd),
             _ -> relax(main, v, vd, edge + 1, after)
         }
     }
@@ -256,7 +256,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         main.dist[to] = nd;
         main.prev[to] = v;
         let e: u64 = nd * 256 + to;
-        push_heap<ent_less>(@mut main.heap, @e);
+        push_heap::<ent_less>(@mut main.heap, @e);
         transition { _ -> relax(main, v, vd, edge + 1, after) }
     }
     machine score(main: @mut Main, i: u64, sum: u64)
@@ -264,7 +264,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires sum <= i * 1000000
     {
         transition i < 12 {
-            true -> gather(main, i, sum)
+            true -> gather(main, i, sum),
             _ -> walk_prev(main, 11, 0, sum)
         }
     }
@@ -274,7 +274,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     {
         let d: u64 = main.dist[i];
         transition d <= 1000000 {
-            true -> add(main, i, sum, d)
+            true -> add(main, i, sum, d),
             _ -> bad(main)
         }
     }
@@ -290,7 +290,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires hops <= 12
     {
         transition at == 0 || hops == 12 {
-            true -> done(main, sum, hops)
+            true -> done(main, sum, hops),
             _ -> bound_at(main, at, hops, sum)
         }
     }
@@ -299,7 +299,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         requires hops < 12
     {
         transition at >= 1 && at < 12 {
-            true -> climb(main, at, hops, sum)
+            true -> climb(main, at, hops, sum),
             _ -> bad(main)
         }
     }
@@ -309,13 +309,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     {
         let nxt: u64 = main.prev[at];
         transition nxt <= 12 {
-            true -> walk_prev(main, nxt, hops + 1, sum)
+            true -> walk_prev(main, nxt, hops + 1, sum),
             _ -> bad(main)
         }
     }
     machine done(main: @mut Main, sum: u64, hops: u64) {
         transition sum == 150 && hops == 4 {
-            true -> good(main, sum + hops)
+            true -> good(main, sum + hops),
             _ -> bad(main)
         }
     }

@@ -1,4 +1,3 @@
-module domain::orbit;
 use omega::language::core::F64::square_root;
 
 // Velocity Verlet keeps the central-force angular momentum. Each drift segment
@@ -36,13 +35,13 @@ public machine step(orbit: @mut Orbit) {
     let dy: f64 = orbit.timestep * half_vy;
     let length_squared: f64 = dx * dx + dy * dy;
     transition length_squared > 0.0 {
-        true -> segment(orbit, half_vx, half_vy, dx, dy, length_squared)
+        true -> segment(orbit, half_vx, half_vy, dx, dy, length_squared),
         false -> finish(orbit, half_vx, half_vy, dx, dy)
     }
     machine segment(orbit: @mut Orbit, half_vx: f64, half_vy: f64, dx: f64, dy: f64, length_squared: f64) {
         let fraction: f64 = (0.0 - orbit.x * dx - orbit.y * dy) / length_squared;
         transition fraction > 0.0 && fraction < 1.0 {
-            true -> closest(orbit, half_vx, half_vy, dx, dy, fraction)
+            true -> closest(orbit, half_vx, half_vy, dx, dy, fraction),
             false -> finish(orbit, half_vx, half_vy, dx, dy)
         }
     }
@@ -50,7 +49,7 @@ public machine step(orbit: @mut Orbit) {
         let x: f64 = orbit.x + fraction * dx;
         let y: f64 = orbit.y + fraction * dy;
         transition x * x + y * y <= 0.000000000001 {
-            true -> collision(orbit)
+            true -> collision(orbit),
             false -> finish(orbit, half_vx, half_vy, dx, dy)
         }
     }
@@ -59,7 +58,7 @@ public machine step(orbit: @mut Orbit) {
         let y: f64 = orbit.y + dy;
         let radius_squared: f64 = x * x + y * y;
         transition radius_squared > 0.000000000001 {
-            true -> kick(orbit, half_vx, half_vy, x, y, radius_squared)
+            true -> kick(orbit, half_vx, half_vy, x, y, radius_squared),
             false -> collision(orbit)
         }
     }
@@ -71,7 +70,7 @@ public machine step(orbit: @mut Orbit) {
         orbit.vy = half_vy + 0.5 * orbit.timestep * factor * y;
         diagnostics(orbit);
         transition orbit.previous_radial < 0.0 && orbit.radial >= 0.0 {
-            true -> event(orbit) false -> done()
+            true -> event(orbit), false -> done()
         }
     }
     machine event(orbit: @mut Orbit) {

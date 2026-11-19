@@ -9,7 +9,7 @@ requires items.len == LENGTH && LENGTH > 0
 }
 machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
-    transition last_byte(@items[0..3]) == 8 { true -> done() _ -> bad() }
+    transition last_byte(@items[0..3]) == 8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

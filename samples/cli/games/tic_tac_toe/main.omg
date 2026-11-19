@@ -50,28 +50,28 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify move count is 5.
     transition main.board.move_count == 5 {
-        true -> block check_winner(main)
+        true -> block check_winner(main),
         _ -> block bad_count(main)
     }
 
     machine check_winner(main: @mut Main) {
         // Check top row: cells 0, 1, 2 all == 1 means X won.
         transition main.board.cells[0] == 1 {
-            true -> block check_row_mid(main)
+            true -> block check_row_mid(main),
             _ -> block bad_winner(main)
         }
     }
 
     machine check_row_mid(main: @mut Main) {
         transition main.board.cells[1] == 1 {
-            true -> block check_row_right(main)
+            true -> block check_row_right(main),
             _ -> block bad_winner(main)
         }
     }
 
     machine check_row_right(main: @mut Main) {
         transition main.board.cells[2] == 1 {
-            true -> block check_o_did_not_win(main)
+            true -> block check_o_did_not_win(main),
             _ -> block bad_winner(main)
         }
     }
@@ -80,7 +80,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         // Verify O did not somehow win: board[3] and board[4] are O's but
         // board[5] is empty (0), so O's middle row is incomplete.
         transition main.board.cells[5] == 0 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_winner(main)
         }
     }
@@ -111,7 +111,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 machine play(main: @mut Main, cell: i32, player: i32) {
     main.board.move_count = (main.board.move_count + 1) % 10;
     transition cell == 0 {
-        true -> set0(main, player)
+        true -> set0(main, player),
         _ -> try_cell1(main, cell, player)
     }
 
@@ -121,7 +121,7 @@ machine play(main: @mut Main, cell: i32, player: i32) {
 
     machine try_cell1(main: @mut Main, cell: i32, player: i32) {
         transition cell == 1 {
-            true -> set1(main, player)
+            true -> set1(main, player),
             _ -> try_cell2(main, cell, player)
         }
     }
@@ -132,7 +132,7 @@ machine play(main: @mut Main, cell: i32, player: i32) {
 
     machine try_cell2(main: @mut Main, cell: i32, player: i32) {
         transition cell == 2 {
-            true -> set2(main, player)
+            true -> set2(main, player),
             _ -> try_cell3(main, cell, player)
         }
     }
@@ -143,7 +143,7 @@ machine play(main: @mut Main, cell: i32, player: i32) {
 
     machine try_cell3(main: @mut Main, cell: i32, player: i32) {
         transition cell == 3 {
-            true -> set3(main, player)
+            true -> set3(main, player),
             _ -> try_cell4(main, cell, player)
         }
     }
@@ -154,7 +154,7 @@ machine play(main: @mut Main, cell: i32, player: i32) {
 
     machine try_cell4(main: @mut Main, cell: i32, player: i32) {
         transition cell == 4 {
-            true -> set4(main, player)
+            true -> set4(main, player),
             _ -> done(main)
         }
     }

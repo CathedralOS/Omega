@@ -40,7 +40,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let picked: u64 = Registrar::pick(6);
     transition picked == 6 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

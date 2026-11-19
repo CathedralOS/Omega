@@ -4,7 +4,7 @@ const FIRST: i32 = 7;
 const SECOND: i32 = 256;
 machine probe(select: bool) -> Note {
     transition select {
-        true -> apply(FIRST, select)
+        true -> apply(FIRST, select),
         false -> apply(SECOND, select)
     }
     machine apply(value: i32, select: bool) -> Note {
@@ -16,6 +16,6 @@ machine probe(select: bool) -> Note {
 machine main() crashes Trap {
     let first: Note = probe(true);
     let second: Note = probe(false);
-    transition first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 { true -> done() false -> bad() }
+    transition first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 { true -> done(), false -> bad() }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

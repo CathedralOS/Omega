@@ -15,7 +15,7 @@ machine Main::main(main: @mut Main) {
     }
     machine done(main: @mut Main, value: bool) {
         transition value == true {
-            true -> good(main)
+            true -> good(main),
             _ -> bad(main)
         }
     }

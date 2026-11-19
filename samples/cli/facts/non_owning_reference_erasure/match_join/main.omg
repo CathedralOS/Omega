@@ -13,12 +13,12 @@ machine main() crashes Trap {
     let mut storage: Storage in Issued = issue(0);
     let mut spare: Storage in Issued = issue(0);
     write(@write storage, @write spare, true);
-    transition storage.value == 73 && storage.left_canary == 17 && storage.right_canary == 23 && spare.value == 0 && spare.left_canary == 17 && spare.right_canary == 23 { true -> second_round() _ -> bad() }
+    transition storage.value == 73 && storage.left_canary == 17 && storage.right_canary == 23 && spare.value == 0 && spare.left_canary == 17 && spare.right_canary == 23 { true -> second_round(), _ -> bad() }
     machine second_round() {
         let mut other: Storage in Issued = issue(0);
         let mut second_spare: Storage in Issued = issue(0);
         write(@write second_spare, @write other, false);
-        transition other.value == 73 && other.left_canary == 17 && other.right_canary == 23 && second_spare.value == 0 && second_spare.left_canary == 17 && second_spare.right_canary == 23 { true -> done() _ -> bad() }
+        transition other.value == 73 && other.left_canary == 17 && other.right_canary == 23 && second_spare.value == 0 && second_spare.left_canary == 17 && second_spare.right_canary == 23 { true -> done(), _ -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

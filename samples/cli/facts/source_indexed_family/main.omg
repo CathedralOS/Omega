@@ -16,7 +16,7 @@ terminates by Length
 ensures embed(Total) <= 10 * embed(Length)
 {
     transition evidence {
-        Vector::Nil { .. } -> done()
+        Vector::Nil { .. } -> done(),
         Vector::Cons { previous, previous_total, head, tail, .. } -> step(previous, previous_total, head, tail)
     }
     machine done() requires Length == 0 && Total == 0 {}
@@ -24,22 +24,22 @@ ensures embed(Total) <= 10 * embed(Length)
     requires head <= 10 && embed(previous) + 1 == embed(Length)
              && embed(previous_total) + embed(head) == embed(Total)
     {
-        vector_bound<previous, previous_total>(tail);
+        vector_bound::<previous, previous_total>(tail);
     }
 }
 
 machine bounded<Length: u64, Total: u64>(evidence [erased]: Vector<Length, Total>) -> u64
 requires Length <= 8
 {
-    vector_bound<Length, Total>(evidence);
+    vector_bound::<Length, Total>(evidence);
     80u64 - Total
 }
 machine main() crashes Trap {
     let nil [erased]: Vector<0, 0> = Vector::Nil;
     let one [erased]: Vector<1, 7> = Vector::Cons { previous: 0, previous_total: 0, head: 7, tail: nil };
-    let kept [erased]: Vector<1, 7> = retain<1, 7>(one);
-    let result: u64 = bounded<1, 7>(kept);
-    transition result == 73 { true -> done() _ -> bad() }
+    let kept [erased]: Vector<1, 7> = retain::<1, 7>(one);
+    let result: u64 = bounded::<1, 7>(kept);
+    transition result == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

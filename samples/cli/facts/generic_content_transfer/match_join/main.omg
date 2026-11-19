@@ -14,14 +14,14 @@ satisfies Content<Region, CountedQuantity<Units>>::project {
 }
 trait Transfer<T> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures core::Identity<CountedQuantity<Units>>(
+    ensures core::Identity::<CountedQuantity<Units>>(
         Owned::content(old(@region)),
         Owned::content(@result)
     );
 }
 ConservingTransfer satisfies Transfer<Payload> {
     machine transfer(region: Region in Owned) -> Region in Owned
-    ensures core::Identity<CountedQuantity<Units>>(
+    ensures core::Identity::<CountedQuantity<Units>>(
         Owned::content(old(@region)),
         Owned::content(@result)
     )
@@ -35,7 +35,7 @@ machine observe(region: Region in Owned) -> u64 {
 // The tag makes a wrong selected arm observable without changing the counted payload.
 data BranchValue { region: Region in Owned; selected: bool; }
 machine choose(region: Region in Owned, select: bool) -> BranchValue {
-    transition select { true -> left(region) _ -> right(region) }
+    transition select { true -> left(region), _ -> right(region) }
     machine left(region: Region in Owned) -> BranchValue {
         BranchValue { region: ConservingTransfer::transfer(region), selected: true }
     }
@@ -47,14 +47,14 @@ machine exercise(select: bool) -> u64 {
     let chosen: BranchValue = choose(Region { amount: 29 }, select);
     let selected: bool = chosen.selected;
     let amount: u64 = observe(chosen.region);
-    transition selected == select { true -> checked(amount) _ -> wrong_arm() }
+    transition selected == select { true -> checked(amount), _ -> wrong_arm() }
     machine checked(amount: u64) -> u64 { amount }
     machine wrong_arm() -> u64 { 0 }
 }
 machine main() crashes Trap {
     let first: u64 = exercise(true);
     let second: u64 = exercise(false);
-    transition first == 29 && second == 29 { true -> done() _ -> bad() }
+    transition first == 29 && second == 29 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

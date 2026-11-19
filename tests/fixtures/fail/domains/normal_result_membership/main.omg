@@ -61,7 +61,7 @@ machine entry() -> u32 crashes Trap {
     let first_word: u32 = scalar_value(7u32);
     let second_word: u32 = scalar_value(11u32);
     transition first == 7u32 && second == 11u32 && first_word == 7u32 && second_word == 11u32 {
-        true -> 0u32
+        true -> 0u32,
         false -> wrong()
     }
     machine wrong() -> u32 crashes Trap { crash Trap; }
@@ -97,7 +97,7 @@ machine main() crashes Trap {
     let tagged: addr in Allocated = address as +Allocated;
     let plain: addr = tagged as -Allocated;
     transition ordinary == 0u32 && observed == 29u64 && plain != 0 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

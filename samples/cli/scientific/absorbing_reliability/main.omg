@@ -18,15 +18,15 @@ data Main {
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let result: LineReadResult = block Console::read_line(@mut main.input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> length(main, count)
+        LineReadResult::LineComplete { count } -> length(main, count),
         _ -> invalid(main)
     }
     machine length(main: @mut Main, count: u64) {
-        transition count == 3 { true -> digits(main) _ -> invalid(main) }
+        transition count == 3 { true -> digits(main), _ -> invalid(main) }
     }
     machine digits(main: @mut Main) {
         transition main.input[0] >= 48 && main.input[0] <= 53 && main.input[1] >= 48 && main.input[1] <= 56 && main.input[2] == 10 {
-            true -> setup(main)
+            true -> setup(main),
             _ -> invalid(main)
         }
     }
@@ -40,7 +40,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine row(main: @mut Main) {
         transition main.process.healthy + main.process.degraded + main.process.failed == main.process.denominator {
-            true -> emit(main)
+            true -> emit(main),
             _ -> failure(main)
         }
     }
@@ -64,7 +64,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         Console::write_byte(32);
         decimal(main, denominator);
         Console::write_byte(10);
-        transition main.step < main.horizon { true -> next(main) _ -> finish(main) }
+        transition main.step < main.horizon { true -> next(main), _ -> finish(main) }
     }
     machine next(main: @mut Main) {
         domain::process::advance(@mut main.process);
@@ -97,7 +97,7 @@ machine decimal(main: @mut Main, number: u64 in Wrapping) reaches Console {
     transition { _ -> scale(main) }
     machine scale(main: @mut Main) {
         transition main.divisor <= main.number / 10 {
-            true -> increase(main)
+            true -> increase(main),
             _ -> digit(main)
         }
     }
@@ -106,7 +106,7 @@ machine decimal(main: @mut Main, number: u64 in Wrapping) reaches Console {
         transition { _ -> scale(main) }
     }
     machine digit(main: @mut Main) {
-        transition main.divisor != 0 { true -> write(main) _ -> done() }
+        transition main.divisor != 0 { true -> write(main), _ -> done() }
     }
     machine write(main: @mut Main) {
         let digit: u64 in Wrapping = (main.number / main.divisor) % 10;

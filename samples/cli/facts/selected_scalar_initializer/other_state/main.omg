@@ -3,7 +3,7 @@
 domain i32::Selected requires self == 1 || self == 38;
 machine verify(observed: i32, first: i32, flag: bool) crashes Trap {
     transition (flag && observed == 38 && first == 1) || (!flag && first == 1 && observed == 38) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -11,7 +11,7 @@ machine verify(observed: i32, first: i32, flag: bool) crashes Trap {
 }
 machine exercise(flag: bool) crashes Trap {
     let items: [i32 in Selected; 2] = [1, 38];
-    transition flag { true -> ready(items, true) false -> ready(items, false) }
+    transition flag { true -> ready(items, true), false -> ready(items, false) }
     machine ready(items: [i32 in Selected; 2], flag: bool) {
     let observed: i32 in Selected = items[1];
     verify(observed, items[0], flag);

@@ -47,10 +47,10 @@ data Main {
 // Top-level dispatcher: receive a task and handle it.
 machine run_task(main: @mut Main, task: Task) {
     transition task {
-        Task::Compute { value } -> do_compute(main, value)
-        Task::Double -> do_double(main)
-        Task::Reset -> do_reset(main)
-        Task::Clamp { max } -> do_clamp(main, max)
+        Task::Compute { value } -> do_compute(main, value),
+        Task::Double -> do_double(main),
+        Task::Reset -> do_reset(main),
+        Task::Clamp { max } -> do_clamp(main, max),
         _ -> done()
     }
 
@@ -68,7 +68,7 @@ machine run_task(main: @mut Main, task: Task) {
 
     machine do_clamp(main: @mut Main, max: i32 in Saturating) {
         transition main.runner.score > max {
-            true -> apply_clamp(main, max)
+            true -> apply_clamp(main, max),
             _ -> done()
         }
     }
@@ -90,7 +90,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     run_task(main, Task::Compute { value: 25 as +Saturating });
 
     transition main.runner.score == 70 {
-        true -> block good(main)
+        true -> block good(main),
         _ -> block bad(main)
     }
 

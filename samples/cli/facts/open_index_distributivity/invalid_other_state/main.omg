@@ -52,9 +52,9 @@ machine main() crashes Trap {
     let raw: i64 = 41;
     transition { _ -> check(raw) }
     machine check(raw: i64) {
-        let moved: i64 = rearrange<2, 3, 4, Canonical>(raw);
+        let moved: i64 = rearrange::<2, 3, 4, Canonical>(raw);
         transition moved == 41 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

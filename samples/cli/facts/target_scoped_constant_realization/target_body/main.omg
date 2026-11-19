@@ -8,12 +8,12 @@ machine limit() -> u64 { Answer::get() }
 data Main { values: [u8; limit()]; }
 boundary trait LayoutObservation {
     machine target_size() -> u64 reaches terminates
-    ensures result == size_of<Main>() crashes none;
+    ensures result == size_of::<Main>() crashes none;
 }
 LayoutObservationCode satisfies LayoutObservation {
-    machine target_size() -> u64 ensures result == size_of<Main>() { size_of<Main>() }
+    machine target_size() -> u64 ensures result == size_of::<Main>() { size_of::<Main>() }
 }
-machine target_size() -> u64 ensures result == size_of<Main>() { LayoutObservation::target_size() }
+machine target_size() -> u64 ensures result == size_of::<Main>() { LayoutObservation::target_size() }
 boundary trait ExpectedExtent {
     machine expected() -> u64 reaches terminates
     ensures result == 4u64 || result == 8u64 crashes none;
@@ -28,7 +28,7 @@ machine expected() -> u64 ensures result == 4u64 || result == 8u64 { ExpectedExt
 machine main() crashes Trap {
     let observed: u64 = target_size();
     let slack: u64 = observed - 4u64;
-    transition observed == expected() && slack == expected() - 4u64 { true -> done() false -> bad() }
+    transition observed == expected() && slack == expected() - 4u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

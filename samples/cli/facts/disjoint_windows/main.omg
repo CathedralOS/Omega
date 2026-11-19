@@ -20,7 +20,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     b[1] = 41;
     transition a.len == 2 && b.len == 2 && main.entries[0] == 11
         && main.entries[3] == 41 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

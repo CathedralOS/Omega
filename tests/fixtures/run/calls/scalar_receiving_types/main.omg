@@ -8,7 +8,7 @@ machine choose_number(flag: bool, value: u32) -> u32 {
 machine main() crashes Trap {
     transition keep_number(37) == 37 && keep_bool(true) && !keep_bool(false)
         && choose_number(true, 37) == 37 && choose_number(false, 37) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

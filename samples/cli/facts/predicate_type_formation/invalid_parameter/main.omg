@@ -15,7 +15,7 @@ machine payload(formed: Value<bool>) -> bool {
 machine through(formed: Value<bool>) -> bool { payload(formed) }
 machine main() crashes Trap {
     transition through(Value::Integer { value: 1 }) == true && through(Value::Boolean { value: false }) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

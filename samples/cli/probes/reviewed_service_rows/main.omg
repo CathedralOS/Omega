@@ -15,7 +15,7 @@ data Main { }
 machine check_reviewed_operations(main: @mut Main) reaches ReadCapability crashes Trap {
     let read: i32 = read_value(17);
     let pure: i32 = pure_value(39);
-    transition read == 17 && pure == 39 { true -> good() false -> bad() }
+    transition read == 17 && pure == 39 { true -> good(), false -> bad() }
     machine good() {}
     machine bad() { crash Trap; }
 }

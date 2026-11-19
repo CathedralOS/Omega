@@ -24,7 +24,7 @@ machine Main::main(main: @mut Main) crashes Trap {
 
     let r: u64 = choose(true);
     transition r == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

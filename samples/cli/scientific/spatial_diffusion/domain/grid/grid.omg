@@ -1,4 +1,3 @@
-module domain::grid;
 use omega::language::core::F64::from_u64;
 
 // Scalar observations are captured before forwarding exclusive grid loans;
@@ -37,10 +36,10 @@ public data Grid {
 }
 public machine finite(value: f64) -> bool { value-value == 0.0 }
 public machine magnitude(value: f64) -> f64 {
- transition value < 0.0 { true -> (0.0-value) false -> value }
+ transition value < 0.0 { true -> (0.0-value), false -> value }
 }
 public machine exact(linear: bool, horizontal: f64, vertical: f64) -> f64 {
- transition linear { true -> (horizontal+2.0*vertical) false -> (horizontal*horizontal+vertical*vertical) }
+ transition linear { true -> (horizontal+2.0*vertical), false -> (horizontal*horizontal+vertical*vertical) }
 }
 public machine valid(grid: @Grid) -> bool {
  finite(grid.diffusion) && grid.diffusion > 0.0 && grid.diffusion <= 100.0
@@ -64,7 +63,7 @@ machine append(grid: @mut Grid, column: u64, value: f64) {
 }
 machine boundary(grid: @mut Grid, row: u64, side: u64, horizontal: f64, vertical: f64, coefficient: f64) -> f64 {
  transition grid.kind[side % 4] == 0 {
-  true -> dirichlet(grid, row, horizontal, vertical, coefficient)
+  true -> dirichlet(grid, row, horizontal, vertical, coefficient),
   false -> neumann(grid, row, side)
  }
  machine dirichlet(grid: @mut Grid, row: u64, horizontal: f64, vertical: f64, coefficient: f64) -> f64 {
@@ -72,13 +71,13 @@ machine boundary(grid: @mut Grid, row: u64, side: u64, horizontal: f64, vertical
   2.0*coefficient
  }
  machine neumann(grid: @mut Grid, row: u64, side: u64) -> f64 {
-  transition grid.linear { true -> flux(grid,row,side) false -> quadratic_flux(grid,row,side) }
+  transition grid.linear { true -> flux(grid,row,side), false -> quadratic_flux(grid,row,side) }
  }
  machine flux(grid: @mut Grid, row: u64, side: u64) -> f64 {
-  transition side { 0 -> west(grid,row) 1 -> east(grid,row) 2 -> south(grid,row) _ -> north(grid,row) }
+  transition side { 0 -> west(grid,row), 1 -> east(grid,row), 2 -> south(grid,row), _ -> north(grid,row) }
  }
  machine quadratic_flux(grid: @mut Grid, row: u64, side: u64) -> f64 {
-  transition side { 1 -> north(grid,row) 3 -> north(grid,row) _ -> 0.0 }
+  transition side { 1 -> north(grid,row), 3 -> north(grid,row), _ -> 0.0 }
  }
  machine west(grid: @mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]-grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
  machine east(grid: @mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
@@ -86,7 +85,7 @@ machine boundary(grid: @mut Grid, row: u64, side: u64, horizontal: f64, vertical
  machine north(grid: @mut Grid,row:u64) -> f64 { grid.right[row%144]=grid.right[row%144]+2.0*grid.diffusion*F64::from_u64(grid.n as u64); 0.0 }
 }
 public machine assemble(grid: @mut Grid) {
- transition valid(grid) { true -> start(grid) false -> invalid(grid) }
+ transition valid(grid) { true -> start(grid), false -> invalid(grid) }
  machine invalid(grid:@mut Grid) { grid.count=0; grid.nonzeros=0; }
  machine start(grid:@mut Grid) {
  grid.count=grid.n*grid.n;
@@ -94,7 +93,7 @@ public machine assemble(grid: @mut Grid) {
  transition { _ -> row(grid,0) }
  }
  machine row(grid: @mut Grid, index:u64 in Saturating) {
-  transition index < grid.count && grid.n > 0 { true -> initialize(grid,index) false -> finish(grid) }
+  transition index < grid.count && grid.n > 0 { true -> initialize(grid,index), false -> finish(grid) }
  }
  machine initialize(grid: @mut Grid,index:u64 in Saturating) requires grid.n > 0 {
   let horizontal:u64 in Saturating=index%grid.n;
@@ -104,7 +103,7 @@ public machine assemble(grid: @mut Grid) {
   grid.offsets[index%145]=grid.nonzeros as u64;
   grid.right[index%144]=grid.reaction*exact(grid.linear,x,y);
   let reaction:f64=grid.reaction;
-  transition grid.linear { true -> west(grid,index,horizontal,vertical,x,y,reaction) false -> forcing(grid,index,horizontal,vertical,x,y) }
+  transition grid.linear { true -> west(grid,index,horizontal,vertical,x,y,reaction), false -> forcing(grid,index,horizontal,vertical,x,y) }
  }
  machine forcing(grid:@mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64) {
   grid.right[index%144]=grid.right[index%144]-4.0*grid.diffusion;
@@ -113,7 +112,7 @@ public machine assemble(grid: @mut Grid) {
  }
  machine west(grid:@mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64) {
   let coefficient:f64=grid.diffusion*F64::from_u64(grid.n as u64)*F64::from_u64(grid.n as u64);
-  transition horizontal > 0 { true -> west_inside(grid,index,horizontal,vertical,x,y,diagonal,coefficient) false -> west_face(grid,index,horizontal,vertical,x,y,diagonal,coefficient) }
+  transition horizontal > 0 { true -> west_inside(grid,index,horizontal,vertical,x,y,diagonal,coefficient), false -> west_face(grid,index,horizontal,vertical,x,y,diagonal,coefficient) }
  }
  machine west_inside(grid:@mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   append(grid,(index-1) as u64,0.0-coefficient);
@@ -124,7 +123,7 @@ public machine assemble(grid: @mut Grid) {
   transition { _ -> east(grid,index,horizontal,vertical,x,y,diagonal+addition,coefficient) }
  }
  machine east(grid:@mut Grid,index:u64 in Saturating,horizontal:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
-  transition horizontal+1 < grid.n { true -> east_inside(grid,index,vertical,x,y,diagonal,coefficient) false -> east_face(grid,index,vertical,x,y,diagonal,coefficient) }
+  transition horizontal+1 < grid.n { true -> east_inside(grid,index,vertical,x,y,diagonal,coefficient), false -> east_face(grid,index,vertical,x,y,diagonal,coefficient) }
  }
  machine east_inside(grid:@mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   append(grid,(index+1) as u64,0.0-coefficient);
@@ -135,7 +134,7 @@ public machine assemble(grid: @mut Grid) {
   transition { _ -> south(grid,index,vertical,x,y,diagonal+addition,coefficient) }
  }
  machine south(grid:@mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
-  transition vertical > 0 { true -> south_inside(grid,index,vertical,x,y,diagonal,coefficient) false -> south_face(grid,index,vertical,x,y,diagonal,coefficient) }
+  transition vertical > 0 { true -> south_inside(grid,index,vertical,x,y,diagonal,coefficient), false -> south_face(grid,index,vertical,x,y,diagonal,coefficient) }
  }
  machine south_inside(grid:@mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
   let column:u64=(index-grid.n) as u64;
@@ -147,7 +146,7 @@ public machine assemble(grid: @mut Grid) {
   transition { _ -> north(grid,index,vertical,x,y,diagonal+addition,coefficient) }
  }
  machine north(grid:@mut Grid,index:u64 in Saturating,vertical:u64 in Saturating,x:f64,y:f64,diagonal:f64,coefficient:f64) {
-  transition vertical+1 < grid.n { true -> north_inside(grid,index,diagonal,coefficient) false -> north_face(grid,index,x,diagonal,coefficient) }
+  transition vertical+1 < grid.n { true -> north_inside(grid,index,diagonal,coefficient), false -> north_face(grid,index,x,diagonal,coefficient) }
  }
  machine north_inside(grid:@mut Grid,index:u64 in Saturating,diagonal:f64,coefficient:f64) {
   let column:u64=(index+grid.n) as u64;

@@ -19,7 +19,7 @@ requires result >= 100u64 && result <= 100u64
 machine main() reaches Provider crashes Trap {
     let diff: u64 = compute(Provider::get());
     transition diff == 0u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

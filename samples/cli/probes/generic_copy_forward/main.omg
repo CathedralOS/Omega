@@ -39,7 +39,7 @@ machine Main::main(main: @mut Main) {
     wrap(@main.l);
     copy_free(@main.l);
     transition main.n == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

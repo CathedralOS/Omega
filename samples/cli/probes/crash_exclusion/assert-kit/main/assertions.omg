@@ -1,11 +1,10 @@
-module main;
 public boundary trait Assert {
     machine check(ok: bool) reaches crashes Trap;
 }
 machine verify(ok: bool) -> bool
 crashes Trap
 {
-    transition ok { true -> pass() false -> fail() }
+    transition ok { true -> pass(), false -> fail() }
     machine pass() -> bool { true }
     machine fail() -> bool { crash Trap; }
 }

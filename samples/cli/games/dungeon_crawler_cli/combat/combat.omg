@@ -19,7 +19,7 @@ machine combat_system_fight(
     round.enemy_defeated = event.enemy.health == 0;
 
     transition round.enemy_defeated {
-        true -> defeated_enemy(combat_system, player, event, random, round)
+        true -> defeated_enemy(combat_system, player, event, random, round),
         false -> enemy_retaliates(combat_system, player, event, random, round)
     }
 

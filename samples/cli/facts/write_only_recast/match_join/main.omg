@@ -21,7 +21,7 @@ machine exercise(choose: bool, expected_marker: u32) crashes Trap {
     let mut original: Original = Original { value: 0 };
     let mut marker: u32 = 0;
     overwrite(@write original, choose, @write marker);
-    transition original.value == 73 && marker == expected_marker { true -> done() _ -> bad() }
+    transition original.value == 73 && marker == expected_marker { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

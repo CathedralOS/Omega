@@ -41,12 +41,12 @@ machine Main::main(main: @mut Main) {
         stamp: 7
     };
     transition envelope.inner {
-        Packet::Burst { count, .. } -> burst(count, main)
+        Packet::Burst { count, .. } -> burst(count, main),
         Packet::Empty -> fail(main)
     }
     machine burst(count: i32, main: @mut Main) {
         transition count == 2 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

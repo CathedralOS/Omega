@@ -1,4 +1,3 @@
-module io::output;
 use omega_language_std::Console;
 use omega::language::core::F64::square_root;
 use omega::language::core::I64::from_f64;
@@ -11,18 +10,18 @@ public machine number(value: f64) reaches Console invokes Console {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
     Console::write(" ");
-    transition integer < 0 { true -> negative(integer) false -> positive(integer) }
+    transition integer < 0 { true -> negative(integer), false -> positive(integer) }
     machine negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
     machine positive(value: i64 in Wrapping) { transition { _ -> digit(value, 1000000000000000000, false) } }
     machine digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
-        transition character != 0 || started || place == 1 { true -> write(value, place, character) false -> advance(value, place, false) }
+        transition character != 0 || started || place == 1 { true -> write(value, place, character), false -> advance(value, place, false) }
     }
     machine write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
         Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
     machine advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
+        transition place >= 10 { true -> digit(value % place, place / 10, started), false -> done() }
     }
     machine done() { }
 }
@@ -44,7 +43,7 @@ public machine emit(problem: @Problem) reaches Console invokes Console {
     number(problem.translation[2]);
     Console::write_line(""); transition { _ -> points(problem, 0, 0.0) }
     machine points(problem: @Problem, index: u64, objective: f64) {
-        transition index < problem.count && index < 16 { true -> row(problem, index, objective) false -> total(problem, objective) }
+        transition index < problem.count && index < 16 { true -> row(problem, index, objective), false -> total(problem, objective) }
     }
     machine row(problem: @Problem, index: u64, objective: f64) requires index < 16 {
         let transformed0: f64 = problem.translation[0] + problem.rotation.values[0] * problem.source[index * 3] + problem.rotation.values[1] * problem.source[index * 3 + 1] + problem.rotation.values[2] * problem.source[index * 3 + 2];

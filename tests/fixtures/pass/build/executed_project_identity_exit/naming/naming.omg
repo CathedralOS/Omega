@@ -1,5 +1,3 @@
-module naming;
-
 data Calibration { magnitude: f32; }
 
 public machine enabled() -> bool { true }

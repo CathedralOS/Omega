@@ -53,7 +53,7 @@ invokes MacosImageData invokes MacosImageObjects
     // CFIndex is signed even though Omega view lengths are unsigned counts.
     // Validate the native scalar lane independently of the borrowed extent.
     transition bytes.len <= 0x7fff_ffff_ffff_ffffu64 {
-        true -> copy(width, height, space, bytes)
+        true -> copy(width, height, space, bytes),
         _ -> (0)
     }
 
@@ -63,7 +63,7 @@ invokes MacosImageData invokes MacosImageObjects
     {
         let data: u64 = MacosImageData::copy(0, bytes);
         transition data != 0 {
-            true -> provider(width, height, space, data)
+            true -> provider(width, height, space, data),
             _ -> (0)
         }
     }
@@ -74,7 +74,7 @@ invokes MacosImageData invokes MacosImageObjects
     {
         let backing: u64 = MacosImageObjects::provider(data);
         transition backing != 0 {
-            true -> image(width, height, space, data, backing)
+            true -> image(width, height, space, data, backing),
             _ -> failed_provider(data)
         }
     }

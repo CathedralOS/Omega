@@ -1,4 +1,3 @@
-module io::input;
 // Bounded decimal tokens. No allocation, wrapping or unbounded token storage.
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
@@ -19,20 +18,20 @@ public machine parse(raw: @mut Raw) -> bool reaches Console invokes Console bloc
     transition { _ -> read(raw, 0, false, 0) }
     machine read(raw: @mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition bytes < 256 {
-            true -> receive(raw, accumulator, active, bytes)
+            true -> receive(raw, accumulator, active, bytes),
             false -> bad()
         }
     }
     machine receive(raw: @mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value)
+            ByteRead::Byte { value } -> classify(raw, accumulator, active, bytes, value),
             ByteRead::Eof -> finish(raw, accumulator, active)
         }
     }
     machine classify(raw: @mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character >= 48 && character <= 57 {
-            true -> digit(raw, accumulator, bytes, character)
+            true -> digit(raw, accumulator, bytes, character),
             false -> delimiter(raw, accumulator, active, bytes, character)
         }
     }
@@ -40,25 +39,25 @@ public machine parse(raw: @mut Raw) -> bool reaches Console invokes Console bloc
         let digit: u32 in Saturating = narrow_i32_to_u32_trapping(character) as u32 in Saturating;
         let next: u32 in Saturating = accumulator * 10 + digit - 48;
         transition next <= 200 {
-            true -> read(raw, next, true, bytes + 1)
+            true -> read(raw, next, true, bytes + 1),
             false -> bad()
         }
     }
     machine delimiter(raw: @mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32, character: i32) -> bool {
         transition character == 32 || character == 10 || character == 13 || character == 9 {
-            true -> separate(raw, accumulator, active, bytes)
+            true -> separate(raw, accumulator, active, bytes),
             false -> bad()
         }
     }
     machine separate(raw: @mut Raw, accumulator: u32 in Saturating, active: bool, bytes: u32) -> bool {
         transition active {
-            true -> capacity(raw, accumulator, bytes)
+            true -> capacity(raw, accumulator, bytes),
             false -> read(raw, 0, false, bytes + 1)
         }
     }
     machine capacity(raw: @mut Raw, accumulator: u32 in Saturating, bytes: u32) -> bool {
         transition raw.count < 16 {
-            true -> store(raw, accumulator, bytes)
+            true -> store(raw, accumulator, bytes),
             false -> bad()
         }
     }
@@ -69,13 +68,13 @@ public machine parse(raw: @mut Raw) -> bool reaches Console invokes Console bloc
     }
     machine finish(raw: @mut Raw, accumulator: u32 in Saturating, active: bool) -> bool {
         transition active {
-            true -> final_capacity(raw, accumulator)
+            true -> final_capacity(raw, accumulator),
             false -> good()
         }
     }
     machine final_capacity(raw: @mut Raw, accumulator: u32 in Saturating) -> bool {
         transition raw.count < 16 {
-            true -> final_store(raw, accumulator)
+            true -> final_store(raw, accumulator),
             false -> bad()
         }
     }
@@ -97,7 +96,7 @@ public machine validate(raw: @Raw, input: @mut Input) -> bool {
         && raw.values[5] >= 1 && raw.values[5] <= 100
         && raw.values[6] >= raw.values[7]
         && raw.count == 8 + raw.values[1] {
-        true -> initialize(raw, input)
+        true -> initialize(raw, input),
         false -> bad()
     }
     machine initialize(raw: @Raw, input: @mut Input) -> bool {
@@ -110,14 +109,14 @@ public machine validate(raw: @Raw, input: @mut Input) -> bool {
     }
     machine scan(raw: @Raw, input: @mut Input, position: u32) -> bool {
         transition position < input.stages && position < 8 {
-            true -> load(raw, input, position)
+            true -> load(raw, input, position),
             false -> good()
         }
     }
     machine load(raw: @Raw, input: @mut Input, position: u32) -> bool requires position < 8 {
         let conductance: f64 = F64::from_u32(raw.values[position + 8]);
         transition conductance <= input.hot_capacity && conductance <= input.cold_capacity {
-            true -> store(input, raw, position, conductance)
+            true -> store(input, raw, position, conductance),
             false -> bad()
         }
     }

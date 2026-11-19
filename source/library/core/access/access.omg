@@ -1,5 +1,3 @@
-module access;
-
 // Access operations are ordinary static machines in this module. A data
 // declaration is not a code namespace (machines.md, "Static declarations and
 // explicit state"), so neither the view operations nor the `AccessPlan`
@@ -152,8 +150,8 @@ public machine view_extent<'storage, View, Role>(
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    view_from_profile<View, Role>(storage, @profile)
+    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
+    view_from_profile::<View, Role>(storage, @profile)
 }
 
 boundary machine view_from_profile<'storage, View, Role>(
@@ -174,8 +172,8 @@ public machine view_extent_mut<'storage, View, Role>(
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
-    let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    view_mut_from_profile<View, Role>(storage, @profile)
+    let profile: ResourceProfile = ResourceProfileSupply::<Role>::profile(storage);
+    view_mut_from_profile::<View, Role>(storage, @profile)
 }
 
 boundary machine view_mut_from_profile<'storage, View, Role>(
@@ -220,7 +218,7 @@ public machine initialize_owned<P, T>(
 reaches AccessLifecycle + ResourceProfileSupply
 invokes AccessLifecycle
 {
-    AccessLifecycle<P, T>::initialize(storage, value)
+    AccessLifecycle::<P, T>::initialize(storage, value)
 }
 
 // Whole-value extraction ends this exact resident occurrence. Active loans or
@@ -233,7 +231,7 @@ public machine move_out_owned<P, T>(
 reaches AccessLifecycle + ResourceProfileSupply
 invokes AccessLifecycle
 {
-    transition AccessLifecycle<P, T>::move_out(storage) {
+    transition AccessLifecycle::<P, T>::move_out(storage) {
         AccessExtraction::Moved { storage as vacant, value } ->
             AccessReturn { source: vacant, custody: value }
     }

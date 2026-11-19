@@ -13,7 +13,7 @@ ensures Outcome::Success -> { selected: above(gate.threshold); }
 { Outcome::Failure }
 machine failure_arm() -> bool {
  transition pick_failure(Gate { threshold: 5 }) {
-  Outcome::Success { ; selected: proof } -> (false)
+  Outcome::Success { ; selected: proof } -> (false),
   _ -> (true)
  }
 }
@@ -21,13 +21,13 @@ machine probe() -> bool {
  transition { _ -> inspect(Gate { threshold: 5 }) }
  machine inspect(gate: Gate) -> bool {
  transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+  Outcome::Success { ; selected: proof } -> (gate.threshold == 5),
   _ -> (false)
  }
  }
 }
 machine main() crashes Trap {
- transition (probe()) && failure_arm() { true -> done() _ -> bad() }
+ transition (probe()) && failure_arm() { true -> done(), _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

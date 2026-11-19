@@ -34,7 +34,7 @@ machine observe(left: f64 in Marked, right: f64 in Marked) -> bool {
 machine main() crashes Trap {
     let value: f64 in Marked = 1.0;
     transition observe(carrier(value), carrier(value)) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

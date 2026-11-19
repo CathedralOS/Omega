@@ -65,7 +65,7 @@ machine Main::main(main: @mut Main) {
     forward(main.socket);
     transition (main.socket in Socket::Usable,
         main.other in Socket::Usable, main.other in Socket::Connected) {
-        (true, false, true) -> Main::good(main)
+        (true, false, true) -> Main::good(main),
         _ -> Main::bad(main)
     }
 }

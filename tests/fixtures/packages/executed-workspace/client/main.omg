@@ -4,7 +4,7 @@ use shared;
 
 machine main() crashes Trap {
     transition selected::answer() == 73u32 && shared::answer() == 73u32 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
 }

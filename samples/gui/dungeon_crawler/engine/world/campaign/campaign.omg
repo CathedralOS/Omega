@@ -1,5 +1,3 @@
-module world::campaign;
-
 use world::rooms::Dungeon;
 use world::rooms::Room;
 use world::rooms::Exit;

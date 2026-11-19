@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) {
         && main.buffer2[3] == 72
         && main.buffer2[4] == 105;
     transition matches {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -1,4 +1,3 @@
-module domain::math;
 // Application-private binary64 evaluators. Log reduces validated copies >= 1 into
 // [1,2), then uses 40 terms of 2*atanh((x-1)/(x+1)); |z| <= 1/3.
 // Exponential reduces by 128, takes 32 Taylor terms, then squares seven times.
@@ -6,7 +5,7 @@ module domain::math;
 public machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
     machine reduce(value: f64, offset: f64) -> f64 {
-        transition value >= 2.0 { true -> reduce(value / 2.0, offset + 0.6931471805599453094) _ -> series(value, offset) }
+        transition value >= 2.0 { true -> reduce(value / 2.0, offset + 0.6931471805599453094), _ -> series(value, offset) }
     }
     machine series(value: f64, offset: f64) -> f64 {
         let ratio: f64 = (value - 1.0) / (value + 1.0);
@@ -14,7 +13,7 @@ public machine logarithm(value: f64) -> f64 {
     }
     machine term(square: f64, power: f64, denominator: f64, sum: f64, offset: f64, count: i32 in Wrapping) -> f64 {
         let total: f64 = sum + power / denominator;
-        transition count < 39 { true -> term(square, power * square, denominator + 2.0, total, offset, count + 1) _ -> (offset + 2.0 * total) / 2.3025850929940456840 }
+        transition count < 39 { true -> term(square, power * square, denominator + 2.0, total, offset, count + 1), _ -> (offset + 2.0 * total) / 2.3025850929940456840 }
     }
 }
 public machine exponential(value: f64) -> f64 {
@@ -23,7 +22,7 @@ public machine exponential(value: f64) -> f64 {
     machine term(reduced: f64, sum: f64, previous: f64, denominator: f64, count: i32 in Wrapping) -> f64 {
         let next: f64 = previous * reduced / denominator;
         let total: f64 = sum + next;
-        transition count < 32 { true -> term(reduced, total, next, denominator + 1.0, count + 1) _ -> square(total) }
+        transition count < 32 { true -> term(reduced, total, next, denominator + 1.0, count + 1), _ -> square(total) }
     }
     machine square(value: f64) -> f64 {
         let power2: f64 = value * value; let power4: f64 = power2 * power2;
@@ -38,12 +37,12 @@ public machine exponential(value: f64) -> f64 {
 public machine residual_sum(logarithms: @[f64], cycles: @[f64], residuals: @mut [f64], slope: f64, intercept: f64) -> f64
 crashes Trap
 {
-    transition logarithms.len == cycles.len && cycles.len == residuals.len { true -> scan(logarithms, cycles, residuals, slope, intercept, 0, 0.0) _ -> bad() }
+    transition logarithms.len == cycles.len && cycles.len == residuals.len { true -> scan(logarithms, cycles, residuals, slope, intercept, 0, 0.0), _ -> bad() }
     machine bad() -> f64 { crash Trap; }
     machine scan(logarithms: @[f64], cycles: @[f64], residuals: @mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
     requires logarithms.len == cycles.len && cycles.len == residuals.len
     {
-        transition index >= 0 && index < logarithms.len { true -> value(logarithms, cycles, residuals, slope, intercept, index, sum) _ -> sum }
+        transition index >= 0 && index < logarithms.len { true -> value(logarithms, cycles, residuals, slope, intercept, index, sum), _ -> sum }
     }
     machine value(logarithms: @[f64], cycles: @[f64], residuals: @mut [f64], slope: f64, intercept: f64, index: i32 in Wrapping, sum: f64) -> f64
     requires logarithms.len == cycles.len && cycles.len == residuals.len && index >= 0 && index < logarithms.len

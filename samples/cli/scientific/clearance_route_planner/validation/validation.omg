@@ -1,4 +1,3 @@
-module validation;
 use fixtures;
 use graph;
 use geometry;
@@ -6,7 +5,7 @@ use geometry;
 public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
                   radius: i64 in Wrapping) -> bool {
     transition planner.route_count >= 2 && planner.route_count <= 6 {
-        true -> endpoints(scene, planner, radius, planner.route_count - 1)
+        true -> endpoints(scene, planner, radius, planner.route_count - 1),
         false -> false
     }
     machine endpoints(scene: @fixtures::Scene, planner: @graph::Planner,
@@ -14,7 +13,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
     requires last >= 0 && last < 6
     {
         transition planner.route[0] == 1 && planner.route[last] == 0 {
-            true -> segment(scene, planner, radius, 0, 0, 30000, 0)
+            true -> segment(scene, planner, radius, 0, 0, 30000, 0),
             false -> false
         }
     }
@@ -22,7 +21,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
                   position: i32 in Wrapping, cost: i64 in Wrapping,
                   clearance: i64 in Wrapping, mask: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 6 && position < planner.route_count {
-            true -> nodes(scene, planner, radius, position, cost, clearance, mask, planner.route[position])
+            true -> nodes(scene, planner, radius, position, cost, clearance, mask, planner.route[position]),
             false -> (cost == planner.distances[1] && clearance == planner.clearance)
         }
     }
@@ -30,7 +29,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
                 position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                 mask: i32 in Wrapping, node: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && position >= 0 && position < 6 {
-            true -> unique(scene, planner, radius, position, cost, clearance, mask, node)
+            true -> unique(scene, planner, radius, position, cost, clearance, mask, node),
             false -> false
         }
     }
@@ -40,7 +39,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
     requires node >= 0 && node < 6 && position >= 0 && position < 6
     {
         transition (mask & (1i32 << node)) == 0 {
-            true -> next(scene, planner, radius, position, cost, clearance, mask | (1i32 << node), node)
+            true -> next(scene, planner, radius, position, cost, clearance, mask | (1i32 << node), node),
             false -> false
         }
     }
@@ -49,7 +48,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
                mask: i32 in Wrapping, node: i32 in Wrapping) -> bool {
         transition position + 1 < planner.route_count && position + 1 >= 0 && position + 1 < 6 {
             true -> previous(scene, planner, radius, position, cost, clearance, mask, node,
-                             planner.route[position + 1])
+                             planner.route[position + 1]),
             false -> (cost == planner.distances[1] && clearance == planner.clearance)
         }
     }
@@ -57,7 +56,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
                    position: i32 in Wrapping, cost: i64 in Wrapping, clearance: i64 in Wrapping,
                    mask: i32 in Wrapping, node: i32 in Wrapping, other: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && other >= 0 && other < 6 {
-            true -> measure(scene, planner, radius, position, cost, clearance, mask, node, other)
+            true -> measure(scene, planner, radius, position, cost, clearance, mask, node, other),
             false -> false
         }
     }
@@ -72,7 +71,7 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
         transition observed >= radius * 1000 {
             true -> segment(scene, planner, radius, position + 1,
                 cost + geometry::root_milli(dx * dx + dy * dy, 1),
-                geometry::minimum(clearance, observed), mask)
+                geometry::minimum(clearance, observed), mask),
             false -> false
         }
     }
@@ -82,20 +81,20 @@ public machine route(scene: @fixtures::Scene, planner: @graph::Planner,
 public machine cut(scene: @fixtures::Scene, planner: @graph::Planner,
                 radius: i64 in Wrapping) -> bool {
     transition (planner.witness & 1) == 1 && (planner.witness & 2) == 0 {
-        true -> row(scene, planner, radius, 0)
+        true -> row(scene, planner, radius, 0),
         false -> false
     }
     machine row(scene: @fixtures::Scene, planner: @graph::Planner,
               radius: i64 in Wrapping, from: i32 in Wrapping) -> bool {
         transition from >= 0 && from < 6 {
-            true -> column(scene, planner, radius, from, 0)
+            true -> column(scene, planner, radius, from, 0),
             false -> true
         }
     }
     machine column(scene: @fixtures::Scene, planner: @graph::Planner, radius: i64 in Wrapping,
                  from: i32 in Wrapping, to: i32 in Wrapping) -> bool {
         transition to >= 0 && to < 6 && from >= 0 && from < 6 {
-            true -> edge(scene, planner, radius, from, to)
+            true -> edge(scene, planner, radius, from, to),
             false -> row(scene, planner, radius, from + 1)
         }
     }
@@ -104,7 +103,7 @@ public machine cut(scene: @fixtures::Scene, planner: @graph::Planner,
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {
         transition (planner.witness & (1i32 << from)) != 0 && (planner.witness & (1i32 << to)) == 0 {
-            true -> crossing(scene, planner, radius, from, to)
+            true -> crossing(scene, planner, radius, from, to),
             false -> column(scene, planner, radius, from, to + 1)
         }
     }
@@ -114,7 +113,7 @@ public machine cut(scene: @fixtures::Scene, planner: @graph::Planner,
     {
         let clearance: i64 in Wrapping = graph::edge(scene, from, to, radius);
         transition clearance < 0 {
-            true -> column(scene, planner, radius, from, to + 1)
+            true -> column(scene, planner, radius, from, to + 1),
             false -> false
         }
     }

@@ -22,7 +22,7 @@ machine main() crashes Trap {
     let c: Counter = choose(true);
     let diff: u64 = 80u64 - c.used;
     transition diff == 30u64 && c.limit == 80u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

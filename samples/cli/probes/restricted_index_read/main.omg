@@ -6,7 +6,7 @@ data Main { bytes: [Byte; 4]; }
 machine take(value: @u8) -> u8 { value }
 machine inspect(main: @Main, position: u64) -> u8 {
     transition position < 4 {
-        true -> selected(main, position)
+        true -> selected(main, position),
         _ -> 0
     }
     machine selected(main: @Main, position: u64) -> u8 {
@@ -18,7 +18,7 @@ machine Main::main(main: @mut Main) {
     let chosen: u8 = inspect(main, 2);
     let neighbor: u8 = inspect(main, 1);
     transition chosen == 1 && neighbor == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

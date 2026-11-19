@@ -10,7 +10,7 @@ machine scalar_at(numbers: @[u32], index: u64) -> u32
 
 machine ticket_number(tickets: @[Ticket]) -> u32 {
     transition tickets.len >= 1 {
-        true -> tickets[0].number
+        true -> tickets[0].number,
         _ -> 0
     }
 }
@@ -21,7 +21,7 @@ machine main() crashes Trap {
     let number: u32 = scalar_at(@numbers[..], 1);
     let ticket: u32 = ticket_number(@tickets[..]);
     transition number == 19 && ticket == 29 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

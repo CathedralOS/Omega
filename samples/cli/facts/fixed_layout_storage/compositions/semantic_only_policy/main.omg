@@ -28,8 +28,8 @@ DefaultRead satisfies ReadValue {
     }
 }
 machine main() reaches ReadValue crashes Trap {
-    let first: u64 = ReadValue::read<7u64>();
-    transition first == 7u64 { true -> done() _ -> bad() }
+    let first: u64 = ReadValue::read::<7u64>();
+    transition first == 7u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

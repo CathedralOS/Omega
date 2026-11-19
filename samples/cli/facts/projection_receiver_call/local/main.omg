@@ -17,7 +17,7 @@ requires direct == true
 machine main() crashes Trap {
     let direct: bool in Held = true;
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

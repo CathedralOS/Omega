@@ -17,14 +17,14 @@ use omega::language::core::Optional;
 
 machine term(n: i32) -> Optional<f64> {
     transition n {
-        1 -> Optional::Some { value: 1.0 }
-        2 -> Optional::Some { value: 0.5 }
-        3 -> Optional::Some { value: 0.3333333333333333 }
-        4 -> Optional::Some { value: 0.25 }
-        5 -> Optional::Some { value: 0.2 }
-        6 -> Optional::Some { value: 0.16666666666666666 }
-        7 -> Optional::Some { value: 0.14285714285714285 }
-        8 -> Optional::Some { value: 0.125 }
+        1 -> Optional::Some { value: 1.0 },
+        2 -> Optional::Some { value: 0.5 },
+        3 -> Optional::Some { value: 0.3333333333333333 },
+        4 -> Optional::Some { value: 0.25 },
+        5 -> Optional::Some { value: 0.2 },
+        6 -> Optional::Some { value: 0.16666666666666666 },
+        7 -> Optional::Some { value: 0.14285714285714285 },
+        8 -> Optional::Some { value: 0.125 },
         _ -> Optional::None
     }
 }
@@ -35,7 +35,7 @@ machine optional_float_accumulator() {
     machine fold(n: i32, sum: f64) {
         let t: Optional<f64> = term(n);
         transition t {
-            Optional::Some { value } -> step(n, sum, value)
+            Optional::Some { value } -> step(n, sum, value),
             Optional::None -> judge(sum)
         }
     }
@@ -43,14 +43,14 @@ machine optional_float_accumulator() {
     // n < 8 dominates the increment, so `n + 1` stays provably in range.
     machine step(n: i32, sum: f64, value: f64) {
         transition n < 8 {
-            true -> fold(n + 1, sum + value)
+            true -> fold(n + 1, sum + value),
             _ -> done(72)
         }
     }
 
     machine judge(sum: f64) {
         transition sum > 2.71 && sum < 2.72 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(71)
         }
     }

@@ -40,7 +40,7 @@ requires
 machine additive_domain_requires() {
     let total: Quantity = combine(Quantity { value: 3 }, Quantity { value: 4 });
     transition total.value == 7 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

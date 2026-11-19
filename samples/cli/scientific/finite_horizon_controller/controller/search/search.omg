@@ -1,4 +1,3 @@
-module controller::search;
 use controller::model;
 use controller::model::Problem;
 use controller::model::Plan;
@@ -18,7 +17,7 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
     machine candidate(problem: @Problem, plan: @mut Plan, code: i32 in Wrapping,
                     divisor: i32 in Wrapping) {
         transition code < plan.candidates {
-            true -> evaluate(problem, plan, code, divisor)
+            true -> evaluate(problem, plan, code, divisor),
             _ -> done()
         }
     }
@@ -26,8 +25,8 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
                    divisor: i32 in Wrapping) {
         let cost: i32 in Wrapping = sequence_cost(problem, code, divisor);
         transition cost {
-            -1 -> boundary(problem, plan, code, divisor)
-            -2 -> terminal(problem, plan, code, divisor)
+            -1 -> boundary(problem, plan, code, divisor),
+            -2 -> terminal(problem, plan, code, divisor),
             _ -> feasible(problem, plan, code, divisor, cost)
         }
     }
@@ -43,7 +42,7 @@ public machine optimize(problem: @Problem, plan: @mut Plan) {
                    divisor: i32 in Wrapping, cost: i32 in Wrapping) {
         plan.feasible = plan.feasible + 1;
         transition cost < plan.cost {
-            true -> improve(problem, plan, code, divisor, cost)
+            true -> improve(problem, plan, code, divisor, cost),
             _ -> candidate(problem, plan, code + 1, divisor)
         }
     }
@@ -63,7 +62,7 @@ machine sequence_cost(problem: @Problem, code: i32 in Wrapping,
     machine step(problem: @Problem, code: i32 in Wrapping, divisor: i32 in Wrapping,
                position: i32 in Wrapping, cost: i32 in Wrapping) -> i32 in Wrapping {
         transition divisor > 0 {
-            true -> action(problem, code, divisor, position, cost)
+            true -> action(problem, code, divisor, position, cost),
             _ -> finish(problem, position, cost)
         }
     }
@@ -75,14 +74,14 @@ machine sequence_cost(problem: @Problem, code: i32 in Wrapping,
         transition action >= problem.action_lower && action <= problem.action_upper
             && next >= problem.lower && next <= problem.upper {
             true -> step(problem, code, divisor / 3, next,
-                         cost + problem.state_weight * error * error + problem.action_weight * action * action)
+                         cost + problem.state_weight * error * error + problem.action_weight * action * action),
             _ -> (0 - 1)
         }
     }
     machine finish(problem: @Problem, position: i32 in Wrapping, cost: i32 in Wrapping) -> i32 in Wrapping {
         let error: i32 in Wrapping = position - problem.target;
         transition problem.exact_terminal && position != problem.target {
-            true -> (0 - 2)
+            true -> (0 - 2),
             _ -> (cost + problem.terminal_weight * error * error)
         }
     }

@@ -22,13 +22,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 32];
     let result: LineReadResult = block Console::read_line(@mut input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> prefix(main, @input, count)
-        LineReadResult::EndOfInput { count } -> prefix(main, @input, count)
+        LineReadResult::LineComplete { count } -> prefix(main, @input, count),
+        LineReadResult::EndOfInput { count } -> prefix(main, @input, count),
         _ -> invalid(main)
     }
     machine prefix(main: @mut Main, input: @[u8; 32], count: u64) {
         transition count <= 32 {
-            true -> parse(main, @input[0..count])
+            true -> parse(main, @input[0..count]),
             _ -> invalid(main)
         }
     }
@@ -36,20 +36,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut cavity: Cavity;
         let valid: bool = parse_input(text, @mut cavity);
         transition valid {
-            true -> simulate(main, @mut cavity)
+            true -> simulate(main, @mut cavity),
             _ -> invalid(main)
         }
     }
     machine simulate(main: @mut Main, cavity: @mut Cavity) {
         transition arrival_row_holds() {
-            true -> advance(main, cavity)
+            true -> advance(main, cavity),
             _ -> unbalanced(main)
         }
     }
     machine advance(main: @mut Main, cavity: @mut Cavity) {
         cavity_simulate(cavity);
         transition balanced(cavity) {
-            true -> publish(main, cavity)
+            true -> publish(main, cavity),
             _ -> unbalanced(main)
         }
     }

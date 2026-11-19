@@ -39,14 +39,14 @@ machine decode<'backing>(backing: @'backing mut [u64; 7]) -> Optional<Decoded<'b
     // The scalar field itself admits every bit pattern. Its comparison must
     // establish the whole payload predicate before a valid view can escape.
     transition true {
-        true -> Optional::Some { value: Decoded { value: @view } }
+        true -> Optional::Some { value: Decoded { value: @view } },
         false -> Optional::None
     }
 }
 machine consume(value: @LayoutStorage<Payload, Spread>) -> u64 {
     let difference: u64 = value.second - 42u64;
     transition value.first == 23u8 && value.last == 9u16 && difference == 0u64 {
-        true -> 1u64
+        true -> 1u64,
         false -> 0u64
     }
 }
@@ -61,11 +61,11 @@ machine main() crashes Trap {
     copy_bytes(bytes, output);
     let saved: Optional<Decoded> = decode(@mut destination);
     let observed: u64 = match saved {
-        Optional::Some { value as decoded } -> consume(decoded.value)
+        Optional::Some { value as decoded } -> consume(decoded.value),
         Optional::None -> 0u64
     };
     transition observed == 1u64 && source[0] == 17u64 && source[6] == 53u64 && destination[0] == 29u64 && destination[6] == 71u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

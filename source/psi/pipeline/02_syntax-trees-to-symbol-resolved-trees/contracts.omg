@@ -12,7 +12,7 @@ crashes Trap
 
     machine clear(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
         transition parameter < syntax.generic_parameter_count {
-            true -> cleared(resolver, sources, syntax, parameter)
+            true -> cleared(resolver, sources, syntax, parameter),
             _ -> next_machine(resolver, sources, syntax, 0)
         }
     }
@@ -24,7 +24,7 @@ crashes Trap
 
     machine next_machine(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
-            true -> machine(resolver, sources, syntax, index)
+            true -> machine(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -36,7 +36,7 @@ crashes Trap
 
     machine next_contract(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
-            true -> contract(resolver, sources, syntax, index, item, offset)
+            true -> contract(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
@@ -46,7 +46,7 @@ crashes Trap
         let written: Contract = syntax_trees_contract(syntax, handle);
         let binder: u64 in Trapping = contract_binder(sources, syntax, item, written.name.source_span);
         transition binder < item.generic_parameter_count {
-            true -> named(resolver, sources, syntax, index, item, offset, handle, written, item.first_generic_parameter + binder)
+            true -> named(resolver, sources, syntax, index, item, offset, handle, written, item.first_generic_parameter + binder),
             _ -> reject(resolver, ResolveDiagnosticCode::ContractNamesNoBinder, written.name.source_span)
         }
     }
@@ -64,7 +64,7 @@ crashes Trap
     ) {
         let existing: BinderContract = binder_contract(@resolver.output, parameter);
         transition existing.present {
-            true -> reject(resolver, ResolveDiagnosticCode::DuplicateContract, written.name.source_span)
+            true -> reject(resolver, ResolveDiagnosticCode::DuplicateContract, written.name.source_span),
             _ -> bound(resolver, sources, syntax, index, item, offset, handle, parameter)
         }
     }
@@ -99,7 +99,7 @@ crashes Trap
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, item: MachineItem, name: SourceSpan, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < item.generic_parameter_count {
-            true -> candidate(sources, syntax, item, name, offset)
+            true -> candidate(sources, syntax, item, name, offset),
             _ -> found(item.generic_parameter_count)
         }
     }
@@ -108,7 +108,7 @@ crashes Trap
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, item.first_generic_parameter + offset);
         let spelled: bool = spans_equal(sources, parameter.name.source_span, name);
         transition spelled && parameter.kind == GenericParameterKind::Machine {
-            true -> found(offset)
+            true -> found(offset),
             _ -> next(sources, syntax, item, name, offset + 1)
         }
     }

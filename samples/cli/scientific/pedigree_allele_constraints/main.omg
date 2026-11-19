@@ -22,7 +22,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut pedigree: Pedigree;
     let accepted: bool = block read(@mut pedigree);
     transition accepted {
-        true -> infer(main, @pedigree)
+        true -> infer(main, @pedigree),
         _ -> invalid(main)
     }
     machine infer(main: @mut Main, pedigree: @Pedigree) {
@@ -30,7 +30,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         initialize(pedigree, @mut result);
         enumerate(pedigree, @mut result);
         transition result.mass == 0 {
-            true -> impossible(main, pedigree, @mut result)
+            true -> impossible(main, pedigree, @mut result),
             _ -> complete(main, pedigree, @result)
         }
     }

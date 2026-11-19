@@ -1,4 +1,3 @@
-module main;
 public boundary trait Reading<const Tag: u64> {
     machine total() -> u64 reaches none crashes none ensures result >= 1000u64;
 }

@@ -18,5 +18,5 @@ machine main() crashes Trap {
     done requires output == 7 ensures output == selected.length && output == 7:
         nop
     }
-    transition output == 7 && cursor == 0 { true -> finished() false -> failed() }
+    transition output == 7 && cursor == 0 { true -> finished(), false -> failed() }
 }

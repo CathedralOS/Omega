@@ -48,7 +48,7 @@ machine run_main(main: @mut Main) reaches Writer crashes Trap {
     let left_guard: u64 = buffer.cells[0].value;
     let right_guard: u64 = buffer.cells[2].value;
     drop(buffer);
-    transition remaining == 2147483574 && marker_remaining == 9 && observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 { true -> done() _ -> bad() }
+    transition remaining == 2147483574 && marker_remaining == 9 && observed == 73 && value == 73 && original == 37 && marker == 91 && left_guard == 305419896 && right_guard == 1515863100 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

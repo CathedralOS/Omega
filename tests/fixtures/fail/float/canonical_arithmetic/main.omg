@@ -33,7 +33,7 @@ machine main() crashes Trap {
         && arithmetic64(-6.0f64, 2.0f64, -4.0f64, -8.0f64, -12.0f64, -3.0f64)
         && arithmetic64(9007199254740992.0f64, 1.0f64, 9007199254740992.0f64, 9007199254740991.0f64, 9007199254740992.0f64, 9007199254740992.0f64)
         && quiet32(-0.0f32) && quiet64(-0.0f64)
-    { true -> done() _ -> bad() }
+    { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

@@ -14,7 +14,7 @@ machine probe(lhs: u8, rhs: u8) -> u8
 machine main() crashes Trap {
     let combined: u8 = probe(12u8, 10u8);
     transition combined == 100u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

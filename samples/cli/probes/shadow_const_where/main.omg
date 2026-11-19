@@ -36,12 +36,12 @@ machine Main::main(main: @mut Main) {
     let slot: Slot = Slot::Found { value: 4 };
     main.shadow = value;
     transition slot {
-        Slot::Found { value } -> check(main, value)
+        Slot::Found { value } -> check(main, value),
         _ -> fail(main)
     }
     machine check(main: @mut Main, found: u64) {
         transition found <= 5 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

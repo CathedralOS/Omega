@@ -20,7 +20,7 @@ machine partition(whole: Region in Owned, requested: u64) -> Parts
 requires requested <= whole.length
 ensures result.taken.length == requested,
     result.rest.length == whole.length - requested,
-    core::Identity<CountedQuantity<ByteUnit>>(
+    core::Identity::<CountedQuantity<ByteUnit>>(
         Owned::content(old(@whole)),
         separate(Owned::content(@result.taken), Owned::content(@result.rest))
     )
@@ -46,7 +46,7 @@ machine main() crashes Trap {
     drop(first);
     drop(second);
     drop(strategy.tail);
-    transition correct { true -> done() _ -> bad() }
+    transition correct { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

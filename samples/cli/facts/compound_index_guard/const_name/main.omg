@@ -18,21 +18,21 @@ machine run_main(main: @mut Main) crashes Trap {
 
 machine guarded_store(main: @mut Main) crashes Trap {
     transition main.b * STRIDE + main.a >= 0 && main.b * STRIDE + main.a < LIMIT {
-        true -> put(main)
+        true -> put(main),
         _ -> done(main)
     }
     machine put(main: @mut Main) {
         main.grid[main.b * STRIDE + main.a] = 7;
         main.hits = 1;
         transition main.hits == 1 && main.grid[75] == 7 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }
     machine done(main: @mut Main) {
         main.hits = -1;
         transition false {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }
@@ -60,7 +60,7 @@ machine entry_start() crashes Trap {
     run_main(@mut entry_storage);
     transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
         && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
-        true -> observed()
+        true -> observed(),
         false -> writeback_mismatch()
     }
     machine observed() {}

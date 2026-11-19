@@ -35,7 +35,7 @@ ensures
 machine main() crashes Trap {
     let diff: u64 = probe();
     transition diff == 60u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

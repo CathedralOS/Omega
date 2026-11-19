@@ -1,4 +1,3 @@
-module terrain::stitch;
 use terrain::model;
 use terrain::model::Contours;
 // Consume segments exactly once. Degree-one starts precede cycles; all scans
@@ -23,20 +22,20 @@ public machine stitch(graph: @mut Contours, paths: @mut Paths) {
     paths.loops = 0;
     transition { _ -> clear(graph, paths, 0) }
     machine clear(graph: @mut Contours, paths: @mut Paths, index: u64) {
-        transition index < 8 { true -> zero(graph, paths, index) false -> degree(graph, paths, 0) }
+        transition index < 8 { true -> zero(graph, paths, index), false -> degree(graph, paths, 0) }
     }
     machine zero(graph: @mut Contours, paths: @mut Paths, index: u64) requires index < 8 {
         graph.used[index] = false;
         transition { _ -> clear(graph, paths, index + 1) }
     }
     machine degree(graph: @mut Contours, paths: @mut Paths, vertex: u64) {
-        transition vertex < 12 { true -> inspect(graph, paths, vertex) false -> start(graph, paths, 0, true) }
+        transition vertex < 12 { true -> inspect(graph, paths, vertex), false -> start(graph, paths, 0, true) }
     }
     machine inspect(graph: @mut Contours, paths: @mut Paths, vertex: u64) requires vertex < 12 {
         transition graph.degree[vertex] {
-            0 -> degree(graph, paths, vertex + 1)
-            1 -> boundary(graph, paths, vertex)
-            2 -> degree(graph, paths, vertex + 1)
+            0 -> degree(graph, paths, vertex + 1),
+            1 -> boundary(graph, paths, vertex),
+            2 -> degree(graph, paths, vertex + 1),
             _ -> failed(paths)
         }
     }
@@ -45,29 +44,29 @@ public machine stitch(graph: @mut Contours, paths: @mut Paths) {
         transition { _ -> degree(graph, paths, vertex + 1) }
     }
     machine start(graph: @mut Contours, paths: @mut Paths, vertex: u64, open_phase: bool) {
-        transition vertex < 12 { true -> eligible(graph, paths, vertex, open_phase) false -> phase(graph, paths, open_phase) }
+        transition vertex < 12 { true -> eligible(graph, paths, vertex, open_phase), false -> phase(graph, paths, open_phase) }
     }
     machine eligible(graph: @mut Contours, paths: @mut Paths, vertex: u64, open_phase: bool) requires vertex < 12 {
         transition !open_phase || graph.degree[vertex] == 1 {
-            true -> find_start(graph, paths, vertex, open_phase, 0)
+            true -> find_start(graph, paths, vertex, open_phase, 0),
             false -> start(graph, paths, vertex + 1, open_phase)
         }
     }
     machine find_start(graph: @mut Contours, paths: @mut Paths, vertex: u64, open_phase: bool, segment: u64) requires vertex < 12 {
         transition segment < graph.count && segment < 8 {
-            true -> test_start(graph, paths, vertex, open_phase, segment)
+            true -> test_start(graph, paths, vertex, open_phase, segment),
             false -> start(graph, paths, vertex + 1, open_phase)
         }
     }
     machine test_start(graph: @mut Contours, paths: @mut Paths, vertex: u64, open_phase: bool, segment: u64) requires segment < 8 {
         transition !graph.used[segment] && (graph.first[segment] == vertex || graph.second[segment] == vertex) {
-            true -> begin(graph, paths, vertex, open_phase, segment)
+            true -> begin(graph, paths, vertex, open_phase, segment),
             false -> find_start(graph, paths, vertex, open_phase, segment + 1)
         }
     }
     machine begin(graph: @mut Contours, paths: @mut Paths, vertex: u64, open_phase: bool, segment: u64) {
         transition paths.count < 8 && paths.size < 16 {
-            true -> begin_store(graph, paths, vertex, open_phase, segment)
+            true -> begin_store(graph, paths, vertex, open_phase, segment),
             false -> failed(paths)
         }
     }
@@ -80,27 +79,27 @@ public machine stitch(graph: @mut Contours, paths: @mut Paths) {
         transition { _ -> walk(graph, paths, vertex, vertex, open_phase, segment) }
     }
     machine walk(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool, segment: u64) {
-        transition segment < 8 { true -> consume(graph, paths, origin, current, open_phase, segment) false -> failed(paths) }
+        transition segment < 8 { true -> consume(graph, paths, origin, current, open_phase, segment), false -> failed(paths) }
     }
     machine consume(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool, segment: u64) requires segment < 8 {
         let first: u64 = graph.first[segment];
         let second: u64 = graph.second[segment];
         graph.used[segment] = true;
         transition first == current {
-            true -> append(graph, paths, origin, second, open_phase)
+            true -> append(graph, paths, origin, second, open_phase),
             false -> append(graph, paths, origin, first, open_phase)
         }
     }
     machine append(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool) {
         transition paths.count < 8 && paths.size < 16 {
-            true -> append_length(graph, paths, origin, current, open_phase)
+            true -> append_length(graph, paths, origin, current, open_phase),
             false -> failed(paths)
         }
     }
     machine append_length(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool) requires paths.count < 8 requires paths.size < 16 {
         let length: u64 = paths.lengths[paths.count];
         transition length < 16 {
-            true -> append_store(graph, paths, origin, current, open_phase, length)
+            true -> append_store(graph, paths, origin, current, open_phase, length),
             false -> failed(paths)
         }
     }
@@ -109,24 +108,24 @@ public machine stitch(graph: @mut Contours, paths: @mut Paths) {
         paths.size = paths.size + 1;
         paths.lengths[paths.count] = length + 1;
         transition current == origin {
-            true -> closed(graph, paths, origin, open_phase)
+            true -> closed(graph, paths, origin, open_phase),
             false -> find_next(graph, paths, origin, current, open_phase, 0)
         }
     }
     machine find_next(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool, segment: u64) {
         transition segment < graph.count && segment < 8 {
-            true -> test_next(graph, paths, origin, current, open_phase, segment)
+            true -> test_next(graph, paths, origin, current, open_phase, segment),
             false -> finish(graph, paths, origin, open_phase)
         }
     }
     machine test_next(graph: @mut Contours, paths: @mut Paths, origin: u64, current: u64, open_phase: bool, segment: u64) requires segment < 8 {
         transition !graph.used[segment] && (graph.first[segment] == current || graph.second[segment] == current) {
-            true -> walk(graph, paths, origin, current, open_phase, segment)
+            true -> walk(graph, paths, origin, current, open_phase, segment),
             false -> find_next(graph, paths, origin, current, open_phase, segment + 1)
         }
     }
     machine closed(graph: @mut Contours, paths: @mut Paths, origin: u64, open_phase: bool) {
-        transition paths.count < 8 { true -> closed_store(graph, paths, origin, open_phase) false -> failed(paths) }
+        transition paths.count < 8 { true -> closed_store(graph, paths, origin, open_phase), false -> failed(paths) }
     }
     machine closed_store(graph: @mut Contours, paths: @mut Paths, origin: u64, open_phase: bool) requires paths.count < 8 {
         paths.closed[paths.count] = true;
@@ -134,20 +133,20 @@ public machine stitch(graph: @mut Contours, paths: @mut Paths) {
         transition { _ -> finish(graph, paths, origin, open_phase) }
     }
     machine finish(graph: @mut Contours, paths: @mut Paths, origin: u64, open_phase: bool) {
-        transition paths.count < 8 && origin < 12 { true -> advance(graph, paths, origin, open_phase) false -> failed(paths) }
+        transition paths.count < 8 && origin < 12 { true -> advance(graph, paths, origin, open_phase), false -> failed(paths) }
     }
     machine advance(graph: @mut Contours, paths: @mut Paths, origin: u64, open_phase: bool) requires paths.count < 8 requires origin < 12 {
         paths.count = paths.count + 1;
         transition { _ -> start(graph, paths, origin + 1, open_phase) }
     }
     machine phase(graph: @mut Contours, paths: @mut Paths, open_phase: bool) {
-        transition open_phase { true -> start(graph, paths, 0, false) false -> verify(graph, paths, 0) }
+        transition open_phase { true -> start(graph, paths, 0, false), false -> verify(graph, paths, 0) }
     }
     machine verify(graph: @mut Contours, paths: @mut Paths, segment: u64) {
-        transition segment < graph.count && segment < 8 { true -> verified(graph, paths, segment) false -> done() }
+        transition segment < graph.count && segment < 8 { true -> verified(graph, paths, segment), false -> done() }
     }
     machine verified(graph: @mut Contours, paths: @mut Paths, segment: u64) requires segment < 8 {
-        transition graph.used[segment] { true -> verify(graph, paths, segment + 1) false -> failed(paths) }
+        transition graph.used[segment] { true -> verify(graph, paths, segment + 1), false -> failed(paths) }
     }
     machine failed(paths: @mut Paths) { paths.valid = false; }
     machine done() { }

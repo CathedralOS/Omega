@@ -1,4 +1,3 @@
-module domain::trace;
 use omega::language::core::max_i32;
 
 // Direction uses the last nonzero stimulus change. A plateau inherits it;
@@ -21,7 +20,7 @@ public data Trace {
 }
 public machine identify(trace: @mut Trace, stimulus: i32 in Wrapping) {
     transition trace.rows == 0 {
-        true -> first(trace, stimulus)
+        true -> first(trace, stimulus),
         false -> compare(trace, stimulus)
     }
     machine first(trace: @mut Trace, stimulus: i32 in Wrapping) {
@@ -31,7 +30,7 @@ public machine identify(trace: @mut Trace, stimulus: i32 in Wrapping) {
     }
     machine compare(trace: @mut Trace, stimulus: i32 in Wrapping) {
         transition stimulus == trace.previous {
-            true -> plateau(trace, stimulus)
+            true -> plateau(trace, stimulus),
             false -> movement(trace, stimulus)
         }
     }
@@ -41,13 +40,13 @@ public machine identify(trace: @mut Trace, stimulus: i32 in Wrapping) {
     }
     machine movement(trace: @mut Trace, stimulus: i32 in Wrapping) {
         transition stimulus > trace.previous {
-            true -> direction(trace, stimulus, 1)
+            true -> direction(trace, stimulus, 1),
             false -> direction(trace, stimulus, 2)
         }
     }
     machine direction(trace: @mut Trace, stimulus: i32 in Wrapping, branch: i32 in Wrapping) {
         transition trace.branch != 0 && trace.branch != branch {
-            true -> reversal(trace, stimulus, branch)
+            true -> reversal(trace, stimulus, branch),
             false -> assign(trace, stimulus, branch)
         }
     }
@@ -63,7 +62,7 @@ public machine identify(trace: @mut Trace, stimulus: i32 in Wrapping) {
         trace.previous = stimulus;
         trace.rows = trace.rows + 1;
         transition trace.branch == 0 {
-            true -> ambiguous(trace)
+            true -> ambiguous(trace),
             false -> done()
         }
     }
@@ -71,12 +70,12 @@ public machine identify(trace: @mut Trace, stimulus: i32 in Wrapping) {
     machine done() { }
 }
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
-    transition value < 0 { true -> (0 - value) false -> (value) }
+    transition value < 0 { true -> (0 - value), false -> (value) }
 }
 public machine residual_statistics(trace: @mut Trace, residual: i32 in Wrapping) {
     let absolute: i32 in Wrapping = magnitude(residual);
     transition trace.branch == 1 {
-        true -> forward(trace, absolute)
+        true -> forward(trace, absolute),
         false -> reverse(trace, absolute)
     }
     machine forward(trace: @mut Trace, absolute: i32 in Wrapping) {

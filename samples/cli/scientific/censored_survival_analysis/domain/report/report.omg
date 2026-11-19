@@ -1,4 +1,3 @@
-module domain::report;
 use domain::input;
 use domain::input::Reader;
 use domain::model;
@@ -14,7 +13,7 @@ use omega::language::core::I64::from_f64;
 machine extent(values: @[f64]) -> u64 ensures result == values.len { values.len }
 machine row_value(values: @[f64], index: u32) -> f64 {
     let count: u64 = extent(values);
-    transition index < count { true -> (values[index]) false -> 0.0 }
+    transition index < count { true -> (values[index]), false -> 0.0 }
 }
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
@@ -24,7 +23,7 @@ invokes Console
 {
     let widened: i64 = value;
     transition widened < 0 {
-        true -> negative(reader, widened)
+        true -> negative(reader, widened),
         _ -> digits(reader, widened)
     }
     machine negative(reader: @mut Reader, value: i64) {
@@ -37,13 +36,13 @@ invokes Console
     }
     machine seek(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
-            true -> seek(reader, value, divisor * 10)
+            true -> seek(reader, value, divisor * 10),
             _ -> ready(reader, value, divisor)
         }
     }
     machine ready(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(reader, value, divisor)
+            true -> emit(reader, value, divisor),
             _ -> {}
         }
     }
@@ -53,7 +52,7 @@ invokes Console
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
         Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
-            true -> ready(reader, value, divisor / 10)
+            true -> ready(reader, value, divisor / 10),
             _ -> {}
         }
     }
@@ -65,7 +64,7 @@ machine real(reader: @mut Reader, value: f64) reaches Console {
     Console::write_byte(46);
     transition { _ -> fraction(reader, amount % 1000000000000, 100000000000) }
     machine fraction(reader: @mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping) {
-        transition divisor > 0 { true -> digit(reader, amount, divisor) false -> {} }
+        transition divisor > 0 { true -> digit(reader, amount, divisor), false -> {} }
     }
     machine digit(reader: @mut Reader, amount: i64 in Wrapping, divisor: i64 in Wrapping)
     requires divisor > 0
@@ -81,7 +80,7 @@ invokes Console
     transition { _ -> row(reader, table, 0) }
     machine row(reader: @mut Reader, table: @Table, index: i32 in Wrapping) {
         transition index >= 0 && index < 32 && index < table.count {
-            true -> emit(reader, table, index)
+            true -> emit(reader, table, index),
             false -> median(reader, table)
         }
     }

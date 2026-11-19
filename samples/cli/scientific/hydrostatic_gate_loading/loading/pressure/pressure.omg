@@ -1,4 +1,3 @@
-module loading::pressure;
 // Local coordinate t=z-lower. Integrating width, pressure*width, and
 // z*pressure*width exactly requires polynomials of degree one, two, three.
 // No quadrature library or active-worker code is used.
@@ -9,7 +8,7 @@ public data SegmentLoad [copy] { area: f64; force: f64; first_moment: f64; hinge
 public machine integrate(segment: WetSegment, water: f64, gamma: f64, hinge: f64) -> SegmentLoad {
     let height: f64 = segment.upper - segment.lower;
     transition height > 0.0 {
-        true -> wet(segment, water, gamma, hinge, height)
+        true -> wet(segment, water, gamma, hinge, height),
         false -> zero()
     }
     machine zero() -> SegmentLoad {

@@ -45,7 +45,7 @@ requires
     main.hits = 0;
     Main::accept(main.password.length);
     transition (main.password in Password::Valid | Password::Secure) {
-        (true) -> Main::good(main)
+        (true) -> Main::good(main),
         _ -> Main::bad(main)
     }
     machine good(main: @mut Main) { main.hits = 1; }

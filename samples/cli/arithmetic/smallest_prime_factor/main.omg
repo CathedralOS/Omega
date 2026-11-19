@@ -41,7 +41,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.trial.d > 0
     {
         transition main.trial.d * main.trial.d > main.trial.n {
-            true -> block prime(main)
+            true -> block prime(main),
             _ -> block test_divisor(main)
         }
     }
@@ -51,7 +51,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires main.trial.d > 0
     {
         transition main.trial.n % main.trial.d == 0 {
-            true -> block found(main)
+            true -> block found(main),
             _ -> block adv_guard(main)
         }
     }
@@ -62,7 +62,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // unreachable and routes to prime() as the give-up answer.)
     machine adv_guard(main: @mut Main) {
         transition main.trial.d < 200 {
-            true -> block advance(main)
+            true -> block advance(main),
             _ -> block prime(main)
         }
     }

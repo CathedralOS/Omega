@@ -1,4 +1,3 @@
-module domain::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
@@ -26,14 +25,14 @@ crashes Trap
 {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
-        ByteRead::Eof -> ByteRead::Eof
+        ByteRead::Eof -> ByteRead::Eof,
         ByteRead::Byte { value } -> capacity(reader, value)
     }
     machine capacity(reader: @mut InputReader, value: i32) -> ByteRead
     requires value >= 0 && value <= 255
     {
         transition reader.remaining > 0 {
-            true -> consume(reader, value)
+            true -> consume(reader, value),
             _ -> limit(reader)
         }
     }
@@ -57,26 +56,26 @@ crashes Trap
     machine skip(reader: @mut InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
-            ByteRead::Eof -> Token::End
+            ByteRead::Eof -> Token::End,
             ByteRead::Byte { value } -> first(reader, value)
         }
     }
     machine first(reader: @mut InputReader, byte: i32) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
-            true -> skip(reader)
+            true -> skip(reader),
             _ -> sign(reader, byte)
         }
     }
     machine sign(reader: @mut InputReader, byte: i32) -> Token {
         transition byte == 45 {
-            true -> next(reader, 0, 0, true)
+            true -> next(reader, 0, 0, true),
             _ -> digit(reader, byte, 0, 0, false)
         }
     }
     machine digit(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                 digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte >= 48 && byte <= 57 && digits < 7 {
-            true -> accumulate(reader, byte, magnitude, digits, negative)
+            true -> accumulate(reader, byte, magnitude, digits, negative),
             _ -> Token::Invalid
         }
     }
@@ -84,7 +83,7 @@ crashes Trap
                      digits: i32 in Wrapping, negative: bool) -> Token {
         let updated: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition updated <= 1000000 {
-            true -> next(reader, updated, digits + 1, negative)
+            true -> next(reader, updated, digits + 1, negative),
             _ -> Token::Invalid
         }
     }
@@ -92,26 +91,26 @@ crashes Trap
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
-            ByteRead::Eof -> finish(magnitude, digits, negative)
+            ByteRead::Eof -> finish(magnitude, digits, negative),
             ByteRead::Byte { value } -> delimiter(reader, value, magnitude, digits, negative)
         }
     }
     machine delimiter(reader: @mut InputReader, byte: i32, magnitude: i32 in Wrapping,
                     digits: i32 in Wrapping, negative: bool) -> Token {
         transition byte == 32 || byte == 9 || byte == 10 || byte == 13 {
-            true -> finish(magnitude, digits, negative)
+            true -> finish(magnitude, digits, negative),
             _ -> digit(reader, byte, magnitude, digits, negative)
         }
     }
     machine finish(magnitude: i32 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Token {
         transition digits > 0 {
-            true -> signed_value(magnitude, negative)
+            true -> signed_value(magnitude, negative),
             _ -> Token::Invalid
         }
     }
     machine signed_value(magnitude: i32 in Wrapping, negative: bool) -> Token {
         transition negative {
-            true -> Token::Number { value: (0 - magnitude) as i32 }
+            true -> Token::Number { value: (0 - magnitude) as i32 },
             _ -> Token::Number { value: magnitude as i32 }
         }
     }
@@ -124,41 +123,41 @@ crashes Trap
 {
     let item: Token = block token(reader);
     transition item {
-        Token::Number { value } -> direction(reader, observations, value)
+        Token::Number { value } -> direction(reader, observations, value),
         _ -> false
     }
     machine direction(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
         observations.direction = value;
         transition value == 1 || value == -1 {
-            true -> size(reader, observations)
+            true -> size(reader, observations),
             _ -> false
         }
     }
     machine size(reader: @mut InputReader, observations: @mut Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
-            Token::Number { value } -> count(reader, observations, value)
+            Token::Number { value } -> count(reader, observations, value),
             _ -> false
         }
     }
     machine count(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
         observations.count = value as i32 in Wrapping;
         transition value >= 8 && value <= 32 {
-            true -> noise(reader, observations)
+            true -> noise(reader, observations),
             _ -> false
         }
     }
     machine noise(reader: @mut InputReader, observations: @mut Observations) -> bool {
         let item: Token = block token(reader);
         transition item {
-            Token::Number { value } -> sigma(reader, observations, value)
+            Token::Number { value } -> sigma(reader, observations, value),
             _ -> false
         }
     }
     machine sigma(reader: @mut InputReader, observations: @mut Observations, value: i32) -> bool {
         observations.sigma = F64::from_i32(value) / 1000.0;
         transition value >= 1 && value <= 10000 {
-            true -> begin(reader, observations)
+            true -> begin(reader, observations),
             _ -> false
         }
     }
@@ -170,31 +169,31 @@ crashes Trap
                position: i32 in Wrapping, field: i32 in Wrapping) -> bool {
         let item: Token = block token(reader);
         transition item {
-            Token::End -> finish(reader, observations, position, field)
-            Token::Number { value } -> capacity(reader, observations, row, position, field, value)
+            Token::End -> finish(reader, observations, position, field),
+            Token::Number { value } -> capacity(reader, observations, row, position, field, value),
             _ -> false
         }
     }
     machine finish(reader: @InputReader, observations: @Observations,
                  position: i32 in Wrapping, field: i32 in Wrapping) -> bool {
         transition position == observations.count && field == 0 && !reader.exhausted {
-            true -> validate_design(observations)
+            true -> validate_design(observations),
             _ -> false
         }
     }
     machine capacity(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
                    position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> select(reader, observations, row, position, field, value)
+            true -> select(reader, observations, row, position, field, value),
             _ -> false
         }
     }
     machine select(reader: @mut InputReader, observations: @mut Observations, row: @mut Row,
                  position: i32 in Wrapping, field: i32 in Wrapping, value: i32) -> bool {
         transition field {
-            0 -> dose(reader, observations, row, position, value)
-            1 -> replicate(reader, observations, row, position, value)
-            2 -> role(reader, observations, row, position, value)
+            0 -> dose(reader, observations, row, position, value),
+            1 -> replicate(reader, observations, row, position, value),
+            2 -> role(reader, observations, row, position, value),
             _ -> response(reader, observations, row, position, value)
         }
     }
@@ -202,7 +201,7 @@ crashes Trap
                position: i32 in Wrapping, value: i32) -> bool {
         row.dose = value;
         transition value >= 0 && value <= 10000 {
-            true -> rows(reader, observations, row, position, 1)
+            true -> rows(reader, observations, row, position, 1),
             _ -> false
         }
     }
@@ -210,7 +209,7 @@ crashes Trap
                     position: i32 in Wrapping, value: i32) -> bool {
         row.replicate = value;
         transition value >= 1 && value <= 32 {
-            true -> rows(reader, observations, row, position, 2)
+            true -> rows(reader, observations, row, position, 2),
             _ -> false
         }
     }
@@ -218,7 +217,7 @@ crashes Trap
                position: i32 in Wrapping, value: i32) -> bool {
         row.role = value;
         transition value >= 0 && value <= 2 {
-            true -> rows(reader, observations, row, position, 3)
+            true -> rows(reader, observations, row, position, 3),
             _ -> false
         }
     }
@@ -226,7 +225,7 @@ crashes Trap
                    position: i32 in Wrapping, value: i32) -> bool {
         transition value >= -20000 && value <= 120000
             && ((row.role == 0 && row.dose > 0) || (row.role != 0 && row.dose == 0)) {
-            true -> store(reader, observations, row, position, value)
+            true -> store(reader, observations, row, position, value),
             _ -> false
         }
     }
@@ -246,14 +245,14 @@ machine validate_design(observations: @Observations) -> bool {
     transition { _ -> scan(observations, 0, 0) }
     machine scan(observations: @Observations, position: i32 in Wrapping, distinct: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> compare(observations, position, 0, distinct, false)
+            true -> compare(observations, position, 0, distinct, false),
             _ -> (distinct >= 5)
         }
     }
     machine compare(observations: @Observations, position: i32 in Wrapping,
                   prior: i32 in Wrapping, distinct: i32 in Wrapping, seen_dose: bool) -> bool {
         transition prior >= 0 && prior < 32 && prior < position {
-            true -> pair(observations, position, prior, distinct, seen_dose)
+            true -> pair(observations, position, prior, distinct, seen_dose),
             _ -> unique(observations, position, distinct, seen_dose)
         }
     }
@@ -262,14 +261,14 @@ machine validate_design(observations: @Observations) -> bool {
         let same: bool = observations.dose[position] == observations.dose[prior]
             && observations.role[position] == observations.role[prior];
         transition same && observations.replicate[position] == observations.replicate[prior] {
-            true -> false
+            true -> false,
             _ -> compare(observations, position, prior + 1, distinct, seen_dose || same)
         }
     }
     machine unique(observations: @Observations, position: i32 in Wrapping,
                  distinct: i32 in Wrapping, seen_dose: bool) -> bool {
         transition observations.role[position] == 0 && !seen_dose {
-            true -> scan(observations, position + 1, distinct + 1)
+            true -> scan(observations, position + 1, distinct + 1),
             _ -> scan(observations, position + 1, distinct)
         }
     }

@@ -42,13 +42,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // After the press the balance should be spent and 75c of product
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
     transition main.register.balance == 0 {
-        true -> block check_dispensed(main)
+        true -> block check_dispensed(main),
         false -> block bad_balance(main)
     }
 
     machine check_dispensed(main: @mut Main) {
         transition main.register.dispensed == 75 {
-            true -> block good_verdict(main)
+            true -> block good_verdict(main),
             false -> block bad_dispensed(main)
         }
     }
@@ -79,8 +79,8 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 // the balance covers dispenses the price and spends the balance.
 machine apply(main: @mut Main, event: Event) {
     transition event {
-        Event::Insert { cents } -> add_balance(main, cents)
-        Event::Press { slot } -> try_dispense(main, slot)
+        Event::Insert { cents } -> add_balance(main, cents),
+        Event::Press { slot } -> try_dispense(main, slot),
         _ -> idle()
     }
 
@@ -91,7 +91,7 @@ machine apply(main: @mut Main, event: Event) {
     machine try_dispense(main: @mut Main, slot: i32 in Saturating) {
         let price: i32 in Saturating = price_of(slot);
         transition main.register.balance >= price {
-            true -> dispense(main, price)
+            true -> dispense(main, price),
             false -> idle()
         }
     }
@@ -108,7 +108,7 @@ machine apply(main: @mut Main, event: Event) {
 // Slot 1 costs 75 cents; everything else is free (price 0) for this demo.
 machine price_of(slot: i32 in Saturating) -> i32 in Saturating {
     transition slot == 1 {
-        true -> seventy_five()
+        true -> seventy_five(),
         _ -> zero()
     }
 

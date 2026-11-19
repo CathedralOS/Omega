@@ -5,10 +5,10 @@ machine identity<T>(value: T) -> T { move value }
 machine main() crashes Trap {
     let ticket = Ticket { number: 29u64 };
     let envelope: Envelope<Ticket> = Envelope { item: move ticket };
-    let wrapped = identity<Envelope<Ticket>>(move envelope);
+    let wrapped = identity::<Envelope<Ticket>>(move envelope);
     let { item } = move wrapped;
     let { number } = move item;
-    transition number == 29u64 { true -> done() false -> wrong() }
+    transition number == 29u64 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() crashes Trap { crash Trap; }
 }

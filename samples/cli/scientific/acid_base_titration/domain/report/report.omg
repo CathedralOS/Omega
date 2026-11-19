@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i32_to_u8_trapping;
@@ -12,7 +11,7 @@ use domain::equilibrium::Equilibrium;
 machine mantissa(value: f64) reaches Console {
     let mut bytes: [u8; 18] = "+0.000000000000000";
     transition value < 0.0 {
-        true -> negative(@mut bytes, value)
+        true -> negative(@mut bytes, value),
         _ -> positive(@mut bytes, value)
     }
     machine negative(bytes: @mut [u8; 18], value: f64) {
@@ -27,14 +26,14 @@ machine mantissa(value: f64) reaches Console {
     machine digits(bytes: @mut [u8; 18],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 18 {
-            true -> separator(bytes, remaining, position)
+            true -> separator(bytes, remaining, position),
             _ -> emit(bytes)
         }
     }
     machine separator(bytes: @mut [u8; 18],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 2 {
-            true -> digits(bytes, remaining, position - 1)
+            true -> digits(bytes, remaining, position - 1),
             _ -> store(bytes, remaining, position)
         }
     }
@@ -47,23 +46,23 @@ machine mantissa(value: f64) reaches Console {
     machine emit(bytes: @[u8; 18]) { Console::write(bytes); }
 }
 machine emit_number(value: f64) reaches Console {
-    transition value < 0.0 { true -> normalize(0.0 - value, -1.0, 0) _ -> normalize(value, 1.0, 0) }
+    transition value < 0.0 { true -> normalize(0.0 - value, -1.0, 0), _ -> normalize(value, 1.0, 0) }
     machine normalize(value: f64, sign: f64, exponent: i32 in Wrapping) {
         transition value > 0.0 && value < 1.0 && exponent > -60 {
-            true -> normalize(value * 10.0, sign, exponent - 1)
+            true -> normalize(value * 10.0, sign, exponent - 1),
             _ -> upper(value, sign, exponent)
         }
     }
     machine upper(value: f64, sign: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 && exponent < 60 {
-            true -> normalize(value / 10.0, sign, exponent + 1)
+            true -> normalize(value / 10.0, sign, exponent + 1),
             _ -> emit(value, sign, exponent)
         }
     }
     machine emit(value: f64, sign: f64, exponent: i32 in Wrapping) {
         mantissa(value * sign);
         Console::write("e");
-        transition exponent < 0 { true -> minus(0 - exponent) _ -> plus(exponent) }
+        transition exponent < 0 { true -> minus(0 - exponent), _ -> plus(exponent) }
     }
     machine minus(exponent: i32 in Wrapping) { Console::write("-"); transition { _ -> exponent_digits(exponent) } }
     machine plus(exponent: i32 in Wrapping) { Console::write("+"); transition { _ -> exponent_digits(exponent) } }

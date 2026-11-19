@@ -38,7 +38,7 @@ machine Main::main(main: @mut Main) {
     let c32: i64 = choose_computed32(0.5f32, 0.5f32, 1.0f32, 2.0f32);
     let fall: i64 = choose_projected32(Narrow { left: 3.0f32, right: 0.0f32 }, 1.0f32, 2.0f32);
     transition p32 == 9 && p64 == 9 && c32 == 7 && fall == 11 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

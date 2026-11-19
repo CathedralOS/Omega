@@ -45,7 +45,7 @@ machine add3(a: i32 in Saturating, b: i32 in Saturating, c: i32 in Saturating) -
 
 machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Saturating {
     transition n < min_val {
-        true -> min_val
+        true -> min_val,
         _ -> n
     }
 }
@@ -64,7 +64,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let total: i32 in Saturating = r1 + r2 - r3 + main.offset;
 
     transition total == 70 {
-        true -> check_r1(main, r1, r2, r3)
+        true -> check_r1(main, r1, r2, r3),
         _ -> bad_total(main)
     }
 
@@ -77,7 +77,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_r1(main: @mut Main, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r1 == 30 {
-            true -> check_r2(main, r2, r3)
+            true -> check_r2(main, r2, r3),
             _ -> bad_r1(main)
         }
     }
@@ -91,7 +91,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_r2(main: @mut Main, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r2 == 22 {
-            true -> check_r3(main, r3)
+            true -> check_r3(main, r3),
             _ -> bad_r2(main)
         }
     }
@@ -105,7 +105,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_r3(main: @mut Main, r3: i32 in Saturating) {
         transition r3 == 20 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad_r3(main)
         }
     }

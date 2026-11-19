@@ -9,7 +9,7 @@ InlineScheduler satisfies Scheduler {
 }
 machine sum(total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
     transition remaining == 0 {
-        true -> total
+        true -> total,
         false -> suspend step(total, remaining)
     }
     machine step(total: u64, remaining: u64) -> u64 reaches Scheduler suspends
@@ -29,7 +29,7 @@ machine main() reaches Scheduler crashes Trap {
     let full: u64 = suspend run(0, 100000);
     let empty: u64 = suspend run(7, 0);
     transition full == 15000150000 && empty == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

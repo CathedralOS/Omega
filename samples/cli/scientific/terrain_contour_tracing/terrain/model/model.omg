@@ -1,4 +1,3 @@
-module terrain::model;
 // NEW043 scientific model: one piecewise bilinear 3x3 scalar grid.
 // No vertex may equal the level. Edge interpolation is exact at scale 2520.
 // Saddles deliberately use a categorical connectivity policy, not an

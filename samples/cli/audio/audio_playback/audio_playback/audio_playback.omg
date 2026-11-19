@@ -1,5 +1,3 @@
-module audio_playback;
-
 // AudioPlayback: the portable speaker the audio samples play through.
 // An application calls only `AudioPlayback` directly; each target's named
 // implementation satisfies the trait and reaches its own platform audio
@@ -42,7 +40,7 @@ WindowsAudioPlayback satisfies AudioPlayback {
     reaches AudioPlayback
     {
         let ok: i32 = block WindowsAudioPlaybackIo::c_play_sound(image, 0, 6);
-        transition ok != 0 { true -> (0) _ -> (0 - 1) }
+        transition ok != 0 { true -> (0), _ -> (0 - 1) }
     }
 }
 
@@ -80,16 +78,16 @@ LinuxAudioPlayback satisfies AudioPlayback {
             let name: [u8; 8] = "default\0";
             let mut handle: u64 = 0;
             let rc: i32 = LinuxAudioPlaybackIo::c_open(@mut handle, @name[0], 0, 0);
-            transition rc >= 0 { true -> block params(handle, pcm, frames) _ -> (rc) }
+            transition rc >= 0 { true -> block params(handle, pcm, frames), _ -> (rc) }
         }
         machine params(handle: u64, pcm: @u8, frames: u32) -> i32 {
             let rc: i32 = LinuxAudioPlaybackIo::c_set_params(handle, 1, 3, 1, 8000, 1, 500000);
-            transition rc >= 0 { true -> block play_frames(handle, pcm, frames) _ -> close_fail(handle, rc) }
+            transition rc >= 0 { true -> block play_frames(handle, pcm, frames), _ -> close_fail(handle, rc) }
         }
         machine play_frames(handle: u64, pcm: @u8, frames: u32) -> i32 {
             let total: u64 = widen_u32_to_u64(frames);
             let done: i64 = block LinuxAudioPlaybackIo::c_writei(handle, pcm, total);
-            transition done >= 0 { true -> block drain(handle) _ -> close_i64(handle, done) }
+            transition done >= 0 { true -> block drain(handle), _ -> close_i64(handle, done) }
         }
         machine drain(handle: u64) -> i32 {
             let rc: i32 = block LinuxAudioPlaybackIo::c_drain(handle);
@@ -166,13 +164,13 @@ boundary trait MacosAudioPlaybackIo {
 }
 
 machine macos_status(code: i32) -> i32 {
-    transition code < 0 { true -> negative(code) _ -> nonnegative(code) }
+    transition code < 0 { true -> negative(code), _ -> nonnegative(code) }
 
     machine negative(code: i32) -> i32 {
-        transition code >= 0 - 999 { true -> (code) _ -> (0 - 999) }
+        transition code >= 0 - 999 { true -> (code), _ -> (0 - 999) }
     }
     machine nonnegative(code: i32) -> i32 {
-        transition code > 0 { true -> (0 - 998) _ -> (0 - 1) }
+        transition code > 0 { true -> (0 - 998), _ -> (0 - 1) }
     }
 }
 
@@ -180,13 +178,13 @@ MacosAudioPlayback satisfies AudioPlayback {
     machine play(image: @u8, image_length: u32, pcm: @u8, frames: u32) -> i32
     reaches AudioPlayback
     {
-        transition frames == 0 { true -> (0) _ -> block resolve(pcm, frames) }
+        transition frames == 0 { true -> (0), _ -> block resolve(pcm, frames) }
 
         // dlsym(RTLD_DEFAULT, "usleep"); RTLD_DEFAULT is the (void*)-2 handle.
         machine resolve(pcm: @u8, frames: u32) -> i32 {
             let name: [u8; 7] = "usleep\0";
             let callback: u64 = MacosAudioPlaybackIo::c_dlsym(18446744073709551614, @name[0]);
-            transition callback != 0 { true -> block create(pcm, frames, callback) _ -> (0 - 1) }
+            transition callback != 0 { true -> block create(pcm, frames, callback), _ -> (0 - 1) }
         }
 
         machine create(pcm: @u8, frames: u32, callback: u64) -> i32 {
@@ -206,13 +204,13 @@ MacosAudioPlayback satisfies AudioPlayback {
             format[36] = 0; format[37] = 0; format[38] = 0; format[39] = 0;
             let mut queue: u64 = 0;
             let rc: i32 = MacosAudioPlaybackIo::c_new_output(@format[0], callback, 0, 0, 0, 0, @mut queue);
-            transition rc == 0 { true -> block allocate(queue, pcm, frames) _ -> (macos_status(rc)) }
+            transition rc == 0 { true -> block allocate(queue, pcm, frames), _ -> (macos_status(rc)) }
         }
 
         machine allocate(queue: u64, pcm: @u8, frames: u32) -> i32 {
             let mut buffer: u64 = 0;
             let rc: i32 = MacosAudioPlaybackIo::c_allocate_buffer(queue, frames, @mut buffer);
-            transition rc == 0 { true -> block fill(queue, buffer, pcm, frames) _ -> teardown(queue, rc) }
+            transition rc == 0 { true -> block fill(queue, buffer, pcm, frames), _ -> teardown(queue, rc) }
         }
 
         machine fill(queue: u64, buffer: u64, pcm: @u8, frames: u32) -> i32 {
@@ -236,13 +234,13 @@ MacosAudioPlayback satisfies AudioPlayback {
 
         machine enqueue(queue: u64, buffer: u64, frames: u32) -> i32 {
             let rc: i32 = MacosAudioPlaybackIo::c_enqueue_buffer(queue, buffer, 0, 0);
-            transition rc == 0 { true -> block start(queue, frames) _ -> teardown(queue, rc) }
+            transition rc == 0 { true -> block start(queue, frames), _ -> teardown(queue, rc) }
         }
 
         machine start(queue: u64, frames: u32) -> i32 {
             let rc: i32 = MacosAudioPlaybackIo::c_start(queue, 0);
             transition rc == 0 {
-                true -> block rest(queue, (frames as u32 in Wrapping) / 400 + 5)
+                true -> block rest(queue, (frames as u32 in Wrapping) / 400 + 5),
                 _ -> teardown(queue, rc)
             }
         }
@@ -250,7 +248,7 @@ MacosAudioPlayback satisfies AudioPlayback {
         // Sleep the authored duration in ~50 ms chunks: each chunk covers 400
         // frames at 8000 Hz and five extra chunks give a 250 ms start-up margin.
         machine rest(queue: u64, chunks: u32 in Wrapping) -> i32 {
-            transition chunks > 0 { true -> block chunk(queue, chunks) _ -> stop(queue) }
+            transition chunks > 0 { true -> block chunk(queue, chunks), _ -> stop(queue) }
         }
         machine chunk(queue: u64, chunks: u32 in Wrapping) -> i32 {
             let rc: i32 = block MacosAudioPlaybackIo::c_usleep(50000);

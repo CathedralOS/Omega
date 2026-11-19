@@ -46,7 +46,7 @@ reaches PortIo
     context.workspace[0] = image.length;
     retain_tail(@mut context.workspace);
     transition initially_zero && context.phase == 17 && context.workspace[19999] == image.length && image.base == 4096 && image.length == 4096 && storage.base == 8192 && storage.length == 4096 {
-        true -> report(image, storage)
+        true -> report(image, storage),
         _ -> wrong(image, storage)
     }
     machine report(image: Extent in Granted, storage: Extent in Granted) {

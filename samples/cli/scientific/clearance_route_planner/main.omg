@@ -11,12 +11,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 8];
     let result: LineReadResult = block Console::read_line(@mut input[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> length(main, @input, count)
+        LineReadResult::LineComplete { count } -> length(main, @input, count),
         _ -> invalid(main)
     }
     machine length(main: @mut Main, input: @[u8; 8], count: u64) {
         transition count == 4 {
-            true -> parse(main, input)
+            true -> parse(main, input),
             false -> invalid(main)
         }
     }
@@ -24,7 +24,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition input[0] >= 48 && input[0] <= 53 && input[1] == 32 &&
                    input[2] >= 48 && input[2] <= 49 && input[3] == 10 {
             true -> plan(main, (input[0] as i64 in Wrapping) - 48,
-                         (input[2] as i32 in Wrapping) - 48)
+                         (input[2] as i32 in Wrapping) - 48),
             false -> invalid(main)
         }
     }
@@ -37,14 +37,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let start: i64 in Wrapping = graph::edge(@scene, 0, 0, radius);
         let goal: i64 in Wrapping = graph::edge(@scene, 1, 1, radius);
         transition start >= 0 && goal >= 0 {
-            true -> search(main, @scene, radius)
+            true -> search(main, @scene, radius),
             false -> blocked(main, @scene, radius, start)
         }
     }
     machine blocked(main: @mut Main, scene: @fixtures::Scene, radius: i64 in Wrapping,
                   start: i64 in Wrapping) {
         transition start < 0 {
-            true -> endpoint(main, scene, 0)
+            true -> endpoint(main, scene, 0),
             false -> endpoint(main, scene, 1)
         }
     }
@@ -62,7 +62,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         graph::build(@mut planner, scene, radius);
         let found: bool = graph::solve(@mut planner);
         transition found {
-            true -> certify(main, scene, radius, @planner)
+            true -> certify(main, scene, radius, @planner),
             false -> infeasible(main, scene, radius, @planner)
         }
     }
@@ -70,7 +70,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
                   planner: @graph::Planner) {
         let valid: bool = validation::route(scene, planner, radius);
         transition valid {
-            true -> report(main, scene, planner)
+            true -> report(main, scene, planner),
             false -> failure(main)
         }
     }
@@ -84,14 +84,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine coordinates(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
                       position: i32 in Wrapping) {
         transition position >= 0 && position < 6 {
-            true -> coordinate_node(main, scene, planner, position, planner.route[position])
+            true -> coordinate_node(main, scene, planner, position, planner.route[position]),
             false -> finish(main)
         }
     }
     machine coordinate_node(main: @mut Main, scene: @fixtures::Scene, planner: @graph::Planner,
                           position: i32 in Wrapping, node: i32 in Wrapping) {
         transition node >= 0 && node < 6 {
-            true -> coordinate_emit(main, scene, planner, position, node)
+            true -> coordinate_emit(main, scene, planner, position, node),
             false -> failure(main)
         }
     }
@@ -101,7 +101,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     {
         number(main, scene.x[node]); Console::write(","); number(main, scene.y[node]);
         transition position > 0 {
-            true -> separator(main, scene, planner, position)
+            true -> separator(main, scene, planner, position),
             false -> finish(main)
         }
     }
@@ -117,7 +117,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
                      planner: @graph::Planner) {
         let valid: bool = validation::cut(scene, planner, radius);
         transition valid {
-            true -> witness(main, planner)
+            true -> witness(main, planner),
             false -> failure(main)
         }
     }
@@ -136,25 +136,25 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 }
 machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 && value < 1000000 {
-        true -> divisor(main, value, 1)
+        true -> divisor(main, value, 1),
         false -> bad(main)
     }
     machine divisor(main: @mut Main, value: i64 in Wrapping, scale: i64 in Wrapping) {
         transition scale > 0 && value / scale >= 10 {
-            true -> divisor(main, value, scale * 10)
+            true -> divisor(main, value, scale * 10),
             false -> digit(main, value, scale)
         }
     }
     machine digit(main: @mut Main, value: i64 in Wrapping, scale: i64 in Wrapping) {
         transition scale > 0 {
-            true -> character(main, value, scale, value / scale + 48)
+            true -> character(main, value, scale, value / scale + 48),
             false -> bad(main)
         }
     }
     machine character(main: @mut Main, value: i64 in Wrapping, scale: i64 in Wrapping,
                     byte: i64 in Wrapping) {
         transition byte >= 48 && byte <= 57 && scale > 0 {
-            true -> emit(main, value, scale, byte)
+            true -> emit(main, value, scale, byte),
             false -> bad(main)
         }
     }
@@ -164,7 +164,7 @@ machine number(main: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Co
     {
         Console::write_byte(byte as i32);
         transition scale > 1 {
-            true -> digit(main, value % scale, scale / 10)
+            true -> digit(main, value % scale, scale / 10),
             false -> done()
         }
     }

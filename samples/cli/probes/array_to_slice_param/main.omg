@@ -23,7 +23,7 @@ machine Main::main(main: @mut Main) {
     let from_field: u64 = count(@main.buf);
     let from_local: u64 = count(@owned);
     transition from_field == 8 && from_local == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -32,12 +32,12 @@ machine hit_matches(origin: Position, target: Position, direction: i32, expected
 requires direction >= 0 && direction < 4 {
     let attacker: Actor<4> = Actor { position: origin, vitality: Vitality { current: 6, maximum: 6 }, attack: Countdown { remaining: ATTACK_FRAMES - 1 }, facing: direction, faction: 0, active: true };
     let enemy: Actor<4> = Actor { position: target, vitality: Vitality { current: 2, maximum: 2 }, faction: 1, active: true };
-    let hit: Actor<4> = strike<4>(attacker, enemy);
+    let hit: Actor<4> = strike::<4>(attacker, enemy);
     hit.vitality.current == 1 && hit.position.x == expected.x && hit.position.y == expected.y && hit.room == enemy.room
 }
 
 machine miss_matches(attacker: Actor<4>, enemy: Actor<4>) -> bool {
-    let missed: Actor<4> = strike<4>(attacker, enemy);
+    let missed: Actor<4> = strike::<4>(attacker, enemy);
     missed.vitality.current == enemy.vitality.current && missed.position.x == enemy.position.x && missed.position.y == enemy.position.y
 }
 
@@ -70,7 +70,7 @@ machine Smoke::main(smoke: @mut Smoke) reaches ProcessExit + Console {
     smoke.actors.items[0].speed = 2;
     smoke.actors.items[0].active = true;
     let moving: Actor<4> = Actor { position: Position { x: 128, y: 112 }, vitality: Vitality { current: 12, maximum: 12 }, room: 0, speed: 2, active: true };
-    let moved: Actor<4> = move_actor<4>(moving, @smoke.dungeon, 1, false);
+    let moved: Actor<4> = move_actor::<4>(moving, @smoke.dungeon, 1, false);
     smoke.controllers.bindings[0].actor = 0;
     smoke.controllers.bindings[1].actor = 1;
     smoke.controllers.count = 2;
@@ -81,7 +81,7 @@ machine Smoke::main(smoke: @mut Smoke) reaches ProcessExit + Console {
         && moved.position.x == 130 && moved.position.y == 112
         && smoke.timer.remaining == ATTACK_FRAMES - 1
         && smoke.intents.items[0].direction == 1 && smoke.intents.items[1].attack {
-        true -> passed()
+        true -> passed(),
         _ -> failed()
     }
     machine passed() { Console::write_line("PASS: bounded components and terminating controller fan-out"); ProcessExit::exit_process(0); }

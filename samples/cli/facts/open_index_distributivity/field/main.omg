@@ -65,9 +65,9 @@ data Held [copy] { raw: i64; }
 
 machine main() crashes Trap {
     let held: Held = Held { raw: 41 };
-    let moved: i64 = rearrange<2, 3, 4, Canonical>(held.raw);
+    let moved: i64 = rearrange::<2, 3, 4, Canonical>(held.raw);
     transition moved == 41 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

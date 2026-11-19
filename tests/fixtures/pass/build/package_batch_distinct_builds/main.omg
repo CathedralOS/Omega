@@ -4,7 +4,7 @@ use helper::main;
 machine main() reaches Reading crashes Trap {
     let value: u32 = Reading::read();
     transition value == 42 {
-        true -> done()
+        true -> done(),
         _ -> failed()
     }
     machine done() {}

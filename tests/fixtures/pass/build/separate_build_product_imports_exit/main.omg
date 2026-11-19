@@ -3,7 +3,7 @@ use result;
 
 machine main() crashes Trap {
     transition result::answer() == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
 }

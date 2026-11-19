@@ -27,7 +27,7 @@ requires
     remaining <= 5
 {
     transition remaining >= 2 {
-        true -> deduct(publish(remaining))
+        true -> deduct(publish(remaining)),
         false -> remaining
     }
 }
@@ -39,7 +39,7 @@ data Main {
 machine Main::main(main: @mut Main) crashes Trap {
     main.hits = 0;
     transition walk(4) == 2 && walk(1) == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

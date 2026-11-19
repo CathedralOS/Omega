@@ -17,7 +17,7 @@ machine receive(first: u64, ignored: u64) -> u64
 requires first == 7
 ensures result == 7
 {
-    let saved: u64 = match true { true -> first false -> first };
+    let saved: u64 = match true { true -> first, false -> first };
     seven(saved)
 }
 
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let observed: u64 = receive(source, overwrite(@mut source));
     let difference: u64 = observed - 7;
     transition difference == 0 && source == 9 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

@@ -33,9 +33,9 @@ machine dungeon_use_event(
 )
 {
     transition cell {
-        CellId::R02 -> try_take_treasure(dungeon, line)
-        CellId::R04 -> try_use_fountain(dungeon, line)
-        CellId::R05 -> try_take_gold(dungeon, line)
+        CellId::R02 -> try_take_treasure(dungeon, line),
+        CellId::R04 -> try_use_fountain(dungeon, line),
+        CellId::R05 -> try_take_gold(dungeon, line),
         _ -> no_usable_event(line)
     }
 
@@ -44,7 +44,7 @@ machine dungeon_use_event(
         line: @mut TextBuffer
     ) {
         transition dungeon.treasure_taken {
-            false -> take_treasure(dungeon, line)
+            false -> take_treasure(dungeon, line),
             true -> no_usable_event(line)
         }
     }
@@ -63,7 +63,7 @@ machine dungeon_use_event(
         line: @mut TextBuffer
     ) {
         transition dungeon.fountain_used {
-            false -> use_fountain(dungeon, line)
+            false -> use_fountain(dungeon, line),
             true -> no_usable_event(line)
         }
     }
@@ -82,7 +82,7 @@ machine dungeon_use_event(
         line: @mut TextBuffer
     ) {
         transition dungeon.gold_taken {
-            false -> take_gold(dungeon, line)
+            false -> take_gold(dungeon, line),
             true -> no_usable_event(line)
         }
     }
@@ -108,7 +108,7 @@ machine dungeon_fight(
 )
 {
     transition cell {
-        CellId::R03 -> try_defeat_enemy(dungeon, line)
+        CellId::R03 -> try_defeat_enemy(dungeon, line),
         _ -> no_enemy(line)
     }
 
@@ -117,7 +117,7 @@ machine dungeon_fight(
         line: @mut TextBuffer
     ) {
         transition dungeon.enemy_defeated {
-            false -> defeat_enemy(dungeon, line)
+            false -> defeat_enemy(dungeon, line),
             true -> no_enemy(line)
         }
     }
@@ -154,7 +154,7 @@ machine current_room_index(dungeon: @mut Dungeon) -> u64 {
 
 machine can_travel_to(destination: CellId) -> bool {
     transition {
-        destination == CellId::Empty -> false
+        destination == CellId::Empty -> false,
         _ -> true
     }
 }
@@ -165,7 +165,7 @@ machine evaluate_travel_block(
     destination_room: Room
 ) -> bool {
     transition {
-        current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false -> gated_enemy_travel(current_room, destination_room)
+        current_room.event.kind == RoomEventKind::Enemy && current_room.event.consumed == false -> gated_enemy_travel(current_room, destination_room),
         _ -> true
     }
 }
@@ -198,21 +198,21 @@ machine dungeon_initialize(
 
 machine room_index(cell: CellId) -> u64 {
     transition {
-        cell == CellId::R00 -> 0
-        cell == CellId::R01 -> 1
-        cell == CellId::R02 -> 2
-        cell == CellId::R03 -> 3
-        cell == CellId::R04 -> 4
-        cell == CellId::R05 -> 5
-        cell == CellId::R06 -> 6
-        cell == CellId::R07 -> 7
-        cell == CellId::R08 -> 8
-        cell == CellId::R09 -> 9
-        cell == CellId::R10 -> 10
-        cell == CellId::R11 -> 11
-        cell == CellId::R12 -> 12
-        cell == CellId::R13 -> 13
-        cell == CellId::R14 -> 14
+        cell == CellId::R00 -> 0,
+        cell == CellId::R01 -> 1,
+        cell == CellId::R02 -> 2,
+        cell == CellId::R03 -> 3,
+        cell == CellId::R04 -> 4,
+        cell == CellId::R05 -> 5,
+        cell == CellId::R06 -> 6,
+        cell == CellId::R07 -> 7,
+        cell == CellId::R08 -> 8,
+        cell == CellId::R09 -> 9,
+        cell == CellId::R10 -> 10,
+        cell == CellId::R11 -> 11,
+        cell == CellId::R12 -> 12,
+        cell == CellId::R13 -> 13,
+        cell == CellId::R14 -> 14,
         _ -> 15
     }
 }

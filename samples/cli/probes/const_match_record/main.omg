@@ -26,7 +26,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition ALIAS.inner.value == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

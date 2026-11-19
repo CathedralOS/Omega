@@ -6,7 +6,7 @@ const ALIAS: [u64; 1] = SOURCE;
 machine make() -> [u64; SIZE] { ALIAS }
 const CALLED: [u64; SIZE] = make();
 machine main() crashes Trap {
-    transition CALLED[0] == 3 { true -> done() _ -> bad() }
+    transition CALLED[0] == 3 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

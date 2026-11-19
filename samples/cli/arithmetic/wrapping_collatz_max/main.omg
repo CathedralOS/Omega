@@ -23,20 +23,20 @@ machine main() {
     transition { _ -> outer_(1 as +Wrapping, 0 as +Wrapping) }
 
     machine outer_(start: u64 in Wrapping, best: u64 in Wrapping) {
-        transition start <= 100000 { true -> begin_start(start, best) _ -> done() }
+        transition start <= 100000 { true -> begin_start(start, best), _ -> done() }
     }
     machine begin_start(start: u64 in Wrapping, best: u64 in Wrapping) {
         transition { _ -> inner_(start, best, start, 0 as +Wrapping) }
     }
     machine inner_(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition n != 1 && steps < 10000 {
-            true -> even_or_odd(start, best, n, steps)
+            true -> even_or_odd(start, best, n, steps),
             _ -> settle(start, best, steps)
         }
     }
     machine even_or_odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
         transition n & 1 == 0 {
-            true -> even(start, best, n, steps)
+            true -> even(start, best, n, steps),
             _ -> odd(start, best, n, steps)
         }
     }
@@ -50,7 +50,7 @@ machine main() {
         transition { _ -> inner_(start, best, n, steps + 1) }
     }
     machine settle(start: u64 in Wrapping, best: u64 in Wrapping, steps: u64 in Wrapping) {
-        transition steps > best { true -> record(start, steps) _ -> advance(start, best) }
+        transition steps > best { true -> record(start, steps), _ -> advance(start, best) }
     }
     machine record(start: u64 in Wrapping, steps: u64 in Wrapping) {
         transition { _ -> advance(start, steps) }

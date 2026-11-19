@@ -3,14 +3,14 @@ data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2<T> {
     machine add(a: T, b: T) -> T terminates;
     machine add_assoc(a: T, b: T, c: T)
-    ensures core::Identity<T>(add(add(a, b), c), add(a, add(b, c)));
+    ensures core::Identity::<T>(add(add(a, b), c), add(a, add(b, c)));
 }
 machine plus(a: Peano, b: Peano) -> Peano
 satisfies RingOps2<Peano>::add
 terminates by a
 {
     transition a {
-        Peano::Zero -> (b)
+        Peano::Zero -> (b),
         Peano::Succ { pred } -> Peano::Succ { pred: plus(pred, b) }
     }
 }

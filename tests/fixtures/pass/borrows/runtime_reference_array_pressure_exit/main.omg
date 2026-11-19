@@ -36,7 +36,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     require_cell_value(observed);
     let ready: bool = messages[main.index].ready;
     transition first_observed == 11 && observed == 70 && ready {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
     machine good(main: @mut Main) { ProcessExit::exit_process(70); }

@@ -32,15 +32,15 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.items[2].name = "Potion";
 
     transition main.items[0].name == "Shield" {
-        true -> block found0(main)
+        true -> block found0(main),
         _ -> block check1(main)
     }
 
     machine check1(main: @mut Main) {
-        transition main.items[1].name == "Shield" { true -> block found1(main) _ -> block check2(main) }
+        transition main.items[1].name == "Shield" { true -> block found1(main), _ -> block check2(main) }
     }
     machine check2(main: @mut Main) {
-        transition main.items[2].name == "Shield" { true -> block found2(main) _ -> block missing(main) }
+        transition main.items[2].name == "Shield" { true -> block found2(main), _ -> block missing(main) }
     }
 
     machine found0(main: @mut Main) {

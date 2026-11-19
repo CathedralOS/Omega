@@ -1,4 +1,3 @@
-module study::model;
 // Private bounded sample model: y = grand + part + operator + interaction + error.
 // All arithmetic intermediates fit signed i32 for eight observations in 0..9.
 // Reports are exact numerators over 32; Wrapping never actually wraps here.
@@ -17,7 +16,7 @@ public data Study {
 }
 
 public machine nonnegative(value: i32 in Wrapping) -> i32 in Wrapping {
-    transition value < 0 { true -> 0 as +Wrapping _ -> value }
+    transition value < 0 { true -> 0 as +Wrapping, _ -> value }
 }
 
 // Return 3 for a wholly missing cell, 4 for unequal replication, 0 for balanced.
@@ -27,19 +26,19 @@ public machine analyze(study: @mut Study) -> i32 {
     let c: i32 in Wrapping = study.present[4] + study.present[5];
     let d: i32 in Wrapping = study.present[6] + study.present[7];
     transition a == 0 || b == 0 || c == 0 || d == 0 {
-        true -> 3
+        true -> 3,
         _ -> replication(study, a, b, c, d)
     }
     machine replication(study: @mut Study, a: i32 in Wrapping, b: i32 in Wrapping,
                       c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
         transition a == 2 && b == 2 && c == 2 && d == 2 {
-            true -> calculate(study)
+            true -> calculate(study),
             _ -> single_repeat(a, b, c, d)
         }
     }
     machine single_repeat(a: i32 in Wrapping, b: i32 in Wrapping,
                         c: i32 in Wrapping, d: i32 in Wrapping) -> i32 {
-        transition a == 1 && b == 1 && c == 1 && d == 1 { true -> 5 _ -> 4 }
+        transition a == 1 && b == 1 && c == 1 && d == 1 { true -> 5, _ -> 4 }
     }
     machine calculate(study: @mut Study) -> i32 {
         let a: i32 in Wrapping = study.values[0] + study.values[1];

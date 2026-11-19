@@ -8,7 +8,7 @@ machine main() crashes Trap {
     let issued: Ticket = Ticket { number: 4 };
     let spare: Ticket = Ticket { number: 4 };
     let observed: i32 = through_join(true, @issued, @spare);
-    transition observed == 4 { true -> done() false -> failed() }
+    transition observed == 4 { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

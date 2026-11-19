@@ -3,7 +3,7 @@ data Main { status: i32; }
 
 machine require_success(status: i32) ensures status == 0 reaches ProcessExit {
     transition status != 0 {
-        true -> {}
+        true -> {},
         false -> ProcessExit::exit_process(status)
     }
 }

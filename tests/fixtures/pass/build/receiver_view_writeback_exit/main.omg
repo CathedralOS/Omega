@@ -69,7 +69,7 @@ data Choice [copy] { case Chosen(value: u32); case Empty; }
 machine case_storage() -> u32 {
     let choice: Choice = Choice::Chosen { value: 37 };
     transition choice {
-        Choice::Chosen { value } -> (value)
+        Choice::Chosen { value } -> (value),
         Choice::Empty -> (0u32)
     }
 }
@@ -91,7 +91,7 @@ machine fail_after_write(settings: @mut Settings) crashes Trap {
 }
 
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

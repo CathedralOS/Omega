@@ -15,7 +15,7 @@ machine initialize_destination(destination: @write DestinationSlot) {
 
 machine choose(flag: bool, first: u64 in WrittenBound, second: u64 in WrittenBound) -> u64 in WrittenBound {
     transition flag {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -34,7 +34,7 @@ ensures
 machine main() crashes Trap {
     let diff: u64 = probe(true);
     transition diff == 60u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

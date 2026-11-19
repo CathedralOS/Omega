@@ -14,8 +14,6 @@
 // high*sqrt(1 + (low/high)^2); a nonfinite result after finite admission is
 // Overflow. It promises no correctly rounded hypot, no relative-error bound for
 // all inputs, and no NaN payload or sign-of-zero result.
-module complex;
-
 use omega::language::core::F32::negate;
 use omega::language::core::F64::negate;
 use omega::language::core::F32::square_root;
@@ -29,9 +27,9 @@ use omega::language::core::float_accuracy::classify_f64;
 // carrier continues to distinguish rejected inputs from magnitude overflow.
 machine admitted_finite(classification: NumericClass) -> bool {
     transition classification {
-        NumericClass::Finite -> true
-        NumericClass::PositiveZero -> true
-        NumericClass::NegativeZero -> true
+        NumericClass::Finite -> true,
+        NumericClass::PositiveZero -> true,
+        NumericClass::NegativeZero -> true,
         _ -> false
     }
 }
@@ -86,23 +84,23 @@ public machine ComplexF32::try_magnitude(input: @Complex<f32>) -> ComplexMagnitu
     let real_finite: bool = admitted_finite(classify_f32(input.real));
     let imaginary_finite: bool = admitted_finite(classify_f32(input.imaginary));
     transition real_finite && imaginary_finite {
-        true -> absolute(input.real, input.imaginary)
+        true -> absolute(input.real, input.imaginary),
         _ -> (ComplexMagnitude::NonFiniteInput)
     }
     machine absolute(real: f32, imaginary: f32) -> ComplexMagnitude<f32> {
-        transition real < 0.0 { true -> negative_real(real, imaginary) _ -> absolute_imaginary(real, imaginary) }
+        transition real < 0.0 { true -> negative_real(real, imaginary), _ -> absolute_imaginary(real, imaginary) }
     }
     machine negative_real(real: f32, imaginary: f32) -> ComplexMagnitude<f32> {
         transition { _ -> absolute_imaginary(F32::negate(real), imaginary) }
     }
     machine absolute_imaginary(real: f32, imaginary: f32) -> ComplexMagnitude<f32> {
-        transition imaginary < 0.0 { true -> scale(real, F32::negate(imaginary)) _ -> scale(real, imaginary) }
+        transition imaginary < 0.0 { true -> scale(real, F32::negate(imaginary)), _ -> scale(real, imaginary) }
     }
     machine scale(real: f32, imaginary: f32) -> ComplexMagnitude<f32> {
-        transition real >= imaginary { true -> ordered(real, imaginary) _ -> ordered(imaginary, real) }
+        transition real >= imaginary { true -> ordered(real, imaginary), _ -> ordered(imaginary, real) }
     }
     machine ordered(high: f32, low: f32) -> ComplexMagnitude<f32> {
-        transition high == 0.0 { true -> (ComplexMagnitude::Value { value: 0.0 }) _ -> ratio(high, low) }
+        transition high == 0.0 { true -> (ComplexMagnitude::Value { value: 0.0 }), _ -> ratio(high, low) }
     }
     machine ratio(high: f32, low: f32) -> ComplexMagnitude<f32> {
         let ratio: f32 = low / high;
@@ -110,7 +108,7 @@ public machine ComplexF32::try_magnitude(input: @Complex<f32>) -> ComplexMagnitu
         let factor: f32 = F32::square_root(1.0 + square);
         let magnitude: f32 = high * factor;
         let finite: bool = admitted_finite(classify_f32(magnitude));
-        transition finite { true -> (ComplexMagnitude::Value { value: magnitude }) _ -> (ComplexMagnitude::Overflow) }
+        transition finite { true -> (ComplexMagnitude::Value { value: magnitude }), _ -> (ComplexMagnitude::Overflow) }
     }
 }
 
@@ -146,23 +144,23 @@ public machine ComplexF64::try_magnitude(input: @Complex<f64>) -> ComplexMagnitu
     let real_finite: bool = admitted_finite(classify_f64(input.real));
     let imaginary_finite: bool = admitted_finite(classify_f64(input.imaginary));
     transition real_finite && imaginary_finite {
-        true -> absolute(input.real, input.imaginary)
+        true -> absolute(input.real, input.imaginary),
         _ -> (ComplexMagnitude::NonFiniteInput)
     }
     machine absolute(real: f64, imaginary: f64) -> ComplexMagnitude<f64> {
-        transition real < 0.0 { true -> negative_real(real, imaginary) _ -> absolute_imaginary(real, imaginary) }
+        transition real < 0.0 { true -> negative_real(real, imaginary), _ -> absolute_imaginary(real, imaginary) }
     }
     machine negative_real(real: f64, imaginary: f64) -> ComplexMagnitude<f64> {
         transition { _ -> absolute_imaginary(F64::negate(real), imaginary) }
     }
     machine absolute_imaginary(real: f64, imaginary: f64) -> ComplexMagnitude<f64> {
-        transition imaginary < 0.0 { true -> scale(real, F64::negate(imaginary)) _ -> scale(real, imaginary) }
+        transition imaginary < 0.0 { true -> scale(real, F64::negate(imaginary)), _ -> scale(real, imaginary) }
     }
     machine scale(real: f64, imaginary: f64) -> ComplexMagnitude<f64> {
-        transition real >= imaginary { true -> ordered(real, imaginary) _ -> ordered(imaginary, real) }
+        transition real >= imaginary { true -> ordered(real, imaginary), _ -> ordered(imaginary, real) }
     }
     machine ordered(high: f64, low: f64) -> ComplexMagnitude<f64> {
-        transition high == 0.0 { true -> (ComplexMagnitude::Value { value: 0.0 }) _ -> ratio(high, low) }
+        transition high == 0.0 { true -> (ComplexMagnitude::Value { value: 0.0 }), _ -> ratio(high, low) }
     }
     machine ratio(high: f64, low: f64) -> ComplexMagnitude<f64> {
         let ratio: f64 = low / high;
@@ -170,6 +168,6 @@ public machine ComplexF64::try_magnitude(input: @Complex<f64>) -> ComplexMagnitu
         let factor: f64 = F64::square_root(1.0 + square);
         let magnitude: f64 = high * factor;
         let finite: bool = admitted_finite(classify_f64(magnitude));
-        transition finite { true -> (ComplexMagnitude::Value { value: magnitude }) _ -> (ComplexMagnitude::Overflow) }
+        transition finite { true -> (ComplexMagnitude::Value { value: magnitude }), _ -> (ComplexMagnitude::Overflow) }
     }
 }

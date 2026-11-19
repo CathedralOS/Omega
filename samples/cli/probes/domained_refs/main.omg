@@ -50,7 +50,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let counter: Counter in Ready = (Counter { code: 0 } as Counter in Ready);
     transition is_ready(@counter) {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

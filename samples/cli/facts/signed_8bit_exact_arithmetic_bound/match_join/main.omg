@@ -6,7 +6,7 @@ machine compute_match_join(lhs: i8, rhs: i8, flag: bool) -> i8
 {
     let sum: i8 = lhs + rhs;
     let joined: i8 = match flag {
-        true -> sum
+        true -> sum,
         false -> sum
     };
     let headroom: i8 = 80 - joined;
@@ -21,7 +21,7 @@ machine evaluate() -> i32 {
 machine main() crashes Trap {
     let res: i32 = evaluate();
     transition res == 25 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

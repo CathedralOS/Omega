@@ -24,7 +24,7 @@ machine deferred_init_gated() {
     total = 10;
     total += 60;
     transition total == 70 && registry.session.retries == 0 && registry.session.score == 0 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

@@ -10,7 +10,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let handle: Handle in Open = issue_handle(41);
     let value: u64 = read_handle(@handle);
     close_handle(handle);
-    transition value == 41 { true -> done() false -> wrong() }
+    transition value == 41 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

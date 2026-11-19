@@ -12,7 +12,7 @@ machine main() crashes Trap {
     let right: Cell = Cell { before: 23, value: 9, after: 29 };
     transition observe(@left, @right) && left.value == 5 && right.value == 9
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

@@ -55,14 +55,14 @@ public RegisterAccess satisfies AccessPolicy {
 // The host establishes the backing and binds these exact generated accessors.
 // Delegation retains the original backing; neither wrapper stages contents.
 machine observe(view: @RegisterStorage in Registers::Placed) -> u32 {
-    read<Accessor<u32>, u32>(@view.status)
+    read::<Accessor<u32>, u32>(@view.status)
 }
 
 machine delegate(view: @RegisterStorage in Registers::Placed) -> u32 { observe(view) }
 
 machine mutate(view: @mut RegisterStorage in Registers::Placed) -> u32 {
-    write<Accessor<u8>, u8>(@mut view.transmit, 9u8);
-    read<Accessor<u32>, u32>(@view.status)
+    write::<Accessor<u8>, u8>(@mut view.transmit, 9u8);
+    read::<Accessor<u32>, u32>(@view.status)
 }
 
 machine delegate_mutable(view: @mut RegisterStorage in Registers::Placed) -> u32 { mutate(view) }
@@ -105,7 +105,7 @@ machine later(view: @mut RegisterStorage in Registers::Placed) -> u32 {
 
 // Unit-returning helpers use the same structural telescope and occurrence.
 machine write_only(view: @mut RegisterStorage in Registers::Placed) {
-    write<Accessor<u8>, u8>(@mut view.transmit, 9u8);
+    write::<Accessor<u8>, u8>(@mut view.transmit, 9u8);
 }
 machine unit_delegate(view: @mut RegisterStorage in Registers::Placed) -> u32 {
     write_only(view);
@@ -116,7 +116,7 @@ machine unit_delegate(view: @mut RegisterStorage in Registers::Placed) -> u32 {
 // Runtime acceptance is 41 with transmit changed to 9 in the same backing.
 machine ram_borrow() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers);
     let observed: u32 = mutate(view);
     observed
 }
@@ -124,7 +124,7 @@ machine ram_borrow() -> u32 {
 machine ram_descriptor() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let source: @mut Registers = @mut registers;
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(source);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(source);
     mutate(view)
 }
 
@@ -145,7 +145,7 @@ machine ram_indexed() -> u64 {
         Registers { status: 73, transmit: 5 }
     ];
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers[choose_register(@mut counter)]);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers[choose_register(@mut counter)]);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (counter.count as u64)
 }
@@ -154,7 +154,7 @@ machine ram_indexed() -> u64 {
 // Frozen interpreter result: 41 from the original storage after retirement.
 machine ram_capture_only() -> u32 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers);
     registers.status
 }
 
@@ -177,7 +177,7 @@ ensures counter.count <= 1
 machine ram_capture_helper() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers);
     retain_ram(view, @mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -185,7 +185,7 @@ machine ram_capture_helper() -> u64 {
 machine ram_capture_return() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
     let mut counter: SelectionCounter = SelectionCounter { count: 0 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers);
     let returned: @mut RegisterStorage in Registers::Placed = return_ram(view, @mut counter);
     (registers.status as u64) * 100 + (counter.count as u64)
 }
@@ -193,7 +193,7 @@ machine ram_capture_return() -> u64 {
 // Frozen result4109 observes the original RAM after the write/read pair.
 machine ram_original_backing() -> u64 {
     let mut registers: Registers = Registers { status: 41, transmit: 3 };
-    let view: @mut RegisterStorage in Registers::Placed = access::view_mut<Registers, RegisterStorage in Registers::Placed>(@mut registers);
+    let view: @mut RegisterStorage in Registers::Placed = access::view_mut::<Registers, RegisterStorage in Registers::Placed>(@mut registers);
     let observed: u32 = mutate(view);
     (observed as u64) * 100 + (registers.transmit as u64)
 }

@@ -41,7 +41,7 @@ machine run_main(main: @mut Main) reaches Reader crashes Trap {
     Reader::release(returned);
     let value: u64 = buffer.value;
     drop(buffer);
-    transition observed == 37 && value == 37 { true -> done() _ -> bad() }
+    transition observed == 37 && value == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

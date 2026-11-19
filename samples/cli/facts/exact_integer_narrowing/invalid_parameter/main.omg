@@ -2,7 +2,7 @@
 data Note { value: u8; tag: u64; }
 machine probe(value: i32, select: bool) -> Note {
     transition value >= 0 && value <= 256 {
-        true -> apply(value, select)
+        true -> apply(value, select),
         false -> Note { value: 0, tag: 0 }
     }
     machine apply(value: i32, select: bool) -> Note {
@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let maximum: Note = probe(255, false);
     let out_of_range: Note = probe(256, true);
     transition out_of_range.value == 0 && out_of_range.tag == 0 && first.value == 7 && first.tag == 11 && second.value == 231 && second.tag == 13 && zero.value == 0 && zero.tag == 11 && maximum.value == 255 && maximum.tag == 13 {
-        true -> done() false -> bad()
+        true -> done(), false -> bad()
     }
     machine done() {} machine bad() crashes Trap { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module domain::clip;
 use domain::model;
 use domain::model::Polygon;
 use domain::model::Partition;
@@ -6,7 +5,7 @@ use domain::model::Partition;
 // changes cell ownership: points exactly on a bisector belong to both closures.
 public machine append(polygon: @mut Polygon, x: f64, y: f64) -> bool {
     transition polygon.count < 32 {
-        true -> store(polygon, x, y)
+        true -> store(polygon, x, y),
         false -> (false)
     }
     machine store(polygon: @mut Polygon, x: f64, y: f64) -> bool {
@@ -22,7 +21,7 @@ public machine clip(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f6
     machine edge(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f64, index: u64) -> bool {
         let count: u64 = input.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
-            true -> classify(input, output, a, b, c, index, (index + 1) % count)
+            true -> classify(input, output, a, b, c, index, (index + 1) % count),
             false -> (true)
         }
     }
@@ -32,7 +31,7 @@ public machine clip(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f6
         let start: f64 = a * input.x[index] + b * input.y[index] - c;
         let finish: f64 = a * input.x[next] + b * input.y[next] - c;
         transition (start <= 0.0) != (finish <= 0.0) {
-            true -> crossing(input, output, a, b, c, index, next, start, finish)
+            true -> crossing(input, output, a, b, c, index, next, start, finish),
             false -> endpoint(input, output, a, b, c, index, next, finish)
         }
     }
@@ -44,7 +43,7 @@ public machine clip(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f6
         let y: f64 = input.y[index] + fraction * (input.y[next] - input.y[index]);
         let stored: bool = append(output, x, y);
         transition stored {
-            true -> endpoint(input, output, a, b, c, index, next, finish)
+            true -> endpoint(input, output, a, b, c, index, next, finish),
             false -> (false)
         }
     }
@@ -52,7 +51,7 @@ public machine clip(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f6
     requires index < 32 && next < 32
     {
         transition finish <= 0.0 {
-            true -> keep(input, output, a, b, c, index, next)
+            true -> keep(input, output, a, b, c, index, next),
             false -> edge(input, output, a, b, c, index + 1)
         }
     }
@@ -61,7 +60,7 @@ public machine clip(input: @Polygon, output: @mut Polygon, a: f64, b: f64, c: f6
     {
         let stored: bool = append(output, input.x[next], input.y[next]);
         transition stored {
-            true -> edge(input, output, a, b, c, index + 1)
+            true -> edge(input, output, a, b, c, index + 1),
             false -> (false)
         }
     }
@@ -70,7 +69,7 @@ public machine construct(partition: @mut Partition) {
     transition { _ -> cell(partition, 0) }
     machine cell(partition: @mut Partition, index: u64) {
         transition index < partition.site_count && index < 8 {
-            true -> initialize(partition, index)
+            true -> initialize(partition, index),
             false -> done()
         }
     }
@@ -84,7 +83,7 @@ public machine construct(partition: @mut Partition) {
     requires index < 8
     {
         transition other < partition.site_count && other < 8 {
-            true -> select(partition, index, other)
+            true -> select(partition, index, other),
             false -> cell(partition, index + 1)
         }
     }
@@ -92,7 +91,7 @@ public machine construct(partition: @mut Partition) {
     requires index < 8
     {
         transition index == other {
-            true -> competitor(partition, index, other + 1)
+            true -> competitor(partition, index, other + 1),
             false -> bisector(partition, index, other)
         }
     }
@@ -107,7 +106,7 @@ public machine construct(partition: @mut Partition) {
         let success: bool = clip(@partition.cells[index], @mut output, a, b, c);
         partition.cells[index] = output;
         transition success {
-            true -> competitor(partition, index, other + 1)
+            true -> competitor(partition, index, other + 1),
             false -> fail(partition)
         }
     }

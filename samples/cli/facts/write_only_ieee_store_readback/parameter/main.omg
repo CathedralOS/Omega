@@ -8,6 +8,6 @@ machine compare(v: f64) -> bool { v == 0.75 }
 machine main() crashes Trap {
     let mut slot: f64;
     store(@write slot);
-    transition compare(slot) { true -> done() _ -> bad() }
+    transition compare(slot) { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

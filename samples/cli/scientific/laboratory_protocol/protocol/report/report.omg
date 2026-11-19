@@ -1,5 +1,3 @@
-module protocol::report;
-
 use omega_language_std::Console;
 use protocol::model;
 
@@ -26,7 +24,7 @@ invokes Console
 
 machine number(value: i32 in Saturating) reaches Console {
     transition value >= 0 && value <= 99 {
-        true -> digits(value)
+        true -> digits(value),
         false -> invalid()
     }
     machine digits(value: i32 in Saturating) {
@@ -42,7 +40,7 @@ machine number(value: i32 in Saturating) reaches Console {
 
 machine report_lid(closed: bool) reaches Console {
     transition closed {
-        true -> shut()
+        true -> shut(),
         false -> open()
     }
     machine shut() { Console::write("closed"); }
@@ -51,19 +49,19 @@ machine report_lid(closed: bool) reaches Console {
 
 machine decision(decision: i32) reaches Console {
     transition decision {
-        0 -> acquired()
-        1 -> loaded()
-        2 -> started()
-        3 -> advanced()
-        4 -> completed()
-        5 -> cancelled()
-        6 -> recovered()
-        7 -> lid_changed()
-        8 -> conflict()
-        9 -> phase()
-        10 -> interlock()
-        11 -> timeout()
-        13 -> emergency()
+        0 -> acquired(),
+        1 -> loaded(),
+        2 -> started(),
+        3 -> advanced(),
+        4 -> completed(),
+        5 -> cancelled(),
+        6 -> recovered(),
+        7 -> lid_changed(),
+        8 -> conflict(),
+        9 -> phase(),
+        10 -> interlock(),
+        11 -> timeout(),
+        13 -> emergency(),
         _ -> invalid()
     }
     machine acquired() { Console::write("ALLOW acquire"); }

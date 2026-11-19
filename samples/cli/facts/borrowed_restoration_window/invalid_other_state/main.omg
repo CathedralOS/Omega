@@ -21,7 +21,7 @@ machine main() crashes Trap {
     }
     machine check(val: u64) {
         transition val >= 100u64 && val <= 100u64 {
-            true -> done(val)
+            true -> done(val),
             _ -> bad()
         }
     }

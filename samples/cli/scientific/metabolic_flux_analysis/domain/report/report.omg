@@ -1,4 +1,3 @@
-module domain::report;
 use domain::input;
 use domain::input::Reader;
 use omega::language::core::narrow_i64_to_i32_wrapping;
@@ -13,7 +12,7 @@ invokes Console
 {
     let widened: i64 = value;
     transition widened < 0 {
-        true -> negative(reader, widened)
+        true -> negative(reader, widened),
         _ -> digits(reader, widened)
     }
     machine negative(reader: @mut Reader, value: i64) {
@@ -26,13 +25,13 @@ invokes Console
     }
     machine seek(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 && divisor <= value / 10 {
-            true -> seek(reader, value, divisor * 10)
+            true -> seek(reader, value, divisor * 10),
             _ -> ready(reader, value, divisor)
         }
     }
     machine ready(reader: @mut Reader, value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(reader, value, divisor)
+            true -> emit(reader, value, divisor),
             _ -> {}
         }
     }
@@ -42,7 +41,7 @@ invokes Console
         let byte: i64 in Wrapping = (value / divisor) % 10 + 48;
         Console::write_byte(narrow_i64_to_i32_wrapping(byte as i64));
         transition divisor > 1 {
-            true -> ready(reader, value, divisor / 10)
+            true -> ready(reader, value, divisor / 10),
             _ -> {}
         }
     }
@@ -58,7 +57,7 @@ invokes Console
 }
 public machine rational(reader: @mut Reader, name: @[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping)
 reaches Console invokes Console crashes Trap {
-    transition denominator > 0 { true -> emit(reader, name, numerator, denominator) _ -> invalid() }
+    transition denominator > 0 { true -> emit(reader, name, numerator, denominator), _ -> invalid() }
     machine emit(reader: @mut Reader, name: @[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping) requires denominator > 0 {
         let value: f64 = F64::from_i64(numerator as i64) / F64::from_i64(denominator as i64);
         field(reader, name, value * 1000.0);

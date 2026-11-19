@@ -1,4 +1,3 @@
-module chronology::input;
 use chronology::model;
 use chronology::model::Chronology;
 // A private scratch record owns the decoded wire digits across parser states.
@@ -6,18 +5,18 @@ data Digits { values: [i32; 19]; }
 public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bool {
     let mut digits: Digits;
     transition count == 19 || count == 20 {
-        true -> ending(bytes, count, model, @mut digits)
+        true -> ending(bytes, count, model, @mut digits),
         false -> false
     }
     machine ending(bytes: @[u8; 32], count: u64, model: @mut Chronology, digits: @mut Digits) -> bool {
         transition count == 19 || bytes[19] == 10 {
-            true -> digit(bytes, model, digits, 0)
+            true -> digit(bytes, model, digits, 0),
             false -> false
         }
     }
     machine digit(bytes: @[u8; 32], model: @mut Chronology, digits: @mut Digits, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 19 {
-            true -> read(bytes, model, digits, index)
+            true -> read(bytes, model, digits, index),
             false -> intervals(model, digits)
         }
     }
@@ -27,7 +26,7 @@ public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bo
     {
         let byte: u8 = bytes[index];
         transition byte >= 48 && byte <= 57 {
-            true -> store(bytes, model, digits, index, byte)
+            true -> store(bytes, model, digits, index, byte),
             false -> false
         }
     }
@@ -47,13 +46,13 @@ public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bo
         model.lag = [digits.values[9],digits.values[12],digits.values[15],digits.values[18]];
         model.enabled = [0,0,0,0];
         transition digits.values[0] <= digits.values[1] && digits.values[2] <= digits.values[3] && digits.values[4] <= digits.values[5] && digits.values[6] <= 4 {
-            true -> edge(model, digits.values[6] as i32 in Wrapping, 0)
+            true -> edge(model, digits.values[6] as i32 in Wrapping, 0),
             false -> false
         }
     }
     machine edge(model: @mut Chronology, count: i32 in Wrapping, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 && index < count {
-            true -> endpoints(model, count, index)
+            true -> endpoints(model, count, index),
             false -> true
         }
     }
@@ -62,7 +61,7 @@ public machine parse(bytes: @[u8; 32], count: u64, model: @mut Chronology) -> bo
     requires index < 4
     {
         transition model.source[index] < 3 && model.destination[index] < 3 {
-            true -> enable(model, count, index)
+            true -> enable(model, count, index),
             false -> false
         }
     }

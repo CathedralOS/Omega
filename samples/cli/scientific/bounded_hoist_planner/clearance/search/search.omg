@@ -1,4 +1,3 @@
-module clearance::search;
 // Exhaust all 10^4 height words, independently testing each word's four spans.
 // A feasible word keeps every height inside its span's [floor, ceiling], limits
 // each hoist step to four units, and ends at the required height. The word code
@@ -12,7 +11,7 @@ use clearance::model::Certificate;
 // i32 authorizes the conversion, matching the route-event convention.
 machine digit(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturating {
     transition divisor > 0 {
-        true -> divide(code, divisor)
+        true -> divide(code, divisor),
         false -> undefined()
     }
     machine divide(code: u64 in Wrapping, divisor: u64 in Wrapping) -> i32 in Saturating {
@@ -27,7 +26,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     transition { _ -> enumerate(plan, certificate, 0) }
     machine enumerate(plan: @Plan, certificate: @mut Certificate, code: u64) {
         transition code < 10000 {
-            true -> candidate(plan, certificate, code)
+            true -> candidate(plan, certificate, code),
             false -> done()
         }
     }
@@ -39,14 +38,14 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
         travel.heights[3] = digit(code as u64 in Wrapping, 1);
         let valid: bool = evaluate(plan, @mut travel);
         transition valid {
-            true -> feasible(plan, certificate, code, @travel)
+            true -> feasible(plan, certificate, code, @travel),
             false -> next(plan, certificate, code)
         }
     }
     machine feasible(plan: @Plan, certificate: @mut Certificate, code: u64, travel: @Travel) {
         certificate.feasible = certificate.feasible + 1;
         transition certificate.ties == 0 || travel.cost < certificate.best.cost {
-            true -> better(plan, certificate, code, travel)
+            true -> better(plan, certificate, code, travel),
             false -> compare(plan, certificate, code, travel)
         }
     }
@@ -62,7 +61,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     }
     machine compare(plan: @Plan, certificate: @mut Certificate, code: u64, travel: @Travel) {
         transition travel.cost == certificate.best.cost {
-            true -> tied(plan, certificate, code)
+            true -> tied(plan, certificate, code),
             false -> next(plan, certificate, code)
         }
     }
@@ -72,7 +71,7 @@ public machine solve(plan: @Plan, certificate: @mut Certificate) {
     }
     machine next(plan: @Plan, certificate: @mut Certificate, code: u64) {
         transition code < 10000 {
-            true -> enumerate(plan, certificate, code + 1)
+            true -> enumerate(plan, certificate, code + 1),
             false -> done()
         }
     }
@@ -83,7 +82,7 @@ machine evaluate(plan: @Plan, travel: @mut Travel) -> bool {
     transition { _ -> admit(plan, travel, 0, plan.start, 0) }
     machine admit(plan: @Plan, travel: @mut Travel, index: u64, previous: i32 in Saturating, cost: i32 in Saturating) -> bool {
         transition index < 4 {
-            true -> span(plan, travel, index, previous, cost)
+            true -> span(plan, travel, index, previous, cost),
             false -> finish(plan, travel, cost)
         }
     }
@@ -92,7 +91,7 @@ machine evaluate(plan: @Plan, travel: @mut Travel) -> bool {
         let inside: bool = plan.floors[index] <= height && height <= plan.ceilings[index];
         let step: i32 in Saturating = difference(height, previous);
         transition inside && step <= 4 {
-            true -> admit(plan, travel, index + 1, height, cost + step)
+            true -> admit(plan, travel, index + 1, height, cost + step),
             false -> false
         }
     }
@@ -104,7 +103,7 @@ machine evaluate(plan: @Plan, travel: @mut Travel) -> bool {
 
 machine difference(a: i32 in Saturating, b: i32 in Saturating) -> i32 in Saturating {
     transition a > b {
-        true -> result(a - b)
+        true -> result(a - b),
         false -> result(b - a)
     }
     machine result(value: i32 in Saturating) -> i32 in Saturating { value }

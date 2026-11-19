@@ -14,7 +14,7 @@ requires position < windows.len {
 
 machine replaced(values: @[Cell]) -> bool {
     transition values.len == 2 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 2 {
@@ -25,7 +25,7 @@ machine replaced(values: @[Cell]) -> bool {
 
 machine unchanged(values: @[Cell]) -> bool {
     transition values.len == 1 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 1 {
@@ -51,7 +51,7 @@ machine main() crashes Trap {
     transition valid && adjacent && retired_correct && second_retired_correct
         && first_retained && second_installed && original[0].value == 9
         && original[0].tag == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}
@@ -60,7 +60,7 @@ machine main() crashes Trap {
 
 machine mark(values: @mut [Cell]) {
     transition values.len > 0 {
-        true -> write(values)
+        true -> write(values),
         false -> done()
     }
     machine write(values: @mut [Cell]) requires values.len > 0 {
@@ -71,7 +71,7 @@ machine mark(values: @mut [Cell]) {
 
 machine second_window(values: @[Cell]) -> bool {
     transition values.len == 1 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 1 {
@@ -81,7 +81,7 @@ machine second_window(values: @[Cell]) -> bool {
 
 machine old_window(values: @[Cell]) -> bool {
     transition values.len == 1 {
-        true -> inspect(values)
+        true -> inspect(values),
         false -> false
     }
     machine inspect(values: @[Cell]) -> bool requires values.len == 1 {

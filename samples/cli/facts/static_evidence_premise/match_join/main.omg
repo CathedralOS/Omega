@@ -38,9 +38,9 @@ requires direct == true
 machine main() crashes Trap {
     let flag: bool = true;
     let kept: bool = match flag { true -> true, false -> true };
-    let direct: bool = project<YesKept>(kept);
+    let direct: bool = project::<YesKept>(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

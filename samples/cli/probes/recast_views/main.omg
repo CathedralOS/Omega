@@ -32,26 +32,26 @@ machine Main::main(main: @mut Main) {
     let bits: @u32 = @main.value as @u32;
     transition bits == 4294967294 && (@main.small as @u8) == 200
         && (@main.bytes[3] as @i16) == -2 {
-        true -> tail_view(main)
+        true -> tail_view(main),
         _ -> fail(main)
     }
     machine tail_view(main: @mut Main) {
         let tail: @mut [u8] = @mut main.tail[3] as @mut [u8];
         transition tail.len > 4 {
-            true -> write(main, tail)
+            true -> write(main, tail),
             _ -> fail(main)
         }
     }
     machine write(main: @mut Main, tail: @mut [u8]) {
         tail[4] = 9;
         transition tail.len == 5 {
-            true -> check(main)
+            true -> check(main),
             _ -> fail(main)
         }
     }
     machine check(main: @mut Main) {
         transition main.tail[7] == 9 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

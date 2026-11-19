@@ -71,13 +71,13 @@ blocks
     psi::parser_initialize(@mut parser);
     let count: HarnessWord = block read_u32(typing_harness);
     transition count.complete {
-        true -> block packages(typing_harness, @mut sources, @mut parser, count.value)
+        true -> block packages(typing_harness, @mut sources, @mut parser, count.value),
         _ -> malformed(typing_harness)
     }
 
     machine packages(typing_harness: @mut TypingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block package_row(typing_harness, sources, parser, remaining)
+            true -> block package_row(typing_harness, sources, parser, remaining),
             _ -> block dependencies(typing_harness, sources, parser)
         }
     }
@@ -88,7 +88,7 @@ blocks
         psi::module_path_clear(@mut name);
         let read: bool = block read_path(typing_harness, @mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> block add_package(typing_harness, sources, parser, remaining, toolchain.value == 1, @name)
+            true -> block add_package(typing_harness, sources, parser, remaining, toolchain.value == 1, @name),
             _ -> malformed(typing_harness)
         }
     }
@@ -103,7 +103,7 @@ blocks
     ) {
         let added: bool = psi::add_package(sources, name, toolchain);
         transition added {
-            true -> block packages(typing_harness, sources, parser, remaining - 1)
+            true -> block packages(typing_harness, sources, parser, remaining - 1),
             _ -> source_full(typing_harness)
         }
     }
@@ -111,14 +111,14 @@ blocks
     machine dependencies(typing_harness: @mut TypingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(typing_harness);
         transition count.complete {
-            true -> block dependency(typing_harness, sources, parser, count.value)
+            true -> block dependency(typing_harness, sources, parser, count.value),
             _ -> malformed(typing_harness)
         }
     }
 
     machine dependency(typing_harness: @mut TypingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block dependency_row(typing_harness, sources, parser, remaining)
+            true -> block dependency_row(typing_harness, sources, parser, remaining),
             _ -> block units(typing_harness, sources, parser)
         }
     }
@@ -133,7 +133,7 @@ blocks
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> block dependency_scope(typing_harness, sources, parser, remaining, requester.value, scope.value == 2, @alias, target.value)
+            true -> block dependency_scope(typing_harness, sources, parser, remaining, requester.value, scope.value == 2, @alias, target.value),
             _ -> malformed(typing_harness)
         }
     }
@@ -149,7 +149,7 @@ blocks
         target: u64 in Trapping
     ) {
         transition build {
-            true -> block add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target)
+            true -> block add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Build, alias, target),
             _ -> block add_dependency(typing_harness, sources, parser, remaining, requester, DependencyScope::Product, alias, target)
         }
     }
@@ -166,7 +166,7 @@ blocks
     ) {
         let added: bool = psi::add_dependency(sources, requester, scope, alias, target);
         transition added {
-            true -> block dependency(typing_harness, sources, parser, remaining - 1)
+            true -> block dependency(typing_harness, sources, parser, remaining - 1),
             _ -> source_full(typing_harness)
         }
     }
@@ -174,14 +174,14 @@ blocks
     machine units(typing_harness: @mut TypingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(typing_harness);
         transition count.complete {
-            true -> block unit(typing_harness, sources, parser, count.value)
+            true -> block unit(typing_harness, sources, parser, count.value),
             _ -> malformed(typing_harness)
         }
     }
 
     machine unit(typing_harness: @mut TypingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
-            true -> block unit_row(typing_harness, sources, parser, remaining)
+            true -> block unit_row(typing_harness, sources, parser, remaining),
             _ -> prepare_resolve(typing_harness, sources, parser)
         }
     }
@@ -192,7 +192,7 @@ blocks
         psi::module_path_clear(@mut module_path);
         let read: bool = block read_path(typing_harness, @mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> block source(typing_harness, sources, parser, remaining, unit_package.value, @module_path)
+            true -> block source(typing_harness, sources, parser, remaining, unit_package.value, @module_path),
             _ -> malformed(typing_harness)
         }
     }
@@ -209,7 +209,7 @@ blocks
         let mut lexer: Lexer;
         psi::lexer_initialize(@mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, @mut lexer, length.value)
+            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, @mut lexer, length.value),
             _ -> malformed(typing_harness)
         }
     }
@@ -225,7 +225,7 @@ blocks
         left: u64 in Trapping
     ) {
         transition left > 0 {
-            true -> block source_read(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left)
+            true -> block source_read(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left),
             _ -> block tokenize(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
         }
     }
@@ -242,7 +242,7 @@ blocks
     ) {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block source_store(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value)
+            ByteRead::Byte { value } -> block source_store(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left, value),
             _ -> malformed(typing_harness)
         }
     }
@@ -260,7 +260,7 @@ blocks
     ) {
         psi::append_source_byte(lexer, value as u8);
         transition lexer.source.last_retained {
-            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1)
+            true -> block source_byte(typing_harness, sources, parser, remaining, unit_package, module_path, lexer, left - 1),
             _ -> source_full(typing_harness)
         }
     }
@@ -276,7 +276,7 @@ blocks
     ) {
         psi::tokenize(lexer);
         transition lexer.output.accepted {
-            true -> block parse(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block parse(typing_harness, sources, parser, remaining, unit_package, module_path, lexer),
             _ -> lex_rejected(typing_harness)
         }
     }
@@ -292,7 +292,7 @@ blocks
     ) {
         psi::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, @lexer.output);
         transition parser.output.accepted {
-            true -> block add(typing_harness, sources, parser, remaining, unit_package, module_path, lexer)
+            true -> block add(typing_harness, sources, parser, remaining, unit_package, module_path, lexer),
             _ -> parse_rejected(typing_harness)
         }
     }
@@ -308,7 +308,7 @@ blocks
     ) {
         let added: bool = psi::source_set_add(sources, @lexer.source, unit_package, module_path);
         transition added {
-            true -> block unit(typing_harness, sources, parser, remaining - 1)
+            true -> block unit(typing_harness, sources, parser, remaining - 1),
             _ -> source_full(typing_harness)
         }
     }
@@ -327,7 +327,7 @@ blocks
     ) {
         psi::resolve(resolver, sources, @parser.output);
         transition resolver.output.accepted {
-            true -> prepare_type(typing_harness, sources, parser, resolver)
+            true -> prepare_type(typing_harness, sources, parser, resolver),
             _ -> resolve_rejected(typing_harness)
         }
     }
@@ -347,7 +347,7 @@ blocks
         psi::type_check(typer, sources, @parser.output, @resolver.output);
         write_typing_observation(typing_harness, @typer.output, @parser.output);
         transition typer.output.accepted {
-            true -> accepted(typing_harness)
+            true -> accepted(typing_harness),
             _ -> type_rejected(typing_harness)
         }
     }
@@ -390,7 +390,7 @@ blocks
 
     machine next(typing_harness: @mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
-            true -> block byte(typing_harness, read, value, scale)
+            true -> block byte(typing_harness, read, value, scale),
             _ -> word(value)
         }
     }
@@ -398,7 +398,7 @@ blocks
     machine byte(typing_harness: @mut TypingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value as byte } -> block next(typing_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
+            ByteRead::Byte { value as byte } -> block next(typing_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256),
             _ -> ended()
         }
     }
@@ -421,13 +421,13 @@ blocks
 {
     let length: HarnessWord = block read_u32(typing_harness);
     transition length.complete {
-        true -> block byte(typing_harness, path, length.value)
+        true -> block byte(typing_harness, path, length.value),
         _ -> failed()
     }
 
     machine byte(typing_harness: @mut TypingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
-            true -> block read(typing_harness, path, left)
+            true -> block read(typing_harness, path, left),
             _ -> complete()
         }
     }
@@ -435,7 +435,7 @@ blocks
     machine read(typing_harness: @mut TypingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
-            ByteRead::Byte { value } -> block store(typing_harness, path, left, value)
+            ByteRead::Byte { value } -> block store(typing_harness, path, left, value),
             _ -> failed()
         }
     }
@@ -443,7 +443,7 @@ blocks
     machine store(typing_harness: @mut TypingHarness, path: @mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = psi::module_path_append(path, value as u8);
         transition kept {
-            true -> block byte(typing_harness, path, left - 1)
+            true -> block byte(typing_harness, path, left - 1),
             _ -> failed()
         }
     }
@@ -486,7 +486,7 @@ crashes Trap
 
     machine row(typing_harness: @mut TypingHarness, output: @Typing, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.types.row_count {
-            true -> type_row(typing_harness, output, syntax, index)
+            true -> type_row(typing_harness, output, syntax, index),
             _ -> arguments(typing_harness, output, syntax)
         }
     }
@@ -503,7 +503,7 @@ crashes Trap
 
     machine argument(typing_harness: @mut TypingHarness, output: @Typing, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.types.argument_count {
-            true -> argument_row(typing_harness, output, syntax, index)
+            true -> argument_row(typing_harness, output, syntax, index),
             _ -> expressions(typing_harness, output, syntax)
         }
     }
@@ -521,7 +521,7 @@ crashes Trap
 
     machine expression(typing_harness: @mut TypingHarness, output: @Typing, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.expression_count {
-            true -> expression_row(typing_harness, output, syntax, index)
+            true -> expression_row(typing_harness, output, syntax, index),
             _ -> binders(typing_harness, output, syntax)
         }
     }
@@ -539,7 +539,7 @@ crashes Trap
 
     machine binder(typing_harness: @mut TypingHarness, output: @Typing, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < output.binder_count {
-            true -> binder_row(typing_harness, output, syntax, index)
+            true -> binder_row(typing_harness, output, syntax, index),
             _ -> done()
         }
     }
@@ -617,10 +617,10 @@ crashes Trap
 // 5 machine binder. Tag 2 is unassigned and the decoder rejects it.
 machine write_selection(typing_harness: @mut TypingHarness, selection: Selection) reaches Console {
     transition selection {
-        Selection::None -> write(typing_harness, 0, 0)
-        Selection::Machine { handle } -> write(typing_harness, 1, handle)
-        Selection::Field { field } -> write(typing_harness, 3, field)
-        Selection::Length -> write(typing_harness, 4, 0)
+        Selection::None -> write(typing_harness, 0, 0),
+        Selection::Machine { handle } -> write(typing_harness, 1, handle),
+        Selection::Field { field } -> write(typing_harness, 3, field),
+        Selection::Length -> write(typing_harness, 4, 0),
         Selection::Binder { parameter } -> write(typing_harness, 5, parameter)
     }
 
@@ -632,7 +632,7 @@ machine write_selection(typing_harness: @mut TypingHarness, selection: Selection
 
 machine boolean_tag(value: bool) -> u8 {
     transition value {
-        true -> tag(1)
+        true -> tag(1),
         _ -> tag(0)
     }
 
@@ -643,18 +643,18 @@ machine boolean_tag(value: bool) -> u8 {
 
 machine kind_tag(value: TypeKind) -> u8 {
     transition value {
-        TypeKind::Absent -> tag(0)
-        TypeKind::Builtin -> tag(1)
-        TypeKind::Data -> tag(2)
-        TypeKind::Reference -> tag(3)
-        TypeKind::Array -> tag(4)
-        TypeKind::Slice -> tag(5)
-        TypeKind::GenericParameter -> tag(6)
-        TypeKind::StaticInteger -> tag(7)
-        TypeKind::Unit -> tag(8)
-        TypeKind::AnonymousInteger -> tag(9)
-        TypeKind::AnonymousFloat -> tag(10)
-        TypeKind::AnonymousChoice -> tag(11)
+        TypeKind::Absent -> tag(0),
+        TypeKind::Builtin -> tag(1),
+        TypeKind::Data -> tag(2),
+        TypeKind::Reference -> tag(3),
+        TypeKind::Array -> tag(4),
+        TypeKind::Slice -> tag(5),
+        TypeKind::GenericParameter -> tag(6),
+        TypeKind::StaticInteger -> tag(7),
+        TypeKind::Unit -> tag(8),
+        TypeKind::AnonymousInteger -> tag(9),
+        TypeKind::AnonymousFloat -> tag(10),
+        TypeKind::AnonymousChoice -> tag(11),
         TypeKind::AnonymousArray -> tag(12)
     }
 
@@ -665,26 +665,26 @@ machine kind_tag(value: TypeKind) -> u8 {
 
 machine builtin_tag(value: BuiltinType) -> u8 {
     transition value {
-        BuiltinType::Bool -> tag(0)
-        BuiltinType::I8 -> tag(1)
-        BuiltinType::I16 -> tag(2)
-        BuiltinType::I32 -> tag(3)
-        BuiltinType::I64 -> tag(4)
-        BuiltinType::U8 -> tag(5)
-        BuiltinType::U16 -> tag(6)
-        BuiltinType::U32 -> tag(7)
-        BuiltinType::U64 -> tag(8)
-        BuiltinType::Address -> tag(9)
-        BuiltinType::F32 -> tag(10)
-        BuiltinType::F64 -> tag(11)
-        BuiltinType::Slice -> tag(12)
-        BuiltinType::SyscallResult -> tag(13)
-        BuiltinType::Terminal -> tag(14)
-        BuiltinType::Never -> tag(15)
-        BuiltinType::UInt -> tag(16)
-        BuiltinType::Int -> tag(17)
-        BuiltinType::AtomicBool -> tag(18)
-        BuiltinType::AtomicU32 -> tag(19)
+        BuiltinType::Bool -> tag(0),
+        BuiltinType::I8 -> tag(1),
+        BuiltinType::I16 -> tag(2),
+        BuiltinType::I32 -> tag(3),
+        BuiltinType::I64 -> tag(4),
+        BuiltinType::U8 -> tag(5),
+        BuiltinType::U16 -> tag(6),
+        BuiltinType::U32 -> tag(7),
+        BuiltinType::U64 -> tag(8),
+        BuiltinType::Address -> tag(9),
+        BuiltinType::F32 -> tag(10),
+        BuiltinType::F64 -> tag(11),
+        BuiltinType::Slice -> tag(12),
+        BuiltinType::SyscallResult -> tag(13),
+        BuiltinType::Terminal -> tag(14),
+        BuiltinType::Never -> tag(15),
+        BuiltinType::UInt -> tag(16),
+        BuiltinType::Int -> tag(17),
+        BuiltinType::AtomicBool -> tag(18),
+        BuiltinType::AtomicU32 -> tag(19),
         BuiltinType::AtomicU64 -> tag(20)
     }
 
@@ -695,12 +695,12 @@ machine builtin_tag(value: BuiltinType) -> u8 {
 
 machine domain_tag(value: DomainBinding) -> u8 {
     transition value {
-        DomainBinding::Unqualified -> tag(0)
-        DomainBinding::Wrapping -> tag(1)
-        DomainBinding::Saturating -> tag(2)
-        DomainBinding::Trapping -> tag(3)
-        DomainBinding::Finite -> tag(4)
-        DomainBinding::Declared -> tag(5)
+        DomainBinding::Unqualified -> tag(0),
+        DomainBinding::Wrapping -> tag(1),
+        DomainBinding::Saturating -> tag(2),
+        DomainBinding::Trapping -> tag(3),
+        DomainBinding::Finite -> tag(4),
+        DomainBinding::Declared -> tag(5),
         DomainBinding::Case -> tag(6)
     }
 
@@ -711,8 +711,8 @@ machine domain_tag(value: DomainBinding) -> u8 {
 
 machine access_tag(value: ReferenceAccess) -> u8 {
     transition value {
-        ReferenceAccess::Shared -> tag(0)
-        ReferenceAccess::Mutable -> tag(1)
+        ReferenceAccess::Shared -> tag(0),
+        ReferenceAccess::Mutable -> tag(1),
         ReferenceAccess::WriteOnly -> tag(2)
     }
 
@@ -723,10 +723,10 @@ machine access_tag(value: ReferenceAccess) -> u8 {
 
 machine adaptation_tag(value: Adaptation) -> u8 {
     transition value {
-        Adaptation::None -> tag(0)
-        Adaptation::Landed -> tag(1)
-        Adaptation::SharedLend -> tag(2)
-        Adaptation::Qualified -> tag(3)
+        Adaptation::None -> tag(0),
+        Adaptation::Landed -> tag(1),
+        Adaptation::SharedLend -> tag(2),
+        Adaptation::Qualified -> tag(3),
         Adaptation::Read -> tag(4)
     }
 
@@ -737,48 +737,48 @@ machine adaptation_tag(value: Adaptation) -> u8 {
 
 machine diagnostic_tag(value: TypeDiagnosticCode) -> u8 {
     transition value {
-        TypeDiagnosticCode::None -> tag(0)
-        TypeDiagnosticCode::TypeCapacityExceeded -> tag(1)
-        TypeDiagnosticCode::UnsupportedTypeForm -> tag(2)
-        TypeDiagnosticCode::GenericArgumentCount -> tag(3)
-        TypeDiagnosticCode::UnsupportedArrayLength -> tag(4)
-        TypeDiagnosticCode::UnsupportedDomain -> tag(5)
-        TypeDiagnosticCode::MismatchedTypes -> tag(6)
-        TypeDiagnosticCode::LiteralOutOfRange -> tag(7)
-        TypeDiagnosticCode::UnsupportedLiteral -> tag(8)
-        TypeDiagnosticCode::AnonymousValueOutOfRange -> tag(9)
-        TypeDiagnosticCode::AnonymousRemainder -> tag(10)
-        TypeDiagnosticCode::UnknownField -> tag(11)
-        TypeDiagnosticCode::ProjectionOfNonData -> tag(12)
-        TypeDiagnosticCode::IndexOfNonCollection -> tag(13)
-        TypeDiagnosticCode::NonIntegerIndex -> tag(14)
-        TypeDiagnosticCode::OperandMismatch -> tag(15)
-        TypeDiagnosticCode::NotBoolean -> tag(16)
-        TypeDiagnosticCode::UnsupportedEquality -> tag(17)
-        TypeDiagnosticCode::NoMatchingMachine -> tag(18)
-        TypeDiagnosticCode::AmbiguousMachine -> tag(19)
-        TypeDiagnosticCode::NotCallable -> tag(20)
-        TypeDiagnosticCode::NotAValue -> tag(21)
-        TypeDiagnosticCode::UnknownConstructionField -> tag(22)
-        TypeDiagnosticCode::DuplicateConstructionField -> tag(23)
-        TypeDiagnosticCode::NotConstructible -> tag(24)
-        TypeDiagnosticCode::CaseOfOtherData -> tag(25)
-        TypeDiagnosticCode::UnknownPatternField -> tag(26)
-        TypeDiagnosticCode::InvalidCast -> tag(27)
-        TypeDiagnosticCode::NotAPlace -> tag(28)
-        TypeDiagnosticCode::TerminalResultMismatch -> tag(29)
-        TypeDiagnosticCode::AnonymousFraction -> tag(30)
-        TypeDiagnosticCode::FractionalIntermediate -> tag(43)
-        TypeDiagnosticCode::UnsupportedExpression -> tag(31)
-        TypeDiagnosticCode::UninferredGenericArgument -> tag(33)
-        TypeDiagnosticCode::SatisfierMismatch -> tag(34)
-        TypeDiagnosticCode::SilentDiscard -> tag(35)
-        TypeDiagnosticCode::DiscardsNoCall -> tag(36)
-        TypeDiagnosticCode::PropositionArgumentCount -> tag(37)
-        TypeDiagnosticCode::UncoveredDispatch -> tag(38)
-        TypeDiagnosticCode::ImmutablePlace -> tag(39)
-        TypeDiagnosticCode::ImplicitAttenuation -> tag(40)
-        TypeDiagnosticCode::MissingPatternField -> tag(41)
+        TypeDiagnosticCode::None -> tag(0),
+        TypeDiagnosticCode::TypeCapacityExceeded -> tag(1),
+        TypeDiagnosticCode::UnsupportedTypeForm -> tag(2),
+        TypeDiagnosticCode::GenericArgumentCount -> tag(3),
+        TypeDiagnosticCode::UnsupportedArrayLength -> tag(4),
+        TypeDiagnosticCode::UnsupportedDomain -> tag(5),
+        TypeDiagnosticCode::MismatchedTypes -> tag(6),
+        TypeDiagnosticCode::LiteralOutOfRange -> tag(7),
+        TypeDiagnosticCode::UnsupportedLiteral -> tag(8),
+        TypeDiagnosticCode::AnonymousValueOutOfRange -> tag(9),
+        TypeDiagnosticCode::AnonymousRemainder -> tag(10),
+        TypeDiagnosticCode::UnknownField -> tag(11),
+        TypeDiagnosticCode::ProjectionOfNonData -> tag(12),
+        TypeDiagnosticCode::IndexOfNonCollection -> tag(13),
+        TypeDiagnosticCode::NonIntegerIndex -> tag(14),
+        TypeDiagnosticCode::OperandMismatch -> tag(15),
+        TypeDiagnosticCode::NotBoolean -> tag(16),
+        TypeDiagnosticCode::UnsupportedEquality -> tag(17),
+        TypeDiagnosticCode::NoMatchingMachine -> tag(18),
+        TypeDiagnosticCode::AmbiguousMachine -> tag(19),
+        TypeDiagnosticCode::NotCallable -> tag(20),
+        TypeDiagnosticCode::NotAValue -> tag(21),
+        TypeDiagnosticCode::UnknownConstructionField -> tag(22),
+        TypeDiagnosticCode::DuplicateConstructionField -> tag(23),
+        TypeDiagnosticCode::NotConstructible -> tag(24),
+        TypeDiagnosticCode::CaseOfOtherData -> tag(25),
+        TypeDiagnosticCode::UnknownPatternField -> tag(26),
+        TypeDiagnosticCode::InvalidCast -> tag(27),
+        TypeDiagnosticCode::NotAPlace -> tag(28),
+        TypeDiagnosticCode::TerminalResultMismatch -> tag(29),
+        TypeDiagnosticCode::AnonymousFraction -> tag(30),
+        TypeDiagnosticCode::FractionalIntermediate -> tag(43),
+        TypeDiagnosticCode::UnsupportedExpression -> tag(31),
+        TypeDiagnosticCode::UninferredGenericArgument -> tag(33),
+        TypeDiagnosticCode::SatisfierMismatch -> tag(34),
+        TypeDiagnosticCode::SilentDiscard -> tag(35),
+        TypeDiagnosticCode::DiscardsNoCall -> tag(36),
+        TypeDiagnosticCode::PropositionArgumentCount -> tag(37),
+        TypeDiagnosticCode::UncoveredDispatch -> tag(38),
+        TypeDiagnosticCode::ImmutablePlace -> tag(39),
+        TypeDiagnosticCode::ImplicitAttenuation -> tag(40),
+        TypeDiagnosticCode::MissingPatternField -> tag(41),
         TypeDiagnosticCode::DuplicatePatternField -> tag(42)
     }
 

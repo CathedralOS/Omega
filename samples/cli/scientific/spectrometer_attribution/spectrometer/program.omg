@@ -2,7 +2,6 @@ use omega::language::core::ProcessExit;
 // Expected exit: 2 (empty stdin).
 // Expected output contains: invalid spectrum input
 // Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
-module spectrometer;
 use omega_language_std::Console;
 use spectrometer::model::Spectrometer;
 use spectrometer::model::IntegerRead;
@@ -22,13 +21,13 @@ crashes Trap
     transition { _ -> block input(application, 0) }
     machine input(application: @mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < 27 {
-            true -> block token(application, index)
+            true -> block token(application, index),
             false -> block trailing(application)
         }
     }
     machine token(application: @mut Spectrometer, index: i32 in Wrapping) {
         transition block read_integer(application) {
-            IntegerRead::Value { value } -> block store(application, index, value)
+            IntegerRead::Value { value } -> block store(application, index, value),
             _ -> invalid(application)
         }
     }
@@ -39,19 +38,19 @@ crashes Trap
     }
     machine trailing(application: @mut Spectrometer) {
         transition block read_integer(application) {
-            IntegerRead::End -> validate(application)
+            IntegerRead::End -> validate(application),
             _ -> invalid(application)
         }
     }
     machine validate(application: @mut Spectrometer) {
         transition load_spectrum(application) {
-            true -> analyze(application)
+            true -> analyze(application),
             false -> invalid(application)
         }
     }
     machine analyze(application: @mut Spectrometer) {
         transition find_regions(@application.spectrum, @mut application.regions) {
-            true -> report(application)
+            true -> report(application),
             false -> capacity(application)
         }
     }

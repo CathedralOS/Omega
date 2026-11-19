@@ -42,7 +42,7 @@ machine sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
-        true -> sum(s[1..], acc + s[0])
+        true -> sum(s[1..], acc + s[0]),
         false -> (acc as i32)
     }
 }
@@ -52,7 +52,7 @@ machine count(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
-        true -> count(s[1..], acc + 1)
+        true -> count(s[1..], acc + 1),
         false -> (acc as i32)
     }
 }
@@ -71,7 +71,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     // Check sum == 50 directly on the local.
     transition sum_result == 50 {
-        true -> block check_count(main)
+        true -> block check_count(main),
         _ -> block bad_sum(main)
     }
 
@@ -89,7 +89,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
         // Check element count == 4.
         transition cnt == 4 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_count(main)
         }
     }

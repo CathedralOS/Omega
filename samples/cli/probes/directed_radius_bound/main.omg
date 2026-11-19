@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         && toward_zero32 == lower32 && toward_negative32 == lower32
         && toward_positive32 == upper32 && ordinary32 == lower32
         && negative != negative {
-        true -> good(main)
+        true -> good(main),
         false -> bad(main)
     }
     machine good(main: @mut Main) {

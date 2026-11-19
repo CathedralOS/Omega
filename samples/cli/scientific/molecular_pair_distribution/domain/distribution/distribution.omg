@@ -1,4 +1,3 @@
-module domain::distribution;
 use omega::language::core::F64::from_i32;
 use omega_language_std::Console;
 use omega::language::core::widen_i32_to_i64;
@@ -18,43 +17,43 @@ machine wrap(value: i32 in Wrapping, box: i32 in Wrapping) -> i32 in Wrapping
 requires box > 0
 {
     let remainder: i32 in Wrapping = value % box;
-    transition remainder < 0 { true -> (remainder + box) _ -> remainder }
+    transition remainder < 0 { true -> (remainder + box), _ -> remainder }
 }
 machine separation(first: i32, second: i32, box: i32) -> f64 crashes Trap {
-    transition box > 0 { true -> calculate(first, second, box) _ -> invalid_box() }
+    transition box > 0 { true -> calculate(first, second, box), _ -> invalid_box() }
     machine calculate(first: i32, second: i32, box: i32) -> f64 requires box > 0 {
     let a: i32 in Wrapping = wrap(first as i32 in Wrapping, box as i32 in Wrapping);
     let b: i32 in Wrapping = wrap(second as i32 in Wrapping, box as i32 in Wrapping);
     let delta: i32 in Wrapping = a - b;
-    transition delta < 0 { true -> folded((0 - delta) as i32, box) _ -> folded(delta as i32, box) }
+    transition delta < 0 { true -> folded((0 - delta) as i32, box), _ -> folded(delta as i32, box) }
     }
     machine invalid_box() -> f64 { crash Trap; }
     machine folded(delta: i32, box: i32) -> f64 {
-        transition delta > box / 2 { true -> F64::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32) _ -> F64::from_i32(delta) }
+        transition delta > box / 2 { true -> F64::from_i32(((box as i32 in Wrapping) - (delta as i32 in Wrapping)) as i32), _ -> F64::from_i32(delta) }
     }
 }
 public machine histogram(distribution: @mut Distribution) crashes Trap {
     transition { _ -> snapshot(distribution, 0) }
     machine snapshot(distribution: @mut Distribution, snapshot: i32 in Wrapping) {
         transition snapshot >= 0 && snapshot < 8 && snapshot < distribution.snapshots {
-            true -> first(distribution, snapshot, 0) _ -> done()
+            true -> first(distribution, snapshot, 0), _ -> done()
         }
     }
     machine first(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping) {
         transition first >= 0 && first < distribution.particles - 1 {
-            true -> second(distribution, snapshot, first, first + 1) _ -> snapshot(distribution, snapshot + 1)
+            true -> second(distribution, snapshot, first, first + 1), _ -> snapshot(distribution, snapshot + 1)
         }
     }
     machine second(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
         transition second >= 0 && second < distribution.particles {
-            true -> indices(distribution, snapshot, first, second) _ -> first(distribution, snapshot, first + 1)
+            true -> indices(distribution, snapshot, first, second), _ -> first(distribution, snapshot, first + 1)
         }
     }
     machine indices(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping) {
         let left: i32 in Wrapping = 3 * (snapshot * distribution.particles + first);
         let right: i32 in Wrapping = 3 * (snapshot * distribution.particles + second);
         transition left >= 0 && left < 766 && right >= 0 && right < 766 {
-            true -> distance(distribution, snapshot, first, second, left, right) _ -> done()
+            true -> distance(distribution, snapshot, first, second, left, right), _ -> done()
         }
     }
     machine distance(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, left: i32 in Wrapping, right: i32 in Wrapping) {
@@ -65,13 +64,13 @@ public machine histogram(distribution: @mut Distribution) crashes Trap {
     }
     machine bin(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
         transition bin >= 0 && bin < 16 && bin < distribution.bins {
-            true -> endpoint(distribution, snapshot, first, second, squared, bin) _ -> second(distribution, snapshot, first, second + 1)
+            true -> endpoint(distribution, snapshot, first, second, squared, bin), _ -> second(distribution, snapshot, first, second + 1)
         }
     }
     machine endpoint(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, squared: f64, bin: i32 in Wrapping) {
         let edge: f64 = F64::from_i32(distribution.edges[bin]);
         transition squared < edge*edge || (bin == distribution.bins - 1 && squared == edge*edge) {
-            true -> count(distribution, snapshot, first, second, bin) _ -> bin(distribution, snapshot, first, second, squared, bin + 1)
+            true -> count(distribution, snapshot, first, second, bin), _ -> bin(distribution, snapshot, first, second, squared, bin + 1)
         }
     }
     machine count(distribution: @mut Distribution, snapshot: i32 in Wrapping, first: i32 in Wrapping, second: i32 in Wrapping, bin: i32 in Wrapping) {
@@ -85,7 +84,7 @@ public machine report(distribution: @Distribution) reaches Console invokes Conso
     transition { _ -> row(distribution, 0, 0.0, 0) }
     machine row(distribution: @Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {
         transition bin >= 0 && bin < 16 && bin < distribution.bins {
-            true -> values(distribution, bin, lower, cumulative) _ -> done()
+            true -> values(distribution, bin, lower, cumulative), _ -> done()
         }
     }
     machine values(distribution: @Distribution, bin: i32 in Wrapping, lower: f64, cumulative: i32 in Wrapping) {

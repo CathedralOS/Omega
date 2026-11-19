@@ -3,7 +3,7 @@ use omega::language::core::abs_f64;
 // Complete reduced source for a checked call composed with IEEE comparisons.
 data Probe { reading:f64; selected:i32; observed:i32; }
 machine accepted(probe:@Probe,choice:i32)->bool {
- transition choice {0 -> test(probe) _ -> rejected()}
+ transition choice {0 -> test(probe), _ -> rejected()}
  machine test(probe:@Probe)->bool {abs_f64(probe.reading-1.0) <= 0.000000001}
  machine rejected()->bool {false}
 }
@@ -12,7 +12,7 @@ machine main(probe:@mut Probe) {
  transition { _ -> check(probe) }
  machine check(probe:@mut Probe) {
   transition accepted(probe,probe.selected) && abs_f64(probe.reading-1.0) <= 0.000000001 {
-   true -> passed(probe) _ -> failed(probe)
+   true -> passed(probe), _ -> failed(probe)
   }
  }
  machine passed(probe:@mut Probe) {probe.observed=1;}

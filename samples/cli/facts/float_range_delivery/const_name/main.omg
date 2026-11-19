@@ -11,7 +11,7 @@ requires value >= LOWER && value <= NARROW_UPPER
 machine main() crashes Trap {
     let low: f64 = 0.125;
     let high: f64 = 0.25;
-    transition probe(low) == 0.125 && probe(high) == 0.25 { true -> done() _ -> bad() }
+    transition probe(low) == 0.125 && probe(high) == 0.25 { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

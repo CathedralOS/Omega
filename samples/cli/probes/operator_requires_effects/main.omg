@@ -52,7 +52,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     main.hits = 0;
     let flag: bool = compare(5);
     transition flag {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

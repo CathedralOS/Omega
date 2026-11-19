@@ -40,7 +40,7 @@ data Main {
 machine step(main: @mut Main) {
     let new_pos: i32 in Wrapping = main.s.pos + main.s.vel;
     transition new_pos > 9 {
-        true -> upper_bounce(main, new_pos)
+        true -> upper_bounce(main, new_pos),
         _ -> check_lower(main, new_pos)
     }
 
@@ -53,7 +53,7 @@ machine step(main: @mut Main) {
 
     machine check_lower(main: @mut Main, new_pos: i32 in Wrapping) {
         transition new_pos < 0 {
-            true -> lower_bounce(main, new_pos)
+            true -> lower_bounce(main, new_pos),
             _ -> move_normal(main, new_pos)
         }
     }
@@ -91,7 +91,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let code: i32 in Wrapping = main.s.pos + 64;
 
     transition code == 70 {
-        true -> block good(main)
+        true -> block good(main),
         _ -> block bad(main)
     }
 

@@ -1,4 +1,3 @@
-module io::protocol;
 use omega::language::core::ProcessExit;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
@@ -33,7 +32,7 @@ crashes Trap
     machine scan_input(protocol: @mut Protocol) -> bool {
         transition protocol.length < 600 {
 
- true -> observe(protocol)
+ true -> observe(protocol),
 
  false -> rejected()
         }
@@ -42,14 +41,14 @@ crashes Trap
         let observed: ByteRead = block Console::read_byte();
         protocol.length = protocol.length + 1;
         transition observed {
-            ByteRead::Eof -> finish(protocol)
+            ByteRead::Eof -> finish(protocol),
             ByteRead::Byte { value } -> character(protocol, value)
         }
     }
     machine character(protocol: @mut Protocol, value: i32) -> bool {
         transition value >= 48 && value <= 57 {
 
- true -> digit(protocol, value)
+ true -> digit(protocol, value),
 
  false -> punctuation(protocol, value)
         }
@@ -57,7 +56,7 @@ crashes Trap
     machine digit(protocol: @mut Protocol, value: i32) -> bool {
         transition protocol.position < 54 && protocol.accumulator <= 100000 {
 
- true -> accumulate(protocol, value)
+ true -> accumulate(protocol, value),
 
  false -> rejected()
         }
@@ -72,7 +71,7 @@ crashes Trap
     machine punctuation(protocol: @mut Protocol, value: i32) -> bool {
         transition value == 45 && !protocol.started && protocol.position < 54 {
 
- true -> minus(protocol)
+ true -> minus(protocol),
 
  false -> separator(protocol, value)
         }
@@ -88,7 +87,7 @@ crashes Trap
     machine whitespace(protocol: @mut Protocol, value: i32) -> bool {
         transition value == 32 || value == 9 || value == 13 || value == 10 {
 
- true -> commit(protocol, false)
+ true -> commit(protocol, false),
 
  false -> rejected()
         }
@@ -99,7 +98,7 @@ crashes Trap
     machine commit(protocol: @mut Protocol, final: bool) -> bool {
         transition protocol.digits {
 
- true -> guarded_store(protocol, final)
+ true -> guarded_store(protocol, final),
 
  false -> empty(protocol, final)
         }
@@ -107,7 +106,7 @@ crashes Trap
     machine empty(protocol: @mut Protocol, final: bool) -> bool {
         transition protocol.started {
 
- true -> rejected()
+ true -> rejected(),
 
  false -> after(protocol, final)
         }
@@ -115,7 +114,7 @@ crashes Trap
     machine guarded_store(protocol: @mut Protocol, final: bool) -> bool {
         transition protocol.position >= 0 && protocol.position < 54 {
 
- true -> store(protocol, final, protocol.position)
+ true -> store(protocol, final, protocol.position),
 
  false -> rejected()
         }
@@ -125,7 +124,7 @@ crashes Trap
     {
         transition protocol.negative {
 
- true -> negative(protocol, final, position)
+ true -> negative(protocol, final, position),
 
  false -> positive(protocol, final, position)
         }
@@ -153,7 +152,7 @@ crashes Trap
     machine after(protocol: @mut Protocol, final: bool) -> bool {
         transition final {
 
- true -> complete(protocol)
+ true -> complete(protocol),
 
  false -> scan_input(protocol)
         }
@@ -166,7 +165,7 @@ public machine integer(protocol: @mut Protocol, value: i32 in Wrapping)
 reaches ProcessExit + Console {
     transition value < 0 {
 
- true -> negative(protocol, value)
+ true -> negative(protocol, value),
 
  false -> digits(protocol, value, 1000000000, false)
     }
@@ -182,7 +181,7 @@ reaches ProcessExit + Console {
         let remainder: i32 in Wrapping = value % divisor;
         transition digit != 0 || started || divisor == 1 {
 
- true -> emit(protocol, digit, remainder, divisor)
+ true -> emit(protocol, digit, remainder, divisor),
 
  false -> next(protocol, remainder, divisor, false)
         }
@@ -200,7 +199,7 @@ reaches ProcessExit + Console {
     {
         transition divisor > 1 {
 
- true -> divide(protocol, value, divisor, started)
+ true -> divide(protocol, value, divisor, started),
 
  false -> done()
         }
@@ -212,7 +211,7 @@ reaches ProcessExit + Console {
         let next_divisor: i32 in Wrapping = divisor / 10;
         transition next_divisor >= 1 {
 
- true -> digits(protocol, value, next_divisor, started)
+ true -> digits(protocol, value, next_divisor, started),
 
  false -> done()
         }
@@ -226,7 +225,7 @@ public machine number(protocol: @mut Protocol, value: f64)
 reaches ProcessExit + Console {
     transition value == 0.0 {
 
- true -> zero(protocol)
+ true -> zero(protocol),
 
  false -> sign(protocol, value)
     }
@@ -234,7 +233,7 @@ reaches ProcessExit + Console {
     machine sign(protocol: @mut Protocol, value: f64) {
         transition value < 0.0 {
 
- true -> negative(protocol, value)
+ true -> negative(protocol, value),
 
  false -> normalize(protocol, value, 0)
         }
@@ -246,7 +245,7 @@ reaches ProcessExit + Console {
     machine normalize(protocol: @mut Protocol, value: f64, exponent: i32 in Wrapping) {
         transition value >= 10.0 {
 
- true -> normalize(protocol, value / 10.0, exponent + 1)
+ true -> normalize(protocol, value / 10.0, exponent + 1),
 
  false -> small(protocol, value, exponent)
         }
@@ -254,7 +253,7 @@ reaches ProcessExit + Console {
     machine small(protocol: @mut Protocol, value: f64, exponent: i32 in Wrapping) {
         transition value < 1.0 {
 
- true -> normalize(protocol, value * 10.0, exponent - 1)
+ true -> normalize(protocol, value * 10.0, exponent - 1),
 
  false -> emit(protocol, value, exponent)
         }
@@ -263,7 +262,7 @@ reaches ProcessExit + Console {
         let scaled: f64 = value * 100000000.0;
         transition scaled == scaled && scaled >= 0.0 && scaled < 1000000000.0 {
 
- true -> land(protocol, scaled, exponent)
+ true -> land(protocol, scaled, exponent),
 
  false -> invalid(protocol)
         }

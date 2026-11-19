@@ -1,4 +1,3 @@
-module domain::solver;
 // Private exhaustive active-set solution for a two-dimensional convex box.
 // A positive-semidefinite quadratic minimizes either at a stationary point or
 // on an edge. Each edge is minimized analytically and clamped to its segment;
@@ -13,10 +12,10 @@ use domain::model::objective;
 
 public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }
 machine clamp(value: f64, low: f64, high: f64) -> f64 {
-    transition value < low { true -> lower(low) false -> upper(value, high) }
+    transition value < low { true -> lower(low), false -> upper(value, high) }
     machine lower(low: f64) -> f64 { low }
     machine upper(value: f64, high: f64) -> f64 {
-        transition value > high { true -> capped(high) false -> kept(value) }
+        transition value > high { true -> capped(high), false -> kept(value) }
     }
     machine capped(high: f64) -> f64 { high }
     machine kept(value: f64) -> f64 { value }
@@ -30,7 +29,7 @@ machine accumulate(normal: @mut Normal, ray: @Ray) {
 }
 machine consider(problem: @Problem, fit: @mut Fit, first: f64, second: f64) {
     transition first >= problem.low_first && first <= problem.high_first && second >= problem.low_second && second <= problem.high_second {
-        true -> feasible(problem, fit, first, second)
+        true -> feasible(problem, fit, first, second),
         false -> skip()
     }
     machine feasible(problem: @Problem, fit: @mut Fit, first: f64, second: f64) {
@@ -38,7 +37,7 @@ machine consider(problem: @Problem, fit: @mut Fit, first: f64, second: f64) {
         let norm: f64 = first * first + second * second;
         let previous_norm: f64 = fit.first * fit.first + fit.second * fit.second;
         transition cost < fit.objective || (cost == fit.objective && norm < previous_norm) {
-            true -> replace(fit, first, second, cost)
+            true -> replace(fit, first, second, cost),
             false -> skip()
         }
     }
@@ -48,7 +47,7 @@ machine consider(problem: @Problem, fit: @mut Fit, first: f64, second: f64) {
     machine skip() {}
 }
 machine fixed_first(problem: @Problem, normal: @Normal, fit: @mut Fit, first: f64) {
-    transition normal.bb > 0.5 { true -> varying(problem, normal, fit, first) false -> flat(problem, fit, first) }
+    transition normal.bb > 0.5 { true -> varying(problem, normal, fit, first), false -> flat(problem, fit, first) }
     machine varying(problem: @Problem, normal: @Normal, fit: @mut Fit, first: f64) {
         let second: f64 = clamp((normal.bt - normal.ab * first) / normal.bb, problem.low_second, problem.high_second);
         consider(problem, fit, first, second);
@@ -56,7 +55,7 @@ machine fixed_first(problem: @Problem, normal: @Normal, fit: @mut Fit, first: f6
     machine flat(problem: @Problem, fit: @mut Fit, first: f64) { consider(problem, fit, first, problem.low_second); }
 }
 machine fixed_second(problem: @Problem, normal: @Normal, fit: @mut Fit, second: f64) {
-    transition normal.aa > 0.5 { true -> varying(problem, normal, fit, second) false -> flat(problem, fit, second) }
+    transition normal.aa > 0.5 { true -> varying(problem, normal, fit, second), false -> flat(problem, fit, second) }
     machine varying(problem: @Problem, normal: @Normal, fit: @mut Fit, second: f64) {
         let first: f64 = clamp((normal.at - normal.ab * second) / normal.aa, problem.low_first, problem.high_first);
         consider(problem, fit, first, second);
@@ -73,7 +72,7 @@ public machine solve(problem: @Problem) -> Fit {
     fit.objective = objective(problem, fit.first, fit.second);
     let determinant: f64 = normal.aa * normal.bb - normal.ab * normal.ab;
     transition determinant > 0.5 {
-        true -> full(problem, @normal, @mut fit, determinant)
+        true -> full(problem, @normal, @mut fit, determinant),
         false -> deficient(problem, @normal, @mut fit)
     }
     machine full(problem: @Problem, normal: @Normal, fit: @mut Fit, determinant: f64) -> Fit {
@@ -85,12 +84,12 @@ public machine solve(problem: @Problem) -> Fit {
     }
     machine deficient(problem: @Problem, normal: @Normal, fit: @mut Fit) -> Fit {
         let trace: f64 = normal.aa + normal.bb;
-        transition trace > 0.5 { true -> rank_one(problem, normal, fit, trace) false -> rank_zero(problem, normal, fit) }
+        transition trace > 0.5 { true -> rank_one(problem, normal, fit, trace), false -> rank_zero(problem, normal, fit) }
     }
     machine rank_one(problem: @Problem, normal: @Normal, fit: @mut Fit, trace: f64) -> Fit {
         fit.rank = 1;
         consider(problem, fit, normal.at / trace, normal.bt / trace);
-        transition normal.aa > 0.5 { true -> null_first(problem, normal, fit) false -> null_second(problem, normal, fit) }
+        transition normal.aa > 0.5 { true -> null_first(problem, normal, fit), false -> null_second(problem, normal, fit) }
     }
     machine null_first(problem: @Problem, normal: @Normal, fit: @mut Fit) -> Fit {
         fit.null_first = normal.ab; fit.null_second = 0.0 - normal.aa;

@@ -16,7 +16,7 @@ requires
     0 <= x && x <= 1000
 {
     transition x > 50 {
-        true -> (dbl(x))
+        true -> (dbl(x)),
         _ -> (x)
     }
 }

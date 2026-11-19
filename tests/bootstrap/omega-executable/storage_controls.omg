@@ -20,7 +20,7 @@ machine main() -> u8 {
     let path_last: bool = module_path_append(@mut path, 73);
     let path_full: bool = module_path_append(@mut path, 99);
     transition unit.id.value == id.value && canary == 77 && first == 41 && absent == 0 && last == 42 && retained && unit.length == 131072 && !unit.last_retained && preserved == 42 && path_last && !path_full && path.length == 256 && path.bytes[255] == 73 {
-        true -> yes()
+        true -> yes(),
         _ -> no()
     }
     machine yes() -> u8 { 42 }

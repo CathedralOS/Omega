@@ -1,4 +1,3 @@
-module model::fill;
 // Integer cellular model. Four-neighbour air closure and synchronous resin
 // batches are distinct: a row-major budget cut never lets new resin advance
 // twice in one tick. Trapped air is excluded forever after losing its vent.
@@ -26,7 +25,7 @@ public machine air_closure(air: i32 in Wrapping, seeds: i32 in Wrapping) -> i32 
     machine expand(air: i32 in Wrapping, reached: i32 in Wrapping,
                  round: i32 in Wrapping) -> i32 in Wrapping {
         transition round < 16 {
-            true -> expand(air, reached | (neighbours(reached) & air), round + 1)
+            true -> expand(air, reached | (neighbours(reached) & air), round + 1),
             _ -> (reached)
         }
     }
@@ -36,7 +35,7 @@ public machine cell_count(mask: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> bit(mask & 65535, 0) }
     machine bit(rest: i32 in Wrapping, count: i32 in Wrapping) -> i32 in Wrapping {
         transition rest != 0 {
-            true -> bit(rest >> 1, count + (rest & 1))
+            true -> bit(rest >> 1, count + (rest & 1)),
             _ -> (count)
         }
     }
@@ -66,14 +65,14 @@ public machine cavity_simulate(cavity: @mut Cavity) {
     transition { _ -> initialize(cavity, 0, 1) }
     machine initialize(cavity: @mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
-            true -> initial_cell(cavity, index, bit)
+            true -> initial_cell(cavity, index, bit),
             _ -> round(cavity)
         }
     }
     machine initial_cell(cavity: @mut Cavity, index: i32 in Wrapping, bit: i32 in Wrapping) {
         cavity.arrival[index] = 0 - 1;
         transition (cavity.gates & bit) != 0 {
-            true -> gate(cavity, index, bit)
+            true -> gate(cavity, index, bit),
             _ -> initialize(cavity, index + 1, bit << 1)
         }
     }
@@ -85,7 +84,7 @@ public machine cavity_simulate(cavity: @mut Cavity) {
         classify(cavity);
         let candidates: i32 in Wrapping = neighbours(cavity.filled) & cavity.vented;
         transition cavity.used < cavity.budget && candidates != 0 {
-            true -> begin_batch(cavity, candidates)
+            true -> begin_batch(cavity, candidates),
             _ -> done()
         }
     }
@@ -96,14 +95,14 @@ public machine cavity_simulate(cavity: @mut Cavity) {
     machine select(cavity: @mut Cavity, candidates: i32 in Wrapping,
                  index: i32 in Wrapping, bit: i32 in Wrapping, batch: i32 in Wrapping) {
         transition index >= 0 && index < 16 && cavity.used < cavity.budget {
-            true -> candidate(cavity, candidates, index, bit, batch)
+            true -> candidate(cavity, candidates, index, bit, batch),
             _ -> apply(cavity, batch)
         }
     }
     machine candidate(cavity: @mut Cavity, candidates: i32 in Wrapping,
                     index: i32 in Wrapping, bit: i32 in Wrapping, batch: i32 in Wrapping) {
         transition (candidates & bit) != 0 {
-            true -> accept(cavity, candidates, index, bit, batch)
+            true -> accept(cavity, candidates, index, bit, batch),
             _ -> select(cavity, candidates, index + 1, bit << 1, batch)
         }
     }
@@ -156,7 +155,7 @@ machine half_window<'row>(
 ensures result.values.len == 2
 {
     match which {
-        0 -> HeldTicks { values: @mut items[0..2] }
+        0 -> HeldTicks { values: @mut items[0..2] },
         _ -> HeldTicks { values: @mut items[2..4] }
     }
 }

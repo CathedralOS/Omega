@@ -16,13 +16,13 @@ crashes Trap
     // Empty implications need no arbitrary value construction. In particular,
     // a signature-only higher-order binder does not require a scalar result.
     transition premises || guarantees {
-        true -> entry(checker, syntax, resolution, typing, owner, required, given, selected, guarantees)
+        true -> entry(checker, syntax, resolution, typing, owner, required, given, selected, guarantees),
         false -> true
     }
     machine entry(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, given: CallClauses, selected: Selection, guarantees: bool) -> bool {
         let held: bool = refinement_entry(checker, syntax, resolution, typing, owner, required, given);
         transition held && guarantees {
-            true -> post(checker, syntax, resolution, typing, owner, required, given, selected)
+            true -> post(checker, syntax, resolution, typing, owner, required, given, selected),
             false -> finished(checker, syntax, owner, held)
         }
     }
@@ -54,7 +54,7 @@ crashes Trap
     retire_refinement_arguments(checker, syntax, typing, required, given, selected, @arguments);
     let result_type: u64 in Trapping = contract_result_type(typing, given);
     transition arguments.valid && result_type > 0 && !checker.overflowed {
-        true -> result(checker, syntax, resolution, typing, required, given, @arguments, result_type)
+        true -> result(checker, syntax, resolution, typing, required, given, @arguments, result_type),
         _ -> false
     }
     machine result(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, given: CallClauses, arguments: @ArgumentValues, result_type: u64 in Trapping) -> bool {
@@ -74,7 +74,7 @@ machine contract_result_type(typing: @Typing, clauses: CallClauses) -> u64 in Tr
 crashes Trap
 {
     transition clauses.has_return_type {
-        true -> reference_type(typing, clauses.return_type)
+        true -> reference_type(typing, clauses.return_type),
         _ -> typing.unit
     }
 }
@@ -87,12 +87,12 @@ crashes Trap
     arguments.count = required.parameter_count;
     arguments.valid = required.parameter_count <= 64;
     transition arguments.valid {
-        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0)
+        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0),
         _ -> {}
     }
     machine parameters(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, arguments: @mut ArgumentValues, offset: u64 in Trapping) {
         transition offset < required.parameter_count && offset < 64 {
-            true -> parameter(checker, syntax, resolution, typing, required, arguments, offset)
+            true -> parameter(checker, syntax, resolution, typing, required, arguments, offset),
             _ -> qualified(checker, syntax, resolution, typing, required, arguments)
         }
     }
@@ -143,7 +143,7 @@ crashes Trap
     transition { _ -> next(checker, 0) }
     machine next(checker: @mut Checker, offset: u64 in Trapping) {
         transition offset < 4096 {
-            true -> clear(checker, offset)
+            true -> clear(checker, offset),
             _ -> {}
         }
     }
@@ -164,7 +164,7 @@ crashes Trap
     transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, 0) }
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues, offset: u64 in Trapping) {
         transition arguments.valid && offset < arguments.count && offset < 64 {
-            true -> parameter(checker, syntax, typing, required, given, selected, arguments, offset)
+            true -> parameter(checker, syntax, typing, required, given, selected, arguments, offset),
             _ -> {}
         }
     }
@@ -176,7 +176,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typing.types, handle);
         let value: Value = arguments.values[offset];
         transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && value.place > 0 {
-            true -> exclusive(checker, syntax, typing, required, given, selected, arguments, offset, value.place)
+            true -> exclusive(checker, syntax, typing, required, given, selected, arguments, offset, value.place),
             _ -> embedded(checker, syntax, typing, required, given, selected, arguments, offset, value.place)
         }
     }
@@ -194,14 +194,14 @@ machine retire_refinement_value(checker: @mut Checker, syntax: @SyntaxTrees, typ
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> declared(checker, syntax, typing, given, offset, place, handle)
+        Selection::Machine { handle } -> declared(checker, syntax, typing, given, offset, place, handle),
         _ -> whole(checker, syntax, typing, place)
     }
     machine declared(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, given: CallClauses, offset: u64 in Trapping, place: u64 in Trapping, machine: u64 in Trapping) {
         let unknown: bool = writes_unknown(checker, machine);
         let entire: bool = writes_whole(checker, given.first_parameter + offset);
         transition unknown || entire {
-            true -> whole(checker, syntax, typing, place)
+            true -> whole(checker, syntax, typing, place),
             _ -> fields(checker, syntax, typing, place, machine)
         }
     }

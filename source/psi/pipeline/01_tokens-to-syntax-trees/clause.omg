@@ -12,7 +12,7 @@ crashes Trap
     machine next(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let reaches: bool = at_word(parser, input, "reaches");
         transition reaches {
-            true -> admit(parser, input, owner, ClauseKind::Reaches)
+            true -> admit(parser, input, owner, ClauseKind::Reaches),
             _ -> invokes_word(parser, input, owner)
         }
     }
@@ -20,7 +20,7 @@ crashes Trap
     machine invokes_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let invokes: bool = at_word(parser, input, "invokes");
         transition invokes {
-            true -> admit(parser, input, owner, ClauseKind::Invokes)
+            true -> admit(parser, input, owner, ClauseKind::Invokes),
             _ -> suspends_word(parser, input, owner)
         }
     }
@@ -28,7 +28,7 @@ crashes Trap
     machine suspends_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let suspends: bool = at_word(parser, input, "suspends");
         transition suspends {
-            true -> admit(parser, input, owner, ClauseKind::Suspends)
+            true -> admit(parser, input, owner, ClauseKind::Suspends),
             _ -> blocks_word(parser, input, owner)
         }
     }
@@ -36,7 +36,7 @@ crashes Trap
     machine blocks_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let blocks: bool = at_word(parser, input, "blocks");
         transition blocks {
-            true -> admit(parser, input, owner, ClauseKind::Blocks)
+            true -> admit(parser, input, owner, ClauseKind::Blocks),
             _ -> crashes_word(parser, input, owner)
         }
     }
@@ -44,7 +44,7 @@ crashes Trap
     machine crashes_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let crashes: bool = at_word(parser, input, "crashes");
         transition crashes {
-            true -> admit(parser, input, owner, ClauseKind::Crashes)
+            true -> admit(parser, input, owner, ClauseKind::Crashes),
             _ -> requires_word(parser, input, owner)
         }
     }
@@ -53,7 +53,7 @@ crashes Trap
         let requires: bool = at_word(parser, input, "requires");
         let contract: bool = next_is_keyword(parser, input, KeywordKind::Machine);
         transition requires && !contract {
-            true -> admit(parser, input, owner, ClauseKind::Requires)
+            true -> admit(parser, input, owner, ClauseKind::Requires),
             _ -> ensures_word(parser, input, owner)
         }
     }
@@ -61,7 +61,7 @@ crashes Trap
     machine ensures_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let ensures: bool = at_word(parser, input, "ensures");
         transition ensures {
-            true -> admit(parser, input, owner, ClauseKind::Ensures)
+            true -> admit(parser, input, owner, ClauseKind::Ensures),
             _ -> satisfies_word(parser, input, owner)
         }
     }
@@ -69,7 +69,7 @@ crashes Trap
     machine satisfies_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let satisfies: bool = at_word(parser, input, "satisfies");
         transition satisfies {
-            true -> admit(parser, input, owner, ClauseKind::Satisfies)
+            true -> admit(parser, input, owner, ClauseKind::Satisfies),
             _ -> terminates_word(parser, input, owner)
         }
     }
@@ -77,7 +77,7 @@ crashes Trap
     machine terminates_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let terminates: bool = at_word(parser, input, "terminates");
         transition terminates {
-            true -> admit(parser, input, owner, ClauseKind::Terminates)
+            true -> admit(parser, input, owner, ClauseKind::Terminates),
             _ -> retired_where(parser, input)
         }
     }
@@ -90,7 +90,7 @@ crashes Trap
     machine retired_where(parser: @mut Parser, input: @TokenStream) {
         let retired: bool = at_word(parser, input, "where");
         transition retired {
-            true -> reject(parser, input, ParseDiagnosticCode::RetiredWhereClause)
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredWhereClause),
             _ -> done()
         }
     }
@@ -98,7 +98,7 @@ crashes Trap
     machine admit(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let retired: bool = owner == ClauseOwner::DataCase && kind == ClauseKind::Requires;
         transition retired {
-            true -> reject(parser, input, ParseDiagnosticCode::RetiredCasePredicate)
+            true -> reject(parser, input, ParseDiagnosticCode::RetiredCasePredicate),
             _ -> admit_owner(parser, input, owner, kind)
         }
     }
@@ -106,7 +106,7 @@ crashes Trap
     machine admit_owner(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let admitted: bool = clause_admitted(owner, kind);
         transition admitted {
-            true -> clause(parser, input, owner, kind)
+            true -> clause(parser, input, owner, kind),
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseNotAdmitted)
         }
     }
@@ -116,14 +116,14 @@ crashes Trap
         parser.clause_start = parser.token_start;
         parser.clause_first_member = parser.output.member_count as u64 in Trapping;
         transition kind {
-            ClauseKind::Reaches -> reached(parser, input, owner)
-            ClauseKind::Invokes -> invokes_binding(parser, input, owner)
-            ClauseKind::Suspends -> operational_axis(parser, input, owner, kind)
-            ClauseKind::Blocks -> operational_axis(parser, input, owner, kind)
-            ClauseKind::Crashes -> crashes_cause(parser, input, owner)
-            ClauseKind::Requires -> fact(parser, input, owner, kind)
-            ClauseKind::Ensures -> fact(parser, input, owner, kind)
-            ClauseKind::Satisfies -> satisfied_trait(parser, input, owner)
+            ClauseKind::Reaches -> reached(parser, input, owner),
+            ClauseKind::Invokes -> invokes_binding(parser, input, owner),
+            ClauseKind::Suspends -> operational_axis(parser, input, owner, kind),
+            ClauseKind::Blocks -> operational_axis(parser, input, owner, kind),
+            ClauseKind::Crashes -> crashes_cause(parser, input, owner),
+            ClauseKind::Requires -> fact(parser, input, owner, kind),
+            ClauseKind::Ensures -> fact(parser, input, owner, kind),
+            ClauseKind::Satisfies -> satisfied_trait(parser, input, owner),
             ClauseKind::Terminates -> termination(parser, input, owner)
         }
     }
@@ -137,7 +137,7 @@ crashes Trap
         parser.clause_argument_count = 0;
         expect_name(parser, input, ParseDiagnosticCode::ExpectedSatisfiesTrait);
         transition parser.output.accepted {
-            true -> satisfied_member(parser, input, owner)
+            true -> satisfied_member(parser, input, owner),
             _ -> done()
         }
     }
@@ -147,7 +147,7 @@ crashes Trap
         let end: u64 in Trapping = parser.name_end;
         append_member(parser, input, start, end);
         transition parser.output.accepted {
-            true -> satisfied_separator(parser, input, owner)
+            true -> satisfied_separator(parser, input, owner),
             _ -> done()
         }
     }
@@ -156,7 +156,7 @@ crashes Trap
         let applied: bool = at_punctuation(parser, input, PunctuationKind::Less);
         let qualified: bool = at_punctuation(parser, input, PunctuationKind::ColonColon);
         transition applied {
-            true -> satisfied_arguments(parser, input, owner)
+            true -> satisfied_arguments(parser, input, owner),
             _ -> satisfied_path(parser, input, owner, qualified)
         }
     }
@@ -164,7 +164,7 @@ crashes Trap
     machine satisfied_path(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, qualified: bool) {
         let members: u64 in Trapping = (parser.output.member_count as u64 in Trapping) - parser.clause_first_member;
         transition qualified {
-            true -> satisfied_next(parser, input, owner)
+            true -> satisfied_next(parser, input, owner),
             _ -> satisfied_complete(parser, input, owner, members >= 2)
         }
     }
@@ -173,14 +173,14 @@ crashes Trap
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedPathMember);
         transition parser.output.accepted {
-            true -> satisfied_member(parser, input, owner)
+            true -> satisfied_member(parser, input, owner),
             _ -> done()
         }
     }
 
     machine satisfied_complete(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, named: bool) {
         transition named {
-            true -> satisfied_requirement(parser, input, owner, parser.name_end)
+            true -> satisfied_requirement(parser, input, owner, parser.name_end),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedSatisfiedRequirement)
         }
     }
@@ -190,7 +190,7 @@ crashes Trap
         parser.clause_first_argument = parser.committed_type_first;
         parser.clause_argument_count = parser.committed_type_count;
         transition parser.output.accepted {
-            true -> requirement_separator(parser, input, owner)
+            true -> requirement_separator(parser, input, owner),
             _ -> done()
         }
     }
@@ -199,7 +199,7 @@ crashes Trap
         expect_punctuation(parser, input, PunctuationKind::ColonColon,
             ParseDiagnosticCode::ExpectedSatisfiedRequirement);
         transition parser.output.accepted {
-            true -> requirement_name(parser, input, owner)
+            true -> requirement_name(parser, input, owner),
             _ -> done()
         }
     }
@@ -207,7 +207,7 @@ crashes Trap
     machine requirement_name(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedSatisfiedRequirement);
         transition parser.output.accepted {
-            true -> requirement_member(parser, input, owner)
+            true -> requirement_member(parser, input, owner),
             _ -> done()
         }
     }
@@ -217,7 +217,7 @@ crashes Trap
         let end: u64 in Trapping = parser.name_end;
         append_member(parser, input, start, end);
         transition parser.output.accepted {
-            true -> satisfied_requirement(parser, input, owner, end)
+            true -> satisfied_requirement(parser, input, owner, end),
             _ -> done()
         }
     }
@@ -227,14 +227,14 @@ crashes Trap
     machine satisfied_requirement(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, end: u64 in Trapping) {
         let labelled: bool = at_keyword(parser, input, KeywordKind::As);
         transition owner == ClauseOwner::Contract {
-            true -> satisfaction(parser, input, owner, satisfies_clause(parser, end))
+            true -> satisfaction(parser, input, owner, satisfies_clause(parser, end)),
             _ -> satisfied_label(parser, input, owner, end, labelled)
         }
     }
 
     machine satisfied_label(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, end: u64 in Trapping, labelled: bool) {
         transition labelled {
-            true -> label(parser, input, owner)
+            true -> label(parser, input, owner),
             _ -> via_word(parser, input, owner, satisfies_clause(parser, end))
         }
     }
@@ -243,7 +243,7 @@ crashes Trap
         take_current(parser, input);
         expect_name(parser, input, ParseDiagnosticCode::ExpectedSatisfiesLabel);
         transition parser.output.accepted {
-            true -> labelled(parser, input, owner)
+            true -> labelled(parser, input, owner),
             _ -> done()
         }
     }
@@ -259,7 +259,7 @@ crashes Trap
     machine via_word(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, clause: Clause) {
         let bound: bool = at_word(parser, input, "via");
         transition bound {
-            true -> via(parser, input, owner, clause)
+            true -> via(parser, input, owner, clause),
             _ -> satisfaction(parser, input, owner, clause)
         }
     }
@@ -268,7 +268,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedSatisfiesBinding, true, true);
         transition parser.output.accepted {
-            true -> via_bound(parser, input, owner, clause, parser.expression_result)
+            true -> via_bound(parser, input, owner, clause, parser.expression_result),
             _ -> done()
         }
     }
@@ -291,14 +291,14 @@ crashes Trap
         parser.ranked_subject_count = 0;
         let ranked: bool = at_word(parser, input, "by");
         transition ranked {
-            true -> ranked_witness(parser, input, owner)
+            true -> ranked_witness(parser, input, owner),
             _ -> termination_close(parser, input, owner, parser_termination_clause(parser, false, 0))
         }
     }
 
     machine ranked_witness(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         transition owner == ClauseOwner::Refinement {
-            true -> reject(parser, input, ParseDiagnosticCode::ClauseNotAdmitted)
+            true -> reject(parser, input, ParseDiagnosticCode::ClauseNotAdmitted),
             _ -> ranked_subjects(parser, input, owner)
         }
     }
@@ -307,7 +307,7 @@ crashes Trap
         take_current(parser, input);
         let listed: bool = at_punctuation(parser, input, PunctuationKind::LeftParen);
         transition listed {
-            true -> subject_list(parser, input, owner)
+            true -> subject_list(parser, input, owner),
             _ -> subject(parser, input, owner)
         }
     }
@@ -316,7 +316,7 @@ crashes Trap
     machine subject(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationSubject, false, false);
         transition parser.output.accepted {
-            true -> subject_retained(parser, input, owner, parser.expression_result)
+            true -> subject_retained(parser, input, owner, parser.expression_result),
             _ -> done()
         }
     }
@@ -324,7 +324,7 @@ crashes Trap
     machine subject_retained(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, subject: u64 in Trapping) {
         stage_subject(parser, input, subject);
         transition parser.output.accepted {
-            true -> subjects_committed(parser, input, owner)
+            true -> subjects_committed(parser, input, owner),
             _ -> done()
         }
     }
@@ -339,7 +339,7 @@ crashes Trap
     machine listed_subject(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationSubject, false, false);
         transition parser.output.accepted {
-            true -> listed_subject_staged(parser, input, owner, parser.expression_result)
+            true -> listed_subject_staged(parser, input, owner, parser.expression_result),
             _ -> done()
         }
     }
@@ -348,14 +348,14 @@ crashes Trap
         stage_subject(parser, input, subject);
         let more: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition parser.output.accepted && more {
-            true -> subject_list(parser, input, owner)
+            true -> subject_list(parser, input, owner),
             _ -> subject_list_end(parser, input, owner)
         }
     }
 
     machine subject_list_end(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         transition parser.output.accepted {
-            true -> subject_list_close(parser, input, owner)
+            true -> subject_list_close(parser, input, owner),
             _ -> done()
         }
     }
@@ -364,7 +364,7 @@ crashes Trap
         expect_punctuation(parser, input, PunctuationKind::RightParen,
             ParseDiagnosticCode::ExpectedTerminationSubjectEnd);
         transition parser.output.accepted {
-            true -> subjects_committed(parser, input, owner)
+            true -> subjects_committed(parser, input, owner),
             _ -> done()
         }
     }
@@ -373,14 +373,14 @@ crashes Trap
         commit_subjects(parser, input);
         let viewed: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
         transition parser.output.accepted && viewed {
-            true -> view(parser, input, owner)
+            true -> view(parser, input, owner),
             _ -> unviewed(parser, input, owner)
         }
     }
 
     machine unviewed(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         transition parser.output.accepted {
-            true -> termination_end(parser, input, owner, parser_termination_clause(parser, false, 0))
+            true -> termination_end(parser, input, owner, parser_termination_clause(parser, false, 0)),
             _ -> done()
         }
     }
@@ -391,7 +391,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedTerminationView, false, false);
         transition parser.output.accepted {
-            true -> view_shape(parser, input, owner, parser.expression_result)
+            true -> view_shape(parser, input, owner, parser.expression_result),
             _ -> done()
         }
     }
@@ -402,7 +402,7 @@ crashes Trap
         let named: bool = names_declaration(expression.kind);
         let called: bool = expression.kind == ExpressionKind::Call && names_declaration(callee.kind);
         transition named || called {
-            true -> termination_end(parser, input, owner, parser_termination_clause(parser, true, view))
+            true -> termination_end(parser, input, owner, parser_termination_clause(parser, true, view)),
             _ -> reject_at(parser, ParseDiagnosticCode::ExpectedTerminationView, expression.source_span)
         }
     }
@@ -412,7 +412,7 @@ crashes Trap
     machine termination_end(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, clause: Clause) {
         let ranged: bool = at_word(parser, input, "in");
         transition ranged {
-            true -> rank_range(parser, input, owner, clause)
+            true -> rank_range(parser, input, owner, clause),
             _ -> termination_close(parser, input, owner, clause)
         }
     }
@@ -424,7 +424,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
         transition parser.output.accepted {
-            true -> rank_range_dots(parser, input, owner, clause, parser.expression_result)
+            true -> rank_range_dots(parser, input, owner, clause, parser.expression_result),
             _ -> done()
         }
     }
@@ -433,7 +433,7 @@ crashes Trap
         let open: bool = at_punctuation(parser, input, PunctuationKind::DotDot);
         let inclusive: bool = at_punctuation(parser, input, PunctuationKind::DotDotEqual);
         transition open || inclusive {
-            true -> rank_range_upper(parser, input, owner, clause, lower, inclusive)
+            true -> rank_range_upper(parser, input, owner, clause, lower, inclusive),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedRankRange)
         }
     }
@@ -442,7 +442,7 @@ crashes Trap
         take_current(parser, input);
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRankRange, false, false);
         transition parser.output.accepted {
-            true -> rank_range_node(parser, input, owner, clause, lower, inclusive, parser.expression_result)
+            true -> rank_range_node(parser, input, owner, clause, lower, inclusive, parser.expression_result),
             _ -> done()
         }
     }
@@ -468,7 +468,7 @@ crashes Trap
         };
         emit_expression(parser, input, node);
         transition parser.output.accepted {
-            true -> termination_close(parser, input, owner, with_clause_range(clause, handle))
+            true -> termination_close(parser, input, owner, with_clause_range(clause, handle)),
             _ -> done()
         }
     }
@@ -487,7 +487,7 @@ crashes Trap
     machine reached(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let empty_word: bool = at_word(parser, input, "none");
         transition empty_word {
-            true -> reached_none(parser, input, owner)
+            true -> reached_none(parser, input, owner),
             _ -> reached_delimiter(parser, input, owner)
         }
     }
@@ -503,7 +503,7 @@ crashes Trap
         let result: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
         let clause: bool = at_clause_word(parser, input);
         transition semicolon || body || result || clause {
-            true -> reaches_end(parser, input, owner)
+            true -> reaches_end(parser, input, owner),
             _ -> service(parser, input, owner)
         }
     }
@@ -511,7 +511,7 @@ crashes Trap
     machine service(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedReachService);
         transition parser.output.accepted {
-            true -> service_member(parser, input, owner)
+            true -> service_member(parser, input, owner),
             _ -> done()
         }
     }
@@ -521,7 +521,7 @@ crashes Trap
         let end: u64 in Trapping = parser.name_end;
         append_member(parser, input, start, end);
         transition parser.output.accepted {
-            true -> service_separator(parser, input, owner)
+            true -> service_separator(parser, input, owner),
             _ -> done()
         }
     }
@@ -530,7 +530,7 @@ crashes Trap
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         let plus: bool = at_punctuation(parser, input, PunctuationKind::Plus);
         transition comma || plus {
-            true -> service_separator_taken(parser, input, owner)
+            true -> service_separator_taken(parser, input, owner),
             _ -> reaches_end(parser, input, owner)
         }
     }
@@ -544,7 +544,7 @@ crashes Trap
     machine operational_axis(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let explicit: bool = at_keyword(parser, input, KeywordKind::True) || at_keyword(parser, input, KeywordKind::False);
         transition owner == ClauseOwner::Refinement && explicit {
-            true -> axis_value(parser, input, owner, kind)
+            true -> axis_value(parser, input, owner, kind),
             _ -> operational_end(parser, input, owner, kind)
         }
     }
@@ -553,7 +553,7 @@ crashes Trap
         let affirmed: bool = at_keyword(parser, input, KeywordKind::True);
         let denied: bool = at_keyword(parser, input, KeywordKind::False);
         transition affirmed || denied {
-            true -> axis_parsed(parser, input, owner, kind)
+            true -> axis_parsed(parser, input, owner, kind),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedRefinementAxis)
         }
     }
@@ -561,7 +561,7 @@ crashes Trap
     machine axis_parsed(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedRefinementAxis, false, false);
         transition parser.output.accepted {
-            true -> axis_stated(parser, input, owner, kind, parser.expression_result)
+            true -> axis_stated(parser, input, owner, kind, parser.expression_result),
             _ -> done()
         }
     }
@@ -580,7 +580,7 @@ crashes Trap
     machine invokes_binding(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedInvokesBinding);
         transition parser.output.accepted {
-            true -> invokes_member(parser, input, owner)
+            true -> invokes_member(parser, input, owner),
             _ -> done()
         }
     }
@@ -590,7 +590,7 @@ crashes Trap
         let end: u64 in Trapping = parser.name_end;
         append_member(parser, input, start, end);
         transition parser.output.accepted {
-            true -> operational_end(parser, input, owner, ClauseKind::Invokes)
+            true -> operational_end(parser, input, owner, ClauseKind::Invokes),
             _ -> done()
         }
     }
@@ -611,7 +611,7 @@ crashes Trap
     machine crashes_cause(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let empty_word: bool = at_word(parser, input, "none");
         transition empty_word {
-            true -> crashes_none(parser, input, owner)
+            true -> crashes_none(parser, input, owner),
             _ -> crashes_trap(parser, input, owner)
         }
     }
@@ -624,7 +624,7 @@ crashes Trap
     machine crashes_trap(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let trap: bool = at_word(parser, input, "Trap");
         transition trap {
-            true -> crash_clause(parser, input, owner, CrashCause::Trap)
+            true -> crash_clause(parser, input, owner, CrashCause::Trap),
             _ -> crashes_abort(parser, input, owner)
         }
     }
@@ -632,7 +632,7 @@ crashes Trap
     machine crashes_abort(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner) {
         let abort: bool = at_word(parser, input, "Abort");
         transition abort {
-            true -> crash_clause(parser, input, owner, CrashCause::Abort)
+            true -> crash_clause(parser, input, owner, CrashCause::Abort),
             _ -> reject(parser, input, ParseDiagnosticCode::ExpectedCrashCause)
         }
     }
@@ -651,7 +651,7 @@ crashes Trap
         parse_expression(parser, input, ParseDiagnosticCode::ExpectedClauseFact, false, true);
         parser.expression_allow_subject = false;
         transition parser.output.accepted {
-            true -> fact_retained(parser, input, owner, kind, parser.expression_result)
+            true -> fact_retained(parser, input, owner, kind, parser.expression_result),
             _ -> done()
         }
     }
@@ -670,7 +670,7 @@ crashes Trap
 
     machine store(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, clause: Clause) {
         transition parser.output.clause_count < 2048 {
-            true -> stored(parser, input, owner, clause)
+            true -> stored(parser, input, owner, clause),
             _ -> reject(parser, input, ParseDiagnosticCode::ClauseCapacityExceeded)
         }
     }
@@ -679,9 +679,9 @@ crashes Trap
         parser.output.clauses[parser.output.clause_count] = clause;
         parser.output.clause_count = parser.output.clause_count + 1;
         transition clause.kind {
-            ClauseKind::Requires -> fact_separator(parser, input, owner, clause.kind)
-            ClauseKind::Ensures -> fact_separator(parser, input, owner, clause.kind)
-            ClauseKind::Satisfies -> fact_separator(parser, input, owner, clause.kind)
+            ClauseKind::Requires -> fact_separator(parser, input, owner, clause.kind),
+            ClauseKind::Ensures -> fact_separator(parser, input, owner, clause.kind),
+            ClauseKind::Satisfies -> fact_separator(parser, input, owner, clause.kind),
             _ -> next(parser, input, owner)
         }
     }
@@ -693,14 +693,14 @@ crashes Trap
         let comma: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         let semicolon: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition comma {
-            true -> fact_continues(parser, input, owner, kind)
+            true -> fact_continues(parser, input, owner, kind),
             _ -> contract_semicolon(parser, input, owner, kind, semicolon)
         }
     }
 
     machine contract_semicolon(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind, separated: bool) {
         transition separated {
-            true -> semicolon_continuation(parser, input, owner, kind)
+            true -> semicolon_continuation(parser, input, owner, kind),
             _ -> next(parser, input, owner)
         }
     }
@@ -710,15 +710,15 @@ crashes Trap
     machine semicolon_continuation(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let continuation: ClauseContinuation = after_clause_semicolon(parser, input, owner);
         transition continuation {
-            ClauseContinuation::Clause -> semicolon_taken(parser, input, owner)
-            ClauseContinuation::Fact -> semicolon_fact_kind(parser, input, owner, kind)
+            ClauseContinuation::Clause -> semicolon_taken(parser, input, owner),
+            ClauseContinuation::Fact -> semicolon_fact_kind(parser, input, owner, kind),
             ClauseContinuation::End -> next(parser, input, owner)
         }
     }
 
     machine semicolon_fact_kind(parser: @mut Parser, input: @TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         transition kind {
-            ClauseKind::Satisfies -> next(parser, input, owner)
+            ClauseKind::Satisfies -> next(parser, input, owner),
             _ -> semicolon_fact(parser, input, owner, kind)
         }
     }
@@ -738,7 +738,7 @@ crashes Trap
         let body: bool = at_punctuation(parser, input, PunctuationKind::LeftBrace);
         let end: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition body || end {
-            true -> next(parser, input, owner)
+            true -> next(parser, input, owner),
             _ -> next_fact(parser, input, owner, kind)
         }
     }
@@ -749,7 +749,7 @@ crashes Trap
         parser.clause_start = token.start;
         parser.clause_first_member = parser.output.member_count as u64 in Trapping;
         transition kind {
-            ClauseKind::Satisfies -> satisfied_trait(parser, input, owner)
+            ClauseKind::Satisfies -> satisfied_trait(parser, input, owner),
             _ -> fact(parser, input, owner, kind)
         }
     }
@@ -786,10 +786,10 @@ machine after_clause_semicolon(parser: @mut Parser, input: @TokenStream, owner: 
 crashes Trap
 {
     transition owner {
-        ClauseOwner::Machine -> ended()
-        ClauseOwner::TraitMember -> ended()
-        ClauseOwner::Contract -> ended()
-        ClauseOwner::Refinement -> ended()
+        ClauseOwner::Machine -> ended(),
+        ClauseOwner::TraitMember -> ended(),
+        ClauseOwner::Contract -> ended(),
+        ClauseOwner::Refinement -> ended(),
         _ -> non_callable(parser, input)
     }
 
@@ -804,7 +804,7 @@ crashes Trap
 
     machine following(parser: @mut Parser, input: @TokenStream, cursor: u64 in Trapping) -> ClauseContinuation {
         transition parser.current_present {
-            true -> body(parser, input, cursor)
+            true -> body(parser, input, cursor),
             _ -> restore(parser, input, cursor, ClauseContinuation::End)
         }
     }
@@ -816,7 +816,7 @@ crashes Trap
         let clause: bool = at_clause_word(parser, input);
         let returned: bool = at_punctuation(parser, input, PunctuationKind::Arrow);
         transition open || clause || returned {
-            true -> restore(parser, input, cursor, ClauseContinuation::Clause)
+            true -> restore(parser, input, cursor, ClauseContinuation::Clause),
             _ -> closing(parser, input, cursor)
         }
     }
@@ -826,7 +826,7 @@ crashes Trap
         let semicolon: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         let head: bool = at_declaration_head(parser, input);
         transition close || semicolon || head {
-            true -> restore(parser, input, cursor, ClauseContinuation::End)
+            true -> restore(parser, input, cursor, ClauseContinuation::End),
             _ -> restore(parser, input, cursor, ClauseContinuation::Fact)
         }
     }
@@ -862,35 +862,35 @@ crashes Trap
 // retired `where` never reaches this table.
 machine clause_admitted(owner: ClauseOwner, kind: ClauseKind) -> bool {
     transition owner {
-        ClauseOwner::Machine -> admitted()
-        ClauseOwner::TraitMember -> admitted()
-        ClauseOwner::Contract -> admitted()
-        ClauseOwner::Refinement -> narrowing(kind)
-        ClauseOwner::Domain -> arrival(kind)
-        ClauseOwner::Data -> data_clause(kind)
+        ClauseOwner::Machine -> admitted(),
+        ClauseOwner::TraitMember -> admitted(),
+        ClauseOwner::Contract -> admitted(),
+        ClauseOwner::Refinement -> narrowing(kind),
+        ClauseOwner::Domain -> arrival(kind),
+        ClauseOwner::Data -> data_clause(kind),
         ClauseOwner::DataCase -> refused()
     }
 
     machine data_clause(kind: ClauseKind) -> bool {
         transition kind {
-            ClauseKind::Requires -> admitted()
+            ClauseKind::Requires -> admitted(),
             _ -> refused()
         }
     }
 
     machine narrowing(kind: ClauseKind) -> bool {
         transition kind {
-            ClauseKind::Reaches -> admitted()
-            ClauseKind::Suspends -> admitted()
-            ClauseKind::Blocks -> admitted()
-            ClauseKind::Terminates -> admitted()
+            ClauseKind::Reaches -> admitted(),
+            ClauseKind::Suspends -> admitted(),
+            ClauseKind::Blocks -> admitted(),
+            ClauseKind::Terminates -> admitted(),
             _ -> refused()
         }
     }
 
     machine arrival(kind: ClauseKind) -> bool {
         transition kind {
-            ClauseKind::Requires -> admitted()
+            ClauseKind::Requires -> admitted(),
             _ -> refused()
         }
     }
@@ -909,7 +909,7 @@ machine append_member(parser: @mut Parser, input: @TokenStream, start: u64 in Tr
 crashes Trap
 {
     transition parser.output.member_count < 32000 {
-        true -> append(parser, start, end)
+        true -> append(parser, start, end),
         _ -> full(parser, input)
     }
 
@@ -1096,7 +1096,7 @@ machine stage_subject(parser: @mut Parser, input: @TokenStream, subject: u64 in 
 crashes Trap
 {
     transition parser.ranked_subject_count < 8 {
-        true -> stage(parser, subject)
+        true -> stage(parser, subject),
         _ -> full(parser, input)
     }
 
@@ -1121,7 +1121,7 @@ crashes Trap
 
     machine next(parser: @mut Parser, input: @TokenStream, cursor: u64 in Trapping) {
         transition cursor < parser.ranked_subject_count && cursor < 8 {
-            true -> capacity(parser, input, cursor)
+            true -> capacity(parser, input, cursor),
             _ -> close(parser)
         }
     }
@@ -1130,7 +1130,7 @@ crashes Trap
     requires cursor < 8
     {
         transition parser.output.argument_count < 65536 {
-            true -> copy(parser, input, cursor)
+            true -> copy(parser, input, cursor),
             _ -> full(parser, input)
         }
     }

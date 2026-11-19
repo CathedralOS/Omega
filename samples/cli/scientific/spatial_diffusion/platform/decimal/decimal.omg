@@ -1,4 +1,3 @@
-module platform::decimal;
 use omega_language_std::Console;
 
 // Decimal output keeps its own bounded divisor loop; no formatter package.
@@ -7,7 +6,7 @@ reaches Console
 invokes Console
 {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> digits(value, 1000000000000000000, false)
     }
     machine negative(value: i64 in Wrapping) {
@@ -19,7 +18,7 @@ invokes Console
     {
         let digit: i64 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(value, divisor, digit)
+            true -> emit(value, divisor, digit),
             false -> advance(value, divisor, false)
         }
     }
@@ -31,7 +30,7 @@ invokes Console
     }
     machine advance(value: i64 in Wrapping, divisor: i64 in Wrapping, started: bool) {
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, started)
+            true -> digits(value, divisor / 10, started),
             false -> done()
         }
     }
@@ -39,15 +38,15 @@ invokes Console
 }
 machine decimal_digit(digit: i64 in Wrapping) reaches Console {
     transition digit {
-        0 -> zero()
-        1 -> one()
-        2 -> two()
-        3 -> three()
-        4 -> four()
-        5 -> five()
-        6 -> six()
-        7 -> seven()
-        8 -> eight()
+        0 -> zero(),
+        1 -> one(),
+        2 -> two(),
+        3 -> three(),
+        4 -> four(),
+        5 -> five(),
+        6 -> six(),
+        7 -> seven(),
+        8 -> eight(),
         _ -> nine()
     }
     machine zero() { Console::write("0"); }

@@ -37,13 +37,13 @@ requires
 machine mixed_case_ledger() {
     let event: Event = Event::Treasure { gold: 50, consumed: true };
     transition event.consumed {
-        true -> check_default(event)
+        true -> check_default(event),
         _ -> done(71)
     }
 
     machine check_default(event: Event) {
         transition event.bonus == 0 {
-            true -> destructure()
+            true -> destructure(),
             _ -> done(72)
         }
     }
@@ -52,7 +52,7 @@ machine mixed_case_ledger() {
         let point: Point = Point { x: 30, y: 40, z: 5 };
         let { x, y as vertical, z as _ } = point;
         transition x + vertical == 70 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(73)
         }
     }

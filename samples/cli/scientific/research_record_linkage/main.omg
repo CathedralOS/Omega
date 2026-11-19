@@ -25,7 +25,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console blocks crashes Trap 
                (main.input.tokens[25] == 0 || main.input.tokens[25] != main.input.tokens[26]) &&
                (main.input.tokens[25] == 0 || main.input.tokens[25] != main.input.tokens[27]) &&
                (main.input.tokens[26] == 0 || main.input.tokens[26] != main.input.tokens[27]) {
-        true -> load(main)
+        true -> load(main),
         false -> invalid(main)
     }
     machine load(main: @mut Main) {

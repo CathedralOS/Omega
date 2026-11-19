@@ -1,4 +1,3 @@
-module domain::model;
 // A synthetic two-component linear detector model on five unit-spaced times.
 // Profiles are supplied, never estimated; negative observations represent
 // baseline subtraction. Fixed storage bounds the scientific problem itself.

@@ -9,7 +9,7 @@ use omega::language::core::ActivationClaimAttempt;
 
 machine write_read(bytes: @mut [u8]) -> u8 {
     transition bytes.len >= 3 {
-        true -> access(bytes)
+        true -> access(bytes),
         false -> (0u8)
     }
     machine access(bytes: @mut [u8]) -> u8
@@ -25,7 +25,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -33,7 +33,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -49,8 +49,8 @@ X86TargetExercise satisfies SelectedTargetExercise {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        transition Activation::try_claim<8>(3) {
-            ActivationClaimAttempt::Established { claim } -> established(claim)
+        transition Activation::try_claim::<8>(3) {
+            ActivationClaimAttempt::Established { claim } -> established(claim),
             ActivationClaimAttempt::Rejected -> (false)
         }
         machine established(claim: ActivationClaim) -> bool {
@@ -60,13 +60,13 @@ X86TargetExercise satisfies SelectedTargetExercise {
             let observed: u8 = write_read(bytes);
             ActivationClaim::release(live);
             transition length == 3 && observed == 37u8 {
-                true -> over_bound()
+                true -> over_bound(),
                 false -> (false)
             }
         }
         machine over_bound() -> bool {
-            transition Activation::try_claim<8>(9) {
-                ActivationClaimAttempt::Rejected -> (true)
+            transition Activation::try_claim::<8>(9) {
+                ActivationClaimAttempt::Rejected -> (true),
                 ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
             }
         }
@@ -82,8 +82,8 @@ ArmTargetExercise satisfies SelectedTargetExercise {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        transition Activation::try_claim<8>(3) {
-            ActivationClaimAttempt::Established { claim } -> established(claim)
+        transition Activation::try_claim::<8>(3) {
+            ActivationClaimAttempt::Established { claim } -> established(claim),
             ActivationClaimAttempt::Rejected -> (false)
         }
         machine established(claim: ActivationClaim) -> bool {
@@ -93,13 +93,13 @@ ArmTargetExercise satisfies SelectedTargetExercise {
             let observed: u8 = write_read(bytes);
             ActivationClaim::release(live);
             transition length == 3 && observed == 37u8 {
-                true -> over_bound()
+                true -> over_bound(),
                 false -> (false)
             }
         }
         machine over_bound() -> bool {
-            transition Activation::try_claim<8>(9) {
-                ActivationClaimAttempt::Rejected -> (true)
+            transition Activation::try_claim::<8>(9) {
+                ActivationClaimAttempt::Rejected -> (true),
                 ActivationClaimAttempt::Established { claim } -> unexpectedly_established(claim)
             }
         }
@@ -112,7 +112,7 @@ ArmTargetExercise satisfies SelectedTargetExercise {
 
 machine main() crashes Trap {
     transition SelectedTargetExercise::target_exercise() {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

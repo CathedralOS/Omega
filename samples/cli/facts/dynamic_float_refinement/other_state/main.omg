@@ -13,7 +13,7 @@ machine main() crashes Trap {
     machine invoke(selected: dyn Fraction) {
     let observed: f64 = Fraction::get(selected);
     transition observed == 0.25 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     }

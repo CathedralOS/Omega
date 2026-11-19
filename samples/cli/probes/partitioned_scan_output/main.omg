@@ -7,28 +7,28 @@ machine scan<'storage>(partitions: @mut [Partition<'storage>], input: @[i32]) ->
     machine next(partitions: @mut [Partition<'storage>], input: @[i32], position: u64, selected: u64) -> u64
     requires position <= input.len && selected <= partitions.len {
         transition position < input.len {
-            true -> inspect(partitions, input, position, selected)
+            true -> inspect(partitions, input, position, selected),
             false -> position
         }
     }
     machine inspect(partitions: @mut [Partition<'storage>], input: @[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected <= partitions.len {
         transition input[position] > 0 {
-            true -> choose(partitions, input, position, selected)
+            true -> choose(partitions, input, position, selected),
             false -> next(partitions, input, position + 1, selected)
         }
     }
     machine choose(partitions: @mut [Partition<'storage>], input: @[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected <= partitions.len {
         transition selected < partitions.len {
-            true -> capacity(partitions, input, position, selected)
+            true -> capacity(partitions, input, position, selected),
             false -> position
         }
     }
     machine capacity(partitions: @mut [Partition<'storage>], input: @[i32], position: u64, selected: u64) -> u64
     requires position < input.len && selected < partitions.len {
         transition partitions[selected].count < partitions[selected].values.len {
-            true -> store(partitions, input, position, selected)
+            true -> store(partitions, input, position, selected),
             false -> choose(partitions, input, position, selected + 1)
         }
     }
@@ -60,7 +60,7 @@ machine main() crashes Trap {
         && empty[0] == -17
         && first[0] == -1 && first[1] == 7 && first[2] == 9 && first[3] == -1
         && second[0] == -2 && second[1] == 11 && second[2] == -2 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

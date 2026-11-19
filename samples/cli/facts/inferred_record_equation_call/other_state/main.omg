@@ -12,7 +12,7 @@ machine main() crashes Trap {
     transition { _ -> arrived(original) }
     machine arrived(items: Token<SEVEN>) {
         let observed: u64 = read(items);
-        transition observed == 7 { true -> done() _ -> bad() }
+        transition observed == 7 { true -> done(), _ -> bad() }
     }
     machine done() {} machine bad() { crash Trap; }
 }

@@ -13,20 +13,20 @@ crashes Trap
     set_expression_type(@mut typer.output, index, boolean);
     let binding: ValueBinding = value_binding(resolution, index);
     transition value_type > 0 {
-        true -> classified(typer, syntax, resolution, expression, row, binding)
+        true -> classified(typer, syntax, resolution, expression, row, binding),
         _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::NotAValue)
     }
 
     machine classified(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow, binding: ValueBinding) {
         transition binding {
-            ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item)
+            ValueBinding::DataCase { item, data_case } -> case(typer, syntax, expression, row, item),
             _ -> domain(typer, syntax, resolution, expression, row)
         }
     }
 
     machine case(typer: @mut Typer, syntax: @SyntaxTrees, expression: Expression, row: TypeRow, item: u64 in Trapping) {
         transition row.kind == TypeKind::Data && row.item == item {
-            true -> done()
+            true -> done(),
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::CaseOfOtherData)
         }
     }
@@ -34,7 +34,7 @@ crashes Trap
     machine domain(typer: @mut Typer, syntax: @SyntaxTrees, resolution: @NameResolution, expression: Expression, row: TypeRow) {
         let path: PathBinding = path_binding_at(resolution, expression.first);
         transition path {
-            PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item)
+            PathBinding::Domain { item } -> declared(typer, syntax, expression, row, item),
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::UnsupportedExpression)
         }
     }
@@ -45,7 +45,7 @@ crashes Trap
         let carrier_row: TypeRow = type_table_row(@typer.output.types, carrier);
         let same: bool = same_carrier(@typer.output.types, carrier_row, row);
         transition same {
-            true -> done()
+            true -> done(),
             _ -> rejected(typer, syntax, expression, TypeDiagnosticCode::MismatchedTypes)
         }
     }

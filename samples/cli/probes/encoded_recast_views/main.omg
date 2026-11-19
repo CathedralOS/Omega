@@ -55,7 +55,7 @@ machine Main::main(main: @mut Main) {
     let view: @mut RawView = @mut main.bytes[0] as @mut RawView;
     let previous: i64 = update(view);
     transition previous == -128 && view.value.value == 127 && main.bytes[0] == 127 && main.bytes[1] == 85 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

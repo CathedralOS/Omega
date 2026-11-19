@@ -43,7 +43,7 @@ machine forward(seed: u32) -> u32 requires seed == 2 ensures result == 0 { Count
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine observe_zero(value: u32) crashes Trap requires value == 0 {
-    transition value == 0 { true -> finished() false -> failed() }
+    transition value == 0 { true -> finished(), false -> failed() }
 }
 machine main() crashes Trap {
     let value: u32 = forward(2);

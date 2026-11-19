@@ -36,13 +36,13 @@ requires remaining <= cells.len
 terminates
 terminates by remaining in 0..=cells.len
 {
-    transition remaining > 0 { true -> inspect(cells, remaining) false -> (true) }
+    transition remaining > 0 { true -> inspect(cells, remaining), false -> (true) }
     machine inspect(cells: @[i32], remaining: u64) -> bool
     requires remaining > 0 && remaining <= cells.len
     {
         let selected: u64 = remaining - 1;
         transition cells[selected] >= 0 && cells[selected] <= 1 {
-            true -> check_cells(cells, selected)
+            true -> check_cells(cells, selected),
             false -> (false)
         }
     }
@@ -88,7 +88,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
 
     // --- clear the grid, then light a single centre cell ---
     machine zero_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> block zero_cell(main) _ -> block seed(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block zero_cell(main), _ -> block seed(main) }
     }
     machine zero_cell(main: @mut Main) {
         main.cells[main.x] = 0;
@@ -102,7 +102,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     }
 
     machine gen_loop(main: @mut Main) {
-        transition main.gen < 32 { true -> block render_init(main) _ -> block finish(main) }
+        transition main.gen < 32 { true -> block render_init(main), _ -> block finish(main) }
     }
 
     // --- render the current generation as one row ---
@@ -111,7 +111,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block render_loop(main) }
     }
     machine render_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> block render_cell(main) _ -> block emit(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block render_cell(main), _ -> block emit(main) }
     }
     machine render_cell(main: @mut Main) {
         cell_is_bit(@main.cells[..], main.x as u64);
@@ -121,7 +121,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     machine render_put(main: @mut Main) {
         // ramp lookup carries the Utf8-ness into the carrier (the ripple_field pattern)
         main.glyph = main.chars[main.cv];
-        transition main.x >= 0 && main.x < 64 { true -> block render_emit(main) _ -> block bad(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block render_emit(main), _ -> block bad(main) }
     }
     machine render_emit(main: @mut Main) {
         main.line[main.x] = main.glyph;
@@ -141,13 +141,13 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block scan_loop(main) }
     }
     machine scan_loop(main: @mut Main) {
-        transition main.rp >= 0 && main.rp <= 64 { true -> block scan_read(main) _ -> block copy_init(main) }
+        transition main.rp >= 0 && main.rp <= 64 { true -> block scan_read(main), _ -> block copy_init(main) }
     }
     machine scan_read(main: @mut Main) {
-        transition main.rp < 64 { true -> block scan_real(main) _ -> block scan_border(main) }
+        transition main.rp < 64 { true -> block scan_real(main), _ -> block scan_border(main) }
     }
     machine scan_real(main: @mut Main) {
-        transition main.rp >= 0 && main.rp < 64 { true -> block scan_got(main) _ -> block bad(main) }
+        transition main.rp >= 0 && main.rp < 64 { true -> block scan_got(main), _ -> block bad(main) }
     }
     machine scan_got(main: @mut Main) {
         cell_is_bit(@main.cells[..], main.rp as u64);
@@ -164,7 +164,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block scan_write(main) }
     }
     machine scan_write(main: @mut Main) {
-        transition main.op >= 0 && main.op < 64 { true -> block scan_do(main) _ -> block scan_advance(main) }
+        transition main.op >= 0 && main.op < 64 { true -> block scan_do(main), _ -> block scan_advance(main) }
     }
     machine scan_do(main: @mut Main) {
         main.nv = (90i32 >> main.window) & 1; // Rule 90: next = left XOR right
@@ -175,7 +175,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // increment into [0..=65] (the prior `op = rp` write is disjoint).
     machine scan_advance(main: @mut Main) {
         main.op = main.rp;
-        transition main.rp < 65 { true -> block rp_bump(main) _ -> block scan_loop(main) }
+        transition main.rp < 65 { true -> block rp_bump(main), _ -> block scan_loop(main) }
     }
     machine rp_bump(main: @mut Main) {
         main.rp = main.rp + 1;
@@ -188,12 +188,12 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
         transition { _ -> block copy_loop(main) }
     }
     machine copy_loop(main: @mut Main) {
-        transition main.x >= 0 && main.x < 64 { true -> block copy_cell(main) _ -> block gen_next(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block copy_cell(main), _ -> block gen_next(main) }
     }
     machine copy_cell(main: @mut Main) {
         cell_is_bit(@main.next[..], main.x as u64);
         main.cv = main.next[main.x];
-        transition main.x >= 0 && main.x < 64 { true -> block copy_put(main) _ -> block bad(main) }
+        transition main.x >= 0 && main.x < 64 { true -> block copy_put(main), _ -> block bad(main) }
     }
     machine copy_put(main: @mut Main) {
         main.cells[main.x] = main.cv;
@@ -204,7 +204,7 @@ machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     // so the increment proves into [0..=32].
     machine gen_next(main: @mut Main) {
         block Clock::sleep(50);
-        transition main.gen < 32 { true -> block gen_bump(main) _ -> block gen_loop(main) }
+        transition main.gen < 32 { true -> block gen_bump(main), _ -> block gen_loop(main) }
     }
     machine gen_bump(main: @mut Main) {
         main.gen = main.gen + 1;

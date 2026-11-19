@@ -66,7 +66,7 @@ public LinuxX8664TimeHost satisfies TimeHost {
         let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
         let status: i64 = LinuxX64TimeRead::clock_gettime(1, @mut instant);
         transition status == 0 {
-            true -> measured(instant.seconds, instant.nanoseconds)
+            true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()
         }
 
@@ -89,7 +89,7 @@ public LinuxX8664TimeHost satisfies TimeHost {
         let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
         let status: i64 = LinuxX64TimeRead::clock_gettime(0, @mut instant);
         transition status == 0 {
-            true -> measured(instant.seconds, instant.nanoseconds)
+            true -> measured(instant.seconds, instant.nanoseconds),
             _ -> degraded()
         }
 
@@ -116,7 +116,7 @@ public LinuxX8664TimeHost satisfies TimeHost {
     blocks
     {
         transition milliseconds > 2147483647 {
-            true -> block in_parts(milliseconds)
+            true -> block in_parts(milliseconds),
             _ -> block at_once(milliseconds)
         }
 
@@ -143,7 +143,7 @@ blocks
     machine wait(timeout_milliseconds: i32) {
         let outcome: i32 = block LinuxX64TimeRead::poll(0, 0, timeout_milliseconds);
         transition outcome == 0 {
-            true -> done()
+            true -> done(),
             _ -> block wait(timeout_milliseconds)
         }
     }

@@ -9,7 +9,7 @@ machine Driver::drive(driver: @mut Driver, sink: @mut Sink, more: bool) {
     transition { _ -> go(driver, sink, more) }
     machine go(driver: @mut Driver, sink: @mut Sink, more: bool) {
         transition more {
-            true -> step(driver, sink)
+            true -> step(driver, sink),
             false -> done(driver)
         }
     }
@@ -17,7 +17,7 @@ machine Driver::drive(driver: @mut Driver, sink: @mut Sink, more: bool) {
         Sink::bump(sink);
         driver.ticks = driver.ticks + 1 as u64 in Wrapping;
         transition driver.ticks > 4 {
-            true -> go(driver, sink, false)
+            true -> go(driver, sink, false),
             false -> go(driver, sink, true)
         }
     }

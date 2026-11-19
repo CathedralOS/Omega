@@ -21,13 +21,13 @@ domain [u8; 8]::Ascii requires ascii_only(self);
 
 machine replace(at: u64, bytes: @mut [u8; 8] in Ascii, value: u8) -> bool {
     transition at < bytes.len && value < 128 {
-        true -> write(at, bytes, value, true)
+        true -> write(at, bytes, value, true),
         _ -> false
     }
     machine write(at: u64, bytes: @mut [u8; 8] in Ascii, value: u8, repeat: bool) -> bool {
         bytes[at] = value;
         transition repeat {
-            true -> write(at, bytes, value, false)
+            true -> write(at, bytes, value, false),
             _ -> true
         }
     }
@@ -41,7 +41,7 @@ machine Main::main(main: @mut Main) {
     let first: bool = replace(0, @mut bytes, 65);
     let rejected: bool = replace(1, @mut bytes, 200);
     transition first && !rejected {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

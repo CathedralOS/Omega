@@ -61,7 +61,7 @@ machine Main::main(main: @mut Main) {
         && decoded.signed32[0] == -2147483648i32
         && decoded.signed32[1] == 2147483647i32;
     transition matches {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

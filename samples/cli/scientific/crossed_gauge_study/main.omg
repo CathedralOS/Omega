@@ -8,34 +8,34 @@ use study::model;
 data Main { study: study::model::Study; }
 
 machine number(main: @mut Main, value: i32 in Wrapping) reaches Console {
-    transition value < 0 { true -> negative(main, value) _ -> leading(main, value) }
+    transition value < 0 { true -> negative(main, value), _ -> leading(main, value) }
     machine negative(main: @mut Main, value: i32 in Wrapping) {
         Console::write("-");
         transition { _ -> leading(main, 0-value) }
     }
     machine leading(main: @mut Main, value: i32 in Wrapping) {
-        transition value >= 10000 { true -> ten_thousands(main, value) _ -> check_thousands(main, value) }
+        transition value >= 10000 { true -> ten_thousands(main, value), _ -> check_thousands(main, value) }
     }
     machine ten_thousands(main: @mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 10000 + 48) as i32);
         transition { _ -> thousands(main, value) }
     }
     machine check_thousands(main: @mut Main, value: i32 in Wrapping) {
-        transition value >= 1000 { true -> thousands(main, value) _ -> check_hundreds(main, value) }
+        transition value >= 1000 { true -> thousands(main, value), _ -> check_hundreds(main, value) }
     }
     machine thousands(main: @mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 1000 % 10 + 48) as i32);
         transition { _ -> hundreds(main, value) }
     }
     machine check_hundreds(main: @mut Main, value: i32 in Wrapping) {
-        transition value >= 100 { true -> hundreds(main, value) _ -> check_tens(main, value) }
+        transition value >= 100 { true -> hundreds(main, value), _ -> check_tens(main, value) }
     }
     machine hundreds(main: @mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 100 % 10 + 48) as i32);
         transition { _ -> tens(main, value) }
     }
     machine check_tens(main: @mut Main, value: i32 in Wrapping) {
-        transition value >= 10 { true -> tens(main, value) _ -> ones(main, value) }
+        transition value >= 10 { true -> tens(main, value), _ -> ones(main, value) }
     }
     machine tens(main: @mut Main, value: i32 in Wrapping) {
         Console::write_byte((value / 10 % 10 + 48) as i32);
@@ -53,42 +53,42 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine header(main: @mut Main) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Byte { value } -> block header_byte(main, value)
+            ByteRead::Byte { value } -> block header_byte(main, value),
             _ -> invalid(main)
         }
     }
     machine header_byte(main: @mut Main, value: i32) {
         transition value {
-            50 -> block read(main, 0 as +Wrapping)
-            49 -> insufficient(main)
-            32 -> block header(main)
-            10 -> block header(main)
-            13 -> block header(main)
+            50 -> block read(main, 0 as +Wrapping),
+            49 -> insufficient(main),
+            32 -> block header(main),
+            10 -> block header(main),
+            13 -> block header(main),
             _ -> invalid(main)
         }
     }
     machine read(main: @mut Main, index: i32 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Byte { value } -> block token(main, index, value)
+            ByteRead::Byte { value } -> block token(main, index, value),
             ByteRead::Eof -> finish(main, index)
         }
     }
     machine token(main: @mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 32 || value == 10 || value == 13 {
-            true -> block read(main, index)
+            true -> block read(main, index),
             _ -> block extent(main, index, value)
         }
     }
     machine extent(main: @mut Main, index: i32 in Wrapping, value: i32) {
         transition index >= 0 && index < 8 {
-            true -> block measurement(main, index, value)
+            true -> block measurement(main, index, value),
             _ -> invalid(main)
         }
     }
     machine measurement(main: @mut Main, index: i32 in Wrapping, value: i32) {
         transition value >= 48 && value <= 57 {
-            true -> block store(main, index, value)
+            true -> block store(main, index, value),
             _ -> block missing(main, index, value)
         }
     }
@@ -99,7 +99,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine missing(main: @mut Main, index: i32 in Wrapping, value: i32) {
         transition value == 109 {
-            true -> block absent(main, index)
+            true -> block absent(main, index),
             _ -> invalid(main)
         }
     }
@@ -109,11 +109,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block read(main, index + 1) }
     }
     machine finish(main: @mut Main, index: i32 in Wrapping) {
-        transition index == 8 { true -> analyze(main) _ -> invalid(main) }
+        transition index == 8 { true -> analyze(main), _ -> invalid(main) }
     }
     machine analyze(main: @mut Main) {
         let status: i32 = study::model::analyze(@mut main.study);
-        transition status { 0 -> report(main) 3 -> missing_cell(main) 5 -> insufficient(main) _ -> unequal(main) }
+        transition status { 0 -> report(main), 3 -> missing_cell(main), 5 -> insufficient(main), _ -> unequal(main) }
     }
     machine report(main: @mut Main) {
         Console::write_line("identifiable: parts=2 operators=2 repeats=2; df=1,1,1,4 total=7");

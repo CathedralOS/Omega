@@ -13,7 +13,7 @@ data Holder { ticket: Ticket in Ticket::Labelled; }
 machine main() crashes Trap {
     let holder: Holder = Holder { ticket: issue() };
     let observed: u64 = observe((@holder.ticket) as @Ticket in Ticket::Observed);
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

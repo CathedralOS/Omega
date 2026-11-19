@@ -16,17 +16,17 @@ machine main() crashes Trap {
     let mut visits: u64 = 0;
     let flag: bool = true;
     let index: u64 = match flag {
-        true -> compute(@mut visits)
+        true -> compute(@mut visits),
         false -> 0
     };
     let selected: @mut i64 = match chosen[index] {
-        17 -> @mut chosen[0]
+        17 -> @mut chosen[0],
         _ -> @mut other[0]
     };
     chosen = [7, 7];
     selected = 41;
     transition chosen[0] == 41 && chosen[1] == 5 && other[0] == 0 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

@@ -7,7 +7,7 @@ machine build(builder: @mut Build) {
 }
 machine choose_entry(options: @mut Build, enabled: bool) {
     transition {
-        enabled -> selected(options)
+        enabled -> selected(options),
         _ -> ignored(options)
     }
     machine selected(options: @mut Build) {

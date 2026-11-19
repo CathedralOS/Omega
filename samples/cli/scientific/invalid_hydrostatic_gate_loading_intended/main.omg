@@ -14,7 +14,7 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let height: f64 = interval_height(2000, 1000);
     transition height > 0.0 {
-        true -> done()
+        true -> done(),
         false -> done()
     }
     machine done() { ProcessExit::exit_process(0); }

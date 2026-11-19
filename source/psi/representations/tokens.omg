@@ -209,7 +209,7 @@ machine token_stream_push(
 ) {
     token_stream.last_retained = false;
     transition token_stream.token_count < 65536 {
-        true -> retain(token_stream, token)
+        true -> retain(token_stream, token),
         _ -> full(token_stream)
     }
 
@@ -227,7 +227,7 @@ machine token_stream_push(
 machine token_stream_push_decoded(token_stream: @mut TokenStream, byte: u8) {
     token_stream.last_retained = false;
     transition token_stream.decoded_length < 131072 {
-        true -> retain(token_stream, byte)
+        true -> retain(token_stream, byte),
         _ -> full(token_stream)
     }
 

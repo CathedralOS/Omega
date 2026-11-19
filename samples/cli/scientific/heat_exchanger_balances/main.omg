@@ -15,18 +15,18 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut solution: model::stages::Solution;
     let parsed: bool = block io::input::parse(@mut raw);
     transition parsed {
-        true -> validate_input(@raw, @mut input, @mut solution)
+        true -> validate_input(@raw, @mut input, @mut solution),
         false -> invalid()
     }
     machine validate_input(raw: @io::input::Raw, input: @mut io::input::Input, solution: @mut model::stages::Solution) {
         transition io::input::validate(raw, input) {
-            true -> calculate(input, solution)
+            true -> calculate(input, solution),
             false -> invalid()
         }
     }
     machine calculate(input: @io::input::Input, solution: @mut model::stages::Solution) {
         transition model::stages::solve(input, solution) {
-            true -> output(input, solution)
+            true -> output(input, solution),
             false -> failed()
         }
     }

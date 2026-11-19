@@ -1,21 +1,20 @@
-module exact;
 // Exact combinatorics: admitted N <= 10 bounds every binomial to 252.
 // Wrapping arithmetic is deliberate; application admission gives the stronger range.
 public data Fraction [copy] { numerator: u64 in Wrapping; denominator: u64 in Wrapping; }
 
 public machine choose(total: u64 in Wrapping, selected: u64 in Wrapping) -> u64 in Wrapping {
-    transition selected <= total { true -> step(total, selected, 0, 1)
+    transition selected <= total { true -> step(total, selected, 0, 1),
  false -> 0
  }
     machine step(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         transition index < selected {
-            true -> advance(total, selected, index, value)
+            true -> advance(total, selected, index, value),
             false -> value
         }
     }
     machine advance(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
         let divisor: u64 in Wrapping = index + 1;
-        transition divisor > 0 { true -> divide(total, selected, index, value, divisor) false -> 0 }
+        transition divisor > 0 { true -> divide(total, selected, index, value, divisor), false -> 0 }
     }
     machine divide(total: u64 in Wrapping, selected: u64 in Wrapping, index: u64 in Wrapping, value: u64 in Wrapping, divisor: u64 in Wrapping) -> u64 in Wrapping
     requires divisor > 0
@@ -29,7 +28,7 @@ public machine tail(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u
     transition { _ -> step(total, annotated, query, observed, 0, denominator) }
     machine step(total: u64 in Wrapping, annotated: u64 in Wrapping, query: u64 in Wrapping, hits: u64 in Wrapping, sum: u64 in Wrapping, denominator: u64 in Wrapping) -> Fraction {
         transition hits <= query && hits <= annotated {
-            true -> accumulate(total, annotated, query, hits, sum, denominator)
+            true -> accumulate(total, annotated, query, hits, sum, denominator),
             false -> Fraction { numerator: sum, denominator: denominator }
         }
     }
@@ -44,7 +43,7 @@ public machine less(left: Fraction, right: Fraction) -> bool {
 }
 
 public machine minimum(left: Fraction, right: Fraction) -> Fraction {
-    transition less(left, right) { true -> left
+    transition less(left, right) { true -> left,
  false -> right
  }
 }

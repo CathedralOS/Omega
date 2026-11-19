@@ -25,7 +25,7 @@ machine walk(n: i32) -> i32 in Logged {
 
 machine walk(n: i32) {
     transition n > 0 {
-        true -> descend(n)
+        true -> descend(n),
         _ -> done()
     }
     machine descend(n: i32) {
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) {
     walk(3);
     let logged: i32 in Logged = walk(3);
     transition (logged as i32) == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

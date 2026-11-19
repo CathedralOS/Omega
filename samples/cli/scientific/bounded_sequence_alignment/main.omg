@@ -16,21 +16,21 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut second: input::sequence::Sequence;
     let mut result: alignment::local::Alignment;
     let status: i32 = block input::sequence::read_sequence(@mut first);
-    transition status == 0 { true -> block read_second(main, @first, @mut second, @mut result) false -> diagnostic(main, status) }
+    transition status == 0 { true -> block read_second(main, @first, @mut second, @mut result), false -> diagnostic(main, status) }
     machine read_second(main: @mut Main, first: @input::sequence::Sequence, second: @mut input::sequence::Sequence, result: @mut alignment::local::Alignment) {
         let status: i32 = block input::sequence::read_sequence(second);
-        transition status == 0 { true -> compute(main, first, second, result) false -> diagnostic(main, status) }
+        transition status == 0 { true -> compute(main, first, second, result), false -> diagnostic(main, status) }
     }
     machine compute(main: @mut Main, first: @input::sequence::Sequence, second: @input::sequence::Sequence, result: @mut alignment::local::Alignment) {
         let valid: bool = alignment::local::align(first, second, result);
-        transition valid { true -> emit(main, result) false -> internal(main) }
+        transition valid { true -> emit(main, result), false -> internal(main) }
     }
     machine emit(main: @mut Main, result: @alignment::local::Alignment) {
         output::report::report(result);
         ProcessExit::exit_process(0);
     }
     machine diagnostic(main: @mut Main, status: i32) {
-        transition status { 1 -> empty(main) 2 -> alphabet(main) 3 -> capacity(main) 4 -> missing(main) _ -> internal(main) }
+        transition status { 1 -> empty(main), 2 -> alphabet(main), 3 -> capacity(main), 4 -> missing(main), _ -> internal(main) }
     }
     machine empty(main: @mut Main) { Console::write_line("ERROR empty-sequence"); ProcessExit::exit_process(64); }
     machine alphabet(main: @mut Main) { Console::write_line("ERROR alphabet-expected-ACGTN"); ProcessExit::exit_process(64); }

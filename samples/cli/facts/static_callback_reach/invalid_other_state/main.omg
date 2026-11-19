@@ -49,20 +49,20 @@ ensures result <= 37
 { transition { _ -> Step(value) } }
 machine pure_observer() -> u64 reaches
 ensures result <= 37
-{ ordinary<quiet>(37) }
+{ ordinary::<quiet>(37) }
 machine evaluate() -> u64 reaches Console {
-    let result: u64 = TraversalCode::traverse<quiet>(37);
+    let result: u64 = TraversalCode::traverse::<quiet>(37);
     transition { _ -> consume(result) }
     machine consume(result: u64) -> u64 requires result <= 37 { 37 - result }
 }
 machine main() reaches Console crashes Trap {
     let margin: u64 = evaluate();
-    let sibling: u64 = TraversalCode::traverse<second>(37);
+    let sibling: u64 = TraversalCode::traverse::<second>(37);
     let pure: u64 = pure_observer();
-    let declared: u64 = ordinary<console_step>(37);
-    let selected: u64 = TraversalCode::traverse<console_step>(37);
+    let declared: u64 = ordinary::<console_step>(37);
+    let selected: u64 = TraversalCode::traverse::<console_step>(37);
     transition margin == 0 && sibling == 37 && pure == 37 && declared == 37 && selected == 37 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

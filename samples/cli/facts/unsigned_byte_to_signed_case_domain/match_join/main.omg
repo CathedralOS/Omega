@@ -13,18 +13,18 @@ public machine make(byte: u8) -> ByteParcel {
 }
 public machine consume(parcel: ByteParcel) -> i32 {
     transition parcel {
-        ByteParcel::Byte { value } -> (255 - value)
+        ByteParcel::Byte { value } -> (255 - value),
         ByteParcel::Empty -> (-1)
     }
 }
 public machine choose(selected: bool, byte: u8) -> ByteParcel {
-    match selected { true -> make(byte) false -> ByteParcel::Empty }
+    match selected { true -> make(byte), false -> ByteParcel::Empty }
 }
 machine main() crashes Trap {
     let first: i32 = consume(choose(true, 128u8));
     let second: i32 = consume(choose(true, 255u8));
     transition first == 127 && second == 0 && consume(choose(false, 128u8)) == -1 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

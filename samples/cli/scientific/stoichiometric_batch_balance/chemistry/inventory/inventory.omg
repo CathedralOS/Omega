@@ -1,8 +1,7 @@
-module chemistry::inventory;
 use chemistry::model;
 
 machine minimum(left: i64 in Wrapping, right: i64 in Wrapping) -> i64 in Wrapping {
-    transition left < right { true -> left false -> right }
+    transition left < right { true -> left, false -> right }
 }
 
 // One integer extent consumes a complete coefficient tuple. Initial product
@@ -22,20 +21,20 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
     let second: i64 in Wrapping = reaction.stock[1] / balance.coefficients[1];
     let capacity: i64 in Wrapping = minimum(first, second);
     batch.extent = minimum(capacity, reaction.cap);
-    transition first == capacity { true -> first_limit(reaction, balance, batch, second, capacity) false -> second_limit(reaction, balance, batch, second, capacity) }
+    transition first == capacity { true -> first_limit(reaction, balance, batch, second, capacity), false -> second_limit(reaction, balance, batch, second, capacity) }
     machine first_limit(reaction: @chemistry::model::Reaction, balance: @chemistry::model::Balance, batch: @mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
         batch.limiting = 1;
         transition { _ -> second_limit(reaction, balance, batch, second, capacity) }
     }
     machine second_limit(reaction: @chemistry::model::Reaction, balance: @chemistry::model::Balance, batch: @mut chemistry::model::Batch, second: i64 in Wrapping, capacity: i64 in Wrapping) {
-        transition second == capacity { true -> add_second(reaction, balance, batch, capacity) false -> cap_limit(reaction, balance, batch, capacity) }
+        transition second == capacity { true -> add_second(reaction, balance, batch, capacity), false -> cap_limit(reaction, balance, batch, capacity) }
     }
     machine add_second(reaction: @chemistry::model::Reaction, balance: @chemistry::model::Balance, batch: @mut chemistry::model::Batch, capacity: i64 in Wrapping) {
         batch.limiting = batch.limiting + 2;
         transition { _ -> cap_limit(reaction, balance, batch, capacity) }
     }
     machine cap_limit(reaction: @chemistry::model::Reaction, balance: @chemistry::model::Balance, batch: @mut chemistry::model::Batch, capacity: i64 in Wrapping) {
-        transition reaction.cap < capacity { true -> capped(reaction, balance, batch) false -> propose(reaction, balance, batch) }
+        transition reaction.cap < capacity { true -> capped(reaction, balance, batch), false -> propose(reaction, balance, batch) }
     }
     machine capped(reaction: @chemistry::model::Reaction, balance: @chemistry::model::Balance, batch: @mut chemistry::model::Batch) {
         batch.cap_limited = 1;
@@ -45,7 +44,7 @@ requires balance.coefficients[0] > 0 && balance.coefficients[1] > 0 {
         let third: i64 in Wrapping = reaction.stock[2] + batch.extent * balance.coefficients[2];
         let fourth: i64 in Wrapping = reaction.stock[3] + batch.extent * balance.coefficients[3];
         transition third <= 2147483647 && fourth <= 2147483647 {
-            true -> commit(reaction, balance, batch, third, fourth)
+            true -> commit(reaction, balance, batch, third, fourth),
             false -> overflow(batch)
         }
     }

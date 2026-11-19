@@ -18,17 +18,17 @@ machine main() crashes Trap {
     let chosen: i64 = 17;
     let spare: i64 = 5;
     transition true {
-        true -> pick(chosen, spare)
+        true -> pick(chosen, spare),
         false -> wrong()
     }
     machine pick(chosen: i64, spare: i64) {
         let joined: i64 = match choose() {
-            true -> spare
+            true -> spare,
             false -> chosen
         };
         let observed: i64 = read_origin(joined);
         transition observed == 17 {
-            true -> done()
+            true -> done(),
             false -> wrong()
         }
     }

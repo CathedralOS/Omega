@@ -48,7 +48,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Outer pass: N passes settle every element into place.
     machine outer(main: @mut Main) {
         transition main.i < 5 {
-            true -> block inner_init(main)
+            true -> block inner_init(main),
             _ -> block done(main)
         }
     }
@@ -63,7 +63,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Inner loop head: compare adjacent pairs up to N-1.
     machine inner(main: @mut Main) {
         transition main.j < 4 {
-            true -> block compare(main)
+            true -> block compare(main),
             _ -> block outer_next(main)
         }
     }
@@ -73,7 +73,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.a = main.nums[main.j];
         main.b = main.nums[main.jp];
         transition main.a > main.b {
-            true -> block swap(main)
+            true -> block swap(main),
             _ -> block advance(main)
         }
     }
@@ -93,7 +93,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // `+ 1` cannot overflow -- fully Exact, no domain.
     machine advance(main: @mut Main) {
         transition main.j < 4 {
-            true -> block j_bump(main)
+            true -> block j_bump(main),
             _ -> block inner(main)
         }
     }
@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine outer_next(main: @mut Main) {
         transition main.i < 5 {
-            true -> block i_bump(main)
+            true -> block i_bump(main),
             _ -> block outer(main)
         }
     }

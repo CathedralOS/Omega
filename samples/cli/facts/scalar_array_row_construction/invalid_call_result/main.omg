@@ -22,7 +22,7 @@ machine supply() -> [[u64; 2]; 2] {
 machine main() crashes Trap {
     let result: [[u64; 2]; 2] = supply();
     transition result[0][0] == 3 && result[0][1] == 5 && result[1][0] == 7 && result[1][1] == 11 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

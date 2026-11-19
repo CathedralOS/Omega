@@ -7,7 +7,7 @@ data Holder [copy] { items: [u64; SIZE]; }
 const HELD: Holder = Holder { items: ALIAS };
 machine main() crashes Trap {
     let held: Holder = HELD;
-    transition held.items[0] == 3 { true -> done() _ -> bad() }
+    transition held.items[0] == 3 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

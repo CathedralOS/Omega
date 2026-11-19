@@ -7,13 +7,13 @@ machine main() crashes Trap {
     let alignment: u64 = align_of(cell);
     let tag_alignment: u64 = align_of(tag);
     transition true {
-        true -> compute(alignment, tag_alignment)
+        true -> compute(alignment, tag_alignment),
         _ -> bad()
     }
     machine compute(alignment: u64, tag_alignment: u64) {
         let slack: u64 = alignment - 8u64;
         transition slack == 0u64 && alignment == 8u64 && tag_alignment == 1u64 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

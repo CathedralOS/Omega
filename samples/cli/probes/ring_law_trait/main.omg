@@ -30,7 +30,7 @@ satisfies RingOps<Peano>::add
 terminates by a
 {
     transition a {
-        Peano::Zero -> (b)
+        Peano::Zero -> (b),
         Peano::Succ { pred } -> Peano::Succ { pred: add(pred, b) }
     }
 }
@@ -40,7 +40,7 @@ satisfies RingOps<Peano>::mul as Standard
 terminates by a
 {
     transition a {
-        Peano::Zero -> Peano::Zero
+        Peano::Zero -> Peano::Zero,
         Peano::Succ { pred } -> (add(b, mul(pred, b)))
     }
 }
@@ -64,7 +64,7 @@ machine Main::main(main: @mut Main) {
     let s: i32 in Wrapping = add32(2, 1);
     let p: i32 in Wrapping = mul32(s, 2);
     transition p == 6 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

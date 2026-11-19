@@ -44,19 +44,19 @@ ensures result <= 2147483648
 }
 
 machine check_i16(observed: i16, expected: i16) crashes Trap {
-    transition observed == expected { true -> okay() _ -> failed() }
+    transition observed == expected { true -> okay(), _ -> failed() }
     machine okay() {}
     machine failed() { crash Trap; }
 }
 
 machine check_i32(observed: i32, expected: i32) crashes Trap {
-    transition observed == expected { true -> okay() _ -> failed() }
+    transition observed == expected { true -> okay(), _ -> failed() }
     machine okay() {}
     machine failed() { crash Trap; }
 }
 
 machine check_i64(observed: i64, expected: i64) crashes Trap {
-    transition observed == expected { true -> okay() _ -> failed() }
+    transition observed == expected { true -> okay(), _ -> failed() }
     machine okay() {}
     machine failed() { crash Trap; }
 }

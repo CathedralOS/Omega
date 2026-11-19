@@ -20,7 +20,7 @@ crashes Trap
     transition { _ -> clear(checker, syntax, resolution, typing, 0) }
     machine clear(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && index < 10240 {
-            true -> cleared(checker, syntax, resolution, typing, index)
+            true -> cleared(checker, syntax, resolution, typing, index),
             false -> discover(checker, syntax, resolution, typing, 0)
         }
     }
@@ -33,14 +33,14 @@ crashes Trap
     }
     machine discover(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && index < 10240 {
-            true -> declaration(checker, syntax, resolution, typing, index)
+            true -> declaration(checker, syntax, resolution, typing, index),
             false -> seal(checker, syntax, resolution, typing)
         }
     }
     machine declaration(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body {
-            true -> discovered(checker, syntax, resolution, typing, index, item)
+            true -> discovered(checker, syntax, resolution, typing, index, item),
             false -> discover(checker, syntax, resolution, typing, index + 1)
         }
     }
@@ -52,13 +52,13 @@ crashes Trap
     machine seal(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
         let sealed: bool = invocation_graph_seal(@mut checker.invocations);
         transition sealed {
-            true -> ordered(checker, syntax, resolution, typing, 0)
+            true -> ordered(checker, syntax, resolution, typing, 0),
             false -> done(checker)
         }
     }
     machine ordered(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, offset: u64 in Trapping) {
         transition offset < checker.invocations.order_count && offset < 10240 {
-            true -> selected(checker, syntax, resolution, typing, offset)
+            true -> selected(checker, syntax, resolution, typing, offset),
             false -> done(checker)
         }
     }
@@ -68,7 +68,7 @@ crashes Trap
         let index: u64 in Trapping = checker.invocations.order[offset] as u64 in Trapping;
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.has_return_type && index < 10240 {
-            true -> typed(checker, syntax, resolution, typing, offset, index, item)
+            true -> typed(checker, syntax, resolution, typing, offset, index, item),
             false -> ordered(checker, syntax, resolution, typing, offset + 1)
         }
     }
@@ -77,7 +77,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typing.types, handle);
         let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
         transition integer {
-            true -> summarize(checker, syntax, resolution, typing, offset, index, item, row.builtin)
+            true -> summarize(checker, syntax, resolution, typing, offset, index, item, row.builtin),
             false -> ordered(checker, syntax, resolution, typing, offset + 1)
         }
     }
@@ -88,7 +88,7 @@ crashes Trap
         let complete: bool = universal_completion_walk(checker, syntax, resolution, typing, index, item);
         checker.collecting_completion = false;
         transition complete && checker.invocations.complete && checker.completion_seen && index < 10240 {
-            true -> publish(checker, syntax, resolution, typing, offset, index, builtin)
+            true -> publish(checker, syntax, resolution, typing, offset, index, builtin),
             false -> ordered(checker, syntax, resolution, typing, offset + 1)
         }
     }
@@ -130,21 +130,21 @@ crashes Trap
 public machine observe_selected_invocation(checker: @mut Checker, selection: Selection, expression: u64 in Trapping)
 crashes Trap
 {
-    transition checker.zone.infeasible { true -> {} false -> selected(checker, selection, expression) }
+    transition checker.zone.infeasible { true -> {}, false -> selected(checker, selection, expression) }
     machine selected(checker: @mut Checker, selection: Selection, expression: u64 in Trapping) {
         transition selection {
-            Selection::Machine { handle } -> concrete(checker, expression, handle)
-            Selection::Binder { parameter } -> opaque(checker, expression, parameter)
+            Selection::Machine { handle } -> concrete(checker, expression, handle),
+            Selection::Binder { parameter } -> opaque(checker, expression, parameter),
             _ -> done()
         }
     }
     machine concrete(checker: @mut Checker, expression: u64 in Trapping, handle: u64 in Trapping) {
         let recorded: bool = invocation_graph_record(@mut checker.invocations, checker.machine, expression, InvocationTarget::Machine { machine: handle });
-        transition recorded { true -> done() false -> invalid(checker) }
+        transition recorded { true -> done(), false -> invalid(checker) }
     }
     machine opaque(checker: @mut Checker, expression: u64 in Trapping, parameter: u64 in Trapping) {
         let recorded: bool = invocation_graph_record(@mut checker.invocations, checker.machine, expression, InvocationTarget::Binder { parameter: parameter });
-        transition recorded { true -> done() false -> invalid(checker) }
+        transition recorded { true -> done(), false -> invalid(checker) }
     }
     machine invalid(checker: @mut Checker) { checker.overflowed = true; }
     machine done() {}
@@ -152,13 +152,13 @@ crashes Trap
 
 public machine observe_normal_completion(checker: @mut Checker, value: Value) {
     transition checker.collecting_completion && !checker.zone.infeasible {
-        true -> observed(checker, value)
+        true -> observed(checker, value),
         false -> done()
     }
     machine observed(checker: @mut Checker, value: Value) {
         let interval: Value = value_interval(value);
         transition checker.completion_seen {
-            true -> joined(checker, interval)
+            true -> joined(checker, interval),
             false -> first(checker, interval)
         }
     }
@@ -179,7 +179,7 @@ crashes Trap
     let source_component: u64 in Trapping = invocation_graph_component(@checker.invocations, checker.machine);
     let target_component: u64 in Trapping = invocation_graph_component(@checker.invocations, target);
     transition checker.invocations.complete && source_component > 0 && target_component > 0 && source_component != target_component && target < 10240 && row.kind == TypeKind::Builtin {
-        true -> retained(checker, typing, expression, target, row)
+        true -> retained(checker, typing, expression, target, row),
         false -> false
     }
     machine retained(checker: @mut Checker, typing: @Typing, expression: u64 in Trapping, target: u64 in Trapping, row: TypeRow) -> bool
@@ -187,7 +187,7 @@ crashes Trap
     {
         let completion: NumericCompletion = checker.completions[target];
         transition completion.available && completion.builtin == row.builtin {
-            true -> materialized(checker, typing, expression, completion.value)
+            true -> materialized(checker, typing, expression, completion.value),
             false -> false
         }
     }

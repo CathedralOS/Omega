@@ -8,7 +8,7 @@ MarkerMark satisfies Mark {
     machine read() -> u64 { 7 }
 }
 machine accept(value: u64) crashes Trap {
-    transition value == 7 { true -> done() _ -> bad() }
+    transition value == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

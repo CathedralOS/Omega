@@ -9,7 +9,7 @@ machine build(builder: @mut Build) {
 
 machine select_dependency(builder: @mut Build) {
     transition true {
-        true -> selected_dependency(builder)
+        true -> selected_dependency(builder),
         false -> unselected_dependency(builder)
     }
 }

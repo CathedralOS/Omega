@@ -39,7 +39,7 @@ terminates
 }
 
 machine length() -> u64 {
-    traverse<quiet>(7)
+    traverse::<quiet>(7)
 }
 
 data Buffer {
@@ -53,8 +53,8 @@ data Main {
 
 machine Main::main(main: @mut Main) {
     main.hits = 0;
-    transition traverse<quiet>(70) == 70 && main.buffer.bytes.len == 7 {
-        true -> pass(main)
+    transition traverse::<quiet>(70) == 70 && main.buffer.bytes.len == 7 {
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

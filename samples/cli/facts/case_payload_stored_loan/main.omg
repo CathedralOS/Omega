@@ -14,7 +14,7 @@ machine store(target: @mut Cell, value: i64) -> bool requires value == 41 {
 
 machine consume<'storage>(loan: Loan<'storage>, value: i64) -> bool requires value == 41 {
     transition loan {
-        Loan::Active { target } -> (store(@mut target, value))
+        Loan::Active { target } -> (store(@mut target, value)),
         Loan::Empty -> false
     }
 }
@@ -28,7 +28,7 @@ machine exercise() -> bool {
 }
 
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

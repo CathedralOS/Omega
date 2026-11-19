@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
 
     machine forward(main: @mut Main, kept: Empty, value: i32) {
         transition value == 70 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

@@ -54,11 +54,11 @@ data Main {
 // Dispatch needs the alarm, not an application context or console authority.
 machine dispatch(alarm: @mut Alarm, event: AlarmEvent) {
     transition event {
-        AlarmEvent::Set { hour, minute } -> do_set(alarm, hour, minute)
-        AlarmEvent::Snooze { minutes } -> do_snooze(alarm, minutes)
-        AlarmEvent::Cancel -> do_cancel(alarm)
-        AlarmEvent::Trigger -> do_trigger(alarm)
-        AlarmEvent::Dismiss -> do_dismiss(alarm)
+        AlarmEvent::Set { hour, minute } -> do_set(alarm, hour, minute),
+        AlarmEvent::Snooze { minutes } -> do_snooze(alarm, minutes),
+        AlarmEvent::Cancel -> do_cancel(alarm),
+        AlarmEvent::Trigger -> do_trigger(alarm),
+        AlarmEvent::Dismiss -> do_dismiss(alarm),
         _ -> done()
     }
 
@@ -104,27 +104,27 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let score: i32 in Saturating = alarm.fire_count * 35;
 
     transition score == 70 {
-        true -> block check_active(main, @alarm)
+        true -> block check_active(main, @alarm),
         _ -> block bad_score(main)
     }
 
     machine check_active(main: @mut Main, alarm: @Alarm) {
         transition alarm.active == 0 {
-            true -> block check_hour(main, alarm)
+            true -> block check_hour(main, alarm),
             _ -> block bad_active(main)
         }
     }
 
     machine check_hour(main: @mut Main, alarm: @Alarm) {
         transition alarm.hour == 7 {
-            true -> block check_minute(main, alarm)
+            true -> block check_minute(main, alarm),
             _ -> block bad_hour(main)
         }
     }
 
     machine check_minute(main: @mut Main, alarm: @Alarm) {
         transition alarm.minute == 0 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_minute(main)
         }
     }

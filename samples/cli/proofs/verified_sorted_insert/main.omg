@@ -24,7 +24,7 @@ terminates
 terminates by remaining in 0..=15
 {
     transition remaining >= 1 {
-        true -> inspect(values, remaining)
+        true -> inspect(values, remaining),
         false -> (true)
     }
     machine inspect(values: @[i32; 16], remaining: u64) -> bool
@@ -33,7 +33,7 @@ terminates by remaining in 0..=15
     {
         let prev: u64 = remaining - 1;
         transition values[prev] <= values[remaining] {
-            true -> check_sorted(values, prev)
+            true -> check_sorted(values, prev),
             false -> (false)
         }
     }
@@ -57,7 +57,7 @@ ensures lo <= result && result <= hi
 terminates by width -> Nat::Descending in 0..=16
 {
     transition lo < hi {
-        true -> split(values, lo, hi, width, key)
+        true -> split(values, lo, hi, width, key),
         false -> lo
     }
     machine split(values: @[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
@@ -69,7 +69,7 @@ terminates by width -> Nat::Descending in 0..=16
     {
         let half: u64 = width / 2;
         transition half <= width && half < width {
-            true -> probe(values, lo, hi, width, half, key)
+            true -> probe(values, lo, hi, width, half, key),
             false -> lo
         }
     }
@@ -84,7 +84,7 @@ terminates by width -> Nat::Descending in 0..=16
     {
         let mid: u64 = lo + half;
         transition mid < hi && mid < 16 {
-            true -> compare(values, lo, mid, hi, width, key)
+            true -> compare(values, lo, mid, hi, width, key),
             false -> lo
         }
     }
@@ -96,7 +96,7 @@ terminates by width -> Nat::Descending in 0..=16
         requires sorted(values) == true
     {
         transition values[mid] <= key {
-            true -> descend_right(values, lo, mid, hi, width, key)
+            true -> descend_right(values, lo, mid, hi, width, key),
             false -> descend_left(values, lo, mid, hi, width, key)
         }
     }
@@ -110,7 +110,7 @@ terminates by width -> Nat::Descending in 0..=16
     {
         let nwidth: u64 = mid - lo;
         transition nwidth < width && nwidth <= 16 {
-            true -> search(values, lo, mid, nwidth, key)
+            true -> search(values, lo, mid, nwidth, key),
             false -> lo
         }
     }
@@ -124,7 +124,7 @@ terminates by width -> Nat::Descending in 0..=16
     {
         let nwidth: u64 = (hi - mid) - 1;
         transition nwidth < width && nwidth <= 16 {
-            true -> search(values, mid + 1, hi, nwidth, key)
+            true -> search(values, mid + 1, hi, nwidth, key),
             false -> lo
         }
     }
@@ -143,7 +143,7 @@ ensures result == live + 1
 terminates by cursor -> Nat::Descending in 0..=15
 {
     transition cursor > pos {
-        true -> shift(context, key, pos, live, cursor)
+        true -> shift(context, key, pos, live, cursor),
         false -> place(context, key, pos, live)
     }
     machine shift(context: @mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
@@ -154,7 +154,7 @@ terminates by cursor -> Nat::Descending in 0..=15
         context.values[cursor] = context.values[cursor - 1];
         let next: u64 = cursor - 1;
         transition next >= pos {
-            true -> insert(context, key, pos, live, next)
+            true -> insert(context, key, pos, live, next),
             false -> trap()
         }
     }
@@ -207,7 +207,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let p20: u64 = search(@main.values, 0, 4, 4, 20);
         let p1: u64 = search(@main.values, 0, 4, 4, 1);
         transition p5 == 3 && p2 == 1 && p20 == 4 && p1 == 1 {
-            true -> insert_stage(main)
+            true -> insert_stage(main),
             false -> bad(main)
         }
     }
@@ -217,14 +217,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         let l1: u64 = insert(main, 20, 4, 4, 4);
         let l2: u64 = insert(main, 2, 1, 5, 5);
         transition l1 == 5 && l2 == 6 && main.live == 6 && sorted(@main.values) == true {
-            true -> attest(main)
+            true -> attest(main),
             false -> bad(main)
         }
     }
     machine attest(main: @mut Main) {
         transition main.values[0] == 1 && main.values[1] == 2 && main.values[2] == 3
             && main.values[3] == 5 && main.values[4] == 7 && main.values[5] == 20 {
-            true -> good(main)
+            true -> good(main),
             false -> bad(main)
         }
     }

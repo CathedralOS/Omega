@@ -1,4 +1,3 @@
-module io::trace;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::filter;
@@ -9,7 +8,7 @@ use domain::filter::Filter;
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
 machine print_integer(value: i64) reaches Console {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> scan(value, 1000000000000000000, false)
     }
     machine negative(value: i64) {
@@ -20,7 +19,7 @@ machine print_integer(value: i64) reaches Console {
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         let remainder: i64 = (value / divisor) % 10;
         transition remainder != 0 || started || divisor == 1 {
-            true -> digit(value, divisor, remainder)
+            true -> digit(value, divisor, remainder),
             false -> advance(value, divisor, false)
         }
     }
@@ -28,7 +27,7 @@ machine print_integer(value: i64) reaches Console {
     requires divisor >= 1 requires divisor <= 1000000000000000000
     requires remainder >= -9 requires remainder <= 9 {
         transition remainder < 0 {
-            true -> signed_digit(value, divisor, remainder)
+            true -> signed_digit(value, divisor, remainder),
             false -> unsigned_digit(value, divisor, remainder)
         }
     }
@@ -47,7 +46,7 @@ machine print_integer(value: i64) reaches Console {
     machine advance(value: i64, divisor: i64, started: bool)
     requires divisor >= 1 requires divisor <= 1000000000000000000 {
         transition divisor >= 10 {
-            true -> scan(value, divisor / 10, started)
+            true -> scan(value, divisor / 10, started),
             false -> finished()
         }
     }
@@ -70,7 +69,7 @@ public machine emit(filter: @Filter, step: u64) reaches Console requires step <=
     print_number(filter.innovation);
     print_number(filter.innovation_variance);
     transition filter.updated {
-        true -> observed()
+        true -> observed(),
         false -> missing()
     }
     machine observed() { Console::write_line(" update"); }

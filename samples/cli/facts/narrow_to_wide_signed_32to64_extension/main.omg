@@ -18,7 +18,7 @@ machine evaluate(narrow: i32) -> i32 requires narrow >= 70000i32 && narrow <= 90
 machine main() crashes Trap {
     let res: i32 = evaluate(80000i32);
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

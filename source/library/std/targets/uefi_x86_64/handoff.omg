@@ -291,7 +291,7 @@ public data UefiOsHandoffDisposition {
 
 machine valid_map_geometry(size: u64, capacity: u64, stride: u64, version: u32) -> bool {
     transition stride >= EFI_MEMORY_DESCRIPTOR_MINIMUM_SIZE && version == EFI_MEMORY_DESCRIPTOR_VERSION {
-        true -> tiled(size, capacity, stride)
+        true -> tiled(size, capacity, stride),
         _ -> (false)
     }
     machine tiled(size: u64, capacity: u64, stride: u64) -> bool
@@ -308,7 +308,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     // A retained decision is not permission to restart firmware operations.
     // This guard also retains failed-release allocations and the spent budget.
     transition uefi_os_handoff_cycle.started {
-        false -> initialize(uefi_os_handoff_cycle)
+        false -> initialize(uefi_os_handoff_cycle),
         true -> (UefiOsHandoffDisposition::Rejected { status: EFI_INVALID_PARAMETER })
     }
 
@@ -331,7 +331,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     // retained capacity grows the buffer instead of spending an attempt.
     machine acquired(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
-            true -> validate_map(uefi_os_handoff_cycle)
+            true -> validate_map(uefi_os_handoff_cycle),
             _ -> map_too_small(uefi_os_handoff_cycle)
         }
     }
@@ -344,7 +344,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
             uefi_os_handoff_cycle.legs.descriptor_version
         );
         transition valid {
-            true -> attempt_exit(uefi_os_handoff_cycle)
+            true -> attempt_exit(uefi_os_handoff_cycle),
             _ -> invalid_map(uefi_os_handoff_cycle)
         }
     }
@@ -357,7 +357,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     machine map_too_small(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_BUFFER_TOO_SMALL
             && uefi_os_handoff_cycle.legs.map_size > uefi_os_handoff_cycle.legs.map_capacity {
-            true -> check_growth(uefi_os_handoff_cycle)
+            true -> check_growth(uefi_os_handoff_cycle),
             _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
@@ -367,7 +367,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     // map storage stays live on a rejected grow.
     machine check_growth(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.map_size < 0xFFFFFFFFFFFFF000 {
-            true -> grow(uefi_os_handoff_cycle)
+            true -> grow(uefi_os_handoff_cycle),
             _ -> capacity_exhausted(uefi_os_handoff_cycle)
         }
     }
@@ -388,14 +388,14 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
 
     machine release(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
-            true -> release_allocated(uefi_os_handoff_cycle)
+            true -> release_allocated(uefi_os_handoff_cycle),
             _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
 
     machine release_allocated(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.map_pages > 0 {
-            true -> free(uefi_os_handoff_cycle)
+            true -> free(uefi_os_handoff_cycle),
             _ -> adopt(uefi_os_handoff_cycle)
         }
     }
@@ -403,7 +403,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     machine free(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         uefi_os_handoff_cycle_free_map(uefi_os_handoff_cycle);
         transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
-            true -> adopt(uefi_os_handoff_cycle)
+            true -> adopt(uefi_os_handoff_cycle),
             _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
@@ -428,7 +428,7 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
 
     machine exit_rejected(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_SUCCESS {
-            true -> complete(uefi_os_handoff_cycle)
+            true -> complete(uefi_os_handoff_cycle),
             _ -> split_rejection(uefi_os_handoff_cycle)
         }
     }
@@ -439,14 +439,14 @@ public machine uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycl
     // target-authored answer.
     machine split_rejection(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_INVALID_PARAMETER && uefi_os_handoff_cycle.remaining > 1 {
-            true -> retry(uefi_os_handoff_cycle)
+            true -> retry(uefi_os_handoff_cycle),
             _ -> split_exhaustion(uefi_os_handoff_cycle)
         }
     }
 
     machine split_exhaustion(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) -> UefiOsHandoffDisposition {
         transition uefi_os_handoff_cycle.legs.status == EFI_INVALID_PARAMETER {
-            true -> exhausted(uefi_os_handoff_cycle)
+            true -> exhausted(uefi_os_handoff_cycle),
             _ -> reject_status(uefi_os_handoff_cycle)
         }
     }
@@ -485,7 +485,7 @@ public machine uefi_os_handoff_cycle_run(uefi_os_handoff_cycle: @mut UefiOsHando
 {
     let disposition: UefiOsHandoffDisposition = uefi_os_handoff_cycle_complete_boot_services(uefi_os_handoff_cycle);
     transition disposition {
-        UefiOsHandoffDisposition::Ready -> complete(uefi_os_handoff_cycle)
+        UefiOsHandoffDisposition::Ready -> complete(uefi_os_handoff_cycle),
         UefiOsHandoffDisposition::Rejected { status } -> returned(uefi_os_handoff_cycle, status)
     }
     machine complete(uefi_os_handoff_cycle: @mut UefiOsHandoffCycle) {

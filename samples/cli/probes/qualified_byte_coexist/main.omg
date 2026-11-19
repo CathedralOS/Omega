@@ -35,7 +35,7 @@ machine Main::main(main: @mut Main) {
     let top: u8 = head(@plain);
     let gate: bool = spells_gate(@text[..]);
     transition last == 69 && top == 71 && gate {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

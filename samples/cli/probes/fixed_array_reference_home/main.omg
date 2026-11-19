@@ -44,7 +44,7 @@ machine retained_child() crashes Trap {
     buffer.values = @mut second;
     child[0] = 65;
     transition first[0] == 65 && second[0] == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -72,7 +72,7 @@ machine main() crashes Trap {
     let returned_child: @mut [u64; 2] = original_child(@mut original_values, @mut replacement);
     returned_child[1] = 91;
     transition values[0] == 67 && observed == 66 && cells[1][0] == 77 && cells[0][0] == 21 && output[0] == 81 && output[1] == 82 && original_values[1] == 91 && replacement[1] == 52 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

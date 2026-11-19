@@ -1,4 +1,3 @@
-module choices;
 public data Scalar<T [copy]> [copy] { value: T; }
 public data Choice<T [copy]> [copy] {
     case Some(value: T);

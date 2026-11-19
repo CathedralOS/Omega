@@ -30,7 +30,7 @@ machine malformed() reaches ProcessExit + Console crashes Trap {
 machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Byte { value } -> byte(value)
+        ByteRead::Byte { value } -> byte(value),
         _ -> truncated()
     }
     machine byte(value: i32) -> u8
@@ -72,12 +72,12 @@ reaches ProcessExit + Console crashes Trap blocks
         && input.entry_name_start < input.entry_name_end
         && input.entry_name_end <= input.buffer_length
         && input.entry_name_end - input.entry_name_start <= 256 {
-        true -> block rows(input, 0, row_count)
+        true -> block rows(input, 0, row_count),
         _ -> malformed()
     }
     machine rows(input: @mut ConstructionInput, index: u64, count: u64) {
         transition index < count && index < 2752 {
-            true -> block row(input, index, count)
+            true -> block row(input, index, count),
             _ -> block bytes(input, 0)
         }
     }
@@ -89,7 +89,7 @@ reaches ProcessExit + Console crashes Trap blocks
     }
     machine bytes(input: @mut ConstructionInput, index: u64) {
         transition index < input.buffer_length as u64 && index < 4194304 {
-            true -> block byte(input, index)
+            true -> block byte(input, index),
             _ -> block end()
         }
     }
@@ -102,7 +102,7 @@ reaches ProcessExit + Console crashes Trap blocks
     machine end() {
         let trailing: ByteRead = block Console::read_byte();
         transition trailing {
-            ByteRead::Eof -> done()
+            ByteRead::Eof -> done(),
             _ -> malformed()
         }
     }
@@ -115,7 +115,7 @@ machine row_word(input: @ConstructionInput, index: u64) -> u32
 reaches ProcessExit + Console crashes Trap
 {
     transition index < 2752 {
-        true -> word(input, index)
+        true -> word(input, index),
         _ -> invalid()
     }
     machine word(input: @ConstructionInput, index: u64) -> u32
@@ -132,12 +132,12 @@ reaches ProcessExit + Console crashes Trap
 {
     psi::module_path_clear(name);
     transition start <= end && end <= input.buffer_length && end - start <= 256 {
-        true -> next(input, name, start as u64, end as u64)
+        true -> next(input, name, start as u64, end as u64),
         _ -> malformed()
     }
     machine next(input: @ConstructionInput, name: @mut ModulePath, index: u64, end: u64) {
         transition index < end && index < 4194304 {
-            true -> append(input, name, index, end)
+            true -> append(input, name, index, end),
             _ -> done()
         }
     }
@@ -146,7 +146,7 @@ reaches ProcessExit + Console crashes Trap
     {
         let retained: bool = psi::module_path_append(name, input.bytes[index]);
         transition retained {
-            true -> next(input, name, index + 1, end)
+            true -> next(input, name, index + 1, end),
             _ -> malformed()
         }
     }
@@ -159,7 +159,7 @@ reaches ProcessExit + Console crashes Trap
     transition { _ -> next(input, compilation, 0) }
     machine next(input: @ConstructionInput, compilation: @mut Compilation, index: u64) {
         transition input.package_count <= 64 && index < input.package_count as u64 {
-            true -> package(input, compilation, index)
+            true -> package(input, compilation, index),
             _ -> done()
         }
     }
@@ -170,7 +170,7 @@ reaches ProcessExit + Console crashes Trap
         let end: u32 = row_word(input, index * 3 + 1);
         let role: u32 = row_word(input, index * 3 + 2);
         transition role <= 2 {
-            true -> retain(input, compilation, index, start, end, role)
+            true -> retain(input, compilation, index, start, end, role),
             _ -> malformed()
         }
     }
@@ -181,7 +181,7 @@ reaches ProcessExit + Console crashes Trap
         copy_name(input, @mut name, start, end);
         let retained: bool = psi::add_package(@mut compilation.sources, @name, role == 1);
         transition retained {
-            true -> next(input, compilation, index + 1)
+            true -> next(input, compilation, index + 1),
             _ -> full()
         }
     }
@@ -195,7 +195,7 @@ reaches ProcessExit + Console crashes Trap
     transition { _ -> next(input, compilation, 0) }
     machine next(input: @ConstructionInput, compilation: @mut Compilation, index: u64) {
         transition input.package_count <= 64 && input.edge_count <= 256 && index < input.edge_count as u64 {
-            true -> edge(input, compilation, index, input.package_count as u64 * 3 + index * 4)
+            true -> edge(input, compilation, index, input.package_count as u64 * 3 + index * 4),
             _ -> done()
         }
     }
@@ -207,7 +207,7 @@ reaches ProcessExit + Console crashes Trap
         let start: u32 = row_word(input, row + 2);
         let end: u32 = row_word(input, row + 3);
         transition requester < input.package_count && target < input.package_count {
-            true -> retain(input, compilation, index, requester, target, start, end)
+            true -> retain(input, compilation, index, requester, target, start, end),
             _ -> malformed()
         }
     }
@@ -220,7 +220,7 @@ reaches ProcessExit + Console crashes Trap
             (requester as u64) as +Trapping, DependencyScope::Product,
             @alias, (target as u64) as +Trapping);
         transition retained {
-            true -> next(input, compilation, index + 1)
+            true -> next(input, compilation, index + 1),
             _ -> full()
         }
     }
@@ -234,7 +234,7 @@ reaches ProcessExit + Console crashes Trap
     transition { _ -> next(input, compilation, lexer, 0) }
     machine next(input: @ConstructionInput, compilation: @mut Compilation, lexer: @mut Lexer, index: u64) {
         transition compilation.status {
-            CompilationStatus::Collecting -> remaining(input, compilation, lexer, index)
+            CompilationStatus::Collecting -> remaining(input, compilation, lexer, index),
             _ -> done()
         }
     }
@@ -242,7 +242,7 @@ reaches ProcessExit + Console crashes Trap
         transition input.package_count <= 64 && input.edge_count <= 256
             && input.unit_count <= 512 && index < input.unit_count as u64 {
             true -> unit(input, compilation, lexer, index,
-                input.package_count as u64 * 3 + input.edge_count as u64 * 4 + index * 3)
+                input.package_count as u64 * 3 + input.edge_count as u64 * 4 + index * 3),
             _ -> done()
         }
     }
@@ -253,7 +253,7 @@ reaches ProcessExit + Console crashes Trap
         let start: u32 = row_word(input, row + 1);
         let end: u32 = row_word(input, row + 2);
         transition package < input.package_count && start <= end && end <= input.buffer_length {
-            true -> size(input, compilation, lexer, index, package, start, end)
+            true -> size(input, compilation, lexer, index, package, start, end),
             _ -> malformed()
         }
     }
@@ -261,7 +261,7 @@ reaches ProcessExit + Console crashes Trap
     requires index < 512, start <= end
     {
         transition end - start <= 131072 {
-            true -> initialize(input, compilation, lexer, index, package, start, end)
+            true -> initialize(input, compilation, lexer, index, package, start, end),
             _ -> full()
         }
     }
@@ -275,7 +275,7 @@ reaches ProcessExit + Console crashes Trap
     requires index < 512
     {
         transition offset < end && offset < 4194304 {
-            true -> byte(input, compilation, lexer, index, package, offset, end)
+            true -> byte(input, compilation, lexer, index, package, offset, end),
             _ -> parse(input, compilation, lexer, index, package)
         }
     }
@@ -300,18 +300,18 @@ reaches ProcessExit + Console crashes Trap
 machine publish(compilation: @Compilation) reaches ProcessExit + Console crashes Trap {
     let status: i32 = omega_compiler::compilation_exit_status(compilation);
     transition status == 0 {
-        true -> bounded(compilation)
+        true -> bounded(compilation),
         _ -> refused(status)
     }
     machine bounded(compilation: @Compilation) {
         transition compilation.output.length <= 2097152 {
-            true -> next(compilation, 0)
+            true -> next(compilation, 0),
             _ -> refused(252)
         }
     }
     machine next(compilation: @Compilation, index: u64) {
         transition index < compilation.output.length && index < 2097152 {
-            true -> byte(compilation, index)
+            true -> byte(compilation, index),
             _ -> complete()
         }
     }

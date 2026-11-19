@@ -9,7 +9,7 @@ ensures result == value
 crashes Trap
 {
     transition fatal {
-        true -> halt()
+        true -> halt(),
         false -> value
     }
 }
@@ -19,7 +19,7 @@ ensures !fatal
 crashes Trap
 {
     transition fatal {
-        true -> halt()
+        true -> halt(),
         false -> 7u32
     }
 }
@@ -29,7 +29,7 @@ ensures result != value
 crashes Trap
 {
     transition fatal {
-        true -> scalar_stop(true)
+        true -> scalar_stop(true),
         false -> value
     }
 }
@@ -45,7 +45,7 @@ machine main() crashes Trap {
     let actual: u32 = checked_value(7, false);
     let reported: u32 = checked_scalar(actual, false);
     transition reported == 7 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() { }

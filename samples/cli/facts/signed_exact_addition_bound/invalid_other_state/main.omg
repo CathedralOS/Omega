@@ -26,7 +26,7 @@ machine probe(base: i64, delta: i64) -> i64
 machine main() crashes Trap {
     let diff: i64 = probe(30i64, 20i64);
     transition diff == 20i64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

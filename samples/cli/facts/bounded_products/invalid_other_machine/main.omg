@@ -24,7 +24,7 @@ ensures result <= 2500
 
 machine main() crashes Trap {
     transition probe(30, 40) == 1200 && probe(50, 50) == 2500 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

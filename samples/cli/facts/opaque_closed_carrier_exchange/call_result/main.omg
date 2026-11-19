@@ -27,7 +27,7 @@ machine produce() -> InternetAddress reaches AddressParts { AddressParts::make(1
 machine observe() -> bool reaches AddressParts { consume(produce(), AddressParts::make(44048, 513)) }
 
 machine main() reaches AddressParts crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

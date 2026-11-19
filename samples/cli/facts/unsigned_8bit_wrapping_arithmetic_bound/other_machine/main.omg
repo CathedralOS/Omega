@@ -34,7 +34,7 @@ machine main() crashes Trap {
     let sum: u8 = sum_wrapped as u8;
     let check: i32 = runner(sum);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

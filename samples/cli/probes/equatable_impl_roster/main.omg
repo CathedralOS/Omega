@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) {
     let cent: Coin = Coin { value: 1, year: 1999 };
     let by_value: bool = CoinByValue::equals(@penny, @cent);
     let by_structure: bool = CoinStructural::equals(@penny, @cent);
-    let generic: bool = equal<Coin, CoinByValue>(@penny, @cent);
+    let generic: bool = equal::<Coin, CoinByValue>(@penny, @cent);
     let a: Player = Player { pos: Pos { x: 1, y: 2 }, health: 5 };
     let b: Player = Player { pos: Pos { x: 1, y: 2 }, health: 5 };
     let players: bool = PlayerEquality::equals(@a, @b);
@@ -33,7 +33,7 @@ machine Main::main(main: @mut Main) {
     let m2: Mark = Mark { x: 3, y: 9 };
     let marked: bool = MarkByX::equals(@m1, @m2);
     transition by_value && !by_structure && generic && players && marked {
-        (true) -> good(main)
+        (true) -> good(main),
         _ -> bad(main)
     }
     machine good(main: @mut Main) { let value: i32 = 1; }

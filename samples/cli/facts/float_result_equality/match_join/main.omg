@@ -33,7 +33,7 @@ machine main() crashes Trap {
     let first: f64 = agree(left.saved, item.kept);
     let second: f64 = agree(right.saved, item.kept);
     transition first == 7.0 && second == 7.0 && left.route == 17 && right.route == 23 && item.other == 1.0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
 

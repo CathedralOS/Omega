@@ -1,4 +1,3 @@
-module landcover::resampling;
 use landcover::geometry;
 use landcover::geometry::overlap;
 // Private area buckets: no-data is class 0; classes 1..3 are categorical.
@@ -9,9 +8,9 @@ public data Areas [copy] {
 }
 public machine deposit(areas: @mut Areas, category: i32 in Wrapping, area: i32 in Wrapping) {
     transition category {
-        1 -> forest(areas, area)
-        2 -> water(areas, area)
-        3 -> urban(areas, area)
+        1 -> forest(areas, area),
+        2 -> water(areas, area),
+        3 -> urban(areas, area),
         _ -> nodata(areas, area)
     }
     machine forest(areas: @mut Areas, area: i32 in Wrapping) { areas.forest = areas.forest + area; }
@@ -33,13 +32,13 @@ public machine resample(areas: @mut Areas, x: i32 in Wrapping, y: i32 in Wrappin
 public machine dominant(areas: @Areas) -> i32 in Wrapping {
     // Ordered comparisons preserve the lowest class identifier on a tie.
     transition areas.forest >= areas.water && areas.forest >= areas.urban && areas.forest > 0 {
-        true -> 1
+        true -> 1,
         false -> other(areas)
     }
     machine other(areas: @Areas) -> i32 in Wrapping {
-        transition areas.water >= areas.urban && areas.water > 0 { true -> 2 false -> last(areas) }
+        transition areas.water >= areas.urban && areas.water > 0 { true -> 2, false -> last(areas) }
     }
     machine last(areas: @Areas) -> i32 in Wrapping {
-        transition areas.urban > 0 { true -> 3 false -> 0 }
+        transition areas.urban > 0 { true -> 3, false -> 0 }
     }
 }

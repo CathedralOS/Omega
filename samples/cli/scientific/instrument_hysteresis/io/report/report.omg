@@ -1,9 +1,8 @@
-module io::report;
 use omega_language_std::Console;
 // All authored output integers have magnitude <= 51200000 (256 rows).
 public machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> digits(value, 100000000, false)
     }
     machine negative(value: i32 in Wrapping) {
@@ -13,7 +12,7 @@ public machine number(value: i32 in Wrapping) reaches Console {
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
         let digit: i32 in Wrapping = value / divisor;
         transition digit != 0 || started || divisor == 1 {
-            true -> emit(value, divisor, digit)
+            true -> emit(value, divisor, digit),
             false -> next(value, divisor, false)
         }
     }
@@ -23,7 +22,7 @@ public machine number(value: i32 in Wrapping) reaches Console {
     }
     machine next(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) requires divisor > 0 {
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, started)
+            true -> digits(value, divisor / 10, started),
             false -> done()
         }
     }

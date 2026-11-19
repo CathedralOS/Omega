@@ -8,7 +8,7 @@ data Blob<'view> {
 
 machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -22,7 +22,7 @@ requires chosen < 4 && other < 4
     Blob::encode(@sample, @mut buffer, choose(chosen, other, true));
     let index: u64 = other;
     transition items[index] == 7 {
-        true -> (items[index])
+        true -> (items[index]),
         _ -> 0
     }
 }
@@ -33,7 +33,7 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let found: u8 = probe(@mut chosen, @mut other, @items);
     transition found == 7 && chosen == 5 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

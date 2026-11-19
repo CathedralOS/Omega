@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     let a: i32 = settle(Pair { left: moved, right: Receipt { code: 2 } });
     let b: i32 = inspect(Envelope { pair: Pair { left: Receipt { code: 3 }, right: Receipt { code: 4 } } });
     transition a == 3 && b == 7 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

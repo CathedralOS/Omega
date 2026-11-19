@@ -19,7 +19,7 @@ machine retain_byte_carrier<'storage>(bytes: @'storage mut [u8]) -> ByteBundle<'
 
 machine write_captured_bytes<'storage>(home: ByteBundle<'storage>, replacement: @'storage mut [u8]) {
     transition home.raw.len > 0 {
-        true -> ready(home, replacement)
+        true -> ready(home, replacement),
         false -> done()
     }
     machine ready(mut home: ByteBundle<'storage>, replacement: @'storage mut [u8])
@@ -39,7 +39,7 @@ machine captured_byte_window() crashes Trap {
     transition first.bytes[0] == 10 && first.bytes[1] == 65
         && first.bytes[2] == 12 && first.bytes[3] == 13
         && second[0] == 21 && second[1] == 22 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -64,7 +64,7 @@ machine replace_across_states<'storage>(home: @write Bundle<'storage>, replaceme
 ensures result == 65 {
     home = Bundle { raw: replacement };
     transition choose {
-        true -> left()
+        true -> left(),
         false -> right()
     }
     machine left() -> u64 { 65 }
@@ -79,7 +79,7 @@ ensures result == 65 {
 
 machine write_captured_view<'storage>(home: ViewBundle<'storage>, replacement: @'storage mut [u64]) {
     transition home.raw.len > 0 {
-        true -> ready(home, replacement)
+        true -> ready(home, replacement),
         false -> done()
     }
     machine ready(mut home: ViewBundle<'storage>, replacement: @'storage mut [u64])
@@ -95,7 +95,7 @@ machine captured_view() crashes Trap {
     let bundle: ViewBundle = ViewBundle { raw: @mut first[..] };
     write_captured_view(bundle, @mut second[..]);
     transition first[0] == 65 && second[0] == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -108,7 +108,7 @@ machine captured_empty_view() crashes Trap {
     let bundle: ViewBundle = ViewBundle { raw: @mut first[..] };
     write_captured_view(bundle, @mut second[..]);
     transition second[0] == 21 && second[1] == 22 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -121,7 +121,7 @@ machine captured_field() crashes Trap {
     let mut bundle: CellBundle = CellBundle { raw: @mut first };
     bundle.raw.value = replace_cell_carrier(@write bundle, @mut second);
     transition first.value == 65 && second.value == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -135,7 +135,7 @@ machine captured_dynamic_index() crashes Trap {
     let selector: u64 = 0;
     bundle.raw[selector] = replace_carrier(@write bundle, @mut second);
     transition first[0] == 65 && second[0] == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -148,7 +148,7 @@ machine captured_branch(choose: bool) crashes Trap {
     let mut bundle: Bundle = Bundle { raw: @mut first };
     bundle.raw[0] = replace_across_states(@write bundle, @mut second, choose);
     transition first[0] == 65 && second[0] == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -169,7 +169,7 @@ machine main() crashes Trap {
     bundle.raw[0] = replace_carrier(@write bundle, @mut second);
     require_written(first[0]);
     transition first[0] == 65 && second[0] == 21 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

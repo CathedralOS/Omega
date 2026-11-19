@@ -32,7 +32,7 @@ machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends {
 data Worker {}
 
 machine settle<T>(task: Task<T>) -> TaskOutcome<T> {
-    suspend block TaskLifecycle::finish<T>(task)
+    suspend block TaskLifecycle::finish::<T>(task)
 }
 
 data Main { hits: i32 in Wrapping; }

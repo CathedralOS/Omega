@@ -11,7 +11,7 @@ machine produced() -> Bonus
 ensures result.value == 2 { Bonus { value: 2 } }
 machine main() crashes Trap {
     let accepted: bool = consume(produced());
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

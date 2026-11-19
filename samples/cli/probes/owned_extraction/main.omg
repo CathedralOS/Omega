@@ -9,10 +9,10 @@ machine retire<Value>(result: OwnedExtraction<Value>) -> Value {
 }
 machine borrowed<'backing>(backing: @'backing u64, moved: bool) -> bool {
     let result: Extraction<@'backing u64, u32> = match moved {
-        true -> Extraction::Moved { storage: backing, value: 67 }
+        true -> Extraction::Moved { storage: backing, value: 67 },
         false -> Extraction::Held { storage: backing, value: 67 }
     };
-    let view: Returned<@'backing u64, u32> = unpack<@'backing u64, u32>(result);
+    let view: Returned<@'backing u64, u32> = unpack::<@'backing u64, u32>(result);
     view.storage as u64 == 61 && view.value == 67 && view.moved == moved
 }
 
@@ -33,8 +33,8 @@ machine extract<Storage, Value>(storage: Storage, value: Value)
     -> Returned<Storage, Value>
 reaches ExtractionProvider
 {
-    transition ExtractionProvider<Storage, Value>::extract(storage, value) {
-        Extraction::Moved { storage, value } -> Returned { storage: storage, value: value, moved: true }
+    transition ExtractionProvider::<Storage, Value>::extract(storage, value) {
+        Extraction::Moved { storage, value } -> Returned { storage: storage, value: value, moved: true },
         Extraction::Held { storage, value } -> Returned { storage: storage, value: value, moved: false }
     }
 }
@@ -42,27 +42,27 @@ machine unpack<Storage, Value>(result: Extraction<Storage, Value>)
     -> Returned<Storage, Value>
 {
     transition result {
-        Extraction::Moved { storage, value } -> Returned { storage: storage, value: value, moved: true }
+        Extraction::Moved { storage, value } -> Returned { storage: storage, value: value, moved: true },
         Extraction::Held { storage, value } -> Returned { storage: storage, value: value, moved: false }
     }
 }
 machine main() reaches ExtractionProvider crashes Trap {
-    let direct: Returned<u64, u32> = extract<u64, u32>(17, 29);
+    let direct: Returned<u64, u32> = extract::<u64, u32>(17, 29);
     let result: Extraction<u32, u64> = Extraction::Held { storage: 31, value: 43 };
-    let forwarded: Returned<u32, u64> = unpack<u32, u64>(result);
+    let forwarded: Returned<u32, u64> = unpack::<u32, u64>(result);
     let backing: u64 = 61;
     let owned: OwnedExtraction<Token> = OwnedExtraction::Moved { value: Token { value: 71 } };
-    let retired: Token = retire<Token>(owned);
+    let retired: Token = retire::<Token>(owned);
     let owned_correct: bool = retired.value == 71;
     drop(retired);
     let alternative: Extraction<Token, u64> = Extraction::Held { storage: Token { value: 79 }, value: 83 };
-    let returned: Returned<Token, u64> = unpack<Token, u64>(alternative);
+    let returned: Returned<Token, u64> = unpack::<Token, u64>(alternative);
     let alternative_correct: bool = returned.storage.value == 79 && returned.value == 83 && !returned.moved;
     drop(returned.storage);
     transition direct.storage == 17 && direct.value == 29
         && forwarded.storage == 31 && forwarded.value == 43 && direct.moved && !forwarded.moved
         && borrowed(@backing, true) && borrowed(@backing, false) && owned_correct && alternative_correct {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

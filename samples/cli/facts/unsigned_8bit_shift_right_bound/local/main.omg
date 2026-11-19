@@ -19,7 +19,7 @@ machine main() crashes Trap {
     let local_shifted: u8 = shifted;
     let check: u8 = verify_shifted(local_shifted);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

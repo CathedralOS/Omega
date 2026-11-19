@@ -15,8 +15,8 @@ const MODE: Mode = Mode::Mid { val: 40 };
 
 machine evaluate(mode: Mode) -> u64 {
     transition mode {
-        Mode::Low { val } -> val
-        Mode::Mid { val } -> val
+        Mode::Low { val } -> val,
+        Mode::Mid { val } -> val,
         Mode::High { val } -> val
     }
 }
@@ -29,7 +29,7 @@ machine run(mode: Mode) crashes Trap {
     let diff1: u64 = UPPER - joined;
     let diff2: u64 = joined - LOWER;
     transition diff1 == 20 && diff2 == 20 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

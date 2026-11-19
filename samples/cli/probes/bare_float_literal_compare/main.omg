@@ -31,7 +31,7 @@ machine Main::main(main: @mut Main) {
         && F32::square_root(64.0f32) < 9.0
         && 7.0 < F64::square_root(64.0f64)
         && F32::square_root(64.0f32) != 7.0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -31,7 +31,7 @@ machine Main::main(main: @mut Main) {
     let mut dummy: Player = Player { health: 100, armor: 0 };
     Combat::strike(@knight, @mut dummy, 30);
     transition dummy.health == 75 && knight.health == 100 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

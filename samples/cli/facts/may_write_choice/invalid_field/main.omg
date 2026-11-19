@@ -4,7 +4,7 @@
 
 machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let zero: u64 in Wrapping = 0;
     let marker: u64 in Wrapping = add(overwrite(choose(@mut bounds.chosen, @mut bounds.other, false)), zero);
     transition (marker as u64) == 1 && bounds.chosen == 9 && items[bounds.other] == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

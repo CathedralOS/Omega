@@ -1,4 +1,3 @@
-module report::output;
 use omega_language_std::Console;
 use linkage::model;
 use linkage::model::Linkage;
@@ -12,7 +11,7 @@ invokes Console
     machine scale(value: u64, divisor: u64)
     requires divisor > 0 {
         transition divisor <= 1844674407370955161 && value / divisor >= 10 {
-            true -> grow(value, divisor)
+            true -> grow(value, divisor),
             false -> digit(value, divisor)
         }
     }
@@ -24,7 +23,7 @@ invokes Console
     requires divisor > 0 {
         Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor >= 10 {
-            true -> remaining(value, divisor)
+            true -> remaining(value, divisor),
             false -> done()
         }
     }

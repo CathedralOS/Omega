@@ -214,7 +214,7 @@ boundary trait PosixFilesystemTarget {
 public machine posix_terminated_path(path: @[u8], out: @mut [u8]) -> bool {
     posix_copy_path_from(path, out, 0, path.len);
     transition path.len < out.len {
-        true -> (true)
+        true -> (true),
         _ -> rejected(out)
     }
 
@@ -231,7 +231,7 @@ terminates by remaining
 {
     posix_put_path_byte(path, out, index);
     transition index < path.len && remaining > 0 {
-        true -> posix_copy_path_from(path, out, index + 1, remaining - 1)
+        true -> posix_copy_path_from(path, out, index + 1, remaining - 1),
         _ -> done()
     }
 
@@ -243,14 +243,14 @@ terminates by remaining
 // room for the terminator.
 machine posix_put_path_byte(path: @[u8], out: @mut [u8], index: u64) {
     transition index < path.len {
-        true -> byte(path, out, index)
+        true -> byte(path, out, index),
         _ -> terminator(out, index)
     }
 
     machine byte(path: @[u8], out: @mut [u8], index: u64)
     requires index < path.len {
         transition index < out.len && out.len - index > 1 {
-            true -> write_byte(path, out, index)
+            true -> write_byte(path, out, index),
             _ -> done()
         }
     }
@@ -263,7 +263,7 @@ machine posix_put_path_byte(path: @[u8], out: @mut [u8], index: u64) {
 
     machine terminator(out: @mut [u8], index: u64) {
         transition index < out.len {
-            true -> write_terminator(out, index)
+            true -> write_terminator(out, index),
             _ -> done()
         }
     }

@@ -22,12 +22,12 @@ machine main() crashes Trap {
     let first: bool = READY && bump(@mut counter);
     let kept: u64 = untouched(counter);
     transition first {
-        true -> bad()
+        true -> bad(),
         false -> check(kept, counter)
     }
     machine check(kept: u64, counter: u64) crashes Trap {
         transition kept == 0u64 && counter == 0u64 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

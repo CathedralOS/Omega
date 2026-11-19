@@ -16,13 +16,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut job: Job;
     let valid: bool = block load(@mut job);
     transition valid {
-        true -> generate(main, @mut job)
+        true -> generate(main, @mut job),
         _ -> invalid(main)
     }
     machine generate(main: @mut Main, job: @mut Job) {
         let complete: bool = paths(job);
         transition complete {
-            true -> success(main, job)
+            true -> success(main, job),
             _ -> internal(main)
         }
     }

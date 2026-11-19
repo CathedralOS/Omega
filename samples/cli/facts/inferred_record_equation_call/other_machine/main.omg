@@ -12,6 +12,6 @@ machine forward(items: Token<SEVEN>) -> u64 { consume(items) }
 machine main() crashes Trap {
     let items: Token<SEVEN> = Token { marker: 1 };
     let observed: u64 = forward(items);
-    transition observed == 7 { true -> done() _ -> bad() }
+    transition observed == 7 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

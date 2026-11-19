@@ -40,7 +40,7 @@ ArmCountdown satisfies Countdown {
 }
 
 machine arm_result(branch: bool, selected: bool) -> u32 crashes Trap ensures result == 0 {
-    transition branch == selected { true -> Countdown::run(2) false -> wrong_arm() }
+    transition branch == selected { true -> Countdown::run(2), false -> wrong_arm() }
     machine wrong_arm() -> u32 { crash Trap; }
 }
 machine joined(branch: bool) -> u32 crashes Trap ensures result == 0 {
@@ -49,7 +49,7 @@ machine joined(branch: bool) -> u32 crashes Trap ensures result == 0 {
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine observe_zero(value: u32) crashes Trap requires value == 0 {
-    transition value == 0 { true -> finished() false -> failed() }
+    transition value == 0 { true -> finished(), false -> failed() }
 }
 machine main() crashes Trap {
     let left: u32 = joined(true);

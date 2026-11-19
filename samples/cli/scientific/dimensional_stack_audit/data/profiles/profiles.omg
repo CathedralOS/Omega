@@ -1,15 +1,14 @@
-module data::profiles;
 use model::audit;
 use model::audit::Assembly;
 // Authored fixture data, independent of the reference and expected outputs.
 public machine load(assembly: @mut Assembly, profile: i32 in Saturating) {
     transition profile {
-        1 -> profile_1(assembly)
-        2 -> profile_2(assembly)
-        3 -> profile_3(assembly)
-        4 -> profile_4(assembly)
-        5 -> profile_5(assembly)
-        6 -> profile_6(assembly)
+        1 -> profile_1(assembly),
+        2 -> profile_2(assembly),
+        3 -> profile_3(assembly),
+        4 -> profile_4(assembly),
+        5 -> profile_5(assembly),
+        6 -> profile_6(assembly),
         _ -> profile_1(assembly)
     }
     machine profile_1(assembly: @mut Assembly) {

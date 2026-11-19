@@ -43,7 +43,7 @@ requires 0 <= a && a <= 50
 requires 0 <= b
 ensures (result as i64) == (a as i64) + (b as i64)
 {
-    block apply<Selected>(a, b)
+    block apply::<Selected>(a, b)
 }
 
 boundary trait BodyTag {
@@ -52,7 +52,7 @@ boundary trait BodyTag {
 
 X86Tag satisfies BodyTag {
     machine check(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> bad() }
+        transition tag == 17u64 { true -> done(), false -> bad() }
         machine done() {}
         machine bad() crashes Trap { crash Trap; }
     }
@@ -60,7 +60,7 @@ X86Tag satisfies BodyTag {
 
 ArmTag satisfies BodyTag {
     machine check(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> bad() }
+        transition tag == 29u64 { true -> done(), false -> bad() }
         machine done() {}
         machine bad() crashes Trap { crash Trap; }
     }
@@ -101,7 +101,7 @@ ArmProbe satisfies TargetProbe {
 machine main() blocks crashes Trap {
     let wide: i32 = block TargetProbe::evaluate(20, 22);
     let narrow: i32 = block TargetProbe::evaluate(10, 12);
-    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+    transition wide == 42 && narrow == 22 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

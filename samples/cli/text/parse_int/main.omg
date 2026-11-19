@@ -33,7 +33,7 @@ machine parse_decimal(text: @[u8; 3] in Utf8) -> i32 in Wrapping {
     requires index >= 0
     {
         transition index < text.len {
-            true -> digit(text, index, result)
+            true -> digit(text, index, result),
             _ -> (result)
         }
     }
@@ -48,7 +48,7 @@ machine parse_decimal(text: @[u8; 3] in Utf8) -> i32 in Wrapping {
         // Re-guard against the carrier CAPACITY (8) so the increment's direct
         // edge proves `i + 1` lands in [1..=8] -- len <= 8, so this is always true.
         transition index >= 0 && index < 8 {
-            true -> advance(text, index, next_result)
+            true -> advance(text, index, next_result),
             _ -> (next_result)
         }
     }

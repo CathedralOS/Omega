@@ -28,9 +28,9 @@ requires premise(kept)
 
 machine main() crashes Trap {
     let kept: bool = true;
-    let direct: bool = apply<witness>(kept);
+    let direct: bool = apply::<witness>(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

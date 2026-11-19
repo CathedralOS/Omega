@@ -1,4 +1,3 @@
-module report::output;
 use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_trapping;
 use clock::model;
@@ -13,7 +12,7 @@ crashes Trap
 {
     let mut digits: [i32 in Wrapping; 19];
     transition value < 0 {
-        true -> negative(@mut digits, value)
+        true -> negative(@mut digits, value),
         false -> fill(@mut digits, 0, value)
     }
     machine negative(digits: @mut [i32 in Wrapping; 19], value: i64 in Wrapping) {
@@ -22,7 +21,7 @@ crashes Trap
     }
     machine fill(digits: @mut [i32 in Wrapping; 19], count: i64 in Wrapping, value: i64 in Wrapping) {
         transition count >= 0 && count < 19 {
-            true -> append(digits, count, value)
+            true -> append(digits, count, value),
             false -> invalid()
         }
     }
@@ -32,13 +31,13 @@ crashes Trap
         let digit: i64 in Wrapping = value % 10 + 48;
         digits[count] = narrow_i64_to_i32_trapping(digit as i64) as i32 in Wrapping;
         transition value >= 10 {
-            true -> fill(digits, count + 1, value / 10)
+            true -> fill(digits, count + 1, value / 10),
             false -> drain(digits, count + 1)
         }
     }
     machine drain(digits: @[i32 in Wrapping; 19], count: i64 in Wrapping) {
         transition count > 0 && count <= 19 {
-            true -> emit(digits, count - 1)
+            true -> emit(digits, count - 1),
             false -> done()
         }
     }
@@ -58,7 +57,7 @@ crashes Trap
     transition { _ -> row(acquisition, 0) }
     machine row(acquisition: @Acquisition, index: i64 in Wrapping) {
         transition index >= 0 && index < 16 && index < acquisition.count {
-            true -> emit(acquisition, index)
+            true -> emit(acquisition, index),
             false -> summary(acquisition)
         }
     }

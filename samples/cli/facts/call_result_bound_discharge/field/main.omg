@@ -22,7 +22,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     let reading: Reading = Reading { scale: opaque() };
     let r: u64 = echo(reading.scale);
     transition r == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

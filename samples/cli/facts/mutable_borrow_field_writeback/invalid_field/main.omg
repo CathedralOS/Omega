@@ -15,7 +15,7 @@ machine main() crashes Trap {
     r.used = 81u64;
     let diff: u64 = 80u64 - cont.counter.used;
     transition diff == 0u64 && cont.counter.limit == 80u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

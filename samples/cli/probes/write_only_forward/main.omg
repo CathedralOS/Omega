@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     main.neighbor = 19;
     forward(@write main.value, 42);
     transition main.value == 42 && main.neighbor == 19 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

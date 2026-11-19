@@ -1,5 +1,3 @@
-module simulation::clock;
-
 use configuration::ANIMATION_PERIOD;
 
 public data FrameClock [copy]

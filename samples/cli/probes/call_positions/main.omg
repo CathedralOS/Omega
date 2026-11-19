@@ -52,7 +52,7 @@ machine Main::main(main: @mut Main) {
         && casted == 12 && cmp && neg == -12 && summed == 24
         && ordered == 132 && main.ticks == 2 && !skipped
         && main.total == 24 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

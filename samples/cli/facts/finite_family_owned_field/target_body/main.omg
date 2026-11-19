@@ -33,7 +33,7 @@ machine dispatch(selected: dyn FieldReader, prefix: u64, input: Packet, width: u
 requires width == 16 || width == 32
 ensures result >= 100
 {
-    FieldReader::read<width>(selected, prefix, input)
+    FieldReader::read::<width>(selected, prefix, input)
 }
 boundary trait SelectedRead {
     machine read(packet: Packet, width: u32) -> u64 reaches
@@ -58,7 +58,7 @@ requires width == 16 || width == 32
     };
     let result: u64 = SelectedRead::read(packet, width);
     let difference: u64 = result - 100;
-    transition difference == expected { true -> done() _ -> bad() }
+    transition difference == expected { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

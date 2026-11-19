@@ -1,4 +1,3 @@
-module domain::fit;
 use omega::language::core::F64::from_i32;
 use domain::model;
 use domain::model::Observations;
@@ -21,8 +20,8 @@ data Moments {
 }
 public machine fraction(role: i32, logarithm: f64, log_half: f64, hill: f64) -> f64 {
     transition role {
-        1 -> 0.0
-        2 -> 1.0
+        1 -> 0.0,
+        2 -> 1.0,
         _ -> (1.0 / (1.0 + exponential(0.0 - hill * (logarithm - log_half))))
     }
 }
@@ -32,7 +31,7 @@ machine moments(observations: @Observations, sums: @mut Moments, log_half: f64, 
     machine scan(observations: @Observations, sums: @mut Moments, log_half: f64,
                hill: f64, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.group_count {
-            true -> add(observations, sums, log_half, hill, position)
+            true -> add(observations, sums, log_half, hill, position),
             _ -> done()
         }
     }
@@ -54,7 +53,7 @@ machine squared_error(observations: @Observations, sums: @Moments, low: f64, hig
     machine scan(observations: @Observations, sums: @Moments, low: f64, high: f64,
                position: i32 in Wrapping, total: f64) -> f64 {
         transition position >= 0 && position < 32 && position < observations.group_count {
-            true -> add(observations, sums, low, high, position, total)
+            true -> add(observations, sums, low, high, position, total),
             _ -> total
         }
     }
@@ -69,7 +68,7 @@ machine consider(observations: @Observations, sums: @Moments, best: @mut Candida
                  low: f64, high: f64) {
     let error: f64 = squared_error(observations, sums, low, high);
     transition error < best.sse {
-        true -> accept(best, low, high, error)
+        true -> accept(best, low, high, error),
         _ -> done()
     }
     machine accept(best: @mut Candidate, low: f64, high: f64, error: f64) {
@@ -84,13 +83,13 @@ machine score(observations: @Observations, query: @Profile, log_half: f64, hill:
     let mut sums: Moments;
     moments(observations, @mut sums, log_half, hill);
     transition sums.uu > 1.0e-20 && sums.vv > 1.0e-20 {
-        true -> constrained(observations, query, best, @sums)
+        true -> constrained(observations, query, best, @sums),
         _ -> done()
     }
     machine constrained(observations: @Observations, query: @Profile, best: @mut Candidate, sums: @Moments) {
         transition query.fixed {
-            0 -> fixed_low(observations, query, best, sums)
-            1 -> fixed_high(observations, query, best, sums)
+            0 -> fixed_low(observations, query, best, sums),
+            1 -> fixed_high(observations, query, best, sums),
             _ -> free(observations, best, sums)
         }
     }
@@ -109,7 +108,7 @@ machine score(observations: @Observations, query: @Profile, log_half: f64, hill:
         consider(observations, sums, best, clamp((sums.uy - 100.0 * sums.uv) / sums.uu, 0.0, 100.0), 100.0);
         let determinant: f64 = sums.uu * sums.vv - sums.uv * sums.uv;
         transition determinant > 1.0e-14 {
-            true -> interior(observations, best, sums, determinant)
+            true -> interior(observations, best, sums, determinant),
             _ -> done()
         }
     }
@@ -117,7 +116,7 @@ machine score(observations: @Observations, query: @Profile, log_half: f64, hill:
         let low: f64 = (sums.uy * sums.vv - sums.vy * sums.uv) / determinant;
         let high: f64 = (sums.vy * sums.uu - sums.uy * sums.uv) / determinant;
         transition low >= 0.0 && low <= 100.0 && high >= 0.0 && high <= 100.0 {
-            true -> evaluate(observations, best, sums, low, high)
+            true -> evaluate(observations, best, sums, low, high),
             _ -> done()
         }
     }
@@ -136,8 +135,8 @@ machine sample_shape(observations: @Observations, query: @Profile,
     let t: f64 = clamp(log_half, observations.lower_log_half, observations.upper_log_half);
     let h: f64 = clamp(hill, 0.2, 5.0);
     transition query.fixed {
-        2 -> fixed_half(observations, query, h, candidate)
-        3 -> fixed_hill(observations, query, t, candidate)
+        2 -> fixed_half(observations, query, h, candidate),
+        3 -> fixed_hill(observations, query, t, candidate),
         _ -> free(observations, query, t, h, candidate)
     }
     machine fixed_half(observations: @Observations, query: @Profile, hill: f64, candidate: @mut Candidate) {
@@ -186,7 +185,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
     machine scan(observations: @Observations, query: @Profile, candidate: @Candidate,
                sums: @mut Curvature, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.group_count {
-            true -> row(observations, query, candidate, sums, position)
+            true -> row(observations, query, candidate, sums, position),
             _ -> project(observations, query, candidate, sums)
         }
     }
@@ -197,7 +196,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
         let low_basis: f64 = 1.0 - high_basis;
         let residual: f64 = observations.group_mean[position] - candidate.low * low_basis - candidate.high * high_basis;
         transition observations.group_role[position] == 0 {
-            true -> sample(observations, query, candidate, sums, position, low_basis, high_basis, residual)
+            true -> sample(observations, query, candidate, sums, position, low_basis, high_basis, residual),
             _ -> add(observations, query, candidate, sums, position, low_basis, high_basis, residual, 0.0, 0.0)
         }
     }
@@ -232,14 +231,14 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
         let low_free: bool = query.fixed != 0 && candidate.low > 0.00000001 && candidate.low < 99.99999999;
         let high_free: bool = query.fixed != 1 && candidate.high > 0.00000001 && candidate.high < 99.99999999;
         transition low_free && high_free {
-            true -> both(observations, query, candidate, sums)
+            true -> both(observations, query, candidate, sums),
             _ -> one(observations, query, candidate, sums, low_free, high_free)
         }
     }
     machine both(observations: @Observations, query: @Profile, candidate: @Candidate, sums: @mut Curvature) {
         let determinant: f64 = sums.low_low * sums.high_high - sums.low_high * sums.low_high;
         transition determinant > 1.0e-14 {
-            true -> inverse(observations, query, candidate, sums, determinant)
+            true -> inverse(observations, query, candidate, sums, determinant),
             _ -> constrain(observations, query, candidate, sums)
         }
     }
@@ -257,7 +256,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
     machine one(observations: @Observations, query: @Profile, candidate: @Candidate,
               sums: @mut Curvature, low_free: bool, high_free: bool) {
         transition low_free && sums.low_low > 1.0e-20 {
-            true -> subtract_low(observations, query, candidate, sums)
+            true -> subtract_low(observations, query, candidate, sums),
             _ -> select_high(observations, query, candidate, sums, high_free)
         }
     }
@@ -270,7 +269,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
     machine select_high(observations: @Observations, query: @Profile, candidate: @Candidate,
                       sums: @mut Curvature, high_free: bool) {
         transition high_free && sums.high_high > 1.0e-20 {
-            true -> subtract_high(observations, query, candidate, sums)
+            true -> subtract_high(observations, query, candidate, sums),
             _ -> constrain(observations, query, candidate, sums)
         }
     }
@@ -284,7 +283,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
         transition query.fixed == 2
             || (candidate.log_half <= observations.lower_log_half + 0.000000001 && sums.half_gradient < 0.0)
             || (candidate.log_half >= observations.upper_log_half - 0.000000001 && sums.half_gradient > 0.0) {
-            true -> fixed_half(observations, query, candidate, sums)
+            true -> fixed_half(observations, query, candidate, sums),
             _ -> constrain_hill(query, candidate, sums)
         }
     }
@@ -296,7 +295,7 @@ machine curvature(observations: @Observations, query: @Profile, candidate: @Cand
         transition query.fixed == 3
             || (candidate.hill <= 0.200000001 && sums.hill_gradient < 0.0)
             || (candidate.hill >= 4.999999999 && sums.hill_gradient > 0.0) {
-            true -> fixed_hill(sums)
+            true -> fixed_hill(sums),
             _ -> done()
         }
     }
@@ -316,7 +315,7 @@ machine seed_grid(observations: @Observations, query: @Profile, seed: @Candidate
         let mut candidate: Candidate;
         sample_shape(observations, query, t, h, @mut candidate);
         transition candidate.sse < best.sse {
-            true -> accept(observations, query, best, @candidate, t_count, h_count, t_position, h_position)
+            true -> accept(observations, query, best, @candidate, t_count, h_count, t_position, h_position),
             _ -> next(observations, query, best, t_count, h_count, t_position, h_position)
         }
     }
@@ -330,14 +329,14 @@ machine seed_grid(observations: @Observations, query: @Profile, seed: @Candidate
                t_count: i32 in Wrapping, h_count: i32 in Wrapping,
                t_position: i32 in Wrapping, h_position: i32 in Wrapping) {
         transition h_position < h_count {
-            true -> grid(observations, query, best, t_count, h_count, t_position, h_position + 1)
+            true -> grid(observations, query, best, t_count, h_count, t_position, h_position + 1),
             _ -> next_t(observations, query, best, t_count, h_count, t_position)
         }
     }
     machine next_t(observations: @Observations, query: @Profile, best: @mut Candidate,
                  t_count: i32 in Wrapping, h_count: i32 in Wrapping, t_position: i32 in Wrapping) {
         transition t_position < t_count {
-            true -> grid(observations, query, best, t_count, h_count, t_position + 1, 0)
+            true -> grid(observations, query, best, t_count, h_count, t_position + 1, 0),
             _ -> done()
         }
     }
@@ -352,7 +351,7 @@ machine newton(observations: @Observations, query: @Profile, best: @mut Candidat
         best.iterations = count + 1;
         transition magnitude(sums.half_gradient) < 0.0000001 * clamp(sums.half_half, 0.000000000001, 1.0e30)
             && magnitude(sums.hill_gradient) < 0.0000001 * clamp(sums.hill_hill, 0.000000000001, 1.0e30) {
-            true -> converged(best, count + 1)
+            true -> converged(best, count + 1),
             _ -> trial(observations, query, best, @sums, damping, count, 0)
         }
     }
@@ -362,7 +361,7 @@ machine newton(observations: @Observations, query: @Profile, best: @mut Candidat
         let hill_diagonal: f64 = sums.hill_hill + damping * clamp(sums.hill_hill, 1.0, 1.0e30);
         let determinant: f64 = half_diagonal * hill_diagonal - sums.half_hill * sums.half_hill;
         transition determinant > 1.0e-25 {
-            true -> step(observations, query, best, sums, half_diagonal, hill_diagonal, determinant, damping, count, attempt)
+            true -> step(observations, query, best, sums, half_diagonal, hill_diagonal, determinant, damping, count, attempt),
             _ -> retry(observations, query, best, sums, damping, count, attempt, 1.0)
         }
     }
@@ -375,7 +374,7 @@ machine newton(observations: @Observations, query: @Profile, best: @mut Candidat
         sample_shape(observations, query, best.log_half + half_step, best.hill + hill_step, @mut candidate);
         let movement: f64 = clamp(magnitude(candidate.log_half - best.log_half), magnitude(candidate.hill - best.hill), 1.0e30);
         transition candidate.sse < best.sse {
-            true -> accept(observations, query, best, @candidate, damping, count, movement)
+            true -> accept(observations, query, best, @candidate, damping, count, movement),
             _ -> retry(observations, query, best, sums, damping, count, attempt,
                         clamp(magnitude(half_step), magnitude(hill_step), 1.0e30))
         }
@@ -389,21 +388,21 @@ machine newton(observations: @Observations, query: @Profile, best: @mut Candidat
                 damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping, movement: f64) {
         transition magnitude(sums.half_gradient) < 0.0000001 * clamp(sums.half_half, 0.000000000001, 1.0e30)
             && magnitude(sums.hill_gradient) < 0.0000001 * clamp(sums.hill_hill, 0.000000000001, 1.0e30) {
-            true -> converged(best, count + 1)
+            true -> converged(best, count + 1),
             _ -> attempts(observations, query, best, sums, damping, count, attempt)
         }
     }
     machine attempts(observations: @Observations, query: @Profile, best: @mut Candidate, sums: @Curvature,
                    damping: f64, count: i32 in Wrapping, attempt: i32 in Wrapping) {
         transition attempt < 19 {
-            true -> trial(observations, query, best, sums, damping * 10.0, count, attempt + 1)
+            true -> trial(observations, query, best, sums, damping * 10.0, count, attempt + 1),
             _ -> done()
         }
     }
     machine budget(observations: @Observations, query: @Profile, best: @mut Candidate,
                  damping: f64, count: i32 in Wrapping) {
         transition count < 100 {
-            true -> iteration(observations, query, best, damping, count)
+            true -> iteration(observations, query, best, damping, count),
             _ -> done()
         }
     }
@@ -429,7 +428,7 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
         let mut candidate: Candidate;
         axis_score(observations, query, axis, @mut candidate);
         transition candidate.sse < best.sse {
-            true -> accept(observations, query, best, @candidate, lower, upper, position)
+            true -> accept(observations, query, best, @candidate, lower, upper, position),
             _ -> next(observations, query, best, lower, upper, position, best_position)
         }
     }
@@ -441,7 +440,7 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
     machine next(observations: @Observations, query: @Profile, best: @mut Candidate,
                lower: f64, upper: f64, position: i32 in Wrapping, best_position: i32 in Wrapping) {
         transition position < 16 {
-            true -> scan(observations, query, best, lower, upper, position + 1, best_position)
+            true -> scan(observations, query, best, lower, upper, position + 1, best_position),
             _ -> begin(observations, query, best, lower, upper, best_position)
         }
     }
@@ -461,7 +460,7 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
     machine iterate(observations: @Observations, query: @Profile, best: @mut Candidate,
                   search: @mut AxisSearch, count: i32 in Wrapping) {
         transition search.left_value.sse < best.sse {
-            true -> accept_left(observations, query, best, search, count)
+            true -> accept_left(observations, query, best, search, count),
             _ -> select_right(observations, query, best, search, count)
         }
     }
@@ -473,7 +472,7 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
     machine select_right(observations: @Observations, query: @Profile, best: @mut Candidate,
                        search: @mut AxisSearch, count: i32 in Wrapping) {
         transition search.right_value.sse < best.sse {
-            true -> accept_right(observations, query, best, search, count)
+            true -> accept_right(observations, query, best, search, count),
             _ -> decision(observations, query, best, search, count)
         }
     }
@@ -485,14 +484,14 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
     machine decision(observations: @Observations, query: @Profile, best: @mut Candidate,
                    search: @mut AxisSearch, count: i32 in Wrapping) {
         transition count >= 32 {
-            true -> finish(best, search, count)
+            true -> finish(best, search, count),
             _ -> narrow(observations, query, best, search, count)
         }
     }
     machine narrow(observations: @Observations, query: @Profile, best: @mut Candidate,
                  search: @mut AxisSearch, count: i32 in Wrapping) {
         transition search.left_value.sse < search.right_value.sse {
-            true -> left(observations, query, best, search, count)
+            true -> left(observations, query, best, search, count),
             _ -> right(observations, query, best, search, count)
         }
     }
@@ -519,8 +518,8 @@ machine golden(observations: @Observations, query: @Profile, best: @mut Candidat
 }
 machine optimize(observations: @Observations, query: @Profile, seed: @Candidate, best: @mut Candidate) {
     transition query.fixed {
-        2 -> half_fixed(observations, query, best)
-        3 -> hill_fixed(observations, query, best)
+        2 -> half_fixed(observations, query, best),
+        3 -> hill_fixed(observations, query, best),
         _ -> dimensions(observations, query, seed, best)
     }
     machine half_fixed(observations: @Observations, query: @Profile, best: @mut Candidate) {
@@ -531,7 +530,7 @@ machine optimize(observations: @Observations, query: @Profile, seed: @Candidate,
     }
     machine dimensions(observations: @Observations, query: @Profile, seed: @Candidate, best: @mut Candidate) {
         transition query.fixed < 0 {
-            true -> full(observations, query, seed, best)
+            true -> full(observations, query, seed, best),
             _ -> nuisance(observations, query, seed, best)
         }
     }
@@ -553,7 +552,7 @@ machine control_bound(observations: @Observations, parameter: i32, value: f64) -
     machine scan(observations: @Observations, parameter: i32, value: f64,
                position: i32 in Wrapping, sum: f64) -> f64 {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> row(observations, parameter, value, position, sum)
+            true -> row(observations, parameter, value, position, sum),
             _ -> sum
         }
     }
@@ -561,7 +560,7 @@ machine control_bound(observations: @Observations, parameter: i32, value: f64) -
               position: i32 in Wrapping, sum: f64) -> f64 {
         transition (parameter == 0 && observations.role[position] == 1)
             || (parameter == 1 && observations.role[position] == 2) {
-            true -> add(observations, parameter, value, position, sum)
+            true -> add(observations, parameter, value, position, sum),
             _ -> scan(observations, parameter, value, position + 1, sum)
         }
     }
@@ -576,13 +575,13 @@ public machine bounds(observations: @mut Observations) {
     transition { _ -> scan(observations, 0) }
     machine scan(observations: @mut Observations, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> row(observations, position)
+            true -> row(observations, position),
             _ -> finish(observations)
         }
     }
     machine row(observations: @mut Observations, position: i32 in Wrapping) {
         transition observations.role[position] == 0 {
-            true -> update(observations, position)
+            true -> update(observations, position),
             _ -> scan(observations, position + 1)
         }
     }
@@ -598,23 +597,23 @@ public machine bounds(observations: @mut Observations) {
 }
 public machine parameter(candidate: @Candidate, position: i32) -> f64 {
     transition position {
-        0 -> candidate.low
-        1 -> candidate.high
-        2 -> candidate.log_half
+        0 -> candidate.low,
+        1 -> candidate.high,
+        2 -> candidate.log_half,
         _ -> candidate.hill
     }
 }
 machine domain_edge(observations: @Observations, position: i32, side: i32) -> f64 {
     transition position {
-        2 -> log_half(observations, side)
-        3 -> hill(side)
+        2 -> log_half(observations, side),
+        3 -> hill(side),
         _ -> asymptote(side)
     }
     machine log_half(observations: @Observations, side: i32) -> f64 {
-        transition side == 0 { true -> observations.lower_log_half _ -> observations.upper_log_half }
+        transition side == 0 { true -> observations.lower_log_half, _ -> observations.upper_log_half }
     }
-    machine hill(side: i32) -> f64 { transition side == 0 { true -> 0.2 _ -> 5.0 } }
-    machine asymptote(side: i32) -> f64 { transition side == 0 { true -> 0.0 _ -> 100.0 } }
+    machine hill(side: i32) -> f64 { transition side == 0 { true -> 0.2, _ -> 5.0 } }
+    machine asymptote(side: i32) -> f64 { transition side == 0 { true -> 0.0, _ -> 100.0 } }
 }
 // A hard parameter bound does not establish a confidence endpoint. Every
 // profile must cross the nominal 95% known-sigma threshold on both sides.
@@ -625,7 +624,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
     let center: f64 = parameter(@fit.candidate, position as i32);
     let exclusion: f64 = control_bound(observations, position as i32, edge);
     transition exclusion > fit.cutoff {
-        true -> bisect(observations, fit, position, side, center, edge, 0)
+        true -> bisect(observations, fit, position, side, center, edge, 0),
         _ -> optimize_edge(observations, fit, position, side, center, edge)
     }
     machine optimize_edge(observations: @Observations, fit: @mut Fit, position: i32 in Wrapping,
@@ -634,7 +633,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
         let mut candidate: Candidate;
         optimize(observations, @query, @fit.candidate, @mut candidate);
         transition candidate.converged && candidate.sse > fit.cutoff {
-            true -> bisect(observations, fit, position, side, center, edge, 0)
+            true -> bisect(observations, fit, position, side, center, edge, 0),
             _ -> false
         }
     }
@@ -643,7 +642,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
         let middle: f64 = (inside + outside) / 2.0;
         let exclusion: f64 = control_bound(observations, position as i32, middle);
         transition exclusion > fit.cutoff && iteration < 22 {
-            true -> bisect(observations, fit, position, side, inside, middle, iteration + 1)
+            true -> bisect(observations, fit, position, side, inside, middle, iteration + 1),
             _ -> optimize_middle(observations, fit, position, side, inside, outside, middle, iteration)
         }
     }
@@ -653,7 +652,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
         let mut candidate: Candidate;
         optimize(observations, @query, @fit.candidate, @mut candidate);
         transition candidate.converged {
-            true -> classify(observations, fit, position, side, inside, outside, middle, @candidate, iteration)
+            true -> classify(observations, fit, position, side, inside, outside, middle, @candidate, iteration),
             _ -> false
         }
     }
@@ -661,7 +660,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
                    side: i32, inside: f64, outside: f64, middle: f64,
                    candidate: @Candidate, iteration: i32 in Wrapping) -> bool {
         transition iteration >= 22 {
-            true -> capacity(fit, position, side, middle, candidate.sse)
+            true -> capacity(fit, position, side, middle, candidate.sse),
             _ -> branch(observations, fit, position, side, inside, outside, middle, candidate.sse, iteration)
         }
     }
@@ -669,14 +668,14 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
                  side: i32, inside: f64, outside: f64, middle: f64, error: f64,
                  iteration: i32 in Wrapping) -> bool {
         transition error > fit.cutoff {
-            true -> bisect(observations, fit, position, side, inside, middle, iteration + 1)
+            true -> bisect(observations, fit, position, side, inside, middle, iteration + 1),
             _ -> bisect(observations, fit, position, side, middle, outside, iteration + 1)
         }
     }
     machine capacity(fit: @mut Fit, position: i32 in Wrapping, side: i32, value: f64, error: f64) -> bool {
         let slot: i32 in Wrapping = position * 2 + side as i32 in Wrapping;
         transition position >= 0 && position < 4 && slot >= 0 && slot < 8 {
-            true -> store(fit, position, slot, side, value, error)
+            true -> store(fit, position, slot, side, value, error),
             _ -> false
         }
     }
@@ -684,7 +683,7 @@ machine profile_endpoint(observations: @Observations, fit: @mut Fit,
                 side: i32, value: f64, error: f64) -> bool {
         fit.endpoint_sse[slot] = error;
         transition side == 0 {
-            true -> lower(fit, position, value)
+            true -> lower(fit, position, value),
             _ -> upper(fit, position, value)
         }
     }
@@ -706,44 +705,44 @@ public machine fit_curve(observations: @mut Observations, fit: @mut Fit) {
     optimize(observations, @query, @seed, @mut fit.candidate);
     fit.cutoff = fit.candidate.sse + 3.841458820694124 * observations.sigma * observations.sigma;
     transition fit.candidate.converged {
-        true -> amplitude(observations, fit)
+        true -> amplitude(observations, fit),
         _ -> done()
     }
     machine amplitude(observations: @Observations, fit: @mut Fit) {
         transition magnitude(fit.candidate.high - fit.candidate.low) > 5.0 * observations.sigma {
-            true -> direction(observations, fit)
+            true -> direction(observations, fit),
             _ -> flat(fit)
         }
     }
     machine direction(observations: @Observations, fit: @mut Fit) {
         let signed_amplitude: f64 = (fit.candidate.high - fit.candidate.low) * F64::from_i32(observations.direction);
         transition signed_amplitude > 0.0 {
-            true -> profiles(observations, fit, 0, 0)
+            true -> profiles(observations, fit, 0, 0),
             _ -> wrong_direction(fit)
         }
     }
     machine profiles(observations: @Observations, fit: @mut Fit, position: i32 in Wrapping, side: i32) {
         transition position >= 0 && position < 4 {
-            true -> endpoint(observations, fit, position, side)
+            true -> endpoint(observations, fit, position, side),
             _ -> reconstruct(observations, fit, 0)
         }
     }
     machine endpoint(observations: @Observations, fit: @mut Fit, position: i32 in Wrapping, side: i32) {
         let closed: bool = profile_endpoint(observations, fit, position, side);
         transition closed {
-            true -> next(observations, fit, position, side)
+            true -> next(observations, fit, position, side),
             _ -> unidentified(fit)
         }
     }
     machine next(observations: @Observations, fit: @mut Fit, position: i32 in Wrapping, side: i32) {
         transition side == 0 {
-            true -> profiles(observations, fit, position, 1)
+            true -> profiles(observations, fit, position, 1),
             _ -> profiles(observations, fit, position + 1, 0)
         }
     }
     machine reconstruct(observations: @Observations, fit: @mut Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> row(observations, fit, position)
+            true -> row(observations, fit, position),
             _ -> success(fit)
         }
     }
@@ -770,26 +769,26 @@ machine group_replicates(observations: @mut Observations) {
     transition { _ -> row(observations, 0) }
     machine row(observations: @mut Observations, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
-            true -> search(observations, position, 0)
+            true -> search(observations, position, 0),
             _ -> done()
         }
     }
     machine search(observations: @mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition group >= 0 && group < 32 {
-            true -> capacity(observations, position, group)
+            true -> capacity(observations, position, group),
             _ -> done()
         }
     }
     machine capacity(observations: @mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition group < observations.group_count {
-            true -> compare(observations, position, group)
+            true -> compare(observations, position, group),
             _ -> initialize(observations, position, group)
         }
     }
     machine compare(observations: @mut Observations, position: i32 in Wrapping, group: i32 in Wrapping) {
         transition observations.group_dose[group] == observations.dose[position]
             && observations.group_role[group] == observations.role[position] {
-            true -> accumulate(observations, position, group)
+            true -> accumulate(observations, position, group),
             _ -> search(observations, position, group + 1)
         }
     }

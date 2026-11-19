@@ -1,4 +1,3 @@
-module io::report;
 use omega_language_std::Console;
 use domain::tables;
 use domain::tables::Inference;
@@ -6,12 +5,12 @@ machine decimal(value: u64 in Wrapping) reaches Console {
     transition { _ -> scale(value, 1) }
     machine scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value / 10 {
-            true -> scale(value, divisor * 10)
+            true -> scale(value, divisor * 10),
             false -> emit(value, divisor)
         }
     }
     machine emit(value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        transition divisor > 0 { true -> digit(value, divisor) false -> done() }
+        transition divisor > 0 { true -> digit(value, divisor), false -> done() }
     }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {

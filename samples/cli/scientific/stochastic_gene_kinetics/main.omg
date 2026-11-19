@@ -18,17 +18,17 @@ data Main {
 }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let first: ByteRead = block Console::read_byte();
-    transition first { ByteRead::Byte { value } -> digit(main, value) _ -> invalid(main) }
+    transition first { ByteRead::Byte { value } -> digit(main, value), _ -> invalid(main) }
     machine digit(main: @mut Main, value: i32) {
-        transition value >= 48 && value <= 57 { true -> newline(main, value) _ -> invalid(main) }
+        transition value >= 48 && value <= 57 { true -> newline(main, value), _ -> invalid(main) }
     }
     machine newline(main: @mut Main, value: i32) requires value >= 48 && value <= 57 {
         main.mode = (value - 48) as u64;
         let ending: ByteRead = block Console::read_byte();
-        transition ending { ByteRead::Byte { value } -> ending(main, value) _ -> invalid(main) }
+        transition ending { ByteRead::Byte { value } -> ending(main, value), _ -> invalid(main) }
     }
     machine ending(main: @mut Main, value: i32) {
-        transition value == 10 { true -> configure(main) _ -> invalid(main) }
+        transition value == 10 { true -> configure(main), _ -> invalid(main) }
     }
     machine configure(main: @mut Main) {
         main.model.seed = 1;
@@ -36,14 +36,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.model.decay_x = 1.0; main.model.decay_y = 0.0;
         main.model.budget = 100;
         transition main.mode {
-            1 -> gene(main)
-            8 -> gene(main)
-            9 -> negative_decay(main)
-            3 -> negative_rate(main)
-            4 -> negative_population(main)
-            5 -> overflow_case(main)
-            6 -> budget_case(main)
-            7 -> alternate_seed(main)
+            1 -> gene(main),
+            8 -> gene(main),
+            9 -> negative_decay(main),
+            3 -> negative_rate(main),
+            4 -> negative_population(main),
+            5 -> overflow_case(main),
+            6 -> budget_case(main),
+            7 -> alternate_seed(main),
             _ -> begin(main)
         }
     }
@@ -59,30 +59,30 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine alternate_seed(main: @mut Main) { main.model.seed = 314159; transition { _ -> begin(main) } }
     machine begin(main: @mut Main) {
         let accepted: bool = valid(@main.model, main.initial_x);
-        transition accepted { true -> initialize(main) _ -> invalid_model(main) }
+        transition accepted { true -> initialize(main), _ -> invalid_model(main) }
     }
     machine initialize(main: @mut Main) {
         main.model.x = narrow_i64_to_u64_saturating(main.initial_x);
         transition { _ -> select(main) }
     }
     machine select(main: @mut Main) {
-        transition main.mode == 2 || main.mode == 8 { true -> trace(main) _ -> select_test(main) }
+        transition main.mode == 2 || main.mode == 8 { true -> trace(main), _ -> select_test(main) }
     }
     machine select_test(main: @mut Main) {
-        transition main.mode == 5 || main.mode == 6 { true -> single_step(main) _ -> ensemble(main) }
+        transition main.mode == 5 || main.mode == 6 { true -> single_step(main), _ -> ensemble(main) }
     }
     machine single_step(main: @mut Main) {
         advance(@mut main.model);
         transition main.model.status {
-            2 -> exhausted(main)
-            3 -> overflow(main)
+            2 -> exhausted(main),
+            3 -> overflow(main),
             _ -> failed(main)
         }
     }
     machine failed(main: @mut Main) { Console::write_line("unexpected control result"); ProcessExit::exit_process(5); }
     machine trace(main: @mut Main) {
         main.model.budget = 20; main.model.seed = 100000;
-        transition main.mode == 8 { true -> gene_header(main) _ -> immigration_header(main) }
+        transition main.mode == 8 { true -> gene_header(main), _ -> immigration_header(main) }
     }
     machine gene_header(main: @mut Main) {
         Console::write_line("trajectory seed=100000 model=gene_expression");
@@ -95,9 +95,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine trace_step(main: @mut Main) {
         advance(@mut main.model);
         transition main.model.status {
-            0 -> trace_event(main)
-            1 -> trace_done(main)
-            2 -> exhausted(main)
+            0 -> trace_event(main),
+            1 -> trace_done(main),
+            2 -> exhausted(main),
             _ -> overflow(main)
         }
     }
@@ -117,7 +117,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine ensemble(main: @mut Main) { transition { _ -> replicate(main) } }
     machine replicate(main: @mut Main) {
-        transition main.replicate < 1024 { true -> reset(main) _ -> summarize(main) }
+        transition main.replicate < 1024 { true -> reset(main), _ -> summarize(main) }
     }
     machine reset(main: @mut Main) {
         main.model.time = 0.0; main.model.x = 0; main.model.y = 0;
@@ -127,9 +127,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine step(main: @mut Main) {
         advance(@mut main.model);
         transition main.model.status {
-            0 -> step(main)
-            1 -> collect(main)
-            2 -> exhausted(main)
+            0 -> step(main),
+            1 -> collect(main),
+            2 -> exhausted(main),
             _ -> overflow(main)
         }
     }
@@ -139,9 +139,9 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let sum_y_next: u64 in Saturating = (main.sum_y as u64 in Saturating) + (main.model.y as u64 in Saturating); main.sum_y = sum_y_next as u64;
         let sum_y2_next: u64 in Saturating = (main.sum_y2 as u64 in Saturating) + (main.model.y as u64 in Saturating) * (main.model.y as u64 in Saturating); main.sum_y2 = sum_y2_next as u64;
         transition main.model.x {
-            0 -> bucket_zero(main)
-            1 -> bucket_one(main)
-            2 -> bucket_two(main)
+            0 -> bucket_zero(main),
+            1 -> bucket_one(main),
+            2 -> bucket_two(main),
             _ -> bucket_three(main)
         }
     }

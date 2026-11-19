@@ -24,7 +24,7 @@ machine unselected_dependency(builder: @mut Build) {
 machine requests(builder: @mut Build) {
     Build::application(builder, project_name());
     transition true {
-        true -> selected_dependency(builder)
+        true -> selected_dependency(builder),
         false -> unselected_dependency(builder)
     }
 }

@@ -1,9 +1,8 @@
-module domain::geometry;
 use domain::model;
 use domain::model::Polygon;
 use domain::model::Partition;
 public machine absolute(value: f64) -> f64 {
-    transition value < 0.0 { true -> (0.0 - value) false -> (value) }
+    transition value < 0.0 { true -> (0.0 - value), false -> (value) }
 }
 public machine distance(x: f64, y: f64, site_x: f64, site_y: f64) -> f64 {
     let horizontal: f64 = x - site_x;
@@ -15,7 +14,7 @@ public machine area(polygon: @Polygon) -> f64 {
     machine edge(polygon: @Polygon, index: u64, sum: f64) -> f64 {
         let count: u64 = polygon.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
-            true -> add(polygon, index, sum, count)
+            true -> add(polygon, index, sum, count),
             false -> (sum * 0.5)
         }
     }
@@ -34,7 +33,7 @@ public machine boundary_valid(polygon: @Polygon) -> bool {
     machine edge(polygon: @Polygon, index: u64) -> bool {
         let count: u64 = polygon.count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
-            true -> vertex(polygon, index, (index + 1) % count, 0)
+            true -> vertex(polygon, index, (index + 1) % count, 0),
             false -> (true)
         }
     }
@@ -42,7 +41,7 @@ public machine boundary_valid(polygon: @Polygon) -> bool {
     requires index < 32 && next < 32
     {
         transition other < polygon.count && other < 32 {
-            true -> test(polygon, index, next, other)
+            true -> test(polygon, index, next, other),
             false -> advance(polygon, index)
         }
     }
@@ -52,7 +51,7 @@ public machine boundary_valid(polygon: @Polygon) -> bool {
         let cross: f64 = (polygon.x[next] - polygon.x[index]) * (polygon.y[other] - polygon.y[index])
             - (polygon.y[next] - polygon.y[index]) * (polygon.x[other] - polygon.x[index]);
         transition other == index || other == next || cross > 0.0 {
-            true -> vertex(polygon, index, next, other + 1)
+            true -> vertex(polygon, index, next, other + 1),
             false -> (false)
         }
     }
@@ -66,7 +65,7 @@ public machine sites_valid(partition: @Partition) -> bool {
     transition { _ -> site(partition, 0, 0) }
     machine site(partition: @Partition, index: u64, edge: u64) -> bool {
         transition index < partition.site_count && index < 8 {
-            true -> boundary(partition, index, edge)
+            true -> boundary(partition, index, edge),
             false -> (true)
         }
     }
@@ -75,7 +74,7 @@ public machine sites_valid(partition: @Partition) -> bool {
     {
         let count: u64 = partition.boundary.count;
         transition count > 0 && count <= 32 && edge < count && edge < 32 {
-            true -> inside(partition, index, edge, (edge + 1) % count)
+            true -> inside(partition, index, edge, (edge + 1) % count),
             false -> duplicate(partition, index, 0)
         }
     }
@@ -85,7 +84,7 @@ public machine sites_valid(partition: @Partition) -> bool {
         let cross: f64 = (partition.boundary.x[next] - partition.boundary.x[edge]) * (partition.site_y[index] - partition.boundary.y[edge])
             - (partition.boundary.y[next] - partition.boundary.y[edge]) * (partition.site_x[index] - partition.boundary.x[edge]);
         transition cross >= 0.0 {
-            true -> site(partition, index, edge + 1)
+            true -> site(partition, index, edge + 1),
             false -> (false)
         }
     }
@@ -93,7 +92,7 @@ public machine sites_valid(partition: @Partition) -> bool {
     requires index < 8
     {
         transition other < index && other < 8 {
-            true -> distinct(partition, index, other)
+            true -> distinct(partition, index, other),
             false -> site(partition, index + 1, 0)
         }
     }
@@ -101,7 +100,7 @@ public machine sites_valid(partition: @Partition) -> bool {
     requires index < 8
     {
         transition partition.site_x[index] != partition.site_x[other] || partition.site_y[index] != partition.site_y[other] {
-            true -> duplicate(partition, index, other + 1)
+            true -> duplicate(partition, index, other + 1),
             false -> (false)
         }
     }

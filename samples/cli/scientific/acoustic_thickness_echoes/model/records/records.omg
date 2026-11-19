@@ -1,4 +1,3 @@
-module model::records;
 // Private bounded acquisition and report storage. Zero status is invalid.
 public data Acquisition {
     layers: u64 in Saturating;

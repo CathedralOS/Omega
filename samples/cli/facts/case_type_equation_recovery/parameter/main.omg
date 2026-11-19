@@ -9,7 +9,7 @@ data Value<T> [copy]
 }
 machine extract<T>(v: Value<T>) -> T {
     match v {
-        Value::Integer { value } -> value
+        Value::Integer { value } -> value,
         Value::Boolean { value } -> value
     }
 }
@@ -21,7 +21,7 @@ machine main() crashes Trap {
         && probe(Value::Integer { value: 9 }, Value::Boolean { value: true }, 9)
         && !probe(Value::Integer { value: 9 }, Value::Boolean { value: true }, 7)
         && !probe(Value::Integer { value: 7 }, Value::Boolean { value: false }, 7) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

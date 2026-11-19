@@ -7,13 +7,13 @@ machine read_guarded(view: @[u64], flag: bool) -> i32
     requires view.len >= 3
 {
     let v: @[u64] = match flag {
-        true -> view
+        true -> view,
         false -> view
     };
     let elem: u64 = v[2];
     let diff: u64 = v.len - 3u64;
     transition elem == 30u64 && diff == 1u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() -> i32 { 0 }
@@ -25,7 +25,7 @@ machine main() crashes Trap {
     let view: @[u64] = @items[..];
     let res: i32 = read_guarded(view, true);
     transition res == 0 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() {}

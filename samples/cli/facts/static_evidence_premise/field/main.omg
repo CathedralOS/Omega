@@ -39,9 +39,9 @@ data Holder [copy] { kept: bool; }
 
 machine main() crashes Trap {
     let holder: Holder = Holder { kept: true };
-    let direct: bool = project<YesKept>(holder.kept);
+    let direct: bool = project::<YesKept>(holder.kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

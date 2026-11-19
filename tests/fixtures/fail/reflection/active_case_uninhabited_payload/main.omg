@@ -22,14 +22,14 @@ requires Kind == u64
 machine main() crashes Trap {
     let mut outcome: Outcome<u64, u8> = Outcome::Value { value: 37u64 };
     let mut calls: u64 = 0u64;
-    reflect::visit_active_fields_mut<Outcome<u64, u8>, report_case, edit_field>(@mut outcome, @mut calls);
+    reflect::visit_active_fields_mut::<Outcome<u64, u8>, report_case, edit_field>(@mut outcome, @mut calls);
     transition outcome {
-        Outcome::Value { value } -> verify(value, calls)
+        Outcome::Value { value } -> verify(value, calls),
         Outcome::Error { cause } -> wrong_case()
     }
     machine wrong_case() { crash Trap; }
     machine verify(value: u64, calls: u64) crashes Trap {
-        transition value == 54u64 && calls == 2u64 { true -> done() _ -> wrong() }
+        transition value == 54u64 && calls == 2u64 { true -> done(), _ -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }

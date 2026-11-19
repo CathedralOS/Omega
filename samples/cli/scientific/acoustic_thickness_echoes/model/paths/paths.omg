@@ -1,4 +1,3 @@
-module model::paths;
 // Normal-incidence sample model: each layer contributes floor(2000*d/v)
 // nanoseconds. Enumerate primary, double and triple round trips at each
 // boundary. A match window is inclusive; overlapping paths retain all matches.
@@ -9,7 +8,7 @@ public machine build_boundaries(acquisition: @mut Acquisition) {
     transition { _ -> step(acquisition, 0, 0) }
     machine step(acquisition: @mut Acquisition, layer: u64 in Saturating, cumulative: i64 in Saturating) {
         transition layer < acquisition.layers && layer < 4 {
-            true -> store(acquisition, layer, cumulative)
+            true -> store(acquisition, layer, cumulative),
             false -> done()
         }
     }
@@ -17,7 +16,7 @@ public machine build_boundaries(acquisition: @mut Acquisition) {
     requires layer < 4 {
         let speed: i64 in Saturating = acquisition.speeds[layer];
         transition speed > 0 {
-            true -> calculate(acquisition, layer, cumulative, speed)
+            true -> calculate(acquisition, layer, cumulative, speed),
             false -> done()
         }
     }
@@ -37,7 +36,7 @@ public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating)
     transition { _ -> boundary(acquisition, relative, 0, 0, result) }
     machine boundary(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, result: EchoResult) -> EchoResult {
         transition layer < acquisition.layers && layer < 4 {
-            true -> path(acquisition, relative, layer, previous, 1, result)
+            true -> path(acquisition, relative, layer, previous, 1, result),
             false -> (result)
         }
     }
@@ -46,7 +45,7 @@ public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating)
         let predicted: i64 in Saturating = acquisition.boundaries[layer] * order;
         let residual: i64 in Saturating = relative - predicted;
         transition residual >= 0 - acquisition.window && residual <= acquisition.window {
-            true -> matched(acquisition, relative, layer, previous, order, result)
+            true -> matched(acquisition, relative, layer, previous, order, result),
             false -> advance(acquisition, relative, layer, previous, order, result)
         }
     }
@@ -61,7 +60,7 @@ public machine match_echo(acquisition: @Acquisition, arrival: i64 in Saturating)
     machine advance(acquisition: @Acquisition, relative: i64 in Saturating, layer: u64 in Saturating, previous: i64 in Saturating, order: i64 in Saturating, result: EchoResult) -> EchoResult
     requires layer < 4 {
         transition order < 3 {
-            true -> path(acquisition, relative, layer, previous, order + 1, result)
+            true -> path(acquisition, relative, layer, previous, order + 1, result),
             false -> boundary(acquisition, relative, layer + 1, acquisition.boundaries[layer], result)
         }
     }

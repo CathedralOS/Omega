@@ -18,7 +18,7 @@ public machine checker_add_match(checker: @mut Checker, syntax: @SyntaxTrees, ha
 crashes Trap
 {
     transition checker.match_count < 16 {
-        true -> write(checker, checker.match_count, handle)
+        true -> write(checker, checker.match_count, handle),
         _ -> full(checker, syntax, handle)
     }
 
@@ -60,7 +60,7 @@ crashes Trap
         checking: bool
     ) {
         transition remaining > 0 && remaining <= 16 {
-            true -> record(checker, syntax, resolution, typing, handle, remaining - 1, checking)
+            true -> record(checker, syntax, resolution, typing, handle, remaining - 1, checking),
             _ -> done()
         }
     }
@@ -117,7 +117,7 @@ crashes Trap
     ) {
         let begins: u64 in Trapping = event_handle(syntax, expression, event);
         transition begins == handle {
-            true -> fire(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking)
+            true -> fire(checker, syntax, resolution, typing, handle, match_handle, expression, index, event, checking),
             _ -> keep(checker, index, event)
         }
     }
@@ -140,7 +140,7 @@ crashes Trap
 
     machine keep(checker: @mut Checker, index: u64, event: u64 in Trapping) {
         transition index < 16 {
-            true -> write(checker, index, event)
+            true -> write(checker, index, event),
             _ -> done()
         }
     }
@@ -163,7 +163,7 @@ crashes Trap
     let offset: u64 in Trapping = event / 2;
     let valued: bool = event % 2 == 1;
     transition offset < expression.count {
-        true -> arm(syntax, expression, offset, valued)
+        true -> arm(syntax, expression, offset, valued),
         _ -> at(18446744073709551615)
     }
 
@@ -171,7 +171,7 @@ crashes Trap
         let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
         let value: Expression = syntax_trees_expression(syntax, arm.target);
         transition valued || arm.kind == ArmPatternKind::Wildcard {
-            true -> at(value.first_row)
+            true -> at(value.first_row),
             _ -> pattern(syntax, arm)
         }
     }
@@ -206,7 +206,7 @@ crashes Trap
     let valued: bool = event % 2 == 1;
     let held: bool = holds_match(checker, match_handle);
     transition valued {
-        true -> selected(checker, syntax, resolution, typing, expression, offset, held)
+        true -> selected(checker, syntax, resolution, typing, expression, offset, held),
         _ -> begun(checker, syntax, resolution, typing, match_handle, expression, offset, held, checking)
     }
 
@@ -222,7 +222,7 @@ crashes Trap
         checking: bool
     ) {
         transition offset == 0 {
-            true -> opened(checker, match_handle, expression)
+            true -> opened(checker, match_handle, expression),
             _ -> following(checker, syntax, resolution, typing, match_handle, expression, offset, held, checking)
         }
     }
@@ -230,7 +230,7 @@ crashes Trap
     machine opened(checker: @mut Checker, match_handle: u64 in Trapping, expression: Expression) {
         let joined: bool = save_zone(checker, match_handle + 1);
         transition joined {
-            true -> unreached(checker, match_handle, expression)
+            true -> unreached(checker, match_handle, expression),
             _ -> overflow(checker, expression)
         }
     }
@@ -239,7 +239,7 @@ crashes Trap
         unreach_saved(checker);
         let saved: bool = save_zone(checker, match_handle + 1);
         transition saved {
-            true -> done()
+            true -> done(),
             _ -> half_saved(checker, expression)
         }
     }
@@ -262,7 +262,7 @@ crashes Trap
         checking: bool
     ) {
         transition held {
-            true -> passed_over(checker, syntax, resolution, typing, match_handle, expression, offset - 1, checking)
+            true -> passed_over(checker, syntax, resolution, typing, match_handle, expression, offset - 1, checking),
             _ -> done()
         }
     }
@@ -287,7 +287,7 @@ crashes Trap
 
     machine selected(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, offset: u64 in Trapping, held: bool) {
         transition held {
-            true -> chosen(checker, syntax, resolution, typing, expression, offset)
+            true -> chosen(checker, syntax, resolution, typing, expression, offset),
             _ -> done()
         }
     }
@@ -310,7 +310,7 @@ machine checker_pattern_value(checker: @Checker, arm: TransitionArm) -> Value
 crashes Trap
 {
     transition arm.kind == ArmPatternKind::Literal || arm.kind == ArmPatternKind::Case {
-        true -> literal(checker, arm)
+        true -> literal(checker, arm),
         _ -> unknown()
     }
 
@@ -334,7 +334,7 @@ crashes Trap
     let expression: Expression = syntax_trees_expression(syntax, handle);
     let held: bool = holds_match(checker, handle);
     transition held {
-        true -> closed(checker, syntax, resolution, typing, handle, expression, checking)
+        true -> closed(checker, syntax, resolution, typing, handle, expression, checking),
         _ -> untracked(checker, typing, handle)
     }
 
@@ -369,7 +369,7 @@ crashes Trap
     let arm: TransitionArm = syntax_trees_match_arm(syntax, expression.first + offset);
     let value: Value = value_at(checker, arm.target);
     transition checking {
-        true -> qualified(checker, syntax, resolution, typing, match_handle, offset, arm, value)
+        true -> qualified(checker, syntax, resolution, typing, match_handle, offset, arm, value),
         _ -> joined(checker, match_handle, offset, value)
     }
 
@@ -392,7 +392,7 @@ crashes Trap
     machine joined(checker: @mut Checker, match_handle: u64 in Trapping, offset: u64 in Trapping, value: Value) {
         join_arms(checker);
         transition offset == 0 {
-            true -> first(checker, match_handle, value)
+            true -> first(checker, match_handle, value),
             _ -> widened(checker, match_handle, value)
         }
     }
@@ -414,7 +414,7 @@ machine holds_match(checker: @Checker, match_handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
-        true -> owners(checker, match_handle, checker.saved_count - 2)
+        true -> owners(checker, match_handle, checker.saved_count - 2),
         _ -> answer(false)
     }
 
@@ -437,7 +437,7 @@ machine unreach_saved(checker: @mut Checker)
 crashes Trap
 {
     transition checker.saved_count > 0 && checker.saved_count <= 8 {
-        true -> mark(checker, checker.saved_count - 1)
+        true -> mark(checker, checker.saved_count - 1),
         _ -> invalid()
     }
 
@@ -459,7 +459,7 @@ machine join_arms(checker: @mut Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
-        true -> join(checker, checker.saved_count - 2)
+        true -> join(checker, checker.saved_count - 2),
         _ -> invalid()
     }
 
@@ -487,7 +487,7 @@ machine checker_take_join(checker: @mut Checker)
 crashes Trap
 {
     transition checker.saved_count >= 2 && checker.saved_count <= 8 {
-        true -> take(checker, checker.saved_count - 2)
+        true -> take(checker, checker.saved_count - 2),
         _ -> invalid()
     }
 

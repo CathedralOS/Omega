@@ -1,4 +1,3 @@
-module planner;
 use model;
 // All 4^4 choices are exhausted: 0/1 fresh bars, 2 remnant, 3 unfulfilled.
 // Objective: maximum count, maximum useful length, minimum fresh bars,
@@ -15,7 +14,7 @@ public machine solve(orders: @model::Orders, best: @mut model::Plan) {
     transition { _ -> candidate(orders, best, 0) }
     machine candidate(orders: @model::Orders, best: @mut model::Plan, code: i32 in Wrapping) {
         transition code < 256 {
-            true -> evaluate(orders, best, code)
+            true -> evaluate(orders, best, code),
             _ -> finished()
         }
     }
@@ -31,7 +30,7 @@ public machine solve(orders: @model::Orders, best: @mut model::Plan) {
         trial.counts = [0,0,0];
         let feasible: bool = fill(orders, @mut trial, code, 0);
         transition feasible {
-            true -> compare(orders, best, code, @trial)
+            true -> compare(orders, best, code, @trial),
             _ -> candidate(orders, best, code + 1)
         }
     }
@@ -40,7 +39,7 @@ public machine solve(orders: @model::Orders, best: @mut model::Plan) {
             (trial.fulfilled == best.fulfilled && trial.useful > best.useful) ||
             (trial.fulfilled == best.fulfilled && trial.useful == best.useful && trial.fresh < best.fresh) ||
             (trial.fulfilled == best.fulfilled && trial.useful == best.useful && trial.fresh == best.fresh && trial.opened < best.opened) {
-            true -> replace(orders, best, code, trial)
+            true -> replace(orders, best, code, trial),
             _ -> equal(orders, best, code, trial)
         }
     }
@@ -57,7 +56,7 @@ public machine solve(orders: @model::Orders, best: @mut model::Plan) {
     }
     machine equal(orders: @model::Orders, best: @mut model::Plan, code: i32 in Wrapping, trial: @model::Plan) {
         transition trial.fulfilled == best.fulfilled && trial.useful == best.useful && trial.fresh == best.fresh && trial.opened == best.opened {
-            true -> tied(orders, best, code)
+            true -> tied(orders, best, code),
             _ -> candidate(orders, best, code + 1)
         }
     }
@@ -70,13 +69,13 @@ public machine solve(orders: @model::Orders, best: @mut model::Plan) {
 
 machine fill(orders: @model::Orders, trial: @mut model::Plan, remaining: i32 in Wrapping, item: i32 in Wrapping) -> bool {
     transition item >= 0 && item < 4 {
-        true -> choose(orders, trial, remaining, item)
+        true -> choose(orders, trial, remaining, item),
         _ -> stocks(orders, trial, 0)
     }
     machine choose(orders: @model::Orders, trial: @mut model::Plan, remaining: i32 in Wrapping, item: i32 in Wrapping) -> bool {
         let source: i32 in Wrapping = remaining % 4;
         transition source >= 0 && source < 3 && item >= 0 && item < 4 {
-            true -> cut(orders, trial, remaining, item, source)
+            true -> cut(orders, trial, remaining, item, source),
             _ -> fill(orders, trial, remaining / 4, item + 1)
         }
     }
@@ -84,7 +83,7 @@ machine fill(orders: @model::Orders, trial: @mut model::Plan, remaining: i32 in 
                item: i32 in Wrapping, source: i32 in Wrapping) -> bool {
         let order_index: i32 in Wrapping = item + 3;
         transition order_index >= 3 && order_index < 7 {
-            true -> add(orders, trial, remaining, item, source, order_index)
+            true -> add(orders, trial, remaining, item, source, order_index),
             _ -> false
         }
     }
@@ -100,31 +99,31 @@ machine fill(orders: @model::Orders, trial: @mut model::Plan, remaining: i32 in 
 
 machine stocks(orders: @model::Orders, trial: @mut model::Plan, source: i32 in Wrapping) -> bool {
     transition source >= 0 && source < 3 {
-        true -> length(orders, trial, source)
+        true -> length(orders, trial, source),
         _ -> true
     }
     machine length(orders: @model::Orders, trial: @mut model::Plan, source: i32 in Wrapping) -> bool {
         transition source == 2 {
-            true -> fits(orders, trial, source, orders.values[1])
+            true -> fits(orders, trial, source, orders.values[1]),
             _ -> fits(orders, trial, source, orders.values[0])
         }
     }
     machine fits(orders: @model::Orders, trial: @mut model::Plan, source: i32 in Wrapping, capacity: i32 in Wrapping) -> bool {
         transition trial.loads[source] <= capacity {
-            true -> used(orders, trial, source, capacity)
+            true -> used(orders, trial, source, capacity),
             _ -> false
         }
     }
     machine used(orders: @model::Orders, trial: @mut model::Plan, source: i32 in Wrapping, capacity: i32 in Wrapping) -> bool {
         transition trial.counts[source] > 0 {
-            true -> opened(orders, trial, source, capacity)
+            true -> opened(orders, trial, source, capacity),
             _ -> stocks(orders, trial, source + 1)
         }
     }
     machine opened(orders: @model::Orders, trial: @mut model::Plan, source: i32 in Wrapping, capacity: i32 in Wrapping) -> bool {
         trial.opened = trial.opened + capacity;
         transition source < 2 {
-            true -> fresh(orders, trial, source)
+            true -> fresh(orders, trial, source),
             _ -> stocks(orders, trial, source + 1)
         }
     }

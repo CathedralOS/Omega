@@ -1,5 +1,4 @@
 use omega::language::core::ProcessExit;
-module domain::report;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
@@ -12,14 +11,14 @@ requires value >= 0 && value <= 99999 {
     transition { _ -> digit(value, 10000, false) }
     machine digit(value: i32, divisor: i32, started: bool) {
         transition divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
-            true -> decide(value, divisor, started)
+            true -> decide(value, divisor, started),
             _ -> done()
         }
     }
     machine decide(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 && value >= 0 && value <= 99999 {
         transition started || value >= divisor || divisor == 1 {
-            true -> emit(value, divisor)
+            true -> emit(value, divisor),
             _ -> next(value, divisor, started)
         }
     }
@@ -31,7 +30,7 @@ requires value >= 0 && value <= 99999 {
     machine next(value: i32, divisor: i32, started: bool)
     requires divisor >= 1 && divisor <= 10000 {
         transition divisor > 1 {
-            true -> digit(value, divisor / 10, started)
+            true -> digit(value, divisor / 10, started),
             _ -> done()
         }
     }
@@ -45,7 +44,7 @@ invokes Console
     transition { _ -> bytes(stream, records, maximum, 0) }
     machine bytes(stream: @SensorStream, records: @SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < stream.length && index < 53 {
-            true -> byte(stream, records, maximum, index)
+            true -> byte(stream, records, maximum, index),
             _ -> reconstructed(stream, records, maximum)
         }
     }
@@ -62,7 +61,7 @@ invokes Console
     }
     machine values(stream: @SensorStream, records: @SensorBlock, maximum: i32, index: i32) {
         transition index >= 0 && index < records.count && index < 16 {
-            true -> value(stream, records, maximum, index)
+            true -> value(stream, records, maximum, index),
             _ -> sizes(stream, records, maximum)
         }
     }
@@ -70,7 +69,7 @@ invokes Console
     requires index >= 0 && index < 16 {
         let value: i32 = records.values[index];
         transition value >= 0 && value <= 4095 {
-            true -> emit_value(stream, records, maximum, index, value)
+            true -> emit_value(stream, records, maximum, index, value),
             _ -> failure()
         }
     }
@@ -83,7 +82,7 @@ invokes Console
     machine sizes(stream: @SensorStream, records: @SensorBlock, maximum: i32) {
         Console::write_byte(10);
         transition records.count >= 1 && records.count <= 16 && stream.length >= 6 && stream.length <= 53 && records.tolerance >= 0 && records.tolerance <= 7 {
-            true -> metrics(stream, records, maximum)
+            true -> metrics(stream, records, maximum),
             _ -> failure()
         }
     }
@@ -94,7 +93,7 @@ invokes Console
         Console::write("worst_bytes: "); number(5 + records.count * 3); Console::write_byte(10);
         Console::write("tolerance_units: "); number(records.tolerance); Console::write_byte(10);
         transition maximum >= 0 && maximum <= records.tolerance && maximum <= 99999 {
-            true -> certified(maximum)
+            true -> certified(maximum),
             _ -> unverified()
         }
     }

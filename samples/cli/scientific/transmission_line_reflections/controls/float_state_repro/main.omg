@@ -4,7 +4,7 @@ use omega::language::core::I64::from_f64;
 // The ordinary checked guard establishes the same authored arrival contract.
 machine bounded_integer(value: f64) -> i64 {
     transition value == value && value >= -100.0 && value <= 100.0 {
-        true -> bounded(value)
+        true -> bounded(value),
         false -> rejected()
     }
     machine bounded(value: f64) -> i64
@@ -21,7 +21,7 @@ machine main() crashes Trap {
     let negative: i64 = bounded_integer(-2.5);
     let outside: i64 = bounded_integer(101.0);
     transition positive == 2 && negative == -2 && outside == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

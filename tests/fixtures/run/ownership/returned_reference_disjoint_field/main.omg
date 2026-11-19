@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let chosen: @mut i64 = pick(@mut grid, index);
     grid.tag = 9;
     chosen = 10;
-    transition grid.cells[1].x == 10 && grid.tag == 9 { true -> done() _ -> bad() }
+    transition grid.cells[1].x == 10 && grid.tag == 9 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

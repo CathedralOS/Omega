@@ -1,4 +1,3 @@
-module domain::model;
 // Private bounded storage. Runtime admission validates active extents before use.
 public data SensorBlock {
     values: [i32; 16];

@@ -1,4 +1,3 @@
-module domain::baseline_window;
 use omega::language::core::I32::from_f64;
 
 // A four-sample detector scratch splits into a leading baseline window and a
@@ -10,7 +9,7 @@ public machine window<'samples>(samples: @'samples mut [f64; 4], which: i64) -> 
 ensures result.len == 2
 {
     match which {
-        0 -> @mut samples[0..2]
+        0 -> @mut samples[0..2],
         _ -> @mut samples[2..4]
     }
 }
@@ -42,7 +41,7 @@ public machine baseline_ready() -> bool {
     let leading: Held = hold(window(@mut trace, 0));
     let span: u64 = leading.values.len;
     transition span == 2 {
-        true -> peak(@mut trace)
+        true -> peak(@mut trace),
         _ -> false
     }
     machine peak(trace: @mut [f64; 4]) -> bool {
@@ -54,7 +53,7 @@ public machine baseline_ready() -> bool {
         let peak_value: i32 in Saturating = I32::from_f64(trace[2]);
         let tail: i32 in Saturating = I32::from_f64(trace[3]);
         transition baseline == 0 && neighbor == 0 && peak_value == 4 && tail == 5 {
-            true -> true
+            true -> true,
             _ -> false
         }
     }

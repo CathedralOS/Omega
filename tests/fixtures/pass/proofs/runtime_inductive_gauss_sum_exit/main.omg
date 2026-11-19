@@ -20,7 +20,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.count = 4;
     let total: u64 in Wrapping = gauss_sum(main.count, 0);
     transition total == 10 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 
@@ -39,7 +39,7 @@ ensures
     result * 2 == acc * 2 + n * (n + 1)
 {
     transition n > 0 {
-        true -> gauss_sum(n - 1, acc + n)
+        true -> gauss_sum(n - 1, acc + n),
         false -> acc
     }
 }

@@ -1,4 +1,3 @@
-module choices;
 public data Scalar<T [copy]> [copy] { value: T; }
 public data Choice<T [copy]> [copy] {
     case Some(value: T);
@@ -7,7 +6,7 @@ public data Choice<T [copy]> [copy] {
 public data Chosen<T [copy]> = Choice<T>;
 public machine produce(pick: bool, value: u64) -> Chosen<u64> {
     transition pick {
-        true -> Chosen::Some { value: value }
+        true -> Chosen::Some { value: value },
         false -> Chosen::Empty
     }
 }

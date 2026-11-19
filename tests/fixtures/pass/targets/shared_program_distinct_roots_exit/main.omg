@@ -3,7 +3,7 @@
 machine normal() crashes Trap {
     let answer: i32 = 6 * 7;
     transition answer == 42 {
-        true -> done()
+        true -> done(),
         _ -> failed()
     }
     machine done() {}

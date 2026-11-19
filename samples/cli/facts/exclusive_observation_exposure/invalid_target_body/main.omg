@@ -17,7 +17,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -25,7 +25,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -46,7 +46,7 @@ X86Observe satisfies SelectedObserve {
         let agreed: u64 = agree(saved, items[0]);
         transition { _ -> finish(agreed, held) }
         machine finish(agreed: u64, held: u64) -> u64 {
-            transition held == held { true -> agreed _ -> agreed }
+            transition held == held { true -> agreed, _ -> agreed }
         }
     }
 }
@@ -61,14 +61,14 @@ ArmObserve satisfies SelectedObserve {
         let agreed: u64 = agree(saved, items[0]);
         transition { _ -> finish(agreed, held) }
         machine finish(agreed: u64, held: u64) -> u64 {
-            transition held == held { true -> agreed _ -> agreed }
+            transition held == held { true -> agreed, _ -> agreed }
         }
     }
 }
 
 machine main() crashes Trap {
     let mut items: [u64; 2] = [7, 1];
-    transition SelectedObserve::observe(@mut items) == 7 { true -> done() _ -> bad() }
+    transition SelectedObserve::observe(@mut items) == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

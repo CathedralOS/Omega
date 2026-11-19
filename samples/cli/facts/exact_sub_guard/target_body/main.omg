@@ -12,7 +12,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -20,7 +20,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -54,7 +54,7 @@ requires
     remaining <= 5
 {
     transition remaining >= 2 {
-        true -> SelectedDeduct::deduct(remaining)
+        true -> SelectedDeduct::deduct(remaining),
         false -> remaining
     }
 }
@@ -66,7 +66,7 @@ data Main {
 machine Main::main(main: @mut Main) crashes Trap {
     main.hits = 0;
     transition walk(4) == 2 && walk(1) == 1 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

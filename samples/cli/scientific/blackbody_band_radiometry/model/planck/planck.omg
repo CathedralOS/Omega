@@ -1,5 +1,3 @@
-module model::planck;
-
 // h=6.62607015e-34 J s, c=299792458 m/s, k=1.380649e-23 J/K
 // are exact SI definitions. With x=hc/(lambda k T), exitance is
 // 2*pi*k^4*T^4/(h^3*c^2) integral x^3/(exp(x)-1) dx.
@@ -14,12 +12,12 @@ requires panels >= 1 && panels <= 320
     transition { _ -> panel(lower, width, panels, 0, 0.0, contrast, difference) }
     machine panel(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
         transition index < panels {
-            true -> bounded(lower, width, panels, index, sum, contrast, difference)
+            true -> bounded(lower, width, panels, index, sum, contrast, difference),
             false -> (sum)
         }
     }
     machine bounded(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64 {
-        transition index <= 320 { true -> evaluate(lower, width, panels, index, sum, contrast, difference) false -> (sum) }
+        transition index <= 320 { true -> evaluate(lower, width, panels, index, sum, contrast, difference), false -> (sum) }
     }
     machine evaluate(lower: f64, width: f64, panels: u64, index: u64, sum: f64, contrast: f64, difference: bool) -> f64
     requires index <= 320
@@ -41,7 +39,7 @@ requires panels >= 1 && panels <= 320
 machine kernel(x: f64, contrast: f64, difference: bool) -> f64 {
     let decay: f64 = exponential(0.0 - x);
     let numerator: f64 = x * x * x * decay;
-    transition difference { true -> net(x, contrast, decay, numerator) false -> (numerator / (1.0 - decay)) }
+    transition difference { true -> net(x, contrast, decay, numerator), false -> (numerator / (1.0 - decay)) }
     machine net(x: f64, contrast: f64, decay: f64, numerator: f64) -> f64 {
         let delta: f64 = x * contrast;
         let excess: f64 = one_minus_decay(delta);
@@ -54,14 +52,14 @@ machine kernel(x: f64, contrast: f64, difference: bool) -> f64 {
 // cancellation between two rounded band powers. Hotter temperature is the
 // common integration coordinate, so delta is nonnegative.
 machine one_minus_decay(delta: f64) -> f64 {
-    transition delta < 1.0 { true -> series(delta, delta, delta, 2.0, 2) false -> large(delta) }
+    transition delta < 1.0 { true -> series(delta, delta, delta, 2.0, 2), false -> large(delta) }
     machine series(delta: f64, sum: f64, previous: f64, denominator: f64, count: u64) -> f64 {
         let next: f64 = previous * (0.0 - delta) / denominator;
         let total: f64 = sum + next;
-        transition count < 20 { true -> series(delta, total, next, denominator + 1.0, count + 1) false -> (total) }
+        transition count < 20 { true -> series(delta, total, next, denominator + 1.0, count + 1), false -> (total) }
     }
     machine large(delta: f64) -> f64 {
-        transition delta > 80.0 { true -> (1.0) false -> ordinary(delta) }
+        transition delta > 80.0 { true -> (1.0), false -> ordinary(delta) }
     }
     machine ordinary(delta: f64) -> f64 {
         let decay: f64 = exponential(0.0 - delta);
@@ -78,7 +76,7 @@ machine exponential(value: f64) -> f64 {
         let next: f64 = previous * reduced / denominator;
         let total: f64 = sum + next;
         transition count < 20 {
-            true -> term(reduced, total, next, denominator + 1.0, count + 1)
+            true -> term(reduced, total, next, denominator + 1.0, count + 1),
             false -> square(total)
         }
     }
@@ -94,33 +92,33 @@ machine exponential(value: f64) -> f64 {
 }
 
 public machine band(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
-    transition temperature == 0.0 { true -> (0.0) false -> bounds(temperature, minimum, maximum, contrast, difference) }
+    transition temperature == 0.0 { true -> (0.0), false -> bounds(temperature, minimum, maximum, contrast, difference) }
     machine bounds(temperature: f64, minimum: f64, maximum: f64, contrast: f64, difference: bool) -> f64 {
         let lower: f64 = 14387.768775039337 / (maximum * temperature);
         // Compute width directly: subtracting reciprocal endpoints needlessly
         // loses precision when the wavelength interval is narrow.
         let span: f64 = 14387.768775039337 * (maximum - minimum) / (minimum * maximum * temperature);
-        transition lower >= 80.0 { true -> (0.0) false -> clamp(lower, span, contrast, difference) }
+        transition lower >= 80.0 { true -> (0.0), false -> clamp(lower, span, contrast, difference) }
     }
     machine clamp(lower: f64, span: f64, contrast: f64, difference: bool) -> f64 {
-        transition lower + span > 80.0 { true -> partition(lower, 80.0 - lower, 1, contrast, difference) false -> partition(lower, span, 1, contrast, difference) }
+        transition lower + span > 80.0 { true -> partition(lower, 80.0 - lower, 1, contrast, difference), false -> partition(lower, span, 1, contrast, difference) }
     }
     machine partition(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64 {
-        transition panels >= 1 && panels <= 320 { true -> resolved(lower, span, panels, contrast, difference) false -> (0.0) }
+        transition panels >= 1 && panels <= 320 { true -> resolved(lower, span, panels, contrast, difference), false -> (0.0) }
     }
     machine resolved(lower: f64, span: f64, panels: u64, contrast: f64, difference: bool) -> f64
     requires panels >= 1 && panels <= 320
     {
         let count: f64 = panels as f64;
-        transition span <= count * 0.25 { true -> integral(lower, span, panels, contrast, difference) false -> partition(lower, span, panels + 1, contrast, difference) }
+        transition span <= count * 0.25 { true -> integral(lower, span, panels, contrast, difference), false -> partition(lower, span, panels + 1, contrast, difference) }
     }
 }
 
 public machine net_exitance(emitter: f64, ambient: f64, minimum: f64, maximum: f64) -> f64 {
     transition {
-        emitter == ambient -> (0.0)
-        ambient == 0.0 -> absolute(emitter, minimum, maximum)
-        emitter > ambient -> hotter(emitter, ambient, minimum, maximum, 1.0)
+        emitter == ambient -> (0.0),
+        ambient == 0.0 -> absolute(emitter, minimum, maximum),
+        emitter > ambient -> hotter(emitter, ambient, minimum, maximum, 1.0),
         _ -> hotter(ambient, emitter, minimum, maximum, -1.0)
     }
     machine absolute(temperature: f64, minimum: f64, maximum: f64) -> f64 {

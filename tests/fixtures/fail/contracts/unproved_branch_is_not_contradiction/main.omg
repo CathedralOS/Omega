@@ -4,7 +4,7 @@ machine pick(count: u64) -> u64
 requires count >= 10
 {
     transition count < 50 {
-        true -> (count - 100u64)
+        true -> (count - 100u64),
         false -> (count - 10u64)
     }
 }

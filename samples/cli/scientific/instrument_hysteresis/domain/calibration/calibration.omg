@@ -1,4 +1,3 @@
-module domain::calibration;
 // Immutable private calibration tables. Values are response milliunits.
 // Input validation establishes [0,100]; the scanner selects one of three
 // positive-width intervals and never extrapolates. Products fit signed i32:
@@ -11,7 +10,7 @@ public machine initialize(table: @mut Calibration) {
 }
 public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
     transition points.len >= 2 {
-        true -> interval(points, stimulus)
+        true -> interval(points, stimulus),
         false -> (-1)
     }
     machine interval(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping
@@ -19,14 +18,14 @@ public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in
         let left: Knot = points[0];
         let right: Knot = points[1];
         transition stimulus >= left.stimulus && stimulus <= right.stimulus {
-            true -> width(left, right, stimulus)
+            true -> width(left, right, stimulus),
             false -> scan(points[1..], stimulus)
         }
     }
     machine width(left: Knot, right: Knot, stimulus: i32 in Wrapping) -> i32 in Wrapping {
         let denominator: i32 in Wrapping = right.stimulus - left.stimulus;
         transition denominator > 0 {
-            true -> evaluate(left, right, stimulus, denominator)
+            true -> evaluate(left, right, stimulus, denominator),
             false -> (-1)
         }
     }
@@ -36,7 +35,7 @@ public machine interpolate(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in
     }
     machine scan(points: @[Knot], stimulus: i32 in Wrapping) -> i32 in Wrapping {
         transition points.len >= 2 {
-            true -> interval(points, stimulus)
+            true -> interval(points, stimulus),
             false -> (-1)
         }
     }

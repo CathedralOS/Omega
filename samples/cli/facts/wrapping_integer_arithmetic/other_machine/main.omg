@@ -8,7 +8,7 @@ machine forward(val: u64) -> u64 {
 machine main() crashes Trap {
     let diff: u64 = forward(100u64);
     transition diff == 27u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

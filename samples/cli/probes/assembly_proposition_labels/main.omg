@@ -24,9 +24,9 @@ machine Main::main(main: @mut Main) crashes Trap {
     }
     let mut copied: i32 = 3;
     asm requires bounded(copied) ensures bounded_alias(copied) { mov copied, 9 }
-    let first: i32 = specialized<1>();
-    let second: i32 = specialized<2>();
-    transition main.output == 7 && copied == 9 && first == 9 && second == 9 { true -> good() false -> bad() }
+    let first: i32 = specialized::<1>();
+    let second: i32 = specialized::<2>();
+    transition main.output == 7 && copied == 9 && first == 9 && second == 9 { true -> good(), false -> bad() }
     machine good() {}
     machine bad() { crash Trap; }
 }

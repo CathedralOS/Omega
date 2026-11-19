@@ -44,8 +44,8 @@ crashes Trap
     let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
     let count: i32 = block WindowsConsoleIo::read(0, @mut cell, 1);
     transition count {
-        1 -> byte(cell)
-        0 -> end()
+        1 -> byte(cell),
+        0 -> end(),
         _ -> failed()
     }
 

@@ -50,7 +50,7 @@ machine run_main(main: @mut Main, flag: bool, expected_route: u64) reaches Reade
     Reader::release(returned);
     let value: u64 = buffer.value;
     drop(buffer);
-    transition observed == 37 && value == 37 && selected_route == expected_route { true -> done() _ -> bad() }
+    transition observed == 37 && value == 37 && selected_route == expected_route { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

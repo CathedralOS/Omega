@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i32_to_u8_trapping;
@@ -11,7 +10,7 @@ use domain::model::Fit;
 machine number(value: f64) reaches Console {
     let mut bytes: [u8; 21] = "+0000000000000.000000";
     transition value < 0.0 {
-        true -> negative(@mut bytes, value)
+        true -> negative(@mut bytes, value),
         _ -> positive(@mut bytes, value)
     }
     machine negative(bytes: @mut [u8; 21], value: f64) {
@@ -26,14 +25,14 @@ machine number(value: f64) reaches Console {
     machine digits(bytes: @mut [u8; 21],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 21 {
-            true -> separator(bytes, remaining, position)
+            true -> separator(bytes, remaining, position),
             _ -> emit(bytes)
         }
     }
     machine separator(bytes: @mut [u8; 21],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 14 {
-            true -> digits(bytes, remaining, position - 1)
+            true -> digits(bytes, remaining, position - 1),
             _ -> store(bytes, remaining, position)
         }
     }
@@ -51,7 +50,7 @@ crashes Trap
 {
     Console::write_line("chromatogram_component_fit synthetic unit-spacing NNLS");
     transition fit.nonidentifiable {
-        true -> ambiguous(fit)
+        true -> ambiguous(fit),
         _ -> identified(fit)
     }
     machine ambiguous(fit: @Fit) {
@@ -76,7 +75,7 @@ crashes Trap
     }
     machine samples(fit: @Fit, index: i32 in Wrapping) {
         transition index >= 0 && index < 5 {
-            true -> sample(fit, index)
+            true -> sample(fit, index),
             _ -> done()
         }
     }

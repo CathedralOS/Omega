@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i64_to_u64_wrapping;
@@ -22,7 +21,7 @@ public machine integer64(value: i64)
 invokes Console
 reaches Console {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: i64) {
@@ -45,7 +44,7 @@ reaches Console {
     {
         let digit: u64 = value / divisor % 10;
         transition started || digit != 0 || divisor == 1 {
-            true -> emit(value, divisor, digit)
+            true -> emit(value, divisor, digit),
             false -> skip(value, divisor)
         }
     }
@@ -55,7 +54,7 @@ reaches Console {
         let byte: u64 in Wrapping = (digit as u64 in Wrapping) + 48;
         Console::write_byte(narrow_u64_to_i32_saturating(byte as u64));
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, true)
+            true -> digits(value, divisor / 10, true),
             false -> done()
         }
     }
@@ -63,7 +62,7 @@ reaches Console {
     requires divisor > 0
     {
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, false)
+            true -> digits(value, divisor / 10, false),
             false -> done()
         }
     }

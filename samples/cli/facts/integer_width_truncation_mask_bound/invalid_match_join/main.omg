@@ -19,7 +19,7 @@ machine exercise(val: u64, flag: bool) -> u64 {
 machine main() crashes Trap {
     let diff: u64 = exercise(466u64, true);
     transition diff == 45u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

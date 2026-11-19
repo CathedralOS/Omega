@@ -36,7 +36,7 @@ machine take(choice: Choice, amount: u32) -> u32
 requires choice in Choice::Cell
 {
     transition choice {
-        Choice::Cell { counter } -> (((counter as u32 in Wrapping) + (amount as u32 in Wrapping)) as u32)
+        Choice::Cell { counter } -> (((counter as u32 in Wrapping) + (amount as u32 in Wrapping)) as u32),
         Choice::Empty -> (0)
     }
 }
@@ -47,7 +47,7 @@ machine main() {
     let second: u32 = observe(@choice, 4);
     let third: u32 = take(choice, 5);
     transition first == 3 && second == 4 && third == 8 {
-        true -> done()
+        true -> done(),
         _ -> done()
     }
     machine done() {}

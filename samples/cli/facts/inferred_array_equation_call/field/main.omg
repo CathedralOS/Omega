@@ -7,6 +7,6 @@ requires Length == [u8; Capacity]
 machine main() crashes Trap {
     let packet: Packet = Packet { items: [7, 11] };
     let observed: u64 = capacity(packet.items);
-    transition observed == 2 { true -> done() _ -> bad() }
+    transition observed == 2 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use domain::model;
 use domain::model::Pedigree;
@@ -11,20 +10,20 @@ invokes Console
     transition { _ -> leading(value, 10000) }
     machine leading(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 && value < divisor {
-            true -> leading(value, divisor / 10)
+            true -> leading(value, divisor / 10),
             _ -> digit(value, divisor)
         }
     }
     machine digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit_digit(value, divisor)
+            true -> emit_digit(value, divisor),
             _ -> done()
         }
     }
     machine emit_digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
-            true -> digit(value % divisor, divisor / 10)
+            true -> digit(value % divisor, divisor / 10),
             _ -> done()
         }
     }
@@ -38,13 +37,13 @@ invokes Console
     Console::write("EVIDENCE "); number(result.mass); Console::write("/");
     number(result.denominator); Console::write_line("");
     transition result.mass > 0 {
-        true -> marginal(pedigree, result, 0)
+        true -> marginal(pedigree, result, 0),
         _ -> witness(pedigree, result, 0)
     }
     machine marginal(pedigree: @Pedigree, result: @Inference,
                    position: i32 in Wrapping) {
         transition position >= 0 && position < pedigree.count * 3 && position < 18 {
-            true -> probability(pedigree, result, position)
+            true -> probability(pedigree, result, position),
             _ -> done()
         }
     }
@@ -52,7 +51,7 @@ invokes Console
                       position: i32 in Wrapping) {
         let weight: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
         transition weight > 0 {
-            true -> possible(pedigree, result, position, weight)
+            true -> possible(pedigree, result, position, weight),
             _ -> marginal(pedigree, result, position + 1)
         }
     }
@@ -68,7 +67,7 @@ invokes Console
     machine witness(pedigree: @Pedigree, result: @Inference,
                   person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
-            true -> constraint(pedigree, result, person)
+            true -> constraint(pedigree, result, person),
             _ -> done()
         }
     }
@@ -76,7 +75,7 @@ invokes Console
                      person: i32 in Wrapping) {
         let active: i32 = result.active[person];
         transition active == 1 {
-            true -> retained(pedigree, result, person)
+            true -> retained(pedigree, result, person),
             _ -> witness(pedigree, result, person + 1)
         }
     }
@@ -89,7 +88,7 @@ invokes Console
 }
 
 machine label(genotype: i32 in Wrapping) reaches Console {
-    transition genotype { 0 -> aa() 1 -> ab() _ -> bb() }
+    transition genotype { 0 -> aa(), 1 -> ab(), _ -> bb() }
     machine aa() { Console::write("AA"); }
     machine ab() { Console::write("AB"); }
     machine bb() { Console::write("BB"); }

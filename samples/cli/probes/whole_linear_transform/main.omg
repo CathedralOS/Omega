@@ -17,7 +17,7 @@ machine drop_inventory(inventory: @mut Inventory) {}
 
 machine transform(inventory: Inventory) -> Inventory {
     transition inventory.slots == 41 {
-        true -> increment(inventory)
+        true -> increment(inventory),
         false -> preserve(inventory)
     }
     machine increment(inventory: Inventory) -> Inventory {
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) {
     let outcome: bool = observed == 42 && stock.slots == 42;
     drop(stock);
     transition outcome {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

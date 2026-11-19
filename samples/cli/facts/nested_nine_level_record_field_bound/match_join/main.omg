@@ -44,7 +44,7 @@ requires first.l1.l2.l3.l4.l5.l6.l7.l8.val >= 40 && first.l1.l2.l3.l4.l5.l6.l7.l
 ensures result.l1.l2.l3.l4.l5.l6.l7.l8.val >= 40 && result.l1.l2.l3.l4.l5.l6.l7.l8.val <= 80
 {
     match flag {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -100,7 +100,7 @@ machine main() crashes Trap {
         },
     };
     transition probe(r1, r2, true) == 40 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

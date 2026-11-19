@@ -36,7 +36,7 @@ machine main() crashes Trap {
     let diff_true: u64 = 50u64 - result_true;
     let diff_false: u64 = 50u64 - result_false;
     transition diff_true == 20u64 && diff_false == 30u64 && dropped_true.value == 1u64 && dropped_false.value == 1u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

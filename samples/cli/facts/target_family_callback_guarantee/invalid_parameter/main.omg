@@ -15,9 +15,9 @@ SharedApply satisfies CallbackApply {
 }
 machine subtract(value: u64) -> u64 requires value <= 64 { 64u64 - value }
 machine main() reaches CallbackApply invokes CallbackApply crashes Trap {
-    let result: u64 = CallbackApply::apply<identity>(42);
+    let result: u64 = CallbackApply::apply::<identity>(42);
     let remaining: u64 = subtract(result);
-    transition remaining == 22 { true -> done() false -> bad() }
+    transition remaining == 22 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

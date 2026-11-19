@@ -26,13 +26,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: Input;
     let received: LineReadResult = block Console::read_line(@mut input.bytes[..]);
     transition received {
-        LineReadResult::LineComplete { count } -> length(main, @input, count)
-        LineReadResult::EndOfInput { count } -> length(main, @input, count)
+        LineReadResult::LineComplete { count } -> length(main, @input, count),
+        LineReadResult::EndOfInput { count } -> length(main, @input, count),
         _ -> invalid(main)
     }
     machine length(main: @mut Main, input: @Input, count: u64) {
         transition count <= 256 {
-            true -> parse_request(main, input, count as i32 in Wrapping)
+            true -> parse_request(main, input, count as i32 in Wrapping),
             _ -> invalid(main)
         }
     }
@@ -40,7 +40,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut tokens: Tokens;
         let accepted: bool = parse(input, count, @mut tokens);
         transition accepted {
-            true -> model(main, @tokens)
+            true -> model(main, @tokens),
             _ -> invalid(main)
         }
     }
@@ -48,7 +48,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut problem: Problem;
         let valid: bool = decode(tokens, @mut problem);
         transition valid {
-            true -> schedule(main, @problem)
+            true -> schedule(main, @problem),
             _ -> invalid(main)
         }
     }
@@ -56,21 +56,21 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut result: Schedule;
         let possible: bool = solve(problem, @mut result);
         transition possible {
-            true -> verify_result(main, problem, @result)
+            true -> verify_result(main, problem, @result),
             _ -> impossible(main)
         }
     }
     machine verify_result(main: @mut Main, problem: @Problem, result: @Schedule) {
         let valid: bool = verify(problem, result);
         transition valid {
-            true -> render(main, problem, result, 0)
+            true -> render(main, problem, result, 0),
             _ -> internal_failure(main)
         }
     }
     machine render(main: @mut Main, problem: @Problem, result: @Schedule,
                   index: i32 in Wrapping) {
         transition index >= 0 && index < problem.count && index < 4 {
-            true -> row(main, problem, result, index)
+            true -> row(main, problem, result, index),
             _ -> finish(main, result)
         }
     }

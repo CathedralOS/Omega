@@ -8,6 +8,6 @@ machine forward(items: [u8; 2]) -> u64 { consume(items) }
 machine main() crashes Trap {
     let items: [u8; 2] = [7, 11];
     let observed: u64 = forward(items);
-    transition observed == 2 { true -> done() _ -> bad() }
+    transition observed == 2 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

@@ -63,7 +63,7 @@ public WindowsTimeHost satisfies TimeHost {
         let mut counter: i64 = 0;
         let status: i32 = WindowsTimeRead::query_performance_counter(@mut counter);
         transition status == 0 {
-            true -> degraded()
+            true -> degraded(),
             _ -> measured(counter)
         }
 
@@ -79,7 +79,7 @@ public WindowsTimeHost satisfies TimeHost {
         let mut frequency: i64 = 0;
         let status: i32 = WindowsTimeRead::query_performance_frequency(@mut frequency);
         transition status == 0 {
-            true -> degraded()
+            true -> degraded(),
             _ -> measured(frequency)
         }
 
@@ -120,7 +120,7 @@ public WindowsTimeHost satisfies TimeHost {
     blocks
     {
         transition milliseconds == 4294967295 {
-            true -> block in_halves()
+            true -> block in_halves(),
             _ -> block at_once(milliseconds)
         }
 

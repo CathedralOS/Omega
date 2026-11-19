@@ -31,11 +31,11 @@ reaches Console
  room.count = 99;
 }
 machine scope(choice: bool) reaches Console crashes Trap {
- let mut room: Room = match choice { true -> Room { count: 11 } false -> Room { count: 11 } };
+ let mut room: Room = match choice { true -> Room { count: 11 }, false -> Room { count: 11 } };
  transition { _ -> observe(@mut room) }
  machine observe(room: @mut Room) {
   Console::write_byte(79);
-  transition room.count == 11 { true -> seen() false -> bad() }
+  transition room.count == 11 { true -> seen(), false -> bad() }
  }
  machine seen() {}
  machine bad() { crash Trap; }

@@ -1,5 +1,3 @@
-module right;
-
 public boundary trait Sink {
     machine emit(text: @[u8]) reaches crashes none;
 }

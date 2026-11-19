@@ -23,7 +23,7 @@ machine main() crashes Trap {
         && bytes[0] == 17 && bytes[1] == 73 && bytes[2] == 99
         && packet.before == 11 && packet.after == 97
         && packet.bytes[0] == 31 && packet.bytes[1] == 61 && packet.bytes[2] == 89 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

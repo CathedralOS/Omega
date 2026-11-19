@@ -7,7 +7,7 @@ machine half<'row>(row: @'row mut [Complex; 4], which: i64) -> @'row mut [Comple
 ensures result.len == 2
 {
     match which {
-        0 -> @mut row[0..2]
+        0 -> @mut row[0..2],
         _ -> @mut row[2..4]
     }
 }
@@ -22,7 +22,7 @@ machine main() {
     let view: @mut [Complex] = half(@mut row, 0);
     let mut held: Held = Held { cells: view };
     transition held.cells.len == 2 {
-        true -> observe(@mut held)
+        true -> observe(@mut held),
         false -> done()
     }
     machine observe(held: @mut Held) requires held.cells.len == 2 {

@@ -5,7 +5,7 @@ machine selected<T, const Salt: u64>(value: T) -> T { value }
 machine inspect(layout: @CodeLayout) -> bool
 terminates
 {
-    transition layout.regions.len > 0 { true -> region(layout) _ -> false }
+    transition layout.regions.len > 0 { true -> region(layout), _ -> false }
     machine region(layout: @CodeLayout) -> bool
     requires layout.regions.len > 0
     {
@@ -13,12 +13,12 @@ terminates
     }
 }
 machine witness() -> bool terminates {
-    let layout: CodeLayout = code_layout<selected<u64, 7>>();
+    let layout: CodeLayout = code_layout::<selected<u64, 7>>();
     inspect(@layout)
 }
 const OBSERVED: bool = witness();
 machine main() crashes Trap {
-    transition OBSERVED { true -> done() _ -> bad() }
+    transition OBSERVED { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

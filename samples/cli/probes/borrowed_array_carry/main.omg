@@ -17,7 +17,7 @@ machine write_bytes(out: @mut [u8; 17], value: u8, width: u64) -> u64 {
     }
     machine fill(out: @mut [u8; 17], value: u8, width: u64, position: u64) -> u64 {
         transition (position < width && position < out.len) {
-            true -> write_digit(out, value, width, position)
+            true -> write_digit(out, value, width, position),
             false -> (width)
         }
     }
@@ -38,7 +38,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition write_bytes(@mut main.buf, 65, 3) == 3
         && main.buf[0] == 65 && main.buf[2] == 65 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

@@ -9,7 +9,7 @@ machine select(cell: @Cell) -> u64
 ensures result >= 73u64
 {
     match cell {
-        Cell::Ready -> cell.value
+        Cell::Ready -> cell.value,
         _ -> 73u64
     }
 }
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let matched: u64 = consume(@ready);
     let defaulted: u64 = consume(@fallback);
     transition matched == 17u64 && defaulted == 0u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 }

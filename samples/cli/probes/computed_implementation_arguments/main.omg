@@ -13,9 +13,9 @@ requires 0 <= right && right <= 100
     left + right
 }
 machine main() blocks crashes Trap {
-    let seven: i32 = block choose<Selected<3 + 4>>(5, 6);
-    let eight: i32 = block choose<Selected<(2 * 4)>>(5, 6);
-    transition seven == 7 && eight == 8 { true -> done() _ -> bad() }
+    let seven: i32 = block choose::<Selected<3 + 4>>(5, 6);
+    let eight: i32 = block choose::<Selected<(2 * 4)>>(5, 6);
+    transition seven == 7 && eight == 8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

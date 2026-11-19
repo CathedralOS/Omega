@@ -11,10 +11,10 @@ ensures result == 0u32
 machine forward(value: u32) -> u32
 ensures result == value
 { value }
-machine probe() -> u32 { consume(forward(integer::max<u32>())) }
+machine probe() -> u32 { consume(forward(integer::max::<u32>())) }
 
 machine main() crashes Trap {
-    transition probe() == 0u32 && integer::width_bits<u32>() == 32u64 && !integer::is_signed<u32>() { true -> done() _ -> wrong() }
+    transition probe() == 0u32 && integer::width_bits::<u32>() == 32u64 && !integer::is_signed::<u32>() { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

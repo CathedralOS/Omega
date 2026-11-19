@@ -38,8 +38,8 @@ machine update<'source, 'storage, const Marker: u64>(pointer: @'source LayoutSto
 machine observe<'source, 'storage>(pointer: @'source LayoutStorage<Payload, PayloadLayout<7u64> >, storage: @'storage u64) -> bool {
     let choose_first: bool = storage == 23u64;
     let result: Readback<'source, LayoutStorage<Payload, PayloadLayout<7u64> > > = match choose_first {
-        true -> update<7u64>(pointer, storage, true)
-        false -> update<7u64>(pointer, storage, false)
+        true -> update::<7u64>(pointer, storage, true),
+        false -> update::<7u64>(pointer, storage, false)
     };
     result.value == 7u64 && result.pointer.value == 43u64 && result.selected_first == choose_first
 }
@@ -51,7 +51,7 @@ machine main() crashes Trap {
     let alternate_storage: u64 = 29u64;
     let alternate: bool = observe(@pointee, @alternate_storage);
     transition result && alternate && pointee.value == 43u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

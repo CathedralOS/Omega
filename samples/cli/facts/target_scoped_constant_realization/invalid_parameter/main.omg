@@ -20,9 +20,9 @@ machine pass_parameter(value: u64) -> u64 {
     value
 }
 machine main() crashes Trap {
-    let observed: u64 = pass_parameter(size_of<Main>());
+    let observed: u64 = pass_parameter(size_of::<Main>());
     let slack: u64 = observed - 4u64;
-    transition observed == expected() && slack == expected() - 4u64 { true -> done() false -> bad() }
+    transition observed == expected() && slack == expected() - 4u64 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

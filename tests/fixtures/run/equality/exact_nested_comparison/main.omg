@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let selected: bool = PointEquality::equals(@a, @b);
     let marked: Marked = Marked { mark: Mark { value: 17 } };
     let authored: bool = MarkedEquality::equals(@marked, @marked);
-    transition selected && a != c && !authored { true -> done() false -> bad() }
+    transition selected && a != c && !authored { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module data::expectations;
 use omega::language::core::abs_f64;
 
 // Runtime checks of the independently frozen oracle make Terminal exit
@@ -7,13 +6,13 @@ use physics::model;
 use physics::model::Lab;
 public machine expected_result(lab:@Lab,choice:i32)->bool {
  transition choice {
-  0 -> case_0(lab)
-  1 -> case_1(lab)
-  2 -> case_2(lab)
-  3 -> case_3(lab)
-  4 -> case_4(lab)
-  5 -> case_5(lab)
-  6 -> case_6(lab)
+  0 -> case_0(lab),
+  1 -> case_1(lab),
+  2 -> case_2(lab),
+  3 -> case_3(lab),
+  4 -> case_4(lab),
+  5 -> case_5(lab),
+  6 -> case_6(lab),
   _ -> rejected()
  }
  machine case_0(lab:@Lab)->bool {
@@ -149,13 +148,13 @@ public machine expected_result(lab:@Lab,choice:i32)->bool {
 
 public machine expected_contact(lab:@Lab,choice:i32)->bool {
  transition choice {
-  0 -> case_0(lab)
-  1 -> case_1(lab)
-  2 -> case_2(lab)
-  3 -> case_3(lab)
-  4 -> case_4(lab)
-  5 -> case_5(lab)
-  6 -> case_6(lab)
+  0 -> case_0(lab),
+  1 -> case_1(lab),
+  2 -> case_2(lab),
+  3 -> case_3(lab),
+  4 -> case_4(lab),
+  5 -> case_5(lab),
+  6 -> case_6(lab),
   _ -> rejected()
  }
  machine case_0(lab:@Lab)->bool {

@@ -14,7 +14,7 @@ machine fold_bytes(values: @[u8], checksum: u32 in Wrapping) -> u32 in Wrapping 
     machine scan(values: @[u8], cursor: u64, checksum: u32 in Wrapping) -> u32 in Wrapping
     requires cursor <= values.len {
         transition cursor < values.len {
-            true -> read(values, cursor, checksum)
+            true -> read(values, cursor, checksum),
             false -> checksum
         }
     }
@@ -27,7 +27,7 @@ machine fold_bytes(values: @[u8], checksum: u32 in Wrapping) -> u32 in Wrapping 
 
 machine fold_segment(segment: @Segment, checksum: u32 in Wrapping) -> u32 in Wrapping {
     transition segment {
-        Segment::Missing -> checksum
+        Segment::Missing -> checksum,
         Segment::Bytes { values } -> fold_bytes(values, checksum)
     }
 }
@@ -37,7 +37,7 @@ machine checksum(packet: @Packet) -> u32 in Wrapping {
     machine scan(packet: @Packet, cursor: u64, accumulated: u32 in Wrapping) -> u32 in Wrapping
     requires cursor <= 4 {
         transition cursor < 4 {
-            true -> read(packet, cursor, accumulated)
+            true -> read(packet, cursor, accumulated),
             false -> accumulated
         }
     }
@@ -66,7 +66,7 @@ machine main() crashes Trap {
     transition first == 986115 && repeated == first && empty_result == 0
         && packet.sequence == 18446744073709551615
         && storage[0] == 99 && storage[6] == 77 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

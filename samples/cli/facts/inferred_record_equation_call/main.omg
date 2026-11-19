@@ -9,6 +9,6 @@ requires Item == Token<Setting>
 machine main() crashes Trap {
     let item: Token<SEVEN> = Token { marker: 1 };
     let observed: u64 = read(item);
-    transition observed == 7 { true -> done() _ -> bad() }
+    transition observed == 7 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

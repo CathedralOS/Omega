@@ -31,12 +31,12 @@ machine Main::main(main: @mut Main) {
     let partial: Snapshot = Snapshot { region_count: 4 };
     let counted: u32 = partial.region_count;
     transition snapshot.alignment {
-        RegionAlignment::Unaligned { offset } -> check(main, counted)
+        RegionAlignment::Unaligned { offset } -> check(main, counted),
         _ -> fail(main)
     }
     machine check(main: @mut Main, counted: u32) {
         transition counted == 4 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

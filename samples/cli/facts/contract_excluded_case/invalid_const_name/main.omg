@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let other_flag: Value<bool> = Value::Boolean { value: CLEARED };
     transition extract_int(number) == SEVEN && extract_int(other_number) == NINE
         && extract_flag(flag) == MARKED && extract_flag(other_flag) == CLEARED {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

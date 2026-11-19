@@ -6,7 +6,7 @@ requires q >= 30i8 && q <= 30i8
 {
     let diff: i8 = q - 30i8;
     transition diff == 0i8 {
-        true -> 0i32
+        true -> 0i32,
         _ -> 1i32
     }
 }
@@ -33,7 +33,7 @@ requires divisor >= 3i8 && divisor <= 3i8
 machine main() crashes Trap {
     let exit_code: i32 = exercise(90i8, 3i8, true);
     transition exit_code == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

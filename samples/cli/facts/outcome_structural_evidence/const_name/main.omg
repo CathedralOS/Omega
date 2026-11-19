@@ -13,19 +13,19 @@ ensures Outcome::Success -> { selected: above(gate.threshold); }
 { Outcome::Failure }
 machine failure_arm() -> bool {
  transition pick_failure(Gate { threshold: 5 }) {
-  Outcome::Success { ; selected: proof } -> (false)
+  Outcome::Success { ; selected: proof } -> (false),
   _ -> (true)
  }
 }
 const NAMED_GATE: Gate = Gate { threshold: 5 };
 machine probe() -> bool {
  transition pick(NAMED_GATE) {
-  Outcome::Success { ; selected: proof } -> (NAMED_GATE.threshold == 5)
+  Outcome::Success { ; selected: proof } -> (NAMED_GATE.threshold == 5),
   _ -> (false)
  }
 }
 machine main() crashes Trap {
- transition (probe()) && failure_arm() { true -> done() _ -> bad() }
+ transition (probe()) && failure_arm() { true -> done(), _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

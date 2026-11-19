@@ -9,7 +9,7 @@ SelectedBytes satisfies Bytes {
 machine make_bytes() -> [u8; 3] { [7, 11, 13] }
 machine main() crashes Trap {
     let bytes: [u8; 3] = make_bytes();
-    let observed: u8 = Bytes::last<4u64>(@bytes);
-    transition observed == 13 { true -> done() _ -> bad() }
+    let observed: u8 = Bytes::last::<4u64>(@bytes);
+    transition observed == 13 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

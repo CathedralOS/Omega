@@ -14,7 +14,7 @@ machine subtract_signed(minuend: i64, subtrahend: i64, flag: bool) -> i32
 {
     let diff: i64 = minuend - subtrahend;
     let joined: i64 = match flag {
-        true -> diff
+        true -> diff,
         false -> diff
     };
     consume(joined)
@@ -27,7 +27,7 @@ machine evaluate() -> i32 {
 machine main() crashes Trap {
     let res: i32 = evaluate();
     transition res == 15 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

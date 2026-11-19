@@ -36,7 +36,7 @@ AapcsValuePlan satisfies ValuePlan {
 
 machine checked_width(width: u64) -> u64 {
     transition width >= 2 {
-        true -> counted_width(2, width - 2)
+        true -> counted_width(2, width - 2),
         _ -> width
     }
 }
@@ -44,7 +44,7 @@ machine counted_width(remaining: u64, total: u64) -> u64
 requires remaining <= 2
 {
     transition remaining > 0 && total < 18446744073709551615 {
-        true -> width_step(remaining - 1, total + 1)
+        true -> width_step(remaining - 1, total + 1),
         _ -> total
     }
 }
@@ -68,11 +68,11 @@ LocalMap satisfies LocalEntry {
 }
 machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
     transition signature.parameter_count == 0 && signature.has_result {
-        true -> select_result(signature, signature.result, allow_vectors, width, convention, register, regime, shadow)
+        true -> select_result(signature, signature.result, allow_vectors, width, convention, register, regime, shadow),
         _ -> reject()
     }
     machine select_result(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
-        transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow) _ -> reject() }
+        transition result < 256 { true -> accept(signature, result, allow_vectors, width, convention, register, regime, shadow), _ -> reject() }
     }
     machine accept(signature: BoundarySignature, result: u64, allow_vectors: bool, width: u64, convention: CallingConvention, register: MachineRegister, regime: MachineRegime, shadow: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
@@ -113,7 +113,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
 machine main() reaches LocalEntry crashes Trap {
     let delivered: u64 = LocalEntry::value();
     let value: u64 = delivered;
-    transition value == 42 && counted_width(2, 6) == 8 && counted_width(0, 17) == 17 { true -> done() _ -> bad() }
+    transition value == 42 && counted_width(2, 6) == 8 && counted_width(0, 17) == 17 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

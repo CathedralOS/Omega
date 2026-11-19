@@ -11,7 +11,7 @@ crashes Trap
 
     machine next_machine(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count {
-            true -> one(checker, syntax, typing, index)
+            true -> one(checker, syntax, typing, index),
             _ -> done()
         }
     }
@@ -19,7 +19,7 @@ crashes Trap
     machine one(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition item.container == MachineContainer::Trait {
-            true -> requirement(checker, syntax, typing, index, item)
+            true -> requirement(checker, syntax, typing, index, item),
             _ -> next_machine(checker, syntax, typing, index + 1)
         }
     }
@@ -32,7 +32,7 @@ crashes Trap
         item: MachineItem
     ) {
         transition item.has_return_type {
-            true -> typed_return(checker, syntax, typing, index, item)
+            true -> typed_return(checker, syntax, typing, index, item),
             _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
         }
     }
@@ -47,7 +47,7 @@ crashes Trap
         let handle: u64 in Trapping = reference_type(typing, item.return_type);
         let row: TypeRow = type_table_row(@typing.types, handle);
         transition row.kind == TypeKind::Reference {
-            true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner)
+            true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner),
             _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
         }
     }
@@ -66,7 +66,7 @@ crashes Trap
         return_inner: u64 in Trapping
     ) {
         transition offset < item.parameter_count {
-            true -> one_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner)
+            true -> one_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner),
             _ -> finish(checker, syntax, typing, index, found, matched)
         }
     }
@@ -88,7 +88,7 @@ crashes Trap
         let handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
         let row: TypeRow = type_table_row(@typing.types, handle);
         transition row.kind == TypeKind::Reference {
-            true -> reference_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, row.inner)
+            true -> reference_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, row.inner),
             _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural, matched, found, returns_reference, return_inner)
         }
     }
@@ -110,7 +110,7 @@ crashes Trap
         let inner: TypeRow = type_table_row(@typing.types, inner_handle);
         let same: bool = returns_reference && inner_handle == return_inner;
         transition inner.domain == DomainBinding::Declared {
-            true -> qualify(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same, inner.domain_item)
+            true -> qualify(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same, inner.domain_item),
             _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same)
         }
     }
@@ -149,7 +149,7 @@ crashes Trap
         same: bool
     ) {
         transition same && !found {
-            true -> taken(checker, syntax, typing, index, item, offset, structural, returns_reference, return_inner)
+            true -> taken(checker, syntax, typing, index, item, offset, structural, returns_reference, return_inner),
             _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural + 1, matched, found || same, returns_reference, return_inner)
         }
     }
@@ -177,7 +177,7 @@ crashes Trap
         matched: u64 in Trapping
     ) {
         transition found {
-            true -> record_origin(checker, syntax, typing, index, matched)
+            true -> record_origin(checker, syntax, typing, index, matched),
             _ -> next_machine(checker, syntax, typing, index + 1)
         }
     }
@@ -191,7 +191,7 @@ crashes Trap
     ) {
         let recorded: bool = push_slot_origin(@mut checker.output, SlotOriginKind::Parameter, matched);
         transition recorded {
-            true -> next_machine(checker, syntax, typing, index + 1)
+            true -> next_machine(checker, syntax, typing, index + 1),
             _ -> next_machine(checker, syntax, typing, index + 1)
         }
     }

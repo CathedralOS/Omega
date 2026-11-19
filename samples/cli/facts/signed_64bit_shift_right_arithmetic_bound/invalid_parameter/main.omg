@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let shifted: i64 = compute_shift(val);
     let check: i64 = check_param(shifted);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

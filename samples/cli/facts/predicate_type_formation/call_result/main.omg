@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let formed: Value<bool> = supply_true();
     let other: Value<bool> = supply_false();
     transition payload(formed) == true && payload(other) == false {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

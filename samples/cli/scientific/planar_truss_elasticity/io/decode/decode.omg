@@ -1,25 +1,24 @@
-module io::decode;
 use io::input;
 use io::input::Input;
 use domain::model;
 use domain::model::Truss;
 public machine decode(input: @Input, truss: @mut Truss) {
     truss.valid = false;
-    transition input.count >= 2 && input.tokens[0] >= 2 && input.tokens[0] <= 8 && input.tokens[1] >= 0 && input.tokens[1] <= 16 { true -> dimensions(input, truss) false -> done() }
+    transition input.count >= 2 && input.tokens[0] >= 2 && input.tokens[0] <= 8 && input.tokens[1] >= 0 && input.tokens[1] <= 16 { true -> dimensions(input, truss), false -> done() }
     machine dimensions(input: @Input, truss: @mut Truss) {
         truss.nodes = input.tokens[0] as u64;
         truss.bars = input.tokens[1] as u64;
-        transition input.count == 2 + 6 * truss.nodes + 3 * truss.bars { true -> nodes(input, truss, 0) false -> done() }
+        transition input.count == 2 + 6 * truss.nodes + 3 * truss.bars { true -> nodes(input, truss, 0), false -> done() }
     }
     machine nodes(input: @Input, truss: @mut Truss, node: u64) {
-        transition node < truss.nodes && node < 8 { true -> node_read(input, truss, node) false -> bars(input, truss, 0) }
+        transition node < truss.nodes && node < 8 { true -> node_read(input, truss, node), false -> bars(input, truss, 0) }
     }
     machine node_read(input: @Input, truss: @mut Truss, node: u64) requires node < 8 {
         let offset: u64 = 2 + 6 * node;
         transition input.tokens[offset + 2] >= 0 && input.tokens[offset + 2] <= 1 && input.tokens[offset + 3] >= 0 && input.tokens[offset + 3] <= 1
             && input.tokens[offset] >= -1000 && input.tokens[offset] <= 1000 && input.tokens[offset + 1] >= -1000 && input.tokens[offset + 1] <= 1000
             && input.tokens[offset + 4] >= -1000 && input.tokens[offset + 4] <= 1000 && input.tokens[offset + 5] >= -1000 && input.tokens[offset + 5] <= 1000 {
-            true -> node_store(input, truss, node, offset) false -> done()
+            true -> node_store(input, truss, node, offset), false -> done()
         }
     }
     machine node_store(input: @Input, truss: @mut Truss, node: u64, offset: u64) requires node < 8 requires offset <= 44 {
@@ -32,21 +31,21 @@ public machine decode(input: @Input, truss: @mut Truss) {
         transition { _ -> nodes(input, truss, node + 1) }
     }
     machine bars(input: @Input, truss: @mut Truss, bar: u64) {
-        transition bar < truss.bars && bar < 16 && truss.nodes <= 8 { true -> bar_read(input, truss, bar) false -> finish(truss) }
+        transition bar < truss.bars && bar < 16 && truss.nodes <= 8 { true -> bar_read(input, truss, bar), false -> finish(truss) }
     }
     machine bar_read(input: @Input, truss: @mut Truss, bar: u64) requires bar < 16 requires truss.nodes <= 8 {
         let offset: u64 = 2 + 6 * truss.nodes + 3 * bar;
         transition input.tokens[offset] >= 0 && input.tokens[offset] < (truss.nodes as i32)
             && input.tokens[offset + 1] >= 0 && input.tokens[offset + 1] < (truss.nodes as i32)
             && input.tokens[offset + 2] > 0 {
-            true -> bar_store(input, truss, bar, offset) false -> done()
+            true -> bar_store(input, truss, bar, offset), false -> done()
         }
     }
     machine bar_store(input: @Input, truss: @mut Truss, bar: u64, offset: u64) requires bar < 16 requires offset <= 95 {
         let first: i32 = input.tokens[offset];
         let second: i32 = input.tokens[offset + 1];
         transition first >= 0 && first < 8 && second >= 0 && second < 8 {
-            true -> endpoints_store(input, truss, bar, offset, first, second)
+            true -> endpoints_store(input, truss, bar, offset, first, second),
             false -> done()
         }
     }

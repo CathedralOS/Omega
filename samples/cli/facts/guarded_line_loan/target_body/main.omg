@@ -13,7 +13,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -21,7 +21,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -60,14 +60,14 @@ machine main() crashes Trap {
     let mut line: [u8; 64];
     let result: ReadOutcome = SelectedReceive::receive(@mut line);
     transition result {
-        ReadOutcome::Complete { count } -> evaluate(observe(@line, count))
-        ReadOutcome::End { count } -> evaluate(observe(@line, count))
-        ReadOutcome::Full { count } -> done()
+        ReadOutcome::Complete { count } -> evaluate(observe(@line, count)),
+        ReadOutcome::End { count } -> evaluate(observe(@line, count)),
+        ReadOutcome::Full { count } -> done(),
         ReadOutcome::Invalid -> done()
     }
     machine evaluate(value: u64 in Wrapping) {
         transition value == 42 {
-            true -> done()
+            true -> done(),
             false -> wrong()
         }
     }

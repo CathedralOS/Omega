@@ -1,4 +1,3 @@
-module domain::newton;
 // Backward Euler solves y-y0-h*f(y)=0 with analytic mass-action Jacobian.
 // Cofactor elimination is the fixed 3x3 linear solve; singular/nonfinite
 // determinants fail the trial. Positivity damping never clips a concentration.
@@ -25,7 +24,7 @@ machine linear(newton: @mut Newton, step: f64) -> bool {
     let cc: f64 = 1.0 - step * newton.field.cc;
     let determinant: f64 = aa * (bb * cc - bc * cb) - ab * (ba * cc - bc * ca) + ac * (ba * cb - bb * ca);
     transition magnitude(determinant) > 1e-30 && magnitude(determinant) < 1e100 {
-        true -> solve(newton, aa, ab, ac, ba, bb, bc, ca, cb, cc, determinant)
+        true -> solve(newton, aa, ab, ac, ba, bb, bc, ca, cb, cc, determinant),
         false -> failed()
     }
     machine solve(newton: @mut Newton, aa: f64, ab: f64, ac: f64, ba: f64, bb: f64, bc: f64, ca: f64, cb: f64, cc: f64, determinant: f64) -> bool {
@@ -45,7 +44,7 @@ public machine implicit(problem: @Problem, initial: @Vector, step: f64) -> Newto
     transition { _ -> evaluate_guard(problem, initial, step, newton) }
     machine evaluate_guard(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         transition newton.iteration <= problem.iterations && newton.iteration <= 32 {
-            true -> residual(problem, initial, step, newton)
+            true -> residual(problem, initial, step, newton),
             false -> (newton)
         }
     }
@@ -54,14 +53,14 @@ public machine implicit(problem: @Problem, initial: @Vector, step: f64) -> Newto
         next.field = evaluate(problem, @next.value);
         next.residual = Vector { a: next.value.a - initial.a - step * next.field.a, b: next.value.b - initial.b - step * next.field.b, c: next.value.c - initial.c - step * next.field.c };
         transition norm(@next.residual, @next.value, problem) <= 0.01 && physical(@next.value) {
-            true -> converged(next)
+            true -> converged(next),
             false -> correction_guard(problem, initial, step, next)
         }
     }
     machine converged(newton: Newton) -> Newton { let mut next: Newton = newton; next.success = true; next }
     machine correction_guard(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         transition newton.iteration < problem.iterations && newton.iteration < 32 {
-            true -> correction(problem, initial, step, newton)
+            true -> correction(problem, initial, step, newton),
             false -> (newton)
         }
     }
@@ -70,15 +69,15 @@ public machine implicit(problem: @Problem, initial: @Vector, step: f64) -> Newto
         let solved: bool = linear(@mut next, step);
         next.damping = 1.0;
         next.backtracks = 0;
-        transition solved { true -> damp(problem, initial, step, next) false -> (next) }
+        transition solved { true -> damp(problem, initial, step, next), false -> (next) }
     }
     machine damp(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         let mut next: Newton = newton;
         next.candidate = Vector { a: next.value.a + next.damping * next.delta.a, b: next.value.b + next.damping * next.delta.b, c: next.value.c + next.damping * next.delta.c };
-        transition physical(@next.candidate) { true -> update(problem, initial, step, next) false -> retry(problem, initial, step, next) }
+        transition physical(@next.candidate) { true -> update(problem, initial, step, next), false -> retry(problem, initial, step, next) }
     }
     machine retry(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
-        transition newton.backtracks < 12 { true -> shrink(problem, initial, step, newton) false -> (newton) }
+        transition newton.backtracks < 12 { true -> shrink(problem, initial, step, newton), false -> (newton) }
     }
     machine shrink(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         let mut next: Newton = newton; next.damping = next.damping * 0.5; next.backtracks = next.backtracks + 1;
@@ -86,7 +85,7 @@ public machine implicit(problem: @Problem, initial: @Vector, step: f64) -> Newto
     }
     machine update(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         let mut next: Newton = newton; next.value = next.candidate;
-        transition next.iteration < 32 { true -> increment(problem, initial, step, next) false -> (next) }
+        transition next.iteration < 32 { true -> increment(problem, initial, step, next), false -> (next) }
     }
     machine increment(problem: @Problem, initial: @Vector, step: f64, newton: Newton) -> Newton {
         let mut next: Newton = newton; next.iteration = next.iteration + 1;

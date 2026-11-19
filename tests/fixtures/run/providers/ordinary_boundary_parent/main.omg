@@ -14,7 +14,7 @@ LocalLeaf satisfies Leaf {
 machine main() crashes Trap {
     let actual: u64 = Leaf::read(41u64);
     let other: u64 = Leaf::read(75u64);
-    transition actual == 41u64 && other == 75u64 { true -> done() false -> wrong() }
+    transition actual == 41u64 && other == 75u64 { true -> done(), false -> wrong() }
     machine done() { }
     machine wrong() { crash Trap; }
 }

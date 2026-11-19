@@ -20,7 +20,7 @@ ensures result == 0
 machine main() crashes Trap {
     let res: u64 = forward(400, 2);
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

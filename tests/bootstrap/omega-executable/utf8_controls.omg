@@ -43,7 +43,7 @@ machine main()->u8 {
         && check(255,0,0,0,1,0,0,false)
         && check(240,144,0,128,4,0,0,false)
         && check(240,144,128,0,4,0,0,false) {
-        true -> yes()
+        true -> yes(),
         _ -> no()
     }
     machine yes()->u8 {42}

@@ -16,7 +16,7 @@ requires place == 17
 
 machine apply(chosen: @i64, spare: @i64) -> i64 {
     let joined: @i64 = match choose() {
-        true -> chosen
+        true -> chosen,
         false -> spare
     };
     read_through(joined)
@@ -65,7 +65,7 @@ machine main() crashes Trap {
     let spare: i64 = 5;
     let observed: i64 = SelectedReference::read(@chosen, @spare);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

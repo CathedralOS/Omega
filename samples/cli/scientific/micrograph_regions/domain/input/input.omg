@@ -1,4 +1,3 @@
-module domain::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 
@@ -28,19 +27,19 @@ reaches Console {
     machine leading(token: @mut Token) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> stopped()
+            ByteRead::Eof -> stopped(),
             ByteRead::Byte { value } -> first(token, value)
         }
     }
     machine first(token: @mut Token, character: i32) {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> leading(token)
+            true -> leading(token),
             false -> digit(token, character, 0)
         }
     }
     machine digit(token: @mut Token, character: i32, count: i32 in Wrapping) {
         transition character >= 48 && character <= 57 && count < 3 {
-            true -> accumulate(token, character, count)
+            true -> accumulate(token, character, count),
             false -> stopped()
         }
     }
@@ -51,13 +50,13 @@ reaches Console {
     machine next(token: @mut Token, count: i32 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> complete(token)
+            ByteRead::Eof -> complete(token),
             ByteRead::Byte { value } -> separator(token, value, count)
         }
     }
     machine separator(token: @mut Token, character: i32, count: i32 in Wrapping) {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> complete(token)
+            true -> complete(token),
             false -> digit(token, character, count)
         }
     }
@@ -75,7 +74,7 @@ crashes Trap
     block token(@mut number);
     image.width = number.value;
     transition number.valid && number.value >= 1 && number.value <= 8 {
-        true -> height(image)
+        true -> height(image),
         false -> false
     }
     machine height(image: @mut Image) -> bool {
@@ -83,7 +82,7 @@ crashes Trap
         block token(@mut number);
         image.height = number.value;
         transition number.valid && number.value >= 1 && number.value <= 8 {
-            true -> threshold(image)
+            true -> threshold(image),
             false -> false
         }
     }
@@ -92,7 +91,7 @@ crashes Trap
         block token(@mut number);
         image.threshold = number.value;
         transition number.valid && number.value <= 255 {
-            true -> connectivity(image)
+            true -> connectivity(image),
             false -> false
         }
     }
@@ -102,13 +101,13 @@ crashes Trap
         image.connectivity = number.value;
         image.length = image.width * image.height;
         transition number.valid && (number.value == 4 || number.value == 8) {
-            true -> pixels(image, 0)
+            true -> pixels(image, 0),
             false -> false
         }
     }
     machine pixels(image: @mut Image, position: i32 in Wrapping) -> bool {
         transition position >= 0 && position < 64 && position < image.length {
-            true -> store(image, position)
+            true -> store(image, position),
             false -> trailing()
         }
     }
@@ -116,7 +115,7 @@ crashes Trap
         let mut number: Token;
         block token(@mut number);
         transition number.valid && number.value <= 255 {
-            true -> accepted(image, position, number.value)
+            true -> accepted(image, position, number.value),
             false -> false
         }
     }
@@ -128,13 +127,13 @@ crashes Trap
     machine trailing() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> true
+            ByteRead::Eof -> true,
             ByteRead::Byte { value } -> whitespace(value)
         }
     }
     machine whitespace(character: i32) -> bool {
         transition character == 32 || character == 9 || character == 10 || character == 13 {
-            true -> trailing()
+            true -> trailing(),
             false -> false
         }
     }

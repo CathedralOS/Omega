@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let mut items: [u64; 2] = [MARK, 1];
     let saved: u64 = items[0];
     let held: u64 = expose(@mut items[0]);
-    transition agree(saved, items[0]) == MARK { true -> done(held) _ -> bad() }
+    transition agree(saved, items[0]) == MARK { true -> done(held), _ -> bad() }
     machine done(held: u64) {}
     machine bad() { crash Trap; }
 }

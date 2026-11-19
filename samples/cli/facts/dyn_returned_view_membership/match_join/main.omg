@@ -8,7 +8,7 @@ trait Payload {
 First satisfies Payload {
     machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] in Utf8 {
         let bytes: @'input [u8] in Utf8 = match first.len == 3 {
-            true -> second
+            true -> second,
             false -> first
         };
         bytes
@@ -17,7 +17,7 @@ First satisfies Payload {
 Second satisfies Payload {
     machine window<'input>(first: @'input [u8] in Utf8, second: @'input [u8] in Utf8) -> @'input [u8] in Utf8 {
         let bytes: @'input [u8] in Utf8 = match second.len == 3 {
-            true -> second
+            true -> second,
             false -> first
         };
         bytes
@@ -25,13 +25,13 @@ Second satisfies Payload {
 }
 machine classify(bytes: @[u8] in Utf8) -> u64 {
     match bytes == "abc" {
-        true -> 3
+        true -> 3,
         false -> accented(bytes)
     }
 }
 machine accented(bytes: @[u8]) -> u64 {
     match bytes == "é" {
-        true -> 2
+        true -> 2,
         false -> 9
     }
 }
@@ -43,7 +43,7 @@ machine main() crashes Trap {
     let first: u64 = classify(Payload::window(chosen_first, accent, word));
     let second: u64 = classify(Payload::window(chosen_second, accent, word));
     transition first == 2 && second == 3 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

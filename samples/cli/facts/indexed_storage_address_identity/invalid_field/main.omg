@@ -11,7 +11,7 @@ machine observe(selection: Selection) -> bool {
     let first: addr = address_of(@items[0]);
     let second: addr = address_of(@items[1]);
     transition index == 0 {
-        true -> (selected == again && selected != 0 && selected == first && selected != second)
+        true -> (selected == again && selected != 0 && selected == first && selected != second),
         false -> (selected == again && selected != 0 && selected == second && selected != first)
     }
 }
@@ -19,7 +19,7 @@ machine probe(input: u64) -> bool requires input < 2 { observe(Selection { index
 machine main() crashes Trap {
     let zero: bool = probe(0);
     let one: bool = probe(1);
-    transition zero && one { true -> done() false -> bad() }
+    transition zero && one { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

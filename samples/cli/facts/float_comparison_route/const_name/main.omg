@@ -5,7 +5,7 @@ const LEFT: f64 = 212.0;
 const RIGHT: f64 = 2.0;
 machine main() crashes Trap {
     let equal: bool = LEFT == RIGHT;
-    transition equal { true -> bad() _ -> done() }
+    transition equal { true -> bad(), _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }
 }

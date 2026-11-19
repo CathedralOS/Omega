@@ -12,15 +12,15 @@ ensures result >= Minimum
 machine construct<const Base: u64>() -> u64
 requires Base <= 100
 ensures result >= Base + 4
-{ selected<Base + 4, Selected<Base + 3>>() }
+{ selected::<Base + 4, Selected<Base + 3>>() }
 machine relay<const Base: u64>() -> u64
 requires Base <= 100
 ensures result >= Base + 4
-{ construct<Base>() }
+{ construct::<Base>() }
 machine main() crashes Trap {
-    let value: u64 = relay<3>();
+    let value: u64 = relay::<3>();
     let difference: u64 = value - 7;
-    transition difference == 0 { true -> done() _ -> bad() }
+    transition difference == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

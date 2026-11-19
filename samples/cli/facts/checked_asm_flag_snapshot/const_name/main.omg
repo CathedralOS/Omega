@@ -13,7 +13,7 @@ machine main() crashes Trap {
  observed requires (snapshot & ZF_MASK) == ZF_MASK:
   nop
  }
- transition (snapshot & ZF_MASK) == ZF_MASK { true -> done() false -> bad() }
+ transition (snapshot & ZF_MASK) == ZF_MASK { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

@@ -14,11 +14,11 @@ SharedApply satisfies CallbackApply {
     { Action(value) }
 }
 machine main() reaches CallbackApply invokes CallbackApply crashes Trap {
-    let result: u64 = CallbackApply::apply<identity>(42);
+    let result: u64 = CallbackApply::apply::<identity>(42);
     transition { _ -> consume(result) }
     machine consume(value: u64) crashes Trap requires value <= 64 {
         let remaining: u64 = 64u64 - value;
-        transition remaining == 22 { true -> done() false -> bad() }
+        transition remaining == 22 { true -> done(), false -> bad() }
         machine done() {}
         machine bad() crashes Trap { crash Trap; }
     }

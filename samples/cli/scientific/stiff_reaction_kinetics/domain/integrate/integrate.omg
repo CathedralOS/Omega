@@ -1,4 +1,3 @@
-module domain::integrate;
 // A trial owns six Newton stage solves: one full and two half SDIRK2 steps.
 // Only accepted two-half-step values update committed state. Rejection halves
 // h without changing time/y. The order-two local error estimate divides the
@@ -21,7 +20,7 @@ use domain::newton::implicit;
 machine dirk(problem: @Problem, initial: @Vector, step: f64) -> Newton {
     let first: Newton = implicit(problem, initial, 0.2928932188134524 * step);
     transition first.success {
-        true -> second(problem, initial, first, step)
+        true -> second(problem, initial, first, step),
         false -> (first)
     }
     machine second(problem: @Problem, initial: @Vector, first: Newton, step: f64) -> Newton {
@@ -32,7 +31,7 @@ machine dirk(problem: @Problem, initial: @Vector, step: f64) -> Newton {
             c: initial.c + ratio * (first.value.c - initial.c)
         };
         transition physical(@base) {
-            true -> finish(problem, base, step)
+            true -> finish(problem, base, step),
             false -> failed(first)
         }
     }
@@ -49,17 +48,17 @@ public machine integrate(problem: @Problem) -> Solution {
     solution.value = problem.initial; solution.step = problem.step;
     transition { _ -> advance(problem, solution) }
     machine advance(problem: @Problem, solution: Solution) -> Solution {
-        transition solution.time >= problem.end { true -> complete(solution) false -> budget(problem, solution) }
+        transition solution.time >= problem.end { true -> complete(solution), false -> budget(problem, solution) }
     }
     machine budget(problem: @Problem, solution: Solution) -> Solution {
         transition solution.attempts < problem.trials && solution.attempts < 1000000 {
-            true -> choose_step(problem, solution)
+            true -> choose_step(problem, solution),
             false -> (solution)
         }
     }
     machine choose_step(problem: @Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
-        transition next.step > problem.end - next.time { true -> cap(problem, next) false -> usable(problem, next) }
+        transition next.step > problem.end - next.time { true -> cap(problem, next), false -> usable(problem, next) }
     }
     machine cap(problem: @Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution; next.step = problem.end - next.time;
@@ -67,7 +66,7 @@ public machine integrate(problem: @Problem) -> Solution {
     }
     machine usable(problem: @Problem, solution: Solution) -> Solution {
         transition solution.step > 1e-15 * (1.0 + solution.time) && solution.time + solution.step > solution.time {
-            true -> trial(problem, solution)
+            true -> trial(problem, solution),
             false -> (solution)
         }
     }
@@ -77,16 +76,16 @@ public machine integrate(problem: @Problem) -> Solution {
         next.full = dirk(problem, @next.value, next.step);
         next.half = dirk(problem, @next.value, 0.5 * next.step);
         next.fine = dirk(problem, @next.half.value, 0.5 * next.step);
-        transition next.full.success && next.half.success && next.fine.success { true -> estimate(problem, next) false -> reject(problem, next) }
+        transition next.full.success && next.half.success && next.fine.success { true -> estimate(problem, next), false -> reject(problem, next) }
     }
     machine estimate(problem: @Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
         let difference: Vector = Vector { a: next.fine.value.a - next.full.value.a, b: next.fine.value.b - next.full.value.b, c: next.fine.value.c - next.full.value.c };
         next.error = norm(@difference, @next.fine.value, problem) / 3.0;
-        transition next.error >= 0.0 && next.error <= 1.0 { true -> accept(problem, next) false -> reject(problem, next) }
+        transition next.error >= 0.0 && next.error <= 1.0 { true -> accept(problem, next), false -> reject(problem, next) }
     }
     machine accept(problem: @Problem, solution: Solution) -> Solution {
-        transition solution.accepted < 1000000 { true -> commit(problem, solution) false -> (solution) }
+        transition solution.accepted < 1000000 { true -> commit(problem, solution), false -> (solution) }
     }
     machine commit(problem: @Problem, solution: Solution) -> Solution {
         let mut next: Solution = solution;
@@ -95,11 +94,11 @@ public machine integrate(problem: @Problem) -> Solution {
         let initial_mass: f64 = problem.initial.a + problem.initial.b + problem.initial.c;
         let mass_error: f64 = magnitude(next.value.a + next.value.b + next.value.c - initial_mass);
         next.mass_error = maximum(next.mass_error, mass_error);
-        transition next.error < 0.1 { true -> grow(problem, next) false -> advance(problem, next) }
+        transition next.error < 0.1 { true -> grow(problem, next), false -> advance(problem, next) }
     }
     machine grow(problem: @Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.step = next.step * 2.0; transition { _ -> advance(problem, next) } }
     machine reject(problem: @Problem, solution: Solution) -> Solution {
-        transition solution.rejected < 1000000 { true -> rollback(problem, solution) false -> (solution) }
+        transition solution.rejected < 1000000 { true -> rollback(problem, solution), false -> (solution) }
     }
     machine rollback(problem: @Problem, solution: Solution) -> Solution { let mut next: Solution = solution; next.rejected = next.rejected + 1; next.step = next.step * 0.5; transition { _ -> advance(problem, next) } }
     machine complete(solution: Solution) -> Solution { let mut next: Solution = solution; next.success = true; next }

@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let mut handle: Handle = Handle { fd: 3, status: Status { size: 0, mode: 5 } };
     let filled: bool = inspect(@mut handle);
     transition filled {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

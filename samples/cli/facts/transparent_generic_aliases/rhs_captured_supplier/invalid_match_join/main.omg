@@ -8,13 +8,13 @@ machine joined(flag: bool) -> bool {
     let original: leaf::buffers::Padded<3u64> = [17u8, 0u8, 0u8, 42u8];
     let alternate: [u8; 4] = [17u8, 0u8, 0u8, 42u8];
     let represented: leaf::buffers::Padded<3u64> = match flag { true -> original, false -> alternate };
-    let forwarded: [u8; 4] = leaf::buffers::Selected<4u64>::forward<17u64>(represented);
+    let forwarded: [u8; 4] = leaf::buffers::Selected::<4u64>::forward::<17u64>(represented);
     let alias_again: leaf::buffers::Padded<3u64> = forwarded;
     observe(@alias_again) == 42u8 && represented[0u64] == 17u8 && Count == 17u64 && Bias == 9u64
 }
 machine main() crashes Trap {
     transition joined(true) && joined(false) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

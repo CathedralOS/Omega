@@ -25,7 +25,7 @@ machine Main::main(main: @mut Main) {
     main.meter_value = 2.0;
     main.meter_value = 0.25;
     transition main.meter_value == 0.25 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

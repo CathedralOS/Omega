@@ -13,7 +13,7 @@ machine headroom(value: u16) -> u16 requires value in Small {
 
 machine main() crashes Trap {
     transition headroom(sample(7)) == 3 && headroom(sample(2)) == 8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

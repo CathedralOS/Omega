@@ -19,12 +19,12 @@ machine main() reaches NativeFill crashes Trap {
     let snapshot: [u8; 256] = bytes;
     bytes[8] = 29;
     transition bytes[8] == 29 && snapshot[8] == 17 {
-        true -> {} false -> wrong()
+        true -> {}, false -> wrong()
     }
     let second: u64 = fill(@mut bytes[8..151]);
     transition observed == 0 && first != 0 && first == second && bytes[8] == 17 && bytes[56] == 17 && bytes[151] == 17
         && bytes[7] == 23 && bytes[152] == 37 {
-        true -> {} false -> wrong()
+        true -> {}, false -> wrong()
     }
     machine wrong() crashes Trap { crash Trap; }
 }

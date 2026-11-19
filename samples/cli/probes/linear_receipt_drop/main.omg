@@ -33,7 +33,7 @@ machine linear_receipt_drop() {
     let observed: i32 = observe(@receipt);
     drop(receipt);
     transition observed == 70 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

@@ -13,7 +13,7 @@ public machine make(byte: u8) -> ByteParcel {
 }
 public machine consume(parcel: ByteParcel) -> i32 {
     transition parcel {
-        ByteParcel::Byte { value } -> (255 - value)
+        ByteParcel::Byte { value } -> (255 - value),
         ByteParcel::Empty -> (-1)
     }
 }
@@ -23,7 +23,7 @@ machine main() crashes Trap {
     let first: i32 = consume(MIDDLE);
     let second: i32 = consume(HIGH);
     transition first == 127 && second == 0 && consume(ByteParcel::Empty) == -1 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

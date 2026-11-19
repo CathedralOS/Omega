@@ -6,7 +6,7 @@ machine Gate::read<const Selected: u64>(gate: @Gate<Selected>) -> u8 { gate.code
 machine start() crashes Trap {
     let value: Gate<0>;
     let code: u8 = Gate::read(@value);
-    transition code == 0u8 { true -> done() _ -> bad() }
+    transition code == 0u8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

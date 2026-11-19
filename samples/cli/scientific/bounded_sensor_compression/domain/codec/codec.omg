@@ -1,4 +1,3 @@
-module domain::codec;
 use omega::language::core::abs_i32;
 use omega::language::core::max_i32;
 use omega::language::core::min_i32;
@@ -20,7 +19,7 @@ requires value >= 0 && value <= 4095 && tolerance >= 0 && tolerance <= 7
 public machine encode(records: @SensorBlock, stream: @mut SensorStream) -> bool {
     stream.length = 0;
     transition records.count >= 1 && records.count <= 16 && records.tolerance >= 0 && records.tolerance <= 7 {
-        true -> header(records, stream)
+        true -> header(records, stream),
         _ -> invalid()
     }
     machine header(records: @SensorBlock, stream: @mut SensorStream) -> bool
@@ -34,7 +33,7 @@ public machine encode(records: @SensorBlock, stream: @mut SensorStream) -> bool 
     }
     machine scan(records: @SensorBlock, stream: @mut SensorStream, index: i32, previous: i32, cursor: i32) -> bool {
         transition index >= 0 && index < records.count && index < 16 && previous >= 0 && previous <= 4095 && cursor >= 5 && cursor <= 50 && records.tolerance >= 0 && records.tolerance <= 7 {
-            true -> sample(records, stream, index, previous, cursor)
+            true -> sample(records, stream, index, previous, cursor),
             _ -> finish(records, stream, index, cursor)
         }
     }
@@ -42,20 +41,20 @@ public machine encode(records: @SensorBlock, stream: @mut SensorStream) -> bool 
     requires index >= 0 && index < 16 && previous >= 0 && previous <= 4095 && cursor >= 5 && cursor <= 50 && records.tolerance >= 0 && records.tolerance <= 7 {
         let value: i32 = records.values[index];
         transition value >= 0 && value <= 4095 {
-            true -> rounded(records, stream, index, previous, cursor, quantize(value, records.tolerance))
+            true -> rounded(records, stream, index, previous, cursor, quantize(value, records.tolerance)),
             _ -> invalid()
         }
     }
     machine rounded(records: @SensorBlock, stream: @mut SensorStream, index: i32, previous: i32, cursor: i32, value: i32) -> bool {
         transition value >= 0 && value <= 4095 && previous >= 0 && previous <= 4095 && index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 {
-            true -> difference(records, stream, index, cursor, value, value - previous)
+            true -> difference(records, stream, index, cursor, value, value - previous),
             _ -> invalid()
         }
     }
     machine difference(records: @SensorBlock, stream: @mut SensorStream, index: i32, cursor: i32, value: i32, delta: i32) -> bool
     requires index >= 0 && index < 16 && cursor >= 5 && cursor <= 50 && value >= 0 && value <= 4095 {
         transition delta >= -127 && delta <= 127 {
-            true -> compact(records, stream, index, cursor, value, delta)
+            true -> compact(records, stream, index, cursor, value, delta),
             _ -> absolute(records, stream, index, cursor, value)
         }
     }
@@ -73,7 +72,7 @@ public machine encode(records: @SensorBlock, stream: @mut SensorStream) -> bool 
     }
     machine finish(records: @SensorBlock, stream: @mut SensorStream, index: i32, cursor: i32) -> bool {
         transition index == records.count && cursor >= 5 && cursor <= 53 {
-            true -> complete(stream, cursor)
+            true -> complete(stream, cursor),
             _ -> invalid()
         }
     }
@@ -86,14 +85,14 @@ public machine encode(records: @SensorBlock, stream: @mut SensorStream) -> bool 
 public machine decode(stream: @SensorStream, records: @mut SensorBlock) -> bool {
     records.count = 0;
     transition stream.length >= 6 && stream.length <= 53 {
-        true -> header(stream, records)
+        true -> header(stream, records),
         _ -> invalid()
     }
     machine header(stream: @SensorStream, records: @mut SensorBlock) -> bool {
         let count: i32 = stream.bytes[3] as i32;
         let tolerance: i32 = stream.bytes[4] as i32;
         transition stream.bytes[0] == 83 && stream.bytes[1] == 67 && stream.bytes[2] == 1 && count >= 1 && count <= 16 && tolerance <= 7 {
-            true -> begin(stream, records, count, tolerance)
+            true -> begin(stream, records, count, tolerance),
             _ -> invalid()
         }
     }
@@ -104,7 +103,7 @@ public machine decode(stream: @SensorStream, records: @mut SensorBlock) -> bool 
     }
     machine scan(stream: @SensorStream, records: @mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
         transition index >= 0 && index < records.count && index < 16 && cursor >= 5 && cursor < stream.length && cursor < 53 && previous >= 0 && previous <= 4095 {
-            true -> tag(stream, records, index, previous, cursor)
+            true -> tag(stream, records, index, previous, cursor),
             _ -> finish(stream, records, index, cursor)
         }
     }
@@ -112,13 +111,13 @@ public machine decode(stream: @SensorStream, records: @mut SensorBlock) -> bool 
     requires index >= 0 && index < 16 && cursor >= 5 && cursor < 53 && previous >= 0 && previous <= 4095 {
         let code: i32 = stream.bytes[cursor] as i32;
         transition code == 255 {
-            true -> escape(stream, records, index, previous, cursor)
+            true -> escape(stream, records, index, previous, cursor),
             _ -> reconstructed(stream, records, index, cursor + 1, previous + code - 127)
         }
     }
     machine escape(stream: @SensorStream, records: @mut SensorBlock, index: i32, previous: i32, cursor: i32) -> bool {
         transition cursor >= 5 && cursor <= 50 && cursor + 2 < stream.length {
-            true -> absolute(stream, records, index, previous, cursor)
+            true -> absolute(stream, records, index, previous, cursor),
             _ -> invalid()
         }
     }
@@ -126,19 +125,19 @@ public machine decode(stream: @SensorStream, records: @mut SensorBlock) -> bool 
     requires cursor >= 5 && cursor <= 50 {
         let value: i32 = (stream.bytes[cursor + 1] as i32) + (stream.bytes[cursor + 2] as i32) * 256;
         transition previous >= 0 && previous <= 4095 && value >= 0 && value <= 4095 {
-            true -> canonical(stream, records, index, cursor + 3, value, value - previous)
+            true -> canonical(stream, records, index, cursor + 3, value, value - previous),
             _ -> invalid()
         }
     }
     machine canonical(stream: @SensorStream, records: @mut SensorBlock, index: i32, cursor: i32, value: i32, delta: i32) -> bool {
         transition delta < -127 || delta > 127 {
-            true -> reconstructed(stream, records, index, cursor, value)
+            true -> reconstructed(stream, records, index, cursor, value),
             _ -> invalid()
         }
     }
     machine reconstructed(stream: @SensorStream, records: @mut SensorBlock, index: i32, cursor: i32, value: i32) -> bool {
         transition index >= 0 && index < 16 && value >= 0 && value <= 4095 {
-            true -> store(stream, records, index, cursor, value)
+            true -> store(stream, records, index, cursor, value),
             _ -> invalid()
         }
     }
@@ -157,12 +156,12 @@ public machine decode(stream: @SensorStream, records: @mut SensorBlock) -> bool 
 // -1 denotes a failed certificate; zero tolerance is exact reconstruction.
 public machine certify(original: @SensorBlock, decoded: @SensorBlock) -> i32 {
     transition original.count == decoded.count && original.count >= 1 && original.count <= 16 && original.tolerance >= 0 && original.tolerance <= 7 {
-        true -> scan(original, decoded, 0, 0)
+        true -> scan(original, decoded, 0, 0),
         _ -> invalid()
     }
     machine scan(original: @SensorBlock, decoded: @SensorBlock, index: i32, maximum: i32) -> i32 {
         transition index >= 0 && index < original.count && index < 16 {
-            true -> sample(original, decoded, index, maximum)
+            true -> sample(original, decoded, index, maximum),
             _ -> done(maximum)
         }
     }
@@ -171,13 +170,13 @@ public machine certify(original: @SensorBlock, decoded: @SensorBlock) -> i32 {
         let first: i32 = original.values[index];
         let second: i32 = decoded.values[index];
         transition first >= 0 && first <= 4095 && second >= 0 && second <= 4095 {
-            true -> error(original, decoded, index, maximum, abs_i32(first - second))
+            true -> error(original, decoded, index, maximum, abs_i32(first - second)),
             _ -> invalid()
         }
     }
     machine error(original: @SensorBlock, decoded: @SensorBlock, index: i32, maximum: i32, difference: i32) -> i32 {
         transition index >= 0 && index < 16 && difference <= original.tolerance {
-            true -> advance(original, decoded, index, max_i32(maximum, difference))
+            true -> advance(original, decoded, index, max_i32(maximum, difference)),
             _ -> invalid()
         }
     }

@@ -4,7 +4,7 @@ machine main() crashes Trap {
     let items: [i32 in Selected; 2] = [1, 38];
     let observed: i32 in Selected = items[1];
     transition observed == 38 && items[0] == 1 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

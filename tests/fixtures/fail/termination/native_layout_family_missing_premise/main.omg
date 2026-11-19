@@ -21,5 +21,5 @@ terminates
 machine checked_caller(left: @Holder, right: @Holder) -> u64
 requires left.token in Token::Fair
 terminates
-{ selected_family<u64>(left, right) }
+{ selected_family::<u64>(left, right) }
 machine main() {}

@@ -20,7 +20,7 @@ machine Main::main(main: @mut Main) {
     let s: u64 = nine();
     let r: u64 = deliver(s);
     transition r == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

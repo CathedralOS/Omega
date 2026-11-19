@@ -38,7 +38,7 @@ machine run_main(main: @mut Main) crashes Trap {
     let marker: u64 = phantom.marker;
     let value: u64 = buffer.value;
     drop(buffer);
-    transition marker == 37 && value == 91 { true -> done() _ -> bad() }
+    transition marker == 37 && value == 91 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

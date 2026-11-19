@@ -1,4 +1,3 @@
-module domain::solver;
 use domain::model;
 use domain::model::Problem;
 use domain::model::Schedule;
@@ -15,7 +14,7 @@ use domain::model::predecessor;
 public machine solve(problem: @Problem, best: @mut Schedule) -> bool {
     reset_schedule(best);
     transition problem.count == 0 {
-        true -> empty(best)
+        true -> empty(best),
         _ -> enumerate(problem, best, 0)
     }
     machine empty(best: @mut Schedule) -> bool {
@@ -24,7 +23,7 @@ public machine solve(problem: @Problem, best: @mut Schedule) -> bool {
     }
     machine enumerate(problem: @Problem, best: @mut Schedule, code: i32 in Wrapping) -> bool {
         transition code < 256 {
-            true -> candidate(problem, best, code)
+            true -> candidate(problem, best, code),
             _ -> (best.feasible)
         }
     }
@@ -33,7 +32,7 @@ public machine solve(problem: @Problem, best: @mut Schedule) -> bool {
         reset_schedule(@mut trial);
         let feasible: bool = schedule_order(problem, @mut trial, code);
         transition feasible {
-            true -> compare(problem, best, @trial, code)
+            true -> compare(problem, best, @trial, code),
             _ -> enumerate(problem, best, code + 1)
         }
     }
@@ -41,7 +40,7 @@ public machine solve(problem: @Problem, best: @mut Schedule) -> bool {
                   code: i32 in Wrapping) -> bool {
         let preferred: bool = better(trial, best);
         transition preferred {
-            true -> retain(problem, best, trial, code)
+            true -> retain(problem, best, trial, code),
             _ -> enumerate(problem, best, code + 1)
         }
     }
@@ -58,30 +57,30 @@ public machine solve(problem: @Problem, best: @mut Schedule) -> bool {
 // does not depend on which priority word happened to be enumerated first.
 machine better(trial: @Schedule, best: @Schedule) -> bool {
     transition !best.feasible || trial.makespan < best.makespan {
-        true -> true
+        true -> true,
         _ -> tied(trial, best)
     }
     machine tied(trial: @Schedule, best: @Schedule) -> bool {
         transition trial.makespan == best.makespan {
-            true -> compare(trial, best, 0)
+            true -> compare(trial, best, 0),
             _ -> false
         }
     }
     machine compare(trial: @Schedule, best: @Schedule, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
-            true -> values(trial, best, index)
+            true -> values(trial, best, index),
             _ -> false
         }
     }
     machine values(trial: @Schedule, best: @Schedule, index: i32 in Wrapping) -> bool {
         transition trial.starts[index] < best.starts[index] {
-            true -> true
+            true -> true,
             _ -> equal(trial, best, index)
         }
     }
     machine equal(trial: @Schedule, best: @Schedule, index: i32 in Wrapping) -> bool {
         transition trial.starts[index] == best.starts[index] {
-            true -> compare(trial, best, index + 1)
+            true -> compare(trial, best, index + 1),
             _ -> false
         }
     }
@@ -93,14 +92,14 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
     machine position(problem: @Problem, schedule: @mut Schedule, code: i32 in Wrapping,
                    placed: i32 in Wrapping) -> bool {
         transition placed < problem.count {
-            true -> selected(problem, schedule, code / 4, placed, code % 4)
+            true -> selected(problem, schedule, code / 4, placed, code % 4),
             _ -> true
         }
     }
     machine selected(problem: @Problem, schedule: @mut Schedule, rest: i32 in Wrapping,
                    placed: i32 in Wrapping, task: i32 in Wrapping) -> bool {
         transition task >= 0 && task < problem.count && task < 4 {
-            true -> unscheduled(problem, schedule, rest, placed, task)
+            true -> unscheduled(problem, schedule, rest, placed, task),
             _ -> false
         }
     }
@@ -109,7 +108,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
         transition schedule.starts[task] < 0
             && problem.demand_a[task] <= problem.capacity_a
             && problem.demand_b[task] <= problem.capacity_b {
-            true -> dependencies(problem, schedule, rest, placed, task, 0, 0)
+            true -> dependencies(problem, schedule, rest, placed, task, 0, 0),
             _ -> false
         }
     }
@@ -117,7 +116,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                         placed: i32 in Wrapping, task: i32 in Wrapping,
                         other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         transition other >= 0 && other < problem.count && other < 4 && task >= 0 && task < 4 {
-            true -> dependency(problem, schedule, rest, placed, task, other, earliest)
+            true -> dependency(problem, schedule, rest, placed, task, other, earliest),
             _ -> search(problem, schedule, rest, placed, task, earliest)
         }
     }
@@ -126,7 +125,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                       other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         let required: bool = predecessor(problem.predecessors[task], other);
         transition required {
-            true -> predecessor_end(problem, schedule, rest, placed, task, other, earliest)
+            true -> predecessor_end(problem, schedule, rest, placed, task, other, earliest),
             _ -> dependencies(problem, schedule, rest, placed, task, other + 1, earliest)
         }
     }
@@ -134,7 +133,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                            placed: i32 in Wrapping, task: i32 in Wrapping,
                            other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         transition schedule.starts[other] >= 0 {
-            true -> maximum(problem, schedule, rest, placed, task, other, earliest)
+            true -> maximum(problem, schedule, rest, placed, task, other, earliest),
             _ -> false
         }
     }
@@ -143,7 +142,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                    other: i32 in Wrapping, earliest: i32 in Wrapping) -> bool {
         let previous_end: i32 in Wrapping = schedule.ends[other];
         transition previous_end > earliest {
-            true -> dependencies(problem, schedule, rest, placed, task, other + 1, previous_end)
+            true -> dependencies(problem, schedule, rest, placed, task, other + 1, previous_end),
             _ -> dependencies(problem, schedule, rest, placed, task, other + 1, earliest)
         }
     }
@@ -151,7 +150,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                   placed: i32 in Wrapping, task: i32 in Wrapping,
                   start: i32 in Wrapping) -> bool {
         transition start >= 0 && start <= 20 && task >= 0 && task < 4 {
-            true -> fit(problem, schedule, rest, placed, task, start)
+            true -> fit(problem, schedule, rest, placed, task, start),
             _ -> false
         }
     }
@@ -160,7 +159,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                start: i32 in Wrapping) -> bool {
         let end: i32 in Wrapping = start + problem.durations[task];
         transition end <= 20 {
-            true -> capacity(problem, schedule, rest, placed, task, start, end)
+            true -> capacity(problem, schedule, rest, placed, task, start, end),
             _ -> false
         }
     }
@@ -169,7 +168,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
                     start: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         let available: bool = fits(problem, schedule, task, start, end);
         transition available {
-            true -> commit(problem, schedule, rest, placed, task, start, end)
+            true -> commit(problem, schedule, rest, placed, task, start, end),
             _ -> search(problem, schedule, rest, placed, task, start + 1)
         }
     }
@@ -179,7 +178,7 @@ machine schedule_order(problem: @Problem, schedule: @mut Schedule,
         schedule.starts[task] = start;
         schedule.ends[task] = end;
         transition end > schedule.makespan {
-            true -> span(problem, schedule, rest, placed, end)
+            true -> span(problem, schedule, rest, placed, end),
             _ -> position(problem, schedule, rest, placed + 1)
         }
     }
@@ -199,7 +198,7 @@ machine fits(problem: @Problem, schedule: @Schedule, task: i32 in Wrapping,
                 time: i32 in Wrapping, end: i32 in Wrapping) -> bool {
         transition time < end && task >= 0 && task < 4 {
             true -> collect(problem, schedule, task, time, end, 0,
-                            problem.demand_a[task], problem.demand_b[task])
+                            problem.demand_a[task], problem.demand_b[task]),
             _ -> true
         }
     }
@@ -207,7 +206,7 @@ machine fits(problem: @Problem, schedule: @Schedule, task: i32 in Wrapping,
                    time: i32 in Wrapping, end: i32 in Wrapping, other: i32 in Wrapping,
                    used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition other >= 0 && other < problem.count && other < 4 {
-            true -> overlap(problem, schedule, task, time, end, other, used_a, used_b)
+            true -> overlap(problem, schedule, task, time, end, other, used_a, used_b),
             _ -> capacities(problem, schedule, task, time, end, used_a, used_b)
         }
     }
@@ -217,7 +216,7 @@ machine fits(problem: @Problem, schedule: @Schedule, task: i32 in Wrapping,
         transition schedule.starts[other] >= 0 && schedule.starts[other] <= time
             && time < schedule.ends[other] {
             true -> collect(problem, schedule, task, time, end, other + 1,
-                            used_a + problem.demand_a[other], used_b + problem.demand_b[other])
+                            used_a + problem.demand_a[other], used_b + problem.demand_b[other]),
             _ -> collect(problem, schedule, task, time, end, other + 1, used_a, used_b)
         }
     }
@@ -225,7 +224,7 @@ machine fits(problem: @Problem, schedule: @Schedule, task: i32 in Wrapping,
                       time: i32 in Wrapping, end: i32 in Wrapping,
                       used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition used_a <= problem.capacity_a && used_b <= problem.capacity_b {
-            true -> tick(problem, schedule, task, time + 1, end)
+            true -> tick(problem, schedule, task, time + 1, end),
             _ -> false
         }
     }

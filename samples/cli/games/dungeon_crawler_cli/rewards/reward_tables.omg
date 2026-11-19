@@ -32,7 +32,7 @@ machine roll_enemy_reward(
     reward: @mut Reward
 ) {
     transition chance(@mut reward_tables.rng, random, 1, 4) {
-        true -> enemy_item(reward_tables, enemy, random, reward)
+        true -> enemy_item(reward_tables, enemy, random, reward),
         false -> enemy_gold(reward_tables, enemy, random, reward)
     }
 
@@ -74,11 +74,11 @@ machine roll_item(
     let is_deep_key: bool = depth >= 8;
 
     transition {
-        is_early_dagger -> ItemKind::RustedDagger
-        is_early_buckler -> ItemKind::CrackedBuckler
-        is_healing_charm -> ItemKind::HealingCharm
-        is_ember_blade -> ItemKind::EmberBlade
-        is_deep_key -> ItemKind::DeepKey
+        is_early_dagger -> ItemKind::RustedDagger,
+        is_early_buckler -> ItemKind::CrackedBuckler,
+        is_healing_charm -> ItemKind::HealingCharm,
+        is_ember_blade -> ItemKind::EmberBlade,
+        is_deep_key -> ItemKind::DeepKey,
         _ -> ItemKind::RustedDagger
     }
 }

@@ -19,7 +19,7 @@ crashes Trap
     let source_type: u64 in Trapping = typing_expression_type(typing, expression.left);
     let given: TypeRow = type_table_row(@typing.types, source_type);
     transition checking && given.kind == TypeKind::Reference && given.inner != row.inner {
-        true -> referents(checker, syntax, typing, expression, row, given)
+        true -> referents(checker, syntax, typing, expression, row, given),
         _ -> done()
     }
 
@@ -30,35 +30,35 @@ crashes Trap
         let source_boolean: bool = source.kind == TypeKind::Builtin && source.builtin == BuiltinType::Bool;
         let target_boolean: bool = target.kind == TypeKind::Builtin && target.builtin == BuiltinType::Bool;
         transition target.domain == DomainBinding::Declared {
-            true -> fenced(checker, expression)
+            true -> fenced(checker, expression),
             _ -> source_domain(checker, syntax, typing, expression, source.domain == DomainBinding::Declared, mutable, source_boolean, target_boolean)
         }
     }
 
     machine source_domain(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, qualified: bool, mutable: bool, source_boolean: bool, target_boolean: bool) {
         transition qualified && mutable {
-            true -> unproven(checker, expression)
+            true -> unproven(checker, expression),
             _ -> shapes(checker, syntax, typing, expression, mutable, source_boolean, target_boolean)
         }
     }
 
     machine shapes(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, source_boolean: bool, target_boolean: bool) {
         transition source_boolean == target_boolean {
-            true -> done()
+            true -> done(),
             _ -> mixed(checker, syntax, typing, expression, mutable, target_boolean)
         }
     }
 
     machine mixed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, mutable: bool, target_boolean: bool) {
         transition target_boolean {
-            true -> bounded_field(checker, syntax, typing, expression)
+            true -> bounded_field(checker, syntax, typing, expression),
             _ -> boolean_source(checker, expression, mutable)
         }
     }
 
     machine boolean_source(checker: @mut Checker, expression: Expression, mutable: bool) {
         transition mutable {
-            true -> unproven(checker, expression)
+            true -> unproven(checker, expression),
             _ -> done()
         }
     }
@@ -69,7 +69,7 @@ crashes Trap
         let operand: Value = value_at(checker, expression.left);
         let owner: u64 in Trapping = window_owner(checker, syntax, typing, operand.place);
         transition owner > 0 {
-            true -> proved(checker, expression, operand.place)
+            true -> proved(checker, expression, operand.place),
             _ -> unproven(checker, expression)
         }
     }
@@ -81,7 +81,7 @@ crashes Trap
         let at_least_zero: bool = proves_at_most(checker, zero, referent);
         let at_most_one: bool = proves_at_most(checker, referent, one);
         transition at_least_zero && at_most_one {
-            true -> done()
+            true -> done(),
             _ -> unproven(checker, expression)
         }
     }

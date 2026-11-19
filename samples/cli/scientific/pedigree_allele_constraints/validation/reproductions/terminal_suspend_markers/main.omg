@@ -8,7 +8,7 @@ public machine relay_block() -> bool blocks {
     transition { _ -> block wait() }
 }
 public machine relay_both() -> bool suspends blocks {
-    transition true { true -> suspend block park() false -> false }
+    transition true { true -> suspend block park(), false -> false }
 }
 machine contextual() -> bool { transition { _ -> block() } }
 machine contextual_suspend() -> bool { transition { _ -> suspend() } }
@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let named: bool = contextual();
     let named_suspend: bool = contextual_suspend();
     transition waited && parked && named && named_suspend {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

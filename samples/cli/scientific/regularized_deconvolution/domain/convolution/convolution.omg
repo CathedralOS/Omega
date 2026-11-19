@@ -1,26 +1,25 @@
-module domain::convolution;
 // Centered periodic H: output[i] = sum_j kernel[j] input[i+width/2-j].
 // The adjoint reverses that offset; asymmetric kernels must preserve this sign.
 public machine convolve(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool) {
     transition { _ -> row(input, output, kernel, length, width, adjoint, 0) }
     machine row(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping) {
         transition index >= 0 && index < length && index < 32 && length >= 8 && length <= 32 {
-            true -> coefficient(input, output, kernel, length, width, adjoint, index, 0, 0.0)
+            true -> coefficient(input, output, kernel, length, width, adjoint, index, 0, 0.0),
             _ -> {}
         }
     }
     machine coefficient(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping, tap: i32 in Wrapping, total: f64) {
         transition tap >= 0 && tap < width && tap < 5 && length >= 8 && length <= 32 {
-            true -> position(input, output, kernel, length, width, adjoint, index, tap, total)
+            true -> position(input, output, kernel, length, width, adjoint, index, tap, total),
             _ -> store(input, output, kernel, length, width, adjoint, index, total)
         }
     }
     machine position(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping, tap: i32 in Wrapping, total: f64)
     requires length >= 8 && length <= 32 {
-        let offset: i32 in Wrapping = match adjoint { true -> tap - width / 2 _ -> width / 2 - tap };
+        let offset: i32 in Wrapping = match adjoint { true -> tap - width / 2, _ -> width / 2 - tap };
         let source: i32 in Wrapping = (index + offset + length) % length;
         transition source >= 0 && source < 32 && tap >= 0 && tap < 5 {
-            true -> accumulate(input, output, kernel, length, width, adjoint, index, tap, total, source)
+            true -> accumulate(input, output, kernel, length, width, adjoint, index, tap, total, source),
             _ -> {}
         }
     }
@@ -29,7 +28,7 @@ public machine convolve(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64
         transition { _ -> coefficient(input, output, kernel, length, width, adjoint, index, tap + 1, total + kernel[tap] * convolution_sample(input, source)) }
     }
     machine store(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping, total: f64) {
-        transition index >= 0 && index < 32 { true -> stored(input, output, kernel, length, width, adjoint, index, total) _ -> {} }
+        transition index >= 0 && index < 32 { true -> stored(input, output, kernel, length, width, adjoint, index, total), _ -> {} }
     }
     machine stored(input: @[f64; 32], output: @mut [f64; 32], kernel: @[f64; 5], length: i32 in Wrapping, width: i32 in Wrapping, adjoint: bool, index: i32 in Wrapping, total: f64)
     requires index >= 0 && index < 32 {

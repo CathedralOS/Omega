@@ -29,7 +29,7 @@ machine run_case(branch: bool, expected_path: u64) -> bool {
     prior == 99 && observed == 35 && remaining == 65 && path == expected_path
 }
 machine main() crashes Trap {
-    transition run_case(true, 1u64) && run_case(false, 0u64) { true -> done() _ -> bad() }
+    transition run_case(true, 1u64) && run_case(false, 0u64) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

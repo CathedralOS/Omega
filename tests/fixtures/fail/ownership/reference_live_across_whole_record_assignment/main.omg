@@ -6,7 +6,7 @@ machine main() crashes Trap {
     cell = Cell { value: 9 };
     let seen: u32 = observe(view);
     transition seen == 9 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() { }

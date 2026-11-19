@@ -1,4 +1,3 @@
-module data::fixtures;
 use domain::array;
 use domain::array::Geometry;
 public data Fixtures { }
@@ -13,12 +12,12 @@ public machine fixtures_load(geometry: @mut Geometry, selection: i32) {
     geometry.weights[3] = 1.0;
     geometry.steering = 0.0;
     transition selection {
-        1 -> steer(geometry)
-        2 -> zero(geometry)
-        3 -> duplicate(geometry)
-        4 -> taper(geometry)
-        5 -> invalid_position(geometry)
-        6 -> invalid_weight(geometry)
+        1 -> steer(geometry),
+        2 -> zero(geometry),
+        3 -> duplicate(geometry),
+        4 -> taper(geometry),
+        5 -> invalid_position(geometry),
+        6 -> invalid_weight(geometry),
         _ -> done()
     }
     machine steer(geometry: @mut Geometry) { geometry.steering = 0.5; }

@@ -4,7 +4,7 @@ data Item [copy] { case Empty; case Ready(count: u64); }
 
 machine take(item: @mut Item) -> u64 {
     transition item {
-        Item::Ready { count } -> clear(item, count)
+        Item::Ready { count } -> clear(item, count),
         Item::Empty -> 0
     }
     machine clear(item: @mut Item, count: u64) -> u64 {
@@ -18,7 +18,7 @@ machine main() crashes Trap {
     let count: u64 = take(@mut item);
     let empty: u64 = take(@mut item);
     transition count == 42 && empty == 0 {
-        true -> done()
+        true -> done(),
         false -> failed()
     }
     machine done() {}

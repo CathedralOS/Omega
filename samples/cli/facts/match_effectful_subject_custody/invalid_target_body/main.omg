@@ -25,7 +25,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -33,7 +33,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -87,7 +87,7 @@ machine main() crashes Trap {
     let m2: u64 = SelectedApply::exercise(@mut a2, @mut b2, @mut c2, false);
     transition m1 == 40 && a1.count == 11 && b1.count == 13 && c1.count == 40
         && m2 == 40 && a2.count == 11 && b2.count == 40 && c2.count == 5 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

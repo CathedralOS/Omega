@@ -1,4 +1,3 @@
-module output::numbers;
 // Artifacts use decimal integers in micro-units, rounded half away from zero.
 // Maximum model bounds keep scaled loads below 2e18, within signed i64.
 use omega_language_std::Console;
@@ -8,7 +7,7 @@ public machine write_integer(value: i64 in Wrapping) reaches Console
 invokes Console
 {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> magnitude(value)
     }
     machine negative(value: i64 in Wrapping) {
@@ -20,7 +19,7 @@ invokes Console
     }
     machine find_divisor(value: i64 in Wrapping, divisor: i64 in Wrapping) {
         transition divisor > 0 {
-            true -> grow(value, divisor)
+            true -> grow(value, divisor),
             false -> done()
         }
     }
@@ -28,7 +27,7 @@ invokes Console
     requires divisor > 0
     {
         transition value / divisor >= 10 && divisor < 1000000000000000000 {
-            true -> find_divisor(value, divisor * 10)
+            true -> find_divisor(value, divisor * 10),
             false -> emit(value, divisor)
         }
     }
@@ -38,7 +37,7 @@ invokes Console
         let digit: i32 = ((value / divisor) % 10) as i32;
         Console::write_byte(digit + 48);
         transition divisor >= 10 {
-            true -> emit(value, divisor / 10)
+            true -> emit(value, divisor / 10),
             false -> done()
         }
     }
@@ -49,7 +48,7 @@ public machine write_scaled(value: f64) reaches Console
 invokes Console
 {
     transition value < 0.0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: f64) {

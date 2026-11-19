@@ -8,7 +8,7 @@ terminates by current
 ensures result <= 60
 {
     transition current <= 60 {
-        true -> done(current)
+        true -> done(current),
         false -> step(current)
     }
 
@@ -18,7 +18,7 @@ ensures result <= 60
     {
         let next: u64 = c - 10;
         transition next <= 60 {
-            true -> done(next)
+            true -> done(next),
             false -> step(next)
         }
     }
@@ -40,7 +40,7 @@ machine probe() -> i32 {
 
 machine main() crashes Trap {
     transition probe() == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

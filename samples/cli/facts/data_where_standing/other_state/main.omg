@@ -21,7 +21,7 @@ machine compute(counter: Counter) -> i32 {
 machine main() crashes Trap {
     let counter: Counter = produce(60);
     let low: Counter = produce(-2147483648);
-    transition compute(counter) == 130 && compute(low) == -2147483578 { true -> done() _ -> bad() }
+    transition compute(counter) == 130 && compute(low) == -2147483578 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

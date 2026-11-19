@@ -1,4 +1,3 @@
-module io::report;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
@@ -11,7 +10,7 @@ public machine integer(value: i64 in Saturating) reaches Console
 invokes Console
 {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> digits(value, 100000000000)
     }
     machine negative(value: i64 in Saturating) {
@@ -24,7 +23,7 @@ invokes Console
         let digit: i64 in Saturating = (value / divisor) % 10;
         Console::write_byte((digit as i32) + 48);
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10)
+            true -> digits(value, divisor / 10),
             false -> done()
         }
     }
@@ -36,7 +35,7 @@ invokes Console
 {
     let scaled: f64 = value * 1000000.0;
     transition scaled == scaled && scaled >= -99999999999.0 && scaled <= 99999999999.0 {
-        true -> bounded(scaled)
+        true -> bounded(scaled),
         false -> invalid()
     }
     machine bounded(scaled: f64)

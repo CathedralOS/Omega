@@ -7,8 +7,8 @@ machine main() crashes Trap {
     let original: [u8; 2] = [7, 11];
     transition { _ -> arrived(original) }
     machine arrived(items: [u8; 2]) {
-        let observed: u64 = capacity<[u8; 2], 3>(items);
-        transition observed == 2 { true -> done() _ -> bad() }
+        let observed: u64 = capacity::<[u8; 2], 3>(items);
+        transition observed == 2 { true -> done(), _ -> bad() }
     }
     machine done() {} machine bad() { crash Trap; }
 }

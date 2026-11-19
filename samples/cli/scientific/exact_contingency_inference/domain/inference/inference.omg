@@ -1,4 +1,3 @@
-module domain::inference;
 use domain::tables;
 use domain::tables::Table;
 use domain::tables::Model;
@@ -14,7 +13,7 @@ use domain::statistics::association_score;
 public machine analyze(model: @Model) -> Inference {
     let mut result: Inference;
     transition margins_valid(model) {
-        true -> prepare(model, result)
+        true -> prepare(model, result),
         false -> rejected(result, 1)
     }
     machine rejected(mut result: Inference, status: i32) -> Inference {
@@ -23,7 +22,7 @@ public machine analyze(model: @Model) -> Inference {
     }
     machine prepare(model: @Model, result: Inference) -> Inference {
         transition table_valid(model, @model.observed) {
-            true -> seed(model, result)
+            true -> seed(model, result),
             false -> outer(model, result, 0)
         }
     }
@@ -35,14 +34,14 @@ public machine analyze(model: @Model) -> Inference {
     }
     machine outer(model: @Model, result: Inference, first: u64) -> Inference {
         transition first < 9 {
-            true -> inner(model, result, first, 0)
+            true -> inner(model, result, first, 0),
             false -> finish(model, result)
         }
     }
     machine inner(model: @Model, result: Inference, first: u64, second: u64) -> Inference
     requires first < 9 {
         transition second < 9 {
-            true -> candidate(model, result, first, second)
+            true -> candidate(model, result, first, second),
             false -> outer(model, result, first + 1)
         }
     }
@@ -51,7 +50,7 @@ public machine analyze(model: @Model) -> Inference {
         let a: u64 in Wrapping = first as u64 in Wrapping;
         let b: u64 in Wrapping = second as u64 in Wrapping;
         transition a + b <= model.rows[0] && a <= model.columns[0] && b <= model.columns[1] {
-            true -> construct(model, result, first, second, a, b)
+            true -> construct(model, result, first, second, a, b),
             false -> inner(model, result, first, second + 1)
         }
     }
@@ -61,14 +60,14 @@ public machine analyze(model: @Model) -> Inference {
         let c: u64 in Wrapping = model.rows[0] - a - b;
         transition c <= model.columns[2] {
             true -> evaluate(model, result, first, second, Table { cells: [a, b, c,
-                model.columns[0] - a, model.columns[1] - b, model.columns[2] - c] })
+                model.columns[0] - a, model.columns[1] - b, model.columns[2] - c] }),
             false -> inner(model, result, first, second + 1)
         }
     }
     machine evaluate(model: @Model, result: Inference, first: u64, second: u64, table: Table) -> Inference
     requires first < 9 && second < 9 {
         transition table_valid(model, @table) {
-            true -> accumulate(model, result, first, second, table)
+            true -> accumulate(model, result, first, second, table),
             false -> inner(model, result, first, second + 1)
         }
     }
@@ -79,7 +78,7 @@ public machine analyze(model: @Model) -> Inference {
         result.count = result.count + 1;
         result.partition = result.partition + weight;
         transition weight <= result.observed_weight {
-            true -> probability(model, result, first, second, weight, score)
+            true -> probability(model, result, first, second, weight, score),
             false -> association(model, result, first, second, weight, score)
         }
     }
@@ -93,7 +92,7 @@ public machine analyze(model: @Model) -> Inference {
         weight: u64 in Wrapping, score: u64 in Wrapping) -> Inference
     requires first < 9 && second < 9 {
         transition score >= result.score {
-            true -> tail(model, result, first, second, weight, score)
+            true -> tail(model, result, first, second, weight, score),
             false -> inner(model, result, first, second + 1)
         }
     }
@@ -102,7 +101,7 @@ public machine analyze(model: @Model) -> Inference {
     requires first < 9 && second < 9 {
         result.association_tail = result.association_tail + weight;
         transition score == result.score {
-            true -> tie(model, result, first, second)
+            true -> tie(model, result, first, second),
             false -> inner(model, result, first, second + 1)
         }
     }
@@ -113,19 +112,19 @@ public machine analyze(model: @Model) -> Inference {
     }
     machine finish(model: @Model, result: Inference) -> Inference {
         transition result.count == 0 {
-            true -> rejected(result, 2)
+            true -> rejected(result, 2),
             false -> observation(model, result)
         }
     }
     machine observation(model: @Model, result: Inference) -> Inference {
         transition table_valid(model, @model.observed) {
-            true -> invariant(result)
+            true -> invariant(result),
             false -> rejected(result, 3)
         }
     }
     machine invariant(result: Inference) -> Inference {
         transition result.observed_weight > 0 && result.partition > 0 && result.denominator > 0 {
-            true -> (result)
+            true -> (result),
             false -> rejected(result, 4)
         }
     }

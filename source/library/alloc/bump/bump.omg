@@ -1,5 +1,3 @@
-module bump;
-
 use omega::language::core::Extent;
 use omega::language::core::Extent::Granted;
 use omega::language::core::Extent::Vacant;
@@ -44,7 +42,7 @@ public data Attempt {
 public machine try_allocate(strategy: @mut Bump, length: u64) -> Attempt {
     let available: u64 = strategy.remaining;
     transition length <= available {
-        true -> Attempt::Allocated { allocation: allocate(strategy, length, available) }
+        true -> Attempt::Allocated { allocation: allocate(strategy, length, available) },
         _ -> Attempt::Exhausted
     }
 }

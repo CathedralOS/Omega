@@ -1,10 +1,9 @@
-module data::fixtures;
 use domain::model::Stage;
 
 // A bounded declared-stage inventory selected by one runtime ASCII digit.
 public machine count(selection: i32) -> u32 {
     transition selection == 0 || selection == 1 || selection == 6 {
-        true -> cycle()
+        true -> cycle(),
         _ -> single()
     }
     machine cycle() -> u32 { 4 }
@@ -20,22 +19,22 @@ public machine load(selection: i32, index: u32, stage: @mut Stage) {
     stage.isochoric = false;
     stage.work = 0.0;
     transition selection {
-        0 -> ordinary(index, stage)
-        1 -> reverse(index, stage)
-        2 -> square(stage)
-        3 -> cube(stage)
-        4 -> rising(stage)
-        5 -> zero(stage)
-        6 -> broken(index, stage)
-        7 -> unsupported(stage)
-        8 -> stationary(stage)
+        0 -> ordinary(index, stage),
+        1 -> reverse(index, stage),
+        2 -> square(stage),
+        3 -> cube(stage),
+        4 -> rising(stage),
+        5 -> zero(stage),
+        6 -> broken(index, stage),
+        7 -> unsupported(stage),
+        8 -> stationary(stage),
         _ -> reverse_square(stage)
     }
     machine reverse(index: u32, stage: @mut Stage) {
         transition index {
-            0 -> reverse_hold(stage)
-            1 -> low_expand(stage)
-            2 -> reverse_low_hold(stage)
+            0 -> reverse_hold(stage),
+            1 -> low_expand(stage),
+            2 -> reverse_low_hold(stage),
             _ -> high_compress(stage)
         }
     }
@@ -62,7 +61,7 @@ public machine load(selection: i32, index: u32, stage: @mut Stage) {
     machine ordinary(index: u32, stage: @mut Stage) { forward(index, stage); }
     machine broken(index: u32, stage: @mut Stage) {
         forward(index, stage);
-        transition index == 2 { true -> gap(stage) _ -> done() }
+        transition index == 2 { true -> gap(stage), _ -> done() }
     }
     machine gap(stage: @mut Stage) { stage.pressure = 2.0; }
     machine unsupported(stage: @mut Stage) { stage.exponent = 1; }
@@ -76,9 +75,9 @@ public machine load(selection: i32, index: u32, stage: @mut Stage) {
 
 machine forward(index: u32, stage: @mut Stage) {
         transition index {
-            0 -> done()
-            1 -> high_hold(stage)
-            2 -> low_compress(stage)
+            0 -> done(),
+            1 -> high_hold(stage),
+            2 -> low_compress(stage),
             _ -> low_hold(stage)
         }
     machine high_hold(stage: @mut Stage) {

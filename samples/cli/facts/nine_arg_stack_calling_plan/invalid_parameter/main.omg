@@ -44,7 +44,7 @@ requires
 
 machine main() crashes Trap {
     transition probe(10, 20, 30, 40, 50, 60, 70, 80, 93) == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

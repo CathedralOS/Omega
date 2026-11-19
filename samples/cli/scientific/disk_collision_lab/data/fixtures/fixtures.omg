@@ -1,4 +1,3 @@
-module data::fixtures;
 use physics::model;
 use physics::model::Disk;
 use physics::model::Lab;
@@ -7,16 +6,16 @@ public machine fixture(lab:@mut Lab,choice:i32) {
  lab.disks[0]=Disk{x:0.0,y:0.0,vx:1.0,vy:0.0,radius:1.0,mass:1.0};
  lab.disks[1]=Disk{x:4.0,y:0.0,vx:0.0,vy:0.0,radius:1.0,mass:3.0};
  transition choice {
-  0 -> done()
-  1 -> grazing(lab)
-  2 -> simultaneous(lab)
-  3 -> separating(lab)
-  4 -> exhausted(lab)
-  5 -> inelastic(lab)
-  6 -> oblique(lab)
-  7 -> mass(lab)
-  8 -> overlap(lab)
-  9 -> restitution(lab)
+  0 -> done(),
+  1 -> grazing(lab),
+  2 -> simultaneous(lab),
+  3 -> separating(lab),
+  4 -> exhausted(lab),
+  5 -> inelastic(lab),
+  6 -> oblique(lab),
+  7 -> mass(lab),
+  8 -> overlap(lab),
+  9 -> restitution(lab),
   _ -> done()
  }
  machine grazing(lab:@mut Lab) {lab.disks[1].x=2.0;lab.disks[1].y=2.0;}

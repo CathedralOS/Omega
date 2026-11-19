@@ -38,10 +38,10 @@ machine append_exit(
 requires command.len <= 8
 {
     transition room.exit_count {
-        0 -> append_exit_slot_0(room, command, direction, destination)
-        1 -> append_exit_slot_1(room, command, direction, destination)
-        2 -> append_exit_slot_2(room, command, direction, destination)
-        3 -> append_exit_slot_3(room, command, direction, destination)
+        0 -> append_exit_slot_0(room, command, direction, destination),
+        1 -> append_exit_slot_1(room, command, direction, destination),
+        2 -> append_exit_slot_2(room, command, direction, destination),
+        3 -> append_exit_slot_3(room, command, direction, destination),
         _ -> {}
     }
 
@@ -109,22 +109,22 @@ machine room_mut(level: @mut Level, cell: CellId) -> @mut Room {
     let slots: @mut [Room] = @mut level.rooms[..];
 
     transition cell {
-        CellId::R00 -> @mut slots[0]
-        CellId::R01 -> @mut slots[1]
-        CellId::R02 -> @mut slots[2]
-        CellId::R03 -> @mut slots[3]
-        CellId::R04 -> @mut slots[4]
-        CellId::R05 -> @mut slots[5]
-        CellId::R06 -> @mut slots[6]
-        CellId::R07 -> @mut slots[7]
-        CellId::R08 -> @mut slots[8]
-        CellId::R09 -> @mut slots[9]
-        CellId::R10 -> @mut slots[10]
-        CellId::R11 -> @mut slots[11]
-        CellId::R12 -> @mut slots[12]
-        CellId::R13 -> @mut slots[13]
-        CellId::R14 -> @mut slots[14]
-        CellId::R15 -> @mut slots[15]
+        CellId::R00 -> @mut slots[0],
+        CellId::R01 -> @mut slots[1],
+        CellId::R02 -> @mut slots[2],
+        CellId::R03 -> @mut slots[3],
+        CellId::R04 -> @mut slots[4],
+        CellId::R05 -> @mut slots[5],
+        CellId::R06 -> @mut slots[6],
+        CellId::R07 -> @mut slots[7],
+        CellId::R08 -> @mut slots[8],
+        CellId::R09 -> @mut slots[9],
+        CellId::R10 -> @mut slots[10],
+        CellId::R11 -> @mut slots[11],
+        CellId::R12 -> @mut slots[12],
+        CellId::R13 -> @mut slots[13],
+        CellId::R14 -> @mut slots[14],
+        CellId::R15 -> @mut slots[15],
         _ -> @mut slots[0]
     }
 }

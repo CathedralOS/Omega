@@ -18,7 +18,7 @@ requires index <= 2
 machine main() crashes Trap {
     let values: [u64; 2] = [19, 42];
     transition values[0] == 19 && values[1] == 42 && read_element(values, 1) == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

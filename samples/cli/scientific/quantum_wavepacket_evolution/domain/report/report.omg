@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use omega::language::core::narrow_i64_to_u64_wrapping;
@@ -10,15 +9,15 @@ use omega::language::core::widen_i32_to_i64;
 public machine scaled(value: f64)
 invokes Console
 reaches Console {
-    transition value < 0.0 { true -> negative(value) false -> normalize(value, 0) }
+    transition value < 0.0 { true -> negative(value), false -> normalize(value, 0) }
     machine negative(value: f64) {
         Console::write("-");
         transition { _ -> normalize(0.0 - value, 0) }
     }
     machine normalize(value: f64, exponent: i32 in Wrapping) {
         transition {
-            value > 1.0 -> shrink(value, exponent)
-            value > 0.0 && value < 0.1 -> grow(value, exponent)
+            value > 1.0 -> shrink(value, exponent),
+            value > 0.0 && value < 0.1 -> grow(value, exponent),
             _ -> emit(value, exponent)
         }
     }
@@ -43,7 +42,7 @@ public machine integer64(value: i64)
 invokes Console
 reaches Console {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: i64) {
@@ -66,7 +65,7 @@ reaches Console {
     {
         let digit: u64 = value / divisor % 10;
         transition started || digit != 0 || divisor == 1 {
-            true -> emit(value, divisor, digit)
+            true -> emit(value, divisor, digit),
             false -> skip(value, divisor)
         }
     }
@@ -76,7 +75,7 @@ reaches Console {
         let byte: u64 in Wrapping = (digit as u64 in Wrapping) + 48;
         Console::write_byte(narrow_u64_to_i32_saturating(byte as u64));
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, true)
+            true -> digits(value, divisor / 10, true),
             false -> done()
         }
     }
@@ -84,7 +83,7 @@ reaches Console {
     requires divisor > 0
     {
         transition divisor >= 10 {
-            true -> digits(value, divisor / 10, false)
+            true -> digits(value, divisor / 10, false),
             false -> done()
         }
     }

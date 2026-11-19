@@ -1,4 +1,3 @@
-module reporting::certificate;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use routing::model;
@@ -20,7 +19,7 @@ machine route_event(event: u64) reaches ProcessExit + Console
 invokes Console
 {
     transition event < 4 {
-        true -> emit(event)
+        true -> emit(event),
         false -> corrupt()
     }
     machine emit(event: u64) {
@@ -43,7 +42,7 @@ machine chosen_span<'row>(route: @'row [u64; 4], which: u64) -> RouteSpan<'row>
 ensures result.events.len >= 1
 {
     match which {
-        0 -> RouteSpan { events: @route[0..which + 1] }
+        0 -> RouteSpan { events: @route[0..which + 1] },
         _ -> RouteSpan { events: @route[1..4] }
     }
 }
@@ -62,7 +61,7 @@ invokes Console
     Console::write_line("feasible_tours"); number(certificate.feasible);
     Console::write_line("optimal_ties"); number(certificate.ties);
     transition certificate.ties > 0 {
-        true -> optimal(certificate)
+        true -> optimal(certificate),
         false -> infeasible()
     }
     machine infeasible() {
@@ -80,7 +79,7 @@ invokes Console
             certificate.best.route[0],
         );
         transition head_length == 1 && field_length == 3 && parameter_ok && call_ok {
-            true -> emit_optimal(certificate)
+            true -> emit_optimal(certificate),
             false -> corrupt_span()
         }
     }

@@ -23,5 +23,5 @@ ensures result == 7 { move_selected(selected, ignored) }
 machine main() crashes Trap {
     let mut cursor: u64 = 2;
     let observed: u64 = forward(snapshot(cursor, 9), reset(@mut cursor));
-    transition observed == 7 && cursor == 0 { true -> finished() false -> failed() }
+    transition observed == 7 && cursor == 0 { true -> finished(), false -> failed() }
 }

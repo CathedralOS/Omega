@@ -1,4 +1,3 @@
-module clock::reconstruct;
 use clock::model;
 use clock::model::Acquisition;
 
@@ -7,7 +6,7 @@ use clock::model::Acquisition;
 // intervals spanning several wraps. Never infer order from raw magnitude.
 public machine reconstruct(acquisition: @mut Acquisition) {
     transition acquisition.used >= 11 {
-        true -> header(acquisition)
+        true -> header(acquisition),
         false -> fail(acquisition, 1)
     }
     machine header(acquisition: @mut Acquisition) {
@@ -20,19 +19,19 @@ public machine reconstruct(acquisition: @mut Acquisition) {
             acquisition.modulus >= 2 && acquisition.modulus <= 65536 &&
             acquisition.lower >= 1 && acquisition.lower <= acquisition.upper &&
             acquisition.upper <= 100000 {
-            true -> length(acquisition)
+            true -> length(acquisition),
             false -> fail(acquisition, 2)
         }
     }
     machine length(acquisition: @mut Acquisition) {
         transition acquisition.used == 5 + 3 * acquisition.count {
-            true -> rows(acquisition, 0)
+            true -> rows(acquisition, 0),
             false -> fail(acquisition, 1)
         }
     }
     machine rows(acquisition: @mut Acquisition, index: i64 in Wrapping) {
         transition index < acquisition.count && index >= 0 && index < 16 {
-            true -> load(acquisition, index)
+            true -> load(acquisition, index),
             false -> anchor(acquisition)
         }
     }
@@ -43,13 +42,13 @@ public machine reconstruct(acquisition: @mut Acquisition) {
         acquisition.host[index] = acquisition.tokens[position + 2];
         transition acquisition.raw[index] < acquisition.modulus &&
             acquisition.sequence[index] <= 100000 && acquisition.host[index] <= 100000 {
-            true -> rows(acquisition, index + 1)
+            true -> rows(acquisition, index + 1),
             false -> fail(acquisition, 3)
         }
     }
     machine anchor(acquisition: @mut Acquisition) {
         transition acquisition.modulus >= 2 {
-            true -> anchored_residue(acquisition)
+            true -> anchored_residue(acquisition),
             false -> fail(acquisition, 2)
         }
     }
@@ -57,7 +56,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires acquisition.modulus >= 2
     {
         transition acquisition.anchor % acquisition.modulus == acquisition.raw[0] {
-            true -> initialize(acquisition)
+            true -> initialize(acquisition),
             false -> fail(acquisition, 4)
         }
     }
@@ -70,7 +69,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     }
     machine edge(acquisition: @mut Acquisition, index: i64 in Wrapping) {
         transition index >= 1 && index < 16 && index < acquisition.count {
-            true -> order(acquisition, index)
+            true -> order(acquisition, index),
             false -> done()
         }
     }
@@ -78,7 +77,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition acquisition.sequence[index] > acquisition.sequence[index - 1] {
-            true -> host_order(acquisition, index)
+            true -> host_order(acquisition, index),
             false -> fail(acquisition, 5)
         }
     }
@@ -86,7 +85,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition acquisition.host[index] > acquisition.host[index - 1] {
-            true -> residue(acquisition, index)
+            true -> residue(acquisition, index),
             false -> fail(acquisition, 6)
         }
     }
@@ -94,7 +93,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition acquisition.modulus >= 2 {
-            true -> difference(acquisition, index)
+            true -> difference(acquisition, index),
             false -> fail(acquisition, 2)
         }
     }
@@ -104,7 +103,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     {
         let delta: i64 in Wrapping = (acquisition.raw[index] - acquisition.raw[index - 1] + acquisition.modulus) % acquisition.modulus;
         transition delta < acquisition.lower {
-            true -> raise(acquisition, index, delta)
+            true -> raise(acquisition, index, delta),
             false -> candidate(acquisition, index, delta)
         }
     }
@@ -120,7 +119,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition delta <= acquisition.upper {
-            true -> unique(acquisition, index, delta)
+            true -> unique(acquisition, index, delta),
             false -> fail(acquisition, 7)
         }
     }
@@ -128,7 +127,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition delta + acquisition.modulus > acquisition.upper {
-            true -> span(acquisition, index, delta)
+            true -> span(acquisition, index, delta),
             false -> fail(acquisition, 8)
         }
     }
@@ -137,7 +136,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     {
         let elapsed: i64 in Wrapping = acquisition.elapsed[index - 1] + delta;
         transition elapsed <= 100000 {
-            true -> overflow(acquisition, index, delta, elapsed)
+            true -> overflow(acquisition, index, delta, elapsed),
             false -> fail(acquisition, 9)
         }
     }
@@ -145,7 +144,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition acquisition.anchor <= 9223372036854775807 - elapsed {
-            true -> accept(acquisition, index, delta, elapsed)
+            true -> accept(acquisition, index, delta, elapsed),
             false -> fail(acquisition, 10)
         }
     }
@@ -153,7 +152,7 @@ public machine reconstruct(acquisition: @mut Acquisition) {
     requires index >= 1 && index < 16
     {
         transition acquisition.modulus >= 2 {
-            true -> store(acquisition, index, delta, elapsed)
+            true -> store(acquisition, index, delta, elapsed),
             false -> fail(acquisition, 2)
         }
     }

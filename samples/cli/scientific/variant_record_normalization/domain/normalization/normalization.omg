@@ -1,4 +1,3 @@
-module domain::normalization;
 use domain::sequence;
 use domain::sequence::Sequence;
 use domain::sequence::sequence_base;
@@ -27,14 +26,14 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
     transition reference.length <= 8 && position <= reference.length
         && removed.length <= 4 && inserted.length <= 4
         && position + removed.length <= reference.length {
-        true -> reference_match(reference, position, removed, inserted, result, 0)
+        true -> reference_match(reference, position, removed, inserted, result, 0),
         _ -> stop()
     }
     machine reference_match(reference: @Sequence, position: u64 in Wrapping,
                           removed: @Sequence, inserted: @Sequence,
                           result: @mut Normalization, index: u64 in Wrapping) {
         transition index < removed.length {
-            true -> base_match(reference, position, removed, inserted, result, index)
+            true -> base_match(reference, position, removed, inserted, result, index),
             _ -> construct(reference, position, removed, inserted, result)
         }
     }
@@ -44,7 +43,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
         let observed: u64 in Wrapping = sequence_base(reference, position + index);
         let declared: u64 in Wrapping = sequence_base(removed, index);
         transition observed == declared {
-            true -> reference_match(reference, position, removed, inserted, result, index + 1)
+            true -> reference_match(reference, position, removed, inserted, result, index + 1),
             _ -> mismatch(result)
         }
     }
@@ -57,14 +56,14 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
         let suffix: bool = copy_range(reference, position + removed.length,
             reference.length - position - removed.length, @mut result.haplotype);
         transition prefix && middle && suffix {
-            true -> classify(reference, result)
+            true -> classify(reference, result),
             _ -> stop()
         }
     }
     machine classify(reference: @Sequence, result: @mut Normalization) {
         let unchanged: bool = equal(reference, @result.haplotype);
         transition unchanged {
-            true -> noop(result)
+            true -> noop(result),
             _ -> start(reference, result)
         }
     }
@@ -75,14 +74,14 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
     }
     machine position_scan(reference: @Sequence, result: @mut Normalization, position: u64 in Wrapping) {
         transition position <= reference.length {
-            true -> width_scan(reference, result, position, 0)
+            true -> width_scan(reference, result, position, 0),
             _ -> finished(result)
         }
     }
     machine width_scan(reference: @Sequence, result: @mut Normalization,
                      position: u64 in Wrapping, removed: u64 in Wrapping) {
         transition removed <= 4 && position + removed <= reference.length {
-            true -> candidate(reference, result, position, removed)
+            true -> candidate(reference, result, position, removed),
             _ -> position_scan(reference, result, position + 1)
         }
     }
@@ -91,7 +90,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
         let length: u64 in Wrapping = result.haplotype.length;
         let inserted: u64 in Wrapping = length + removed - reference.length;
         transition length + removed >= reference.length {
-            true -> insertion_width(reference, result, position, removed, inserted)
+            true -> insertion_width(reference, result, position, removed, inserted),
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
@@ -99,7 +98,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
                           position: u64 in Wrapping, removed: u64 in Wrapping,
                           inserted: u64 in Wrapping) {
         transition inserted <= 4 && removed + inserted < result.cost {
-            true -> test(reference, result, position, removed, inserted)
+            true -> test(reference, result, position, removed, inserted),
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
@@ -107,7 +106,7 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
                position: u64 in Wrapping, removed: u64 in Wrapping, inserted: u64 in Wrapping) {
         let equivalent: bool = equivalent_edit(reference, @result.haplotype, position, removed, inserted);
         transition equivalent {
-            true -> save(reference, result, position, removed, inserted)
+            true -> save(reference, result, position, removed, inserted),
             _ -> width_scan(reference, result, position, removed + 1)
         }
     }
@@ -119,13 +118,13 @@ public machine normalize(reference: @Sequence, position: u64 in Wrapping,
         let copied: bool = copy_range(@result.haplotype, position, inserted, @mut result.canonical.inserted);
         result.cost = removed + inserted;
         transition copied {
-            true -> width_scan(reference, result, position, removed + 1)
+            true -> width_scan(reference, result, position, removed + 1),
             _ -> stop()
         }
     }
     machine finished(result: @mut Normalization) {
         transition result.cost < 25 {
-            true -> accepted(result)
+            true -> accepted(result),
             _ -> stop()
         }
     }
@@ -140,7 +139,7 @@ machine equivalent_edit(reference: @Sequence, haplotype: @Sequence,
     machine prefix(reference: @Sequence, haplotype: @Sequence, position: u64 in Wrapping,
                  removed: u64 in Wrapping, inserted: u64 in Wrapping, index: u64 in Wrapping) -> bool {
         transition index < position {
-            true -> prefix_item(reference, haplotype, position, removed, inserted, index)
+            true -> prefix_item(reference, haplotype, position, removed, inserted, index),
             _ -> suffix(reference, haplotype, position, removed, inserted, 0)
         }
     }
@@ -149,14 +148,14 @@ machine equivalent_edit(reference: @Sequence, haplotype: @Sequence,
         let first: u64 in Wrapping = sequence_base(reference, index);
         let second: u64 in Wrapping = sequence_base(haplotype, index);
         transition first == second {
-            true -> prefix(reference, haplotype, position, removed, inserted, index + 1)
+            true -> prefix(reference, haplotype, position, removed, inserted, index + 1),
             _ -> false
         }
     }
     machine suffix(reference: @Sequence, haplotype: @Sequence, position: u64 in Wrapping,
                  removed: u64 in Wrapping, inserted: u64 in Wrapping, index: u64 in Wrapping) -> bool {
         transition position + removed + index < reference.length {
-            true -> suffix_item(reference, haplotype, position, removed, inserted, index)
+            true -> suffix_item(reference, haplotype, position, removed, inserted, index),
             _ -> true
         }
     }
@@ -165,7 +164,7 @@ machine equivalent_edit(reference: @Sequence, haplotype: @Sequence,
         let first: u64 in Wrapping = sequence_base(reference, position + removed + index);
         let second: u64 in Wrapping = sequence_base(haplotype, position + inserted + index);
         transition first == second {
-            true -> suffix(reference, haplotype, position, removed, inserted, index + 1)
+            true -> suffix(reference, haplotype, position, removed, inserted, index + 1),
             _ -> false
         }
     }

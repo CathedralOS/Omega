@@ -9,8 +9,8 @@ machine probe(cells: @Cells) -> bool {
     let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(10, 99, ReceivePublish, Receive);
     let held: Held = Held { outcome: raw };
     transition held.outcome {
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false)
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
     }
 }
@@ -20,14 +20,14 @@ machine mismatch(cells: @Cells) -> bool {
     let raw: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(9, 99, ReceivePublish, Receive);
     let held: Held = Held { outcome: raw };
     transition held.outcome {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false)
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
     }
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

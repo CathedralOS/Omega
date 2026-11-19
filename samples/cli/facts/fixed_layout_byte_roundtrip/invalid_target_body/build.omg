@@ -4,8 +4,8 @@ machine build(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
-    Build::select_provider<SelectedDecode, X86Decode>(builder, windows_x86_64);
-    Build::select_provider<SelectedDecode, X86Decode>(builder, linux_x86_64);
-    Build::select_provider<SelectedDecode, ArmDecode>(builder, macos_arm64);
-    Build::select_provider<SelectedDecode, ArmDecode>(builder, linux_arm64);
+    Build::select_provider::<SelectedDecode, X86Decode>(builder, windows_x86_64);
+    Build::select_provider::<SelectedDecode, X86Decode>(builder, linux_x86_64);
+    Build::select_provider::<SelectedDecode, ArmDecode>(builder, macos_arm64);
+    Build::select_provider::<SelectedDecode, ArmDecode>(builder, linux_arm64);
 }

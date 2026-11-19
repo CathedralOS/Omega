@@ -254,15 +254,15 @@ machine Main::main(main: @mut Main) reaches
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so client is roughly 256x256.
     let mut window: Window = Gui::window_create(main.cls, main.title, 282001408, 200, 200, 272, 295);
     main.hwnd = window.window;
-    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
+    transition main.hwnd > 0 { true -> dc(main, window), _ -> bad(main, window) }
     machine dc(main: @mut Main, window: Window) {
         main.hdc = Gui::get_dc(@window, main.hwnd);
         main.frame = 0;
-        transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
+        transition main.hdc > 0 { true -> frame_loop(main, window), _ -> bad(main, window) }
     }
     machine frame_loop(main: @mut Main, window: Window) {
         // keep the animation counter bounded (it runs for as long as the app lives)
-        transition main.frame < 16384 { true -> pump_init(main, window) _ -> wrap_frame(main, window) }
+        transition main.frame < 16384 { true -> pump_init(main, window), _ -> wrap_frame(main, window) }
     }
     machine wrap_frame(main: @mut Main, window: Window) {
         main.frame = 0;
@@ -279,31 +279,31 @@ machine Main::main(main: @mut Main) reaches
     }
     machine pump_loop(main: @mut Main, mut window: Window) {
         main.have = Gui::msg_peek(@mut window, main.message);
-        transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
+        transition main.have > 0 { true -> pump_check_close(main, window), _ -> liveness(main, window) }
     }
     machine pump_check_close(main: @mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> pump_check_xdown(main, window) }
+        transition main.msg_code == 16 { true -> quit_self(main, window), _ -> pump_check_xdown(main, window) }
     }
     machine pump_check_xdown(main: @mut Main, window: Window) {
-        transition main.msg_code == 161 { true -> pump_check_xhit(main, window) _ -> pump_check_syscommand(main, window) }
+        transition main.msg_code == 161 { true -> pump_check_xhit(main, window), _ -> pump_check_syscommand(main, window) }
     }
     machine pump_check_xhit(main: @mut Main, window: Window) {
         // Only the close button's hit-test code quits; any other non-client
         // press (caption drag, resize borders) dispatches normally.
-        transition main.message[2] == 20 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
+        transition main.message[2] == 20 { true -> quit_self(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_check_syscommand(main: @mut Main, window: Window) {
-        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window) _ -> pump_handle(main, window) }
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_check_sysclose(main: @mut Main, window: Window) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_handle(main: @mut Main, window: Window) {
         main.translated = Gui::msg_translate(@window, main.message);
         main.dispatched = Gui::msg_dispatch(@window, main.message);
         // guard BEFORE the increment so its edge carries the bound (keystone).
-        transition main.pumped >= 0 && main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
+        transition main.pumped >= 0 && main.pumped < 16 { true -> pump_next(main, window), _ -> liveness(main, window) }
     }
     machine pump_next(main: @mut Main, window: Window) {
         main.pumped = main.pumped + 1;
@@ -312,17 +312,17 @@ machine Main::main(main: @mut Main) reaches
     // --- quit paths: closed/destroyed window detection or ESC ---
     machine liveness(main: @mut Main, window: Window) {
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
+        transition main.alive > 0 { true -> focus_check(main, window), _ -> closed(main, window) }
     }
     // GetAsyncKeyState is GLOBAL: without this gate an ESC pressed in ANY app
     // (even the Ctrl+Shift+Esc chord) would close this window.
     machine focus_check(main: @mut Main, window: Window) {
         main.fw = Gui::foreground_window(@window);
-        transition main.fw == main.hwnd { true -> esc_check(main, window) _ -> fill_init(main, window) }
+        transition main.fw == main.hwnd { true -> esc_check(main, window), _ -> fill_init(main, window) }
     }
     machine esc_check(main: @mut Main, window: Window) {
         main.escape = Input::key_state(27);
-        transition main.escape > 0 { true -> quit_self(main, window) _ -> fill_init(main, window) }
+        transition main.escape > 0 { true -> quit_self(main, window), _ -> fill_init(main, window) }
     }
     machine quit_self(main: @mut Main, window: Window) {
         transition { _ -> closed(main, window) }
@@ -333,7 +333,7 @@ machine Main::main(main: @mut Main) reaches
         transition { _ -> fill_loop(main, window) }
     }
     machine fill_loop(main: @mut Main, window: Window) {
-        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window), _ -> present(main, window) }
     }
     machine fill_cell(main: @mut Main, window: Window) {
         // row + col + phase folded through % 256: every step provably bounded.
@@ -343,7 +343,7 @@ machine Main::main(main: @mut Main) reaches
         main.px = main.c * 65536;
         main.px = main.px + (255 - main.c) * 256;
         main.px = main.px + 96;
-        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window) _ -> bad(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_put(main, window), _ -> bad(main, window) }
     }
     machine fill_put(main: @mut Main, window: Window) {
         main.pixels[main.i] = main.px;
@@ -352,18 +352,18 @@ machine Main::main(main: @mut Main) reaches
     }
     machine present(main: @mut Main, window: Window) {
         main.copied = Gui::blit(@window, main.hdc, 256, 256, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
+        transition main.copied == 64 { true -> pace(main, window), _ -> present_failed(main, window) }
     }
     machine present_failed(main: @mut Main, window: Window) {
         // A failed blit right after the user closed the window is the normal
         // shutdown race, not an error.
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
+        transition main.alive > 0 { true -> bad(main, window), _ -> closed(main, window) }
     }
     machine pace(main: @mut Main, window: Window) {
         block Clock::sleep(15);
         // re-guard so the increment's edge carries the frame bound (keystone).
-        transition main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
+        transition main.frame < 16384 { true -> advance(main, window), _ -> wrap_frame(main, window) }
     }
     machine advance(main: @mut Main, window: Window) {
         main.frame = main.frame + 1;

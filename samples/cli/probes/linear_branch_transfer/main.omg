@@ -31,7 +31,7 @@ data Main { hits: i32 in Wrapping; choose_first: bool; }
 
 machine verify(correct: bool) crashes Trap {
     transition correct {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) reaches Acknowledgement crashes Trap {
     main.choose_first = true;
     let receipt: Receipt = Receipt { code: 7 };
     transition main.choose_first {
-        true -> consume_first(main, receipt)
+        true -> consume_first(main, receipt),
         _ -> consume_second(main, receipt)
     }
 

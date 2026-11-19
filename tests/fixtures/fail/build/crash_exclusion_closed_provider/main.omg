@@ -9,12 +9,12 @@ NoOp satisfies Assert {
 }
 Checking satisfies Assert {
     machine check<const Count: u64>(condition: bool) crashes Trap {
-        transition condition { true -> done() _ -> bad() }
+        transition condition { true -> done(), _ -> bad() }
         machine done() {}
         machine bad() { crash Trap; }
     }
 }
 machine main() reaches Assert crashes Trap {
-    Assert::check<4>(true);
-    Assert::check<8>(true);
+    Assert::check::<4>(true);
+    Assert::check::<8>(true);
 }

@@ -22,12 +22,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: [u8; 16];
     let observed: LineReadResult = block Console::read_line(@mut input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> length(@input, count)
+        LineReadResult::LineComplete { count } -> length(@input, count),
         _ -> invalid()
     }
     machine length(input: @[u8; 16], count: u64) {
         transition count == 8 {
-            true -> syntax(input)
+            true -> syntax(input),
             false -> invalid()
         }
     }
@@ -35,7 +35,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition input[1] == 44 && input[3] == 44 && input[5] == 44 && input[7] == 10
             && input[0] >= 48 && input[0] <= 57 && input[2] >= 48 && input[2] <= 57
             && input[4] >= 48 && input[4] <= 57 && input[6] >= 48 && input[6] <= 57 {
-            true -> parse(input)
+            true -> parse(input),
             false -> invalid()
         }
     }
@@ -49,7 +49,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
             && request.subjects >= 1 && request.subjects <= 6 && request.cap <= 6
             && request.forbidden <= 6
             && (request.treatments == 3 || request.forbidden == 0 || request.forbidden == 1 || request.forbidden == 3) {
-            true -> search(@request)
+            true -> search(@request),
             false -> invalid()
         }
     }
@@ -57,14 +57,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut allocation: Allocation;
         let found: bool = solve(request, @mut allocation);
         transition found {
-            true -> verify(request, @mut allocation)
+            true -> verify(request, @mut allocation),
             false -> infeasible()
         }
     }
     machine verify(request: @Request, allocation: @mut Allocation) {
         let verified: bool = certify(request, allocation);
         transition verified {
-            true -> report(request, allocation)
+            true -> report(request, allocation),
             false -> defect()
         }
     }

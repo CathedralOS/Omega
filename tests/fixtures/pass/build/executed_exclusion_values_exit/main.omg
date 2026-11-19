@@ -2,7 +2,7 @@
 // Build selects only the normal entry; unused code may retain a Trap.
 machine normal() reaches AcceptedService crashes Trap {
     transition AcceptedService::value() == 7 {
-        true -> done()
+        true -> done(),
         false -> wrong_value()
     }
     machine done() {}

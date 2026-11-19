@@ -35,7 +35,7 @@ machine run(main: @mut Main) reaches ProcessExit {
     let selected: machine(subject: @Item) -> i32 reaches none crashes none = Primary::code;
     let result: i32 = selected(@main.item);
     transition result == 0 {
-        true -> good(main)
+        true -> good(main),
         _ -> bad(main)
     }
 

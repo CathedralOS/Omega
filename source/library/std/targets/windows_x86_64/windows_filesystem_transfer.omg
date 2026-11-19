@@ -32,7 +32,7 @@ machine windows_query_synchronous_duplicate(handle: u64) -> i64
 ensures result != -1 {
     let duplicate: u64 = windows_filesystem_native_duplicate_handle(handle);
     transition duplicate != 0 {
-        true -> block query(duplicate)
+        true -> block query(duplicate),
         _ -> (0)
     }
     machine query(duplicate: u64) -> i64
@@ -43,7 +43,7 @@ ensures result != -1 {
         let mut mode: u32 = 0;
         let result: i32 = block WindowsFilesystemIo::c_file_mode(raw_handle, @mut status, @mut mode, 4, 16);
         transition result == 0 {
-            true -> block checked(duplicate, mode)
+            true -> block checked(duplicate, mode),
             _ -> block query_failed(duplicate, result)
         }
     }
@@ -54,7 +54,7 @@ ensures result != -1 {
         // An unknown/unsupported zero record is not synchronous evidence.
         let raw_handle: i64 = narrow_u64_to_i64_wrapping(duplicate);
         transition (mode & 48) != 0 && raw_handle != 0 && raw_handle != -1 {
-            true -> (raw_handle)
+            true -> (raw_handle),
             _ -> block refused(duplicate, 87)
         }
     }
@@ -62,7 +62,7 @@ ensures result != -1 {
     ensures result != -1
     {
         let code: u32 = WindowsFilesystemIo::c_status_to_error(status);
-        transition code != 0 { true -> block refused(duplicate, code) _ -> block refused(duplicate, 87) }
+        transition code != 0 { true -> block refused(duplicate, code), _ -> block refused(duplicate, 87) }
     }
     machine refused(duplicate: u64, code: u32) -> i64
     ensures result != -1
@@ -75,11 +75,11 @@ ensures result != -1 {
 
 machine windows_filesystem_native_write_file(handle: u64, bytes: @[u8]) -> i64
 reaches FilesystemContentWrite {
-    transition bytes.len <= 4294967295 { true -> block pin(handle, bytes) _ -> (-87) }
+    transition bytes.len <= 4294967295 { true -> block pin(handle, bytes), _ -> (-87) }
     machine pin(handle: u64, bytes: @[u8]) -> i64 {
         let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
         transition (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
-            true -> block transfer(duplicate, bytes)
+            true -> block transfer(duplicate, bytes),
             _ -> (windows_filesystem_native_failure_i64())
         }
     }
@@ -94,13 +94,13 @@ reaches FilesystemContentWrite {
 machine windows_filesystem_native_read_file(handle: u64, buffer: @mut [u8], count: u64) -> i64
 reaches FilesystemContentRead {
     transition count <= buffer.len && count <= 4294967295 {
-        true -> block pin(handle, buffer, count)
+        true -> block pin(handle, buffer, count),
         _ -> (-87)
     }
     machine pin(handle: u64, buffer: @mut [u8], count: u64) -> i64 {
         let duplicate: i64 in WindowsSynchronousFileOrAbsent = block windows_synchronous_duplicate(handle);
         transition (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
-            true -> block transfer(duplicate, buffer, count)
+            true -> block transfer(duplicate, buffer, count),
             _ -> (windows_filesystem_native_failure_i64())
         }
     }
@@ -115,9 +115,9 @@ reaches FilesystemContentRead {
 // Capture the transfer's error before cleanup. A successful transfer still
 // reports a failed release; cleanup must never overwrite an earlier failure.
 machine windows_transfer_completion(result: i64, closed: i32) -> i64 {
-    transition result < 0 { true -> (result) _ -> release(result, closed) }
+    transition result < 0 { true -> (result), _ -> release(result, closed) }
     machine release(result: i64, closed: i32) -> i64 {
-        transition closed < 0 { true -> (widen_i32_to_i64(closed)) _ -> (result) }
+        transition closed < 0 { true -> (widen_i32_to_i64(closed)), _ -> (result) }
     }
 }
 
@@ -126,7 +126,7 @@ requires (handle as -WindowsSynchronousFileOrAbsent) != 0
 reaches FilesystemContentWrite
 {
     transition bytes.len <= 4294967295 {
-        true -> block sized(handle, bytes)
+        true -> block sized(handle, bytes),
         _ -> (-87)
     }
     machine sized(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8]) -> i64
@@ -134,7 +134,7 @@ reaches FilesystemContentWrite
         let mut written: u32 = 0;
         let ok: i32 = block WindowsFilesystemTransferIo::write_file(handle, bytes, @mut written, 0);
         transition ok == 0 {
-            true -> failed()
+            true -> failed(),
             _ -> wrote(written)
         }
     }
@@ -150,7 +150,7 @@ machine windows_read_pinned(handle: i64 in WindowsSynchronousFileOrAbsent, buffe
 requires (handle as -WindowsSynchronousFileOrAbsent) != 0
 reaches FilesystemContentRead {
     transition count <= buffer.len && count <= 4294967295 {
-        true -> block bounded(handle, buffer, count)
+        true -> block bounded(handle, buffer, count),
         _ -> (-87)
     }
     machine bounded(handle: i64 in WindowsSynchronousFileOrAbsent, buffer: @mut [u8], count: u64) -> i64
@@ -164,7 +164,7 @@ requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.len <= 429496
 reaches FilesystemContentRead {
         let mut read_count: u32 = 0;
         let succeeded: i32 = block WindowsFilesystemTransferIo::read_file(handle, bytes, @mut read_count, 0);
-        transition succeeded == 0 { true -> failed() _ -> read(read_count) }
+        transition succeeded == 0 { true -> failed(), _ -> read(read_count) }
     machine read(count: u32) -> i64 { widen_u32_to_i64(count) }
     machine failed() -> i64 { windows_filesystem_native_failure_i64() }
 }

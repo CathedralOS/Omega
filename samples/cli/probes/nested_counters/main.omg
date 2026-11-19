@@ -83,7 +83,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     // Verify nested field main.state.inner.value == 40.
     transition main.state.inner.value == 40 {
-        true -> block check_bonus(main)
+        true -> block check_bonus(main),
         _ -> block bad_value(main)
     }
 
@@ -96,7 +96,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_bonus(main: @mut Main) {
         transition main.state.inner.bonus == 20 {
-            true -> block check_count(main)
+            true -> block check_count(main),
             _ -> block bad_bonus(main)
         }
     }
@@ -110,7 +110,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_count(main: @mut Main) {
         transition main.state.count == 2 {
-            true -> block check_multiplier(main)
+            true -> block check_multiplier(main),
             _ -> block bad_count(main)
         }
     }
@@ -124,7 +124,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
 
     machine check_multiplier(main: @mut Main) {
         transition main.state.multiplier == 5 {
-            true -> block compute_result(main)
+            true -> block compute_result(main),
             _ -> block bad_multiplier(main)
         }
     }
@@ -142,7 +142,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
         let result: i32 = main.state.inner.value + main.state.inner.bonus
                         + main.state.count * main.state.multiplier;
         transition result == 70 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad_result(main)
         }
     }

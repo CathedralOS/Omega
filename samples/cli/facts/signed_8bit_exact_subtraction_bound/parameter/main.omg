@@ -29,7 +29,7 @@ machine main() crashes Trap {
     let diff: i8 = compute_diff(lhs, rhs);
     let check: i32 = check_param(diff);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

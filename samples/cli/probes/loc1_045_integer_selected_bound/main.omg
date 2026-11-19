@@ -13,7 +13,7 @@ machine >= u64::Custom::custom(left: u64 in Custom, right: u64) -> bool {
 machine main() crashes Trap {
     let left: u64 in Custom = 5;
     transition left >= 3 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

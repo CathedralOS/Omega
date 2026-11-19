@@ -1,4 +1,3 @@
-module model::netlist;
 // Private acyclic netlist. Inputs precede gates; every edge points backwards.
 // Positive integral delays guarantee that scheduling cannot revisit this time.
 public data Gate [copy] { kind: i32; left: u64; right: u64; delay: u64; }
@@ -16,7 +15,7 @@ requires gate < 9
 {
     let definition: Gate = network.gates[gate];
     transition definition.left < 9 && definition.right < 9 {
-        true -> operands(network, definition)
+        true -> operands(network, definition),
         false -> invalid()
     }
     machine operands(network: @Network, definition: Gate) -> bool
@@ -25,9 +24,9 @@ requires gate < 9
         let left: bool = network.values[definition.left];
         let right: bool = network.values[definition.right];
         transition definition.kind {
-            1 -> invert(left)
-            2 -> conjunction(left, right)
-            3 -> disjunction(left, right)
+            1 -> invert(left),
+            2 -> conjunction(left, right),
+            3 -> disjunction(left, right),
             _ -> invalid()
         }
     }

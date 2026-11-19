@@ -20,7 +20,7 @@ ObservationBody satisfies Observation {
 }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition Observation::observe() { true -> done() _ -> failed() }
+ transition Observation::observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

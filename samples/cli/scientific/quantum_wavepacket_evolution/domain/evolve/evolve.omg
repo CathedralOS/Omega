@@ -1,4 +1,3 @@
-module domain::evolve;
 // Crank-Nicolson: (I+i dt H/2) psi_next = (I-i dt H/2) psi.
 // The centred periodic H is real symmetric. Every principal I+i dt H/2
 // has eigenvalues 1+i dt lambda/2, hence LU pivots never vanish.
@@ -17,10 +16,10 @@ use domain::model::hamiltonian;
 public machine factor(problem: @mut Problem) {
     transition { _ -> rows(problem, 0) }
     machine rows(problem: @mut Problem, row: i32) {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> columns(problem, row, 0) false -> pivots(problem, 0) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> columns(problem, row, 0), false -> pivots(problem, 0) }
     }
     machine columns(problem: @mut Problem, row: i32, column: i32) requires row >= 0 && row < 32 {
-        transition column >= 0 && column < problem.cells && column < 32 { true -> initialize(problem, row, column) false -> rows(problem, row + 1) }
+        transition column >= 0 && column < problem.cells && column < 32 { true -> initialize(problem, row, column), false -> rows(problem, row + 1) }
     }
     machine initialize(problem: @mut Problem, row: i32, column: i32) requires row >= 0 && row < 32 && column >= 0 && column < 32 {
         let value: f64 = 0.5 * problem.timestep * hamiltonian(problem, row, column);
@@ -29,10 +28,10 @@ public machine factor(problem: @mut Problem) {
         transition { _ -> columns(problem, row, column + 1) }
     }
     machine pivots(problem: @mut Problem, pivot: i32) {
-        transition pivot >= 0 && pivot < problem.cells && pivot < 32 { true -> lower(problem, pivot, pivot + 1) false -> done() }
+        transition pivot >= 0 && pivot < problem.cells && pivot < 32 { true -> lower(problem, pivot, pivot + 1), false -> done() }
     }
     machine lower(problem: @mut Problem, pivot: i32, row: i32) requires pivot >= 0 && pivot < 32 {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> multiplier(problem, pivot, row) false -> pivots(problem, pivot + 1) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> multiplier(problem, pivot, row), false -> pivots(problem, pivot + 1) }
     }
     machine multiplier(problem: @mut Problem, pivot: i32, row: i32) requires pivot >= 0 && pivot < 32 && row >= 0 && row < 32 {
         let value: Complex = divide(element(problem, row, pivot), element(problem, pivot, pivot));
@@ -40,7 +39,7 @@ public machine factor(problem: @mut Problem) {
         transition { _ -> eliminate(problem, pivot, row, pivot + 1, value) }
     }
     machine eliminate(problem: @mut Problem, pivot: i32, row: i32, column: i32, value: Complex) requires pivot >= 0 && pivot < 32 && row >= 0 && row < 32 {
-        transition column >= 0 && column < problem.cells && column < 32 { true -> update(problem, pivot, row, column, value) false -> lower(problem, pivot, row + 1) }
+        transition column >= 0 && column < problem.cells && column < 32 { true -> update(problem, pivot, row, column, value), false -> lower(problem, pivot, row + 1) }
     }
     machine update(problem: @mut Problem, pivot: i32, row: i32, column: i32, value: Complex) requires pivot >= 0 && pivot < 32 && row >= 0 && row < 32 && column >= 0 && column < 32 {
         let updated: Complex = subtract(element(problem, row, column), multiply(value, element(problem, pivot, column)));
@@ -49,14 +48,14 @@ public machine factor(problem: @mut Problem) {
     }
     machine done() {}
 }
-machine identity(row: i32, column: i32) -> f64 { transition row == column { true -> 1.0 false -> 0.0 } }
+machine identity(row: i32, column: i32) -> f64 { transition row == column { true -> 1.0, false -> 0.0 } }
 public machine step(problem: @mut Problem) {
     transition { _ -> rhs_row(problem, 0) }
     machine rhs_row(problem: @mut Problem, row: i32) {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> rhs_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }) false -> forward(problem, 0) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> rhs_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }), false -> forward(problem, 0) }
     }
     machine rhs_column(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 {
-        transition column >= 0 && column < problem.cells && column < 32 { true -> rhs_add(problem, row, column, sum) false -> rhs_store(problem, row, sum) }
+        transition column >= 0 && column < problem.cells && column < 32 { true -> rhs_add(problem, row, column, sum), false -> rhs_store(problem, row, sum) }
     }
     machine rhs_add(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 && column >= 0 && column < 32 {
         let coefficient: Complex = Complex { real: identity(row, column), imaginary: 0.0 - 0.5 * problem.timestep * hamiltonian(problem, row, column) };
@@ -69,10 +68,10 @@ public machine step(problem: @mut Problem) {
     }
     machine forward(problem: @mut Problem, row: i32) {
         let last: i32 in Wrapping = (problem.cells as i32 in Wrapping) - 1;
-        transition row >= 0 && row < problem.cells && row < 32 { true -> forward_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }) false -> backward(problem, last as i32) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> forward_column(problem, row, 0, Complex { real: 0.0, imaginary: 0.0 }), false -> backward(problem, last as i32) }
     }
     machine forward_column(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 {
-        transition column >= 0 && column < row && column < 32 { true -> forward_add(problem, row, column, sum) false -> forward_store(problem, row, sum) }
+        transition column >= 0 && column < row && column < 32 { true -> forward_add(problem, row, column, sum), false -> forward_store(problem, row, sum) }
     }
     machine forward_add(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 && column >= 0 && column < 32 {
         let updated: Complex = add(sum, multiply(element(problem, row, column), problem.right[column]));
@@ -83,10 +82,10 @@ public machine step(problem: @mut Problem) {
         transition { _ -> forward(problem, row + 1) }
     }
     machine backward(problem: @mut Problem, row: i32) {
-        transition row >= 0 && row < 32 { true -> backward_column(problem, row, row + 1, Complex { real: 0.0, imaginary: 0.0 }) false -> copy(problem, 0) }
+        transition row >= 0 && row < 32 { true -> backward_column(problem, row, row + 1, Complex { real: 0.0, imaginary: 0.0 }), false -> copy(problem, 0) }
     }
     machine backward_column(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 {
-        transition column >= 0 && column < problem.cells && column < 32 { true -> backward_add(problem, row, column, sum) false -> backward_store(problem, row, sum) }
+        transition column >= 0 && column < problem.cells && column < 32 { true -> backward_add(problem, row, column, sum), false -> backward_store(problem, row, sum) }
     }
     machine backward_add(problem: @mut Problem, row: i32, column: i32, sum: Complex) requires row >= 0 && row < 32 && column >= 0 && column < 32 {
         let updated: Complex = add(sum, multiply(element(problem, row, column), problem.next[column]));
@@ -97,7 +96,7 @@ public machine step(problem: @mut Problem) {
         transition { _ -> backward(problem, row - 1) }
     }
     machine copy(problem: @mut Problem, row: i32) {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> copied(problem, row) false -> done() }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> copied(problem, row), false -> done() }
     }
     machine copied(problem: @mut Problem, row: i32) requires row >= 0 && row < 32 {
         problem.amplitude[row] = problem.next[row];

@@ -13,7 +13,7 @@ use omega::language::core::FilesystemNamespaceMutation;
 machine windows_remove_tree(path: @[u8] in Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
-    transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root) false -> failed() }
+    transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }
     machine failed() -> i32 {
         windows_removal_status(windows_removal_error(WindowsFilesystemIo::c_get_last_error()))
     }
@@ -21,14 +21,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let information: WindowsRemovalAttributes = block windows_removal_attributes(root);
         transition information {
-            WindowsRemovalAttributes::Error { code } -> block refuse(root, code)
+            WindowsRemovalAttributes::Error { code } -> block refuse(root, code),
             WindowsRemovalAttributes::Value { attributes } -> block kind(root, attributes)
         }
     }
     machine kind(root: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> i32
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         transition (attributes & 16) != 0 && (attributes & 1024) == 0 {
-            true -> block walk(root)
+            true -> block walk(root),
             false -> block refuse(root, 267)
         }
     }

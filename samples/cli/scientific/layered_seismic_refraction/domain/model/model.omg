@@ -1,4 +1,3 @@
-module domain::model;
 public domain f64::SurfaceOffset;
 public domain f64::Velocity;
 public domain f64::TravelTime;
@@ -26,7 +25,7 @@ machine square_root(value: f64) -> f64 {
  transition { _ -> iterate(value, 1.0, 0) }
  machine iterate(value: f64, estimate: f64, count: i32 in Wrapping) -> f64 {
   let next: f64 = 0.5 * (estimate + value / estimate);
-  transition count < 63 { true -> iterate(value, next, count + 1) false -> done(next) }
+  transition count < 63 { true -> iterate(value, next, count + 1), false -> done(next) }
  }
  machine done(value: f64) -> f64 { value }
 }
@@ -39,7 +38,7 @@ requires refractor >= 1 && refractor < 4 {
  machine layer(model: @mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
  requires refractor >= 1 && refractor < 4 {
   transition index >= 0 && index < refractor && index < 3 {
-   true -> accumulate(model, refractor, index) false -> done()
+   true -> accumulate(model, refractor, index), false -> done()
   }
  }
  machine accumulate(model: @mut Model, refractor: i32 in Wrapping, index: i32 in Wrapping)
@@ -61,7 +60,7 @@ requires refractor >= 1 && refractor < 4 {
 
 machine velocity_gap(lower: f64, lower_scale: f64, upper: f64, upper_scale: f64) -> f64 {
  transition lower_scale >= upper_scale {
-  true -> align_lower(lower, lower_scale, upper, upper_scale)
+  true -> align_lower(lower, lower_scale, upper, upper_scale),
   false -> align_upper(lower, lower_scale, upper, upper_scale)
  }
  machine align_lower(lower: f64, lower_scale: f64, upper: f64, upper_scale: f64) -> f64 {

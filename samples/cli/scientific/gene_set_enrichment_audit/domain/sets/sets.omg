@@ -1,4 +1,3 @@
-module domain::sets;
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
@@ -8,7 +7,7 @@ public data Parsed [copy] { mask: u64 in Wrapping; duplicates: u64 in Wrapping; 
 public machine power(gene: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(gene, 1) }
     machine step(left: u64 in Wrapping, value: u64 in Wrapping) -> u64 in Wrapping {
-        transition left == 0 { true -> value
+        transition left == 0 { true -> value,
  false -> step(left - 1, value * 2)
  }
     }
@@ -18,7 +17,7 @@ public machine member(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
     transition { _ -> step(mask, gene) }
     machine step(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
         transition gene == 0 {
-            true -> (mask % 2 == 1)
+            true -> (mask % 2 == 1),
             false -> step(mask / 2, gene - 1)
         }
     }
@@ -27,7 +26,7 @@ public machine member(mask: u64 in Wrapping, gene: u64 in Wrapping) -> bool {
 public machine size(mask: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(mask, 0) }
     machine step(left: u64 in Wrapping, count: u64 in Wrapping) -> u64 in Wrapping {
-        transition left == 0 { true -> count
+        transition left == 0 { true -> count,
  false -> step(left / 2, count + left % 2)
  }
     }
@@ -36,7 +35,7 @@ public machine size(mask: u64 in Wrapping) -> u64 in Wrapping {
 public machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition { _ -> step(left, right, 1, 0) }
     machine step(left: u64 in Wrapping, right: u64 in Wrapping, weight: u64 in Wrapping, mask: u64 in Wrapping) -> u64 in Wrapping {
-        transition left == 0 { true -> mask
+        transition left == 0 { true -> mask,
  false -> add(left, right, weight, mask)
  }
     }
@@ -54,33 +53,33 @@ crashes Trap
 {
     transition { _ -> scan(0, 0, 0) }
     machine scan(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
-        transition count < 64 { true -> read(mask, duplicates, count)
+        transition count < 64 { true -> read(mask, duplicates, count),
  false -> invalid()
  }
     }
     machine read(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
-            ByteRead::Eof -> invalid()
+            ByteRead::Eof -> invalid(),
             ByteRead::Byte { value } -> decode(mask, duplicates, count, value)
         }
     }
     machine decode(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
         transition value == 10 {
-            true -> Parsed { mask: mask, duplicates: duplicates, valid: true }
+            true -> Parsed { mask: mask, duplicates: duplicates, valid: true },
             false -> validate(mask, duplicates, count, value)
         }
     }
     machine validate(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, value: i32) -> Parsed {
         transition value >= 65 && value <= 74 {
-            true -> insert(mask, duplicates, count, (value - 65) as u64 in Wrapping)
+            true -> insert(mask, duplicates, count, (value - 65) as u64 in Wrapping),
             false -> invalid()
         }
     }
     machine insert(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping, gene: u64 in Wrapping) -> Parsed {
         let weight: u64 in Wrapping = power(gene);
         transition member(mask, gene) {
-            true -> scan(mask, duplicates + 1, count + 1)
+            true -> scan(mask, duplicates + 1, count + 1),
             false -> scan(mask + weight, duplicates, count + 1)
         }
     }
@@ -93,7 +92,7 @@ blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();
-    transition observed { ByteRead::Eof -> true
+    transition observed { ByteRead::Eof -> true,
  ByteRead::Byte { value } -> false
  }
 }

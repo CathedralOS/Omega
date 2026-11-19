@@ -55,7 +55,7 @@ requires addr::Bound == 18446744073709551616
     transition first == 4095 && second == witness &&
                context.base == witness && restored == 4096 && model_restored == 4096 &&
                saved_address == witness && snapshot.value == 18446744073709551615 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

@@ -7,13 +7,13 @@ machine build(builder: @mut Build) {
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
 
- Build::bind<IntegerDivision::divide>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lldiv" } });
- Build::bind<IntegerDivision::divide>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "lldiv", version: "GLIBC_2.2.5" } });
- Build::bind<IntegerDivision::divide>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "lldiv", version: "GLIBC_2.17" } });
- Build::bind<IntegerDivision::divide>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "api-ms-win-crt-utility-l1-1-0.dll", export: "lldiv" } });
+ Build::bind::<IntegerDivision::divide>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol { install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lldiv" } });
+ Build::bind::<IntegerDivision::divide>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "lldiv", version: "GLIBC_2.2.5" } });
+ Build::bind::<IntegerDivision::divide>(builder, linux_arm64, ForeignBinding::DllImport { import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "lldiv", version: "GLIBC_2.17" } });
+ Build::bind::<IntegerDivision::divide>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "api-ms-win-crt-utility-l1-1-0.dll", export: "lldiv" } });
 
- Build::select_provider<Observation, ObservationBody>(builder, macos_arm64);
- Build::select_provider<Observation, ObservationBody>(builder, linux_x86_64);
- Build::select_provider<Observation, ObservationBody>(builder, linux_arm64);
- Build::select_provider<Observation, ObservationBody>(builder, windows_x86_64);
+ Build::select_provider::<Observation, ObservationBody>(builder, macos_arm64);
+ Build::select_provider::<Observation, ObservationBody>(builder, linux_x86_64);
+ Build::select_provider::<Observation, ObservationBody>(builder, linux_arm64);
+ Build::select_provider::<Observation, ObservationBody>(builder, windows_x86_64);
 }

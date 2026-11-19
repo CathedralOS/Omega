@@ -38,7 +38,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Outer: walk candidate numbers n = 2..20.
     machine outer(main: @mut Main) {
         transition main.n < 21 {
-            true -> block check_init(main)
+            true -> block check_init(main),
             _ -> block done(main)
         }
     }
@@ -56,14 +56,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // hands the edge into test_divisor the nonzero-divisor fact for `n % d`.
     machine inner(main: @mut Main) {
         transition main.d >= 1 && main.d < main.n {
-            true -> block test_divisor(main)
+            true -> block test_divisor(main),
             _ -> block tally(main)
         }
     }
 
     machine test_divisor(main: @mut Main) {
         transition main.n % main.d == 0 {
-            true -> block mark_composite(main)
+            true -> block mark_composite(main),
             _ -> block next_divisor(main)
         }
     }
@@ -79,7 +79,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // [0..=21] -- d < n <= 20 here, so the guard is always true.
     machine next_divisor(main: @mut Main) {
         transition main.d >= 0 && main.d < 21 {
-            true -> block bump_divisor(main)
+            true -> block bump_divisor(main),
             _ -> block tally(main)
         }
     }
@@ -93,7 +93,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine tally(main: @mut Main) {
         transition main.is_prime {
-            true -> block increment(main)
+            true -> block increment(main),
             _ -> block outer_next(main)
         }
     }
@@ -111,7 +111,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // [0..=21] -- the outer loop only re-enters with n < 21, so always true.
     machine outer_next(main: @mut Main) {
         transition main.n >= 0 && main.n < 21 {
-            true -> block bump_candidate(main)
+            true -> block bump_candidate(main),
             _ -> block done(main)
         }
     }

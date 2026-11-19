@@ -25,12 +25,12 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let found: Lookup<u64> = Lookup::Found { value: 41 };
     transition found {
-        Lookup::Found { value } -> have(main, value)
+        Lookup::Found { value } -> have(main, value),
         Lookup::Missing -> miss(main)
     }
     machine have(main: @mut Main, value: u64) {
         transition value == 41 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

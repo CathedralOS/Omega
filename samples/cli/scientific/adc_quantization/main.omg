@@ -15,17 +15,17 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     let mut configuration: Settings;
     let accepted: bool = block settings(@mut configuration);
-    transition accepted { true -> block header(@configuration) _ -> invalid() }
+    transition accepted { true -> block header(@configuration), _ -> invalid() }
     machine header(configuration: @Settings) {
         Console::write_line("raw,code,reconstructed_num,reconstructed_den,clip,error_num,error_den,bound_num,bound_den");
         transition { _ -> block sample(configuration, 0) }
     }
     machine sample(configuration: @Settings, index: i64 in Wrapping) {
-        transition index < configuration.count { true -> block read(configuration, index) _ -> block trailing() }
+        transition index < configuration.count { true -> block read(configuration, index), _ -> block trailing() }
     }
     machine read(configuration: @Settings, index: i64 in Wrapping) {
         let raw: i64 in Wrapping = block number();
-        transition raw >= -1000 && raw <= 1000 { true -> block convert(configuration, index, raw) _ -> invalid() }
+        transition raw >= -1000 && raw <= 1000 { true -> block convert(configuration, index, raw), _ -> invalid() }
     }
     machine convert(configuration: @Settings, index: i64 in Wrapping, raw: i64 in Wrapping) {
         let mut result: Conversion;
@@ -43,7 +43,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     }
     machine trailing() {
         let extra: i64 in Wrapping = block number();
-        transition extra == 2002 { true -> done() _ -> invalid() }
+        transition extra == 2002 { true -> done(), _ -> invalid() }
     }
     machine done() { ProcessExit::exit_process(0); }
     machine invalid() { Console::write_line("ERROR: malformed ADC settings or readings"); ProcessExit::exit_process(64); }

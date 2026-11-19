@@ -1,4 +1,3 @@
-module geometry::profile;
 // Vertical gate silhouette: width is linear between adjacent elevations.
 // Nodes are validated before clipping; a zero width is a legitimate tip.
 
@@ -10,7 +9,7 @@ public data WetSegment [copy] {
 
 public machine clip(lower: Node, upper: Node, water: f64) -> WetSegment {
     transition water <= lower.elevation {
-        true -> dry(lower.elevation)
+        true -> dry(lower.elevation),
         false -> choose_top(lower, upper, water)
     }
     machine dry(elevation: f64) -> WetSegment {
@@ -18,7 +17,7 @@ public machine clip(lower: Node, upper: Node, water: f64) -> WetSegment {
     }
     machine choose_top(lower: Node, upper: Node, water: f64) -> WetSegment {
         transition water < upper.elevation {
-            true -> partial(lower, upper, water)
+            true -> partial(lower, upper, water),
             false -> full(lower, upper)
         }
     }

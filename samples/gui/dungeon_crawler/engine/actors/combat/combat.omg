@@ -1,5 +1,3 @@
-module actors::combat;
-
 use actors::state::Actor;
 use actors::state::Position;
 use actors::state::Countdown;
@@ -17,8 +15,8 @@ use configuration::ROOM_HEIGHT;
 public machine cooldowns<const Rooms: u64>(mut actor: Actor<Rooms>) -> Actor<Rooms>
 terminates
 requires Rooms >= 1 {
-    actor.attack = elapse<ATTACK_FRAMES>(actor.attack);
-    actor.immunity = elapse<INVULNERABILITY_FRAMES>(actor.immunity);
+    actor.attack = elapse::<ATTACK_FRAMES>(actor.attack);
+    actor.immunity = elapse::<INVULNERABILITY_FRAMES>(actor.immunity);
     actor
 }
 
@@ -26,7 +24,7 @@ public machine attack_intent<const Rooms: u64>(mut actor: Actor<Rooms>, command:
 terminates
 requires Rooms >= 1 {
     transition command.attack && actor.attack.remaining == 0 && actor.active && actor.vitality.current > 0 {
-        true -> swing(actor)
+        true -> swing(actor),
         _ -> (actor)
     }
     machine swing(mut actor: Actor<Rooms>) -> Actor<Rooms> {
@@ -39,18 +37,18 @@ public machine strike<const Rooms: u64>(attacker: Actor<Rooms>, victim: Actor<Ro
 terminates
 requires Rooms >= 1 {
     transition attacker.active && victim.active && attacker.room == victim.room && attacker.attack.remaining == ATTACK_FRAMES - 1 && victim.vitality.current > 0 {
-        true -> faction(attacker, victim)
+        true -> faction(attacker, victim),
         _ -> (victim)
     }
     machine faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
-        transition attacker.faction != victim.faction { true -> range(attacker, victim) _ -> (victim) }
+        transition attacker.faction != victim.faction { true -> range(attacker, victim), _ -> (victim) }
     }
     machine range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         let dx: i32 = victim.position.x - attacker.position.x;
         let dy: i32 = victim.position.y - attacker.position.y;
         let forward: bool = (attacker.facing == 0 && dy < 0) || (attacker.facing == 1 && dx > 0) || (attacker.facing == 2 && dy > 0) || (attacker.facing == 3 && dx < 0);
         transition forward && dx >= -MELEE_REACH && dx <= MELEE_REACH && dy >= -MELEE_REACH && dy <= MELEE_REACH {
-            true -> hit(victim, attacker.facing)
+            true -> hit(victim, attacker.facing),
             _ -> (victim)
         }
     }
@@ -66,32 +64,32 @@ machine knock_back(position: Position, direction: i32) -> Position
 terminates
 requires direction >= 0 && direction < 4 {
     transition direction {
-        0 -> north(position)
-        1 -> east(position)
-        2 -> south(position)
+        0 -> north(position),
+        1 -> east(position),
+        2 -> south(position),
         _ -> west(position)
     }
     machine north(position: Position) -> Position {
         transition position.y >= KNOCKBACK_DISTANCE {
-            true -> (Position { x: position.x, y: position.y - KNOCKBACK_DISTANCE })
+            true -> (Position { x: position.x, y: position.y - KNOCKBACK_DISTANCE }),
             _ -> (Position { x: position.x, y: 0 })
         }
     }
     machine east(position: Position) -> Position {
         transition position.x < ROOM_WIDTH - KNOCKBACK_DISTANCE {
-            true -> (Position { x: position.x + KNOCKBACK_DISTANCE, y: position.y })
+            true -> (Position { x: position.x + KNOCKBACK_DISTANCE, y: position.y }),
             _ -> (Position { x: ROOM_WIDTH - 1, y: position.y })
         }
     }
     machine south(position: Position) -> Position {
         transition position.y < ROOM_HEIGHT - KNOCKBACK_DISTANCE {
-            true -> (Position { x: position.x, y: position.y + KNOCKBACK_DISTANCE })
+            true -> (Position { x: position.x, y: position.y + KNOCKBACK_DISTANCE }),
             _ -> (Position { x: position.x, y: ROOM_HEIGHT - 1 })
         }
     }
     machine west(position: Position) -> Position {
         transition position.x >= KNOCKBACK_DISTANCE {
-            true -> (Position { x: position.x - KNOCKBACK_DISTANCE, y: position.y })
+            true -> (Position { x: position.x - KNOCKBACK_DISTANCE, y: position.y }),
             _ -> (Position { x: 0, y: position.y })
         }
     }
@@ -101,16 +99,16 @@ public machine contact<const Rooms: u64>(attacker: Actor<Rooms>, victim: Actor<R
 terminates
 requires Rooms >= 1 {
     transition attacker.active && victim.active && attacker.room == victim.room && attacker.vitality.current > 0 && victim.vitality.current > 0 && victim.immunity.remaining == 0 {
-        true -> faction(attacker, victim)
+        true -> faction(attacker, victim),
         _ -> (victim)
     }
     machine faction(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
-        transition attacker.faction != victim.faction { true -> range(attacker, victim) _ -> (victim) }
+        transition attacker.faction != victim.faction { true -> range(attacker, victim), _ -> (victim) }
     }
     machine range(attacker: Actor<Rooms>, victim: Actor<Rooms>) -> Actor<Rooms> {
         let dx: i32 = victim.position.x - attacker.position.x;
         let dy: i32 = victim.position.y - attacker.position.y;
-        transition dx > -CONTACT_DISTANCE && dx < CONTACT_DISTANCE && dy > -CONTACT_DISTANCE && dy < CONTACT_DISTANCE { true -> hit(victim) _ -> (victim) }
+        transition dx > -CONTACT_DISTANCE && dx < CONTACT_DISTANCE && dy > -CONTACT_DISTANCE && dy < CONTACT_DISTANCE { true -> hit(victim), _ -> (victim) }
     }
     machine hit(mut victim: Actor<Rooms>) -> Actor<Rooms> {
         victim.vitality = damage(victim.vitality);

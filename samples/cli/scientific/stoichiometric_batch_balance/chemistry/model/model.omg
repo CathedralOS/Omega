@@ -1,5 +1,3 @@
-module chemistry::model;
-
 // Columns are species. Rows are three declared elemental axes, never inferred
 // molecular weights. Species 0 and 1 are consumed, species 2 and 3 produced.
 data Reaction {

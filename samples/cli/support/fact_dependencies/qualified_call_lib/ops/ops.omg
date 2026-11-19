@@ -1,5 +1,3 @@
-module ops;
-
 public data Wrapped [copy] { value: u16; }
 
 public machine Wrapped::describe(left: @Wrapped, right: @Wrapped) -> u64

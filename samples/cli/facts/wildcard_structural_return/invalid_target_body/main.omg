@@ -13,7 +13,7 @@ machine produce(counter: @mut u64) -> Packet {
 
 machine select(choice: Choice, counter: @mut u64) -> Packet {
     transition choice {
-        Choice::Stop -> (Packet::Value { payload: 0u64 })
+        Choice::Stop -> (Packet::Value { payload: 0u64 }),
         _ -> (produce(counter))
     }
 }
@@ -26,7 +26,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -34,7 +34,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -70,7 +70,7 @@ machine main() crashes Trap {
     let second: u64 = SelectedEvaluate::evaluate(select(Choice::Second, @mut counter));
     let stopped: u64 = SelectedEvaluate::evaluate(select(Choice::Stop, @mut counter));
     transition first == 0 && second == 0 && stopped == 7 && counter == 2 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

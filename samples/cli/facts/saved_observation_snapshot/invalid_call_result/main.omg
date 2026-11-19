@@ -6,7 +6,7 @@ machine read_kept(items: @[u64; 2], marker: @mut u64) -> u64
 requires items[0] == 7
 ensures result == items[0] && result == 7
 {
-    capture<@u64>(@items[0], marker, 11)
+    capture::<@u64>(@items[0], marker, 11)
 }
 
 machine agree(observed: u64, current: u64) -> u64
@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let mut items: [u64; 2] = [7, 1];
     let saved: u64 = read_kept(@items, @mut marker);
     items[0] = 4;
-    transition agree(saved, items[0]) == 7 && items[1] == 4 && marker == 11 { true -> done() _ -> bad() }
+    transition agree(saved, items[0]) == 7 && items[1] == 4 && marker == 11 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

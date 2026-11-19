@@ -51,7 +51,7 @@ machine uefi_x86_64_plan(
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count == 2 {
-        true -> select_surface(signature)
+        true -> select_surface(signature),
         _ -> reject()
     }
 
@@ -62,7 +62,7 @@ machine uefi_x86_64_plan(
                 signature.parameters[0],
                 signature.parameters[1],
                 signature.result
-            )
+            ),
             _ -> accept_semantic(
                 signature,
                 signature.parameters[0],
@@ -77,7 +77,7 @@ machine uefi_x86_64_plan(
         initial_storage: u64
     ) -> BoundaryPlanResult {
         transition image < 256 && initial_storage < 256 {
-            true -> build(signature, image, initial_storage)
+            true -> build(signature, image, initial_storage),
             _ -> reject()
         }
     }
@@ -150,7 +150,7 @@ machine uefi_x86_64_plan(
         status: u64
     ) -> BoundaryPlanResult {
         transition image_handle < 256 && system_table < 256 && status < 256 {
-            true -> build_physical(signature, image_handle, system_table, status)
+            true -> build_physical(signature, image_handle, system_table, status),
             _ -> reject()
         }
     }

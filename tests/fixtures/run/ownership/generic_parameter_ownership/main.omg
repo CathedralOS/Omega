@@ -1,7 +1,7 @@
 // Expected exit: 0. Generic forwarding preserves the value and borrowed access.
 data Reading [copy] { before: u32; value: u32; after: u32; }
 machine keep<Value>(value: Value) -> Value { value }
-machine relay<Payload>(value: Payload) -> Payload { keep<Payload>(value) }
+machine relay<Payload>(value: Payload) -> Payload { keep::<Payload>(value) }
 machine read(value: @Reading) -> u32 { value.value }
 machine write(value: @mut Reading) { value.value = 9u32; }
 machine observe<T, machine Read>(value: @T) -> u32
@@ -15,14 +15,14 @@ reaches none
 crashes none
 { Write(value); }
 machine entry() -> bool {
-    let mut value: Reading = relay<Reading>(Reading { before: 19u32, value: 7u32, after: 23u32 });
-    let before: u32 = observe<Reading, read>(@value);
-    replace<Reading, write>(@mut value);
-    before == 7u32 && observe<Reading, read>(@value) == 9u32
+    let mut value: Reading = relay::<Reading>(Reading { before: 19u32, value: 7u32, after: 23u32 });
+    let before: u32 = observe::<Reading, read>(@value);
+    replace::<Reading, write>(@mut value);
+    before == 7u32 && observe::<Reading, read>(@value) == 9u32
         && value.before == 19u32 && value.after == 23u32
 }
 machine main() crashes Trap {
-    transition entry() { true -> done() false -> bad() }
+    transition entry() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

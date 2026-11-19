@@ -9,13 +9,13 @@ data Interval [copy]
 }
 machine consume(span: Interval) -> u64 {
     match span {
-        Interval::Range { hi, .. } -> 4 - hi
+        Interval::Range { hi, .. } -> 4 - hi,
         Interval::Empty -> 0
     }
 }
 machine main() crashes Trap {
     transition revise() == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine revise() -> u64 {
@@ -23,7 +23,7 @@ machine main() crashes Trap {
         span.hi = 3;
         let empty: Interval = Interval::Empty;
         transition consume(span) == 1 && consume(empty) == 0 {
-            true -> 0
+            true -> 0,
             _ -> 1
         }
     }

@@ -10,7 +10,7 @@ requires seed <= 91
 {
     let window: Window = Window { used: seed };
     let view: @Window = match flag {
-        true -> @window
+        true -> @window,
         false -> @window
     };
     let used: u64 = view.used;
@@ -21,7 +21,7 @@ requires seed <= 91
 machine main() crashes Trap {
     let diff: u64 = evaluate(40, true);
     transition diff == 50 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

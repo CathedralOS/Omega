@@ -24,7 +24,7 @@ crashes Trap
 {
     request.observed = request.observed + 1;
     transition request.length < 65536 {
-        true -> store(request, byte)
+        true -> store(request, byte),
         _ -> counted()
     }
 
@@ -48,7 +48,7 @@ machine request_byte(request: @Request, offset: u64 in Trapping) -> u64 in Trapp
 crashes Trap
 {
     transition offset < request.length {
-        true -> read(request, offset)
+        true -> read(request, offset),
         _ -> invalid()
     }
 
@@ -56,7 +56,7 @@ crashes Trap
     // so the array bound is restated before the read.
     machine read(request: @Request, offset: u64 in Trapping) -> u64 in Trapping {
         transition offset < 65536 {
-            true -> element(request, offset)
+            true -> element(request, offset),
             _ -> invalid()
         }
     }
@@ -84,12 +84,12 @@ crashes Trap
 // The OCREQ identity `4F 43 52 45 51 01 00 00` by position.
 machine identity_byte(index: u64 in Trapping) -> u64 in Trapping {
     transition index {
-        0 -> byte(79)
-        1 -> byte(67)
-        2 -> byte(82)
-        3 -> byte(69)
-        4 -> byte(81)
-        5 -> byte(1)
+        0 -> byte(79),
+        1 -> byte(67),
+        2 -> byte(82),
+        3 -> byte(69),
+        4 -> byte(81),
+        5 -> byte(1),
         _ -> byte(0)
     }
 
@@ -136,13 +136,13 @@ crashes Trap
 {
     let length: u64 in Trapping = staged(request);
     transition request.observed > length {
-        true -> incomplete(Provision::RequestStagingBytes, 65536, request.observed)
+        true -> incomplete(Provision::RequestStagingBytes, 65536, request.observed),
         _ -> framing(request, length)
     }
 
     machine framing(request: @Request, length: u64 in Trapping) -> Verdict {
         transition length >= 8 {
-            true -> identity(request, length, 0)
+            true -> identity(request, length, 0),
             _ -> malformed(length)
         }
     }
@@ -151,21 +151,21 @@ crashes Trap
         let byte: u64 in Trapping = request_byte(request, index);
         let expected: u64 in Trapping = identity_byte(index);
         transition byte == expected {
-            true -> identity_next(request, length, index)
+            true -> identity_next(request, length, index),
             _ -> malformed(index)
         }
     }
 
     machine identity_next(request: @Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
         transition index < 7 {
-            true -> identity(request, length, index + 1)
+            true -> identity(request, length, index + 1),
             _ -> header(request, length)
         }
     }
 
     machine header(request: @Request, length: u64 in Trapping) -> Verdict {
         transition length >= 16 {
-            true -> subject_high_bit(request, length)
+            true -> subject_high_bit(request, length),
             _ -> malformed(length)
         }
     }
@@ -173,7 +173,7 @@ crashes Trap
     machine subject_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
         let high: u64 in Trapping = request_byte(request, 11);
         transition high < 128 {
-            true -> invocation_high_bit(request, length)
+            true -> invocation_high_bit(request, length),
             _ -> malformed(8)
         }
     }
@@ -181,7 +181,7 @@ crashes Trap
     machine invocation_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
         let high: u64 in Trapping = request_byte(request, 15);
         transition high < 128 {
-            true -> lengths(request, length)
+            true -> lengths(request, length),
             _ -> malformed(12)
         }
     }
@@ -190,21 +190,21 @@ crashes Trap
         let subject_length: u64 in Trapping = u32_at(request, 8);
         let invocation_length: u64 in Trapping = u32_at(request, 12);
         transition subject_length <= length - 16 {
-            true -> subject(length, 16 + subject_length, invocation_length)
+            true -> subject(length, 16 + subject_length, invocation_length),
             _ -> malformed(8)
         }
     }
 
     machine subject(length: u64 in Trapping, subject_end: u64 in Trapping, invocation_length: u64 in Trapping) -> Verdict {
         transition invocation_length <= length - subject_end {
-            true -> exact_end(length, subject_end, subject_end + invocation_length)
+            true -> exact_end(length, subject_end, subject_end + invocation_length),
             _ -> malformed(12)
         }
     }
 
     machine exact_end(length: u64 in Trapping, subject_end: u64 in Trapping, invocation_end: u64 in Trapping) -> Verdict {
         transition invocation_end == length {
-            true -> subject_extent(subject_end, invocation_end)
+            true -> subject_extent(subject_end, invocation_end),
             _ -> malformed(invocation_end)
         }
     }
@@ -212,14 +212,14 @@ crashes Trap
     // Phase 1: the declared extents against their provisions.
     machine subject_extent(subject_end: u64 in Trapping, invocation_end: u64 in Trapping) -> Verdict {
         transition subject_end - 16 <= 67108864 {
-            true -> invocation_extent(subject_end, invocation_end)
+            true -> invocation_extent(subject_end, invocation_end),
             _ -> incomplete(Provision::RequestSubjectBytes, 8, subject_end - 16)
         }
     }
 
     machine invocation_extent(subject_end: u64 in Trapping, invocation_end: u64 in Trapping) -> Verdict {
         transition invocation_end - subject_end <= 1048576 {
-            true -> framed(subject_end, invocation_end)
+            true -> framed(subject_end, invocation_end),
             _ -> incomplete(Provision::RequestInvocationBytes, 12, invocation_end - subject_end)
         }
     }
@@ -263,7 +263,7 @@ public data SectionReader {
 
 machine open(reader: @mut SectionReader, start: u64 in Trapping, end: u64 in Trapping) {
     transition start <= end {
-        true -> framed(reader, start, end)
+        true -> framed(reader, start, end),
         _ -> empty(reader, end)
     }
 
@@ -289,7 +289,7 @@ machine section_reader_remaining(reader: @SectionReader) -> u64 in Trapping {
 
 machine fail(reader: @mut SectionReader, offset: u64 in Trapping) {
     transition reader.failed {
-        true -> kept()
+        true -> kept(),
         _ -> record(reader, offset)
     }
 
@@ -304,7 +304,7 @@ machine fail(reader: @mut SectionReader, offset: u64 in Trapping) {
 // Move past `width` bytes the caller has bounded by `remaining`.
 machine advance(reader: @mut SectionReader, width: u64 in Trapping) {
     transition width <= reader.end - reader.cursor {
-        true -> past(reader, width)
+        true -> past(reader, width),
         _ -> missing(reader)
     }
 
@@ -324,7 +324,7 @@ crashes Trap
 {
     let remaining: u64 in Trapping = section_reader_remaining(reader);
     transition reader.failed || remaining < 4 {
-        true -> missing(reader)
+        true -> missing(reader),
         _ -> high_bit(reader, request)
     }
 
@@ -337,7 +337,7 @@ crashes Trap
     machine high_bit(reader: @mut SectionReader, request: @Request) -> u64 in Trapping {
         let high: u64 in Trapping = request_byte(request, reader.cursor + 3);
         transition high < 128 {
-            true -> value(reader, request)
+            true -> value(reader, request),
             _ -> refused(reader)
         }
     }
@@ -363,7 +363,7 @@ crashes Trap
     let count: u64 in Trapping = take_u32(reader, request);
     let remaining: u64 in Trapping = section_reader_remaining(reader);
     transition reader.failed || count <= remaining / minimum_row {
-        true -> fits(count)
+        true -> fits(count),
         _ -> impossible(reader)
     }
 
@@ -385,7 +385,7 @@ crashes Trap
 {
     let tag: u64 in Trapping = take_u32(reader, request);
     transition reader.failed || tag >= low && tag <= high {
-        true -> member(tag)
+        true -> member(tag),
         _ -> refused(reader)
     }
 
@@ -414,7 +414,7 @@ crashes Trap
 // Bytes left in the section are malformed at the first one.
 machine finish(reader: @mut SectionReader) {
     transition reader.failed || reader.cursor == reader.end {
-        true -> done()
+        true -> done(),
         _ -> trailing(reader)
     }
 
@@ -444,7 +444,7 @@ crashes Trap
 
     machine package(request: @Request, sections: Sections, reader: @mut SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
         transition index < count && !reader.failed {
-            true -> package_fields(request, sections, reader, count, index)
+            true -> package_fields(request, sections, reader, count, index),
             _ -> edges(request, sections, reader)
         }
     }
@@ -473,7 +473,7 @@ crashes Trap
         row: u64 in Trapping
     ) -> Outcome {
         transition row < rows && !reader.failed {
-            true -> snapshot_row(request, sections, reader, count, index, rows, row)
+            true -> snapshot_row(request, sections, reader, count, index, rows, row),
             _ -> package(request, sections, reader, count, index + 1)
         }
     }
@@ -492,8 +492,8 @@ crashes Trap
         let kind: u64 in Trapping = take_tag(reader, request, 1, 3);
         let path: u64 in Trapping = take_bytes(reader, request);
         transition kind {
-            2 -> regular_file(request, sections, reader, count, index, rows, row)
-            3 -> link(request, sections, reader, count, index, rows, row)
+            2 -> regular_file(request, sections, reader, count, index, rows, row),
+            3 -> link(request, sections, reader, count, index, rows, row),
             _ -> snapshot(request, sections, reader, count, index, rows, row + 1)
         }
     }
@@ -533,7 +533,7 @@ crashes Trap
 
     machine edge(request: @Request, sections: Sections, reader: @mut SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
         transition index < count && !reader.failed {
-            true -> edge_fields(request, sections, reader, count, index)
+            true -> edge_fields(request, sections, reader, count, index),
             _ -> root(request, sections, reader)
         }
     }
@@ -551,7 +551,7 @@ crashes Trap
         let role: u64 in Trapping = take_tag(reader, request, 1, 2);
         finish(reader);
         transition reader.failed {
-            true -> malformed(reader.failure)
+            true -> malformed(reader.failure),
             _ -> invocation(request, sections, reader)
         }
     }
@@ -569,7 +569,7 @@ crashes Trap
 
     machine admission(request: @Request, reader: @mut SectionReader, count: u64 in Trapping, index: u64 in Trapping) -> Outcome {
         transition index < count && !reader.failed {
-            true -> admission_fields(request, reader, count, index)
+            true -> admission_fields(request, reader, count, index),
             _ -> commitment(reader)
         }
     }
@@ -584,7 +584,7 @@ crashes Trap
         advance(reader, 32);
         finish(reader);
         transition reader.failed {
-            true -> malformed(reader.failure)
+            true -> malformed(reader.failure),
             _ -> semantics()
         }
     }

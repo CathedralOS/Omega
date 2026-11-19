@@ -13,7 +13,7 @@ machine probe(reading: Reading) -> f64 {
 machine main() crashes Trap {
     let reading: Reading = Reading { value: 0.25 };
     let observed: f64 = probe(reading);
-    transition observed == 0.25 { true -> done() _ -> bad() }
+    transition observed == 0.25 { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

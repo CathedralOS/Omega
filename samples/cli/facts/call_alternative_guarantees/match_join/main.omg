@@ -6,7 +6,7 @@ machine select(left: u8, right: u8) -> u8
 requires left <= 60 || right <= 60
 ensures result <= 60
 {
-    transition left <= 60 { true -> bounded(left) false -> bounded(right) }
+    transition left <= 60 { true -> bounded(left), false -> bounded(right) }
     machine bounded(value: u8) -> u8
     requires value <= 60
     ensures result <= 60
@@ -14,7 +14,7 @@ ensures result <= 60
 }
 machine total(counter: Counter) -> u8 { counter.value + 195 }
 machine pick(left_arm: bool) -> Choice {
-    match left_arm { true -> Choice { left: 17, right: 200 } false -> Choice { left: 200, right: 43 } }
+    match left_arm { true -> Choice { left: 17, right: 200 }, false -> Choice { left: 200, right: 43 } }
 }
 machine make(choice: Choice) -> Counter {
     let selected: u8 = select(choice.left, choice.right);
@@ -25,7 +25,7 @@ machine main() crashes Trap {
     let first: Counter = make(pick(true));
     let second: Counter = make(pick(false));
     transition first.value == 17 && second.value == 43 && total(first) == 212 && total(second) == 238 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

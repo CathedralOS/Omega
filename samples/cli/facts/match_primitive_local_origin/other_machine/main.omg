@@ -16,7 +16,7 @@ requires value == 17
 
 machine apply(chosen: i64, spare: i64) -> i64 {
     let joined: i64 = match choose() {
-        true -> chosen
+        true -> chosen,
         false -> spare
     };
 
@@ -30,7 +30,7 @@ machine forward(chosen: i64, spare: i64) -> i64 {
 machine main() crashes Trap {
     let observed: i64 = forward(17, 5);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

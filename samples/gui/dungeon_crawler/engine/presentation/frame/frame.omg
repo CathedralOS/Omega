@@ -1,5 +1,3 @@
-module presentation::frame;
-
 use world::rooms::Room;
 use actors::state::Actor;
 use simulation::clock::FrameClock;

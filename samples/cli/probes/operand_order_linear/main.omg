@@ -35,7 +35,7 @@ machine Main::main(main: @mut Main) {
     let outcome: bool = holder.marker == 19 && value == 41;
     drop(holder.token);
     transition outcome {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

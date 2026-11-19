@@ -26,7 +26,7 @@ machine fletcher(
     sum2: i32 in Wrapping
 ) -> i32 {
     transition s.len > 0 {
-        true -> fletcher(s[1..], (sum1 + s[0]) % 255, (sum2 + ((sum1 + s[0]) % 255)) % 255)
+        true -> fletcher(s[1..], (sum1 + s[0]) % 255, (sum2 + ((sum1 + s[0]) % 255)) % 255),
         false -> ((sum2) as i32)
     }
 }

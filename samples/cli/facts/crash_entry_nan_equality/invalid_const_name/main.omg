@@ -5,7 +5,7 @@ public const ONE_BITS: i32 = 1065353216;
 machine maybe_ordered(value: f32) -> f32
 crashes Trap value == value
 {
-    transition value == value { true -> bad() false -> (value) }
+    transition value == value { true -> bad(), false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
 public machine read_nan(value: i32) -> f32
@@ -17,6 +17,6 @@ requires value == ONE_BITS
 }
 machine main() crashes Trap {
     let observed: f32 = read_nan(ONE_BITS);
-    transition observed != observed { true -> done() _ -> bad() }
+    transition observed != observed { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

@@ -12,7 +12,7 @@ machine build(builder: @mut Build) {
         && field.name == "invoke" && parameter.parameter_identity != ""
         && parameter.requirement_application != "" && field.owner_application != ""
         && parameter.source_revision != "" && field.source_revision != "" {
-        true -> accept(builder)
+        true -> accept(builder),
         false -> reject()
     }
     machine accept(builder: @mut Build) {

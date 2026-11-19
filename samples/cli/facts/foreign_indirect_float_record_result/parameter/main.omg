@@ -25,7 +25,7 @@ machine consume(first: Transform, copied: Transform) -> i32 reaches AffineTransf
         && second.d == 14.75
         && second.tx == -15.5
         && second.ty == 16.0 {
-        true -> passed()
+        true -> passed(),
         false -> failed()
     }
     machine passed() -> i32 { 0 }
@@ -38,7 +38,7 @@ machine observe() -> bool reaches AffineTransforms {
 }
 
 machine main() reaches AffineTransforms crashes Trap {
-    transition observe() { true -> done() false -> failed() }
+    transition observe() { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

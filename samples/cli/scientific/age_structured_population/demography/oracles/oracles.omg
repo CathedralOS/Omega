@@ -1,4 +1,3 @@
-module demography::oracles;
 // Executable startup checks consume independently frozen fixture integers.
 // They attest recurrence values through Terminal's supported exit comparison;
 // they never replace the supplied-input forecast or derive expected results.

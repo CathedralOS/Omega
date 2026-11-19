@@ -11,7 +11,7 @@ requires idx < 4 && row.cells[idx] <= 80
 ensures result <= 80
 {
     match choose_first {
-        true -> row.cells[idx]
+        true -> row.cells[idx],
         false -> row.cells[idx]
     }
 }
@@ -30,7 +30,7 @@ requires idx < 4 && row.cells[idx] <= 80
     let spare1: u64 = read_and_sub(row, idx, true);
     let spare2: u64 = read_and_sub(row, idx, false);
     transition spare1 == 30 && spare2 == 30 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() -> u64 { 30 }
@@ -40,13 +40,13 @@ requires idx < 4 && row.cells[idx] <= 80
 machine main() crashes Trap {
     let row: Row = Row { cells: [10, 20, 50, 80] };
     transition row.cells[2] <= 80 {
-        true -> run(row)
+        true -> run(row),
         _ -> bad()
     }
     machine run(r: Row) {
         let spare: u64 = probe(r, 2);
         transition spare == 30 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

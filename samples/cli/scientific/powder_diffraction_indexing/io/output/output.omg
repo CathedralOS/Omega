@@ -1,4 +1,3 @@
-module io::output;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
@@ -15,8 +14,8 @@ public machine integer(value: u64) reaches ProcessExit + Console invokes Console
     machine digit(value: u64, place: u64, started: bool) requires place > 0 {
         let character: u64 = value / place;
         transition {
-            character >= 10 -> limit()
-            character != 0 || started || place == 1 -> write(value, place, character)
+            character >= 10 -> limit(),
+            character != 0 || started || place == 1 -> write(value, place, character),
             _ -> advance(value, place, false)
         }
     }
@@ -24,7 +23,7 @@ public machine integer(value: u64) reaches ProcessExit + Console invokes Console
         Console::write_byte(narrow_u64_to_i32_saturating(character + 48)); transition { _ -> advance(value, place, true) }
     }
     machine advance(value: u64, place: u64, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
+        transition place >= 10 { true -> digit(value % place, place / 10, started), false -> done() }
     }
     machine done() { }
     machine limit() { ProcessExit::exit_process(70); }
@@ -34,18 +33,18 @@ public machine number(value: f64) reaches ProcessExit + Console invokes Console 
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0);
     let integer: i64 in Wrapping = scaled as i64 in Wrapping;
     Console::write(" ");
-    transition integer < 0 { true -> negative(integer) false -> positive(integer) }
+    transition integer < 0 { true -> negative(integer), false -> positive(integer) }
     machine negative(value: i64 in Wrapping) { Console::write("-"); transition { _ -> digit(0 - value, 1000000000000000000, false) } }
     machine positive(value: i64 in Wrapping) { transition { _ -> digit(value, 1000000000000000000, false) } }
     machine digit(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
         let character: i64 in Wrapping = value / place;
-        transition character != 0 || started || place == 1 { true -> write(value, place, character) false -> advance(value, place, false) }
+        transition character != 0 || started || place == 1 { true -> write(value, place, character), false -> advance(value, place, false) }
     }
     machine write(value: i64 in Wrapping, place: i64 in Wrapping, character: i64 in Wrapping) requires place > 0 {
         Console::write_byte(narrow_i64_to_i32_saturating((character + 48) as i64)); transition { _ -> advance(value, place, true) }
     }
     machine advance(value: i64 in Wrapping, place: i64 in Wrapping, started: bool) requires place > 0 {
-        transition place >= 10 { true -> digit(value % place, place / 10, started) false -> done() }
+        transition place >= 10 { true -> digit(value % place, place / 10, started), false -> done() }
     }
     machine done() { }
 }
@@ -55,7 +54,7 @@ public machine report(problem: @Problem, kind: u64, mask: u64) reaches ProcessEx
     Console::write_line("end");
 }
 machine peaks(problem: @Problem, kind: u64, index: u64) reaches ProcessExit + Console invokes Console {
-    transition index < problem.count && index < 6 { true -> row(problem, kind, index) false -> done() }
+    transition index < problem.count && index < 6 { true -> row(problem, kind, index), false -> done() }
     machine row(problem: @Problem, kind: u64, index: u64) requires index < 6 {
         Console::write("peak"); integer(problem.assignments[index]); number(problem.predictions[index]); number(problem.residuals[index]); Console::write_line("");
         families(kind, problem.assignments[index], 0, 0, 0);
@@ -64,10 +63,10 @@ machine peaks(problem: @Problem, kind: u64, index: u64) reaches ProcessExit + Co
     machine done() { }
 }
 public machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches ProcessExit + Console invokes Console {
-    transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l) false -> done() }
+    transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l), false -> done() }
     machine test(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
         transition h >= k && k >= l && h * h + k * k + l * l == squared && allowed(kind, h, k, l) {
-            true -> emit(kind, squared, h, k, l) false -> advance(kind, squared, h, k, l)
+            true -> emit(kind, squared, h, k, l), false -> advance(kind, squared, h, k, l)
         }
     }
     machine emit(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
@@ -75,14 +74,14 @@ public machine families(kind: u64, squared: u64, h: u64, k: u64, l: u64) reaches
         transition { _ -> advance(kind, squared, h, k, l) }
     }
     machine advance(kind: u64, squared: u64, h: u64, k: u64, l: u64) requires h < 5, k < 5, l < 5 {
-        transition { l < 4 -> families(kind, squared, h, k, l + 1) k < 4 -> families(kind, squared, h, k + 1, 0) _ -> families(kind, squared, h + 1, 0, 0) }
+        transition { l < 4 -> families(kind, squared, h, k, l + 1), k < 4 -> families(kind, squared, h, k + 1, 0), _ -> families(kind, squared, h + 1, 0, 0) }
     }
     machine done() { }
 }
 public machine missing(problem: @Problem, mask: u64, rank: u64) reaches ProcessExit + Console invokes Console {
-    transition rank < problem.last && rank < 8 { true -> test(problem, mask, rank) false -> done() }
+    transition rank < problem.last && rank < 8 { true -> test(problem, mask, rank), false -> done() }
     machine test(problem: @Problem, mask: u64, rank: u64) requires rank < 8 {
-        transition mask % 2 == 0 { true -> emit(problem, mask, rank) false -> missing(problem, mask / 2, rank + 1) }
+        transition mask % 2 == 0 { true -> emit(problem, mask, rank), false -> missing(problem, mask / 2, rank + 1) }
     }
     machine emit(problem: @Problem, mask: u64, rank: u64) requires rank < 8 {
         Console::write("missing"); integer(problem.lines[rank]); Console::write_line("");

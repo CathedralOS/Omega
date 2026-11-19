@@ -13,9 +13,9 @@ machine invoke<const Left: Handler::enter, const Right: Handler::enter>(value: u
     Left(Right(value))
 }
 machine main() crashes Trap {
-    let result: u64 = invoke<LeftHandler::enter, same_shape>(41u64);
+    let result: u64 = invoke::<LeftHandler::enter, same_shape>(41u64);
     transition result == 9u64 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

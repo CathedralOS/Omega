@@ -27,7 +27,7 @@ WindowsSelection satisfies SelectedValue {
     ) -> Selection<Cell>
     requires Index <= 10
     ensures result.right == Index
-    { Implementation::choose<7u32, Index>(first, second) }
+    { Implementation::choose::<7u32, Index>(first, second) }
 }
 LinuxX86Selection satisfies SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
@@ -35,7 +35,7 @@ LinuxX86Selection satisfies SelectedValue {
     ) -> Selection<Cell>
     requires Index <= 10
     ensures result.right == Index
-    { Implementation::choose<7u32, Index>(first, second) }
+    { Implementation::choose::<7u32, Index>(first, second) }
 }
 MacosSelection satisfies SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
@@ -43,7 +43,7 @@ MacosSelection satisfies SelectedValue {
     ) -> Selection<Cell>
     requires Index <= 10
     ensures result.right == Index
-    { Implementation::choose<7u32, Index>(first, second) }
+    { Implementation::choose::<7u32, Index>(first, second) }
 }
 LinuxArmSelection satisfies SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
@@ -51,16 +51,16 @@ LinuxArmSelection satisfies SelectedValue {
     ) -> Selection<Cell>
     requires Index <= 10
     ensures result.right == Index
-    { Implementation::choose<7u32, Index>(first, second) }
+    { Implementation::choose::<7u32, Index>(first, second) }
 }
 machine main() reaches SelectedValue crashes Trap {
     let index: u32 = 9;
-    let answer: Selection<Cell> = SelectedValue::selected<index, Second<Cell>>(
+    let answer: Selection<Cell> = SelectedValue::selected::<index, Second<Cell>>(
         Cell { value: 73 }, Cell { value: 41 }
     );
     let difference: u32 = 10u32 - answer.right;
     transition difference == 1 && answer.item.value == 41 && answer.left == 7 {
-        true -> done() _ -> bad()
+        true -> done(), _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }

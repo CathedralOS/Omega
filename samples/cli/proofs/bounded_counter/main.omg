@@ -27,7 +27,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     add(main, 40 as +Saturating);   // 120, saturates to 100
 
     transition main.counter.value == 100 {
-        true -> block good_msg(main)
+        true -> block good_msg(main),
         _ -> block not_hundred(main)
     }
     machine good_msg(main: @mut Main) {
@@ -36,7 +36,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine not_hundred(main: @mut Main) {
         transition main.counter.value == 120 {
-            true -> block bad_sat_msg(main)   // saturation didn't apply
+            true -> block bad_sat_msg(main),   // saturation didn't apply
             _ -> block bad_other_msg(main)    // some other wrong value
         }
     }
@@ -60,7 +60,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 machine add(main: @mut Main, amount: i32 in Saturating) {
     let next: i32 in Saturating = main.counter.value + amount;
     transition next > main.counter.bound {
-        true -> saturate(main)
+        true -> saturate(main),
         _ -> set_value(main, next)
     }
     machine saturate(main: @mut Main) {

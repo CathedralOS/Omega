@@ -7,7 +7,7 @@ machine read(value: @Gate<2>) -> u8 { Gate::read(value) }
 machine start() crashes Trap {
     let value: Gate<2>;
     let code: u8 = read(@value);
-    transition code == 0u8 { true -> done() _ -> bad() }
+    transition code == 0u8 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

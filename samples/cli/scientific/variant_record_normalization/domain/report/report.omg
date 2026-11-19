@@ -1,4 +1,3 @@
-module domain::report;
 use domain::sequence;
 use domain::sequence::Sequence;
 use domain::sequence::sequence_base;
@@ -13,20 +12,20 @@ invokes Console
     transition { _ -> digit(value, 10000000000000000000, false) }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> calculate(value, divisor, started)
+            true -> calculate(value, divisor, started),
             _ -> stop()
         }
     }
     machine calculate(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         let current: u64 in Wrapping = value / divisor;
         transition current > 0 || started || divisor == 1 {
-            true -> write(value, divisor, current)
+            true -> write(value, divisor, current),
             _ -> next(value, divisor, false)
         }
     }
     machine write(value: u64 in Wrapping, divisor: u64 in Wrapping, current: u64 in Wrapping) {
         transition current < 10 {
-            true -> write_digit(value, divisor, current)
+            true -> write_digit(value, divisor, current),
             _ -> stop()
         }
     }
@@ -37,7 +36,7 @@ invokes Console
     }
     machine next(value: u64 in Wrapping, divisor: u64 in Wrapping, started: bool) {
         transition divisor > 1 {
-            true -> digit(value, divisor / 10, started)
+            true -> digit(value, divisor / 10, started),
             _ -> stop()
         }
     }
@@ -53,23 +52,23 @@ public machine bases(sequence: @Sequence) reaches Console
 invokes Console
 {
     transition sequence.length == 0 {
-        true -> empty()
+        true -> empty(),
         _ -> base(sequence, 0)
     }
     machine empty() { Console::write_byte(45); }
     machine base(sequence: @Sequence, index: u64 in Wrapping) {
         transition index < sequence.length {
-            true -> read(sequence, index)
+            true -> read(sequence, index),
             _ -> stop()
         }
     }
     machine read(sequence: @Sequence, index: u64 in Wrapping) {
         let value: u64 in Wrapping = sequence_base(sequence, index);
         transition value {
-            1 -> write(sequence, index, 65)
-            2 -> write(sequence, index, 67)
-            3 -> write(sequence, index, 71)
-            4 -> write(sequence, index, 84)
+            1 -> write(sequence, index, 65),
+            2 -> write(sequence, index, 67),
+            3 -> write(sequence, index, 71),
+            4 -> write(sequence, index, 84),
             _ -> write(sequence, index, 63)
         }
     }

@@ -10,7 +10,7 @@ machine Helper::run() -> u64 {
 
 machine main() crashes Trap {
     let value: u64 = Helper::run();
-    transition value == 43 { true -> done() _ -> bad() }
+    transition value == 43 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

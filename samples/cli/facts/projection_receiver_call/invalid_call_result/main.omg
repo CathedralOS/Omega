@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let kept: bool = produced();
     let direct: bool in Held = kept;
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

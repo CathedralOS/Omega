@@ -11,7 +11,7 @@ requires bytes.len == pattern.len {
     machine next(bytes: @[u8], pattern: @[PatternByte], cursor: u64) -> bool
     requires bytes.len == pattern.len && cursor <= pattern.len {
         transition cursor < pattern.len {
-            true -> compare(bytes, pattern, cursor)
+            true -> compare(bytes, pattern, cursor),
             false -> true
         }
     }
@@ -20,7 +20,7 @@ requires bytes.len == pattern.len {
         let actual: u8 = bytes[cursor] & pattern[cursor].mask;
         let expected: u8 = pattern[cursor].expected & pattern[cursor].mask;
         transition actual == expected {
-            true -> next(bytes, pattern, cursor + 1)
+            true -> next(bytes, pattern, cursor + 1),
             false -> false
         }
     }
@@ -29,14 +29,14 @@ requires bytes.len == pattern.len {
 machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
     -> Optional<Found<'input>> {
     transition start <= bytes.len && pattern.len > 0 {
-        true -> next(bytes, pattern, start)
+        true -> next(bytes, pattern, start),
         false -> Optional::None
     }
     machine next(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
         -> Optional<Found<'input>>
     requires cursor <= bytes.len && pattern.len > 0 {
         transition pattern.len <= bytes.len - cursor {
-            true -> compare(bytes, pattern, cursor)
+            true -> compare(bytes, pattern, cursor),
             false -> Optional::None
         }
     }
@@ -45,7 +45,7 @@ machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
     requires cursor <= bytes.len && pattern.len > 0 && pattern.len <= bytes.len - cursor {
         let window: @[u8] = @bytes[cursor..cursor + pattern.len];
         transition matches(window, pattern) {
-            true -> Optional::Some { value: Found { position: cursor, bytes: window } }
+            true -> Optional::Some { value: Found { position: cursor, bytes: window } },
             false -> next(bytes, pattern, cursor + 1)
         }
     }
@@ -53,12 +53,12 @@ machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
 
 machine observed(found: Optional<Found>, position: u64, middle: u8) -> bool {
     transition found {
-        Optional::Some { value } -> inspect(value, position, middle)
+        Optional::Some { value } -> inspect(value, position, middle),
         Optional::None -> false
     }
     machine inspect(found: Found, position: u64, middle: u8) -> bool {
         transition found.bytes.len == 3 {
-            true -> contents(found, position, middle)
+            true -> contents(found, position, middle),
             false -> false
         }
     }
@@ -70,7 +70,7 @@ machine observed(found: Optional<Found>, position: u64, middle: u8) -> bool {
 }
 
 machine absent(found: Optional<Found>) -> bool {
-    transition found { Optional::Some { value } -> false Optional::None -> true }
+    transition found { Optional::Some { value } -> false, Optional::None -> true }
 }
 
 machine main() crashes Trap {
@@ -97,7 +97,7 @@ machine main() crashes Trap {
     let past_end: bool = absent(find(input, @wildcard[..], 8));
     transition first && overlapping && last && masked && rejected && exhausted
         && empty && empty_pattern && past_end && bytes[0] == 91 && bytes[8] == 92 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

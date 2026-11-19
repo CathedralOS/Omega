@@ -38,7 +38,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine step(main: @mut Main) {
         transition main.i < 2 {
-            true -> block add(main)
+            true -> block add(main),
             _ -> block done(main)
         }
     }
@@ -55,7 +55,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 
     machine done(main: @mut Main) {
         transition main.sum == 0x8321_5600 {
-            true -> block good(main)
+            true -> block good(main),
             _ -> block bad(main)
         }
     }

@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main, choice: bool) reaches Writer crashes Trap {
     Writer::release(returned);
     let value: u64 = buffer.value;
     drop(buffer);
-    transition observed == 73 && value == 73 && original == 37 && marker == (match choice { true -> 17, false -> 23 }) { true -> done() _ -> bad() }
+    transition observed == 73 && value == 73 && original == 37 && marker == (match choice { true -> 17, false -> 23 }) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

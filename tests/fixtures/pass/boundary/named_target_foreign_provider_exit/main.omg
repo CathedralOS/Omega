@@ -52,7 +52,7 @@ TableProvider satisfies TableProbe {
 machine main() reaches ProcessProbe crashes Trap {
     let process: u32 = ProcessProbe::identity();
     transition process > 0 {
-        true -> accepted()
+        true -> accepted(),
         _ -> rejected()
     }
     machine accepted() {}

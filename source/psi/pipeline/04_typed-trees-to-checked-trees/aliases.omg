@@ -26,17 +26,17 @@ crashes Trap
     let type_handle: u64 in Trapping = typing_expression_type(typing, root);
     let expression: Expression = syntax_trees_expression(syntax, root);
     transition replayable && place > 0 && type_handle == typing.boolean {
-        true -> condition(checker, place, root, expression, value)
+        true -> condition(checker, place, root, expression, value),
         _ -> done()
     }
 
     machine condition(checker: @mut Checker, place: u64 in Trapping, root: u64 in Trapping, expression: Expression, value: Value) {
         transition expression.kind {
-            ExpressionKind::Binary -> own(checker, place, root)
-            ExpressionKind::Unary -> own(checker, place, root)
-            ExpressionKind::Membership -> own(checker, place, root)
-            ExpressionKind::Name -> copied(checker, place, value)
-            ExpressionKind::Field -> copied(checker, place, value)
+            ExpressionKind::Binary -> own(checker, place, root),
+            ExpressionKind::Unary -> own(checker, place, root),
+            ExpressionKind::Membership -> own(checker, place, root),
+            ExpressionKind::Name -> copied(checker, place, value),
+            ExpressionKind::Field -> copied(checker, place, value),
             _ -> done()
         }
     }
@@ -48,7 +48,7 @@ crashes Trap
     machine copied(checker: @mut Checker, place: u64 in Trapping, value: Value) {
         let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
-            true -> chained(checker, place, condition - 1)
+            true -> chained(checker, place, condition - 1),
             _ -> done()
         }
     }
@@ -70,7 +70,7 @@ crashes Trap
     let negated: bool = expression.kind == ExpressionKind::Unary && expression.operator == OperatorKind::Not;
     let fails: bool = !holds;
     transition negated {
-        true -> placed(checker, syntax, resolution, typing, expression.left, fails)
+        true -> placed(checker, syntax, resolution, typing, expression.left, fails),
         _ -> placed(checker, syntax, resolution, typing, root, holds)
     }
 
@@ -78,7 +78,7 @@ crashes Trap
         let value: Value = value_at(checker, node);
         let condition: u64 in Trapping = alias_condition(checker, value.place);
         transition condition > 0 {
-            true -> aliased(checker, syntax, resolution, typing, condition - 1, holds)
+            true -> aliased(checker, syntax, resolution, typing, condition - 1, holds),
             _ -> done()
         }
     }
@@ -107,7 +107,7 @@ crashes Trap
     let written: Expression = syntax_trees_expression(syntax, arm.pattern);
     let holds: bool = written.flag == chosen;
     transition arm.kind == ArmPatternKind::Literal && written.kind == ExpressionKind::Boolean {
-        true -> literal(checker, syntax, resolution, typing, subject, holds)
+        true -> literal(checker, syntax, resolution, typing, subject, holds),
         _ -> done()
     }
 
@@ -123,13 +123,13 @@ public machine alias_condition(checker: @Checker, place: u64 in Trapping) -> u64
 crashes Trap
 {
     transition place > 0 {
-        true -> next(checker, place, 0)
+        true -> next(checker, place, 0),
         _ -> answer(0)
     }
 
     machine next(checker: @Checker, place: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.aliases.count && index < 16 {
-            true -> entry(checker, place, index)
+            true -> entry(checker, place, index),
             _ -> answer(0)
         }
     }
@@ -141,7 +141,7 @@ crashes Trap
         let condition: u64 = checker.aliases.conditions[index];
         let found: u64 in Trapping = (condition as u64 in Trapping) + 1;
         transition aliased == place {
-            true -> answer(found)
+            true -> answer(found),
             _ -> next(checker, place, index + 1)
         }
     }
@@ -158,7 +158,7 @@ crashes Trap
 {
     drop_aliases(checker, place, 0);
     transition checker.aliases.count < 16 {
-        true -> write(checker, place, condition, checker.aliases.count)
+        true -> write(checker, place, condition, checker.aliases.count),
         _ -> done()
     }
 
@@ -191,7 +191,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.aliases.count && index < 16 {
-            true -> entry(checker, place, older, index)
+            true -> entry(checker, place, older, index),
             _ -> done()
         }
     }
@@ -203,7 +203,7 @@ crashes Trap
         let limit: u64 = checker.aliases.limits[index];
         let stale: bool = aliased == place || (older > 0 && older <= limit);
         transition stale {
-            true -> removed(checker, place, older, index)
+            true -> removed(checker, place, older, index),
             _ -> next(checker, place, older, index + 1)
         }
     }
@@ -211,7 +211,7 @@ crashes Trap
     // The last alias takes the removed one's slot and is examined next.
     machine removed(checker: @mut Checker, place: u64 in Trapping, older: u64 in Trapping, index: u64 in Trapping) {
         transition checker.aliases.count > 0 && checker.aliases.count <= 16 && index < 16 {
-            true -> moved(checker, place, older, index, checker.aliases.count - 1)
+            true -> moved(checker, place, older, index, checker.aliases.count - 1),
             _ -> done()
         }
     }
@@ -240,7 +240,7 @@ crashes Trap
 {
     let condition: u64 in Trapping = alias_condition(checker, source);
     transition source != target && target > 0 && condition > 0 {
-        true -> copied(checker, target, condition - 1)
+        true -> copied(checker, target, condition - 1),
         _ -> done()
     }
     machine copied(checker: @mut Checker, target: u64 in Trapping, condition: u64 in Trapping) {
@@ -255,12 +255,12 @@ public machine alias_table_join(table: @mut AliasTable, other: @AliasTable, curr
 crashes Trap
 {
     transition other_live {
-        true -> reachable(table, other, current_live)
+        true -> reachable(table, other, current_live),
         _ -> done()
     }
     machine reachable(table: @mut AliasTable, other: @AliasTable, current_live: bool) {
         transition current_live {
-            true -> next(table, other, 0)
+            true -> next(table, other, 0),
             _ -> copied(table, other)
         }
     }
@@ -273,7 +273,7 @@ crashes Trap
     }
     machine next(table: @mut AliasTable, other: @AliasTable, index: u64 in Trapping) {
         transition index < table.count && index < 16 {
-            true -> candidate(table, other, index)
+            true -> candidate(table, other, index),
             _ -> done()
         }
     }
@@ -286,7 +286,7 @@ crashes Trap
     }
     machine find(table: @mut AliasTable, other: @AliasTable, index: u64 in Trapping, place: u64, condition: u64, offset: u64 in Trapping) {
         transition offset < other.count && offset < 16 {
-            true -> compare(table, other, index, place, condition, offset)
+            true -> compare(table, other, index, place, condition, offset),
             _ -> removed(table, other, index)
         }
     }
@@ -295,7 +295,7 @@ crashes Trap
     {
         let same: bool = other.places[offset] == place && other.conditions[offset] == condition;
         transition same {
-            true -> kept(table, other, index, offset)
+            true -> kept(table, other, index, offset),
             _ -> find(table, other, index, place, condition, offset + 1)
         }
     }
@@ -304,7 +304,7 @@ crashes Trap
     {
         let limit: u64 = other.limits[offset];
         transition limit > table.limits[index] {
-            true -> limited(table, other, index, limit)
+            true -> limited(table, other, index, limit),
             _ -> next(table, other, index + 1)
         }
     }
@@ -316,7 +316,7 @@ crashes Trap
     }
     machine removed(table: @mut AliasTable, other: @AliasTable, index: u64 in Trapping) {
         transition table.count > 0 && table.count <= 16 && index < 16 {
-            true -> moved(table, other, index, table.count - 1)
+            true -> moved(table, other, index, table.count - 1),
             _ -> done()
         }
     }

@@ -41,7 +41,7 @@ machine main() reaches Readiness crashes Trap {
     let retained: i32 = 17;
     let observed: i32 = suspend await_value(42);
     transition retained == 17 && observed == 42 {
-        true -> finished(observed)
+        true -> finished(observed),
         _ -> wrong()
     }
     machine finished(observed: i32) reaches Readiness {
@@ -61,7 +61,7 @@ machine storage_entry() reaches Readiness crashes Trap {
     let mut held: i32 = 7;
     suspend Readiness::replace(@mut held);
     transition held == 42 {
-        true -> finished(held)
+        true -> finished(held),
         _ -> wrong()
     }
     machine finished(held: i32) reaches Readiness { Readiness::observe(held); }
@@ -81,7 +81,7 @@ machine incoming_storage_entry() reaches Readiness crashes Trap {
     let mut held: i32 = 7;
     suspend replace_incoming(@mut held);
     transition held == 42 {
-        true -> finished(held)
+        true -> finished(held),
         _ -> wrong()
     }
     machine finished(held: i32) reaches Readiness { Readiness::observe(held); }

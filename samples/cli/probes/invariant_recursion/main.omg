@@ -20,7 +20,7 @@ requires n <= 100, acc <= 5050,
 terminates by n
 {
     transition n == 0 {
-        true -> acc
+        true -> acc,
         false -> triangle(n - 1, acc + n)
     }
 }
@@ -30,7 +30,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition triangle(4, 0) == 10 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

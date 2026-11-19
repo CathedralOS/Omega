@@ -40,7 +40,7 @@ machine Main::main(main: @mut Main) {
     let a: Choice = pick(true, Choice::Some { value: 7 }, Choice::Empty);
     let seen: bool = choose(1, Choice::Empty, Choice::Some { value: 9 });
     transition a in Choice::Some && seen {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

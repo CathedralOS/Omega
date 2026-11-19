@@ -12,7 +12,7 @@ requires machine A(kept: bool) -> bool;
 requires machine B(kept: bool) -> bool;
 {
     transition A(kept) {
-        true -> B(kept)
+        true -> B(kept),
         _ -> false
     }
 }
@@ -32,7 +32,7 @@ requires direct == true
 machine relay(kept: bool) -> bool
 requires kept == true
 {
-    let direct: bool = apply<pair<left, right>>(kept);
+    let direct: bool = apply::<pair<left, right>>(kept);
     hold(direct)
 }
 
@@ -44,7 +44,7 @@ requires kept == true
 
 machine main() crashes Trap {
     transition forward(true) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

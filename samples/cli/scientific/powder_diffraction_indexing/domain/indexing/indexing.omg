@@ -1,4 +1,3 @@
-module domain::indexing;
 use omega::language::core::F64::from_u64;
 use omega::language::core::F64::square_root;
 use omega::language::core::U64::from_f64;
@@ -22,19 +21,19 @@ public machine decode(raw: @Raw, problem: @mut Problem) -> bool {
     transition raw.count >= 6 && raw.count <= 9 && count >= 3 && count <= 6
         && F64::from_u64(count as u64) == raw.values[1] && raw.count == 3 + (count as u64)
         && raw.values[0] >= 0.5 && raw.values[0] <= 2.5 && raw.values[2] > 0.0 && raw.values[2] <= 1.0 {
-        true -> initialize(raw, problem, count as u64) false -> bad()
+        true -> initialize(raw, problem, count as u64), false -> bad()
     }
     machine initialize(raw: @Raw, problem: @mut Problem, count: u64) -> bool {
         problem.count = count; problem.wavelength = raw.values[0]; problem.tolerance = raw.values[2];
         transition { _ -> scan(raw, problem, 0, 0.0) }
     }
     machine scan(raw: @Raw, problem: @mut Problem, index: u64, previous: f64) -> bool {
-        transition index < problem.count && index < 6 { true -> angle(raw, problem, index, previous) false -> good() }
+        transition index < problem.count && index < 6 { true -> angle(raw, problem, index, previous), false -> good() }
     }
     machine angle(raw: @Raw, problem: @mut Problem, index: u64, previous: f64) -> bool requires index < 6 {
         let observed: f64 = raw.values[index + 3];
         transition observed > previous && observed < 180.0 {
-            true -> save(problem, raw, index, observed) false -> bad()
+            true -> save(problem, raw, index, observed), false -> bad()
         }
     }
     machine save(problem: @mut Problem, raw: @Raw, index: u64, observed: f64) -> bool requires index < 6 {
@@ -51,7 +50,7 @@ public machine decode(raw: @Raw, problem: @mut Problem) -> bool {
 public machine sine(value: f64) -> f64 {
     transition { _ -> term(value, 1, value, value) }
     machine term(value: f64, index: u64, current: f64, total: f64) -> f64 {
-        transition index < 16 { true -> add(value, index, current, total) false -> done(total) }
+        transition index < 16 { true -> add(value, index, current, total), false -> done(total) }
     }
     machine add(value: f64, index: u64, current: f64, total: f64) -> f64 requires index < 16 {
         let divisor: f64 = F64::from_u64(2 * index) * F64::from_u64(2 * index + 1);
@@ -63,11 +62,11 @@ public machine sine(value: f64) -> f64 {
 machine inverse_sine(value: f64) -> f64 {
     transition { _ -> bisect(value, 0, 0.0, 1.57079632679489661923) }
     machine bisect(value: f64, iteration: u64, low: f64, high: f64) -> f64 {
-        transition iteration < 52 { true -> compare(value, iteration, low, high) false -> done(low, high) }
+        transition iteration < 52 { true -> compare(value, iteration, low, high), false -> done(low, high) }
     }
     machine compare(value: f64, iteration: u64, low: f64, high: f64) -> f64 requires iteration < 52 {
         let middle: f64 = (low + high) * 0.5;
-        transition sine(middle) < value { true -> bisect(value, iteration + 1, middle, high) false -> bisect(value, iteration + 1, low, middle) }
+        transition sine(middle) < value { true -> bisect(value, iteration + 1, middle, high), false -> bisect(value, iteration + 1, low, middle) }
     }
     machine done(low: f64, high: f64) -> f64 { (low + high) * 0.5 }
 }
@@ -80,22 +79,22 @@ public machine allowed(kind: u64, h: u64, k: u64, l: u64) -> bool requires h < 5
 machine represented(kind: u64, squared: u64) -> bool {
     transition { _ -> scan(kind, squared, 0, 0, 0) }
     machine scan(kind: u64, squared: u64, h: u64, k: u64, l: u64) -> bool {
-        transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l) false -> no() }
+        transition h < 5 && k < 5 && l < 5 { true -> test(kind, squared, h, k, l), false -> no() }
     }
     machine test(kind: u64, squared: u64, h: u64, k: u64, l: u64) -> bool requires h < 5, k < 5, l < 5 {
         transition h >= k && k >= l && h * h + k * k + l * l == squared && allowed(kind, h, k, l) {
-            true -> yes() false -> advance(kind, squared, h, k, l)
+            true -> yes(), false -> advance(kind, squared, h, k, l)
         }
     }
     machine advance(kind: u64, squared: u64, h: u64, k: u64, l: u64) -> bool requires h < 5, k < 5, l < 5 {
-        transition { l < 4 -> scan(kind, squared, h, k, l + 1) k < 4 -> scan(kind, squared, h, k + 1, 0) _ -> scan(kind, squared, h + 1, 0, 0) }
+        transition { l < 4 -> scan(kind, squared, h, k, l + 1), k < 4 -> scan(kind, squared, h, k + 1, 0), _ -> scan(kind, squared, h + 1, 0, 0) }
     }
     machine yes() -> bool { true } machine no() -> bool { false }
 }
 machine collect(problem: @mut Problem, kind: u64, squared: u64, count: u64) {
-    transition squared <= 20 && count < 8 { true -> test(problem, kind, squared, count) false -> done() }
+    transition squared <= 20 && count < 8 { true -> test(problem, kind, squared, count), false -> done() }
     machine test(problem: @mut Problem, kind: u64, squared: u64, count: u64) requires squared <= 20, count < 8 {
-        transition represented(kind, squared) { true -> store(problem, kind, squared, count) false -> collect(problem, kind, squared + 1, count) }
+        transition represented(kind, squared) { true -> store(problem, kind, squared, count), false -> collect(problem, kind, squared + 1, count) }
     }
     machine store(problem: @mut Problem, kind: u64, squared: u64, count: u64) requires squared <= 20, count < 8 {
         problem.lines[count] = squared;
@@ -108,7 +107,7 @@ public machine enumerate(problem: @mut Problem) reaches Console invokes Console 
     classes(problem, 0); Console::write("hypotheses"); integer(problem.hypotheses); Console::write_line("");
 }
 machine classes(problem: @mut Problem, kind: u64) reaches Console invokes Console {
-    transition kind < 3 { true -> search(problem, kind) false -> done() }
+    transition kind < 3 { true -> search(problem, kind), false -> done() }
     machine search(problem: @mut Problem, kind: u64) requires kind < 3 {
         collect(problem, kind, 1, 0); masks(problem, kind, 1);
         transition { _ -> classes(problem, kind + 1) }
@@ -116,16 +115,16 @@ machine classes(problem: @mut Problem, kind: u64) reaches Console invokes Consol
     machine done() { }
 }
 machine masks(problem: @mut Problem, kind: u64, mask: u64) reaches Console invokes Console {
-    transition mask < 256 { true -> test(problem, kind, mask) false -> done() }
+    transition mask < 256 { true -> test(problem, kind, mask), false -> done() }
     machine test(problem: @mut Problem, kind: u64, mask: u64) requires mask < 256 {
         problem.selected = 0; problem.missing = 0; problem.last = 0;
         choose(problem, mask, 0, 0);
         transition problem.selected == problem.count && problem.missing <= 2 {
-            true -> candidate(problem, kind, mask) false -> masks(problem, kind, mask + 1)
+            true -> candidate(problem, kind, mask), false -> masks(problem, kind, mask + 1)
         }
     }
     machine candidate(problem: @mut Problem, kind: u64, mask: u64) requires mask < 256 {
-        transition fit(problem) && problem.hypotheses < 768 { true -> emit(problem, kind, mask) false -> masks(problem, kind, mask + 1) }
+        transition fit(problem) && problem.hypotheses < 768 { true -> emit(problem, kind, mask), false -> masks(problem, kind, mask + 1) }
     }
     machine emit(problem: @mut Problem, kind: u64, mask: u64) requires mask < 256, problem.hypotheses < 768 {
         let total: u64 = problem.hypotheses;
@@ -137,11 +136,11 @@ machine masks(problem: @mut Problem, kind: u64, mask: u64) reaches Console invok
 // Missing lines count only unselected ranks before the highest observed rank.
 // The unobserved high-angle tail of the eight-line search window is not missing.
 machine choose(problem: @mut Problem, mask: u64, rank: u64, skipped: u64) {
-    transition rank < 8 && mask > 0 && skipped <= 8 { true -> test(problem, mask, rank, skipped) false -> done() }
+    transition rank < 8 && mask > 0 && skipped <= 8 { true -> test(problem, mask, rank, skipped), false -> done() }
     machine test(problem: @mut Problem, mask: u64, rank: u64, skipped: u64) requires rank < 8, skipped <= 8 {
         transition {
-            mask % 2 == 0 -> choose(problem, mask / 2, rank + 1, skipped + 1)
-            problem.selected < 6 -> store(problem, mask, rank, skipped)
+            mask % 2 == 0 -> choose(problem, mask / 2, rank + 1, skipped + 1),
+            problem.selected < 6 -> store(problem, mask, rank, skipped),
             _ -> excess(problem)
         }
     }
@@ -158,7 +157,7 @@ machine choose(problem: @mut Problem, mask: u64, rank: u64, skipped: u64) {
 machine fit(problem: @mut Problem) -> bool {
     transition { _ -> accumulate(problem, 0, 0.0, 0.0) }
     machine accumulate(problem: @mut Problem, index: u64, numerator: f64, denominator: f64) -> bool {
-        transition index < problem.count && index < 6 { true -> term(problem, index, numerator, denominator) false -> scale(problem, numerator, denominator) }
+        transition index < problem.count && index < 6 { true -> term(problem, index, numerator, denominator), false -> scale(problem, numerator, denominator) }
     }
     machine term(problem: @mut Problem, index: u64, numerator: f64, denominator: f64) -> bool requires index < 6 {
         let squared: f64 = F64::from_u64(problem.assignments[index]);
@@ -166,21 +165,21 @@ machine fit(problem: @mut Problem) -> bool {
     }
     machine scale(problem: @mut Problem, numerator: f64, denominator: f64) -> bool {
         problem.scale = numerator / denominator; problem.lattice = 1.0 / F64::square_root(problem.scale);
-        transition problem.lattice >= 2.0 && problem.lattice <= 10.0 { true -> residual(problem, 0) false -> no() }
+        transition problem.lattice >= 2.0 && problem.lattice <= 10.0 { true -> residual(problem, 0), false -> no() }
     }
     machine residual(problem: @mut Problem, index: u64) -> bool {
-        transition index < problem.count && index < 6 { true -> predict(problem, index) false -> yes() }
+        transition index < problem.count && index < 6 { true -> predict(problem, index), false -> yes() }
     }
     machine predict(problem: @mut Problem, index: u64) -> bool requires index < 6 {
         let argument: f64 = problem.wavelength * F64::square_root(problem.scale * F64::from_u64(problem.assignments[index])) * 0.5;
-        transition argument > 0.0 && argument < 1.0 { true -> angle(problem, index, argument) false -> no() }
+        transition argument > 0.0 && argument < 1.0 { true -> angle(problem, index, argument), false -> no() }
     }
     machine angle(problem: @mut Problem, index: u64, argument: f64) -> bool requires index < 6 {
         let predicted: f64 = 360.0 * inverse_sine(argument) / 3.14159265358979323846;
         let difference: f64 = predicted - problem.angles[index];
         problem.predictions[index] = predicted; problem.residuals[index] = difference;
         transition difference >= 0.0 - problem.tolerance && difference <= problem.tolerance {
-            true -> residual(problem, index + 1) false -> no()
+            true -> residual(problem, index + 1), false -> no()
         }
     }
     machine yes() -> bool { true } machine no() -> bool { false }

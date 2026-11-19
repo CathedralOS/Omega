@@ -9,18 +9,18 @@ data PaddedFrame {
 }
 
 machine main() crashes Trap {
-    let s: u64 = size_of<PaddedFrame>();
-    let a: u64 = align_of<PaddedFrame>();
-    let extra: u64 = align_of<u32>();
+    let s: u64 = size_of::<PaddedFrame>();
+    let a: u64 = align_of::<PaddedFrame>();
+    let extra: u64 = align_of::<u32>();
     let geometry: u64 = s + a + extra;
     transition true {
-        true -> step(geometry)
+        true -> step(geometry),
         _ -> bad()
     }
     machine step(forwarded: u64) {
         let diff: u64 = forwarded - 100u64;
         transition diff == 0 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

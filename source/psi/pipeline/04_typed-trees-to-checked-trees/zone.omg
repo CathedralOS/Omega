@@ -28,14 +28,14 @@ public machine exactly(value: ExactInteger) -> Bound {
 // negative one is clamped to the least representable value.
 public machine bound_add(left: Bound, right: Bound) -> Bound {
     transition left.finite && right.finite {
-        true -> finite(left.value, right.value)
+        true -> finite(left.value, right.value),
         _ -> unbounded()
     }
 
     machine finite(left: ExactInteger, right: ExactInteger) -> Bound {
         let sum: ExactResult = exact_integer_add(left, right);
         transition sum.valid {
-            true -> exact(sum.value)
+            true -> exact(sum.value),
             _ -> overflowed(left.negative)
         }
     }
@@ -46,7 +46,7 @@ public machine bound_add(left: Bound, right: Bound) -> Bound {
 
     machine overflowed(negative: bool) -> Bound {
         transition negative {
-            true -> least()
+            true -> least(),
             _ -> unbounded()
         }
     }
@@ -63,13 +63,13 @@ public machine bound_add(left: Bound, right: Bound) -> Bound {
 // Whether `left` is at least as tight as `right`.
 public machine bound_at_most(left: Bound, right: Bound) -> bool {
     transition right.finite {
-        true -> finite(left, right.value)
+        true -> finite(left, right.value),
         _ -> always()
     }
 
     machine finite(left: Bound, right: ExactInteger) -> bool {
         transition left.finite {
-            true -> compared(left.value, right)
+            true -> compared(left.value, right),
             _ -> never()
         }
     }
@@ -104,7 +104,7 @@ public machine zone_open(zone: @mut Zone, count: u64 in Trapping)
 crashes Trap
 {
     transition count <= 64 {
-        true -> cleared(zone, count)
+        true -> cleared(zone, count),
         _ -> invalid()
     }
 
@@ -116,7 +116,7 @@ crashes Trap
 
     machine entry(zone: @mut Zone, index: u64 in Trapping) {
         transition index < 4096 {
-            true -> clear(zone, index)
+            true -> clear(zone, index),
             _ -> done()
         }
     }
@@ -127,7 +127,7 @@ crashes Trap
         let row: u64 in Trapping = index / 64;
         let column: u64 in Trapping = index % 64;
         transition row == column {
-            true -> diagonal(zone, index)
+            true -> diagonal(zone, index),
             _ -> unbounded(zone, index)
         }
     }
@@ -158,13 +158,13 @@ public machine zone_bound(zone: @Zone, from: u64 in Trapping, to: u64 in Trappin
 crashes Trap
 {
     transition from < 64 && to < 64 {
-        true -> located(zone, from * 64 + to)
+        true -> located(zone, from * 64 + to),
         _ -> invalid()
     }
 
     machine located(zone: @Zone, index: u64 in Trapping) -> Bound {
         transition index < 4096 {
-            true -> read(zone, index)
+            true -> read(zone, index),
             _ -> invalid()
         }
     }
@@ -187,13 +187,13 @@ crashes Trap
     let current: Bound = zone_bound(zone, from, to);
     let tighter: bool = bound_at_most(current, bound);
     transition tighter {
-        true -> done()
+        true -> done(),
         _ -> store(zone, from * 64 + to, bound)
     }
 
     machine store(zone: @mut Zone, index: u64 in Trapping, bound: Bound) {
         transition index < 4096 {
-            true -> write(zone, index, bound)
+            true -> write(zone, index, bound),
             _ -> invalid()
         }
     }
@@ -216,7 +216,7 @@ public machine implies(zone: @Zone, from: u64 in Trapping, to: u64 in Trapping, 
 crashes Trap
 {
     transition zone.infeasible {
-        true -> vacuous()
+        true -> vacuous(),
         _ -> compared(zone, from, to, value)
     }
 
@@ -244,13 +244,13 @@ crashes Trap
     let cycle: Bound = bound_add(bound, back);
     let contradictory: bool = bound_negative(cycle);
     transition bound.finite && !zone.infeasible {
-        true -> feasible(zone, from, to, bound, contradictory)
+        true -> feasible(zone, from, to, bound, contradictory),
         _ -> done()
     }
 
     machine feasible(zone: @mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, contradictory: bool) {
         transition contradictory {
-            true -> infeasible(zone)
+            true -> infeasible(zone),
             _ -> row(zone, from, to, bound, 0)
         }
     }
@@ -261,7 +261,7 @@ crashes Trap
 
     machine row(zone: @mut Zone, from: u64 in Trapping, to: u64 in Trapping, bound: Bound, first: u64 in Trapping) {
         transition first < zone.count {
-            true -> through(zone, from, to, bound, first)
+            true -> through(zone, from, to, bound, first),
             _ -> done()
         }
     }
@@ -282,7 +282,7 @@ crashes Trap
         second: u64 in Trapping
     ) {
         transition second < zone.count {
-            true -> relax(zone, from, to, bound, through, first, second)
+            true -> relax(zone, from, to, bound, through, first, second),
             _ -> next_row(zone, from, to, bound, first)
         }
     }
@@ -318,14 +318,14 @@ crashes Trap
 
     machine other(zone: @mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index < zone.count {
-            true -> clear(zone, subject, index)
+            true -> clear(zone, subject, index),
             _ -> done()
         }
     }
 
     machine clear(zone: @mut Zone, subject: u64 in Trapping, index: u64 in Trapping) {
         transition index == subject {
-            true -> other(zone, subject, index + 1)
+            true -> other(zone, subject, index + 1),
             _ -> unbound(zone, subject, index)
         }
     }
@@ -345,13 +345,13 @@ machine zone_set(zone: @mut Zone, from: u64 in Trapping, to: u64 in Trapping, bo
 crashes Trap
 {
     transition from < 64 && to < 64 {
-        true -> store(zone, from * 64 + to, bound)
+        true -> store(zone, from * 64 + to, bound),
         _ -> invalid()
     }
 
     machine store(zone: @mut Zone, index: u64 in Trapping, bound: Bound) {
         transition index < 4096 {
-            true -> write(zone, index, bound)
+            true -> write(zone, index, bound),
             _ -> invalid()
         }
     }
@@ -375,13 +375,13 @@ public machine zone_join(zone: @mut Zone, other: @Zone) -> bool
 crashes Trap
 {
     transition other.infeasible {
-        true -> unchanged()
+        true -> unchanged(),
         _ -> reachable(zone, other)
     }
 
     machine reachable(zone: @mut Zone, other: @Zone) -> bool {
         transition zone.infeasible {
-            true -> replaced(zone, other)
+            true -> replaced(zone, other),
             _ -> entry(zone, other, 0, false)
         }
     }
@@ -394,7 +394,7 @@ crashes Trap
 
     machine copy(zone: @mut Zone, other: @Zone, index: u64 in Trapping) -> bool {
         transition index < 4096 {
-            true -> copy_entry(zone, other, index)
+            true -> copy_entry(zone, other, index),
             _ -> changed()
         }
     }
@@ -408,7 +408,7 @@ crashes Trap
 
     machine entry(zone: @mut Zone, other: @Zone, index: u64 in Trapping, loosened: bool) -> bool {
         transition index < 4096 {
-            true -> compare(zone, other, index, loosened)
+            true -> compare(zone, other, index, loosened),
             _ -> finished(loosened)
         }
     }
@@ -420,7 +420,7 @@ crashes Trap
         let theirs: Bound = other.bounds[index];
         let covered: bool = bound_at_most(theirs, mine);
         transition covered {
-            true -> entry(zone, other, index + 1, loosened)
+            true -> entry(zone, other, index + 1, loosened),
             _ -> loosen(zone, other, index, theirs)
         }
     }
@@ -454,13 +454,13 @@ public machine zone_widen(zone: @mut Zone, before: @Zone)
 crashes Trap
 {
     transition before.infeasible || zone.infeasible {
-        true -> done()
+        true -> done(),
         _ -> entry(zone, before, 0)
     }
 
     machine entry(zone: @mut Zone, before: @Zone, index: u64 in Trapping) {
         transition index < 4096 {
-            true -> compare(zone, before, index)
+            true -> compare(zone, before, index),
             _ -> done()
         }
     }
@@ -472,7 +472,7 @@ crashes Trap
         let then: Bound = before.bounds[index];
         let stable: bool = bound_at_most(now, then);
         transition stable {
-            true -> entry(zone, before, index + 1)
+            true -> entry(zone, before, index + 1),
             _ -> drop(zone, before, index)
         }
     }

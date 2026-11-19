@@ -1,4 +1,3 @@
-module domain::paths;
 use domain::model;
 use domain::model::Job;
 use domain::report;
@@ -6,19 +5,19 @@ use domain::report::segment;
 use omega_language_std::Console;
 // Scan maximal occupied runs. Gaps end deposition and cause travel to the next run.
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
-    transition value < 0 { true -> (0 - value) _ -> value }
+    transition value < 0 { true -> (0 - value), _ -> value }
 }
 machine occupied(job: @Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
     along: i32 in Wrapping) -> i32 in Wrapping {
     let width: i32 in Wrapping = job.width;
     let plane: i32 in Wrapping = job.width * job.height;
     transition job.orientation == 0 {
-        true -> index(job, layer * plane + lane * width + along)
+        true -> index(job, layer * plane + lane * width + along),
         _ -> index(job, layer * plane + along * width + lane)
     }
     machine index(job: @Job, index: i32 in Wrapping) -> i32 in Wrapping {
         transition index >= 0 && index < 256 {
-            true -> read(job, index)
+            true -> read(job, index),
             _ -> (0 - 1)
         }
     }
@@ -31,12 +30,12 @@ machine cover(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
     let width: i32 in Wrapping = job.width;
     let plane: i32 in Wrapping = job.width * job.height;
     transition job.orientation == 0 {
-        true -> index(job, layer * plane + lane * width + along)
+        true -> index(job, layer * plane + lane * width + along),
         _ -> index(job, layer * plane + along * width + lane)
     }
     machine index(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
-            true -> write(job, index)
+            true -> write(job, index),
             _ -> false
         }
     }
@@ -49,7 +48,7 @@ machine cover(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
 machine emit_run(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
     start: i32 in Wrapping, end: i32 in Wrapping) reaches Console {
     transition job.orientation == 0 {
-        true -> move(job, start, lane, layer, end, lane)
+        true -> move(job, start, lane, layer, end, lane),
         _ -> move(job, lane, start, layer, lane, end)
     }
     machine move(job: @mut Job, x: i32 in Wrapping, y: i32 in Wrapping, z: i32 in Wrapping,
@@ -57,7 +56,7 @@ machine emit_run(job: @mut Job, layer: i32 in Wrapping, lane: i32 in Wrapping,
         let distance: i32 in Wrapping = magnitude(x - job.previous_x)
             + magnitude(y - job.previous_y) + magnitude(z - job.previous_z);
         transition distance > 0 {
-            true -> travel(job, x, y, z, end_x, end_y, distance)
+            true -> travel(job, x, y, z, end_x, end_y, distance),
             _ -> deposit(job, x, y, z, end_x, end_y)
         }
     }
@@ -87,20 +86,20 @@ public machine paths(job: @mut Job) -> bool reaches Console {
     let width: i32 in Wrapping = job.width;
     let height: i32 in Wrapping = job.height;
     transition job.orientation == 0 {
-        true -> layer(job, 0, height, width)
+        true -> layer(job, 0, height, width),
         _ -> layer(job, 0, width, height)
     }
     machine layer(job: @mut Job, layer_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         transition layer_index < job.layers {
-            true -> lane(job, layer_index, 0, lanes, length)
+            true -> lane(job, layer_index, 0, lanes, length),
             _ -> audit_cells(job, 0)
         }
     }
     machine lane(job: @mut Job, layer_index: i32 in Wrapping, lane_index: i32 in Wrapping,
         lanes: i32 in Wrapping, length: i32 in Wrapping) -> bool {
         transition lane_index < lanes {
-            true -> find(job, layer_index, lane_index, lanes, length, 0)
+            true -> find(job, layer_index, lane_index, lanes, length, 0),
             _ -> layer(job, layer_index + 1, lanes, length)
         }
     }
@@ -108,7 +107,7 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         lanes: i32 in Wrapping, length: i32 in Wrapping, along: i32 in Wrapping) -> bool {
         let next_lane: i32 in Wrapping = lane_index + job.stride;
         transition along < length {
-            true -> test(job, layer_index, lane_index, lanes, length, along)
+            true -> test(job, layer_index, lane_index, lanes, length, along),
             _ -> lane(job, layer_index, next_lane, lanes, length)
         }
     }
@@ -116,8 +115,8 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         lanes: i32 in Wrapping, length: i32 in Wrapping, along: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = occupied(job, layer_index, lane_index, along);
         transition value {
-            1 -> extend(job, layer_index, lane_index, lanes, length, along, along)
-            0 -> find(job, layer_index, lane_index, lanes, length, along + 1)
+            1 -> extend(job, layer_index, lane_index, lanes, length, along, along),
+            0 -> find(job, layer_index, lane_index, lanes, length, along + 1),
             _ -> false
         }
     }
@@ -125,7 +124,7 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         lanes: i32 in Wrapping, length: i32 in Wrapping, start: i32 in Wrapping,
         end: i32 in Wrapping) -> bool {
         transition end < length {
-            true -> extend_test(job, layer_index, lane_index, lanes, length, start, end)
+            true -> extend_test(job, layer_index, lane_index, lanes, length, start, end),
             _ -> emit(job, layer_index, lane_index, lanes, length, start, end)
         }
     }
@@ -134,8 +133,8 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         end: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = occupied(job, layer_index, lane_index, end);
         transition value {
-            1 -> mark(job, layer_index, lane_index, lanes, length, start, end)
-            0 -> emit(job, layer_index, lane_index, lanes, length, start, end)
+            1 -> mark(job, layer_index, lane_index, lanes, length, start, end),
+            0 -> emit(job, layer_index, lane_index, lanes, length, start, end),
             _ -> false
         }
     }
@@ -144,7 +143,7 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         end: i32 in Wrapping) -> bool {
         let valid: bool = cover(job, layer_index, lane_index, end);
         transition valid {
-            true -> extend(job, layer_index, lane_index, lanes, length, start, end + 1)
+            true -> extend(job, layer_index, lane_index, lanes, length, start, end + 1),
             _ -> false
         }
     }
@@ -156,13 +155,13 @@ public machine paths(job: @mut Job) -> bool reaches Console {
     }
     machine audit_cells(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index < job.width * job.height * job.layers {
-            true -> audit_bounds(job, index)
+            true -> audit_bounds(job, index),
             _ -> true
         }
     }
     machine audit_bounds(job: @mut Job, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 256 {
-            true -> audit_read(job, index)
+            true -> audit_read(job, index),
             _ -> false
         }
     }
@@ -170,14 +169,14 @@ public machine paths(job: @mut Job) -> bool reaches Console {
         let mask: i32 in Wrapping = job.mask[index] as i32 in Wrapping;
         let visits: i32 in Wrapping = job.covered[index] as i32 in Wrapping;
         transition mask == 1 {
-            true -> region_cell(job, index, visits)
+            true -> region_cell(job, index, visits),
             _ -> outside_cell(job, index, visits)
         }
     }
     machine region_cell(job: @mut Job, index: i32 in Wrapping, visits: i32 in Wrapping) -> bool {
         job.region = job.region + 1;
         transition visits > 0 {
-            true -> covered_cell(job, index, visits)
+            true -> covered_cell(job, index, visits),
             _ -> missed_cell(job, index)
         }
     }

@@ -1,4 +1,3 @@
-module domain::output;
 use domain::input;
 use domain::input::Image;
 use domain::regions;
@@ -10,7 +9,7 @@ use omega_language_std::Console;
 // unreduced fractions sum/area, avoiding rounding and floating tolerances.
 machine number(value: i32 in Wrapping) reaches Console {
     transition value >= 100 {
-        true -> hundreds(value)
+        true -> hundreds(value),
         false -> tens(value)
     }
     machine hundreds(value: i32 in Wrapping) {
@@ -20,7 +19,7 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
     machine tens(value: i32 in Wrapping) {
         transition value >= 10 {
-            true -> two(value)
+            true -> two(value),
             false -> one(value)
         }
     }
@@ -43,13 +42,13 @@ reaches Console {
     transition { _ -> pixel(image, 0) }
     machine pixel(image: @Image, position: i32 in Wrapping) {
         transition position >= 0 && position < 64 && position < image.length {
-            true -> emit(image, position)
+            true -> emit(image, position),
             false -> heading(image)
         }
     }
     machine emit(image: @Image, position: i32 in Wrapping) {
         transition image.width > 0 {
-            true -> emit_pixel(image, position)
+            true -> emit_pixel(image, position),
             false -> stopped()
         }
     }
@@ -57,7 +56,7 @@ reaches Console {
         let label: i32 in Wrapping = image.labels[position] as i32 in Wrapping;
         number(label);
         transition (position + 1) % image.width == 0 {
-            true -> newline(image, position)
+            true -> newline(image, position),
             false -> space(image, position)
         }
     }
@@ -76,7 +75,7 @@ reaches Console {
     }
     machine region(image: @Image, label: i32 in Wrapping) {
         transition label <= image.components {
-            true -> report(image, label)
+            true -> report(image, label),
             false -> stopped()
         }
     }

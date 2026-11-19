@@ -1,4 +1,3 @@
-module graph;
 use fixtures;
 use geometry;
 public data Planner {
@@ -26,7 +25,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
         geometry::minimum(scene.y[to] + 5, 15 - scene.y[to]));
     let clearance: i64 in Wrapping = geometry::minimum(wall, other_wall);
     transition clearance >= radius {
-        true -> obstacle(scene, from, to, radius, 0, clearance * 1000)
+        true -> obstacle(scene, from, to, radius, 0, clearance * 1000),
         false -> -1
     }
     machine obstacle(scene: @fixtures::Scene, from: i32 in Wrapping, to: i32 in Wrapping,
@@ -35,7 +34,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
     requires from >= 0 && from < 6 && to >= 0 && to < 6
     {
         transition index >= 0 && index < scene.obstacle_count && index < 2 {
-            true -> measure(scene, from, to, radius, index, clearance)
+            true -> measure(scene, from, to, radius, index, clearance),
             false -> clearance
         }
     }
@@ -48,7 +47,7 @@ requires from >= 0 && from < 6 && to >= 0 && to < 6
             scene.x[to], scene.y[to], scene.obstacle_x[index], scene.obstacle_y[index]);
         transition distance.numerator >= (radius + 1) * (radius + 1) * distance.denominator {
             true -> obstacle(scene, from, to, radius, index + 1,
-                geometry::minimum(clearance, geometry::root_milli(distance.numerator, distance.denominator) - 1000))
+                geometry::minimum(clearance, geometry::root_milli(distance.numerator, distance.denominator) - 1000)),
             false -> -1
         }
     }
@@ -63,7 +62,7 @@ public machine build(planner: @mut Planner, scene: @fixtures::Scene, radius: i64
     machine row(planner: @mut Planner, scene: @fixtures::Scene, radius: i64 in Wrapping,
               from: i32 in Wrapping) {
         transition from >= 0 && from < 6 {
-            true -> column(planner, scene, radius, from, 0)
+            true -> column(planner, scene, radius, from, 0),
             false -> done()
         }
     }
@@ -72,7 +71,7 @@ public machine build(planner: @mut Planner, scene: @fixtures::Scene, radius: i64
     requires from >= 0 && from < 6
     {
         transition to >= 0 && to < 6 {
-            true -> fill(planner, scene, radius, from, to)
+            true -> fill(planner, scene, radius, from, to),
             false -> row(planner, scene, radius, from + 1)
         }
     }
@@ -85,7 +84,7 @@ public machine build(planner: @mut Planner, scene: @fixtures::Scene, radius: i64
         let dy: i64 in Wrapping = scene.y[from] - scene.y[to];
         transition clearance >= 0 && from != to {
             true -> store(planner, scene, radius, from, to, from * 6 + to,
-                clearance, geometry::root_milli(dx * dx + dy * dy, 1))
+                clearance, geometry::root_milli(dx * dx + dy * dy, 1)),
             false -> column(planner, scene, radius, from, to + 1)
         }
     }
@@ -106,7 +105,7 @@ public machine solve(planner: @mut Planner) -> bool {
     machine scan(planner: @mut Planner, index: i32 in Wrapping,
                best: i32 in Wrapping, cost: i64 in Wrapping) -> bool {
         transition index >= 0 && index < 6 {
-            true -> consider(planner, index, best, cost)
+            true -> consider(planner, index, best, cost),
             false -> select(planner, best)
         }
     }
@@ -116,13 +115,13 @@ public machine solve(planner: @mut Planner) -> bool {
     {
         let distance: i64 in Wrapping = planner.distances[index];
         transition !planner.settled[index] && distance >= 0 && distance < cost {
-            true -> scan(planner, index + 1, index, distance)
+            true -> scan(planner, index + 1, index, distance),
             false -> scan(planner, index + 1, best, cost)
         }
     }
     machine select(planner: @mut Planner, best: i32 in Wrapping) -> bool {
         transition best >= 0 && best < 6 {
-            true -> settle(planner, best)
+            true -> settle(planner, best),
             false -> false
         }
     }
@@ -132,7 +131,7 @@ public machine solve(planner: @mut Planner) -> bool {
         planner.settled[best] = true;
         planner.witness = planner.witness | (1i32 << best);
         transition best == 1 {
-            true -> trace(planner, 1, 0)
+            true -> trace(planner, 1, 0),
             false -> relax(planner, best, 0)
         }
     }
@@ -140,7 +139,7 @@ public machine solve(planner: @mut Planner) -> bool {
     requires best >= 0 && best < 6
     {
         transition next >= 0 && next < 6 {
-            true -> read_edge(planner, best, next, best * 6 + next)
+            true -> read_edge(planner, best, next, best * 6 + next),
             false -> scan(planner, 0, -1, 1000000)
         }
     }
@@ -152,7 +151,7 @@ public machine solve(planner: @mut Planner) -> bool {
         let candidate: i64 in Wrapping = planner.distances[best] + weight;
         transition weight > 0 && !planner.settled[next] &&
                    (planner.distances[next] < 0 || candidate < planner.distances[next]) {
-            true -> improve(planner, best, next, candidate)
+            true -> improve(planner, best, next, candidate),
             false -> relax(planner, best, next + 1)
         }
     }
@@ -165,7 +164,7 @@ public machine solve(planner: @mut Planner) -> bool {
     }
     machine trace(planner: @mut Planner, node: i32 in Wrapping, count: i32 in Wrapping) -> bool {
         transition node >= 0 && node < 6 && count >= 0 && count < 6 {
-            true -> append(planner, node, count)
+            true -> append(planner, node, count),
             false -> false
         }
     }
@@ -175,7 +174,7 @@ public machine solve(planner: @mut Planner) -> bool {
         planner.route[count] = node; planner.route_count = count + 1;
         let previous: i32 in Wrapping = planner.parents[node];
         transition node == 0 {
-            true -> true
+            true -> true,
             false -> parent(planner, node, count, previous)
         }
     }
@@ -184,7 +183,7 @@ public machine solve(planner: @mut Planner) -> bool {
     requires node >= 0 && node < 6 && count >= 0 && count < 6
     {
         transition previous >= 0 && previous < 6 {
-            true -> clearance(planner, previous * 6 + node, previous, count)
+            true -> clearance(planner, previous * 6 + node, previous, count),
             false -> false
         }
     }

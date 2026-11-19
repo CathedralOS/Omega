@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let diff1: u64 = exercise(true);
     let diff2: u64 = exercise(false);
     transition diff1 == 50u64 && diff2 == 45u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

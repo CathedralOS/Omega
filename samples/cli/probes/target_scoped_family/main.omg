@@ -16,7 +16,7 @@ machine Main::main(main: @mut Main) {
     let picked: i32 = Helper::pick(@main.helper);
     let delta: i32 = Helper::delta(@main.helper);
     transition picked == 63 && delta == 7 {
-        (true) -> good(main, picked)
+        (true) -> good(main, picked),
         _ -> bad(main)
     }
     machine good(main: @mut Main, kept: i32) { let value: i32 = kept; }

@@ -20,7 +20,7 @@ machine main() reaches X + Y crashes Trap {
     let mut first: u32 = 0;
     let mut second: u32 = 0;
     A::visit(@mut first, @mut second);
-    transition first == 11 && second == 22 { true -> done() _ -> bad() }
+    transition first == 11 && second == 22 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

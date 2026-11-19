@@ -9,10 +9,10 @@ machine describe(room: Room,
     out_line: @mut TextBuffer)
 {
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line)
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line)
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line)
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy, out_line)
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> describe_fountain(out_line),
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> describe_treasure(out_line),
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> describe_gold(out_line),
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> describe_enemy(room.event.enemy, out_line),
         _ -> quiet_room(out_line)
     }
 
@@ -47,9 +47,9 @@ machine event_runtime_use_event(
 )
 {
     transition {
-        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, @mut room.event, out_line)
-        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line)
-        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line)
+        room.event.kind == RoomEventKind::FountainOfLife && room.event.consumed == false -> use_fountain(event_runtime, player, @mut room.event, out_line),
+        room.event.kind == RoomEventKind::Treasure && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line),
+        room.event.kind == RoomEventKind::GoldCache && room.event.consumed == false -> use_reward(event_runtime, player, @mut room.event, out_line),
         _ -> no_usable_event(out_line)
     }
 
@@ -91,7 +91,7 @@ machine fight_event(
 )
 {
     transition {
-        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(event_runtime, player, room, random, round, out_line)
+        room.event.kind == RoomEventKind::Enemy && room.event.consumed == false -> fight_enemy_event(event_runtime, player, room, random, round, out_line),
         _ -> no_enemy(out_line)
     }
 
@@ -108,8 +108,8 @@ machine fight_event(
         text_buffer_set(out_line, "You trade blows with the monster.");
 
         transition {
-            round.player_defeated -> player_died(out_line)
-            round.enemy_defeated -> enemy_died(room.event.reward, out_line)
+            round.player_defeated -> player_died(out_line),
+            round.enemy_defeated -> enemy_died(room.event.reward, out_line),
             _ -> exchange_blows(round, out_line)
         }
     }
@@ -125,8 +125,8 @@ machine fight_event(
     machine enemy_died(reward: Reward,
         out_line: @mut TextBuffer) {
         transition {
-            reward.gold >= 20 -> rich_reward(out_line)
-            reward.gold > 0 -> small_reward(out_line)
+            reward.gold >= 20 -> rich_reward(out_line),
+            reward.gold > 0 -> small_reward(out_line),
             _ -> empty_reward(out_line)
         }
     }
@@ -146,9 +146,9 @@ machine fight_event(
     machine exchange_blows(round: @CombatRound,
         out_line: @mut TextBuffer) {
         transition {
-            round.player_damage > 10 -> heavy_exchange(out_line)
-            round.enemy_damage == 0 -> clean_hit(out_line)
-            round.enemy_damage >= 5 -> painful_exchange(out_line)
+            round.player_damage > 10 -> heavy_exchange(out_line),
+            round.enemy_damage == 0 -> clean_hit(out_line),
+            round.enemy_damage >= 5 -> painful_exchange(out_line),
             _ -> glancing_exchange(out_line)
         }
     }

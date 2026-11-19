@@ -20,7 +20,7 @@ machine main() crashes Trap {
     let saved: f64 = read_kept(@item);
     transition { _ -> check(saved, item.kept) }
     machine check(saved: f64, current: f64) {
-        transition agree(saved, current) == 7.0 { true -> done() _ -> bad() }
+        transition agree(saved, current) == 7.0 { true -> done(), _ -> bad() }
     }
 
     machine done() {}

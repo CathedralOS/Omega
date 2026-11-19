@@ -23,14 +23,14 @@ machine Main::main(main: @mut Main) {
     main.counter.store(10, NoOrdering);
     let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
     transition old1 == 10 && main.counter == 15 {
-        true -> second(main)
+        true -> second(main),
         _ -> fail(main)
     }
     machine second(main: @mut Main) {
         let prior: u32 in Wrapping =
             main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 && main.counter == 99 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

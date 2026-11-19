@@ -49,7 +49,7 @@ machine main() crashes Trap {
     let other_difference: u64 = other_observed - 100u64;
     let difference: u64 = observed - 100u64;
     transition difference == 0u64 && other_difference == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

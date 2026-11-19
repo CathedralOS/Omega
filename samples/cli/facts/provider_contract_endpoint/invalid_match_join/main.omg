@@ -22,7 +22,7 @@ public machine main() crashes Trap {
     let other: u64 = choose(false);
     let other_difference: u64 = 7u64 - other;
     transition difference == 0 && other_difference == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

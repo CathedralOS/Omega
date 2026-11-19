@@ -40,7 +40,7 @@ public machine value_constant(value: ExactInteger) -> Value {
 // A Boolean's value: 1 when true, 0 when false.
 public machine value_truth(flag: bool) -> Value {
     transition flag {
-        true -> one()
+        true -> one(),
         _ -> zero()
     }
 
@@ -119,7 +119,7 @@ public machine value_hull(left: Value, right: Value) -> Value {
 
 machine pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
     transition first {
-        true -> chosen(when)
+        true -> chosen(when),
         _ -> chosen(otherwise)
     }
 
@@ -150,14 +150,14 @@ public machine value_at(checker: @Checker, handle: u64 in Trapping) -> Value
 crashes Trap
 {
     transition handle >= checker.tree_low {
-        true -> offset(checker, handle - checker.tree_low)
+        true -> offset(checker, handle - checker.tree_low),
         _ -> invalid()
     }
 
     machine offset(checker: @Checker, offset: u64 in Trapping) -> Value {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
-            true -> read(checker, index)
+            true -> read(checker, index),
             _ -> invalid()
         }
     }
@@ -167,7 +167,7 @@ crashes Trap
     {
         let stored: Value = checker.values[index];
         transition stored.known && stored.subject > 0 {
-            true -> current(checker, stored)
+            true -> current(checker, stored),
             _ -> kept(stored)
         }
     }
@@ -197,7 +197,7 @@ crashes Trap
     let referenced: TypeRow = type_table_row(@typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
     transition referenced.kind == TypeKind::Reference && integer && !value.ceiling.finite && !value.floor.finite {
-        true -> carried(value, row)
+        true -> carried(value, row),
         _ -> answer(value)
     }
 
@@ -222,14 +222,14 @@ crashes Trap
         let row: TypeRow = type_table_row(@typing.types, current);
         let builtin: bool = row.kind == TypeKind::Builtin;
         transition row.kind == TypeKind::Reference && depth < 8 {
-            true -> layer(typing, written, row.inner, depth + 1)
+            true -> layer(typing, written, row.inner, depth + 1),
             _ -> settled(written, current, builtin)
         }
     }
 
     machine settled(written: u64 in Trapping, current: u64 in Trapping, builtin: bool) -> u64 in Trapping {
         transition builtin {
-            true -> answer(current)
+            true -> answer(current),
             _ -> answer(written)
         }
     }
@@ -243,14 +243,14 @@ public machine checker_set_value(checker: @mut Checker, handle: u64 in Trapping,
 crashes Trap
 {
     transition handle >= checker.tree_low {
-        true -> offset(checker, handle - checker.tree_low, value)
+        true -> offset(checker, handle - checker.tree_low, value),
         _ -> invalid()
     }
 
     machine offset(checker: @mut Checker, offset: u64 in Trapping, value: Value) {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
-            true -> write(checker, index, value)
+            true -> write(checker, index, value),
             _ -> invalid()
         }
     }
@@ -296,7 +296,7 @@ public machine value_product(left: Value, right: Value) -> Value {
     let left_nonnegative: bool = value_nonnegative(left);
     let right_nonnegative: bool = value_nonnegative(right);
     transition left_nonnegative && right_nonnegative {
-        true -> nonnegative(left, right)
+        true -> nonnegative(left, right),
         _ -> unbounded()
     }
 
@@ -326,7 +326,7 @@ public machine value_quotient(left: Value, right: Value) -> Value {
     let divisor: Bound = value_least(right);
     let positive: bool = divisor.finite && !divisor.value.negative && divisor.value.magnitude > 0;
     transition left_nonnegative && positive {
-        true -> divided(left, right, divisor.value.magnitude)
+        true -> divided(left, right, divisor.value.magnitude),
         _ -> unbounded()
     }
 
@@ -346,7 +346,7 @@ public machine value_quotient(left: Value, right: Value) -> Value {
 
 machine divided_ceiling(ceiling: Bound, divisor: u64 in Wrapping) -> Bound {
     transition ceiling.finite && divisor > 0 {
-        true -> divided(ceiling.value.magnitude / divisor)
+        true -> divided(ceiling.value.magnitude / divisor),
         _ -> unbounded()
     }
 
@@ -363,7 +363,7 @@ machine divided_ceiling(ceiling: Bound, divisor: u64 in Wrapping) -> Bound {
 // most `ceiling`: zero when the divisor is unbounded.
 machine divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
     transition ceiling.finite && ceiling.value.magnitude > 0 && !ceiling.value.negative {
-        true -> divided(least / ceiling.value.magnitude)
+        true -> divided(least / ceiling.value.magnitude),
         _ -> zero()
     }
 
@@ -383,14 +383,14 @@ machine divided_floor(least: u64 in Wrapping, ceiling: Bound) -> Bound {
 public machine value_remainder(left: Value, right: Value) -> Value {
     let constants: bool = is_constant(left) && is_constant(right);
     transition constants {
-        true -> folded(left, right)
+        true -> folded(left, right),
         _ -> interval(left, right)
     }
 
     machine folded(left: Value, right: Value) -> Value {
         let result: ExactResult = exact_integer_remainder(left.offset, right.offset);
         transition result.valid {
-            true -> constant(result.value)
+            true -> constant(result.value),
             _ -> interval(left, right)
         }
     }
@@ -407,14 +407,14 @@ public machine value_remainder(left: Value, right: Value) -> Value {
         let positive: bool = finite && !least.value.negative && least.value.magnitude > 0;
         let negative: bool = finite && right.ceiling.value.negative;
         transition positive {
-            true -> bounded(left, right.ceiling.value.magnitude - 1)
+            true -> bounded(left, right.ceiling.value.magnitude - 1),
             _ -> negative_divisor(left, least, negative)
         }
     }
 
     machine negative_divisor(left: Value, least: Bound, negative: bool) -> Value {
         transition negative {
-            true -> bounded(left, least.value.magnitude - 1)
+            true -> bounded(left, least.value.magnitude - 1),
             _ -> unbounded()
         }
     }
@@ -423,7 +423,7 @@ public machine value_remainder(left: Value, right: Value) -> Value {
         let nonnegative: bool = value_nonnegative(left);
         let nonpositive: bool = left.ceiling.finite && (left.ceiling.value.negative || left.ceiling.value.magnitude == 0);
         transition nonnegative {
-            true -> natural(left, below_divisor)
+            true -> natural(left, below_divisor),
             _ -> signed(below_divisor, nonpositive)
         }
     }
@@ -457,7 +457,7 @@ public machine value_conjunction(left: Value, right: Value) -> Value {
     let left_nonnegative: bool = value_nonnegative(left);
     let right_nonnegative: bool = value_nonnegative(right);
     transition left_nonnegative && right_nonnegative {
-        true -> bounded(left, right)
+        true -> bounded(left, right),
         _ -> unbounded()
     }
 
@@ -482,7 +482,7 @@ public machine value_shifted_right(left: Value, right: Value) -> Value {
     let constants: bool = is_constant(left) && is_constant(right)
         && !right.offset.negative && right.offset.magnitude < 64;
     transition nonnegative && constants {
-        true -> folded(left.offset.magnitude, right.offset.magnitude)
+        true -> folded(left.offset.magnitude, right.offset.magnitude),
         _ -> narrowed(left, nonnegative)
     }
 
@@ -494,7 +494,7 @@ public machine value_shifted_right(left: Value, right: Value) -> Value {
 
     machine narrowed(left: Value, nonnegative: bool) -> Value {
         transition nonnegative {
-            true -> bounded(left)
+            true -> bounded(left),
             _ -> unbounded()
         }
     }
@@ -516,13 +516,13 @@ public machine offset_sum(left: Value, right: Value, interval: Value) -> Value {
     let right_constant: bool = is_constant(right);
     let left_constant: bool = is_constant(left);
     transition left.known && right_constant {
-        true -> shifted(left.subject, left.offset, right.offset, interval)
+        true -> shifted(left.subject, left.offset, right.offset, interval),
         _ -> other(left, right, left_constant, interval)
     }
 
     machine other(left: Value, right: Value, left_constant: bool, interval: Value) -> Value {
         transition right.known && left_constant {
-            true -> shifted(right.subject, right.offset, left.offset, interval)
+            true -> shifted(right.subject, right.offset, left.offset, interval),
             _ -> plain(interval)
         }
     }
@@ -530,7 +530,7 @@ public machine offset_sum(left: Value, right: Value, interval: Value) -> Value {
     machine shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
         let moved: ExactResult = exact_integer_add(offset, by);
         transition moved.valid {
-            true -> linear(subject, moved.value, interval)
+            true -> linear(subject, moved.value, interval),
             _ -> plain(interval)
         }
     }
@@ -548,14 +548,14 @@ public machine offset_sum(left: Value, right: Value, interval: Value) -> Value {
 public machine offset_difference(left: Value, right: Value, interval: Value) -> Value {
     let right_constant: bool = is_constant(right);
     transition left.known && right_constant {
-        true -> shifted(left.subject, left.offset, right.offset, interval)
+        true -> shifted(left.subject, left.offset, right.offset, interval),
         _ -> plain(interval)
     }
 
     machine shifted(subject: u64 in Trapping, offset: ExactInteger, by: ExactInteger, interval: Value) -> Value {
         let moved: ExactResult = exact_integer_subtract(offset, by);
         transition moved.valid {
-            true -> linear(subject, moved.value, interval)
+            true -> linear(subject, moved.value, interval),
             _ -> plain(interval)
         }
     }
@@ -575,7 +575,7 @@ public machine difference_bound(checker: @Checker, left: Value, right: Value) ->
 crashes Trap
 {
     transition left.known && right.known {
-        true -> related(checker, left, right)
+        true -> related(checker, left, right),
         _ -> unbounded()
     }
 
@@ -640,7 +640,7 @@ public machine at_place(place: u64 in Trapping) -> Value {
 public machine value_typed(row: TypeRow) -> Value {
     let integer: bool = row.kind == TypeKind::Builtin && (is_carrier(row.builtin) || row.builtin == BuiltinType::Bool);
     transition integer {
-        true -> ranged(row.builtin)
+        true -> ranged(row.builtin),
         _ -> unbounded()
     }
 

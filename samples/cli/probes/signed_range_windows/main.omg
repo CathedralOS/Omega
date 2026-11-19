@@ -51,7 +51,7 @@ machine Main::main(main: @mut Main) {
     let prefix: @[u8] = window[0..=1];
     main.total = main.total + (narrow_u64_to_i32_wrapping(prefix.len) as i32 in Wrapping);
     transition main.total == 55 {
-        true -> Main::stamp(main)
+        true -> Main::stamp(main),
         false -> Main::stamp(main)
     }
 }

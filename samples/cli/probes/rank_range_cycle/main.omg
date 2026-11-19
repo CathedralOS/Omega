@@ -19,14 +19,14 @@ terminates by remaining in 0..=9
 requires remaining <= 9
 {
     transition remaining > 0 {
-        true -> hold(main, remaining)
+        true -> hold(main, remaining),
         false -> remaining
     }
     machine hold(main: @mut Main, pending: u32) -> u32
     requires pending <= 9
     {
         transition pending > 0 {
-            true -> Main::step(main, pending)
+            true -> Main::step(main, pending),
             false -> pending
         }
     }
@@ -37,7 +37,7 @@ terminates by n in 0..=9
 requires n <= 9
 {
     transition n > 0 {
-        true -> Main::count(main, n - 1)
+        true -> Main::count(main, n - 1),
         false -> n
     }
 }
@@ -47,7 +47,7 @@ data Main { hits: i32 in Wrapping; }
 machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition Main::count(main, 5) == 0 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

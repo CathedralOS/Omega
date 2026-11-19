@@ -20,13 +20,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut input: InputBuffer;
     let success: bool = block read_input(@mut input);
     transition success && input.length > 0 {
-        true -> dispatch(main, @input)
+        true -> dispatch(main, @input),
         _ -> bad_input(main)
     }
     machine dispatch(main: @mut Main, input: @InputBuffer) {
         transition input.bytes[0] {
-            0 -> compress(main, input)
-            1 -> decompress(main, input)
+            0 -> compress(main, input),
+            1 -> decompress(main, input),
             _ -> bad_input(main)
         }
     }
@@ -34,7 +34,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut original: SensorBlock;
         let parsed: bool = parse_records(input, @mut original);
         transition parsed {
-            true -> compression(main, @original)
+            true -> compression(main, @original),
             _ -> bad_input(main)
         }
     }
@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut stream: SensorStream;
         let success: bool = encode(original, @mut stream);
         transition success {
-            true -> verification(main, original, @stream)
+            true -> verification(main, original, @stream),
             _ -> bad_input(main)
         }
     }
@@ -50,14 +50,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut decoded: SensorBlock;
         let success: bool = decode(stream, @mut decoded);
         transition success {
-            true -> certificate(main, original, stream, @decoded)
+            true -> certificate(main, original, stream, @decoded),
             _ -> bad_stream(main)
         }
     }
     machine certificate(main: @mut Main, original: @SensorBlock, stream: @SensorStream, decoded: @SensorBlock) {
         let maximum: i32 = certify(original, decoded);
         transition maximum >= 0 {
-            true -> output(main, stream, decoded, maximum)
+            true -> output(main, stream, decoded, maximum),
             _ -> bad_certificate(main)
         }
     }
@@ -65,7 +65,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut stream: SensorStream;
         let parsed: bool = parse_stream(input, @mut stream);
         transition parsed {
-            true -> decoding(main, @stream)
+            true -> decoding(main, @stream),
             _ -> bad_input(main)
         }
     }
@@ -73,7 +73,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut decoded: SensorBlock;
         let success: bool = decode(stream, @mut decoded);
         transition success {
-            true -> output(main, stream, @decoded, -1)
+            true -> output(main, stream, @decoded, -1),
             _ -> bad_stream(main)
         }
     }

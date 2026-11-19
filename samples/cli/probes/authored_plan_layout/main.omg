@@ -43,7 +43,7 @@ machine Main::main(main: @mut Main) {
     let mut instant: Instant = Instant { seconds: 0, nanoseconds: 0 };
     let status: i64 = fill(@mut instant, 7);
     transition status == 0 && instant.seconds == 7 && main.bytes[0] == 100 {
-        (true) -> done(main)
+        (true) -> done(main),
         _ -> bad(main)
     }
     machine done(main: @mut Main) { let value: i32 = 70; }

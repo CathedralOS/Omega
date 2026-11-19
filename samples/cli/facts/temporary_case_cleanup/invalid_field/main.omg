@@ -11,7 +11,7 @@ data Holder { child: Bonus; }
 machine main() crashes Trap {
     let holder: Holder = Holder { child: Bonus { value: 1 } };
     let accepted: bool = consume(holder.child);
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

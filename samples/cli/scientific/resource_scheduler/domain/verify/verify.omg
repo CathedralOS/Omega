@@ -1,4 +1,3 @@
-module domain::verify;
 use domain::model;
 use domain::model::Problem;
 use domain::model::Schedule;
@@ -7,13 +6,13 @@ use domain::model::predecessor;
 // both capacity sums at every tick, and the reported maximum are recomputed.
 public machine verify(problem: @Problem, schedule: @Schedule) -> bool {
     transition schedule.feasible {
-        true -> task(problem, schedule, 0, 0)
+        true -> task(problem, schedule, 0, 0),
         _ -> false
     }
     machine task(problem: @Problem, schedule: @Schedule, index: i32 in Wrapping,
                 maximum: i32 in Wrapping) -> bool {
         transition index >= 0 && index < problem.count && index < 4 {
-            true -> interval(problem, schedule, index, maximum)
+            true -> interval(problem, schedule, index, maximum),
             _ -> span(problem, schedule, maximum)
         }
     }
@@ -21,14 +20,14 @@ public machine verify(problem: @Problem, schedule: @Schedule) -> bool {
                     maximum: i32 in Wrapping) -> bool {
         transition schedule.starts[index] >= 0 && schedule.ends[index] <= 20
             && schedule.ends[index] == schedule.starts[index] + problem.durations[index] {
-            true -> edges(problem, schedule, index, maximum, 0)
+            true -> edges(problem, schedule, index, maximum, 0),
             _ -> false
         }
     }
     machine edges(problem: @Problem, schedule: @Schedule, index: i32 in Wrapping,
                  maximum: i32 in Wrapping, other: i32 in Wrapping) -> bool {
         transition other >= 0 && other < problem.count && other < 4 && index >= 0 && index < 4 {
-            true -> edge(problem, schedule, index, maximum, other)
+            true -> edge(problem, schedule, index, maximum, other),
             _ -> advance(problem, schedule, index, maximum)
         }
     }
@@ -36,33 +35,33 @@ public machine verify(problem: @Problem, schedule: @Schedule) -> bool {
                 maximum: i32 in Wrapping, other: i32 in Wrapping) -> bool {
         let required: bool = predecessor(problem.predecessors[index], other);
         transition !required || schedule.ends[other] <= schedule.starts[index] {
-            true -> edges(problem, schedule, index, maximum, other + 1)
+            true -> edges(problem, schedule, index, maximum, other + 1),
             _ -> false
         }
     }
     machine advance(problem: @Problem, schedule: @Schedule, index: i32 in Wrapping,
                    maximum: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
-            true -> maximum_end(problem, schedule, index, maximum)
+            true -> maximum_end(problem, schedule, index, maximum),
             _ -> false
         }
     }
     machine maximum_end(problem: @Problem, schedule: @Schedule, index: i32 in Wrapping,
                        maximum: i32 in Wrapping) -> bool {
         transition schedule.ends[index] > maximum {
-            true -> task(problem, schedule, index + 1, schedule.ends[index])
+            true -> task(problem, schedule, index + 1, schedule.ends[index]),
             _ -> task(problem, schedule, index + 1, maximum)
         }
     }
     machine span(problem: @Problem, schedule: @Schedule, maximum: i32 in Wrapping) -> bool {
         transition maximum == schedule.makespan {
-            true -> tick(problem, schedule, 0)
+            true -> tick(problem, schedule, 0),
             _ -> false
         }
     }
     machine tick(problem: @Problem, schedule: @Schedule, time: i32 in Wrapping) -> bool {
         transition time < 20 {
-            true -> usage(problem, schedule, time, 0, 0, 0)
+            true -> usage(problem, schedule, time, 0, 0, 0),
             _ -> true
         }
     }
@@ -70,7 +69,7 @@ public machine verify(problem: @Problem, schedule: @Schedule) -> bool {
                  index: i32 in Wrapping, used_a: i32 in Wrapping,
                  used_b: i32 in Wrapping) -> bool {
         transition index >= 0 && index < problem.count && index < 4 {
-            true -> active(problem, schedule, time, index, used_a, used_b)
+            true -> active(problem, schedule, time, index, used_a, used_b),
             _ -> capacity(problem, schedule, time, used_a, used_b)
         }
     }
@@ -79,14 +78,14 @@ public machine verify(problem: @Problem, schedule: @Schedule) -> bool {
                   used_b: i32 in Wrapping) -> bool {
         transition schedule.starts[index] <= time && time < schedule.ends[index] {
             true -> usage(problem, schedule, time, index + 1,
-                          used_a + problem.demand_a[index], used_b + problem.demand_b[index])
+                          used_a + problem.demand_a[index], used_b + problem.demand_b[index]),
             _ -> usage(problem, schedule, time, index + 1, used_a, used_b)
         }
     }
     machine capacity(problem: @Problem, schedule: @Schedule, time: i32 in Wrapping,
                     used_a: i32 in Wrapping, used_b: i32 in Wrapping) -> bool {
         transition used_a <= problem.capacity_a && used_b <= problem.capacity_b {
-            true -> tick(problem, schedule, time + 1)
+            true -> tick(problem, schedule, time + 1),
             _ -> false
         }
     }

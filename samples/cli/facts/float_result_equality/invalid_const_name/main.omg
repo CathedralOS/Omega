@@ -19,7 +19,7 @@ requires observed == current && observed == KEPT
 machine main() crashes Trap {
     let item: Ends = Ends { kept: KEPT, other: 1.0 };
     let saved: f64 = read_kept(@item);
-    transition agree(saved, item.kept) == KEPT { true -> done() _ -> bad() }
+    transition agree(saved, item.kept) == KEPT { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

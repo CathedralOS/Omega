@@ -1,4 +1,3 @@
-module domain::viterbi;
 use domain::inference;
 use domain::inference::Model;
 use domain::inference::Inference;
@@ -12,13 +11,13 @@ machine multiply(source: @Weight, destination: @mut Weight, factor: u64) require
     transition { _ -> limb(source, destination, factor, 0, 0) }
     machine limb(source: @Weight, destination: @mut Weight, factor: u64, index: u64, carry: u64)
     requires factor <= 1000000 requires index < 33 requires carry <= 999999 {
-        transition source.digits[index] <= 999999 { true -> bounded(source, destination, factor, index, carry) false -> finished() }
+        transition source.digits[index] <= 999999 { true -> bounded(source, destination, factor, index, carry), false -> finished() }
     }
     machine bounded(source: @Weight, destination: @mut Weight, factor: u64, index: u64, carry: u64)
     requires factor <= 1000000 requires index < 33 requires carry <= 999999 requires source.digits[index] <= 999999 {
         let value: u64 = source.digits[index] * factor + carry;
         destination.digits[index] = value % 1000000;
-        transition index < 32 { true -> limb(source, destination, factor, index + 1, value / 1000000) false -> finished() }
+        transition index < 32 { true -> limb(source, destination, factor, index + 1, value / 1000000), false -> finished() }
     }
     machine finished() { }
 }
@@ -26,12 +25,12 @@ machine prefer(first: @Weight, second: @Weight, first_path: u64, second_path: u6
     transition { _ -> limb(first, second, first_path, second_path, 32) }
     machine limb(first: @Weight, second: @Weight, first_path: u64, second_path: u64, index: u64) -> bool requires index < 33 {
         transition first.digits[index] == second.digits[index] {
-            true -> equal(first, second, first_path, second_path, index)
+            true -> equal(first, second, first_path, second_path, index),
             false -> (first.digits[index] > second.digits[index])
         }
     }
     machine equal(first: @Weight, second: @Weight, first_path: u64, second_path: u64, index: u64) -> bool requires index < 33 {
-        transition index > 0 { true -> limb(first, second, first_path, second_path, index - 1) false -> (first_path < second_path) }
+        transition index > 0 { true -> limb(first, second, first_path, second_path, index - 1), false -> (first_path < second_path) }
     }
 }
 public machine viterbi(model: @Model, paths: @mut Paths, result: @mut Inference)
@@ -40,13 +39,13 @@ requires model.count >= 1 requires model.count <= 16 {
     machine clear(model: @Model, paths: @mut Paths, result: @mut Inference, index: u64)
     requires model.count >= 1 requires model.count <= 16 requires index < 33 {
         paths.first.digits[index] = 0;
-        transition index < 32 { true -> clear(model, paths, result, index + 1) false -> seed(model, paths, result) }
+        transition index < 32 { true -> clear(model, paths, result, index + 1), false -> seed(model, paths, result) }
     }
     machine seed(model: @Model, paths: @mut Paths, result: @mut Inference)
     requires model.count >= 1 requires model.count <= 16 {
         paths.first.digits[0] = 1;
         transition model.units[0] <= 1000000 && model.units[1] <= 1000000 {
-            true -> initial(model, paths, result)
+            true -> initial(model, paths, result),
             false -> finished()
         }
     }
@@ -61,11 +60,11 @@ requires model.count >= 1 requires model.count <= 16 {
     machine emission(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 {
         let symbol: u64 = model.observations[step];
-        transition symbol <= 1 { true -> symbol(model, paths, result, step, symbol) false -> finished() }
+        transition symbol <= 1 { true -> symbol(model, paths, result, step, symbol), false -> finished() }
     }
     machine symbol(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64, symbol: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 requires symbol <= 1 {
-        transition model.units[6 + symbol] <= 1000000 && model.units[8 + symbol] <= 1000000 { true -> bounded_emission(model, paths, result, step, symbol) false -> finished() }
+        transition model.units[6 + symbol] <= 1000000 && model.units[8 + symbol] <= 1000000 { true -> bounded_emission(model, paths, result, step, symbol), false -> finished() }
     }
     machine bounded_emission(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64, symbol: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 requires symbol <= 1
@@ -74,12 +73,12 @@ requires model.count >= 1 requires model.count <= 16 {
         multiply(@paths.one, @mut paths.second, model.units[8 + symbol]);
         paths.zero = paths.first;
         paths.one = paths.second;
-        transition step + 1 < model.count { true -> next(model, paths, result, step) false -> complete(model, paths, result) }
+        transition step + 1 < model.count { true -> next(model, paths, result, step), false -> complete(model, paths, result) }
     }
     machine next(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 16 {
         transition step < 15 && model.units[2] <= 1000000 && model.units[3] <= 1000000 && model.units[4] <= 1000000 && model.units[5] <= 1000000 {
-            true -> transitions(model, paths, result, step)
+            true -> transitions(model, paths, result, step),
             false -> finished()
         }
     }
@@ -89,14 +88,14 @@ requires model.count >= 1 requires model.count <= 16 {
         multiply(@paths.zero, @mut paths.first, model.units[2]);
         multiply(@paths.one, @mut paths.second, model.units[4]);
         transition prefer(@paths.first, @paths.second, paths.zero_path, paths.one_path) {
-            true -> select_zero(model, paths, result, step, true)
+            true -> select_zero(model, paths, result, step, true),
             false -> select_zero(model, paths, result, step, false)
         }
     }
     machine select_zero(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64, first: bool)
     requires model.count >= 1 requires model.count <= 16 requires step < 15
     requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
-        transition first { true -> zero_first(model, paths, result, step) false -> zero_second(model, paths, result, step) }
+        transition first { true -> zero_first(model, paths, result, step), false -> zero_second(model, paths, result, step) }
     }
     machine zero_first(model: @Model, paths: @mut Paths, result: @mut Inference, step: u64)
     requires model.count >= 1 requires model.count <= 16 requires step < 15 requires model.units[3] <= 1000000 requires model.units[5] <= 1000000 {
@@ -115,7 +114,7 @@ requires model.count >= 1 requires model.count <= 16 {
         multiply(@paths.zero, @mut paths.first, model.units[3]);
         multiply(@paths.one, @mut paths.second, model.units[5]);
         transition prefer(@paths.first, @paths.second, paths.zero_path, paths.one_path) {
-            true -> one_first(model, paths, result, step)
+            true -> one_first(model, paths, result, step),
             false -> one_second(model, paths, result, step)
         }
     }
@@ -140,7 +139,7 @@ requires model.count >= 1 requires model.count <= 16 {
         transition { _ -> emission(model, paths, result, step + 1) }
     }
     machine complete(model: @Model, paths: @mut Paths, result: @mut Inference) {
-        transition prefer(@paths.zero, @paths.one, paths.zero_path, paths.one_path) { true -> chosen(result, paths.zero_path) false -> chosen(result, paths.one_path) }
+        transition prefer(@paths.zero, @paths.one, paths.zero_path, paths.one_path) { true -> chosen(result, paths.zero_path), false -> chosen(result, paths.one_path) }
     }
     machine chosen(result: @mut Inference, path: u64) { result.path = path; }
     machine finished() { }

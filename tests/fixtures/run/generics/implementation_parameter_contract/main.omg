@@ -38,9 +38,9 @@ crashes none
     Selected::apply(start) + 1
 }
 machine main() crashes Trap {
-    let held: u32 = advance<Hold>(4);
-    let shifted: u32 = advance<Shift>(4);
-    transition held == 5 && shifted == 10 { true -> done() false -> wrong() }
+    let held: u32 = advance::<Hold>(4);
+    let shifted: u32 = advance::<Shift>(4);
+    transition held == 5 && shifted == 10 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module domain::mathematics;
 // Bounded private scalar evaluators. Validated positive integer doses are
 // <=10000; log-half bounds extend measured doses by a factor ten, and hill
 // is [.2,5]. Thus every exponential argument has magnitude below 70.
@@ -9,7 +8,7 @@ public machine exponential(value: f64) -> f64 {
                count: i32 in Wrapping) -> f64 {
         let next: f64 = previous * reduced / denominator;
         transition count < 16 {
-            true -> term(reduced, sum + next, next, denominator + 1.0, count + 1)
+            true -> term(reduced, sum + next, next, denominator + 1.0, count + 1),
             _ -> square(sum + next)
         }
     }
@@ -27,7 +26,7 @@ public machine logarithm(value: f64) -> f64 {
     transition { _ -> normalize(value, 0.0) }
     machine normalize(value: f64, exponent: f64) -> f64 {
         transition value >= 2.0 {
-            true -> normalize(value / 2.0, exponent + 1.0)
+            true -> normalize(value / 2.0, exponent + 1.0),
             _ -> begin(value, exponent)
         }
     }
@@ -39,17 +38,17 @@ public machine logarithm(value: f64) -> f64 {
                  exponent: f64, count: i32 in Wrapping) -> f64 {
         transition count < 24 {
             true -> series(square, term * square, sum + term / denominator,
-                           denominator + 2.0, exponent, count + 1)
+                           denominator + 2.0, exponent, count + 1),
             _ -> (2.0 * sum + exponent * 0.69314718055994530942)
         }
     }
 }
 public machine clamp(value: f64, lower: f64, upper: f64) -> f64 {
-    transition value < lower { true -> lower _ -> maximum(value, upper) }
+    transition value < lower { true -> lower, _ -> maximum(value, upper) }
     machine maximum(value: f64, upper: f64) -> f64 {
-        transition value > upper { true -> upper _ -> value }
+        transition value > upper { true -> upper, _ -> value }
     }
 }
 public machine magnitude(value: f64) -> f64 {
-    transition value < 0.0 { true -> (0.0 - value) _ -> value }
+    transition value < 0.0 { true -> (0.0 - value), _ -> value }
 }

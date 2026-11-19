@@ -1,5 +1,3 @@
-module configure;
-
 public machine configure(builder: @mut Build)
 invokes BuildProductOperations
 {

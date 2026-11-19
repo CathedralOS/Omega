@@ -17,7 +17,7 @@ machine main() crashes Trap {
     let observed: i32 = through_join(true, @issued);
     let alternate: i32 = through_join(false, @issued);
     let checked: i32 = through_stamped_join(false, @stamped);
-    transition observed == 4 && alternate == 4 && checked == 6 { true -> done() false -> failed() }
+    transition observed == 4 && alternate == 4 && checked == 6 { true -> done(), false -> failed() }
     machine done() {}
     machine failed() { crash Trap; }
 }

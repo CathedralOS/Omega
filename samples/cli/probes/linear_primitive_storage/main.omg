@@ -5,14 +5,14 @@ machine update(receipt: Receipt) crashes Trap {
     let mut marker: u32 = 0;
     asm { mov marker, 7 }
     transition marker == 7 {
-        true -> holding(receipt)
+        true -> holding(receipt),
         false -> bad(receipt)
     }
     machine holding(receipt: Receipt) {
         let mut other: u32 = 0;
         asm { mov other, 9 }
         transition other == 9 && receipt.code == 11 {
-            true -> complete(receipt)
+            true -> complete(receipt),
             false -> bad(receipt)
         }
     }

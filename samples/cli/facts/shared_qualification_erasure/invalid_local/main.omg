@@ -13,7 +13,7 @@ machine main() crashes Trap {
     let ticket: Ticket in Ticket::Labelled = issue();
     let view: @Ticket in Ticket::Observed = (@ticket) as @Ticket in Ticket::Observed;
     let observed: u64 = observe(view);
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

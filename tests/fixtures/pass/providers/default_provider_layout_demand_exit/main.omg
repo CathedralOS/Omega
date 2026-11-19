@@ -8,7 +8,7 @@ use layout_default_kit::main::Measure;
 machine main() crashes Trap {
     let byte: u8 = Measure::measure();
     transition byte == 42u8 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

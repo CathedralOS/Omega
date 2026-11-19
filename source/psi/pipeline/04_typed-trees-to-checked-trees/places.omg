@@ -48,7 +48,7 @@ public machine place_at(checker: @Checker, index: u64 in Trapping) -> Place
 crashes Trap
 {
     transition index < checker.place_count && index < 256 {
-        true -> read(checker, index)
+        true -> read(checker, index),
         _ -> invalid()
     }
 
@@ -72,7 +72,7 @@ crashes Trap
     let row: TypeRow = type_table_row(@typing.types, type_handle);
     let integer: bool = is_carrier(row.builtin);
     transition row.kind == TypeKind::Builtin && (integer || row.builtin == BuiltinType::Bool) {
-        true -> found(row.builtin)
+        true -> found(row.builtin),
         _ -> none()
     }
 
@@ -128,7 +128,7 @@ crashes Trap
         index: u64 in Trapping
     ) -> u64 in Trapping {
         transition index < checker.place_count {
-            true -> compare(checker, typing, kind, handle, parent, type_handle, index)
+            true -> compare(checker, typing, kind, handle, parent, type_handle, index),
             _ -> enter(checker, typing, kind, handle, parent, type_handle)
         }
     }
@@ -145,7 +145,7 @@ crashes Trap
         let place: Place = place_at(checker, index);
         let same: bool = same_place(place, kind, handle, parent);
         transition same {
-            true -> found(index)
+            true -> found(index),
             _ -> search(checker, typing, kind, handle, parent, type_handle, index + 1)
         }
     }
@@ -165,7 +165,7 @@ crashes Trap
         let carrier: BuiltinType = place_carrier(typing, kind, type_handle);
         let integer: bool = has_subject(carrier);
         transition checker.place_count < 256 {
-            true -> room(checker, kind, handle, parent, type_handle, carrier, integer)
+            true -> room(checker, kind, handle, parent, type_handle, carrier, integer),
             _ -> full(checker)
         }
     }
@@ -180,7 +180,7 @@ crashes Trap
         integer: bool
     ) -> u64 in Trapping {
         transition integer {
-            true -> subject(checker, kind, handle, parent, type_handle, carrier)
+            true -> subject(checker, kind, handle, parent, type_handle, carrier),
             _ -> plain(checker, kind, handle, parent, type_handle)
         }
     }
@@ -206,7 +206,7 @@ crashes Trap
     ) -> u64 in Trapping {
         let subject: u64 in Trapping = checker.subject_count as u64 in Trapping;
         transition subject < 64 {
-            true -> numbered(checker, kind, handle, parent, type_handle, carrier, subject)
+            true -> numbered(checker, kind, handle, parent, type_handle, carrier, subject),
             _ -> full(checker)
         }
     }
@@ -235,7 +235,7 @@ crashes Trap
         checker.place_count = next as u64;
         set_domain_mark(checker, position, DomainMark::Unseen);
         transition place.kind == PlaceKind::Field {
-            true -> field(checker, place, position, next)
+            true -> field(checker, place, position, next),
             _ -> entered(next)
         }
     }
@@ -263,7 +263,7 @@ public machine place_carrier(typing: @Typing, kind: PlaceKind, type_handle: u64 
 crashes Trap
 {
     transition kind == PlaceKind::Length || kind == PlaceKind::RankEntry {
-        true -> length()
+        true -> length(),
         _ -> typed(typing, type_handle)
     }
 
@@ -286,7 +286,7 @@ crashes Trap
 
     machine search(checker: @Checker, kind: PlaceKind, handle: u64 in Trapping, parent: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.place_count {
-            true -> compare(checker, kind, handle, parent, index)
+            true -> compare(checker, kind, handle, parent, index),
             _ -> absent()
         }
     }
@@ -295,7 +295,7 @@ crashes Trap
         let place: Place = place_at(checker, index);
         let same: bool = same_place(place, kind, handle, parent);
         transition same {
-            true -> found(index + 1)
+            true -> found(index + 1),
             _ -> search(checker, kind, handle, parent, index + 1)
         }
     }
@@ -317,7 +317,7 @@ machine store_place(checker: @mut Checker, index: u64, place: Place)
 crashes Trap
 {
     transition index < 256 {
-        true -> write(checker, index, place)
+        true -> write(checker, index, place),
         _ -> invalid()
     }
 
@@ -348,7 +348,7 @@ crashes Trap
     // or transition) takes it too, or a later join would lose it.
     machine saved(checker: @mut Checker, subject: u64 in Trapping, upper: Bound, lower: Bound, index: u64 in Trapping) {
         transition index < checker.saved_count && index < 8 {
-            true -> ranged(checker, subject, upper, lower, index)
+            true -> ranged(checker, subject, upper, lower, index),
             _ -> done()
         }
     }
@@ -377,7 +377,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, typing: @Typing, index: u64 in Trapping) {
         transition index < checker.place_count {
-            true -> visit(checker, typing, index)
+            true -> visit(checker, typing, index),
             _ -> done()
         }
     }
@@ -385,7 +385,7 @@ crashes Trap
     machine visit(checker: @mut Checker, typing: @Typing, index: u64 in Trapping) {
         let candidate: Place = place_at(checker, index);
         transition candidate.subject > 0 {
-            true -> ranged(checker, typing, index, candidate)
+            true -> ranged(checker, typing, index, candidate),
             _ -> next(checker, typing, index + 1)
         }
     }
@@ -416,14 +416,14 @@ public machine forget_backing(checker: @mut Checker, typing: @Typing, place: u64
 crashes Trap
 {
     transition place > 0 && place <= 256 {
-        true -> entered(checker, typing, place)
+        true -> entered(checker, typing, place),
         _ -> done()
     }
 
     machine entered(checker: @mut Checker, typing: @Typing, place: u64 in Trapping) {
         let entry: Place = place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Referent && entry.handle > 0 && entry.parent > 0 {
-            true -> backing(checker, typing, entry.parent)
+            true -> backing(checker, typing, entry.parent),
             _ -> done()
         }
     }
@@ -454,7 +454,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, contents: bool, index: u64 in Trapping) {
         transition index < checker.place_count {
-            true -> visit(checker, typing, place, contents, index)
+            true -> visit(checker, typing, place, contents, index),
             _ -> done(checker, place)
         }
     }
@@ -464,7 +464,7 @@ crashes Trap
         let candidate: Place = place_at(checker, index);
         let length: bool = contents && candidate.kind == PlaceKind::Length && candidate.parent == place;
         transition within && candidate.subject > 0 && !length {
-            true -> clear(checker, typing, place, contents, index, candidate)
+            true -> clear(checker, typing, place, contents, index, candidate),
             _ -> next(checker, typing, place, contents, index + 1)
         }
     }
@@ -488,14 +488,14 @@ public machine window_owner(checker: @Checker, syntax: @SyntaxTrees, typing: @Ty
 crashes Trap
 {
     transition place > 0 {
-        true -> stored(checker, syntax, typing, place)
+        true -> stored(checker, syntax, typing, place),
         _ -> none()
     }
 
     machine stored(checker: @Checker, syntax: @SyntaxTrees, typing: @Typing, place: u64 in Trapping) -> u64 in Trapping {
         let entry: Place = place_at(checker, place - 1);
         transition entry.kind == PlaceKind::Field && entry.parent > 0 {
-            true -> parent(checker, syntax, typing, entry.parent)
+            true -> parent(checker, syntax, typing, entry.parent),
             _ -> none()
         }
     }
@@ -504,7 +504,7 @@ crashes Trap
         let owner: Place = place_at(checker, parent - 1);
         let constrained: bool = checker_constrained(syntax, typing, owner.type_handle);
         transition constrained {
-            true -> found(parent)
+            true -> found(parent),
             _ -> none()
         }
     }
@@ -526,14 +526,14 @@ crashes Trap
 
     machine step(checker: @Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current == outer {
-            true -> yes()
+            true -> yes(),
             _ -> climb(checker, current, outer, depth)
         }
     }
 
     machine climb(checker: @Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         transition current > 0 && depth < 256 {
-            true -> parent(checker, current, outer, depth)
+            true -> parent(checker, current, outer, depth),
             _ -> no()
         }
     }
@@ -541,7 +541,7 @@ crashes Trap
     machine parent(checker: @Checker, current: u64 in Trapping, outer: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let place: Place = place_at(checker, current - 1);
         transition place.kind == PlaceKind::Field || place.kind == PlaceKind::Length || place.kind == PlaceKind::Referent {
-            true -> step(checker, place.parent, outer, depth + 1)
+            true -> step(checker, place.parent, outer, depth + 1),
             _ -> no()
         }
     }
@@ -569,14 +569,14 @@ crashes Trap
 {
     let binding: ValueBinding = value_binding(resolution, handle);
     transition binding {
-        ValueBinding::Constant { constant } -> constant_value(syntax, typing, constant, type_handle)
-        ValueBinding::Local { statement } -> rooted(checker, typing, PlaceKind::Local, statement, type_handle)
-        ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle)
-        ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle)
-        ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle)
-        ValueBinding::ReturnedValue { machine } -> returned(checker)
-        ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker)
-        ValueBinding::DomainSubject { domain } -> subject(checker)
+        ValueBinding::Constant { constant } -> constant_value(syntax, typing, constant, type_handle),
+        ValueBinding::Local { statement } -> rooted(checker, typing, PlaceKind::Local, statement, type_handle),
+        ValueBinding::Parameter { parameter } -> parameter(checker, typing, parameter, type_handle),
+        ValueBinding::PatternBinder { field } -> rooted(checker, typing, PlaceKind::Binder, field, type_handle),
+        ValueBinding::Field { field } -> field_name(checker, typing, field, type_handle),
+        ValueBinding::ReturnedValue { machine } -> returned(checker),
+        ValueBinding::ContractReturnedValue { contract as _ } -> returned(checker),
+        ValueBinding::DomainSubject { domain } -> subject(checker),
         _ -> unbounded()
     }
 
@@ -588,7 +588,7 @@ crashes Trap
     // A domain predicate's subject binder: the value it is decided for.
     machine subject(checker: @Checker) -> Value {
         transition checker.subjecting {
-            true -> subject_value(checker)
+            true -> subject_value(checker),
             _ -> unbounded()
         }
     }
@@ -601,7 +601,7 @@ crashes Trap
     // An `ensures` fact's `result`: the returned value it is decided for.
     machine returned(checker: @Checker) -> Value {
         transition checker.returning {
-            true -> returned_value(checker)
+            true -> returned_value(checker),
             _ -> unbounded()
         }
     }
@@ -616,7 +616,7 @@ crashes Trap
     // that value's domain is installed.
     machine field_name(checker: @mut Checker, typing: @Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition checker.field_values && field >= checker.field_first {
-            true -> written(checker, field - checker.field_first)
+            true -> written(checker, field - checker.field_first),
             _ -> installed(checker, typing, field, type_handle)
         }
     }
@@ -629,7 +629,7 @@ crashes Trap
 
     machine installed(checker: @mut Checker, typing: @Typing, field: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         transition checker.fields_parent > 0 {
-            true -> member(checker, typing, field, checker.fields_parent, type_handle)
+            true -> member(checker, typing, field, checker.fields_parent, type_handle),
             _ -> unbounded()
         }
     }
@@ -647,7 +647,7 @@ crashes Trap
             && parameter >= checker.argument_first
             && parameter - checker.argument_first < checker.argument_count;
         transition substituted {
-            true -> argument(checker, typing, parameter - checker.argument_first, type_handle)
+            true -> argument(checker, typing, parameter - checker.argument_first, type_handle),
             _ -> rooted(checker, typing, PlaceKind::Parameter, parameter, type_handle)
         }
     }
@@ -659,7 +659,7 @@ crashes Trap
         let value: Value = argument_value(checker, offset);
         let row: TypeRow = type_table_row(@typing.types, type_handle);
         transition row.kind == TypeKind::Reference && value.place > 0 {
-            true -> referent(checker, typing, value.place)
+            true -> referent(checker, typing, value.place),
             _ -> passed(value)
         }
     }
@@ -695,7 +695,7 @@ crashes Trap
     let row: TypeRow = type_table_row(@typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
     transition adaptation == Adaptation::Landed && integer {
-        true -> exact(typing, declaration)
+        true -> exact(typing, declaration),
         _ -> typed(row)
     }
 
@@ -727,8 +727,8 @@ crashes Trap
     let base: Value = value_at(checker, expression.left);
     let row: TypeRow = type_table_row(@typing.types, type_handle);
     transition selection {
-        Selection::Field { field } -> member(checker, typing, PlaceKind::Field, field, base.place, type_handle, row)
-        Selection::Length -> length(checker, typing, expression, base.place, type_handle, row)
+        Selection::Field { field } -> member(checker, typing, PlaceKind::Field, field, base.place, type_handle, row),
+        Selection::Length -> length(checker, typing, expression, base.place, type_handle, row),
         _ -> unbounded()
     }
 
@@ -736,7 +736,7 @@ crashes Trap
     machine length(checker: @mut Checker, typing: @Typing, expression: Expression, parent: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
         let collection: TypeRow = collection_row(typing, expression.left);
         transition collection.kind == TypeKind::Array {
-            true -> fixed(typing, collection)
+            true -> fixed(typing, collection),
             _ -> member(checker, typing, PlaceKind::Length, 0, parent, type_handle, row)
         }
     }
@@ -756,7 +756,7 @@ crashes Trap
         row: TypeRow
     ) -> Value {
         transition parent > 0 {
-            true -> projected(checker, typing, kind, binding, parent, type_handle)
+            true -> projected(checker, typing, kind, binding, parent, type_handle),
             _ -> carried(row)
         }
     }
@@ -783,14 +783,14 @@ public machine place_value(checker: @Checker, place: u64 in Trapping) -> Value
 crashes Trap
 {
     transition place > 0 {
-        true -> entered(checker, place)
+        true -> entered(checker, place),
         _ -> unbounded()
     }
 
     machine entered(checker: @Checker, place: u64 in Trapping) -> Value {
         let entry: Place = place_at(checker, place - 1);
         transition entry.subject > 0 {
-            true -> term(checker, place, entry.subject)
+            true -> term(checker, place, entry.subject),
             _ -> located(place)
         }
     }
@@ -817,13 +817,13 @@ public machine subject_place(checker: @Checker, subject: u64 in Trapping) -> u64
 crashes Trap
 {
     transition subject > 0 {
-        true -> next(checker, subject, 0)
+        true -> next(checker, subject, 0),
         _ -> absent()
     }
 
     machine next(checker: @Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < checker.place_count {
-            true -> candidate(checker, subject, index)
+            true -> candidate(checker, subject, index),
             _ -> absent()
         }
     }
@@ -831,7 +831,7 @@ crashes Trap
     machine candidate(checker: @Checker, subject: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let place: Place = place_at(checker, index);
         transition place.subject == subject {
-            true -> found(index + 1)
+            true -> found(index + 1),
             _ -> next(checker, subject, index + 1)
         }
     }
@@ -855,14 +855,14 @@ crashes Trap
     copy_pending(checker, typing, target, source);
     let end: u64 in Trapping = checker.place_count as u64 in Trapping;
     transition target > 0 && source > 0 && target != source {
-        true -> next(checker, typing, target, source, 0, end)
+        true -> next(checker, typing, target, source, 0, end),
         _ -> done()
     }
 
     // Places the copy enters lie past `end`.
     machine next(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end && index < 256 {
-            true -> candidate(checker, typing, target, source, index, end)
+            true -> candidate(checker, typing, target, source, index, end),
             _ -> done()
         }
     }
@@ -872,7 +872,7 @@ crashes Trap
         let path: ArrivalPath = path_below(checker, source, index + 1, 0);
         let owned: bool = owned_below(checker, typing, source, index + 1);
         transition path.depth > 0 && owned {
-            true -> typed(checker, typing, target, source, index, end, entry, path)
+            true -> typed(checker, typing, target, source, index, end, entry, path),
             _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
@@ -880,7 +880,7 @@ crashes Trap
     machine typed(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
         let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
-            true -> reference(checker, typing, target, source, index, end, path)
+            true -> reference(checker, typing, target, source, index, end, path),
             false -> scalar(checker, typing, target, source, index, end, entry, path)
         }
     }
@@ -893,7 +893,7 @@ crashes Trap
 
     machine scalar(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
         transition entry.subject > 0 {
-            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+            true -> copied(checker, typing, target, source, index, end, entry.subject, path),
             false -> next(checker, typing, target, source, index + 1, end)
         }
     }
@@ -901,7 +901,7 @@ crashes Trap
     machine copied(checker: @mut Checker, typing: @Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, subject: u64 in Trapping, path: ArrivalPath) {
         let copy: u64 in Trapping = enter_path(checker, typing, target, path);
         transition copy > 0 {
-            true -> equated(checker, typing, target, source, index, end, subject, copy)
+            true -> equated(checker, typing, target, source, index, end, subject, copy),
             _ -> done()
         }
     }
@@ -914,7 +914,7 @@ crashes Trap
         let original: Value = Value { place: 0, known: true, subject: subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         let duplicate: Value = Value { place: 0, known: true, subject: copied.subject, offset: zero, ceiling: unknown.ceiling, floor: unknown.floor };
         transition copied.subject > 0 {
-            true -> related(checker, typing, target, source, index, end, original, duplicate)
+            true -> related(checker, typing, target, source, index, end, original, duplicate),
             _ -> next(checker, typing, target, source, index + 1, end)
         }
     }
@@ -935,6 +935,6 @@ crashes Trap
 machine enter_place_range(checker: @mut Checker, kind: PlaceKind, subject: u64 in Trapping, carrier: BuiltinType)
 crashes Trap
 {
-    transition kind == PlaceKind::RankEntry { true -> {} false -> ranged(checker, subject, carrier) }
+    transition kind == PlaceKind::RankEntry { true -> {}, false -> ranged(checker, subject, carrier) }
     machine ranged(checker: @mut Checker, subject: u64 in Trapping, carrier: BuiltinType) { enter_range(checker, subject, carrier); }
 }

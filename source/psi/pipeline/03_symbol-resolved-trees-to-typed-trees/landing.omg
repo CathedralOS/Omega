@@ -38,7 +38,7 @@ crashes Trap
     machine level(typer: @Typer, handle: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition row.kind == TypeKind::AnonymousArray && depth < 64 {
-            true -> level(typer, row.inner, depth + 1)
+            true -> level(typer, row.inner, depth + 1),
             _ -> found(depth)
         }
     }
@@ -57,7 +57,7 @@ crashes Trap
     machine level(typer: @Typer, handle: u64 in Trapping, remaining: u64 in Trapping) -> u64 in Trapping {
         let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition remaining > 0 && row.kind == TypeKind::Array {
-            true -> level(typer, row.inner, remaining - 1)
+            true -> level(typer, row.inner, remaining - 1),
             _ -> found(handle)
         }
     }
@@ -78,7 +78,7 @@ crashes Trap
     machine level(typer: @Typer, wanted: u64 in Trapping, shape: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
         let shape_row: TypeRow = type_table_row(@typer.output.types, shape);
         transition shape_row.kind == TypeKind::AnonymousArray && depth < 64 {
-            true -> array_level(typer, wanted, shape_row, depth)
+            true -> array_level(typer, wanted, shape_row, depth),
             _ -> found(wanted)
         }
     }
@@ -87,7 +87,7 @@ crashes Trap
         let wanted_row: TypeRow = type_table_row(@typer.output.types, wanted);
         transition wanted_row.kind == TypeKind::Array && wanted_row.length == shape_row.length
             && wanted_row.domain == DomainBinding::Unqualified {
-            true -> level(typer, wanted_row.inner, shape_row.inner, depth + 1)
+            true -> level(typer, wanted_row.inner, shape_row.inner, depth + 1),
             _ -> found(0)
         }
     }
@@ -112,7 +112,7 @@ crashes Trap
     let root_type: u64 in Trapping = typing_expression_type(@typer.output, root);
     let scalar: u64 in Trapping = landing_scalar(typer, destination, root_type);
     transition scalar > 0 {
-        true -> shaped(typer, syntax, scalar, tree.first_row, root)
+        true -> shaped(typer, syntax, scalar, tree.first_row, root),
         _ -> refused(Admission::Rejected, root)
     }
 
@@ -127,14 +127,14 @@ crashes Trap
         let joining: bool = unlanded_join_type(typer, handle_type);
         let values: JoinedValues = joined_values(expression);
         transition joining && (expression.kind == ExpressionKind::Match || expression.kind == ExpressionKind::Array) {
-            true -> value(typer, syntax, wanted, low, handle, values, 0)
+            true -> value(typer, syntax, wanted, low, handle, values, 0),
             _ -> next(typer, syntax, wanted, low, handle)
         }
     }
 
     machine next(typer: @Typer, syntax: @SyntaxTrees, wanted: TypeRow, low: u64 in Trapping, handle: u64 in Trapping) -> Landing {
         transition handle > low {
-            true -> node(typer, syntax, wanted, low, handle - 1)
+            true -> node(typer, syntax, wanted, low, handle - 1),
             _ -> landed(handle)
         }
     }
@@ -149,7 +149,7 @@ crashes Trap
         offset: u64 in Trapping
     ) -> Landing {
         transition offset < values.count {
-            true -> number(typer, syntax, wanted, low, handle, values, offset)
+            true -> number(typer, syntax, wanted, low, handle, values, offset),
             _ -> next(typer, syntax, wanted, low, handle)
         }
     }
@@ -168,7 +168,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typer.output.types, value_type);
         let anonymous: bool = row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat;
         transition anonymous {
-            true -> lands(typer, syntax, wanted, low, handle, values, offset, joined)
+            true -> lands(typer, syntax, wanted, low, handle, values, offset, joined),
             _ -> value(typer, syntax, wanted, low, handle, values, offset + 1)
         }
     }
@@ -185,7 +185,7 @@ crashes Trap
     ) -> Landing {
         let admission: Admission = literal_admission(typer, joined, wanted);
         transition admission == Admission::Landed {
-            true -> value(typer, syntax, wanted, low, handle, values, offset + 1)
+            true -> value(typer, syntax, wanted, low, handle, values, offset + 1),
             _ -> refused(admission, joined)
         }
     }
@@ -225,7 +225,7 @@ crashes Trap
         let handle_type: u64 in Trapping = typing_expression_type(@typer.output, handle);
         let joining: bool = unlanded_join_type(typer, handle_type);
         transition joining && (expression.kind == ExpressionKind::Match || expression.kind == ExpressionKind::Array) {
-            true -> typed(typer, syntax, destination, scalar, depth, low, handle, expression, handle_type)
+            true -> typed(typer, syntax, destination, scalar, depth, low, handle, expression, handle_type),
             _ -> next(typer, syntax, destination, scalar, depth, low, handle)
         }
     }
@@ -259,7 +259,7 @@ crashes Trap
         handle: u64 in Trapping
     ) {
         transition handle > low {
-            true -> node(typer, syntax, destination, scalar, depth, low, handle - 1)
+            true -> node(typer, syntax, destination, scalar, depth, low, handle - 1),
             _ -> done()
         }
     }
@@ -276,7 +276,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < values.count {
-            true -> number(typer, syntax, destination, scalar, depth, low, handle, values, offset)
+            true -> number(typer, syntax, destination, scalar, depth, low, handle, values, offset),
             _ -> next(typer, syntax, destination, scalar, depth, low, handle)
         }
     }
@@ -297,7 +297,7 @@ crashes Trap
         let row: TypeRow = type_table_row(@typer.output.types, value_type);
         let anonymous: bool = row.kind == TypeKind::AnonymousInteger || row.kind == TypeKind::AnonymousFloat;
         transition anonymous {
-            true -> lands(typer, syntax, destination, scalar, depth, low, handle, values, offset, joined)
+            true -> lands(typer, syntax, destination, scalar, depth, low, handle, values, offset, joined),
             _ -> value(typer, syntax, destination, scalar, depth, low, handle, values, offset + 1)
         }
     }
@@ -325,7 +325,7 @@ crashes Trap
 // The levels between a root of `depth` array levels and a node of `own`.
 machine lesser_depth(depth: u64 in Trapping, own: u64 in Trapping) -> u64 in Trapping {
     transition depth >= own {
-        true -> found(depth - own)
+        true -> found(depth - own),
         _ -> found(0)
     }
 

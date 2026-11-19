@@ -1,4 +1,3 @@
-module demography::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
@@ -13,26 +12,26 @@ crashes Trap
     machine scan(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool) -> Parsed {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> finish(accumulated, digits, negative)
-            ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value)
+            ByteRead::Eof -> finish(accumulated, digits, negative),
+            ByteRead::Byte { value } -> classify(accumulated, digits, negative, sign, value),
             _ -> Parsed { value: 0, valid: false }
         }
     }
     machine classify(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 10 {
-            true -> finish(accumulated, digits, negative)
+            true -> finish(accumulated, digits, negative),
             false -> character(accumulated, digits, negative, sign, byte)
         }
     }
     machine character(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, sign: bool, byte: i32) -> Parsed {
         transition byte == 45 && digits == 0 && !sign {
-            true -> scan(accumulated, digits, true, true)
+            true -> scan(accumulated, digits, true, true),
             false -> digit(accumulated, digits, negative, byte)
         }
     }
     machine digit(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool, byte: i32) -> Parsed {
         transition byte >= 48 && byte <= 57 && digits < 10 {
-            true -> accumulate(accumulated, digits, negative, byte)
+            true -> accumulate(accumulated, digits, negative, byte),
             false -> Parsed { value: 0, valid: false }
         }
     }
@@ -42,7 +41,7 @@ crashes Trap
     }
     machine finish(accumulated: i64 in Wrapping, digits: i32 in Wrapping, negative: bool) -> Parsed {
         transition negative {
-            true -> Parsed { value: 0 - accumulated, valid: digits > 0 }
+            true -> Parsed { value: 0 - accumulated, valid: digits > 0 },
             false -> Parsed { value: accumulated, valid: digits > 0 }
         }
     }
@@ -53,5 +52,5 @@ blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();
-    transition observed { ByteRead::Eof -> true ByteRead::Byte { value } -> false _ -> false }
+    transition observed { ByteRead::Eof -> true, ByteRead::Byte { value } -> false, _ -> false }
 }

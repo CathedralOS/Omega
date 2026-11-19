@@ -3,7 +3,7 @@
 machine maybe_ordered(value: f32) -> f32
 crashes Trap value == value
 {
-    transition value == value { true -> bad() false -> (value) }
+    transition value == value { true -> bad(), false -> (value) }
     machine bad() -> f32 { crash Trap; }
 }
 public machine read_nan(flag: bool) -> f32
@@ -15,6 +15,6 @@ public machine read_nan(flag: bool) -> f32
 machine main() crashes Trap {
     let first: f32 = read_nan(true);
     let second: f32 = read_nan(false);
-    transition first != first && second != second { true -> done() _ -> bad() }
+    transition first != first && second != second { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

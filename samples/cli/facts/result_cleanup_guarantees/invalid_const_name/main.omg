@@ -10,7 +10,7 @@ const NAMED: Seed = Seed { ready: false };
 machine main() crashes Trap {
     let seed: Seed = NAMED;
     let answer: u64 = read(@make_token(@seed));
-    transition answer == 7 { true -> done() false -> bad() }
+    transition answer == 7 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

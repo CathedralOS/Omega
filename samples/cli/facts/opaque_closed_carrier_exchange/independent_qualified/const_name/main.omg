@@ -17,7 +17,7 @@ const SECOND_HOST: u32 = 513;
 machine observe() -> bool reaches AddressParts, AddressBridge { consume(classify(AddressBridge::make(10, FIRST_HOST)), AddressBridge::make(44048, SECOND_HOST)) }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

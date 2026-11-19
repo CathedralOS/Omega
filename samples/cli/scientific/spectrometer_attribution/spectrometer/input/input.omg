@@ -1,4 +1,3 @@
-module spectrometer::input;
 use spectrometer::model::Spectrometer;
 use spectrometer::model::IntegerRead;
 use omega_language_std::ByteRead;
@@ -17,19 +16,19 @@ crashes Trap
     transition { _ -> block begin(application) }
     machine begin(application: @mut Spectrometer) -> IntegerRead {
         transition block Console::read_byte() {
-            ByteRead::Eof -> (IntegerRead::End)
+            ByteRead::Eof -> (IntegerRead::End),
             ByteRead::Byte { value } -> block first(application, value)
         }
     }
     machine first(application: @mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> block begin(application)
+            true -> block begin(application),
             false -> block sign(application, byte)
         }
     }
     machine sign(application: @mut Spectrometer, byte: i32) -> IntegerRead {
         transition byte == 45 {
-            true -> block following(application, 0, -1, false)
+            true -> block following(application, 0, -1, false),
             false -> block digit(application, byte, 0, 1, false)
         }
     }
@@ -37,14 +36,14 @@ crashes Trap
                 magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                 seen: bool) -> IntegerRead {
         transition byte >= 48 && byte <= 57 {
-            true -> block accumulate(application, byte, magnitude, sign)
+            true -> block accumulate(application, byte, magnitude, sign),
             false -> delimiter(application, byte, magnitude, sign, seen)
         }
     }
     machine accumulate(application: @mut Spectrometer, byte: i32,
                      magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         transition magnitude <= 100000 {
-            true -> block append(application, byte, magnitude, sign)
+            true -> block append(application, byte, magnitude, sign),
             false -> (IntegerRead::Invalid)
         }
     }
@@ -52,14 +51,14 @@ crashes Trap
                  magnitude: i32 in Wrapping, sign: i32 in Wrapping) -> IntegerRead {
         let value: i32 in Wrapping = magnitude * 10 + (byte as i32 in Wrapping) - 48;
         transition value <= 1000000 {
-            true -> block following(application, value, sign, true)
+            true -> block following(application, value, sign, true),
             false -> (IntegerRead::Invalid)
         }
     }
     machine following(application: @mut Spectrometer, magnitude: i32 in Wrapping,
                     sign: i32 in Wrapping, seen: bool) -> IntegerRead {
         transition block Console::read_byte() {
-            ByteRead::Eof -> finish(magnitude, sign, seen)
+            ByteRead::Eof -> finish(magnitude, sign, seen),
             ByteRead::Byte { value } -> block digit(application, value, magnitude, sign, seen)
         }
     }
@@ -67,14 +66,14 @@ crashes Trap
                     magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                     seen: bool) -> IntegerRead {
         transition byte == 32 || byte == 10 || byte == 13 || byte == 9 {
-            true -> finish(magnitude, sign, seen)
+            true -> finish(magnitude, sign, seen),
             false -> (IntegerRead::Invalid)
         }
     }
     machine finish(magnitude: i32 in Wrapping, sign: i32 in Wrapping,
                  seen: bool) -> IntegerRead {
         transition seen {
-            true -> (IntegerRead::Value { value: magnitude * sign })
+            true -> (IntegerRead::Value { value: magnitude * sign }),
             false -> (IntegerRead::Invalid)
         }
     }
@@ -86,14 +85,14 @@ public machine load_spectrum(application: @mut Spectrometer) -> bool {
     transition { _ -> samples(application, 0) }
     machine samples(application: @mut Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 16 {
-            true -> sample(application, index)
+            true -> sample(application, index),
             false -> configuration(application)
         }
     }
     machine sample(application: @mut Spectrometer, index: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[index];
         transition value >= 0 && value <= 1000 {
-            true -> save(application, index, value)
+            true -> save(application, index, value),
             false -> false
         }
     }
@@ -110,7 +109,7 @@ public machine load_spectrum(application: @mut Spectrometer) -> bool {
                    application.raw[20] > 0 && application.raw[20] <= 5000 &&
                    application.raw[21] >= -5000 && application.raw[21] <= 5000 &&
                    application.raw[22] >= 0 && application.raw[22] <= 5000 {
-            true -> settings(application)
+            true -> settings(application),
             false -> false
         }
     }
@@ -126,14 +125,14 @@ public machine load_spectrum(application: @mut Spectrometer) -> bool {
     }
     machine catalog(application: @mut Spectrometer, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < 4 {
-            true -> line(application, index)
+            true -> line(application, index),
             false -> true
         }
     }
     machine line(application: @mut Spectrometer, index: i32 in Wrapping) -> bool {
         let offset: i32 in Wrapping = index + 23;
         transition offset >= 23 && offset < 27 {
-            true -> read_line(application, index, offset)
+            true -> read_line(application, index, offset),
             false -> false
         }
     }
@@ -141,7 +140,7 @@ public machine load_spectrum(application: @mut Spectrometer) -> bool {
                     offset: i32 in Wrapping) -> bool {
         let value: i32 in Wrapping = application.raw[offset];
         transition value >= 0 && value <= 1000000 {
-            true -> save_line(application, index, value)
+            true -> save_line(application, index, value),
             false -> false
         }
     }

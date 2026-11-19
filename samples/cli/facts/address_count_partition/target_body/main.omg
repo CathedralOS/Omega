@@ -21,7 +21,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -29,7 +29,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -37,7 +37,7 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 
 boundary trait SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))
         );
@@ -45,7 +45,7 @@ boundary trait SelectedSplit {
 
 X86Split satisfies SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))
         )
@@ -60,7 +60,7 @@ X86Split satisfies SelectedSplit {
 
 ArmSplit satisfies SelectedSplit {
     machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
-        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity<IntervalSet<Nat>>(
+        reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling) ensures core::Identity::<IntervalSet<Nat>>(
             Owned::content(old(@whole)),
             separate( Owned::content(@result.right), Owned::content(@result.left))
         )
@@ -82,7 +82,7 @@ machine main() crashes Trap {
     let { left, right } = pieces;
     drop(left);
     drop(right);
-    transition correct { true -> done() _ -> bad() }
+    transition correct { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -36,7 +36,7 @@ machine entry() crashes Trap {
     let mut b: Main = Main { player: Player { health: 1 }, observed: 0 };
     Main::main(@mut b);
     transition a.observed == 42 && b.observed == 1 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

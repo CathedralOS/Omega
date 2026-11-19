@@ -37,37 +37,37 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     machine read(main: @mut Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> block byte(main, value)
+            ByteRead::Byte { value } -> block byte(main, value),
             _ -> block finish_input(main)
         }
     }
     machine byte(main: @mut Main, value: i32) {
         transition value == 10 {
-            true -> block close(main)
+            true -> block close(main),
             _ -> block validate(main, value)
         }
     }
     machine validate(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 57 && main.length >= 0 && main.length < 32 && main.frame < 16 {
-            true -> block store(main, value)
+            true -> block store(main, value),
             _ -> bad(main)
         }
     }
     machine store(main: @mut Main, value: i32) {
         let sample: i32 in Wrapping = (value as i32 in Wrapping) - 48;
         main.samples[main.length] = sample;
-        main.minimum = match sample < main.minimum { true -> sample _ -> main.minimum };
-        main.maximum = match sample > main.maximum { true -> sample _ -> main.maximum };
+        main.minimum = match sample < main.minimum { true -> sample, _ -> main.minimum };
+        main.maximum = match sample > main.maximum { true -> sample, _ -> main.maximum };
         main.length = main.length + 1;
         transition { _ -> block read(main) }
     }
     machine finish_input(main: @mut Main) {
         main.eof = true;
-        transition main.length > 0 { true -> block close(main) _ -> end(main) }
+        transition main.length > 0 { true -> block close(main), _ -> end(main) }
     }
     machine close(main: @mut Main) {
         transition main.length > 0 && main.frame < 16 {
-            true -> block begin_frame(main)
+            true -> block begin_frame(main),
             _ -> bad(main)
         }
     }
@@ -80,11 +80,11 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         main.best_sum = 10000 as +Wrapping;
         main.best_pairs = 1 as +Wrapping;
         main.ties = 0 as +Wrapping;
-        transition main.length >= 12 { true -> block score(main) _ -> block track(main) }
+        transition main.length >= 12 { true -> block score(main), _ -> block track(main) }
     }
     machine score(main: @mut Main) {
         transition main.lag <= 8 {
-            true -> block calculate(main)
+            true -> block calculate(main),
             _ -> block classify(main)
         }
     }
@@ -95,7 +95,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         Console::write(" "); number(main.sum);
         Console::write(" "); number(main.pairs); Console::write_line("");
         transition main.sum * main.best_pairs < main.best_sum * main.pairs {
-            true -> block better(main)
+            true -> block better(main),
             _ -> block tie(main)
         }
     }
@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         transition { _ -> block next_lag(main) }
     }
     machine tie(main: @mut Main) {
-        main.ties = match main.sum * main.best_pairs == main.best_sum * main.pairs { true -> main.ties + 1 _ -> main.ties };
+        main.ties = match main.sum * main.best_pairs == main.best_sum * main.pairs { true -> main.ties + 1, _ -> main.ties };
         transition { _ -> block next_lag(main) }
     }
     machine next_lag(main: @mut Main) {
@@ -116,20 +116,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     }
     machine classify(main: @mut Main) {
         main.status = match main.minimum == main.maximum {
-            true -> 0 as +Wrapping
+            true -> 0 as +Wrapping,
             _ -> match main.best_sum > main.best_pairs {
-                true -> 4 as +Wrapping
-                _ -> match main.ties > 1 { true -> 2 as +Wrapping _ -> 1 as +Wrapping }
+                true -> 4 as +Wrapping,
+                _ -> match main.ties > 1 { true -> 2 as +Wrapping, _ -> 1 as +Wrapping }
             }
         };
-        main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 as +Wrapping _ -> main.best_lag };
+        main.best_lag = match main.status == 0 || main.status == 4 { true -> 0 as +Wrapping, _ -> main.best_lag };
         transition { _ -> block track(main) }
     }
     machine track(main: @mut Main) {
         Console::write("TRACK "); number(main.frame);
         Console::write(" "); number(main.best_lag);
         Console::write(" ");
-        transition main.best_lag > 0 { true -> pitch(main) _ -> no_pitch(main) }
+        transition main.best_lag > 0 { true -> pitch(main), _ -> no_pitch(main) }
     }
     machine pitch(main: @mut Main) {
         number(8000 / main.best_lag);
@@ -142,7 +142,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     machine status(main: @mut Main) {
         Console::write(" "); number(main.status); Console::write_line("");
         transition main.previous > 0 && main.best_lag > 0 && main.previous != main.best_lag {
-            true -> change(main)
+            true -> change(main),
             _ -> uncertainty(main)
         }
     }
@@ -155,7 +155,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     machine uncertainty(main: @mut Main) {
         main.previous = main.best_lag;
         transition main.status == 1 && main.uncertain_start >= 0 {
-            true -> segment(main)
+            true -> segment(main),
             _ -> remember(main)
         }
     }
@@ -166,22 +166,22 @@ machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
         transition { _ -> remember(main) }
     }
     machine remember(main: @mut Main) {
-        main.uncertain_start = match main.status != 1 && main.uncertain_start < 0 { true -> main.frame _ -> main.uncertain_start };
+        main.uncertain_start = match main.status != 1 && main.uncertain_start < 0 { true -> main.frame, _ -> main.uncertain_start };
         main.frame = main.frame + 1;
         main.length = 0 as +Wrapping;
         main.minimum = 9 as +Wrapping;
         main.maximum = 0 as +Wrapping;
-        transition main.eof { true -> end(main) _ -> block read(main) }
+        transition main.eof { true -> end(main), _ -> block read(main) }
     }
     machine end(main: @mut Main) {
         transition main.frame > 0 {
-            true -> end_segment(main)
+            true -> end_segment(main),
             _ -> bad(main)
         }
     }
     machine end_segment(main: @mut Main) {
         transition main.uncertain_start >= 0 {
-            true -> final_segment(main)
+            true -> final_segment(main),
             _ -> good(main)
         }
     }

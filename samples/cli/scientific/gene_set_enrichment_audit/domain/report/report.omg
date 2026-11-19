@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use domain::exact;
 use domain::exact::Fraction;
@@ -14,13 +13,13 @@ invokes Console
     transition { _ -> hundreds(value, 0) }
     machine hundreds(left: u64 in Wrapping, count: u64 in Wrapping) {
         transition left >= 100 {
-            true -> hundreds(left - 100, count + 1)
+            true -> hundreds(left - 100, count + 1),
             false -> leading(left, count)
         }
     }
     machine leading(left: u64 in Wrapping, count: u64 in Wrapping) {
         transition count > 0 {
-            true -> high(left, count)
+            true -> high(left, count),
             false -> tens(left, 0, false)
         }
     }
@@ -30,13 +29,13 @@ invokes Console
     }
     machine tens(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
         transition left >= 10 {
-            true -> tens(left - 10, count + 1, high)
+            true -> tens(left - 10, count + 1, high),
             false -> middle(left, count, high)
         }
     }
     machine middle(left: u64 in Wrapping, count: u64 in Wrapping, high: bool) {
         transition count > 0 || high {
-            true -> low(left, count)
+            true -> low(left, count),
             false -> units(left)
         }
     }
@@ -60,12 +59,12 @@ invokes Console
 {
     transition { _ -> step(mask, 0) }
     machine step(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        transition gene < 10 { true -> inspect(mask, gene)
+        transition gene < 10 { true -> inspect(mask, gene),
  false -> done()
  }
     }
     machine inspect(mask: u64 in Wrapping, gene: u64 in Wrapping) {
-        transition member(mask, gene) { true -> emit(mask, gene)
+        transition member(mask, gene) { true -> emit(mask, gene),
  false -> step(mask, gene + 1)
  }
     }

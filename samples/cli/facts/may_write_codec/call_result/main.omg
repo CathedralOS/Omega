@@ -29,7 +29,7 @@ machine main() crashes Trap {
     encode_packet(@sample, @mut buffer, counter.slot);
     let index: u64 = kept_index(other);
     transition buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 200 && buffer[3] == 1 && chosen == 4 && items[index] == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}
@@ -38,13 +38,13 @@ machine main() crashes Trap {
 
 // The value owner authorizes field visits; the core library writes the bytes.
 machine packet_fields(value: @Value, context: @mut EncodeContext) {
-    reflect::visit_runtime_fields<Value, CompactBinary::scalar_field>(value, context);
+    reflect::visit_runtime_fields::<Value, CompactBinary::scalar_field>(value, context);
 }
 machine encode_packet<const N: u64>(value: @Value, out: @mut [u8; N], written: @mut u64) {
     let mut scratch: [u8; N];
     let mut fields: [EncodedField; 1];
-    transition CompactBinary::encode<Value, packet_fields>(value, @mut out[..], @mut scratch[..], @mut fields[..], 10000u64) {
-        EncodeResult::Encoded { next } -> finish(written, next)
+    transition CompactBinary::encode::<Value, packet_fields>(value, @mut out[..], @mut scratch[..], @mut fields[..], 10000u64) {
+        EncodeResult::Encoded { next } -> finish(written, next),
         _ -> finish(written, 0u64)
     }
     machine finish(written: @mut u64, next: u64) { written = next; }

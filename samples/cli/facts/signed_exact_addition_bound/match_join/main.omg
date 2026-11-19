@@ -12,7 +12,7 @@ machine choose(flag: bool, first: i64, second: i64) -> i64
     ensures result >= 30i64 && result <= 70i64
 {
     transition flag {
-        true -> first
+        true -> first,
         false -> second
     }
 }
@@ -29,7 +29,7 @@ machine probe(flag: bool, base: i64, delta: i64) -> i64
 machine main() crashes Trap {
     let diff: i64 = probe(true, 30i64, 20i64);
     transition diff == 20i64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -38,7 +38,7 @@ public trait RepresentationModel<Value, Frame> {
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
-    ensures core::Identity<Value>(left, right);
+    ensures core::Identity::<Value>(left, right);
 }
 
 // These guarantees constrain the selected TryFrom implementation. A separate

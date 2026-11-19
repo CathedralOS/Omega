@@ -14,9 +14,9 @@ crashes none
     { limit + 1 }
 }
 machine main() crashes Trap {
-    let small: u32 = relay<u8>(3u8, 4);
-    let flagged: u32 = relay<bool>(true, 9);
-    transition small == 5 && flagged == 10 { true -> done() false -> wrong() }
+    let small: u32 = relay::<u8>(3u8, 4);
+    let flagged: u32 = relay::<bool>(true, 9);
+    transition small == 5 && flagged == 10 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

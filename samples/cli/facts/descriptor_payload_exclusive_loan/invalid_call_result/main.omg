@@ -19,14 +19,14 @@ machine main() crashes Trap {
     let mut other: Slot = present([0, 0]);
     let mut visits: u64 = 0;
     let selected: @mut [i64] = match choose(@mut visits) {
-        true -> @mut chosen.value[..]
+        true -> @mut chosen.value[..],
         false -> @mut other.value[..]
     };
     selected[0] = 41;
     chosen = Slot::Present { value: [7, 0] };
     let observed: i64 = selected[0];
     transition observed == 41 && visits == 1 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

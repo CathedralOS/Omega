@@ -28,7 +28,7 @@ machine main() crashes Trap {
     let skipped: bool = selected(false, @mut count);
     let completed: bool = selected(true, @mut count);
     transition skipped == false && completed && count == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

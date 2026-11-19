@@ -1,4 +1,3 @@
-module io::report;
 use omega_language_std::Console;
 use domain::model;
 use domain::model::Community;
@@ -7,12 +6,12 @@ machine decimal(value: u64 in Wrapping) reaches Console {
     transition { _ -> scale(value, 1) }
     machine scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {
         transition divisor <= value/10 {
-            true -> scale(value, divisor*10)
+            true -> scale(value, divisor*10),
             false -> emit(value, divisor)
         }
     }
     machine emit(value: u64 in Wrapping, divisor: u64 in Wrapping) {
-        transition divisor > 0 { true -> digit(value, divisor) false -> done() }
+        transition divisor > 0 { true -> digit(value, divisor), false -> done() }
     }
     machine digit(value: u64 in Wrapping, divisor: u64 in Wrapping)
     requires divisor > 0 {
@@ -35,7 +34,7 @@ invokes Console
     transition { _ -> query(community, 0) }
     machine query(community: @Community, index: u64 in Wrapping) {
         transition index < community.queries && index < 16 {
-            true -> start(community, index)
+            true -> start(community, index),
             false -> done()
         }
     }
@@ -51,7 +50,7 @@ invokes Console
                index: u64 in Wrapping, depth: u64 in Wrapping, denominator: u64 in Wrapping,
                richness: u64 in Wrapping, first: u64 in Wrapping, second: u64 in Wrapping) {
         transition richness <= community.species && richness < 13 && depth < 33 {
-            true -> value(community, index, depth, denominator, richness, first, second)
+            true -> value(community, index, depth, denominator, richness, first, second),
             false -> moments(community, index, denominator, first, second)
         }
     }
@@ -72,7 +71,7 @@ invokes Console
                    index: u64 in Wrapping, denominator: u64 in Wrapping,
                    first: u64 in Wrapping, second: u64 in Wrapping) {
         transition denominator > 0 {
-            true -> centered(community, index, denominator, first, second)
+            true -> centered(community, index, denominator, first, second),
             false -> done()
         }
     }

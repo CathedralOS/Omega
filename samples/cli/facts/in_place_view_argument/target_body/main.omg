@@ -10,7 +10,7 @@ X86Reader satisfies Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8
     requires packet.bytes.len >= 4 {
         transition packet.tag == 5 && packet.tail == 9 {
-            true -> third(packet.bytes)
+            true -> third(packet.bytes),
             false -> zero()
         }
         machine third(bytes: @[u8]) -> u8 requires bytes.len >= 4 { bytes[2] }
@@ -21,7 +21,7 @@ ArmReader satisfies Reader {
     machine read_third<'input>(packet: Input<'input>) -> u8
     requires packet.bytes.len >= 4 {
         transition packet.tag == 5 && packet.tail == 9 {
-            true -> third(packet.bytes)
+            true -> third(packet.bytes),
             false -> zero()
         }
         machine third(bytes: @[u8]) -> u8 requires bytes.len >= 4 { bytes[2] }
@@ -35,7 +35,7 @@ machine main() reaches Reader crashes Trap {
     let third: u8 = Reader::read_third(Input { tag: 5, bytes: @packet, tail: 9 });
     let other: u8 = Reader::read_third(Input { tag: 6, bytes: @packet, tail: 9 });
     transition third == 29 && other == 0 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

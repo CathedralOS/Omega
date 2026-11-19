@@ -1,5 +1,3 @@
-module indexing;
-
 // The sealed compiler supplies these operations. Their ordinary contracts
 // govern every application; descriptor construction supplies no bounds proof.
 public machine [] read<'backing, Element [copy]>(

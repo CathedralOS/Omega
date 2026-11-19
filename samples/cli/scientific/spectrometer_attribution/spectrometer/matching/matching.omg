@@ -1,4 +1,3 @@
-module spectrometer::matching;
 use omega::language::core::abs_f64;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
@@ -10,7 +9,7 @@ public machine match_regions(spectrum: @Spectrum, regions: @mut Regions) {
     transition { _ -> region(spectrum, regions, 0) }
     machine region(spectrum: @Spectrum, regions: @mut Regions, index: i32 in Wrapping) {
         transition index >= 0 && index < regions.count && index < 8 {
-            true -> reset(spectrum, regions, index)
+            true -> reset(spectrum, regions, index),
             false -> finished()
         }
     }
@@ -22,7 +21,7 @@ public machine match_regions(spectrum: @Spectrum, regions: @mut Regions) {
     machine line(spectrum: @Spectrum, regions: @mut Regions, index: i32 in Wrapping,
                reference: i32 in Wrapping, best: f64) {
         transition reference >= 0 && reference < 4 {
-            true -> distance(spectrum, regions, index, reference, best)
+            true -> distance(spectrum, regions, index, reference, best),
             false -> region(spectrum, regions, index + 1)
         }
     }
@@ -30,7 +29,7 @@ public machine match_regions(spectrum: @Spectrum, regions: @mut Regions) {
                    reference: i32 in Wrapping, best: f64) {
         let difference: f64 = abs_f64(regions.centroids[index] - spectrum.lines[reference]);
         transition difference <= spectrum.tolerance {
-            true -> candidate(spectrum, regions, index, reference, best, difference)
+            true -> candidate(spectrum, regions, index, reference, best, difference),
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }
@@ -38,7 +37,7 @@ public machine match_regions(spectrum: @Spectrum, regions: @mut Regions) {
                     reference: i32 in Wrapping, best: f64, difference: f64) {
         regions.candidates[index] = regions.candidates[index] + 1;
         transition difference < best {
-            true -> nearer(spectrum, regions, index, reference, difference)
+            true -> nearer(spectrum, regions, index, reference, difference),
             false -> line(spectrum, regions, index, reference + 1, best)
         }
     }

@@ -1,5 +1,3 @@
-module control::state;
-
 public data Command [copy]
 requires direction >= -1 && direction < 4 {
     direction: i32;

@@ -24,7 +24,7 @@ requires item.kept == 7.0
 
 machine main() crashes Trap {
     let item: Ends = Ends { kept: 7.0, other: 1.0 };
-    transition consume(@item) == 7.0 { true -> done() _ -> bad() }
+    transition consume(@item) == 7.0 { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

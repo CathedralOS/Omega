@@ -11,7 +11,7 @@ machine main() crashes Trap {
  observed requires (snapshot & 2261u64) == 85u64:
   nop
  }
- transition (snapshot & 2261u64) == 85u64 { true -> done() false -> bad() }
+ transition (snapshot & 2261u64) == 85u64 { true -> done(), false -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

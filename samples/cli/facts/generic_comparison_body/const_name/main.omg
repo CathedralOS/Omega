@@ -7,7 +7,7 @@ machine same<T>(left: T, right: T) -> bool {
 }
 
 machine compare<T>(left: T, right: T) -> bool {
-    same<T>(left, right)
+    same::<T>(left, right)
 }
 
 machine hold(direct: bool) -> bool
@@ -20,9 +20,9 @@ const LEFT: u64 = 1u64;
 const RIGHT: u64 = 1u64;
 
 machine main() crashes Trap {
-    let direct: bool = compare<u64>(LEFT, RIGHT);
+    let direct: bool = compare::<u64>(LEFT, RIGHT);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

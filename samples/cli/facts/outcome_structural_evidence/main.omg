@@ -10,12 +10,12 @@ ensures Outcome::Success -> { selected: above(gate.threshold); }
 { selected = Fresh; Outcome::Success }
 machine probe(gate: Gate) -> bool {
  transition pick(gate) {
-  Outcome::Success { ; selected: proof } -> (gate.threshold == 5)
+  Outcome::Success { ; selected: proof } -> (gate.threshold == 5),
   _ -> (false)
  }
 }
 machine main() crashes Trap {
- transition probe(Gate { threshold: 5 }) { true -> done() _ -> bad() }
+ transition probe(Gate { threshold: 5 }) { true -> done(), _ -> bad() }
  machine done() {}
  machine bad() { crash Trap; }
 }

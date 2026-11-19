@@ -25,12 +25,12 @@ machine contact(a: Disk, b: Disk) -> Contact {
     let gap: f64 = dx * dx - radius * radius;
     let discriminant: f64 = radial * radial - speed * gap;
     transition speed > 0.000000000001 && radial < -0.000000000001 && discriminant >= 0.0 {
-        true -> root(a, b, speed, radial, discriminant, vx)
+        true -> root(a, b, speed, radial, discriminant, vx),
         _ -> absent()
     }
     machine root(a: Disk, b: Disk, speed: f64, radial: f64, discriminant: f64, vx: f64) -> Contact {
         let time: f64 = (0.0 - radial - F64::square_root(discriminant)) / speed;
-        transition time >= -0.000000001 { true -> impulse(a, b, time, vx) _ -> absent() }
+        transition time >= -0.000000001 { true -> impulse(a, b, time, vx), _ -> absent() }
     }
     machine impulse(a: Disk, b: Disk, time: f64, vx: f64) -> Contact {
         // Relative velocity along the fixed head-on normal is constant.
@@ -51,7 +51,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.hit = contact(left, right);
     transition abs_f64(main.hit.time - 2.0) <= 0.000000001
         && abs_f64(main.hit.impulse - 1.5) <= 0.000000001 {
-        true -> report(main)
+        true -> report(main),
         _ -> failed(main)
     }
     machine report(main: @mut Main) {

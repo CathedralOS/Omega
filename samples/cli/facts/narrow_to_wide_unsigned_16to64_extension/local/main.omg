@@ -9,7 +9,7 @@ requires narrow >= 300u16 && narrow <= 500u16
     let diff1: u64 = 500u64 - wide;
     let diff2: u64 = wide - 300u64;
     transition diff1 == 100u64 && diff2 == 100u64 {
-        true -> 0i32
+        true -> 0i32,
         _ -> 1i32
     }
 }
@@ -17,7 +17,7 @@ requires narrow >= 300u16 && narrow <= 500u16
 machine main() crashes Trap {
     let exit_code: i32 = exercise(400u16);
     transition exit_code == 0i32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

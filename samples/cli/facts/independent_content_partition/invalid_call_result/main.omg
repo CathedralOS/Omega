@@ -25,7 +25,7 @@ data Parts { left: Region in First & Second; right: Region in First & Second; }
 machine partition(whole: Region in First & Second, requested: u64) -> Parts
 requires whole.base == 10 && whole.length == 48 && requested == 16
 ensures
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         First::content(old(@whole)),
         separate(First::content(@result.left), First::content(@result.right))
     )
@@ -47,7 +47,7 @@ machine inspect(parts: Parts) -> bool {
 machine main() crashes Trap {
     let first: bool = inspect(exercise(true));
     let second: bool = inspect(exercise(false));
-    transition first && second { true -> done() _ -> wrong() }
+    transition first && second { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

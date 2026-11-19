@@ -62,13 +62,13 @@ machine Main::main(main: @mut Main) {
     touch_salt(@mut main.password);
     main.hits = 0;
     transition main.password.length > 0 {
-        true -> one(main)
+        true -> one(main),
         _ -> other(main)
     }
     machine one(main: @mut Main) {
         main.hits = 1;
         transition main.password.score >= 8 {
-            true -> two(main)
+            true -> two(main),
             _ -> other(main)
         }
     }

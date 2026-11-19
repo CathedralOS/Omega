@@ -35,7 +35,7 @@ machine main() crashes Trap {
     ];
     let elem: u64 = read_element(arr, 142);
     transition elem == 142 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

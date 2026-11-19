@@ -8,7 +8,7 @@ machine from_join<'row>(items: @'row mut [u8; 4], which: i64, flag: bool) -> @'r
     ensures result.len == 2
 {
     match which {
-        0 -> @mut items[0..(match flag { true -> which + 2, false -> 2 })]
+        0 -> @mut items[0..(match flag { true -> which + 2, false -> 2 })],
         _ -> @mut items[2..4]
     }
 }
@@ -29,7 +29,7 @@ machine main() crashes Trap {
     write_pair(right_window);
     transition left[0] == 9 && left[1] == 8 && left[2] == 3
         && right[0] == 9 && right[1] == 8 && right[2] == 3 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

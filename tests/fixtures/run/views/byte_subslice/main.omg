@@ -13,7 +13,7 @@ machine main() crashes Trap {
     transition first(middle) == 88 && tail[0] == 89
         && middle.len == 2 && tail.len == 1 && returned.len == 3
         && empty.len == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

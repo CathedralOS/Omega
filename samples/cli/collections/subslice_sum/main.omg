@@ -35,7 +35,7 @@ machine walk(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length
 {
     transition s.len > 0 {
-        true -> walk(s[1..], acc + s[0])
+        true -> walk(s[1..], acc + s[0]),
         false -> (acc as i32)
     }
 }
@@ -55,7 +55,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let t: i32 = walk(s, 0i32 as +Wrapping);
 
     transition t == 70 {
-        true -> block good(main)
+        true -> block good(main),
         _ -> block bad(main)
     }
 

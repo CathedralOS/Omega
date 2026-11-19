@@ -3,7 +3,7 @@ machine bounded(value: u64) -> u64 requires value <= 5 { value }
 machine build(builder: @mut Build) {
     Build::application(builder, "machine_call_build_constant");
     transition VALUE == 4 {
-        true -> selected(builder)
+        true -> selected(builder),
         false -> unselected(builder)
     }
     machine selected(builder: @mut Build) {

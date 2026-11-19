@@ -19,8 +19,8 @@ machine windows_filesystem_unlock(file: File) -> UnitResult
 
 machine windows_filesystem_try_lock_result(status: i32) -> TryLockResult {
     transition status {
-        0 -> TryLockResult::Acquired
-        -33 -> TryLockResult::WouldBlock
+        0 -> TryLockResult::Acquired,
+        -33 -> TryLockResult::WouldBlock,
         _ -> (TryLockResult::Error { kind: windows_filesystem_status_error(status as i64) })
     }
 }

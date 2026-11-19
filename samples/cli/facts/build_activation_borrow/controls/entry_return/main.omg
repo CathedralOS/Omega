@@ -5,7 +5,7 @@ data Cell { before: u64; value: u64; after: u64; }
 data Carrier<'storage> { cell: @'storage mut Cell; }
 machine selected<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) -> Carrier<'storage> {
     transition first {
-        true -> Carrier { cell: left }
+        true -> Carrier { cell: left },
         false -> Carrier { cell: right }
     }
 }
@@ -24,14 +24,14 @@ machine host_selected<'storage>(left: @'storage mut Cell, right: @'storage mut C
 data OptionalCarrier<'storage> { case Present(carrier: Carrier<'storage>); case Missing; }
 machine host_optional<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, present: bool) -> OptionalCarrier<'storage> {
     transition present {
-        true -> OptionalCarrier::Present { carrier: host_selected(left, right, true) }
+        true -> OptionalCarrier::Present { carrier: host_selected(left, right, true) },
         false -> OptionalCarrier::Missing
     }
 }
 data WriteCarrier<'storage> { cell: @'storage write Cell; }
 machine host_write_only<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) -> WriteCarrier<'storage> {
     transition first {
-        true -> WriteCarrier { cell: @write left }
+        true -> WriteCarrier { cell: @write left },
         false -> WriteCarrier { cell: @write right }
     }
 }
@@ -50,7 +50,7 @@ machine main() crashes Trap {
     let second: bool = journey(@mut left, @mut right, false);
     transition first_correct && second && left.value == 73 && right.value == 73
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

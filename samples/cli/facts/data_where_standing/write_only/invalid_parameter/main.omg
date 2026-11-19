@@ -21,7 +21,7 @@ machine compute(counter: Counter) -> i32 { 70 + counter.cell.value }
 machine main() crashes Trap {
     let counter: Counter = produce(60);
     let low: Counter = produce(-2147483648);
-    transition compute(counter) == 130 && compute(low) == -2147483578 && counter.cell.left == 17 && counter.cell.right == 53 && counter.before == 31 && counter.peer == 13 && counter.after == 47 && low.cell.left == 17 && low.cell.right == 53 && low.before == 31 && low.peer == 13 && low.after == 47 { true -> done() _ -> bad() }
+    transition compute(counter) == 130 && compute(low) == -2147483578 && counter.cell.left == 17 && counter.cell.right == 53 && counter.before == 31 && counter.peer == 13 && counter.after == 47 && low.cell.left == 17 && low.cell.right == 53 && low.before == 31 && low.peer == 13 && low.after == 47 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }
 }

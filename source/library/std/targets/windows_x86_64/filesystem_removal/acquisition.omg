@@ -22,7 +22,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let mut wide: [u16; 4096];
     let units: i64 = windows_wide_path(path as -Path, @mut wide);
     wide[4095] = 0;
-    transition units > 0 { true -> block open(wide as +WindowsNativePath) false -> invalid() }
+    transition units > 0 { true -> block open(wide as +WindowsNativePath), false -> invalid() }
     machine invalid() -> i64
     ensures result != -1
     { WindowsFilesystemIo::c_set_last_error(87); 0 }
@@ -34,25 +34,25 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         // overlap or DELETE_ON_CLOSE. Anonymous SQOS does not grant a server
         // the caller's identity. This private object has no mode setter.
         let handle: i64 = block WindowsFilesystemIo::c_create_file(@path, 1114241, 7, 0, 3, 36700160, 0);
-        transition handle != 0 && handle != -1 { true -> (handle) false -> 0 }
+        transition handle != 0 && handle != -1 { true -> (handle), false -> 0 }
     }
 }
 
 machine windows_removal_component(name: @[u16; 4096], length: u64) -> bool
 requires length > 0 && length < 4096 {
-    transition length <= 2 { true -> dot(name, length) false -> scan(name, length, 0) }
+    transition length <= 2 { true -> dot(name, length), false -> scan(name, length, 0) }
     machine dot(name: @[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
-        transition name[0] == 46 { true -> second(name, length) false -> scan(name, length, 0) }
+        transition name[0] == 46 { true -> second(name, length), false -> scan(name, length, 0) }
     }
     machine second(name: @[u16; 4096], length: u64) -> bool requires length > 0 && length < 4096 {
-        transition length == 1 { true -> false false -> pair(name, length) }
+        transition length == 1 { true -> false, false -> pair(name, length) }
     }
     machine pair(name: @[u16; 4096], length: u64) -> bool requires length > 1 && length < 4096 {
-        transition name[1] == 46 { true -> false false -> scan(name, length, 0) }
+        transition name[1] == 46 { true -> false, false -> scan(name, length, 0) }
     }
     machine scan(name: @[u16; 4096], length: u64, position: u64) -> bool
     requires length > 0 && length < 4096 {
-        transition position < length { true -> character(name, length, position) false -> true }
+        transition position < length { true -> character(name, length, position), false -> true }
     }
     machine character(name: @[u16; 4096], length: u64, position: u64) -> bool
     requires length > 0 && length < 4096 && position < length {
@@ -60,7 +60,7 @@ requires length > 0 && length < 4096 {
         // Preserve native UTF-16 spelling, including unpaired surrogates;
         // reject separators, alternate streams, and embedded termination.
         transition unit == 0 || unit == 47 || unit == 92 || unit == 58 {
-            true -> false
+            true -> false,
             false -> scan(name, length, position + 1)
         }
     }
@@ -80,7 +80,7 @@ requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && l
 ensures result != -1
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     transition windows_removal_component(@entry.characters, length) {
-        true -> block access(parent, entry, length)
+        true -> block access(parent, entry, length),
         false -> invalid()
     }
     machine invalid() -> i64
@@ -91,7 +91,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     ensures result != -1
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
-            true -> block open(parent, entry, length, 1114241)
+            true -> block open(parent, entry, length, 1114241),
             false -> block open(parent, entry, length, 1114240)
         }
     }
@@ -122,14 +122,14 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
         let status: i32 = block WindowsFilesystemRemovalIo::open(@mut handle, access, @attributes,
             @mut completion, 7, 2113568);
         transition status == 0 {
-            true -> opened(handle)
+            true -> opened(handle),
             false -> failed(status)
         }
     }
     machine opened(handle: i64) -> i64
     ensures result != -1
     {
-        transition handle != 0 && handle != -1 { true -> (handle) false -> corrupt() }
+        transition handle != 0 && handle != -1 { true -> (handle), false -> corrupt() }
     }
     machine corrupt() -> i64
     ensures result != -1

@@ -43,7 +43,7 @@ requires incoming_first: first_ready()
 requires incoming_second: second_ready()
 requires incoming_third: third_ready()
 {
-    invoke<Token, TokenProducer>(
+    invoke::<Token, TokenProducer>(
         value;
         incoming_first,
         incoming_second,

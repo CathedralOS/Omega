@@ -12,11 +12,11 @@ data Outer {
 }
 
 machine query_size() -> u64 {
-    size_of<Outer>()
+    size_of::<Outer>()
 }
 
 machine query_align() -> u64 {
-    align_of<Outer>()
+    align_of::<Outer>()
 }
 
 machine main() crashes Trap {
@@ -24,7 +24,7 @@ machine main() crashes Trap {
     let a: u64 = query_align();
     let diff: u64 = s - (a * 3u64);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

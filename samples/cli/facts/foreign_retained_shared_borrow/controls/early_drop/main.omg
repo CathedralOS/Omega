@@ -37,7 +37,7 @@ machine run_main(main: @mut Main) reaches Reader crashes Trap {
     let mut observed: u64 = 0;
     let returned: Capacity in Capacity::Available = Reader::complete(pending, @mut observed);
     Reader::release(returned);
-    transition observed == 37 { true -> done() _ -> bad() }
+    transition observed == 37 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

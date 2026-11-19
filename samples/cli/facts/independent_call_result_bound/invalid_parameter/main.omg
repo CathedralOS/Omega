@@ -33,7 +33,7 @@ machine subtract(value: u64) -> u64 requires value == 7 { value - 7 }
 machine evaluate() -> u64 { subtract(forwarded(3)) }
 machine main() crashes Trap {
     let difference: u64 = evaluate();
-    transition difference == 0 { true -> done() _ -> bad() }
+    transition difference == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

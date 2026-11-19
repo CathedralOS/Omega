@@ -17,12 +17,12 @@ machine main() crashes Trap {
     let val: i64 = 296;
     let shifted: i64 = compute_shift(val);
     let joined: i64 = match true {
-        true -> shifted
+        true -> shifted,
         _ -> shifted
     };
     let check: i64 = verify_shifted(joined);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

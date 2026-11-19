@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let narrowed: u8 in Wrapping = concrete_form(3.0);
     transition narrowed == 3u8 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

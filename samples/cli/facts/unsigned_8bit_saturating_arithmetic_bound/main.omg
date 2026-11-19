@@ -12,7 +12,7 @@ machine add_saturating(lhs: u8, rhs: u8) -> i32
     let headroom: u8 = 100u8 - sum;
     let margin: u8 = sum - 50u8;
     transition sum == 75u8 && headroom + margin == 50u8 {
-        true -> pass()
+        true -> pass(),
         _ -> fail()
     }
     machine pass() -> i32 { 0 }
@@ -22,7 +22,7 @@ machine add_saturating(lhs: u8, rhs: u8) -> i32
 machine main() crashes Trap {
     let res: i32 = add_saturating(60u8, 15u8);
     transition res == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

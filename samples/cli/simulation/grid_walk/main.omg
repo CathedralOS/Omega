@@ -32,9 +32,9 @@ data Main {
 // Dispatch on the direction, returning the unit step as a struct literal per arm.
 machine delta(d: Dir) -> Vec2 {
     transition d {
-        Dir::N -> Vec2 { dx: 0 as +Saturating, dy: (0 - 1) as +Saturating }
-        Dir::S -> Vec2 { dx: 0 as +Saturating, dy: 1 as +Saturating }
-        Dir::E -> Vec2 { dx: 1 as +Saturating, dy: 0 as +Saturating }
+        Dir::N -> Vec2 { dx: 0 as +Saturating, dy: (0 - 1) as +Saturating },
+        Dir::S -> Vec2 { dx: 0 as +Saturating, dy: 1 as +Saturating },
+        Dir::E -> Vec2 { dx: 1 as +Saturating, dy: 0 as +Saturating },
         Dir::W -> Vec2 { dx: (0 - 1) as +Saturating, dy: 0 as +Saturating }
     }
 }

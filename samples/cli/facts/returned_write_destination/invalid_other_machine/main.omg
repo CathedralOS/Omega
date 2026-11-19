@@ -7,6 +7,6 @@ machine main() crashes Trap {
  let mut value: i32 = 7;
  let neighbor: i32 = 19;
  forward(@write value);
- transition value == 42 && neighbor == 19 { true -> done() false -> wrong() }
+ transition value == 42 && neighbor == 19 { true -> done(), false -> wrong() }
  machine done() {} machine wrong() { crash Trap; }
 }

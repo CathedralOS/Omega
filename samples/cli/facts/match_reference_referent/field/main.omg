@@ -21,12 +21,12 @@ machine main() crashes Trap {
     let spare: i64 = 5;
     let pair: Pair = Pair { chosen: @chosen, spare: @spare };
     let joined: @i64 = match choose() {
-        true -> pair.chosen
+        true -> pair.chosen,
         false -> pair.spare
     };
     let observed: i64 = read_through(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

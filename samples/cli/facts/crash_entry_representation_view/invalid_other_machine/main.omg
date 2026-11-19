@@ -2,7 +2,7 @@
 machine maybe_zero(value: i64) -> i64
 crashes Trap value == 0
 {
-    transition value == 0 { true -> bad() false -> (value) }
+    transition value == 0 { true -> bad(), false -> (value) }
     machine bad() -> i64 { crash Trap; }
 }
 machine forward(value: i64) -> i64
@@ -18,6 +18,6 @@ public machine read_bits(value: u64) -> i64
 }
 machine main() crashes Trap {
     let observed: i64 = read_bits(7);
-    transition observed == 7 { true -> done() _ -> bad() }
+    transition observed == 7 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

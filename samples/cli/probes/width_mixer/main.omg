@@ -57,14 +57,14 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.data.total = contrib + offset_i32 + 320;
 
     transition main.data.total == 70 {
-        true -> check_flags(main)
+        true -> check_flags(main),
         _ -> bad_total(main)
     }
 
     machine check_flags(main: @mut Main) {
         // Verify u8 field stored correctly.
         transition main.data.flags == 5 {
-            true -> check_offset(main)
+            true -> check_offset(main),
             _ -> bad_flags(main)
         }
     }
@@ -72,7 +72,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     machine check_offset(main: @mut Main) {
         // Verify i16 field stored the signed value.
         transition main.data.offset == 0 - 300 {
-            true -> good(main)
+            true -> good(main),
             _ -> bad_offset(main)
         }
     }

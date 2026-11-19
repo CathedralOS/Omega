@@ -16,7 +16,7 @@ machine amplitude<const Count: u64>(elements: @Elements<Count>) -> f64 {
     transition { _ -> walk(elements, 0, 0.0) }
     machine walk(elements: @Elements<Count>, index: u64, total: f64) -> f64 {
         transition index < Count {
-            true -> step(elements, index, total)
+            true -> step(elements, index, total),
             _ -> done(total)
         }
     }
@@ -31,7 +31,7 @@ machine parameter_amplitude<const Count: u64>(weights: @[f64; Count]) -> f64 {
     transition { _ -> walk(weights, 0, 0.0) }
     machine walk(weights: @[f64; Count], index: u64, total: f64) -> f64 {
         transition Count > index {
-            true -> step(weights, index, total)
+            true -> step(weights, index, total),
             _ -> done(total)
         }
     }
@@ -60,11 +60,11 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.local[0] = -1.5;
     main.local[1] = 0.5;
     main.local[2] = 2.0;
-    let broadside: f64 = amplitude<4>(@main.broadside);
-    let taper: f64 = amplitude<3>(@main.taper);
-    let echoed: f64 = parameter_amplitude<3>(@main.local);
+    let broadside: f64 = amplitude::<4>(@main.broadside);
+    let taper: f64 = amplitude::<3>(@main.taper);
+    let echoed: f64 = parameter_amplitude::<3>(@main.local);
     transition broadside == 6.0 && taper == 4.0 && echoed == taper {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) {

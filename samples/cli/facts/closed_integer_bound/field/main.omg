@@ -9,7 +9,7 @@ machine establish() -> u64 in Small {
 data Holder { value: u64 in Small; }
 machine probe() -> u64 { let holder: Holder = Holder { value: establish() }; 5u64 - holder.value }
 machine main() crashes Trap {
-    transition probe() == 2 { true -> done() _ -> bad() }
+    transition probe() == 2 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

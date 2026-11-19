@@ -6,6 +6,6 @@ machine main() crashes Trap {
  let mut values: [i32; 2] = [7, 19];
  let destination: @write i32 = lend_write(@write values[INDEX]);
  destination = destination;
- transition values[INDEX] == 42 && values[1] == 19 { true -> done() false -> wrong() }
+ transition values[INDEX] == 42 && values[1] == 19 { true -> done(), false -> wrong() }
  machine done() {} machine wrong() { crash Trap; }
 }

@@ -48,7 +48,7 @@ machine Main::main(main: @mut Main) {
 
     transition main.verdict == WireVerdict::Sound
         && decoded.code == 42 && decoded.level == -7 {
-        true -> Main::pass(main)
+        true -> Main::pass(main),
         _ -> Main::fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

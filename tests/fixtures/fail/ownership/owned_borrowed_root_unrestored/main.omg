@@ -6,7 +6,7 @@ machine main() crashes Trap {
     let local: @mut Item = @mut owner;
     let old: Item = move local;
     transition old.value == 3u32 && owner.value == 7u32 {
-        true -> consume(old, owner)
+        true -> consume(old, owner),
         false -> bad()
     }
     machine bad() { crash Trap; }

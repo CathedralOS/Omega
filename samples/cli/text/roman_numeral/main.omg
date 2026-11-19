@@ -22,13 +22,13 @@ data RomanParse {
 // Zero means an unknown symbol; every Roman symbol has a positive value.
 machine symbol_value(byte: u8) -> i32 in Wrapping {
     transition byte {
-        77 -> (1000)
-        68 -> (500)
-        67 -> (100)
-        76 -> (50)
-        88 -> (10)
-        86 -> (5)
-        73 -> (1)
+        77 -> (1000),
+        68 -> (500),
+        67 -> (100),
+        76 -> (50),
+        88 -> (10),
+        86 -> (5),
+        73 -> (1),
         _ -> (0)
     }
 }
@@ -39,7 +39,7 @@ machine accumulate(total: i32 in Wrapping, previous: i32 in Wrapping,
                    value: i32 in Wrapping) -> i32 in Wrapping {
     let added: i32 in Wrapping = total + value;
     transition previous < value {
-        true -> (added - previous - previous)
+        true -> (added - previous - previous),
         false -> (added)
     }
 }
@@ -52,7 +52,7 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
     requires index >= 0
     {
         transition index < text.len {
-            true -> read(text, index, previous, total)
+            true -> read(text, index, previous, total),
             _ -> (RomanParse::Parsed { total: total })
         }
     }
@@ -64,7 +64,7 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
         let byte: u8 = text[index];
         let value: i32 in Wrapping = symbol_value(byte);
         transition value == 0 {
-            true -> (RomanParse::Invalid)
+            true -> (RomanParse::Invalid),
             false -> advance(text, index, value, accumulate(total, previous, value))
         }
     }
@@ -75,7 +75,7 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
     {
         // Keep the original capacity guard on the Exact cursor increment.
         transition index < 16 {
-            true -> bump(text, index, previous, total)
+            true -> bump(text, index, previous, total),
             _ -> (RomanParse::Invalid)
         }
     }
@@ -94,12 +94,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 7] in Utf8 = "MCMXCIV";
     transition parse_roman(@text) {
-        RomanParse::Parsed { total } -> block check(total)
+        RomanParse::Parsed { total } -> block check(total),
         RomanParse::Invalid -> block bad()
     }
 
     machine check(total: i32 in Wrapping) {
-        transition total == 1994 { true -> block ok() false -> block mismatch() }
+        transition total == 1994 { true -> block ok(), false -> block mismatch() }
     }
     machine ok() {
         Console::write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");

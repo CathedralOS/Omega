@@ -1,4 +1,3 @@
-module choices;
 use omega::language::core::ProgramImage;
 
 public Observations satisfies ProgramImage {

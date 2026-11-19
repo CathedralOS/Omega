@@ -7,7 +7,7 @@ machine main() reaches MachineControl crashes Trap {
     let mut holder: Flags = Flags { saved: 0 };
     restore(@mut holder);
     transition (holder.saved & 64u64) == 64u64 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

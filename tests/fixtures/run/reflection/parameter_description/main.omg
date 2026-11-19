@@ -16,7 +16,7 @@ machine main() crashes Trap {
     let parameter: ParameterInfo = reflect::parameter(Query::invoke::table);
     let field: FieldInfo = reflect::field(Table::invoke);
     transition parameter.declaration_position == 1u64 && field.declaration_position == 1u64 && field.name == "invoke" {
-        true -> complete()
+        true -> complete(),
         false -> fail()
     }
 }

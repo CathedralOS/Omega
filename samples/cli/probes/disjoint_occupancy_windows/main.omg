@@ -14,7 +14,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     occupancy.cells = [0, 0, 0, 0];
     let ready: bool = true;
     transition ready {
-        true -> field_windows(main, @mut occupancy.cells[0..2], @mut occupancy.cells[2..4])
+        true -> field_windows(main, @mut occupancy.cells[0..2], @mut occupancy.cells[2..4]),
         _ -> bad(main)
     }
     machine field_windows(main: @mut Main, left: @mut [i32 in Wrapping], right: @mut [i32 in Wrapping])

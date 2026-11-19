@@ -1,4 +1,3 @@
-module domain::solver;
 use domain::network;
 use domain::network::Network;
 use domain::network::residual;
@@ -28,7 +27,7 @@ machine report(solver: @mut Solver, lower: i64 in Wrapping, upper: i64 in Wrappi
     number(residual(@solver.network, lower));
     number(solver.network.d * 1048576 * branch_sum);
     transition accepted {
-        true -> feasible(solver)
+        true -> feasible(solver),
         false -> insufficient()
     }
     machine feasible(solver: @mut Solver) {
@@ -52,13 +51,13 @@ invokes Console
     let constant: i64 in Wrapping = (solver.network.a - solver.network.elevation * solver.network.d)
         * (solver.network.r1 + solver.network.r2);
     transition quadratic != 0 && linear * linear - 4 * quadratic * constant == 0 {
-        true -> tangent(solver, quadratic, linear)
+        true -> tangent(solver, quadratic, linear),
         false -> initial(solver)
     }
     machine tangent(solver: @mut Solver, quadratic: i64 in Wrapping, linear: i64 in Wrapping) {
         let denominator: i64 in Wrapping = 2 * quadratic;
         transition denominator != 0 {
-            true -> tangent_divide(solver, quadratic, linear, denominator)
+            true -> tangent_divide(solver, quadratic, linear, denominator),
             false -> done(solver)
         }
     }
@@ -67,13 +66,13 @@ invokes Console
     {
         let vertex: i64 in Wrapping = -linear * 1024 / denominator;
         transition linear >= 0 && linear <= -2 * quadratic * solver.network.maximum {
-            true -> tangent_report(solver, vertex)
+            true -> tangent_report(solver, vertex),
             false -> done(solver)
         }
     }
     machine tangent_report(solver: @mut Solver, vertex: i64 in Wrapping) {
         transition residual(@solver.network, vertex) == 0 {
-            true -> tangent_exact(solver, vertex)
+            true -> tangent_exact(solver, vertex),
             false -> tangent_interval(solver, vertex)
         }
     }
@@ -87,7 +86,7 @@ invokes Console
     }
     machine initial(solver: @mut Solver) {
         transition residual(@solver.network, 0) == 0 {
-            true -> zero(solver)
+            true -> zero(solver),
             false -> scan(solver, 0)
         }
     }
@@ -97,7 +96,7 @@ invokes Console
     }
     machine scan(solver: @mut Solver, lower: i64 in Wrapping) {
         transition lower < solver.network.maximum * 1024 {
-            true -> split_vertex(solver, lower)
+            true -> split_vertex(solver, lower),
             false -> done(solver)
         }
     }
@@ -107,7 +106,7 @@ invokes Console
     // remains between both roots. Thus sign brackets cover every simple root.
     machine split_vertex(solver: @mut Solver, lower: i64 in Wrapping) {
         transition solver.network.c > 0 {
-            true -> vertex(solver, lower)
+            true -> vertex(solver, lower),
             false -> bracket(solver, lower, lower + 64)
         }
     }
@@ -116,7 +115,7 @@ invokes Console
             - solver.network.d * solver.network.r1 * solver.network.r2;
         let denominator: i64 in Wrapping = 2 * solver.network.c * (solver.network.r1 + solver.network.r2);
         transition denominator != 0 {
-            true -> vertex_divide(solver, lower, linear, denominator)
+            true -> vertex_divide(solver, lower, linear, denominator),
             false -> done(solver)
         }
     }
@@ -125,7 +124,7 @@ invokes Console
     {
         let middle: i64 in Wrapping = linear * 1024 / denominator;
         transition middle > lower && middle < lower + 64 {
-            true -> bracket(solver, lower, middle)
+            true -> bracket(solver, lower, middle),
             false -> capped(solver, lower)
         }
     }
@@ -133,7 +132,7 @@ invokes Console
         // Stage the scalar before forwarding the mutable solver loan.
         let maximum: i64 in Wrapping = solver.network.maximum * 1024;
         transition lower + 64 > maximum {
-            true -> bracket(solver, lower, maximum)
+            true -> bracket(solver, lower, maximum),
             false -> bracket(solver, lower, lower + 64)
         }
     }
@@ -141,7 +140,7 @@ invokes Console
         let left: i64 in Wrapping = residual(@solver.network, lower);
         let right: i64 in Wrapping = residual(@solver.network, upper);
         transition right == 0 {
-            true -> endpoint(solver, upper)
+            true -> endpoint(solver, upper),
             false -> crossing(solver, lower, upper, left, right)
         }
     }
@@ -151,20 +150,20 @@ invokes Console
     }
     machine crossing(solver: @mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, left: i64 in Wrapping, right: i64 in Wrapping) {
         transition opposite(left, right) {
-            true -> refine(solver, lower, upper, upper)
+            true -> refine(solver, lower, upper, upper),
             false -> scan(solver, upper)
         }
     }
     machine refine(solver: @mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping) {
         transition upper - lower > 1 {
-            true -> midpoint(solver, lower, upper, resume, (lower + upper) / 2)
+            true -> midpoint(solver, lower, upper, resume, (lower + upper) / 2),
             false -> interval(solver, lower, upper, resume)
         }
     }
     machine midpoint(solver: @mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping) {
         let value: i64 in Wrapping = residual(@solver.network, middle);
         transition value == 0 {
-            true -> exact(solver, middle, resume)
+            true -> exact(solver, middle, resume),
             false -> half(solver, lower, upper, resume, middle, value)
         }
     }
@@ -174,7 +173,7 @@ invokes Console
     }
     machine half(solver: @mut Solver, lower: i64 in Wrapping, upper: i64 in Wrapping, resume: i64 in Wrapping, middle: i64 in Wrapping, value: i64 in Wrapping) {
         transition opposite(residual(@solver.network, lower), value) {
-            true -> refine(solver, lower, middle, resume)
+            true -> refine(solver, lower, middle, resume),
             false -> refine(solver, middle, upper, resume)
         }
     }

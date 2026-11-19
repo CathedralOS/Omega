@@ -7,7 +7,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -15,7 +15,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -50,7 +50,7 @@ ArmProbe satisfies SelectedProbe {
 machine main() crashes Trap {
  let first:u32=SelectedProbe::probe(9);
  let second:u32=SelectedProbe::probe(10);
- transition first==8 && second==8 { true->done() _->bad() }
+ transition first==8 && second==8 { true->done(), _->bad() }
  machine done(){}
  machine bad(){crash Trap;}
 }

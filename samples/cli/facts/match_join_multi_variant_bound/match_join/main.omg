@@ -11,8 +11,8 @@ data Mode [copy]
 
 machine evaluate(mode: Mode) -> u64 {
     transition mode {
-        Mode::Low { val } -> val
-        Mode::Mid { val } -> val
+        Mode::Low { val } -> val,
+        Mode::Mid { val } -> val,
         Mode::High { val } -> val
     }
 }
@@ -21,13 +21,13 @@ machine evaluate(mode: Mode) -> u64 {
 // `Mode`'s requirement; the operation below must use the joined bound.
 machine run(mode: Mode) crashes Trap {
     let joined: u64 = match true {
-        true -> evaluate(mode)
+        true -> evaluate(mode),
         _ -> evaluate(mode)
     };
     let diff1: u64 = 60u64 - joined;
     let diff2: u64 = joined - 20u64;
     transition diff1 == 20 && diff2 == 20 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

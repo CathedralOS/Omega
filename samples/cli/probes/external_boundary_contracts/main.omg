@@ -20,7 +20,7 @@ machine Main::main(main: @mut Main) reaches Magnitude crashes Trap {
         requires value > -2147483648 {
         let third: i32 = Magnitude::exported(value);
         transition first == 41 && second == 39 && third == 37 {
-            true -> done()
+            true -> done(),
             false -> wrong()
         }
     }

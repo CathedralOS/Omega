@@ -28,12 +28,12 @@ machine Main::main(main: @mut Main) {
     main.grid = [Cell::Wall, Cell::Wall, Cell::Wall, Cell::Wall];
     main.grid = [Cell::Water, Cell::Door, Cell::Floor, Cell::Wall];
     transition main.grid[0] {
-        Cell::Water -> second(main)
+        Cell::Water -> second(main),
         _ -> fail(main)
     }
     machine second(main: @mut Main) {
         transition main.grid[1] {
-            Cell::Door -> pass(main)
+            Cell::Door -> pass(main),
             _ -> fail(main)
         }
     }

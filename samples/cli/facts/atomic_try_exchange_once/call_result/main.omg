@@ -11,8 +11,8 @@ machine probe(cells: @Cells) -> bool {
     cells.untouched.store(17, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = attempt(cells, 10);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false)
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (displaced == 10 && cells.selected.load(NoOrdering) == 99 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
     }
 }
@@ -21,14 +21,14 @@ machine mismatch(cells: @Cells) -> bool {
     cells.untouched.store(17, NoOrdering);
     let outcome: AtomicTryExchangeOnceOutcome<u32> = attempt(cells, 9);
     transition outcome {
-        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17)
-        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false)
+        AtomicTryExchangeOnceOutcome::Mismatched { proposed } -> (proposed == 99 && cells.selected.load(NoOrdering) == 10 && cells.untouched.load(NoOrdering) == 17),
+        AtomicTryExchangeOnceOutcome::Exchanged { displaced } -> (false),
         AtomicTryExchangeOnceOutcome::Uncommitted { proposed } -> (false)
     }
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

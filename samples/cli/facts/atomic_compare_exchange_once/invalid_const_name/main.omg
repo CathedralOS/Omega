@@ -10,8 +10,8 @@ machine probe(cells: @Cells) -> bool {
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MATCH, REPLACEMENT, ReceivePublish, Publish);
     transition outcome {
-        AtomicCompareExchangeOnceOutcome::Exchanged -> (cells.selected.load(NoOrdering) == REPLACEMENT && cells.untouched.load(NoOrdering) == SIBLING_INIT)
-        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (false)
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (cells.selected.load(NoOrdering) == REPLACEMENT && cells.untouched.load(NoOrdering) == SIBLING_INIT),
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (false),
         AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (observed == EXPECTED_MATCH && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT)
     }
 }
@@ -20,14 +20,14 @@ machine mismatch(cells: @Cells) -> bool {
     cells.untouched.store(SIBLING_INIT, NoOrdering);
     let outcome: AtomicCompareExchangeOnceOutcome<u32> = cells.selected.compare_exchange_once(EXPECTED_MISMATCH, REPLACEMENT, ReceivePublish, Receive);
     transition outcome {
-        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (observed == EXPECTED_MATCH && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT)
-        AtomicCompareExchangeOnceOutcome::Exchanged -> (false)
+        AtomicCompareExchangeOnceOutcome::Mismatched { observed } -> (observed == EXPECTED_MATCH && cells.selected.load(NoOrdering) == EXPECTED_MATCH && cells.untouched.load(NoOrdering) == SIBLING_INIT),
+        AtomicCompareExchangeOnceOutcome::Exchanged -> (false),
         AtomicCompareExchangeOnceOutcome::Uncommitted { observed } -> (false)
     }
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(@cells) && mismatch(@cells) { true -> done() _ -> bad() }
+    transition probe(@cells) && mismatch(@cells) { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

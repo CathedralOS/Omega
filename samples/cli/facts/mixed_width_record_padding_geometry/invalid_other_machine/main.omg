@@ -7,8 +7,8 @@ data Padded {
 }
 
 machine query_geometry() -> u64 {
-    let s: u64 = size_of<Padded>();
-    let a: u64 = align_of<Padded>();
+    let s: u64 = size_of::<Padded>();
+    let a: u64 = align_of::<Padded>();
     s - (a * 2u64)
 }
 
@@ -19,7 +19,7 @@ machine runner() -> u64 {
 machine main() crashes Trap {
     let diff: u64 = runner();
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -34,7 +34,7 @@ machine main() crashes Trap {
         && naive_large > 1.0e300 && naive_small == 0.0
         && overflow == false && untouched[0] == 8.0 && untouched[1] == 9.0
         && dot_overflow == false && sentinel == 77.0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

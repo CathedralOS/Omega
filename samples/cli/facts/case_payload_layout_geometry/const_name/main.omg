@@ -6,13 +6,13 @@ data Packet {
     case Payload(value: u64);
 }
 
-const PACKET_SIZE: u64 = size_of<Packet>();
-const PACKET_ALIGN: u64 = align_of<Packet>();
+const PACKET_SIZE: u64 = size_of::<Packet>();
+const PACKET_ALIGN: u64 = align_of::<Packet>();
 
 machine main() crashes Trap {
     let diff: u64 = PACKET_SIZE - (PACKET_ALIGN * 2u64);
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

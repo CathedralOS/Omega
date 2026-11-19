@@ -56,13 +56,13 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     let batt: i32 = Battery::reading(@main.dash.battery);
 
     transition rpm == 3000 {
-        true -> check_battery(main, batt)
+        true -> check_battery(main, batt),
         false -> fault(main)
     }
 
     machine check_battery(main: @mut Main, batt: i32) {
         transition batt == 85 {
-            true -> nominal(main)
+            true -> nominal(main),
             false -> fault(main)
         }
     }

@@ -22,7 +22,7 @@ requires from_index < 2
         || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
 }
 machine main() crashes Trap {
-    transition exercise(0) && exercise(1) { true -> done() false -> wrong() }
+    transition exercise(0) && exercise(1) { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

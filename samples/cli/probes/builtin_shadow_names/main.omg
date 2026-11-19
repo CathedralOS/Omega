@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     let clamped: u32 = clamp(3);
     let maxed: u32 = forward(3);
     transition clamped == 4 && maxed == 43 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

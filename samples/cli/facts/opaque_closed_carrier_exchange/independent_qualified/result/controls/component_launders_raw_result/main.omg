@@ -19,7 +19,7 @@ machine observe() -> bool reaches AddressParts, AddressBridge, UncheckedFactory 
 }
 
 machine main() reaches AddressParts, AddressBridge, UncheckedFactory crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

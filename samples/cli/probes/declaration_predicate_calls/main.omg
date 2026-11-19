@@ -37,7 +37,7 @@ data Text [copy] { bytes: [u8; 3]; tag: u8; }
 domain Text::Ready requires ascii_only(self.bytes) && self.tag == 1;
 domain Mixed::Valid
 requires self.child in Bounded::Small, self.tag == 1;
-domain<T> T::Accepted requires core::Identity<T>(self, self);
+domain<T> T::Accepted requires core::Identity::<T>(self, self);
 data Counter { value: u64; }
 data CounterResult [copy] { value: u64; }
 domain CounterResult::One requires self.value == 1;
@@ -63,14 +63,14 @@ machine changed_bytes_are_ascii() -> bool {
     machine observe(text: @mut Text, phase: u8) -> bool {
         let ascii: bool = ascii_only(text.bytes);
         transition phase == 0 {
-            true -> overwrite(text, ascii)
+            true -> overwrite(text, ascii),
             _ -> ascii
         }
     }
     machine overwrite(text: @mut Text, before: bool) -> bool {
         text.bytes = [103, 255, 33];
         transition before {
-            true -> observe(text, 1)
+            true -> observe(text, 1),
             _ -> true
         }
     }
@@ -98,7 +98,7 @@ machine main() crashes Trap {
                signed.left - signed.right == 127 &&
                mixed.tag == 1 && ready.tag == 1 && generic_byte.payload == 19u8 && generic_wide.payload == 21u64 &&
                nested.payload.amount == 73 && narrow.envelope.payload == 11u8 && wide.envelope.payload == 13u64 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

@@ -22,7 +22,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     // Retain the sample's Wrapping arithmetic domain on the explicit operands.
     machine step(context: @mut Main, left: i32 in Wrapping, right: i32 in Wrapping) {
         transition right == 0 {
-            true -> block done(context, left)
+            true -> block done(context, left),
             _ -> block reduce(context, left, right)
         }
     }

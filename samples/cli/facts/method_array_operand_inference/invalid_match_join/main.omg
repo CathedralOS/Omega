@@ -10,11 +10,11 @@ machine joined(flag: bool) -> u8 reaches Bytes {
     let left: [u8; 3] = [7, 11, 13];
     let right: [u8; 3] = [19, 23, 29];
     let bytes: [u8; 3] = match flag { true -> left, false -> right };
-    Bytes::last<4u64>(@bytes)
+    Bytes::last::<4u64>(@bytes)
 }
 machine main() crashes Trap {
     let left_result: u8 = joined(true);
     let right_result: u8 = joined(false);
-    transition left_result == 13 && right_result == 29 { true -> done() _ -> bad() }
+    transition left_result == 13 && right_result == 29 { true -> done(), _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

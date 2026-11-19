@@ -31,7 +31,7 @@ data Choice<T> {
 
 data Main { hits: i32 in Wrapping; }
 
-machine zero_is_empty<T>() ensures zero_value<Choice<T>>() in Choice::Empty { }
+machine zero_is_empty<T>() ensures zero_value::<Choice<T>>() in Choice::Empty { }
 
 machine Main::main(main: @mut Main) {
     main.hits = 1;

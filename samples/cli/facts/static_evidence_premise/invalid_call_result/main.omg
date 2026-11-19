@@ -41,9 +41,9 @@ machine produced() -> bool {
 
 machine main() crashes Trap {
     let kept: bool = produced();
-    let direct: bool = project<NoKept>(kept);
+    let direct: bool = project::<NoKept>(kept);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

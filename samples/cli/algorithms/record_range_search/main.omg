@@ -10,7 +10,7 @@ machine bound(records: @[Record], key: u64, after_equal: bool) -> u64 {
     requires lower <= upper && upper <= records.len
     {
         transition lower < upper {
-            true -> probe(records, key, after_equal, lower, upper)
+            true -> probe(records, key, after_equal, lower, upper),
             false -> (lower)
         }
     }
@@ -21,7 +21,7 @@ machine bound(records: @[Record], key: u64, after_equal: bool) -> u64 {
         let middle: u64 = lower + (upper - lower) / 2;
         let current: u64 = records[middle].key;
         transition current < key || (after_equal && current == key) {
-            true -> search(records, key, after_equal, middle + 1, upper)
+            true -> search(records, key, after_equal, middle + 1, upper),
             false -> search(records, key, after_equal, lower, middle)
         }
     }
@@ -46,7 +46,7 @@ machine main() crashes Trap {
     let first_key: u64 = bound(@records[..], 0, false);
     transition first == 1 && past == 4 && absent == 4 && maximum == 5
         && maximum_end == 6 && empty == 0 && suffix == 2 && first_key == 0 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

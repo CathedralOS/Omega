@@ -52,7 +52,7 @@ machine grant_xp(
     player.xp = player.xp + amount;
 
     transition player.xp >= xp_required(player.level) {
-        true -> level_up(player_system, player)
+        true -> level_up(player_system, player),
         false -> {}
     }
 
@@ -68,7 +68,7 @@ machine grant_xp(
         player.health = player.max_health;
 
         transition player.xp >= xp_required(player.level) {
-            true -> level_up(player_system, player)
+            true -> level_up(player_system, player),
             false -> {}
         }
     }
@@ -90,7 +90,7 @@ ensures buffer in Ascii
     ensures buffer in Ascii
     {
         transition index < bytes.len && start + index < 16 {
-            true -> writing(buffer, bytes, start, index)
+            true -> writing(buffer, bytes, start, index),
             _ -> done()
         }
     }

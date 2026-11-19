@@ -20,7 +20,7 @@ crashes Trap
 {
     let row: TypeRow = type_table_row(@typing.types, type_handle);
     transition row.kind == TypeKind::Reference {
-        true -> referent(typing, row.inner)
+        true -> referent(typing, row.inner),
         _ -> own(row)
     }
 
@@ -31,7 +31,7 @@ crashes Trap
 
     machine own(row: TypeRow) -> u64 in Trapping {
         transition row.domain == DomainBinding::Declared {
-            true -> declared(row.domain_item)
+            true -> declared(row.domain_item),
             _ -> none()
         }
     }
@@ -60,7 +60,7 @@ crashes Trap
 {
     let item: DomainItem = syntax_trees_domain_item(syntax, domain);
     transition proving && item.route_count > 0 {
-        true -> routed(checker, syntax, resolution, typing, item, subject, proving)
+        true -> routed(checker, syntax, resolution, typing, item, subject, proving),
         _ -> predicates(checker, syntax, resolution, typing, item, subject, proving)
     }
 
@@ -71,7 +71,7 @@ crashes Trap
     machine routed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let origin: bool = routes_to(resolution, item, checker.machine);
         transition checker.minting && origin {
-            true -> predicates(checker, syntax, resolution, typing, item, subject, proving)
+            true -> predicates(checker, syntax, resolution, typing, item, subject, proving),
             _ -> unestablished()
         }
     }
@@ -98,8 +98,8 @@ crashes Trap
 {
     let binding: ValueBinding = value_binding(resolution, node);
     transition binding {
-        ValueBinding::ReturnedValue { machine as _ } -> answer(true)
-        ValueBinding::ContractReturnedValue { contract as _ } -> answer(true)
+        ValueBinding::ReturnedValue { machine as _ } -> answer(true),
+        ValueBinding::ContractReturnedValue { contract as _ } -> answer(true),
         _ -> answer(false)
     }
 
@@ -117,7 +117,7 @@ crashes Trap
 
     machine next(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < item.route_count {
-            true -> route(resolution, item, machine, offset)
+            true -> route(resolution, item, machine, offset),
             _ -> answer(false)
         }
     }
@@ -125,14 +125,14 @@ crashes Trap
     machine route(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let binding: PathBinding = path_binding_at(resolution, item.first_route + offset);
         transition binding {
-            PathBinding::Machine { handle } -> named(resolution, item, machine, offset, handle)
+            PathBinding::Machine { handle } -> named(resolution, item, machine, offset, handle),
             _ -> next(resolution, item, machine, offset + 1)
         }
     }
 
     machine named(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == machine {
-            true -> answer(true)
+            true -> answer(true),
             _ -> next(resolution, item, machine, offset + 1)
         }
     }
@@ -163,7 +163,7 @@ crashes Trap
     let tree: Expression = syntax_trees_expression(syntax, root);
     let path: PathBinding = path_binding_at(resolution, tree.first);
     transition path {
-        PathBinding::Domain { item } -> declared(checker, syntax, resolution, typing, root, tree, item, proving)
+        PathBinding::Domain { item } -> declared(checker, syntax, resolution, typing, root, tree, item, proving),
         _ -> undecided(checker, tree, proving)
     }
 
@@ -181,7 +181,7 @@ crashes Trap
         let carried: u64 in Trapping = qualifying_domain(typing, value_type);
         let adaptation: Adaptation = typing_adaptation(typing, tree.left);
         transition carried == item + 1 && adaptation == Adaptation::None {
-            true -> held()
+            true -> held(),
             _ -> valued(checker, syntax, resolution, typing, root, tree, item, proving)
         }
     }
@@ -207,7 +207,7 @@ crashes Trap
 
     machine undecided(checker: @mut Checker, tree: Expression, proving: bool) -> bool {
         transition proving {
-            true -> unsupported(checker, tree)
+            true -> unsupported(checker, tree),
             _ -> held()
         }
     }
@@ -241,7 +241,7 @@ crashes Trap
 {
     let wanted: u64 in Trapping = qualifying_domain(typing, destination);
     transition wanted > 0 {
-        true -> qualified(checker, syntax, resolution, typing, wanted - 1, expression, value, source_span)
+        true -> qualified(checker, syntax, resolution, typing, wanted - 1, expression, value, source_span),
         _ -> done()
     }
 
@@ -261,7 +261,7 @@ crashes Trap
         let written: Expression = syntax_trees_expression(syntax, expression);
         let roster: u64 in Trapping = typing_roster(typing, expression);
         transition given == domain + 1 && adaptation == Adaptation::None {
-            true -> done()
+            true -> done(),
             _ -> decided(checker, syntax, resolution, typing, domain, value, source_span, written.kind == ExpressionKind::String, roster)
         }
     }
@@ -277,7 +277,7 @@ crashes Trap
         checker.subject_literal = previous_literal;
         checker.subject_roster = previous_roster;
         transition held {
-            true -> done()
+            true -> done(),
             _ -> unproven(checker, source_span)
         }
     }
@@ -296,7 +296,7 @@ crashes Trap
 {
     let wanted: u64 in Trapping = qualifying_domain(typing, type_handle);
     transition wanted > 0 {
-        true -> assumed(checker, syntax, resolution, typing, wanted - 1, value)
+        true -> assumed(checker, syntax, resolution, typing, wanted - 1, value),
         _ -> done()
     }
 
@@ -335,7 +335,7 @@ crashes Trap
         offset: u64 in Trapping
     ) {
         transition offset < count && offset < parameter_count {
-            true -> argument(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, offset)
+            true -> argument(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, offset),
             _ -> done()
         }
     }
@@ -387,7 +387,7 @@ crashes Trap
 
     machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < parameter_count {
-            true -> formal(checker, syntax, resolution, typing, first_parameter, parameter_count, offset)
+            true -> formal(checker, syntax, resolution, typing, first_parameter, parameter_count, offset),
             _ -> done()
         }
     }
@@ -410,7 +410,7 @@ crashes Trap
 {
     let item: MachineItem = machine_item(syntax, checker.machine);
     transition item.has_return_type {
-        true -> declared(checker, syntax, resolution, typing, item, expression, value, source_span)
+        true -> declared(checker, syntax, resolution, typing, item, expression, value, source_span),
         _ -> done()
     }
 
@@ -441,7 +441,7 @@ public machine require_stored_qualification(
 crashes Trap
 {
     transition checking {
-        true -> stored(checker, syntax, resolution, typing, destination, expression, value, source_span)
+        true -> stored(checker, syntax, resolution, typing, destination, expression, value, source_span),
         _ -> done()
     }
 

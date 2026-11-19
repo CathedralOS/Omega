@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let tag_alignment: u64 = align_of(slots.tag);
     let trailer_alignment: u64 = align_of(slots.trailer);
     transition alignment == 8u64 && slack == 0u64 && tag_alignment == 1u64 && trailer_alignment == 4u64 && slots.tag == 7u8 && slots.value == 41u64 && slots.trailer == 9u32 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

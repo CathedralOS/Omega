@@ -54,7 +54,7 @@ public DarwinTimeHost satisfies TimeHost {
     blocks
     {
         transition milliseconds > 2147483647 {
-            true -> block in_parts(milliseconds)
+            true -> block in_parts(milliseconds),
             _ -> block at_once(milliseconds)
         }
 
@@ -83,7 +83,7 @@ blocks
     machine wait(timeout_milliseconds: i32) {
         let outcome: i32 = block DarwinTimeRead::poll(0, 0, timeout_milliseconds);
         transition outcome == 0 {
-            true -> done()
+            true -> done(),
             _ -> block wait(timeout_milliseconds)
         }
     }

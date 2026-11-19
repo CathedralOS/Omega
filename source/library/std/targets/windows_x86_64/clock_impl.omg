@@ -27,7 +27,7 @@ public WindowsX8664Clock satisfies Clock {
     blocks
     {
         transition milliseconds == 4294967295 {
-            true -> block in_halves()
+            true -> block in_halves(),
             _ -> block at_once(milliseconds)
         }
 

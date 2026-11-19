@@ -47,7 +47,7 @@ machine build(
         random: @mut RandomState
     ) {
         transition should_carve(maze_builder, random, 2) {
-            true -> build_side_room_1(maze_builder, level, random)
+            true -> build_side_room_1(maze_builder, level, random),
             false -> build_main_hall_2(maze_builder, level, random)
         }
     }
@@ -82,7 +82,7 @@ machine build(
         random: @mut RandomState
     ) {
         transition should_carve(maze_builder, random, 3) {
-            true -> build_side_room_2(maze_builder, level, random)
+            true -> build_side_room_2(maze_builder, level, random),
             false -> build_main_hall_3(maze_builder, level, random)
         }
     }
@@ -117,7 +117,7 @@ machine build(
         random: @mut RandomState
     ) {
         transition should_carve(maze_builder, random, 4) {
-            true -> build_side_room_3(maze_builder, level, random)
+            true -> build_side_room_3(maze_builder, level, random),
             false -> build_main_hall_4(maze_builder, level, random)
         }
     }
@@ -315,20 +315,20 @@ machine connect(
 
 machine next_unused_cell(level: Level) -> CellId {
     transition {
-        level.room_count == 1 -> CellId::R01
-        level.room_count == 2 -> CellId::R02
-        level.room_count == 3 -> CellId::R03
-        level.room_count == 4 -> CellId::R04
-        level.room_count == 5 -> CellId::R05
-        level.room_count == 6 -> CellId::R06
-        level.room_count == 7 -> CellId::R07
-        level.room_count == 8 -> CellId::R08
-        level.room_count == 9 -> CellId::R09
-        level.room_count == 10 -> CellId::R10
-        level.room_count == 11 -> CellId::R11
-        level.room_count == 12 -> CellId::R12
-        level.room_count == 13 -> CellId::R13
-        level.room_count == 14 -> CellId::R14
+        level.room_count == 1 -> CellId::R01,
+        level.room_count == 2 -> CellId::R02,
+        level.room_count == 3 -> CellId::R03,
+        level.room_count == 4 -> CellId::R04,
+        level.room_count == 5 -> CellId::R05,
+        level.room_count == 6 -> CellId::R06,
+        level.room_count == 7 -> CellId::R07,
+        level.room_count == 8 -> CellId::R08,
+        level.room_count == 9 -> CellId::R09,
+        level.room_count == 10 -> CellId::R10,
+        level.room_count == 11 -> CellId::R11,
+        level.room_count == 12 -> CellId::R12,
+        level.room_count == 13 -> CellId::R13,
+        level.room_count == 14 -> CellId::R14,
         _ -> CellId::R15
     }
 }
@@ -338,21 +338,21 @@ ensures
     result <= 15
 {
     transition {
-        cell == CellId::R00 -> 0
-        cell == CellId::R01 -> 1
-        cell == CellId::R02 -> 2
-        cell == CellId::R03 -> 3
-        cell == CellId::R04 -> 4
-        cell == CellId::R05 -> 5
-        cell == CellId::R06 -> 6
-        cell == CellId::R07 -> 7
-        cell == CellId::R08 -> 8
-        cell == CellId::R09 -> 9
-        cell == CellId::R10 -> 10
-        cell == CellId::R11 -> 11
-        cell == CellId::R12 -> 12
-        cell == CellId::R13 -> 13
-        cell == CellId::R14 -> 14
+        cell == CellId::R00 -> 0,
+        cell == CellId::R01 -> 1,
+        cell == CellId::R02 -> 2,
+        cell == CellId::R03 -> 3,
+        cell == CellId::R04 -> 4,
+        cell == CellId::R05 -> 5,
+        cell == CellId::R06 -> 6,
+        cell == CellId::R07 -> 7,
+        cell == CellId::R08 -> 8,
+        cell == CellId::R09 -> 9,
+        cell == CellId::R10 -> 10,
+        cell == CellId::R11 -> 11,
+        cell == CellId::R12 -> 12,
+        cell == CellId::R13 -> 13,
+        cell == CellId::R14 -> 14,
         _ -> 15
     }
 }
@@ -361,7 +361,7 @@ machine room_label(cell: CellId) -> @[u8] in Ascii
 ensures result.len <= 16
 {
     transition {
-        cell == CellId::R00 -> "Gate"
+        cell == CellId::R00 -> "Gate",
         _ -> "Branch Room"
     }
 }
@@ -371,10 +371,10 @@ machine room_description(depth: u32 in Wrapping,
 ensures result.len <= 64
 {
     transition {
-        depth == 0 -> "The old gate room breathes cold air from below."
-        depth <= 2 -> "A shallow limestone room with fresh claw marks."
-        depth <= 5 -> "A winding branch room where the walls sweat mineral dust."
-        depth <= 8 -> "A deep chamber with old bones underfoot."
+        depth == 0 -> "The old gate room breathes cold air from below.",
+        depth <= 2 -> "A shallow limestone room with fresh claw marks.",
+        depth <= 5 -> "A winding branch room where the walls sweat mineral dust.",
+        depth <= 8 -> "A deep chamber with old bones underfoot.",
         _ -> "A bottomless dark room near the dungeon heart."
     }
 }
@@ -383,18 +383,18 @@ machine direction_command(direction: Direction) -> @[u8] in Ascii
 ensures result.len <= 8
 {
     transition {
-        direction == Direction::North -> "north"
-        direction == Direction::South -> "south"
-        direction == Direction::East -> "east"
+        direction == Direction::North -> "north",
+        direction == Direction::South -> "south",
+        direction == Direction::East -> "east",
         _ -> "west"
     }
 }
 
 machine opposite(direction: Direction) -> Direction {
     transition {
-        direction == Direction::North -> Direction::South
-        direction == Direction::South -> Direction::North
-        direction == Direction::East -> Direction::West
+        direction == Direction::North -> Direction::South,
+        direction == Direction::South -> Direction::North,
+        direction == Direction::East -> Direction::West,
         _ -> Direction::East
     }
 }

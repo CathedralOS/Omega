@@ -10,7 +10,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -18,7 +18,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -34,7 +34,7 @@ X86Compute satisfies SelectedCompute {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-     identity<u64>(42) 
+     identity::<u64>(42) 
     }
 }
 
@@ -43,14 +43,14 @@ ArmCompute satisfies SelectedCompute {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-     identity<u64>(42) 
+     identity::<u64>(42) 
     }
 }
 
 
 machine main() crashes Trap {
     let result: u64 = SelectedCompute::compute();
-    transition result == 42 { true -> done() _ -> failed() }
+    transition result == 42 { true -> done(), _ -> failed() }
     machine done() {}
     machine failed() crashes Trap { crash Trap; }
 }

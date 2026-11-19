@@ -44,7 +44,7 @@ machine choose<'storage>(
     pick_chosen: bool
 ) -> @'storage mut Access<CellPlacement, Cell> {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -55,7 +55,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -63,7 +63,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -79,13 +79,13 @@ X86Probe satisfies SelectedProbe {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen.held < 4 && other.held < 4
     {
         SelectedBodyCheck::require_tag(17u64);
-        let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-        let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
+        let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(chosen);
+        let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(other);
         let selected: @mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, true);
         selected.held.write(@mut selected.held, 9);
         let index: u64 = other.held;
         transition items[index] == 7 {
-            true -> (items[index])
+            true -> (items[index]),
             _ -> 0
         }
     }
@@ -96,13 +96,13 @@ ArmProbe satisfies SelectedProbe {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires chosen.held < 4 && other.held < 4
     {
         SelectedBodyCheck::require_tag(29u64);
-        let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-        let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
+        let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(chosen);
+        let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(other);
         let selected: @mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, true);
         selected.held.write(@mut selected.held, 9);
         let index: u64 = other.held;
         transition items[index] == 7 {
-            true -> (items[index])
+            true -> (items[index]),
             _ -> 0
         }
     }
@@ -114,7 +114,7 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let found: u8 = SelectedProbe::probe(@mut chosen, @mut other, @items);
     transition found == 7 && chosen.held == 9 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

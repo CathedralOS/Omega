@@ -1,5 +1,3 @@
-module naming;
-
 // Implicit core vocabulary must accompany these Build declarations in both
 // the initial Build forest and the joined Product declaration context.
 data Calibration { magnitude: f32; }

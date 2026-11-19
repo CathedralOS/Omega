@@ -40,7 +40,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block row_loop(main) }
 
     machine row_loop(main: @mut Main) {
-        transition main.i >= 1 && main.i <= 9 { true -> block clear_init(main) _ -> block finish(main) }
+        transition main.i >= 1 && main.i <= 9 { true -> block clear_init(main), _ -> block finish(main) }
     }
     // clear the row buffer to spaces
     machine clear_init(main: @mut Main) {
@@ -48,7 +48,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block clear(main) }
     }
     machine clear(main: @mut Main) {
-        transition main.k >= 0 && main.k < 28 { true -> block clear_cell(main) _ -> block col_init(main) }
+        transition main.k >= 0 && main.k < 28 { true -> block clear_cell(main), _ -> block col_init(main) }
     }
     machine clear_cell(main: @mut Main) {
         (@mut main.line as -Utf8)[main.k as -Wrapping] = 32; // ' '
@@ -60,14 +60,14 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block col_loop(main) }
     }
     machine col_loop(main: @mut Main) {
-        transition main.j >= 1 && main.j <= 9 { true -> block cell(main) _ -> block emit_row(main) }
+        transition main.j >= 1 && main.j <= 9 { true -> block cell(main), _ -> block emit_row(main) }
     }
     machine cell(main: @mut Main) {
         main.p = main.i * main.j;
         main.tens = main.p / 10;
         main.ones = main.p % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as -Wrapping);
-        transition main.tens > 0 { true -> block cell_tens(main) _ -> block cell_space(main) }
+        transition main.tens > 0 { true -> block cell_tens(main), _ -> block cell_space(main) }
     }
     machine cell_tens(main: @mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as -Wrapping);
@@ -81,7 +81,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.o0 = (main.j - 1) * 3;
         main.o1 = main.o0 + 1;
         transition main.o0 >= 0 && main.o0 < 28 && main.o1 >= 0 && main.o1 < 28 {
-            true -> block cell_store(main)
+            true -> block cell_store(main),
             _ -> block bad(main)
         }
     }

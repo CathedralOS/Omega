@@ -20,7 +20,7 @@ const DENOMINATOR: i64 = 3;
 machine observe() -> bool reaches IntegerDivision { receive(IntegerDivision::divide(NUMERATOR, DENOMINATOR)) }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }
 }

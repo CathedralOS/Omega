@@ -24,13 +24,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut problem: Problem;
     let observed: LineReadResult = block Console::read_line(@mut bytes[..]);
     transition observed {
-        LineReadResult::EndOfInput { count } -> input(@bytes, count, @mut problem)
-        LineReadResult::LineComplete { count } -> input(@bytes, count, @mut problem)
+        LineReadResult::EndOfInput { count } -> input(@bytes, count, @mut problem),
+        LineReadResult::LineComplete { count } -> input(@bytes, count, @mut problem),
         _ -> invalid()
     }
     machine input(bytes: @[u8], count: u64, problem: @mut Problem) {
         transition count <= bytes.len {
-            true -> admitted(bytes, count, problem)
+            true -> admitted(bytes, count, problem),
             false -> invalid()
         }
     }
@@ -38,7 +38,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     requires count <= bytes.len
     {
         transition count == 0 {
-            true -> demo(problem)
+            true -> demo(problem),
             false -> decode(bytes[..count], problem)
         }
     }
@@ -58,19 +58,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine decode(bytes: @[u8], problem: @mut Problem) {
         let parsed: bool = parse(bytes, problem);
         transition parsed {
-            true -> validate(problem)
+            true -> validate(problem),
             false -> invalid()
         }
     }
     machine validate(problem: @Problem) {
         transition valid(problem) {
-            true -> search(problem, problem.values[0], problem.values[2], 0)
+            true -> search(problem, problem.values[0], problem.values[2], 0),
             false -> invalid()
         }
     }
     machine search(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition feasible(problem, x, y) {
-            true -> candidate(problem, x, y, count)
+            true -> candidate(problem, x, y, count),
             false -> advance(problem, x, y, count)
         }
     }
@@ -83,17 +83,17 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine advance(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, count: i32 in Wrapping) {
         transition {
-            x < problem.values[1] -> search(problem, x + 1, y, count)
-            y < problem.values[3] -> search(problem, problem.values[0], y + 1, count)
+            x < problem.values[1] -> search(problem, x + 1, y, count),
+            y < problem.values[3] -> search(problem, problem.values[0], y + 1, count),
             _ -> summary(problem, count)
         }
     }
     machine summary(problem: @Problem, count: i32 in Wrapping) {
         Console::write("count "); number(count); Console::write_line("");
         transition {
-            count == 0 -> inconsistent()
-            degenerate(problem) -> degenerate_result()
-            count == 1 -> unique()
+            count == 0 -> inconsistent(),
+            degenerate(problem) -> degenerate_result(),
+            count == 1 -> unique(),
             _ -> ambiguous()
         }
     }
@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 machine residuals(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
 reaches Console {
     transition index < 3 {
-        true -> emit(problem, x, y, index)
+        true -> emit(problem, x, y, index),
         false -> done()
     }
     machine emit(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)

@@ -19,12 +19,12 @@ requires value == 17
 machine main() crashes Trap {
     let seed: Seed = Seed { chosen: 17, spare: 5 };
     let joined: i64 = match choose() {
-        true -> seed.spare
+        true -> seed.spare,
         false -> seed.chosen
     };
     let observed: i64 = read_origin(joined);
     transition observed == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
 

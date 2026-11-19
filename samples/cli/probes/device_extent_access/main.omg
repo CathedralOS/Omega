@@ -65,7 +65,7 @@ public DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
 public data LoopbackDeviceLoanProvider {}
 
 macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: @mut LoopbackDeviceLoanProvider) {
-    LoopbackDeviceLoanProvider::select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
+    LoopbackDeviceLoanProvider::select_provider::<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
 }
 
 macos_arm64 machine LoopbackDeviceLoanProvider::reserve(length: u64) -> Extent
@@ -119,21 +119,21 @@ reaches DeviceLoanProvider
     let consumed: DeviceLoan = loan as DeviceLoan;
     let attempt: DeviceCompletionAttempt = DeviceLoanProvider::complete(consumed);
     transition attempt {
-        DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
+        DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion),
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
     machine retry(dma_harness: @DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
-            DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
+            DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion),
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
     machine acquire(dma_harness: @DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
-            DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
+            DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent),
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }
@@ -157,21 +157,21 @@ reaches DeviceLoanProvider
     let consumed: DeviceLoan = loan as DeviceLoan;
     let attempt: DeviceCompletionAttempt = DeviceLoanProvider::complete(consumed);
     transition attempt {
-        DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
+        DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion),
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
     machine retry(dma_harness: @DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
-            DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
+            DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion),
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
     machine acquire(dma_harness: @DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
-            DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
+            DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent),
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }

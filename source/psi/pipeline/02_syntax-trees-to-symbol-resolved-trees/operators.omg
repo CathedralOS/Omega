@@ -14,7 +14,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
-            true -> machine(resolver, sources, syntax, index)
+            true -> machine(resolver, sources, syntax, index),
             _ -> done()
         }
     }
@@ -23,7 +23,7 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, index);
         set_operator_home(resolver, index, TypeBinding::Unresolved);
         transition item.operator == OperatorToken::None {
-            true -> next(resolver, sources, syntax, index + 1)
+            true -> next(resolver, sources, syntax, index + 1),
             _ -> owner(resolver, sources, syntax, index, item)
         }
     }
@@ -32,7 +32,7 @@ crashes Trap
         let scope: TypeScope = resolver_machine_scope(@resolver.output, syntax, index);
         let binding: TypeBinding = type_binding(sources, syntax, scope, entry.owner.source_span);
         transition binding {
-            TypeBinding::Data { item } -> data_home(resolver, sources, syntax, index, entry, item)
+            TypeBinding::Data { item } -> data_home(resolver, sources, syntax, index, entry, item),
             _ -> foreign(resolver, entry)
         }
     }
@@ -43,7 +43,7 @@ crashes Trap
         let data_unit: u64 in Trapping = declared.name.source_span.source.value as u64 in Trapping;
         let own: bool = resolver_same_package(sources, machine_unit, data_unit);
         transition own {
-            true -> homed(resolver, sources, syntax, index, entry, data)
+            true -> homed(resolver, sources, syntax, index, entry, data),
             _ -> foreign(resolver, entry)
         }
     }
@@ -52,7 +52,7 @@ crashes Trap
         set_operator_home(resolver, index, TypeBinding::Data { item: data });
         let duplicate: bool = earlier_operator_shape(resolver, sources, syntax, index, entry.operator, data);
         transition duplicate {
-            true -> repeated(resolver, entry)
+            true -> repeated(resolver, entry),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
@@ -84,7 +84,7 @@ crashes Trap
 
     machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
         transition earlier < handle {
-            true -> candidate(resolver, sources, syntax, handle, token, data, earlier)
+            true -> candidate(resolver, sources, syntax, handle, token, data, earlier),
             _ -> unique()
         }
     }
@@ -94,7 +94,7 @@ crashes Trap
         let home: TypeBinding = operator_home(@resolver.output, earlier);
         let same_home: bool = homed_at(home, data);
         transition item.operator == token && same_home {
-            true -> shape(resolver, sources, syntax, handle, token, data, earlier)
+            true -> shape(resolver, sources, syntax, handle, token, data, earlier),
             _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
         }
     }
@@ -102,7 +102,7 @@ crashes Trap
     machine shape(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, handle: u64 in Trapping, token: OperatorToken, data: u64 in Trapping, earlier: u64 in Trapping) -> bool {
         let same: bool = same_parameters(resolver, sources, syntax, earlier, handle);
         transition same {
-            true -> repeated()
+            true -> repeated(),
             _ -> next(resolver, sources, syntax, handle, token, data, earlier + 1)
         }
     }
@@ -119,7 +119,7 @@ crashes Trap
 // Whether an operator home is data declaration `data`.
 public machine homed_at(home: TypeBinding, data: u64 in Trapping) -> bool {
     transition home {
-        TypeBinding::Data { item } -> data_item(item, data)
+        TypeBinding::Data { item } -> data_item(item, data),
         _ -> elsewhere()
     }
 
@@ -136,7 +136,7 @@ machine set_operator_home(resolver: @mut Resolver, handle: u64 in Trapping, home
 crashes Trap
 {
     transition handle < 10240 {
-        true -> store(resolver, handle, home)
+        true -> store(resolver, handle, home),
         _ -> invalid()
     }
 

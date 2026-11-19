@@ -12,7 +12,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let invariant: i32 = 25;
     transition invariant == 25 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

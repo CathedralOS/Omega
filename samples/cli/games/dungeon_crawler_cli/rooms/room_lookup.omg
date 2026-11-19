@@ -12,7 +12,7 @@ ensures
     let rooms: @[Room] = @level.rooms[..];
 
     transition level.room_count > 0 {
-        true -> find_room_at(rooms, level.room_count, cell, out_room, 0)
+        true -> find_room_at(rooms, level.room_count, cell, out_room, 0),
         false -> {}
     }
 
@@ -31,8 +31,8 @@ ensures
         // A level holds at most 16 rooms, so `next_index < 16` whenever
         // has_next holds; the conjunct admits it into the index contract.
         transition {
-            found -> apply_room(rooms[index], out_room)
-            has_next && next_index < 16 -> find_room_at(rooms, room_count, cell, out_room, next_index)
+            found -> apply_room(rooms[index], out_room),
+            has_next && next_index < 16 -> find_room_at(rooms, room_count, cell, out_room, next_index),
             _ -> {}
         }
     }
@@ -66,7 +66,7 @@ machine find_room_mut(level: @mut Level,
     let rooms: @mut [Room] = @mut level.rooms[..];
 
     transition level.room_count > 0 {
-        true -> find_room_mut_at(rooms, level.room_count, cell, 0)
+        true -> find_room_mut_at(rooms, level.room_count, cell, 0),
         false -> @mut rooms[0]
     }
 
@@ -82,8 +82,8 @@ machine find_room_mut(level: @mut Level,
         let has_next: bool = next_index < room_count;
 
         transition {
-            found -> @mut rooms[index]
-            has_next && next_index < 16 -> find_room_mut_at(rooms, room_count, cell, next_index)
+            found -> @mut rooms[index],
+            has_next && next_index < 16 -> find_room_mut_at(rooms, room_count, cell, next_index),
             _ -> @mut rooms[0]
         }
     }

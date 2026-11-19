@@ -9,7 +9,7 @@ machine main() crashes Trap {
     let selected: @u32 in Controlled = @storage.value;
     storage.value = 74;
     let result: u32 = consume(selected);
-    transition result == 73 { true -> done() _ -> bad() }
+    transition result == 73 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module model;
 // Integer millimetres; a cut always consumes one kerf, even an exact-end cut.
 // Zero remnant means absent; leftover >= 5 is reusable, smaller leftover is scrap.
 public data Orders {

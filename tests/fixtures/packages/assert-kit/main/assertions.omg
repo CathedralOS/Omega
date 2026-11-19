@@ -4,8 +4,6 @@
 //
 // The helper and the separate direct-Unit control exercise the same crash
 // exclusion across an ordinary call and a direct guarded trap.
-module main;
-
 
 public boundary trait Assert {
     machine check(ok: bool) reaches crashes Trap;
@@ -14,7 +12,7 @@ public boundary trait Assert {
 machine verify(ok: bool) -> bool
 crashes Trap
 {
-    transition ok { true -> pass() false -> fail() }
+    transition ok { true -> pass(), false -> fail() }
     machine pass() -> bool { true }
     machine fail() -> bool { crash Trap; }
 }

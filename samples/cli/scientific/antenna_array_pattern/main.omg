@@ -38,7 +38,7 @@ machine number(main: @mut Main, value: f64) reaches Console {
     transition { _ -> digits(main, integer, 1000000000) }
     machine digits(main: @mut Main, integer: i32, divisor: i32) {
         Console::write_byte(48 + (integer / divisor) % 10);
-        transition divisor >= 10 { true -> digits(main, integer, divisor / 10) false -> done() }
+        transition divisor >= 10 { true -> digits(main, integer, divisor / 10), false -> done() }
     }
     machine done() { }
 }
@@ -46,18 +46,18 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
     let first: ByteRead = block Console::read_byte();
     transition first {
-        ByteRead::Eof -> suite(main)
+        ByteRead::Eof -> suite(main),
         ByteRead::Byte { value } -> select(main, value)
     }
     machine select(main: @mut Main, value: i32) {
         transition value {
-            10 -> blank_suite(main)
-            97 -> selected_suite(main)
+            10 -> blank_suite(main),
+            97 -> selected_suite(main),
             _ -> select_digit(main, value)
         }
     }
     machine select_digit(main: @mut Main, value: i32) {
-        transition value >= 48 && value <= 54 { true -> selected(main, value - 48) false -> invalid_input(main) }
+        transition value >= 48 && value <= 54 { true -> selected(main, value - 48), false -> invalid_input(main) }
     }
     machine selected(main: @mut Main, selection: i32) {
         main.selection = selection;
@@ -71,12 +71,12 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine tail(main: @mut Main) {
         let tail: ByteRead = block Console::read_byte();
         transition tail {
-            ByteRead::Eof -> load(main)
+            ByteRead::Eof -> load(main),
             ByteRead::Byte { value } -> tail_check(main, value)
         }
     }
     machine tail_check(main: @mut Main, value: i32) {
-        transition value == 10 { true -> after_line(main) false -> invalid_input(main) }
+        transition value == 10 { true -> after_line(main), false -> invalid_input(main) }
     }
     machine blank_suite(main: @mut Main) {
         main.selection = 0; main.all = true;
@@ -85,7 +85,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine after_line(main: @mut Main) {
         let remaining: ByteRead = block Console::read_byte();
         transition remaining {
-            ByteRead::Eof -> load(main)
+            ByteRead::Eof -> load(main),
             ByteRead::Byte { value } -> invalid_input(main)
         }
     }
@@ -96,7 +96,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine load(main: @mut Main) {
         fixtures_load(@mut main.geometry, main.selection);
         let valid: bool = valid(@main.geometry);
-        transition valid { true -> prepare(main) false -> invalid_geometry(main) }
+        transition valid { true -> prepare(main), false -> invalid_geometry(main) }
     }
     machine prepare(main: @mut Main) {
         main.amplitude = amplitude(@main.geometry);
@@ -111,7 +111,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> sample_guard(main) }
     }
     machine sample_guard(main: @mut Main) {
-        transition main.sample >= 0 && main.sample < 9 { true -> calculate(main) false -> symmetry_guard(main, 0) }
+        transition main.sample >= 0 && main.sample < 9 { true -> calculate(main), false -> symmetry_guard(main, 0) }
     }
     machine calculate(main: @mut Main) {
         let ordinal: f64 = F64::from_i32(main.sample);
@@ -119,7 +119,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.power = pattern_power(@main.geometry, direction);
         main.powers[main.sample] = main.power;
         main.normalized = 0.0;
-        transition main.amplitude > 0.0 { true -> normalize(main) false -> verify(main) }
+        transition main.amplitude > 0.0 { true -> normalize(main), false -> verify(main) }
     }
     machine normalize(main: @mut Main) {
         main.normalized = main.power / (main.amplitude * main.amplitude);
@@ -131,7 +131,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let power_error: f64 = abs_f64(main.power - expected_power);
         let normalized_error: f64 = abs_f64(main.normalized - expected_normalized);
         transition power_error <= 0.00000002 && normalized_error <= 0.000000002 {
-            true -> report(main)
+            true -> report(main),
             false -> numerical_failure(main)
         }
     }
@@ -147,7 +147,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         Console::write(" normalized ");
         let mut displayed_normalized: f64 = main.normalized * 1000000.0;
         number(main, displayed_normalized);
-        transition main.power < 0.0000000001 { true -> null(main) false -> nonnull(main) }
+        transition main.power < 0.0000000001 { true -> null(main), false -> nonnull(main) }
     }
     machine null(main: @mut Main) { Console::write_line(" null 1"); transition { _ -> next_sample(main) } }
     machine nonnull(main: @mut Main) { Console::write_line(" null 0"); transition { _ -> next_sample(main) } }
@@ -156,7 +156,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> sample_guard(main) }
     }
     machine symmetry_guard(main: @mut Main, index: i32) {
-        transition index >= 0 && index < 4 { true -> symmetry_pair(main, index) false -> diagnostic(main) }
+        transition index >= 0 && index < 4 { true -> symmetry_pair(main, index), false -> diagnostic(main) }
     }
     machine symmetry_pair(main: @mut Main, index: i32) {
         let difference: f64 = abs_f64(main.powers[index] - main.powers[8 - index]);
@@ -168,7 +168,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let mut displayed_symmetry: f64 = main.symmetry * 1000000.0;
         number(main, displayed_symmetry);
         Console::write_line("");
-        transition main.all && main.selection < 4 { true -> next_case(main) false -> complete(main) }
+        transition main.all && main.selection < 4 { true -> next_case(main), false -> complete(main) }
     }
     machine next_case(main: @mut Main) {
         main.selection = main.selection % 5 + 1;

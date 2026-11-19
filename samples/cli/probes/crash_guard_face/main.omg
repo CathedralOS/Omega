@@ -21,7 +21,7 @@ crashes Trap
     flags.dangerous
 {
     transition flags.dangerous {
-        true -> member_fail()
+        true -> member_fail(),
         _ -> member_succeed()
     }
     machine member_fail() -> bool { crash Trap; }
@@ -33,7 +33,7 @@ crashes Trap
     flag
 {
     transition flag {
-        true -> scalar_fail()
+        true -> scalar_fail(),
         _ -> scalar_succeed()
     }
     machine scalar_fail() -> bool { crash Trap; }
@@ -46,7 +46,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     transition member_guarded(CrashFlags { dangerous: false }) == false
         && scalar_guarded(false) == false {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

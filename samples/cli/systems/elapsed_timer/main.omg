@@ -35,14 +35,14 @@ machine main(context: @mut Main) reaches ProcessExit + Console + TimeHost {
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
     let slept: u32 = block sleep_for(pause);
     transition slept == 50 {
-        true -> read_elapsed(context, start)
+        true -> read_elapsed(context, start),
         false -> fail_request(context)
     }
     machine read_elapsed(context: @mut Main, start: Instant) {
         let elapsed: Duration = elapsed_since(start);
         let total_result: TotalResult = duration_checked_as_milliseconds(@elapsed);
         transition total_result {
-            TotalResult::Ok { total } -> render(context, total)
+            TotalResult::Ok { total } -> render(context, total),
             TotalResult::Overflow -> fail_overflow(context)
         }
     }
@@ -61,7 +61,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console + TimeHost {
         line[26] = digits[ones];
         Console::write_line(@line[..]);
         transition milliseconds >= 50 {
-            true -> good(context)
+            true -> good(context),
             false -> fail_elapsed(context)
         }
     }

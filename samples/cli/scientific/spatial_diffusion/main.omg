@@ -16,7 +16,7 @@ use platform::decimal::number;
 machine field(value:f64) reaches ProcessExit + Console invokes Console {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
-  true -> emit(scaled) false -> failure()
+  true -> emit(scaled), false -> failure()
  }
  machine emit(scaled:f64) requires scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   let integer:i64=I64::from_f64(scaled);
@@ -25,17 +25,17 @@ machine field(value:f64) reaches ProcessExit + Console invokes Console {
  machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
 machine count(value:u64 in Saturating) reaches ProcessExit + Console invokes Console {
- transition value <= 1000 { true -> bounded(value) false -> failure() }
+ transition value <= 1000 { true -> bounded(value), false -> failure() }
  machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 in Wrapping); }
  machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
 }
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console invokes Console {
  let request:ByteRead=block Console::read_byte();
- transition request { ByteRead::Byte { value } -> block ending(value) _ -> input_error() }
+ transition request { ByteRead::Byte { value } -> block ending(value), _ -> input_error() }
  machine ending(value:i32) {
   let tail:ByteRead=block Console::read_byte();
-  transition tail { ByteRead::Eof -> setup(value) _ -> input_error() }
+  transition tail { ByteRead::Eof -> setup(value), _ -> input_error() }
  }
  machine setup(value:i32) {
   let zero:f64=0.0;
@@ -50,22 +50,22 @@ machine main(main: @mut Main) reaches ProcessExit + Console invokes Console {
   grid.maximum=400;
   grid.tolerance=0.0000000001;
   transition value {
-   48 -> check(@mut grid)
-   49 -> eight(@mut grid)
-   50 -> twelve(@mut grid)
-   51 -> mixed(@mut grid)
-   52 -> reaction(@mut grid)
-   53 -> coefficient(@mut grid,0.0)
-   54 -> coefficient(@mut grid,-1.0)
-   55 -> malformed(@mut grid)
-   56 -> singular(@mut grid)
-   57 -> limited(@mut grid,1)
-   97 -> limited(@mut grid,0)
-   98 -> negative_reaction(@mut grid)
-   99 -> missing(@mut grid)
-   100 -> coefficient(@mut grid,zero/zero)
-   101 -> coefficient(@mut grid,one/zero)
-   102 -> bad_tolerance(@mut grid)
+   48 -> check(@mut grid),
+   49 -> eight(@mut grid),
+   50 -> twelve(@mut grid),
+   51 -> mixed(@mut grid),
+   52 -> reaction(@mut grid),
+   53 -> coefficient(@mut grid,0.0),
+   54 -> coefficient(@mut grid,-1.0),
+   55 -> malformed(@mut grid),
+   56 -> singular(@mut grid),
+   57 -> limited(@mut grid,1),
+   97 -> limited(@mut grid,0),
+   98 -> negative_reaction(@mut grid),
+   99 -> missing(@mut grid),
+   100 -> coefficient(@mut grid,zero/zero),
+   101 -> coefficient(@mut grid,one/zero),
+   102 -> bad_tolerance(@mut grid),
    _ -> input_error()
   }
  }
@@ -81,7 +81,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console invokes Console {
  machine missing(grid:@mut domain::grid::Grid) { grid.boundary_count=3; transition { _ -> check(grid) } }
  machine bad_tolerance(grid:@mut domain::grid::Grid) { grid.tolerance=0.0; transition { _ -> check(grid) } }
  machine check(grid:@mut domain::grid::Grid) {
-  transition domain::grid::valid(grid) { true -> execute(grid) false -> invalid() }
+  transition domain::grid::valid(grid) { true -> execute(grid), false -> invalid() }
  }
  machine execute(grid:@mut domain::grid::Grid) {
   let status:i32=domain::solver::solve(grid);
@@ -90,13 +90,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console invokes Console {
   transition { _ -> report(grid,status,0) }
  }
  machine report(grid:@domain::grid::Grid,status:i32,index:u64 in Saturating) {
-  transition index < grid.count { true -> cell(grid,status,index) false -> finish(status) }
+  transition index < grid.count { true -> cell(grid,status,index), false -> finish(status) }
  }
  machine cell(grid:@domain::grid::Grid,status:i32,index:u64 in Saturating) {
   Console::write("CELL "); count(index); field(grid.solution[index%144]); Console::write_line("");
   transition { _ -> report(grid,status,index+1) }
  }
- machine finish(status:i32) { transition status { 0 -> success() _ -> nonconvergence() } }
+ machine finish(status:i32) { transition status { 0 -> success(), _ -> nonconvergence() } }
  machine success() { Console::write_line("CONVERGED"); ProcessExit::exit_process(0); }
  machine nonconvergence() { Console::write_line("NOT_CONVERGED"); ProcessExit::exit_process(2); }
  machine invalid() { Console::write_line("REJECT grid: positive finite diffusion, nonnegative reaction, four valid anchored boundaries, bounded mesh and controls required"); ProcessExit::exit_process(65); }

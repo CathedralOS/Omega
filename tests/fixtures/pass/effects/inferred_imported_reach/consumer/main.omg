@@ -5,7 +5,7 @@ use support::fetch_mark;
 MarkerMark satisfies Mark { machine read() -> u64 { 7 } }
 machine main() crashes Trap {
     let value: u64 = fetch_mark();
-    transition value == 7 { true -> done() _ -> bad() }
+    transition value == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

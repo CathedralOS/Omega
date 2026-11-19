@@ -17,7 +17,7 @@ machine main() reaches Required crashes Trap {
     let wide_view: @[Wide] = @wide[..];
     let supplied: u32 = Required::get();
     transition narrow_view.len == 2 && wide_view.len == 3 && supplied == 7 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

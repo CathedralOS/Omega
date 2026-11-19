@@ -9,7 +9,7 @@ machine main() crashes Trap {
     transition { _ -> inspect(selected) }
     machine inspect(value: @u32 in Controlled) {
         let result: u32 = value ^ 0;
-        transition result == 73 { true -> done() _ -> bad() }
+        transition result == 73 { true -> done(), _ -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

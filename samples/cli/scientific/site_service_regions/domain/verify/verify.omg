@@ -1,4 +1,3 @@
-module domain::verify;
 use domain::model;
 use domain::model::Partition;
 use domain::geometry;
@@ -17,7 +16,7 @@ requires owner < 8
     requires owner < 8
     {
         transition index < partition.site_count && index < 8 {
-            true -> test(partition, owner, x, y, own, index)
+            true -> test(partition, owner, x, y, own, index),
             false -> (true)
         }
     }
@@ -26,7 +25,7 @@ requires owner < 8
     {
         let rival: f64 = distance(x, y, partition.site_x[index], partition.site_y[index]);
         transition own <= rival + 0.000001 {
-            true -> other(partition, owner, x, y, own, index + 1)
+            true -> other(partition, owner, x, y, own, index + 1),
             false -> (false)
         }
     }
@@ -36,13 +35,13 @@ requires owner < 8
 public machine shared(partition: @Partition, owner: u64, rival: u64) -> bool
 requires owner < 8 && rival < 8
 {
-    transition owner == rival { true -> (false) false -> edge(partition, owner, rival, 0) }
+    transition owner == rival { true -> (false), false -> edge(partition, owner, rival, 0) }
     machine edge(partition: @Partition, owner: u64, rival: u64, index: u64) -> bool
     requires owner < 8 && rival < 8
     {
         let count: u64 = partition.cells[owner].count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
-            true -> test(partition, owner, rival, index, (index + 1) % count)
+            true -> test(partition, owner, rival, index, (index + 1) % count),
             false -> (false)
         }
     }
@@ -59,7 +58,7 @@ requires owner < 8 && rival < 8
             - distance(end_x,end_y,partition.site_x[rival],partition.site_y[rival]);
         let length: f64 = distance(x,y,end_x,end_y);
         transition absolute(start_difference) <= 0.000001 && absolute(end_difference) <= 0.000001 && length > 0.000000000001 {
-            true -> (true)
+            true -> (true),
             false -> edge(partition, owner, rival, index + 1)
         }
     }
@@ -70,7 +69,7 @@ public machine verify(partition: @mut Partition) {
     transition { _ -> cell(partition, 0) }
     machine cell(partition: @mut Partition, owner: u64) {
         transition owner < partition.site_count && owner < 8 {
-            true -> measure(partition, owner)
+            true -> measure(partition, owner),
             false -> finish(partition)
         }
     }
@@ -80,14 +79,14 @@ public machine verify(partition: @mut Partition) {
         let measured: f64 = area(@partition.cells[owner]);
         partition.areas[owner] = measured;
         partition.total = partition.total + measured;
-        transition measured > 0.0 { true -> vertex(partition, owner, 0) false -> fail(partition) }
+        transition measured > 0.0 { true -> vertex(partition, owner, 0), false -> fail(partition) }
     }
     machine vertex(partition: @mut Partition, owner: u64, index: u64)
     requires owner < 8
     {
         let count: u64 = partition.cells[owner].count;
         transition count > 0 && count <= 32 && index < count && index < 32 {
-            true -> test(partition, owner, index, (index + 1) % count)
+            true -> test(partition, owner, index, (index + 1) % count),
             false -> adjacent(partition, owner, 0)
         }
     }
@@ -99,7 +98,7 @@ public machine verify(partition: @mut Partition) {
             (partition.cells[owner].x[index] + partition.cells[owner].x[next]) * 0.5,
             (partition.cells[owner].y[index] + partition.cells[owner].y[next]) * 0.5);
         transition vertex_ok && middle_ok {
-            true -> vertex(partition, owner, index + 1)
+            true -> vertex(partition, owner, index + 1),
             false -> fail(partition)
         }
     }
@@ -107,7 +106,7 @@ public machine verify(partition: @mut Partition) {
     requires owner < 8
     {
         transition rival < partition.site_count && rival < 8 {
-            true -> relation(partition, owner, rival)
+            true -> relation(partition, owner, rival),
             false -> cell(partition, owner + 1)
         }
     }
@@ -121,7 +120,7 @@ public machine verify(partition: @mut Partition) {
     machine finish(partition: @mut Partition) {
         let expected: f64 = area(@partition.boundary);
         transition absolute(partition.total - expected) <= 0.000001 {
-            true -> done()
+            true -> done(),
             false -> fail(partition)
         }
     }

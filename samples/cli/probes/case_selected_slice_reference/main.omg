@@ -7,8 +7,8 @@ data Storage { cells: [Cell; 3]; alternate: [Cell; 3]; }
 machine select(storage: @mut Storage, selection: Selection) -> @mut Cell {
     let cells: @mut [Cell] = @mut storage.cells[..];
     transition selection {
-        Selection::First -> @mut cells[0]
-        Selection::Second -> @mut cells[1]
+        Selection::First -> @mut cells[0],
+        Selection::Second -> @mut cells[1],
         _ -> @mut cells[2]
     }
 }
@@ -17,8 +17,8 @@ machine select_rebound(storage: @mut Storage, selection: Selection) -> @mut Cell
     let mut cells: @mut [Cell] = @mut storage.cells[..];
     cells = @mut storage.alternate[..];
     transition selection {
-        Selection::First -> @mut cells[0]
-        Selection::Second -> @mut cells[1]
+        Selection::First -> @mut cells[0],
+        Selection::Second -> @mut cells[1],
         _ -> @mut cells[2]
     }
 }
@@ -40,7 +40,7 @@ machine main() crashes Trap {
     transition storage.cells[0].value == 23 && storage.cells[1].value == 19
         && storage.cells[2].value == 29 && storage.alternate[0].value == 11
         && storage.alternate[1].value == 31 && storage.alternate[2].value == 17 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

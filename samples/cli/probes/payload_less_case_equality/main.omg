@@ -5,17 +5,17 @@ machine Main::main(main: @mut Main) {
     main.cmd = Command::Move { dx: 7 };
     let mut hit: bool = main.cmd == Command::None;
     transition (main.cmd != Command::None) {
-        (true) -> held(main, hit)
+        (true) -> held(main, hit),
         _ -> swapped(main)
     }
     machine held(main: @mut Main, was_none: bool) {
         main.cmd = Command::None;
         let now_none: bool = main.cmd == Command::None;
         let value: i32 = match now_none {
-            (true) -> 10
+            (true) -> 10,
             _ -> 20
         } + match was_none {
-            (true) -> 3
+            (true) -> 3,
             _ -> 4
         };
     }

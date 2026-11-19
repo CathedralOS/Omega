@@ -26,7 +26,7 @@ machine main() crashes Trap {
     let anonymous_left: addr = 17 + base;
     transition state.marker == 96 && forward == 4113 && reversed == 8209 &&
         anonymous_right == 4113 && anonymous_left == 4113 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

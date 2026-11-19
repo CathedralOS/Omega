@@ -22,9 +22,9 @@ machine event_action(roll: u32 in Wrapping) -> RoomEventAction {
     let is_reward: bool = roll < 60;
 
     transition {
-        is_quiet -> RoomEventAction::Quiet
-        is_fountain -> RoomEventAction::Fountain
-        is_reward -> RoomEventAction::Reward
+        is_quiet -> RoomEventAction::Quiet,
+        is_fountain -> RoomEventAction::Fountain,
+        is_reward -> RoomEventAction::Reward,
         _ -> RoomEventAction::Enemy
     }
 }
@@ -37,9 +37,9 @@ machine apply_event(
     roll: u32 in Wrapping
 ) {
     transition event_action(roll) {
-        RoomEventAction::Quiet -> no_event(event)
-        RoomEventAction::Fountain -> fountain(event)
-        RoomEventAction::Reward -> reward_event(room_events, depth, random, event, roll)
+        RoomEventAction::Quiet -> no_event(event),
+        RoomEventAction::Fountain -> fountain(event),
+        RoomEventAction::Reward -> reward_event(room_events, depth, random, event, roll),
         RoomEventAction::Enemy -> enemy(room_events, depth, random, event)
     }
 
@@ -52,7 +52,7 @@ machine apply_event(
         roll: u32 in Wrapping
     ) {
         transition roll < 45 {
-            true -> treasure(room_events, depth, random, event)
+            true -> treasure(room_events, depth, random, event),
             false -> gold_cache(room_events, depth, random, event)
         }
     }

@@ -48,13 +48,13 @@ machine match_expr_ledger() {
     let first: u64 = choose(0);
     let holder: Holder = Holder { category: Category::Other };
     transition chosen {
-        Category::Missing -> verify(first, r)
+        Category::Missing -> verify(first, r),
         Category::Other -> done(71)
     }
 
     machine verify(first: u64, r: Record) {
         transition first == 7 && r.number == 5 && choose(9) == 9 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(71)
         }
     }

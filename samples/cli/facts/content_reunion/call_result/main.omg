@@ -25,7 +25,7 @@ data Parts { left: Region in Owned; right: Region in Owned; }
 machine rebuild_region(region: Region in Owned) -> Region in Owned
 requires region.base <= 58 && region.length <= 58 - region.base
 ensures result.base == region.base, result.length == region.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(@region)), Owned::content(@result))
+    core::Identity::<IntervalSet<Nat>>(Owned::content(old(@region)), Owned::content(@result))
 {
     let { base, length } = region;
     Region { base: base, length: length }
@@ -35,7 +35,7 @@ machine retire_empty_tail(left: Region in Owned, right: Region in Owned) -> Regi
 requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length == 0
 ensures result.base == left.base, result.length == left.length,
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         separate(Owned::content(old(@left)), Owned::content(old(@right))),
         Owned::content(@result)
     )
@@ -48,7 +48,7 @@ ensures result.base == left.base, result.length == left.length,
 machine finish_reunion(whole: Region in Owned) -> Region in Owned
 requires whole.base == 10 && whole.length == 48
 ensures result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
+    core::Identity::<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, 48);
     let joined: Region in Owned = retire_empty_tail(parts.left, parts.right);
@@ -60,7 +60,7 @@ machine merge(left: Region in Owned, right: Region in Owned) -> Region in Owned
 requires left.base <= 58 && left.length <= 58 - left.base
     && right.base == left.base + left.length && right.length <= 58 - right.base
 ensures result.base == left.base, result.length == left.length + right.length,
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         separate(Owned::content(old(@left)), Owned::content(old(@right))),
         Owned::content(@result)
     )
@@ -77,7 +77,7 @@ ensures
     result.left.length == requested,
     result.right.length == whole.length - requested,
     result.right.base == whole.base + requested,
-    core::Identity<IntervalSet<Nat>>(
+    core::Identity::<IntervalSet<Nat>>(
         Owned::content(old(@whole)),
         separate(Owned::content(@result.left), Owned::content(@result.right))
     )
@@ -91,7 +91,7 @@ machine rejoin(whole: Region in Owned, requested: u64) -> Region
 requires whole.base == 10 && whole.length == 48 && requested <= whole.length
 ensures result in Owned,
     result.base == whole.base, result.length == whole.length,
-    core::Identity<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
+    core::Identity::<IntervalSet<Nat>>(Owned::content(old(@whole)), Owned::content(@result))
 {
     let parts: Parts = partition(whole, requested);
     let left: Region in Owned = parts.left;
@@ -121,7 +121,7 @@ machine main() crashes Trap {
     let empty: bool = exercise(0);
     let interior: bool = exercise(16);
     let full: bool = exercise(48);
-    transition empty && interior && full { true -> done() _ -> bad() }
+    transition empty && interior && full { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -43,13 +43,13 @@ requires 0 <= left && left <= 50
 requires 0 <= right
 ensures (result as i64) == (left as i64) + (right as i64)
 {
-    block apply<Selected>(left, right)
+    block apply::<Selected>(left, right)
 }
 
 machine main() blocks crashes Trap {
     let wide: i32 = block probe(20, 22);
     let narrow: i32 = block probe(10, 12);
-    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
+    transition wide == 42 && narrow == 22 { true -> done(), _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

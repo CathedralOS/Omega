@@ -1,4 +1,3 @@
-module domain::model;
 // Synthetic single-locus model. IDs are one-based; zero means founder.
 // Observation bits 1,2,4 admit AA,AB,BB. No mutation or penetrance model.
 public data Pedigree {
@@ -10,12 +9,12 @@ public data Pedigree {
 
 public machine valid(pedigree: @Pedigree) -> bool {
     transition pedigree.count >= 1 && pedigree.count <= 6 {
-        true -> person(pedigree, 0)
+        true -> person(pedigree, 0),
         _ -> false
     }
     machine person(pedigree: @Pedigree, index: i32 in Wrapping) -> bool {
         transition index >= 0 && index < pedigree.count && index < 6 {
-            true -> inspect(pedigree, index)
+            true -> inspect(pedigree, index),
             _ -> true
         }
     }
@@ -26,7 +25,7 @@ public machine valid(pedigree: @Pedigree) -> bool {
         transition observed >= 1 && observed <= 7 &&
             ((father == 0 && mother == 0) ||
              (father >= 1 && father <= index && mother >= 1 && mother <= index && father != mother)) {
-            true -> person(pedigree, index + 1)
+            true -> person(pedigree, index + 1),
             _ -> false
         }
     }
@@ -36,8 +35,8 @@ public machine valid(pedigree: @Pedigree) -> bool {
 public machine transmission(father: i32 in Wrapping, mother: i32 in Wrapping,
                          child: i32 in Wrapping) -> i32 in Wrapping {
     transition child {
-        0 -> ((2 - father) * (2 - mother))
-        1 -> (father * (2 - mother) + (2 - father) * mother)
+        0 -> ((2 - father) * (2 - mother)),
+        1 -> (father * (2 - mother) + (2 - father) * mother),
         _ -> (father * mother)
     }
 }

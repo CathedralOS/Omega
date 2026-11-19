@@ -1,5 +1,3 @@
-module units;
-
 public domain u32::Distance;
 public domain u32::Span;
 public domain u32::Offset;

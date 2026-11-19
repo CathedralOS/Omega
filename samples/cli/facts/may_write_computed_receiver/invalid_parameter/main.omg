@@ -44,7 +44,7 @@ machine choose<'storage>(
     pick_chosen: bool
 ) -> @'storage mut Access<CellPlacement, Cell> {
     transition pick_chosen {
-        true -> chosen
+        true -> chosen,
         _ -> other
     }
 }
@@ -52,13 +52,13 @@ machine choose<'storage>(
 machine probe(chosen: @mut Cell, other: @mut Cell, items: @[u8; 4]) -> u8
 requires chosen.held < 4 && other.held < 4
 {
-    let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(chosen);
-    let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut<CellPlacement, Cell>(other);
+    let chosen_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(chosen);
+    let other_view: @mut Access<CellPlacement, Cell> = Access::view_mut::<CellPlacement, Cell>(other);
     let selected: @mut Access<CellPlacement, Cell> = choose(chosen_view, other_view, false);
     selected.held.write(@mut selected.held, 9);
     let index: u64 = other.held;
     transition items[index] == 7 {
-        true -> (items[index])
+        true -> (items[index]),
         _ -> 0
     }
 }
@@ -69,7 +69,7 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let found: u8 = probe(@mut chosen, @mut other, @items);
     transition found == 7 && chosen.held == 9 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -11,7 +11,7 @@ requires value.value == 2 {
 machine main() crashes Trap {
     let value: Bonus = Bonus { value: 2 };
     let accepted: bool = consume(value);
-    transition accepted { true -> done() false -> bad() }
+    transition accepted { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

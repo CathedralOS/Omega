@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let taken: u64 = slack_after_join(true);
     let fallback: u64 = slack_after_join(false);
     transition taken == 0u64 && fallback == 8u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

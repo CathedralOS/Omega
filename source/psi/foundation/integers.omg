@@ -25,13 +25,13 @@ public machine exact_integer_negate(value: ExactInteger) -> ExactInteger {
 
 public machine exact_integer_add(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition left.negative == right.negative {
-        true -> same_sign(left, right)
+        true -> same_sign(left, right),
         _ -> opposite(left, right)
     }
 
     machine same_sign(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude <= 18446744073709551615 - right.magnitude {
-            true -> sum(left, right)
+            true -> sum(left, right),
             _ -> overflow()
         }
     }
@@ -46,7 +46,7 @@ public machine exact_integer_add(left: ExactInteger, right: ExactInteger) -> Exa
     // Opposite signs: the larger magnitude keeps its sign.
     machine opposite(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude >= right.magnitude {
-            true -> difference(left.negative, left.magnitude - right.magnitude)
+            true -> difference(left.negative, left.magnitude - right.magnitude),
             _ -> difference(right.negative, right.magnitude - left.magnitude)
         }
     }
@@ -68,13 +68,13 @@ public machine exact_integer_subtract(left: ExactInteger, right: ExactInteger) -
 
 public machine exact_integer_multiply(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition left.magnitude == 0 || right.magnitude == 0 {
-        true -> zero()
+        true -> zero(),
         _ -> bounded(left, right)
     }
 
     machine bounded(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude <= 18446744073709551615 / right.magnitude {
-            true -> product(left, right)
+            true -> product(left, right),
             _ -> overflow()
         }
     }
@@ -98,13 +98,13 @@ public machine exact_integer_multiply(left: ExactInteger, right: ExactInteger) -
 // Rational division keeps only an exact integral quotient.
 public machine exact_integer_divide(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition right.magnitude > 0 {
-        true -> divisible(left, right)
+        true -> divisible(left, right),
         _ -> inexact()
     }
 
     machine divisible(left: ExactInteger, right: ExactInteger) -> ExactResult {
         transition left.magnitude % right.magnitude == 0 {
-            true -> quotient(left, right)
+            true -> quotient(left, right),
             _ -> inexact()
         }
     }
@@ -125,13 +125,13 @@ public machine exact_integer_divide(left: ExactInteger, right: ExactInteger) -> 
 // Whether `left <= right`.
 public machine exact_integer_at_most(left: ExactInteger, right: ExactInteger) -> bool {
     transition left.negative == right.negative {
-        true -> same_sign(left, right)
+        true -> same_sign(left, right),
         _ -> opposite(left.negative)
     }
 
     machine same_sign(left: ExactInteger, right: ExactInteger) -> bool {
         transition left.negative {
-            true -> ordered(right.magnitude, left.magnitude)
+            true -> ordered(right.magnitude, left.magnitude),
             _ -> ordered(left.magnitude, right.magnitude)
         }
     }
@@ -148,10 +148,10 @@ public machine exact_integer_at_most(left: ExactInteger, right: ExactInteger) ->
 // The least value of a fixed-integer carrier; zero for any other type.
 public machine minimum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
-        BuiltinType::I8 -> negative(128)
-        BuiltinType::I16 -> negative(32768)
-        BuiltinType::I32 -> negative(2147483648)
-        BuiltinType::I64 -> negative(9223372036854775808)
+        BuiltinType::I8 -> negative(128),
+        BuiltinType::I16 -> negative(32768),
+        BuiltinType::I32 -> negative(2147483648),
+        BuiltinType::I64 -> negative(9223372036854775808),
         _ -> unsigned()
     }
 
@@ -168,15 +168,15 @@ public machine minimum(builtin: BuiltinType) -> ExactInteger {
 // is 1, false 0); zero for any other type.
 public machine maximum(builtin: BuiltinType) -> ExactInteger {
     transition builtin {
-        BuiltinType::Bool -> positive(1)
-        BuiltinType::I8 -> positive(127)
-        BuiltinType::I16 -> positive(32767)
-        BuiltinType::I32 -> positive(2147483647)
-        BuiltinType::I64 -> positive(9223372036854775807)
-        BuiltinType::U8 -> positive(255)
-        BuiltinType::U16 -> positive(65535)
-        BuiltinType::U32 -> positive(4294967295)
-        BuiltinType::U64 -> positive(18446744073709551615)
+        BuiltinType::Bool -> positive(1),
+        BuiltinType::I8 -> positive(127),
+        BuiltinType::I16 -> positive(32767),
+        BuiltinType::I32 -> positive(2147483647),
+        BuiltinType::I64 -> positive(9223372036854775807),
+        BuiltinType::U8 -> positive(255),
+        BuiltinType::U16 -> positive(65535),
+        BuiltinType::U32 -> positive(4294967295),
+        BuiltinType::U64 -> positive(18446744073709551615),
         _ -> positive(0)
     }
 
@@ -188,14 +188,14 @@ public machine maximum(builtin: BuiltinType) -> ExactInteger {
 // Whether `builtin` is a fixed-width integer carrier.
 public machine is_carrier(builtin: BuiltinType) -> bool {
     transition builtin {
-        BuiltinType::I8 -> yes()
-        BuiltinType::I16 -> yes()
-        BuiltinType::I32 -> yes()
-        BuiltinType::I64 -> yes()
-        BuiltinType::U8 -> yes()
-        BuiltinType::U16 -> yes()
-        BuiltinType::U32 -> yes()
-        BuiltinType::U64 -> yes()
+        BuiltinType::I8 -> yes(),
+        BuiltinType::I16 -> yes(),
+        BuiltinType::I32 -> yes(),
+        BuiltinType::I64 -> yes(),
+        BuiltinType::U8 -> yes(),
+        BuiltinType::U16 -> yes(),
+        BuiltinType::U32 -> yes(),
+        BuiltinType::U64 -> yes(),
         _ -> no()
     }
 
@@ -228,7 +228,7 @@ public machine wrap(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
     let mask: u64 in Wrapping = greatest.magnitude + least.magnitude;
     let complement: u64 in Wrapping = 0 - value.magnitude;
     transition value.negative {
-        true -> residue(least, greatest, mask, complement & mask)
+        true -> residue(least, greatest, mask, complement & mask),
         _ -> residue(least, greatest, mask, value.magnitude & mask)
     }
 
@@ -238,7 +238,7 @@ public machine wrap(builtin: BuiltinType, value: ExactInteger) -> ExactInteger {
         let wraps: bool = least.negative && residue > greatest.magnitude;
         let magnitude: u64 in Wrapping = (mask - residue) + 1;
         transition wraps {
-            true -> negative(magnitude)
+            true -> negative(magnitude),
             _ -> positive(residue)
         }
     }
@@ -260,13 +260,13 @@ public machine saturate(builtin: BuiltinType, value: ExactInteger) -> ExactInteg
     let above_least: bool = exact_integer_at_most(least, value);
     let below_greatest: bool = exact_integer_at_most(value, greatest);
     transition above_least {
-        true -> upper(greatest, value, below_greatest)
+        true -> upper(greatest, value, below_greatest),
         _ -> answer(least)
     }
 
     machine upper(greatest: ExactInteger, value: ExactInteger, below_greatest: bool) -> ExactInteger {
         transition below_greatest {
-            true -> answer(value)
+            true -> answer(value),
             _ -> answer(greatest)
         }
     }
@@ -282,7 +282,7 @@ public machine saturate(builtin: BuiltinType, value: ExactInteger) -> ExactInteg
 // Invalid for a zero divisor.
 public machine exact_integer_remainder(left: ExactInteger, right: ExactInteger) -> ExactResult {
     transition right.magnitude > 0 {
-        true -> divided(left, right.magnitude)
+        true -> divided(left, right.magnitude),
         _ -> undefined(left)
     }
 
@@ -320,13 +320,13 @@ public machine rational_of(value: ExactInteger) -> Rational {
 // The greatest common divisor of two magnitudes, at least one nonzero.
 public machine common_divisor(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
     transition right == 0 {
-        true -> found(left)
+        true -> found(left),
         _ -> step(right, left % right)
     }
 
     machine step(left: u64 in Wrapping, right: u64 in Wrapping) -> u64 in Wrapping {
         transition right == 0 {
-            true -> found(left)
+            true -> found(left),
             _ -> step(right, left % right)
         }
     }
@@ -339,21 +339,21 @@ public machine common_divisor(left: u64 in Wrapping, right: u64 in Wrapping) -> 
 // `numerator / denominator` in lowest terms; a zero denominator is invalid.
 public machine rational_reduced(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
     transition denominator == 0 {
-        true -> invalid()
+        true -> invalid(),
         _ -> nonzero(numerator, denominator)
     }
 
     machine nonzero(numerator: ExactInteger, denominator: u64 in Wrapping) -> RationalResult {
         let divisor: u64 in Wrapping = common_divisor(numerator.magnitude, denominator);
         transition numerator.magnitude == 0 {
-            true -> zero()
+            true -> zero(),
             _ -> divided(numerator, denominator, divisor)
         }
     }
 
     machine divided(numerator: ExactInteger, denominator: u64 in Wrapping, divisor: u64 in Wrapping) -> RationalResult {
         transition divisor > 0 {
-            true -> lowest(numerator, denominator, divisor)
+            true -> lowest(numerator, denominator, divisor),
             _ -> invalid()
         }
     }
@@ -384,7 +384,7 @@ public machine rational_add(left: Rational, right: Rational) -> RationalResult {
     let sum: ExactResult = exact_integer_add(left_scaled.value, right_scaled.value);
     let scale: ExactResult = exact_integer_multiply(exact_integer_of(left.denominator), exact_integer_of(right.denominator));
     transition left_scaled.valid && right_scaled.valid && sum.valid && scale.valid {
-        true -> reduced(sum.value, scale.value.magnitude)
+        true -> reduced(sum.value, scale.value.magnitude),
         _ -> invalid()
     }
 
@@ -409,7 +409,7 @@ public machine rational_multiply(left: Rational, right: Rational) -> RationalRes
     let product: ExactResult = exact_integer_multiply(left.numerator, right.numerator);
     let scale: ExactResult = exact_integer_multiply(exact_integer_of(left.denominator), exact_integer_of(right.denominator));
     transition product.valid && scale.valid {
-        true -> reduced(product.value, scale.value.magnitude)
+        true -> reduced(product.value, scale.value.magnitude),
         _ -> invalid()
     }
 
@@ -430,7 +430,7 @@ public machine rational_divide(left: Rational, right: Rational) -> RationalResul
     let scale: ExactResult = exact_integer_multiply(exact_integer_of(left.denominator), exact_integer_of(right.numerator.magnitude));
     let signed: ExactInteger = ExactInteger { negative: numerator.value.negative != right.numerator.negative && numerator.value.magnitude > 0, magnitude: numerator.value.magnitude };
     transition right.numerator.magnitude > 0 && numerator.valid && scale.valid {
-        true -> reduced(signed, scale.value.magnitude)
+        true -> reduced(signed, scale.value.magnitude),
         _ -> invalid()
     }
 

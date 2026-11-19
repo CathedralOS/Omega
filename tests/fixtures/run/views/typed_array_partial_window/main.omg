@@ -6,7 +6,7 @@ machine first(view: @[u32]) -> u32
 machine main() crashes Trap {
     let numbers: [u32; 2] = [11u32, 29u32];
     let value: u32 = first(@numbers[1..2]);
-    transition value == 29 { true -> done() false -> bad() }
+    transition value == 29 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

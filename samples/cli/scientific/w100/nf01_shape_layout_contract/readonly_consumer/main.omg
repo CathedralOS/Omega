@@ -11,10 +11,10 @@ use omega_language_std::Console;
 data Main { }
 machine equals(backing: @[i32], layout: @Layout2, row: u64, column: u64, expected: i32) -> bool {
     let result: ReadResult = try_read(backing, layout, row, column);
-    transition result { ReadResult::Ok { value } -> (value == expected) ReadResult::Invalid -> false }
+    transition result { ReadResult::Ok { value } -> (value == expected), ReadResult::Invalid -> false }
 }
 machine is_invalid(result: ReadResult) -> bool {
-    transition result { ReadResult::Invalid -> true ReadResult::Ok { value } -> false }
+    transition result { ReadResult::Invalid -> true, ReadResult::Ok { value } -> false }
 }
 
 // Matched valid companion to invalid_control's descriptor-based checked call.
@@ -44,9 +44,9 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let empty_read: ReadResult = try_read(@zero, @empty, 0, 0);
     let outside: ReadResult = try_read(@backing, @layout, 2, 0);
     let backing_view: @[i32] = @backing[..];
-    transition empty_read { ReadResult::Invalid -> outside_check(context, backing_view, @layout, @swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected) ReadResult::Ok { value } -> bad(context) }
+    transition empty_read { ReadResult::Invalid -> outside_check(context, backing_view, @layout, @swapped, outside, invalid_layout_rejected && checked_last == 6 && full_valid && full_mutable && empty_valid && empty_mutable && overflow_rejected), ReadResult::Ok { value } -> bad(context) }
     machine outside_check(context: @mut Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, outside: ReadResult, valid: bool) {
-        transition outside { ReadResult::Invalid -> entries(context, backing, layout, swapped, valid) ReadResult::Ok { value } -> bad(context) }
+        transition outside { ReadResult::Invalid -> entries(context, backing, layout, swapped, valid), ReadResult::Ok { value } -> bad(context) }
     }
     machine entries(context: @mut Main, backing: @[i32], layout: @Layout2, swapped: @Layout2, valid: bool) {
         let first: bool = equals(backing, layout, 0, 0, 1);
@@ -57,7 +57,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         let sixth: bool = equals(backing, layout, 1, 2, 6);
         let transposed: bool = equals(backing, swapped, 2, 1, 6);
         transition valid && first && second && third && fourth && fifth && sixth && transposed {
-            true -> good(context)
+            true -> good(context),
             false -> bad(context)
         }
     }

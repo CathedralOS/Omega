@@ -1,4 +1,3 @@
-module domain::reconcile;
 // Recorded flows are simultaneous transfers, not iterative population dynamics.
 // A cycle conserves raw energy once per edge and creates no external supply.
 public data Web {
@@ -22,8 +21,8 @@ public machine residual(web: @Web, node: u64) -> i32 in Saturating requires node
     web.external[node] * 100 + web.assimilated[node] - web.maintenance[node] * 100 - web.outgoing[node]
 }
 public machine deficit(balance: i32 in Saturating) -> i32 in Saturating {
-    transition balance < 0 { true -> (0 - balance) false -> (0) }
+    transition balance < 0 { true -> (0 - balance), false -> (0) }
 }
 public machine surplus(balance: i32 in Saturating) -> i32 in Saturating {
-    transition balance > 0 { true -> (balance) false -> (0) }
+    transition balance > 0 { true -> (balance), false -> (0) }
 }

@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 
 // Emit decimal digits through the standard byte writer. No fabricated UTF-8
@@ -10,7 +9,7 @@ invokes Console
     machine scale(value: i32,
                 remaining: i32, place: i32 in Wrapping) {
         transition remaining >= 10 {
-            true -> grow(value, remaining, place)
+            true -> grow(value, remaining, place),
             _ -> emit(value, place)
         }
     }
@@ -21,7 +20,7 @@ invokes Console
     }
     machine emit(value: i32, place: i32 in Wrapping) {
         transition place > 0 {
-            true -> digit(value, place)
+            true -> digit(value, place),
             _ -> done()
         }
     }
@@ -29,7 +28,7 @@ invokes Console
     requires place > 0 {
         Console::write_byte((((value as i32 in Wrapping) / place) + 48) as i32);
         transition place > 1 {
-            true -> rest(value, place)
+            true -> rest(value, place),
             _ -> done()
         }
     }

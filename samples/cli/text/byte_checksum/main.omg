@@ -20,7 +20,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read_next_byte(sum: i32 in Wrapping, count: i32 in Wrapping) {
         let read_result: ByteRead = block Console::read_byte();
         transition read_result {
-            ByteRead::Byte { value } -> block add_byte(sum, count, value)
+            ByteRead::Byte { value } -> block add_byte(sum, count, value),
             _ -> exit_with_checksum(sum, count)
         }
     }

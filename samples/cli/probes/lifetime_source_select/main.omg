@@ -37,7 +37,7 @@ machine Main::main(main: @mut Main) {
     selected.body = 7;
     let kept: i32 = second;
     transition first == 7 && kept == 9 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

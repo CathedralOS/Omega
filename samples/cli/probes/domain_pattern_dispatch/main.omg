@@ -48,8 +48,8 @@ machine Main::main(main: @mut Main) {
     main.player = Player { health: 5 };
     main.gauge = Gauge { level: 7 };
     transition main.player {
-        Player::Alive -> Main::alive(main)
-        Player::Dead -> Main::dead(main)
+        Player::Alive -> Main::alive(main),
+        Player::Dead -> Main::dead(main),
         _ -> Main::other(main)
     }
     // Gauge literals grant i32::Ten at construction (7 <= 10);

@@ -11,7 +11,7 @@ machine issue() -> Ticket in Ticket::Labelled { Ticket { number: 17 } }
 machine observe(ticket: @Ticket in Ticket::Observed) -> u64 { ticket.number }
 machine main() crashes Trap {
     let observed: u64 = observe((@issue()) as @Ticket in Ticket::Observed);
-    transition observed == 17 { true -> done() _ -> wrong() }
+    transition observed == 17 { true -> done(), _ -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }

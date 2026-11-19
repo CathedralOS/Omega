@@ -21,7 +21,7 @@ machine chain_depth(value: Right) -> i32 {
 machine module_file_chain() {
     let node: Right = Right { value: Left { value: 7 } };
     transition chain_depth(node) == 7 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

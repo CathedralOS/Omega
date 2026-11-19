@@ -10,7 +10,7 @@ machine bind_configuration(configuration: @mut Configuration) {
 }
 machine join(builder: @mut Build, first: bool) {
     let mut configuration: Configuration = match first {
-        true -> Configuration { builder: builder }
+        true -> Configuration { builder: builder },
         false -> wrap(builder)
     };
     configuration.builder.identifier = "com.example.borrowed";

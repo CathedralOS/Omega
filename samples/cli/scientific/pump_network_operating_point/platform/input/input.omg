@@ -1,4 +1,3 @@
-module platform::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 
@@ -25,7 +24,7 @@ crashes Trap
     transition { _ -> next(input) }
     machine next(input: @mut Input) {
         transition input.count < 96 {
-            true -> byte(input)
+            true -> byte(input),
             false -> reject(input)
         }
     }
@@ -33,21 +32,21 @@ crashes Trap
         input.count = input.count + 1;
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> finish(input)
+            ByteRead::Eof -> finish(input),
             ByteRead::Byte { value } -> classify(input, value)
         }
     }
     machine classify(input: @mut Input, value: i32) {
         transition value {
-            10 -> finish(input)
-            32 -> separate(input)
-            45 -> sign(input)
+            10 -> finish(input),
+            32 -> separate(input),
+            45 -> sign(input),
             _ -> digit(input, value)
         }
     }
     machine sign(input: @mut Input) {
         transition input.active {
-            true -> reject(input)
+            true -> reject(input),
             false -> set_sign(input)
         }
     }
@@ -58,7 +57,7 @@ crashes Trap
     }
     machine digit(input: @mut Input, value: i32) {
         transition value >= 48 && value <= 57 && input.digits < 4 {
-            true -> accumulate(input, value)
+            true -> accumulate(input, value),
             false -> reject(input)
         }
     }
@@ -71,25 +70,25 @@ crashes Trap
     }
     machine separate(input: @mut Input) {
         transition input.active {
-            true -> store(input, false)
+            true -> store(input, false),
             false -> next(input)
         }
     }
     machine finish(input: @mut Input) {
         transition input.active {
-            true -> store(input, true)
+            true -> store(input, true),
             false -> complete(input)
         }
     }
     machine store(input: @mut Input, finished: bool) {
         transition input.index < 9 && input.digit_seen {
-            true -> save(input, finished)
+            true -> save(input, finished),
             false -> reject(input)
         }
     }
     machine save(input: @mut Input, finished: bool) {
         transition input.negative {
-            true -> negative(input, finished)
+            true -> negative(input, finished),
             false -> positive(input, finished)
         }
     }
@@ -109,7 +108,7 @@ crashes Trap
         input.active = false;
         input.digit_seen = false;
         transition finished {
-            true -> complete(input)
+            true -> complete(input),
             false -> next(input)
         }
     }

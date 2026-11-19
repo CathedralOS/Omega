@@ -27,7 +27,7 @@ machine verify(tallies: @Tallies, reversed: bool) crashes Trap {
     let fourth: i32 = lookup(observe(tallies, 3));
     transition (!reversed && first == 0x40 && second == 0x4F && third == 0x50 && fourth == 0x48)
         || (reversed && first == 0x48 && second == 0x50 && third == 0x4F && fourth == 0x40) {
-        true -> good()
+        true -> good(),
         false -> bad()
     }
     machine good() {}

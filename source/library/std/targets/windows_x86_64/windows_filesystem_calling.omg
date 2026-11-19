@@ -9,7 +9,7 @@ public WindowsFilesystemTransferCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let accepted: bool = windows_filesystem_transfer_signature(@signature);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() }
+            true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() },
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
                 reason: "expected handle, whole byte view, count reference and overlapped" as +Utf8
             } }
@@ -21,7 +21,7 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
     transition signature.parameter_count == 4 && signature.native_parameter_count == 4
         && signature.has_result && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
-        true -> indices(signature)
+        true -> indices(signature),
         _ -> false
     }
     machine indices(signature: @BoundarySignature) -> bool {
@@ -34,7 +34,7 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
                 @signature.shapes[signature.parameters[1]],
                 @signature.shapes[signature.parameters[2]],
                 @signature.shapes[signature.parameters[3]],
-                @signature.shapes[signature.result])
+                @signature.shapes[signature.result]),
             _ -> false
         }
     }
@@ -45,7 +45,7 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
             && windows_transfer_reference_shape(transferred, 8)
             && windows_transfer_integer_shape(overlapped, 8)
             && windows_transfer_integer_shape(result, 4) {
-            true -> true
+            true -> true,
             _ -> false
         }
     }
@@ -80,13 +80,13 @@ machine windows_filesystem_transfer_entry() -> BoundaryEntryPlan {
 
 machine windows_transfer_integer_shape(shape: @ValueShape, bytes: u64) -> bool {
     transition shape.class {
-        ValueClass::Integer -> (shape.byte_size == bytes && shape.alignment == bytes)
+        ValueClass::Integer -> (shape.byte_size == bytes && shape.alignment == bytes),
         _ -> false
     }
 }
 machine windows_transfer_reference_shape(shape: @ValueShape, bytes: u64) -> bool {
     transition shape.class {
-        ValueClass::Reference -> (shape.byte_size == bytes && shape.alignment == 8)
+        ValueClass::Reference -> (shape.byte_size == bytes && shape.alignment == 8),
         _ -> false
     }
 }

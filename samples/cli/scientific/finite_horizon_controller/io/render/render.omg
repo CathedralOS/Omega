@@ -1,4 +1,3 @@
-module io::render;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use controller::model;
@@ -8,7 +7,7 @@ use controller::model::power_three;
 // Decimal output is computed from the result, with no expected-value strings.
 machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {
-        true -> negative(value)
+        true -> negative(value),
         _ -> magnitude(value)
     }
     machine negative(value: i32 in Wrapping) {
@@ -20,26 +19,26 @@ machine number(value: i32 in Wrapping) reaches Console {
     }
     machine scale(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> scale_positive(value, divisor)
+            true -> scale_positive(value, divisor),
             _ -> done()
         }
     }
     machine scale_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition value / divisor >= 10 && divisor <= 100000000 {
-            true -> scale(value, divisor * 10)
+            true -> scale(value, divisor * 10),
             _ -> digit(value, divisor)
         }
     }
     machine digit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> digit_positive(value, divisor)
+            true -> digit_positive(value, divisor),
             _ -> done()
         }
     }
     machine digit_positive(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((value / divisor % 10 + 48) as i32);
         transition divisor > 1 {
-            true -> digit(value, divisor / 10)
+            true -> digit(value, divisor / 10),
             _ -> done()
         }
     }
@@ -51,7 +50,7 @@ public machine report(problem: @Problem, plan: @Plan) reaches ProcessExit + Cons
     Console::write("boundary_rejected="); number(plan.boundary_rejected); Console::write_line("");
     Console::write("terminal_rejected="); number(plan.terminal_rejected); Console::write_line("");
     transition plan.feasible > 0 {
-        true -> chosen(problem, plan)
+        true -> chosen(problem, plan),
         _ -> infeasible()
     }
     machine infeasible() {
@@ -67,7 +66,7 @@ public machine report(problem: @Problem, plan: @Plan) reaches ProcessExit + Cons
     machine step(problem: @Problem, plan: @Plan,
                time: i32 in Wrapping, divisor: i32 in Wrapping, position: i32 in Wrapping) {
         transition divisor > 0 {
-            true -> emit(problem, plan, time, divisor, position)
+            true -> emit(problem, plan, time, divisor, position),
             _ -> finish()
         }
     }

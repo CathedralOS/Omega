@@ -22,7 +22,7 @@ boundary trait SelectedBodyCheck {
 
 X86BodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 17u64 { true -> done() false -> wrong() }
+        transition tag == 17u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -30,7 +30,7 @@ X86BodyCheck satisfies SelectedBodyCheck {
 
 ArmBodyCheck satisfies SelectedBodyCheck {
     machine require_tag(tag: u64) crashes Trap {
-        transition tag == 29u64 { true -> done() false -> wrong() }
+        transition tag == 29u64 { true -> done(), false -> wrong() }
         machine done() {}
         machine wrong() { crash Trap; }
     }
@@ -58,12 +58,12 @@ machine main() reaches SelectedGate crashes Trap {
     let first: bool = ready && bump(@mut counter);
     let kept: u64 = untouched(counter);
     transition first {
-        true -> bad()
+        true -> bad(),
         false -> check(kept, counter)
     }
     machine check(kept: u64, counter: u64) crashes Trap {
         transition kept == 0u64 && counter == 0u64 {
-            true -> done()
+            true -> done(),
             false -> bad()
         }
     }

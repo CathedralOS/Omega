@@ -44,7 +44,7 @@ machine Main::main(main: @mut Main) {
     let tagged: i64 in Coordinate<7> = choose(true, 40, 41);
     let plain: i64 = choose_plain(false, 40, 41);
     transition tagged as i64 == 40 && plain == 41 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

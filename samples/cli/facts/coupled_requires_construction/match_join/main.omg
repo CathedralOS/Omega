@@ -5,7 +5,7 @@ machine next(value: u8, left: u8) -> Counter
 requires left > 0 && left <= 60 && value <= 60 && value + left == 60
 {
     let grown: u8 = match left > 30 {
-        true -> value + 2
+        true -> value + 2,
         false -> value + 1
     };
     Counter { value: grown }
@@ -15,7 +15,7 @@ machine main() crashes Trap {
     let low: Counter = next(0, 60);
     let high: Counter = next(59, 1);
     transition total(low) == 197 && total(high) == 255 && low.value == 2 && high.value == 60 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

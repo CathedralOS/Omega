@@ -20,7 +20,7 @@ public data Sign [copy] {
 // fact; no compiler-known float or rational predicate is involved.
 public domain Rat::NonZero
 requires
-    !core::Identity<Nat>(self.num.pos, self.num.neg);
+    !core::Identity::<Nat>(self.num.pos, self.num.neg);
 
 public data FloatMeaning {
     case FiniteNonZero(value: Rat in NonZero);
@@ -38,8 +38,8 @@ machine nonzero_rat(
     denominator: Nat
 ) -> Rat in NonZero
 requires
-    !core::Identity<Nat>(positive, negative),
-    core::Identity<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
+    !core::Identity::<Nat>(positive, negative),
+    core::Identity::<Nat>(saturating_sub(Nat::Succ { prev: Nat::Zero }, denominator), Nat::Zero)
 {
     Rat {
         num: IntPair {

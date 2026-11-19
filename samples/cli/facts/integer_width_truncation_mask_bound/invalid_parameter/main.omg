@@ -12,7 +12,7 @@ machine main() crashes Trap {
     let val: u64 = 466u64;
     let diff: u64 = exercise(val & 256u64);
     transition diff == 45u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

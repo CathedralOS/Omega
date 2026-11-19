@@ -8,7 +8,7 @@ machine main() crashes Trap {
         mov [holder.values], eax
     }
     transition holder.values[0] == 37 && holder.values[1] == 9 {
-        true -> done()
+        true -> done(),
         false -> bad()
     }
     machine done() {}

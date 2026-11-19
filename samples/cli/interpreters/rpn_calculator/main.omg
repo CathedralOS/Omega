@@ -55,7 +55,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Loop while there are tokens left.
     machine loop(main: @mut Main) {
         transition main.pc < main.nprog {
-            true -> block bound_check(main)
+            true -> block bound_check(main),
             _ -> block finish(main)
         }
     }
@@ -63,7 +63,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Admit the program index only where it is provably in range.
     machine bound_check(main: @mut Main) {
         transition main.pc >= 0 && main.pc < 16 {
-            true -> block load_token(main)
+            true -> block load_token(main),
             _ -> block finish(main)
         }
     }
@@ -71,7 +71,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine load_token(main: @mut Main) {
         main.tok = main.program[main.pc];
         transition main.tok >= 0 {
-            true -> block push_bound(main)
+            true -> block push_bound(main),
             _ -> block op_bound(main)
         }
     }
@@ -79,7 +79,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // --- push a number ---
     machine push_bound(main: @mut Main) {
         transition main.sp >= 0 && main.sp < 16 {
-            true -> block push_token(main)
+            true -> block push_token(main),
             _ -> block finish(main)
         }
     }
@@ -94,21 +94,21 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // --- apply a binary operator: pop b, pop a, push (a OP b) ---
     machine op_bound(main: @mut Main) {
         transition main.sp >= 2 && main.sp <= 16 {
-            true -> block op_pop_b(main)
+            true -> block op_pop_b(main),
             _ -> block finish(main)
         }
     }
     machine op_pop_b(main: @mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 16 { true -> block op_read_b(main) _ -> block finish(main) }
+        transition main.sp >= 0 && main.sp < 16 { true -> block op_read_b(main), _ -> block finish(main) }
     }
     machine op_read_b(main: @mut Main) {
         main.b = main.stack[main.sp];
-        transition main.sp >= 1 && main.sp <= 16 { true -> block op_pop_a(main) _ -> block finish(main) }
+        transition main.sp >= 1 && main.sp <= 16 { true -> block op_pop_a(main), _ -> block finish(main) }
     }
     machine op_pop_a(main: @mut Main) {
         main.sp = main.sp - 1;
-        transition main.sp >= 0 && main.sp < 16 { true -> block op_read_a(main) _ -> block finish(main) }
+        transition main.sp >= 0 && main.sp < 16 { true -> block op_read_a(main), _ -> block finish(main) }
     }
     machine op_read_a(main: @mut Main) {
         main.a = main.stack[main.sp];
@@ -120,13 +120,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // Decode the operator code and compute into `acc`.
     machine op_dispatch(main: @mut Main) {
         transition main.tok == 0 - 1 {
-            true -> block op_add(main)
+            true -> block op_add(main),
             _ -> block op_dispatch_mul(main)
         }
     }
     machine op_dispatch_mul(main: @mut Main) {
         transition main.tok == 0 - 2 {
-            true -> block op_mul(main)
+            true -> block op_mul(main),
             _ -> block op_sub(main)
         }
     }
@@ -149,7 +149,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // so the else arm is unreachable.)
     machine op_guard(main: @mut Main) {
         transition main.sp >= 0 && main.sp < 16 {
-            true -> block op_push(main)
+            true -> block op_push(main),
             _ -> block finish(main)
         }
     }
@@ -167,7 +167,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     // <= 16 always holds, so the else arm is unreachable).
     machine advance(main: @mut Main) {
         transition main.pc < 16 {
-            true -> block bump(main)
+            true -> block bump(main),
             _ -> block finish(main)
         }
     }

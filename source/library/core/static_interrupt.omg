@@ -146,7 +146,7 @@ requires machine Completion satisfies InterruptAcknowledgementCompletion::comple
 reaches MachineControl + PortIo
 {
     let permit: StaticInterruptCompletionPermit =
-        begin_static_interrupt_completion<Completion>(@acknowledgement);
+        begin_static_interrupt_completion::<Completion>(@acknowledgement);
     Completion(acknowledgement);
     finish_static_interrupt_completion(permit);
 }

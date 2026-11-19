@@ -35,7 +35,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let seen: i64 = choose(true, 4, 9);
     transition seen == 4 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

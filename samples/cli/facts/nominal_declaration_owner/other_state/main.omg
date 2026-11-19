@@ -4,7 +4,7 @@ use shared::library::Token;
 use shared::library::read;
 machine transported() -> u8 { transition { _ -> receive(Token { value: 7 }) } machine receive(token: Token) -> u8 { read(token) } }
 machine main() crashes Trap {
-    transition transported() == 7 { true -> done() _ -> bad() }
+    transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

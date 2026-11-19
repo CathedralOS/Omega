@@ -23,12 +23,12 @@ data Main { filter: Filter; line: [u8; 16]; }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let result: LineReadResult = block Console::read_line(@mut main.line[..]);
     transition result {
-        LineReadResult::LineComplete { count } -> block header(main, count)
+        LineReadResult::LineComplete { count } -> block header(main, count),
         _ -> bad_input(main)
     }
     machine header(main: @mut Main, count: u64) {
         transition configuration(@main.line, count) {
-            true -> block configure(main)
+            true -> block configure(main),
             false -> bad_input(main)
         }
     }
@@ -40,39 +40,39 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read(main: @mut Main, step: u64) requires step <= 8 {
         let result: LineReadResult = block Console::read_line(@mut main.line[..]);
         transition result {
-            LineReadResult::LineComplete { count } -> block capacity(main, step, count)
-            LineReadResult::EndOfInput { count } -> end(main, step, count)
+            LineReadResult::LineComplete { count } -> block capacity(main, step, count),
+            LineReadResult::EndOfInput { count } -> end(main, step, count),
             _ -> bad_input(main)
         }
     }
     machine end(main: @mut Main, step: u64, count: u64) {
         transition count == 0 && step > 0 {
-            true -> success(main)
+            true -> success(main),
             false -> bad_input(main)
         }
     }
     machine capacity(main: @mut Main, step: u64, count: u64) requires step <= 8 {
         transition step < 8 {
-            true -> block row(main, step + 1, count)
+            true -> block row(main, step + 1, count),
             false -> limit(main)
         }
     }
     machine row(main: @mut Main, step: u64, count: u64) requires step <= 8 {
         transition count == 2 && main.line[0] == 77 && main.line[1] == 10 {
-            true -> block missing(main, step)
+            true -> block missing(main, step),
             false -> block measurement(main, step, count)
         }
     }
     machine measurement(main: @mut Main, step: u64, count: u64) requires step <= 8 {
         transition reading(@main.line, count) {
-            true -> block numeric(main, step)
+            true -> block numeric(main, step),
             false -> bad_input(main)
         }
     }
     machine numeric(main: @mut Main, step: u64) requires step <= 8 {
         predict(@mut main.filter);
         let accepted: bool = observe(@mut main.filter, measured_value(@main.line), main.line[0] == 80);
-        transition accepted { true -> block checked(main, step) false -> singular(main, step) }
+        transition accepted { true -> block checked(main, step), false -> singular(main, step) }
     }
     machine missing(main: @mut Main, step: u64) requires step <= 8 {
         predict(@mut main.filter);
@@ -81,7 +81,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine checked(main: @mut Main, step: u64) requires step <= 8 {
         transition covariance_valid(main.filter.covariance)
             && F64::is_finite(main.filter.estimate.position) && F64::is_finite(main.filter.estimate.velocity) {
-            true -> block output(main, step)
+            true -> block output(main, step),
             false -> invariant(main)
         }
     }

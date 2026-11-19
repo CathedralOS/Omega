@@ -11,12 +11,12 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Eof -> execute(main, 0)
+        ByteRead::Eof -> execute(main, 0),
         ByteRead::Byte { value } -> command(main, value)
     }
     machine command(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 55 {
-            true -> execute(main, (value - 48) as u64 in Wrapping)
+            true -> execute(main, (value - 48) as u64 in Wrapping),
             false -> invalid(main)
         }
     }
@@ -46,7 +46,7 @@ machine report(main: @mut Main, search: @Search, problem: @Problem) reaches Cons
     transition { _ -> row(main, search, problem, 0) }
     machine row(main: @mut Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
-            true -> emit(main, search, problem, mask)
+            true -> emit(main, search, problem, mask),
             false -> placement(main, search, problem)
         }
     }
@@ -67,7 +67,7 @@ machine report(main: @mut Main, search: @Search, problem: @Problem) reaches Cons
         Console::write(" ties="); number(main, search.ties);
         Console::write(" status=");
         transition search.score >= problem.minimum {
-            true -> status(main, search, 1)
+            true -> status(main, search, 1),
             false -> status(main, search, 0)
         }
     }
@@ -77,7 +77,7 @@ machine report(main: @mut Main, search: @Search, problem: @Problem) reaches Cons
     }
     machine demand(main: @mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
         transition position < 4 {
-            true -> coverage(main, remaining, position)
+            true -> coverage(main, remaining, position),
             false -> done()
         }
     }

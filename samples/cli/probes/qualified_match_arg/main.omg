@@ -36,7 +36,7 @@ machine Main::main(main: @mut Main) {
     main.hits = 0;
     let chosen: i64 in Coordinate<7> = choose(true, 3, 4);
     transition chosen as i64 == 3 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

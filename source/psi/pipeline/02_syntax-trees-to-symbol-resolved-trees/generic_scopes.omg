@@ -27,7 +27,7 @@ data GenericCoordinate [copy] {
 machine generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
     transition parameter >= scope.first_generic_parameter
         && parameter - scope.first_generic_parameter < scope.generic_parameter_count {
-        true -> own(parameter - scope.first_generic_parameter)
+        true -> own(parameter - scope.first_generic_parameter),
         false -> outer(scope, parameter)
     }
     machine own(position: u64 in Trapping) -> GenericCoordinate {
@@ -35,7 +35,7 @@ machine generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> Gene
     }
     machine outer(scope: TypeScope, parameter: u64 in Trapping) -> GenericCoordinate {
         transition parameter >= scope.first_outer_parameter && parameter - scope.first_outer_parameter < scope.outer_parameter_count {
-            true -> container(parameter - scope.first_outer_parameter)
+            true -> container(parameter - scope.first_outer_parameter),
             false -> lexical(parameter)
         }
     }
@@ -49,18 +49,18 @@ machine generic_coordinate(scope: TypeScope, parameter: u64 in Trapping) -> Gene
 
 machine same_generic_coordinate(left: GenericCoordinate, right: GenericCoordinate) -> bool {
     transition left {
-        GenericCoordinate::Declaration { position } -> declaration(position, right)
-        GenericCoordinate::Container { position } -> container(position, right)
+        GenericCoordinate::Declaration { position } -> declaration(position, right),
+        GenericCoordinate::Container { position } -> container(position, right),
         GenericCoordinate::Lexical { parameter } -> lexical(parameter, right)
     }
     machine declaration(position: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Declaration { position as other } -> equal(position, other) _ -> different() }
+        transition right { GenericCoordinate::Declaration { position as other } -> equal(position, other), _ -> different() }
     }
     machine container(position: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Container { position as other } -> equal(position, other) _ -> different() }
+        transition right { GenericCoordinate::Container { position as other } -> equal(position, other), _ -> different() }
     }
     machine lexical(parameter: u64 in Trapping, right: GenericCoordinate) -> bool {
-        transition right { GenericCoordinate::Lexical { parameter as other } -> equal(parameter, other) _ -> different() }
+        transition right { GenericCoordinate::Lexical { parameter as other } -> equal(parameter, other), _ -> different() }
     }
     machine equal(left: u64 in Trapping, right: u64 in Trapping) -> bool { left == right }
     machine different() -> bool { false }
@@ -78,7 +78,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count {
-            true -> named(resolver, sources, syntax, scope, offset)
+            true -> named(resolver, sources, syntax, scope, offset),
             _ -> done()
         }
     }
@@ -86,7 +86,7 @@ crashes Trap
     machine named(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.kind == GenericParameterKind::Type {
-            true -> type_binder(resolver, sources, syntax, scope, offset, parameter.name)
+            true -> type_binder(resolver, sources, syntax, scope, offset, parameter.name),
             _ -> prior(resolver, sources, syntax, scope, offset, parameter.name, 0)
         }
     }
@@ -94,7 +94,7 @@ crashes Trap
     machine type_binder(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan) {
         let builtin: bool = builtin_type_spelling(sources, name.source_span);
         transition builtin {
-            true -> shadow(resolver, name)
+            true -> shadow(resolver, name),
             _ -> prior(resolver, sources, syntax, scope, offset, name, 0)
         }
     }
@@ -105,7 +105,7 @@ crashes Trap
 
     machine prior(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, name: IdentifierSpan, earlier: u64 in Trapping) {
         transition earlier < offset {
-            true -> compare(resolver, sources, syntax, scope, offset, name, earlier)
+            true -> compare(resolver, sources, syntax, scope, offset, name, earlier),
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
@@ -116,7 +116,7 @@ crashes Trap
             earlier_parameter.name.source_span
         );
         transition equal {
-            true -> duplicate(resolver, name)
+            true -> duplicate(resolver, name),
             _ -> prior(resolver, sources, syntax, scope, offset, name, earlier + 1)
         }
     }
@@ -142,7 +142,7 @@ crashes Trap
 
     machine next(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < scope.generic_parameter_count && resolver.output.accepted {
-            true -> annotation(resolver, sources, syntax, scope, offset)
+            true -> annotation(resolver, sources, syntax, scope, offset),
             _ -> done()
         }
     }
@@ -150,14 +150,14 @@ crashes Trap
     machine annotation(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping) {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, scope.first_generic_parameter + offset);
         transition parameter.has_type_reference {
-            true -> role(resolver, sources, syntax, scope, offset, parameter)
+            true -> role(resolver, sources, syntax, scope, offset, parameter),
             _ -> next(resolver, sources, syntax, scope, offset + 1)
         }
     }
 
     machine role(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, offset: u64 in Trapping, parameter: GenericParameter) {
         transition parameter.kind {
-            GenericParameterKind::Evidence -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Trait)
+            GenericParameterKind::Evidence -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Trait),
             _ -> bind(resolver, sources, syntax, scope, offset, parameter.type_reference, TypeRole::Type)
         }
     }
@@ -179,7 +179,7 @@ crashes Trap
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         transition offset < count {
-            true -> candidate(sources, syntax, first, count, name, offset)
+            true -> candidate(sources, syntax, first, count, name, offset),
             _ -> absent()
         }
     }
@@ -188,7 +188,7 @@ crashes Trap
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         let equal: bool = spans_equal(sources, name, parameter.name.source_span);
         transition equal && parameter.kind != GenericParameterKind::Lifetime {
-            true -> found(first + offset)
+            true -> found(first + offset),
             _ -> next(sources, syntax, first, count, name, offset + 1)
         }
     }
@@ -214,13 +214,13 @@ crashes Trap
 {
     let tagged: bool = lifetime_named(sources, syntax, scope, type_reference.lifetime.source_span);
     transition type_reference.has_lifetime && !tagged {
-        true -> answer(false)
+        true -> answer(false),
         _ -> argument(sources, syntax, scope, type_reference, 0)
     }
 
     machine argument(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, type_reference: TypeReference, offset: u64 in Trapping) -> bool {
         transition offset < type_reference.lifetime_count {
-            true -> tag(sources, syntax, scope, type_reference, offset)
+            true -> tag(sources, syntax, scope, type_reference, offset),
             _ -> answer(true)
         }
     }
@@ -229,7 +229,7 @@ crashes Trap
         let spelled: IdentifierSpan = type_lifetime(syntax, type_reference.first_lifetime + offset);
         let declared: bool = lifetime_named(sources, syntax, scope, spelled.source_span);
         transition declared {
-            true -> argument(sources, syntax, scope, type_reference, offset + 1)
+            true -> argument(sources, syntax, scope, type_reference, offset + 1),
             _ -> answer(false)
         }
     }
@@ -258,7 +258,7 @@ crashes Trap
 
     machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> bool {
         transition offset < count {
-            true -> candidate(sources, syntax, first, count, name, offset)
+            true -> candidate(sources, syntax, first, count, name, offset),
             _ -> answer(false)
         }
     }
@@ -267,7 +267,7 @@ crashes Trap
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         let equal: bool = spans_equal(sources, name, parameter.name.source_span);
         transition equal && parameter.kind == GenericParameterKind::Lifetime {
-            true -> answer(true)
+            true -> answer(true),
             _ -> next(sources, syntax, first, count, name, offset + 1)
         }
     }
@@ -283,7 +283,7 @@ machine lifetime_arity(syntax: @SyntaxTrees, binding: TypeBinding) -> u64 in Tra
 crashes Trap
 {
     transition binding {
-        TypeBinding::Data { item } -> data(syntax, item)
+        TypeBinding::Data { item } -> data(syntax, item),
         _ -> answer(0)
     }
 
@@ -294,7 +294,7 @@ crashes Trap
 
     machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
         transition offset < count {
-            true -> candidate(syntax, first, count, offset, found)
+            true -> candidate(syntax, first, count, offset, found),
             _ -> answer(found)
         }
     }
@@ -302,7 +302,7 @@ crashes Trap
     machine candidate(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping, found: u64 in Trapping) -> u64 in Trapping {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition parameter.kind == GenericParameterKind::Lifetime {
-            true -> next(syntax, first, count, offset + 1, found + 1)
+            true -> next(syntax, first, count, offset + 1, found + 1),
             _ -> next(syntax, first, count, offset + 1, found)
         }
     }
@@ -319,7 +319,7 @@ crashes Trap
     transition { _ -> ancestor(sources, syntax, scope, name, scope_parent(syntax, scope)) }
     machine ancestor(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> Lookup {
         transition parent > 0 {
-            true -> declared(sources, syntax, scope, name, parent - 1)
+            true -> declared(sources, syntax, scope, name, parent - 1),
             false -> outer(sources, syntax, scope, name)
         }
     }
@@ -327,14 +327,14 @@ crashes Trap
         let item: MachineItem = machine_item(syntax, machine_handle);
         let named: Lookup = generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition named {
-            Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle)
+            Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle),
             _ -> ancestor(sources, syntax, scope, name, item.parent)
         }
     }
     machine static_parameter(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> Lookup {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
         transition parameter.kind == GenericParameterKind::Value {
-            true -> ancestor(sources, syntax, scope, name, parent)
+            true -> ancestor(sources, syntax, scope, name, parent),
             false -> Lookup::Found { handle: handle }
         }
     }
@@ -348,14 +348,14 @@ machine scoped_lifetime_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: 
 crashes Trap
 {
     transition parent > 0 {
-        true -> declared(sources, syntax, scope, name, parent - 1)
+        true -> declared(sources, syntax, scope, name, parent - 1),
         false -> lifetime_among(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
     }
     machine declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, handle: u64 in Trapping) -> bool {
         let item: MachineItem = machine_item(syntax, handle);
         let present: bool = lifetime_among(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition present {
-            true -> true
+            true -> true,
             false -> scoped_lifetime_named(sources, syntax, scope, name, item.parent)
         }
     }
@@ -368,7 +368,7 @@ machine scope_parent(syntax: @SyntaxTrees, scope: TypeScope) -> u64 in Trapping
 crashes Trap
 {
     transition scope.lexical_machine > 0 {
-        true -> declared(syntax, scope.lexical_machine - 1)
+        true -> declared(syntax, scope.lexical_machine - 1),
         false -> 0
     }
     machine declared(syntax: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {

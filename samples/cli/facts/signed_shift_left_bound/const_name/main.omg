@@ -14,13 +14,13 @@ machine shift_left(val: i64) -> i64
 machine main() crashes Trap {
     let val: i64 = BASE;
     transition val >= BASE && val <= BASE {
-        true -> shift_step(val)
+        true -> shift_step(val),
         _ -> bad()
     }
     machine shift_step(v: i64) {
         let shifted: i64 = shift_left(v);
         transition shifted >= 100i64 && shifted <= 100i64 {
-            true -> done(shifted)
+            true -> done(shifted),
             _ -> bad()
         }
     }

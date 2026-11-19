@@ -12,7 +12,7 @@ machine main() crashes Trap {
     let low: Counter = next(0, 60);
     let high: Counter = next(59, 1);
     transition total(low) == 196 && total(high) == 255 && low.value == 1 && high.value == 60 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -328,7 +328,7 @@ public machine prepend_overload(table: @mut OverloadTable, handle: u64 in Trappi
 crashes Trap
 {
     transition handle < 10240 {
-        true -> store(table, handle, heads, exported)
+        true -> store(table, handle, heads, exported),
         _ -> invalid()
     }
     machine store(table: @mut OverloadTable, handle: u64 in Trapping, heads: OverloadLinks, exported: bool) -> OverloadLinks
@@ -337,7 +337,7 @@ crashes Trap
         table.successors[handle as -Trapping] = heads;
         let cursor: u64 in Trapping = handle + 1;
         transition exported {
-            true -> OverloadLinks { all: cursor, exported: cursor }
+            true -> OverloadLinks { all: cursor, exported: cursor },
             false -> OverloadLinks { all: cursor, exported: heads.exported }
         }
     }
@@ -348,14 +348,14 @@ public machine next_overload(table: @OverloadTable, handle: u64 in Trapping, pub
 crashes Trap
 {
     transition handle < 10240 {
-        true -> read(table, handle, public_only)
+        true -> read(table, handle, public_only),
         _ -> invalid()
     }
     machine read(table: @OverloadTable, handle: u64 in Trapping, public_only: bool) -> u64 in Trapping
     requires handle < 10240
     {
         let links: OverloadLinks = table.successors[handle as -Trapping];
-        transition public_only { true -> links.exported false -> links.all }
+        transition public_only { true -> links.exported, false -> links.all }
     }
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
@@ -388,7 +388,7 @@ public machine value_binding(resolution: @NameResolution, index: u64 in Trapping
 crashes Trap
 {
     transition index < resolution.value_binding_count {
-        true -> read(resolution, index)
+        true -> read(resolution, index),
         _ -> invalid()
     }
 
@@ -417,15 +417,15 @@ crashes Trap
 {
     let binding: TypeBinding = type_binding_at(resolution, row);
     transition binding {
-        TypeBinding::Machine { handle } -> chosen(MachineArgument::Declared { machine: handle })
-        TypeBinding::GenericParameter { parameter } -> generic(syntax, parameter)
+        TypeBinding::Machine { handle } -> chosen(MachineArgument::Declared { machine: handle }),
+        TypeBinding::GenericParameter { parameter } -> generic(syntax, parameter),
         _ -> chosen(MachineArgument::Absent)
     }
 
     machine generic(syntax: @SyntaxTrees, parameter: u64 in Trapping) -> MachineArgument {
         let declared: GenericParameter = syntax_trees_generic_parameter(syntax, parameter);
         transition declared.kind == GenericParameterKind::Machine {
-            true -> chosen(MachineArgument::Forwarded { parameter: parameter })
+            true -> chosen(MachineArgument::Forwarded { parameter: parameter }),
             _ -> chosen(MachineArgument::Absent)
         }
     }
@@ -439,7 +439,7 @@ crashes Trap
 // parameter beyond the table.
 public machine binder_contract(resolution: @NameResolution, parameter: u64 in Trapping) -> BinderContract {
     transition parameter < 256 {
-        true -> read(resolution, parameter)
+        true -> read(resolution, parameter),
         _ -> none()
     }
 
@@ -458,7 +458,7 @@ public machine set_binder_contract(resolution: @mut NameResolution, parameter: u
 crashes Trap
 {
     transition parameter < 256 {
-        true -> write(resolution, parameter, contract)
+        true -> write(resolution, parameter, contract),
         _ -> invalid()
     }
 
@@ -478,7 +478,7 @@ public machine name_resolution_requirement(resolution: @NameResolution, index: u
 crashes Trap
 {
     transition index < resolution.requirement_count {
-        true -> read(resolution, index)
+        true -> read(resolution, index),
         _ -> invalid()
     }
 
@@ -497,7 +497,7 @@ public machine operator_home(resolution: @NameResolution, handle: u64 in Trappin
 crashes Trap
 {
     transition handle < resolution.machine_owner_count {
-        true -> read(resolution, handle)
+        true -> read(resolution, handle),
         _ -> invalid()
     }
 
@@ -515,7 +515,7 @@ public machine machine_owner(resolution: @NameResolution, handle: u64 in Trappin
 crashes Trap
 {
     transition handle < resolution.machine_owner_count {
-        true -> read(resolution, handle)
+        true -> read(resolution, handle),
         _ -> invalid()
     }
 
@@ -533,7 +533,7 @@ public machine domain_binding_at(resolution: @NameResolution, row: u64 in Trappi
 crashes Trap
 {
     transition row < resolution.binding_count {
-        true -> read(resolution, row)
+        true -> read(resolution, row),
         _ -> invalid()
     }
 
@@ -552,7 +552,7 @@ public machine name_resolution_domain_item(resolution: @NameResolution, row: u64
 crashes Trap
 {
     transition row < resolution.binding_count {
-        true -> read(resolution, row)
+        true -> read(resolution, row),
         _ -> invalid()
     }
 
@@ -570,7 +570,7 @@ public machine path_binding(resolution: @NameResolution, handle: u64 in Trapping
 crashes Trap
 {
     transition handle < resolution.path_binding_count {
-        true -> read(resolution, handle)
+        true -> read(resolution, handle),
         _ -> invalid()
     }
 
@@ -589,7 +589,7 @@ public machine type_binding_at(resolution: @NameResolution, row: u64 in Trapping
 crashes Trap
 {
     transition row < 65536 {
-        true -> read(resolution, row)
+        true -> read(resolution, row),
         _ -> invalid()
     }
 
@@ -607,7 +607,7 @@ public machine path_binding_at(resolution: @NameResolution, handle: u64 in Trapp
 crashes Trap
 {
     transition handle < 2048 {
-        true -> read(resolution, handle)
+        true -> read(resolution, handle),
         _ -> invalid()
     }
 
@@ -626,7 +626,7 @@ public machine value_binding_at(resolution: @NameResolution, handle: u64 in Trap
 crashes Trap
 {
     transition handle < 131072 {
-        true -> read(resolution, handle)
+        true -> read(resolution, handle),
         _ -> invalid()
     }
 
@@ -662,7 +662,7 @@ public data RankingView [copy] {
 
 public machine ranking_view(resolution: @NameResolution, clause: u64 in Trapping) -> RankingView {
     transition clause < 2048 {
-        true -> read(resolution, clause)
+        true -> read(resolution, clause),
         _ -> none()
     }
 
@@ -681,7 +681,7 @@ public machine set_ranking_view(resolution: @mut NameResolution, clause: u64 in 
 crashes Trap
 {
     transition clause < 2048 {
-        true -> write(resolution, clause, view)
+        true -> write(resolution, clause, view),
         _ -> invalid()
     }
 
@@ -699,7 +699,7 @@ crashes Trap
 // The exact declared measure selected by this witness clause.
 public machine ranking_measure(resolution: @NameResolution, clause: u64 in Trapping) -> u64 in Trapping {
     transition clause < 2048 {
-        true -> read(resolution, clause)
+        true -> read(resolution, clause),
         _ -> none()
     }
 
@@ -718,7 +718,7 @@ public machine set_ranking_measure(resolution: @mut NameResolution, clause: u64 
 crashes Trap
 {
     transition clause < 2048 {
-        true -> write(resolution, clause, measure)
+        true -> write(resolution, clause, measure),
         _ -> invalid()
     }
 
@@ -735,7 +735,7 @@ crashes Trap
 
 public machine component_field(resolution: @NameResolution, member: u64 in Trapping) -> u64 in Trapping {
     transition member < 32000 {
-        true -> read(resolution, member)
+        true -> read(resolution, member),
         _ -> none()
     }
 
@@ -754,7 +754,7 @@ public machine set_component_field(resolution: @mut NameResolution, member: u64 
 crashes Trap
 {
     transition member < 32000 {
-        true -> write(resolution, member, bound)
+        true -> write(resolution, member, bound),
         _ -> invalid()
     }
 

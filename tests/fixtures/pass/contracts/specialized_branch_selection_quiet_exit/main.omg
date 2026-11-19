@@ -5,12 +5,12 @@ machine pick<const N: u64>(count: u64) -> u64
 requires count >= 10
 {
     transition N < 5 {
-        true -> (count)
+        true -> (count),
         false -> (count - 10u64)
     }
 }
 machine main() crashes Trap {
-    transition pick<10>(12) == 2 && pick<3>(12) == 12 { true -> done() _ -> bad() }
+    transition pick::<10>(12) == 2 && pick::<3>(12) == 12 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -9,7 +9,7 @@ InlineScheduler satisfies Scheduler {
 }
 machine sum(total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
     transition remaining == 0 {
-        true -> total
+        true -> total,
         false -> suspend step(total, remaining)
     }
     machine step(total: u64, remaining: u64) -> u64 reaches Scheduler suspends
@@ -34,7 +34,7 @@ machine main() reaches Scheduler crashes Trap {
     transition full == 15000150000 && empty == 7
         && full_plan.before == 0x1111 && full_plan.after == 0x2222
         && empty_plan.before == 0x3333 && empty_plan.after == 0x4444 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

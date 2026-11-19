@@ -6,7 +6,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> centered(main, 1.0) }
     machine centered(main: @mut Main, total: f64) {
         main.model.z[0] = 0.0-total/2.0;
-        transition main.model.z[0] == -0.5 { true -> good(main) false -> bad(main) }
+        transition main.model.z[0] == -0.5 { true -> good(main), false -> bad(main) }
     }
     machine good(main: @mut Main) { Console::write_line("FLOAT STORE OK"); ProcessExit::exit_process(0); }
     machine bad(main: @mut Main) { Console::write_line("FLOAT STORE WRONG"); ProcessExit::exit_process(4); }

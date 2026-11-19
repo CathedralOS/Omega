@@ -1,4 +1,3 @@
-module terrain::crossings;
 use terrain::model;
 use terrain::model::Terrain;
 use terrain::model::Contours;
@@ -8,11 +7,11 @@ use omega::language::core::narrow_u64_to_i32_wrapping;
 public machine crossings(terrain: @Terrain, graph: @mut Contours) {
     transition { _ -> edge(terrain, graph, 0) }
     machine edge(terrain: @Terrain, graph: @mut Contours, edge: u64) {
-        transition edge < 12 { true -> locate(terrain, graph, edge) false -> done() }
+        transition edge < 12 { true -> locate(terrain, graph, edge), false -> done() }
     }
     machine locate(terrain: @Terrain, graph: @mut Contours, edge: u64) requires edge < 12 {
         transition edge < 6 {
-            true -> horizontal(terrain, graph, edge)
+            true -> horizontal(terrain, graph, edge),
             false -> vertical(terrain, graph, edge)
         }
     }
@@ -31,7 +30,7 @@ public machine crossings(terrain: @Terrain, graph: @mut Contours) {
     }
     machine sample(terrain: @Terrain, graph: @mut Contours, edge: u64, start: u64, end: u64, column: u64, row: u64, horizontal: bool) {
         transition start < 9 && end < 9 && edge < 12 {
-            true -> values(terrain, graph, edge, start, end, column, row, horizontal)
+            true -> values(terrain, graph, edge, start, end, column, row, horizontal),
             false -> failed(graph)
         }
     }
@@ -39,14 +38,14 @@ public machine crossings(terrain: @Terrain, graph: @mut Contours) {
         let a: i32 in Wrapping = terrain.heights[start];
         let b: i32 in Wrapping = terrain.heights[end];
         transition (a > terrain.level) != (b > terrain.level) {
-            true -> interpolate(terrain, graph, edge, a, b, column, row, horizontal)
+            true -> interpolate(terrain, graph, edge, a, b, column, row, horizontal),
             false -> edge(terrain, graph, edge + 1)
         }
     }
     machine interpolate(terrain: @Terrain, graph: @mut Contours, edge: u64, a: i32 in Wrapping, b: i32 in Wrapping, column: u64, row: u64, horizontal: bool) requires edge < 12 {
         let denominator: i32 in Wrapping = b - a;
         transition denominator != 0 {
-            true -> store(terrain, graph, edge, a, denominator, column, row, horizontal)
+            true -> store(terrain, graph, edge, a, denominator, column, row, horizontal),
             false -> failed(graph)
         }
     }
@@ -55,7 +54,7 @@ public machine crossings(terrain: @Terrain, graph: @mut Contours) {
         graph.x[edge] = (narrow_u64_to_i32_wrapping(column) as i32 in Wrapping) * 2520;
         graph.y[edge] = (narrow_u64_to_i32_wrapping(row) as i32 in Wrapping) * 2520;
         transition horizontal {
-            true -> shift_x(terrain, graph, edge, fraction)
+            true -> shift_x(terrain, graph, edge, fraction),
             false -> shift_y(terrain, graph, edge, fraction)
         }
     }

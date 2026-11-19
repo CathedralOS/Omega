@@ -12,7 +12,7 @@ machine increment(counter: Counter) -> Counter {
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let counter: Counter = increment(Counter { value: 1 });
-    transition counter.value == 7 { true -> good(main) false -> bad(main) }
+    transition counter.value == 7 { true -> good(main), false -> bad(main) }
     machine good(main: @mut Main) { ProcessExit::exit_process(7); }
     machine bad(main: @mut Main) { ProcessExit::exit_process(71); }
 }

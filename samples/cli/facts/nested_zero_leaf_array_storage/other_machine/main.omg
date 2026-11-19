@@ -16,13 +16,13 @@ machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider 
  && shifted.before == 28 && shifted.after == 60
  && shifted.empty.len == 512 && shifted.empty[511].len == 512
  && empty_row(@shifted.empty[511][511])
- && size_of<Packet>() == 16
+ && size_of::<Packet>() == 16
 }
 data Relay {}
 machine Relay::forward(value: Packet) -> bool reaches ZeroLeafProvider { consume(value, value) }
 machine observe() -> bool reaches ZeroLeafProvider { Relay::forward(ZeroLeafProvider::make()) }
 machine main() reaches ZeroLeafProvider crashes Trap {
- transition observe() { true -> done() _ -> bad() }
+ transition observe() { true -> done(), _ -> bad() }
  machine done() {}
  machine bad() crashes Trap { crash Trap; }
 }

@@ -13,7 +13,7 @@ machine main() crashes Trap {
     let held: Held = Held { observed: cell.value.load(Receive) };
     let observed: u32 = held.observed;
     let remaining: u32 = 100 - observed;
-    transition remaining == 59 { true -> done() _ -> bad() }
+    transition remaining == 59 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

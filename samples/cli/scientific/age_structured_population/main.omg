@@ -22,7 +22,7 @@ use demography::oracles::reference_checks;
 data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let verified: bool = reference_checks();
-    transition verified { true -> read_input() false -> oracle_error() }
+    transition verified { true -> read_input(), false -> oracle_error() }
     machine oracle_error() { Console::write_line("ERROR internal oracle"); ProcessExit::exit_process(4); }
     machine read_input() {
         let steps: Parsed = block read_number();
@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let census: Census = Census { newborn: newborn.value, juvenile: juvenile.value, adult: adult.value };
         let schedule: Schedule = Schedule { survival0: survival0.value, survival1: survival1.value, survival2: survival2.value, fertility0: fertility0.value, fertility1: fertility1.value, fertility2: fertility2.value, migration0: migration0.value, migration1: migration1.value, migration2: migration2.value };
         transition steps.valid && newborn.valid && juvenile.valid && adult.valid && survival0.valid && survival1.valid && survival2.valid && fertility0.valid && fertility1.valid && fertility2.valid && migration0.valid && migration1.valid && migration2.valid && complete && steps.value >= 0 && steps.value <= 32 && valid_census(@census) && valid_schedule(@schedule) {
-            true -> forecast(census, schedule, steps.value)
+            true -> forecast(census, schedule, steps.value),
             false -> invalid()
         }
     }
@@ -54,13 +54,13 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> cycle(census, schedule, steps, 0) }
     }
     machine cycle(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
-        transition year < steps { true -> step(census, schedule, steps, year) false -> done() }
+        transition year < steps { true -> step(census, schedule, steps, year), false -> done() }
     }
     machine step(census: Census, schedule: Schedule, steps: i64 in Wrapping, year: i64 in Wrapping) {
         let mut next: Census = census;
         let balance: Balance = advance(@mut next, @schedule);
         transition valid_census(@next) && balance.after == balance.before + balance.births - balance.deaths + balance.migration {
-            true -> publish(next, schedule, steps, year + 1, balance)
+            true -> publish(next, schedule, steps, year + 1, balance),
             false -> infeasible()
         }
     }

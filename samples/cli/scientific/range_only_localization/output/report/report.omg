@@ -1,4 +1,3 @@
-module output::report;
 use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u8_wrapping;
 
@@ -18,7 +17,7 @@ invokes Console
     let mut decimal: Decimal;
     decimal.divisor = 1;
     transition value < 0 {
-        true -> negative(value, @mut decimal)
+        true -> negative(value, @mut decimal),
         false -> positive(value, @mut decimal)
     }
     machine negative(value: i32 in Wrapping, decimal: @mut Decimal) {
@@ -33,7 +32,7 @@ invokes Console
     }
     machine scale(decimal: @mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> scale_ready(decimal)
+            true -> scale_ready(decimal),
             false -> done()
         }
     }
@@ -41,13 +40,13 @@ invokes Console
     requires decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11
     {
         transition decimal.value / decimal.divisor <= -10 && decimal.divisor <= 100000000 {
-            true -> grow(decimal)
+            true -> grow(decimal),
             false -> digit(decimal)
         }
     }
     machine grow(decimal: @mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 100000000 && decimal.count < 11 {
-            true -> grow_ready(decimal)
+            true -> grow_ready(decimal),
             false -> done()
         }
     }
@@ -59,7 +58,7 @@ invokes Console
     }
     machine digit(decimal: @mut Decimal) {
         transition decimal.divisor >= 1 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> digit_ready(decimal)
+            true -> digit_ready(decimal),
             false -> done()
         }
     }
@@ -69,13 +68,13 @@ invokes Console
         decimal.bytes[decimal.count] = narrow_i32_to_u8_wrapping((-(decimal.value / decimal.divisor) + 48) as i32);
         decimal.count = decimal.count + 1;
         transition decimal.divisor >= 10 && decimal.count < 11 {
-            true -> next(decimal)
+            true -> next(decimal),
             false -> emit(decimal)
         }
     }
     machine next(decimal: @mut Decimal) {
         transition decimal.divisor >= 10 && decimal.divisor <= 1000000000 && decimal.count < 11 {
-            true -> next_ready(decimal)
+            true -> next_ready(decimal),
             false -> done()
         }
     }
@@ -88,7 +87,7 @@ invokes Console
     }
     machine emit(decimal: @Decimal) {
         transition decimal.count <= 11 {
-            true -> emit_ready(decimal)
+            true -> emit_ready(decimal),
             false -> done()
         }
     }

@@ -49,7 +49,7 @@ data Main {
 // Set item at each const index (dispatch-based runtime write).
 machine set_item(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
     transition index == 0 {
-        true -> set0(inventory, id, quantity, price)
+        true -> set0(inventory, id, quantity, price),
         _ -> try1(inventory, index, id, quantity, price)
     }
 
@@ -61,7 +61,7 @@ machine set_item(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in
 
     machine try1(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 1 {
-            true -> set1(inventory, id, quantity, price)
+            true -> set1(inventory, id, quantity, price),
             _ -> try2(inventory, index, id, quantity, price)
         }
     }
@@ -74,7 +74,7 @@ machine set_item(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in
 
     machine try2(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 2 {
-            true -> set2(inventory, id, quantity, price)
+            true -> set2(inventory, id, quantity, price),
             _ -> try3(inventory, index, id, quantity, price)
         }
     }
@@ -87,7 +87,7 @@ machine set_item(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in
 
     machine try3(inventory: @mut Inventory, index: i32 in Saturating, id: i32 in Saturating, quantity: i32 in Saturating, price: i32 in Saturating) {
         transition index == 3 {
-            true -> set3(inventory, id, quantity, price)
+            true -> set3(inventory, id, quantity, price),
             _ -> set4(inventory, id, quantity, price)
         }
     }
@@ -115,7 +115,7 @@ machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 i
     machine check0(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price0: i32 in Saturating = inventory.items[0].price;
         transition inventory.items[0].id == target_id {
-            true -> (price0)
+            true -> (price0),
             _ -> check1(inventory, target_id)
         }
     }
@@ -123,7 +123,7 @@ machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 i
     machine check1(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price1: i32 in Saturating = inventory.items[1].price;
         transition inventory.items[1].id == target_id {
-            true -> (price1)
+            true -> (price1),
             _ -> check2(inventory, target_id)
         }
     }
@@ -131,7 +131,7 @@ machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 i
     machine check2(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price2: i32 in Saturating = inventory.items[2].price;
         transition inventory.items[2].id == target_id {
-            true -> (price2)
+            true -> (price2),
             _ -> check3(inventory, target_id)
         }
     }
@@ -139,7 +139,7 @@ machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 i
     machine check3(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price3: i32 in Saturating = inventory.items[3].price;
         transition inventory.items[3].id == target_id {
-            true -> (price3)
+            true -> (price3),
             _ -> check4(inventory, target_id)
         }
     }
@@ -147,7 +147,7 @@ machine find_price(inventory: @Inventory, target_id: i32 in Saturating) -> i32 i
     machine check4(inventory: @Inventory, target_id: i32 in Saturating) -> i32 in Saturating {
         let price4: i32 in Saturating = inventory.items[4].price;
         transition inventory.items[4].id == target_id {
-            true -> (price4)
+            true -> (price4),
             _ -> (0i32 as +Saturating)
         }
     }
@@ -176,7 +176,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let price: i32 in Saturating = find_price(@inventory, 5i32 as +Saturating);
 
     transition price == 70 {
-        true -> block check_total(context, total)
+        true -> block check_total(context, total),
         _ -> block bad_price(context)
     }
 
@@ -191,7 +191,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     machine check_total(context: @mut Main, total: i32 in Saturating) {
         let adjusted: i32 in Saturating = total - 77;
         transition adjusted == 70 {
-            true -> block good(context)
+            true -> block good(context),
             _ -> block bad_total(context)
         }
     }

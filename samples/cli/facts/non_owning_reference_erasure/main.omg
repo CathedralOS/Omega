@@ -16,11 +16,11 @@ machine write(storage: @write Storage in Issued) {
 machine observed_exit() -> u32 {
     let mut storage: Storage in Issued = issue(0);
     write(@write storage);
-    transition storage.value == 73 && storage.left_canary == 17 && storage.right_canary == 23 { true -> 0 _ -> 1 }
+    transition storage.value == 73 && storage.left_canary == 17 && storage.right_canary == 23 { true -> 0, _ -> 1 }
 }
 
 machine main() crashes Trap {
-    transition observed_exit() == 0 { true -> done() _ -> bad() }
+    transition observed_exit() == 0 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

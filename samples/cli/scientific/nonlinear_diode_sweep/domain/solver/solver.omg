@@ -1,4 +1,3 @@
-module domain::solver;
 use domain::shockley;
 use domain::shockley::Circuit;
 use domain::shockley::diode_current;
@@ -37,7 +36,7 @@ public machine solve(circuit: @Circuit, solver: @mut Solver, source: f64,
     solver.scan_position = 1.0;
     solver.scan_count = 1;
     transition solver.previous_residual == 0.0 {
-        true -> endpoint(circuit, solver, circuit.lower)
+        true -> endpoint(circuit, solver, circuit.lower),
         false -> scan(circuit, solver, budget)
     }
     machine endpoint(circuit: @Circuit, solver: @mut Solver, voltage: f64) {
@@ -53,14 +52,14 @@ public machine solve(circuit: @Circuit, solver: @mut Solver, source: f64,
         let residual: f64 = circuit_residual(circuit, voltage, solver.source);
         solver.evaluations = solver.evaluations + 1;
         transition residual == 0.0 {
-            true -> endpoint(circuit, solver, voltage)
+            true -> endpoint(circuit, solver, voltage),
             false -> bracket(circuit, solver, budget, voltage, residual)
         }
     }
     machine bracket(circuit: @Circuit, solver: @mut Solver, budget: i32 in Wrapping,
         voltage: f64, residual: f64) {
         transition solver.previous_residual < 0.0 && residual > 0.0 {
-            true -> start(circuit, solver, budget, voltage)
+            true -> start(circuit, solver, budget, voltage),
             false -> advance(circuit, solver, budget, voltage, residual)
         }
     }
@@ -71,7 +70,7 @@ public machine solve(circuit: @Circuit, solver: @mut Solver, source: f64,
         solver.scan_count = solver.scan_count + 1;
         solver.scan_position = solver.scan_position + 1.0;
         transition solver.scan_count <= 64 {
-            true -> scan(circuit, solver, budget)
+            true -> scan(circuit, solver, budget),
             false -> absent(solver)
         }
     }
@@ -96,14 +95,14 @@ public machine solve(circuit: @Circuit, solver: @mut Solver, source: f64,
         solver.iterations = solver.iterations + 1;
         let absolute: f64 = magnitude(solver.residual);
         transition absolute <= 0.0000000001 || solver.width <= 0.000000000001 {
-            true -> converged(solver)
+            true -> converged(solver),
             false -> limit(circuit, solver, budget)
         }
     }
     machine converged(solver: @mut Solver) { solver.status = 1; }
     machine limit(circuit: @Circuit, solver: @mut Solver, budget: i32 in Wrapping) {
         transition solver.iterations >= budget {
-            true -> exhausted(solver)
+            true -> exhausted(solver),
             false -> narrow(circuit, solver, budget)
         }
     }
@@ -111,7 +110,7 @@ public machine solve(circuit: @Circuit, solver: @mut Solver, source: f64,
     machine narrow(circuit: @Circuit, solver: @mut Solver, budget: i32 in Wrapping) {
         solver.width = solver.width * 0.5;
         transition solver.residual < 0.0 {
-            true -> move_lower(circuit, solver, budget)
+            true -> move_lower(circuit, solver, budget),
             false -> move_upper(circuit, solver, budget)
         }
     }

@@ -6,7 +6,7 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let input: ByteRead = block Console::read_byte();
     transition input {
-        ByteRead::Eof -> finish(main)
+        ByteRead::Eof -> finish(main),
         ByteRead::Byte { value } -> unsafe_read(main, value)
     }
     machine unsafe_read(main: @mut Main, index: i32) {

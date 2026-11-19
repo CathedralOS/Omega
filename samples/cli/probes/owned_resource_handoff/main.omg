@@ -24,19 +24,19 @@ machine main() crashes Trap {
     machine received(resource: Resource in Open) {
         let identity: u64 = observe(@resource);
         close(resource);
-        transition identity == 41 { true -> another() false -> wrong() }
+        transition identity == 41 { true -> another(), false -> wrong() }
     }
     machine another() {
         let acquired: Acquisition = open(73);
         transition acquired {
-            Acquisition::Ok { resource } -> received_payload(resource)
+            Acquisition::Ok { resource } -> received_payload(resource),
             _ -> wrong()
         }
     }
     machine received_payload(resource: Resource in Open) {
         let identity: u64 = observe(@resource);
         close(resource);
-        transition identity == 73 { true -> done() false -> wrong() }
+        transition identity == 73 { true -> done(), false -> wrong() }
     }
     machine done() {}
     machine wrong() { crash Trap; }

@@ -8,13 +8,13 @@ machine main() crashes Trap {
     let original: @mut i64 = @mut backing;
     let alternate: @mut i64 = @mut spare;
     let child: @mut i64 = match pick {
-        true -> original
+        true -> original,
         false -> alternate
     };
     child = 41;
     let observed: i64 = child;
     transition observed == 41 && backing == 41 && spare == 0 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

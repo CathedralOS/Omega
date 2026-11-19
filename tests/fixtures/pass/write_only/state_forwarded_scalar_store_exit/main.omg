@@ -23,7 +23,7 @@ machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.neighbor = 19;
     forward(@write main.value, 42);
     transition main.value == 42 && main.neighbor == 19 {
-        true -> good(main)
+        true -> good(main),
         false -> bad(main)
     }
     machine good(main: @mut Main) { ProcessExit::exit_process(70); }

@@ -24,7 +24,7 @@ WindowsX8664Counting satisfies Mark {
 }
 
 machine notify<T>(value: @T, label: u64, hits: @mut u64) {
-    Mark::record<T>(value, label, hits);
+    Mark::record::<T>(value, label, hits);
 }
 
 machine main() crashes Trap {
@@ -32,9 +32,9 @@ machine main() crashes Trap {
     let other: u8 = 3;
     let mut first: u64 = 0;
     let mut second: u64 = 0;
-    notify<i32>(@subject, 9, @mut first);
-    notify<u8>(@other, 5, @mut second);
-    transition first == 9 && second == 5 { true -> done() false -> bad() }
+    notify::<i32>(@subject, 9, @mut first);
+    notify::<u8>(@other, 5, @mut second);
+    transition first == 9 && second == 5 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

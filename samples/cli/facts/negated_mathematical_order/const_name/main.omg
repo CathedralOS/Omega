@@ -10,7 +10,7 @@ machine establish() -> u64 in Small {
 }
 machine probe() -> u64 { let value: u64 in Small = establish(); 5u64 - value }
 machine main() crashes Trap {
-    transition probe() == 2 { true -> done() _ -> bad() }
+    transition probe() == 2 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

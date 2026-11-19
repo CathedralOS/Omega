@@ -71,7 +71,7 @@ machine Main::main(main: @mut Main) reaches Reader, Writer crashes Trap {
     drop(shared_buffer);
     drop(mutable_buffer);
     transition readable == 37 && shared_observed == 37 && mutable_observed == 73 && current == 73 && original == 37 {
-        true -> done() _ -> bad()
+        true -> done(), _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }

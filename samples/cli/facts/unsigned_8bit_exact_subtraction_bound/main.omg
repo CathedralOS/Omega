@@ -14,7 +14,7 @@ requires lhs >= 100 && lhs <= 180 && rhs >= 20 && rhs <= 40
 machine main() crashes Trap {
     let res: u8 = evaluate(140u8, 30u8);
     transition res == 100 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

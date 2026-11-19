@@ -24,7 +24,7 @@ machine receive(value: Division) -> bool reaches IntegerDivision { consume(value
 data Selection { division: Division; branch: bool; }
 machine select(choice: bool) -> Selection reaches IntegerDivision {
  match choice {
-  true -> Selection { division: IntegerDivision::divide(-70000000000, 3), branch: true }
+  true -> Selection { division: IntegerDivision::divide(-70000000000, 3), branch: true },
   _ -> Selection { division: IntegerDivision::divide(-70000000000, 3), branch: false }
  }
 }
@@ -36,7 +36,7 @@ machine observe() -> bool reaches IntegerDivision {
 }
 
 machine main() reaches IntegerDivision crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() crashes Trap { crash Trap; }
 }

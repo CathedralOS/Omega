@@ -13,22 +13,22 @@ requires counter == 0
 
 machine store(flag: bool) -> Outcome crashes Trap {
     let mut chosen: Cell = match true {
-        true -> Cell { before: 3, value: 17, after: 5 }
+        true -> Cell { before: 3, value: 17, after: 5 },
         false -> Cell { before: 0, value: 0, after: 0 }
     };
     let mut other: Cell = match true {
-        true -> Cell { before: 7, value: 23, after: 9 }
+        true -> Cell { before: 7, value: 23, after: 9 },
         false -> Cell { before: 0, value: 0, after: 0 }
     };
     let mut visits: u64 = 0;
     let selected: @write i64 = match choose(@mut visits, flag) {
-        true -> @write chosen.value
+        true -> @write chosen.value,
         false -> @write other.value
     };
     let previous: i64 = selected;
     selected = 41;
     transition visits == 1 && chosen.before == 3 && chosen.after == 5 && other.before == 7 && other.after == 9 {
-        true -> report(Outcome { chosen: chosen.value, other: other.value })
+        true -> report(Outcome { chosen: chosen.value, other: other.value }),
         false -> wrong()
     }
     machine report(outcome: Outcome) -> Outcome { outcome }
@@ -39,7 +39,7 @@ machine main() crashes Trap {
     let taken: Outcome = store(true);
     let fallback: Outcome = store(false);
     transition taken.chosen == 41 && taken.other == 23 && fallback.chosen == 17 && fallback.other == 41 {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}

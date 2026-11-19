@@ -1,4 +1,3 @@
-module input::frames;
 use domain::balance;
 use domain::balance::Frame;
 use omega::language::core::widen_u8_to_i32;
@@ -11,16 +10,16 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     machine scan(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, started: bool) -> Parsed {
         transition position < text.len {
-            true -> byte(text, frame, position, field, magnitude, negative, started, text[position])
+            true -> byte(text, frame, position, field, magnitude, negative, started, text[position]),
             _ -> finish(frame, field, magnitude, negative, started)
         }
     }
     machine byte(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, started: bool, value: u8) -> Parsed {
         transition {
-            value >= 48 && value <= 57 && field >= 0 && field < 7 -> digit(text, frame, position, field, magnitude, negative, value)
-            value == 45 && started == false && negative == false && field < 7 -> minus(text, frame, position, field)
-            value == 32 || value == 10 || value == 13 || value == 9 -> space(text, frame, position, field, magnitude, negative, started)
+            value >= 48 && value <= 57 && field >= 0 && field < 7 -> digit(text, frame, position, field, magnitude, negative, value),
+            value == 45 && started == false && negative == false && field < 7 -> minus(text, frame, position, field),
+            value == 32 || value == 10 || value == 13 || value == 9 -> space(text, frame, position, field, magnitude, negative, started),
             _ -> (Parsed::Invalid)
         }
     }
@@ -28,22 +27,22 @@ public machine parse_frame(text: @[u8]) -> Parsed {
         magnitude: i64 in Wrapping, negative: bool, value: u8) -> Parsed {
         let next: i64 in Wrapping = magnitude * 10 + (widen_u8_to_i32(value) as i64 in Wrapping) - 48;
         transition next <= 1000000 && position < text.len {
-            true -> scan(text, frame, position + 1, field, next, negative, true)
+            true -> scan(text, frame, position + 1, field, next, negative, true),
             _ -> (Parsed::Invalid)
         }
     }
     machine minus(text: @[u8], frame: Frame, position: u64, field: i32) -> Parsed {
         transition position < text.len {
-            true -> scan(text, frame, position + 1, field, 0, true, false)
+            true -> scan(text, frame, position + 1, field, 0, true, false),
             _ -> (Parsed::Invalid)
         }
     }
     machine space(text: @[u8], frame: Frame, position: u64, field: i32,
         magnitude: i64 in Wrapping, negative: bool, started: bool) -> Parsed {
         transition {
-            started && field >= 0 && field < 7 && position < text.len -> store(text, frame, position, field, magnitude, negative)
-            negative -> (Parsed::Invalid)
-            position < text.len -> scan(text, frame, position + 1, field, 0, false, false)
+            started && field >= 0 && field < 7 && position < text.len -> store(text, frame, position, field, magnitude, negative),
+            negative -> (Parsed::Invalid),
+            position < text.len -> scan(text, frame, position + 1, field, 0, false, false),
             _ -> (Parsed::Invalid)
         }
     }
@@ -53,7 +52,7 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     {
         let mut next_frame: Frame = frame;
         transition negative {
-            true -> signed(text, next_frame, position, field, 0 - magnitude)
+            true -> signed(text, next_frame, position, field, 0 - magnitude),
             _ -> signed(text, next_frame, position, field, magnitude)
         }
     }
@@ -68,15 +67,15 @@ public machine parse_frame(text: @[u8]) -> Parsed {
     machine finish(frame: Frame, field: i32, magnitude: i64 in Wrapping,
         negative: bool, started: bool) -> Parsed {
         transition {
-            field == 7 && started == false && negative == false -> (Parsed::Valid { frame: frame })
-            field == 6 && started -> last(frame, magnitude, negative)
+            field == 7 && started == false && negative == false -> (Parsed::Valid { frame: frame }),
+            field == 6 && started -> last(frame, magnitude, negative),
             _ -> (Parsed::Invalid)
         }
     }
     machine last(frame: Frame, magnitude: i64 in Wrapping, negative: bool) -> Parsed {
         let mut completed: Frame = frame;
         transition negative {
-            true -> complete(completed, 0 - magnitude)
+            true -> complete(completed, 0 - magnitude),
             _ -> complete(completed, magnitude)
         }
     }

@@ -10,7 +10,7 @@ data Main { }
 machine main(main: @mut Main) reaches ProcessExit + Console {
     let bytes: [u8; 4] = [51, 52, 53, 54];
     transition true {
-        true -> emit(@bytes)
+        true -> emit(@bytes),
         false -> failed()
     }
     machine emit(bytes: @[u8]) {

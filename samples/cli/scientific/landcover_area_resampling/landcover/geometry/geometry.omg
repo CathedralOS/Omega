@@ -1,4 +1,3 @@
-module landcover::geometry;
 // Scientific model: axis-aligned cells in a planar equal-area coordinate system.
 // One tick is one metre. Half-open rectangles have integer boundaries; overlap
 // areas are exact square-metre integers. Fractions retain numerator/denominator.
@@ -11,10 +10,10 @@ public data Grid [copy] {
     columns: i32 in Wrapping; rows: i32 in Wrapping;
 }
 public machine minimum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
-    transition a < b { true -> a false -> b }
+    transition a < b { true -> a, false -> b }
 }
 public machine maximum(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
-    transition a > b { true -> a false -> b }
+    transition a > b { true -> a, false -> b }
 }
 public machine overlap(x: i32 in Wrapping, y: i32 in Wrapping,
     width: i32 in Wrapping, height: i32 in Wrapping,
@@ -24,7 +23,7 @@ public machine overlap(x: i32 in Wrapping, y: i32 in Wrapping,
     let bottom: i32 in Wrapping = maximum(y, source_y);
     let top: i32 in Wrapping = minimum(y + height, source_y + 2);
     transition right > left && top > bottom {
-        true -> (right - left) * (top - bottom)
+        true -> (right - left) * (top - bottom),
         false -> 0
     }
 }

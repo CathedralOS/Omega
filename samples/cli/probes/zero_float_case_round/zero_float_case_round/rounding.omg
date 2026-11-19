@@ -4,7 +4,6 @@ use omega::language::core::ProcessExit;
 // A copy record whose first case carries f64 is zero-constructed as +0.0.
 // That payload, and exact ±0.5 ratios taken from a runtime-indexed f64 array,
 // round half away from zero. No passing sample executes this combination.
-module zero_float_case_round;
 use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
@@ -27,7 +26,7 @@ public data Main {
 
 machine round_away(value: f64) -> i32 in Wrapping {
     transition value < 0.0 {
-        true -> negative(value)
+        true -> negative(value),
         false -> positive(value)
     }
     machine negative(value: f64) -> i32 in Wrapping {
@@ -63,7 +62,7 @@ invokes Console
     application.table.moment[1] = 1.0;
     application.table.area[1] = 2.0;
     transition application.slots[0].reading {
-        Reading::Value { amount } -> observe(application, amount)
+        Reading::Value { amount } -> observe(application, amount),
         _ -> mismatch(application)
     }
     machine observe(application: @mut Main, amount: f64) {
@@ -71,19 +70,19 @@ invokes Console
         let negative: i32 in Wrapping = round_away(ratio(@application.table, 0));
         let positive: i32 in Wrapping = round_away(ratio(@application.table, 1));
         transition zero == 0 && negative == -1 && positive == 1 && application.slots[0].ready && !application.slots[1].ready {
-            true -> second(application)
+            true -> second(application),
             false -> mismatch(application)
         }
     }
     machine second(application: @mut Main) {
         transition application.slots[1].reading {
-            Reading::Value { amount } -> second_amount(application, amount)
+            Reading::Value { amount } -> second_amount(application, amount),
             _ -> mismatch(application)
         }
     }
     machine second_amount(application: @mut Main, amount: f64) {
         transition round_away(amount) == 0 {
-            true -> report(application)
+            true -> report(application),
             false -> mismatch(application)
         }
     }

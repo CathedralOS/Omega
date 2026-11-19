@@ -21,12 +21,12 @@ machine main() crashes Trap {
     let sum_sat: i8 in Saturating = compute_sat(lhs, rhs);
     let sum: i8 = sum_sat as i8;
     let joined: i8 = match true {
-        true -> sum
+        true -> sum,
         _ -> sum
     };
     let check: i32 = verify_sum(joined);
     transition check == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -10,7 +10,7 @@ machine store(target: @mut Cell, value: i32) -> bool requires value == 41 {
 }
 machine select(envelope: Envelope) -> bool {
     match envelope {
-        Envelope::Active { message } -> store(@mut message.body, 41)
+        Envelope::Active { message } -> store(@mut message.body, 41),
         Envelope::Empty -> false
     }
 }
@@ -24,7 +24,7 @@ machine exercise() -> bool {
     written && backing.value == 41 && sibling.value == 19
 }
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -41,111 +41,111 @@ use omega_language_std::Console;
 // Whether every cell is dead (0) or alive (1), one state per cell.
 machine cells_valid(cells: @[i32; 16]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {
-        true -> at_1(cells)
+        true -> at_1(cells),
         _ -> (false)
     }
 
     machine at_1(cells: @[i32; 16]) -> bool {
         transition cells[1] == 0 || cells[1] == 1 {
-            true -> at_2(cells)
+            true -> at_2(cells),
             _ -> (false)
         }
     }
 
     machine at_2(cells: @[i32; 16]) -> bool {
         transition cells[2] == 0 || cells[2] == 1 {
-            true -> at_3(cells)
+            true -> at_3(cells),
             _ -> (false)
         }
     }
 
     machine at_3(cells: @[i32; 16]) -> bool {
         transition cells[3] == 0 || cells[3] == 1 {
-            true -> at_4(cells)
+            true -> at_4(cells),
             _ -> (false)
         }
     }
 
     machine at_4(cells: @[i32; 16]) -> bool {
         transition cells[4] == 0 || cells[4] == 1 {
-            true -> at_5(cells)
+            true -> at_5(cells),
             _ -> (false)
         }
     }
 
     machine at_5(cells: @[i32; 16]) -> bool {
         transition cells[5] == 0 || cells[5] == 1 {
-            true -> at_6(cells)
+            true -> at_6(cells),
             _ -> (false)
         }
     }
 
     machine at_6(cells: @[i32; 16]) -> bool {
         transition cells[6] == 0 || cells[6] == 1 {
-            true -> at_7(cells)
+            true -> at_7(cells),
             _ -> (false)
         }
     }
 
     machine at_7(cells: @[i32; 16]) -> bool {
         transition cells[7] == 0 || cells[7] == 1 {
-            true -> at_8(cells)
+            true -> at_8(cells),
             _ -> (false)
         }
     }
 
     machine at_8(cells: @[i32; 16]) -> bool {
         transition cells[8] == 0 || cells[8] == 1 {
-            true -> at_9(cells)
+            true -> at_9(cells),
             _ -> (false)
         }
     }
 
     machine at_9(cells: @[i32; 16]) -> bool {
         transition cells[9] == 0 || cells[9] == 1 {
-            true -> at_10(cells)
+            true -> at_10(cells),
             _ -> (false)
         }
     }
 
     machine at_10(cells: @[i32; 16]) -> bool {
         transition cells[10] == 0 || cells[10] == 1 {
-            true -> at_11(cells)
+            true -> at_11(cells),
             _ -> (false)
         }
     }
 
     machine at_11(cells: @[i32; 16]) -> bool {
         transition cells[11] == 0 || cells[11] == 1 {
-            true -> at_12(cells)
+            true -> at_12(cells),
             _ -> (false)
         }
     }
 
     machine at_12(cells: @[i32; 16]) -> bool {
         transition cells[12] == 0 || cells[12] == 1 {
-            true -> at_13(cells)
+            true -> at_13(cells),
             _ -> (false)
         }
     }
 
     machine at_13(cells: @[i32; 16]) -> bool {
         transition cells[13] == 0 || cells[13] == 1 {
-            true -> at_14(cells)
+            true -> at_14(cells),
             _ -> (false)
         }
     }
 
     machine at_14(cells: @[i32; 16]) -> bool {
         transition cells[14] == 0 || cells[14] == 1 {
-            true -> at_15(cells)
+            true -> at_15(cells),
             _ -> (false)
         }
     }
 
     machine at_15(cells: @[i32; 16]) -> bool {
         transition cells[15] == 0 || cells[15] == 1 {
-            true -> (true)
+            true -> (true),
             _ -> (false)
         }
     }
@@ -188,19 +188,19 @@ machine compute_cell_0(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[1] + context.g.board[4] + context.g.board[5]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[0] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_0(context)
+        true -> live_0(context),
         _ -> check_cur_0(context, cur, n)
     }
     machine live_0(context: @mut Main) { context.g.next[0] = 1; }
     machine check_cur_0(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_0(context, n)
+            true -> check_two_0(context, n),
             _ -> die_0(context)
         }
     }
     machine check_two_0(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_0(context)
+            true -> live2_0(context),
             _ -> die_0(context)
         }
     }
@@ -218,19 +218,19 @@ machine compute_cell_1(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[0] + context.g.board[2] + context.g.board[4] + context.g.board[5] + context.g.board[6]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[1] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_1(context)
+        true -> live_1(context),
         _ -> check_cur_1(context, cur, n)
     }
     machine live_1(context: @mut Main) { context.g.next[1] = 1; }
     machine check_cur_1(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_1(context, n)
+            true -> check_two_1(context, n),
             _ -> die_1(context)
         }
     }
     machine check_two_1(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_1(context)
+            true -> live2_1(context),
             _ -> die_1(context)
         }
     }
@@ -248,19 +248,19 @@ machine compute_cell_2(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[1] + context.g.board[3] + context.g.board[5] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[2] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_2(context)
+        true -> live_2(context),
         _ -> check_cur_2(context, cur, n)
     }
     machine live_2(context: @mut Main) { context.g.next[2] = 1; }
     machine check_cur_2(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_2(context, n)
+            true -> check_two_2(context, n),
             _ -> die_2(context)
         }
     }
     machine check_two_2(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_2(context)
+            true -> live2_2(context),
             _ -> die_2(context)
         }
     }
@@ -276,19 +276,19 @@ machine compute_cell_3(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[2] + context.g.board[6] + context.g.board[7]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[3] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_3(context)
+        true -> live_3(context),
         _ -> check_cur_3(context, cur, n)
     }
     machine live_3(context: @mut Main) { context.g.next[3] = 1; }
     machine check_cur_3(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_3(context, n)
+            true -> check_two_3(context, n),
             _ -> die_3(context)
         }
     }
     machine check_two_3(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_3(context)
+            true -> live2_3(context),
             _ -> die_3(context)
         }
     }
@@ -306,19 +306,19 @@ machine compute_cell_4(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[0] + context.g.board[1] + context.g.board[5] + context.g.board[8] + context.g.board[9]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[4] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_4(context)
+        true -> live_4(context),
         _ -> check_cur_4(context, cur, n)
     }
     machine live_4(context: @mut Main) { context.g.next[4] = 1; }
     machine check_cur_4(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_4(context, n)
+            true -> check_two_4(context, n),
             _ -> die_4(context)
         }
     }
     machine check_two_4(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_4(context)
+            true -> live2_4(context),
             _ -> die_4(context)
         }
     }
@@ -341,19 +341,19 @@ machine compute_cell_5(context: @mut Main) {
                + context.g.board[6] + context.g.board[8] + context.g.board[9] + context.g.board[10]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[5] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_5(context)
+        true -> live_5(context),
         _ -> check_cur_5(context, cur, n)
     }
     machine live_5(context: @mut Main) { context.g.next[5] = 1; }
     machine check_cur_5(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_5(context, n)
+            true -> check_two_5(context, n),
             _ -> die_5(context)
         }
     }
     machine check_two_5(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_5(context)
+            true -> live2_5(context),
             _ -> die_5(context)
         }
     }
@@ -376,19 +376,19 @@ machine compute_cell_6(context: @mut Main) {
                + context.g.board[7] + context.g.board[9] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[6] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_6(context)
+        true -> live_6(context),
         _ -> check_cur_6(context, cur, n)
     }
     machine live_6(context: @mut Main) { context.g.next[6] = 1; }
     machine check_cur_6(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_6(context, n)
+            true -> check_two_6(context, n),
             _ -> die_6(context)
         }
     }
     machine check_two_6(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_6(context)
+            true -> live2_6(context),
             _ -> die_6(context)
         }
     }
@@ -406,19 +406,19 @@ machine compute_cell_7(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[2] + context.g.board[3] + context.g.board[6] + context.g.board[10] + context.g.board[11]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[7] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_7(context)
+        true -> live_7(context),
         _ -> check_cur_7(context, cur, n)
     }
     machine live_7(context: @mut Main) { context.g.next[7] = 1; }
     machine check_cur_7(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_7(context, n)
+            true -> check_two_7(context, n),
             _ -> die_7(context)
         }
     }
     machine check_two_7(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_7(context)
+            true -> live2_7(context),
             _ -> die_7(context)
         }
     }
@@ -436,19 +436,19 @@ machine compute_cell_8(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[4] + context.g.board[5] + context.g.board[9] + context.g.board[12] + context.g.board[13]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[8] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_8(context)
+        true -> live_8(context),
         _ -> check_cur_8(context, cur, n)
     }
     machine live_8(context: @mut Main) { context.g.next[8] = 1; }
     machine check_cur_8(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_8(context, n)
+            true -> check_two_8(context, n),
             _ -> die_8(context)
         }
     }
     machine check_two_8(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_8(context)
+            true -> live2_8(context),
             _ -> die_8(context)
         }
     }
@@ -471,19 +471,19 @@ machine compute_cell_9(context: @mut Main) {
                + context.g.board[10] + context.g.board[12] + context.g.board[13] + context.g.board[14]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[9] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_9(context)
+        true -> live_9(context),
         _ -> check_cur_9(context, cur, n)
     }
     machine live_9(context: @mut Main) { context.g.next[9] = 1; }
     machine check_cur_9(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_9(context, n)
+            true -> check_two_9(context, n),
             _ -> die_9(context)
         }
     }
     machine check_two_9(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_9(context)
+            true -> live2_9(context),
             _ -> die_9(context)
         }
     }
@@ -506,19 +506,19 @@ machine compute_cell_10(context: @mut Main) {
                + context.g.board[11] + context.g.board[13] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[10] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_10(context)
+        true -> live_10(context),
         _ -> check_cur_10(context, cur, n)
     }
     machine live_10(context: @mut Main) { context.g.next[10] = 1; }
     machine check_cur_10(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_10(context, n)
+            true -> check_two_10(context, n),
             _ -> die_10(context)
         }
     }
     machine check_two_10(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_10(context)
+            true -> live2_10(context),
             _ -> die_10(context)
         }
     }
@@ -536,19 +536,19 @@ machine compute_cell_11(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[6] + context.g.board[7] + context.g.board[10] + context.g.board[14] + context.g.board[15]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[11] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_11(context)
+        true -> live_11(context),
         _ -> check_cur_11(context, cur, n)
     }
     machine live_11(context: @mut Main) { context.g.next[11] = 1; }
     machine check_cur_11(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_11(context, n)
+            true -> check_two_11(context, n),
             _ -> die_11(context)
         }
     }
     machine check_two_11(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_11(context)
+            true -> live2_11(context),
             _ -> die_11(context)
         }
     }
@@ -564,19 +564,19 @@ machine compute_cell_12(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[13]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[12] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_12(context)
+        true -> live_12(context),
         _ -> check_cur_12(context, cur, n)
     }
     machine live_12(context: @mut Main) { context.g.next[12] = 1; }
     machine check_cur_12(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_12(context, n)
+            true -> check_two_12(context, n),
             _ -> die_12(context)
         }
     }
     machine check_two_12(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_12(context)
+            true -> live2_12(context),
             _ -> die_12(context)
         }
     }
@@ -594,19 +594,19 @@ machine compute_cell_13(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[8] + context.g.board[9] + context.g.board[10] + context.g.board[12] + context.g.board[14]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[13] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_13(context)
+        true -> live_13(context),
         _ -> check_cur_13(context, cur, n)
     }
     machine live_13(context: @mut Main) { context.g.next[13] = 1; }
     machine check_cur_13(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_13(context, n)
+            true -> check_two_13(context, n),
             _ -> die_13(context)
         }
     }
     machine check_two_13(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_13(context)
+            true -> live2_13(context),
             _ -> die_13(context)
         }
     }
@@ -624,19 +624,19 @@ machine compute_cell_14(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[9] + context.g.board[10] + context.g.board[11] + context.g.board[13] + context.g.board[15]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[14] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_14(context)
+        true -> live_14(context),
         _ -> check_cur_14(context, cur, n)
     }
     machine live_14(context: @mut Main) { context.g.next[14] = 1; }
     machine check_cur_14(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_14(context, n)
+            true -> check_two_14(context, n),
             _ -> die_14(context)
         }
     }
     machine check_two_14(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_14(context)
+            true -> live2_14(context),
             _ -> die_14(context)
         }
     }
@@ -652,19 +652,19 @@ machine compute_cell_15(context: @mut Main) {
     let n: i32 in Wrapping = (context.g.board[10] + context.g.board[11] + context.g.board[14]) as i32 in Wrapping;
     let cur: i32 in Wrapping = context.g.board[15] as i32 in Wrapping;
     transition n == 3 {
-        true -> live_15(context)
+        true -> live_15(context),
         _ -> check_cur_15(context, cur, n)
     }
     machine live_15(context: @mut Main) { context.g.next[15] = 1; }
     machine check_cur_15(context: @mut Main, cur: i32 in Wrapping, n: i32 in Wrapping) {
         transition cur == 1 {
-            true -> check_two_15(context, n)
+            true -> check_two_15(context, n),
             _ -> die_15(context)
         }
     }
     machine check_two_15(context: @mut Main, n: i32 in Wrapping) {
         transition n == 2 {
-            true -> live2_15(context)
+            true -> live2_15(context),
             _ -> die_15(context)
         }
     }
@@ -733,7 +733,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     let code: i32 in Wrapping = sum + context.g.offset;
 
     transition code == 70 {
-        true -> block good(context)
+        true -> block good(context),
         _ -> block bad(context)
     }
 

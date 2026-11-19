@@ -23,26 +23,26 @@ data Collection {
 machine main(collection: @mut Collection) reaches ProcessExit + Console {
     let read: LineReadResult = block Console::read_line(@mut collection.input[..]);
     transition read {
-        LineReadResult::LineComplete { count } -> newline(collection, count)
-        LineReadResult::EndOfInput { count } -> eof(collection, count)
+        LineReadResult::LineComplete { count } -> newline(collection, count),
+        LineReadResult::EndOfInput { count } -> eof(collection, count),
         _ -> invalid(collection)
     }
     machine newline(collection: @mut Collection, count: u64) {
         transition count == 12 && collection.input[11] == 10 {
-            true -> decode(collection)
+            true -> decode(collection),
             false -> invalid(collection)
         }
     }
     machine eof(collection: @mut Collection, count: u64) {
         transition count == 11 {
-            true -> decode(collection)
+            true -> decode(collection),
             false -> invalid(collection)
         }
     }
     machine decode(collection: @mut Collection) {
         let valid: bool = parse(@collection.input, @mut collection.plan);
         transition valid {
-            true -> route(collection)
+            true -> route(collection),
             false -> invalid(collection)
         }
     }

@@ -1,4 +1,3 @@
-module domain::fit;
 use domain::model;
 use domain::model::Chromatogram;
 use domain::model::Fit;
@@ -11,7 +10,7 @@ machine moments(chromatogram: @Chromatogram, sums: @mut Moments) {
     transition { _ -> scan(chromatogram, sums, 0) }
     machine scan(chromatogram: @Chromatogram, sums: @mut Moments, index: i32 in Wrapping) {
         transition index >= 0 && index < 5 {
-            true -> add(chromatogram, sums, index)
+            true -> add(chromatogram, sums, index),
             _ -> done()
         }
     }
@@ -33,7 +32,7 @@ machine squared_error(chromatogram: @Chromatogram, a: f64, b: f64) -> f64 {
     machine scan(chromatogram: @Chromatogram, a: f64, b: f64,
                index: i32 in Wrapping, sum: f64) -> f64 {
         transition index >= 0 && index < 5 {
-            true -> add(chromatogram, a, b, index, sum)
+            true -> add(chromatogram, a, b, index, sum),
             _ -> sum
         }
     }
@@ -47,7 +46,7 @@ machine squared_error(chromatogram: @Chromatogram, a: f64, b: f64) -> f64 {
 machine consider(chromatogram: @Chromatogram, fit: @mut Fit, mask: i32, a: f64, b: f64, eligible: bool) {
     transition eligible && a >= 0.0 && b >= 0.0
         && ((mask == 1 && a > 0.0) || (mask == 2 && b > 0.0) || (mask == 3 && a > 0.0 && b > 0.0)) {
-        true -> evaluate(chromatogram, fit, mask, a, b)
+        true -> evaluate(chromatogram, fit, mask, a, b),
         _ -> done()
     }
     machine evaluate(chromatogram: @Chromatogram, fit: @mut Fit, mask: i32, a: f64, b: f64) {
@@ -64,7 +63,7 @@ machine finish_fit(chromatogram: @Chromatogram, fit: @mut Fit) {
     transition { _ -> scan(chromatogram, fit, 0) }
     machine scan(chromatogram: @Chromatogram, fit: @mut Fit, index: i32 in Wrapping) {
         transition index >= 0 && index < 5 {
-            true -> write(chromatogram, fit, index)
+            true -> write(chromatogram, fit, index),
             _ -> done()
         }
     }
@@ -80,7 +79,7 @@ public machine fit_components(chromatogram: @Chromatogram, fit: @mut Fit) -> boo
     let mut sums: Moments;
     moments(chromatogram, @mut sums);
     transition sums.aa > 0.0 && sums.bb > 0.0 {
-        true -> enumerate(chromatogram, fit, @sums)
+        true -> enumerate(chromatogram, fit, @sums),
         _ -> false
     }
     machine enumerate(chromatogram: @Chromatogram, fit: @mut Fit, sums: @Moments) -> bool {
@@ -92,7 +91,7 @@ public machine fit_components(chromatogram: @Chromatogram, fit: @mut Fit) -> boo
         // Integer inputs bound every Gram product below 2^53. The
         // determinant is therefore an exact integer, even near collinearity.
         transition determinant > 0.0 {
-            true -> full(chromatogram, fit, sums, determinant)
+            true -> full(chromatogram, fit, sums, determinant),
             _ -> ambiguous(chromatogram, fit)
         }
     }

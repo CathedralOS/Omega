@@ -1,4 +1,3 @@
-module domain::records;
 // Private bounded storage. Input digits encode signed amplitudes by adding four.
 // Four candidate directions share one active-channel denominator and window.
 public data Beamforming {

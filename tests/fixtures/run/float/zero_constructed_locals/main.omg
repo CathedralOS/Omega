@@ -26,7 +26,7 @@ machine probe() -> bool requires true {
         && positive_zero32(narrow / narrow) == false && positive_zero64(wide / wide) == false
 }
 machine main() crashes Trap {
-    transition probe() { true -> done() _ -> bad() }
+    transition probe() { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

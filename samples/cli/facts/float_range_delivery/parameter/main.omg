@@ -10,7 +10,7 @@ requires value >= 0.0 && value <= 0.25
 machine main() crashes Trap {
     let low: Reading = Reading { value: 0.125 };
     let high: Reading = Reading { value: 0.25 };
-    transition probe(low.value) == 0.125 && probe(high.value) == 0.25 { true -> done() _ -> bad() }
+    transition probe(low.value) == 0.125 && probe(high.value) == 0.25 { true -> done(), _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

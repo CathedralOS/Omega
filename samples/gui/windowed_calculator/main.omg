@@ -325,15 +325,15 @@ machine Main::main(main: @mut Main) reaches
     // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
     let mut window: Window = Gui::window_create(main.cls, main.title, 0x10cf0000, 160, 120, 528, 551);
     main.hwnd = window.window;
-    transition main.hwnd > 0 { true -> dc(main, window) _ -> bad(main, window) }
+    transition main.hwnd > 0 { true -> dc(main, window), _ -> bad(main, window) }
 
     machine dc(main: @mut Main, window: Window) {
         main.hdc = Gui::get_dc(@window, main.hwnd);
-        transition main.hdc > 0 { true -> frame_loop(main, window) _ -> bad(main, window) }
+        transition main.hdc > 0 { true -> frame_loop(main, window), _ -> bad(main, window) }
     }
 
     machine frame_loop(main: @mut Main, window: Window) {
-        transition main.frame < 16384 { true -> pump_init(main, window) _ -> wrap_frame(main, window) }
+        transition main.frame < 16384 { true -> pump_init(main, window), _ -> wrap_frame(main, window) }
     }
     machine wrap_frame(main: @mut Main, window: Window) { main.frame = 0; transition { _ -> pump_init(main, window) } }
 
@@ -341,31 +341,31 @@ machine Main::main(main: @mut Main) reaches
     machine pump_init(main: @mut Main, window: Window) { main.pumped = 0; transition { _ -> pump_loop(main, window) } }
     machine pump_loop(main: @mut Main, mut window: Window) {
         main.have = Gui::msg_peek(@mut window, main.message);
-        transition main.have > 0 { true -> pump_check_close(main, window) _ -> liveness(main, window) }
+        transition main.have > 0 { true -> pump_check_close(main, window), _ -> liveness(main, window) }
     }
     machine pump_check_close(main: @mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> pump_check_xdown(main, window) }
+        transition main.msg_code == 16 { true -> quit_self(main, window), _ -> pump_check_xdown(main, window) }
     }
     // The X button arrives as posted WM_NCLBUTTONDOWN (161) with wParam
     // HTCLOSE (20) -- the #32770 dialog proc never turns it into a close, so
     // the pump does. Other non-client presses (caption drag) dispatch normally.
     machine pump_check_xdown(main: @mut Main, window: Window) {
-        transition main.msg_code == 161 { true -> pump_check_xhit(main, window) _ -> pump_check_syscommand(main, window) }
+        transition main.msg_code == 161 { true -> pump_check_xhit(main, window), _ -> pump_check_syscommand(main, window) }
     }
     machine pump_check_xhit(main: @mut Main, window: Window) {
-        transition main.message[2] == 20 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
+        transition main.message[2] == 20 { true -> quit_self(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_check_syscommand(main: @mut Main, window: Window) {
-        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window) _ -> pump_handle(main, window) }
+        transition main.msg_code == 274 { true -> pump_check_sysclose(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_check_sysclose(main: @mut Main, window: Window) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> pump_handle(main, window) }
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window), _ -> pump_handle(main, window) }
     }
     machine pump_handle(main: @mut Main, window: Window) {
         main.translated = Gui::msg_translate(@window, main.message);
         main.dispatched = Gui::msg_dispatch(@window, main.message);
-        transition main.pumped < 16 { true -> pump_next(main, window) _ -> liveness(main, window) }
+        transition main.pumped < 16 { true -> pump_next(main, window), _ -> liveness(main, window) }
     }
     machine pump_next(main: @mut Main, window: Window)
     requires main.pumped < 16
@@ -376,24 +376,24 @@ machine Main::main(main: @mut Main) reaches
 
     machine liveness(main: @mut Main, window: Window) {
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 { true -> focus_check(main, window) _ -> closed(main, window) }
+        transition main.alive > 0 { true -> focus_check(main, window), _ -> closed(main, window) }
     }
 
     // Key-state polling is global: without this gate, typing digits (or ESC --
     // even the Ctrl+Shift+Esc chord) in ANY app would drive this calculator.
     machine focus_check(main: @mut Main, window: Window) {
         main.fw = Gui::foreground_window(@window);
-        transition main.fw == main.hwnd { true -> input_escape(main, window) _ -> render_prepare(main, window) }
+        transition main.fw == main.hwnd { true -> input_escape(main, window), _ -> render_prepare(main, window) }
     }
 
     // Input is deliberately serialized: one accepted key per frame, with a
     // short repeat cooldown. This makes held keys visible but controlled.
     machine input_escape(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x1b);
-        transition main.key > 0 { true -> quit_self(main, window) _ -> input_cooldown(main, window) }
+        transition main.key > 0 { true -> quit_self(main, window), _ -> input_cooldown(main, window) }
     }
     machine input_cooldown(main: @mut Main, window: Window) {
-        transition main.cooldown > 0 { true -> input_cooldown_step(main, window) _ -> input_clear_key(main, window) }
+        transition main.cooldown > 0 { true -> input_cooldown_step(main, window), _ -> input_clear_key(main, window) }
     }
     machine input_cooldown_step(main: @mut Main, window: Window) {
         main.cooldown = main.cooldown - 1;
@@ -405,87 +405,87 @@ machine Main::main(main: @mut Main) reaches
     }
     machine poll_clear(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x43);
-        transition main.key > 0 { true -> hit_clear(main, window) _ -> poll_backspace(main, window) }
+        transition main.key > 0 { true -> hit_clear(main, window), _ -> poll_backspace(main, window) }
     }
     machine poll_backspace(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x08);
-        transition main.key > 0 { true -> hit_backspace(main, window) _ -> poll_enter(main, window) }
+        transition main.key > 0 { true -> hit_backspace(main, window), _ -> poll_enter(main, window) }
     }
     machine poll_enter(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x0d);
-        transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_equals_key(main, window) }
+        transition main.key > 0 { true -> hit_equals(main, window), _ -> poll_equals_key(main, window) }
     }
     machine poll_equals_key(main: @mut Main, window: Window) {
         main.key = Input::key_state(0xbb);
-        transition main.key > 0 { true -> hit_equals(main, window) _ -> poll_plus(main, window) }
+        transition main.key > 0 { true -> hit_equals(main, window), _ -> poll_plus(main, window) }
     }
     machine poll_plus(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x6b);
-        transition main.key > 0 { true -> hit_plus(main, window) _ -> poll_minus(main, window) }
+        transition main.key > 0 { true -> hit_plus(main, window), _ -> poll_minus(main, window) }
     }
     machine poll_minus(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x6d);
-        transition main.key > 0 { true -> hit_minus(main, window) _ -> poll_multiply(main, window) }
+        transition main.key > 0 { true -> hit_minus(main, window), _ -> poll_multiply(main, window) }
     }
     machine poll_multiply(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x6a);
-        transition main.key > 0 { true -> hit_multiply(main, window) _ -> poll_divide(main, window) }
+        transition main.key > 0 { true -> hit_multiply(main, window), _ -> poll_divide(main, window) }
     }
     machine poll_divide(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x6f);
-        transition main.key > 0 { true -> hit_divide(main, window) _ -> poll_sign(main, window) }
+        transition main.key > 0 { true -> hit_divide(main, window), _ -> poll_sign(main, window) }
     }
     machine poll_sign(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x53);
-        transition main.key > 0 { true -> hit_sign(main, window) _ -> poll_memory_add(main, window) }
+        transition main.key > 0 { true -> hit_sign(main, window), _ -> poll_memory_add(main, window) }
     }
     machine poll_memory_add(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x4d);
-        transition main.key > 0 { true -> hit_memory_add(main, window) _ -> poll_memory_recall(main, window) }
+        transition main.key > 0 { true -> hit_memory_add(main, window), _ -> poll_memory_recall(main, window) }
     }
     machine poll_memory_recall(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x52);
-        transition main.key > 0 { true -> hit_memory_recall(main, window) _ -> poll_digit0(main, window) }
+        transition main.key > 0 { true -> hit_memory_recall(main, window), _ -> poll_digit0(main, window) }
     }
     machine poll_digit0(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x30);
-        transition main.key > 0 { true -> hit_digit0(main, window) _ -> poll_digit1(main, window) }
+        transition main.key > 0 { true -> hit_digit0(main, window), _ -> poll_digit1(main, window) }
     }
     machine poll_digit1(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x31);
-        transition main.key > 0 { true -> hit_digit1(main, window) _ -> poll_digit2(main, window) }
+        transition main.key > 0 { true -> hit_digit1(main, window), _ -> poll_digit2(main, window) }
     }
     machine poll_digit2(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x32);
-        transition main.key > 0 { true -> hit_digit2(main, window) _ -> poll_digit3(main, window) }
+        transition main.key > 0 { true -> hit_digit2(main, window), _ -> poll_digit3(main, window) }
     }
     machine poll_digit3(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x33);
-        transition main.key > 0 { true -> hit_digit3(main, window) _ -> poll_digit4(main, window) }
+        transition main.key > 0 { true -> hit_digit3(main, window), _ -> poll_digit4(main, window) }
     }
     machine poll_digit4(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x34);
-        transition main.key > 0 { true -> hit_digit4(main, window) _ -> poll_digit5(main, window) }
+        transition main.key > 0 { true -> hit_digit4(main, window), _ -> poll_digit5(main, window) }
     }
     machine poll_digit5(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x35);
-        transition main.key > 0 { true -> hit_digit5(main, window) _ -> poll_digit6(main, window) }
+        transition main.key > 0 { true -> hit_digit5(main, window), _ -> poll_digit6(main, window) }
     }
     machine poll_digit6(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x36);
-        transition main.key > 0 { true -> hit_digit6(main, window) _ -> poll_digit7(main, window) }
+        transition main.key > 0 { true -> hit_digit6(main, window), _ -> poll_digit7(main, window) }
     }
     machine poll_digit7(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x37);
-        transition main.key > 0 { true -> hit_digit7(main, window) _ -> poll_digit8(main, window) }
+        transition main.key > 0 { true -> hit_digit7(main, window), _ -> poll_digit8(main, window) }
     }
     machine poll_digit8(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x38);
-        transition main.key > 0 { true -> hit_digit8(main, window) _ -> poll_digit9(main, window) }
+        transition main.key > 0 { true -> hit_digit8(main, window), _ -> poll_digit9(main, window) }
     }
     machine poll_digit9(main: @mut Main, window: Window) {
         main.key = Input::key_state(0x39);
-        transition main.key > 0 { true -> hit_digit9(main, window) _ -> render_prepare(main, window) }
+        transition main.key > 0 { true -> hit_digit9(main, window), _ -> render_prepare(main, window) }
     }
 
     machine hit_digit0(main: @mut Main, window: Window) { Main::accept_digit(main, 0, 0); transition { _ -> render_prepare(main, window) } }
@@ -512,7 +512,7 @@ machine Main::main(main: @mut Main) reaches
     // Turn the current display value into sign + four decimal digits before
     // the framebuffer loop reads it.
     machine render_prepare(main: @mut Main, window: Window) {
-        transition main.typing > 0 { true -> prepare_current(main, window) _ -> prepare_accumulator(main, window) }
+        transition main.typing > 0 { true -> prepare_current(main, window), _ -> prepare_accumulator(main, window) }
     }
     machine prepare_current(main: @mut Main, window: Window) {
         main.display_value = main.current;
@@ -523,7 +523,7 @@ machine Main::main(main: @mut Main) reaches
         transition { _ -> prepare_sign(main, window) }
     }
     machine prepare_sign(main: @mut Main, window: Window) {
-        transition main.display_value < 0 { true -> prepare_negative(main, window) _ -> prepare_positive(main, window) }
+        transition main.display_value < 0 { true -> prepare_negative(main, window), _ -> prepare_positive(main, window) }
     }
     machine prepare_negative(main: @mut Main, window: Window) {
         main.sign = 1;
@@ -549,30 +549,30 @@ machine Main::main(main: @mut Main) reaches
     }
 
     machine fill_loop(main: @mut Main, window: Window) {
-        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window) _ -> present(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> fill_cell(main, window), _ -> present(main, window) }
     }
     machine fill_cell(main: @mut Main, window: Window) {
         main.row = min_i32(max_i32(main.i / 64, 0), 63);
         main.col = min_i32(max_i32(main.i % 64, 0), 63);
         main.px = 0x141e28 + ((main.frame % 32) * 1024);
-        transition main.row < 16 { true -> display_pixel(main, window) _ -> keypad_region(main, window) }
+        transition main.row < 16 { true -> display_pixel(main, window), _ -> keypad_region(main, window) }
     }
     machine display_pixel(main: @mut Main, window: Window) {
         main.px = 0x070a0d;
         transition main.row >= 2 && main.row < 13 && main.col >= 28 && main.col < 60 {
-            true -> display_digit_slot(main, window)
+            true -> display_digit_slot(main, window),
             _ -> display_sign(main, window)
         }
     }
     machine display_sign(main: @mut Main, window: Window) {
         transition main.sign > 0 && main.row == 8 && main.col >= 20 && main.col <= 25 {
-            true -> display_mark(main, window)
+            true -> display_mark(main, window),
             _ -> display_error(main, window)
         }
     }
     machine display_error(main: @mut Main, window: Window) {
         transition main.error > 0 && main.row >= 4 && main.row <= 10 && main.col >= 6 && main.col <= 14 {
-            true -> display_mark(main, window)
+            true -> display_mark(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
@@ -585,13 +585,13 @@ machine Main::main(main: @mut Main) reaches
     {
         main.local_x = (main.col - 28) % 8;
         main.local_y = main.row - 2;
-        transition main.col < 36 { true -> use_digit3(main, window) _ -> display_digit_slot1(main, window) }
+        transition main.col < 36 { true -> use_digit3(main, window), _ -> display_digit_slot1(main, window) }
     }
     machine display_digit_slot1(main: @mut Main, window: Window) {
-        transition main.col < 44 { true -> use_digit2(main, window) _ -> display_digit_slot2(main, window) }
+        transition main.col < 44 { true -> use_digit2(main, window), _ -> display_digit_slot2(main, window) }
     }
     machine display_digit_slot2(main: @mut Main, window: Window) {
-        transition main.col < 52 { true -> use_digit1(main, window) _ -> use_digit0(main, window) }
+        transition main.col < 52 { true -> use_digit1(main, window), _ -> use_digit0(main, window) }
     }
     machine use_digit3(main: @mut Main, window: Window) { main.draw_digit = main.digit3; transition { _ -> segment_a(main, window) } }
     machine use_digit2(main: @mut Main, window: Window) { main.draw_digit = main.digit2; transition { _ -> segment_a(main, window) } }
@@ -600,123 +600,123 @@ machine Main::main(main: @mut Main) reaches
 
     machine segment_a(main: @mut Main, window: Window) {
         transition main.local_y == 0 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_a(main, window)
+            true -> segment_set_a(main, window),
             _ -> segment_b(main, window)
         }
     }
     machine segment_set_a(main: @mut Main, window: Window) { main.segment = 0; transition { _ -> segment_apply(main, window) } }
     machine segment_b(main: @mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 4 {
-            true -> segment_set_b(main, window)
+            true -> segment_set_b(main, window),
             _ -> segment_c(main, window)
         }
     }
     machine segment_set_b(main: @mut Main, window: Window) { main.segment = 1; transition { _ -> segment_apply(main, window) } }
     machine segment_c(main: @mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 6 && main.local_y <= 9 {
-            true -> segment_set_c(main, window)
+            true -> segment_set_c(main, window),
             _ -> segment_d(main, window)
         }
     }
     machine segment_set_c(main: @mut Main, window: Window) { main.segment = 2; transition { _ -> segment_apply(main, window) } }
     machine segment_d(main: @mut Main, window: Window) {
         transition main.local_y == 10 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_d(main, window)
+            true -> segment_set_d(main, window),
             _ -> segment_e(main, window)
         }
     }
     machine segment_set_d(main: @mut Main, window: Window) { main.segment = 3; transition { _ -> segment_apply(main, window) } }
     machine segment_e(main: @mut Main, window: Window) {
         transition main.local_x == 1 && main.local_y >= 6 && main.local_y <= 9 {
-            true -> segment_set_e(main, window)
+            true -> segment_set_e(main, window),
             _ -> segment_f(main, window)
         }
     }
     machine segment_set_e(main: @mut Main, window: Window) { main.segment = 4; transition { _ -> segment_apply(main, window) } }
     machine segment_f(main: @mut Main, window: Window) {
         transition main.local_x == 1 && main.local_y >= 1 && main.local_y <= 4 {
-            true -> segment_set_f(main, window)
+            true -> segment_set_f(main, window),
             _ -> segment_g(main, window)
         }
     }
     machine segment_set_f(main: @mut Main, window: Window) { main.segment = 5; transition { _ -> segment_apply(main, window) } }
     machine segment_g(main: @mut Main, window: Window) {
         transition main.local_y == 5 && main.local_x >= 2 && main.local_x <= 5 {
-            true -> segment_set_g(main, window)
+            true -> segment_set_g(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine segment_set_g(main: @mut Main, window: Window) { main.segment = 6; transition { _ -> segment_apply(main, window) } }
 
     machine segment_apply(main: @mut Main, window: Window) {
-        transition main.draw_digit == 0 { true -> digit0_segment(main, window) _ -> digit1_check(main, window) }
+        transition main.draw_digit == 0 { true -> digit0_segment(main, window), _ -> digit1_check(main, window) }
     }
     machine digit1_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 1 { true -> digit1_segment(main, window) _ -> digit2_check(main, window) }
+        transition main.draw_digit == 1 { true -> digit1_segment(main, window), _ -> digit2_check(main, window) }
     }
     machine digit2_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 2 { true -> digit2_segment(main, window) _ -> digit3_check(main, window) }
+        transition main.draw_digit == 2 { true -> digit2_segment(main, window), _ -> digit3_check(main, window) }
     }
     machine digit3_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 3 { true -> digit3_segment(main, window) _ -> digit4_check(main, window) }
+        transition main.draw_digit == 3 { true -> digit3_segment(main, window), _ -> digit4_check(main, window) }
     }
     machine digit4_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 4 { true -> digit4_segment(main, window) _ -> digit5_check(main, window) }
+        transition main.draw_digit == 4 { true -> digit4_segment(main, window), _ -> digit5_check(main, window) }
     }
     machine digit5_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 5 { true -> digit5_segment(main, window) _ -> digit6_check(main, window) }
+        transition main.draw_digit == 5 { true -> digit5_segment(main, window), _ -> digit6_check(main, window) }
     }
     machine digit6_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 6 { true -> digit6_segment(main, window) _ -> digit7_check(main, window) }
+        transition main.draw_digit == 6 { true -> digit6_segment(main, window), _ -> digit7_check(main, window) }
     }
     machine digit7_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 7 { true -> digit7_segment(main, window) _ -> digit8_check(main, window) }
+        transition main.draw_digit == 7 { true -> digit7_segment(main, window), _ -> digit8_check(main, window) }
     }
     machine digit8_check(main: @mut Main, window: Window) {
-        transition main.draw_digit == 8 { true -> digit8_segment(main, window) _ -> digit9_segment(main, window) }
+        transition main.draw_digit == 8 { true -> digit8_segment(main, window), _ -> digit9_segment(main, window) }
     }
     machine digit0_segment(main: @mut Main, window: Window) {
-        transition main.segment != 6 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.segment != 6 { true -> segment_on(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine digit1_segment(main: @mut Main, window: Window) {
-        transition main.segment == 1 || main.segment == 2 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.segment == 1 || main.segment == 2 { true -> segment_on(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine digit2_segment(main: @mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 1 || main.segment == 6 || main.segment == 4 || main.segment == 3 {
-            true -> segment_on(main, window)
+            true -> segment_on(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine digit3_segment(main: @mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 1 || main.segment == 2 || main.segment == 3 || main.segment == 6 {
-            true -> segment_on(main, window)
+            true -> segment_on(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine digit4_segment(main: @mut Main, window: Window) {
         transition main.segment == 5 || main.segment == 6 || main.segment == 1 || main.segment == 2 {
-            true -> segment_on(main, window)
+            true -> segment_on(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine digit5_segment(main: @mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 5 || main.segment == 6 || main.segment == 2 || main.segment == 3 {
-            true -> segment_on(main, window)
+            true -> segment_on(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine digit6_segment(main: @mut Main, window: Window) {
         transition main.segment == 0 || main.segment == 5 || main.segment == 4 || main.segment == 3 || main.segment == 2 || main.segment == 6 {
-            true -> segment_on(main, window)
+            true -> segment_on(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine digit7_segment(main: @mut Main, window: Window) {
-        transition main.segment == 0 || main.segment == 1 || main.segment == 2 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.segment == 0 || main.segment == 1 || main.segment == 2 { true -> segment_on(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine digit8_segment(main: @mut Main, window: Window) { transition { _ -> segment_on(main, window) } }
     machine digit9_segment(main: @mut Main, window: Window) {
-        transition main.segment != 4 { true -> segment_on(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.segment != 4 { true -> segment_on(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine segment_on(main: @mut Main, window: Window) {
         main.px = 0x00ceff;
@@ -724,7 +724,7 @@ machine Main::main(main: @mut Main) reaches
     }
 
     machine keypad_region(main: @mut Main, window: Window) {
-        transition main.row >= 18 && main.row < 63 { true -> button_prepare(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.row >= 18 && main.row < 63 { true -> button_prepare(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine button_prepare(main: @mut Main, window: Window)
     requires main.row >= 18 && main.row < 63
@@ -733,61 +733,61 @@ machine Main::main(main: @mut Main) reaches
         main.button_col = min_i32(max_i32(main.col / 16, 0), 3);
         main.button_lx = main.col % 16;
         main.button_ly = (main.row - 18) % 9;
-        transition main.button_row == 0 { true -> button_row0(main, window) _ -> button_row1_check(main, window) }
+        transition main.button_row == 0 { true -> button_row0(main, window), _ -> button_row1_check(main, window) }
     }
     machine button_row1_check(main: @mut Main, window: Window) {
-        transition main.button_row == 1 { true -> button_row1(main, window) _ -> button_row2_check(main, window) }
+        transition main.button_row == 1 { true -> button_row1(main, window), _ -> button_row2_check(main, window) }
     }
     machine button_row2_check(main: @mut Main, window: Window) {
-        transition main.button_row == 2 { true -> button_row2(main, window) _ -> button_row3_check(main, window) }
+        transition main.button_row == 2 { true -> button_row2(main, window), _ -> button_row3_check(main, window) }
     }
     machine button_row3_check(main: @mut Main, window: Window) {
-        transition main.button_row == 3 { true -> button_row3(main, window) _ -> button_row4(main, window) }
+        transition main.button_row == 3 { true -> button_row3(main, window), _ -> button_row4(main, window) }
     }
     machine button_row0(main: @mut Main, window: Window) {
-        transition main.button_col == 0 { true -> button_code_memory_add(main, window) _ -> button_row0_col1(main, window) }
+        transition main.button_col == 0 { true -> button_code_memory_add(main, window), _ -> button_row0_col1(main, window) }
     }
     machine button_row0_col1(main: @mut Main, window: Window) {
-        transition main.button_col == 1 { true -> button_code_memory_recall(main, window) _ -> button_row0_col2(main, window) }
+        transition main.button_col == 1 { true -> button_code_memory_recall(main, window), _ -> button_row0_col2(main, window) }
     }
     machine button_row0_col2(main: @mut Main, window: Window) {
-        transition main.button_col == 2 { true -> button_code_clear(main, window) _ -> button_code_backspace(main, window) }
+        transition main.button_col == 2 { true -> button_code_clear(main, window), _ -> button_code_backspace(main, window) }
     }
     machine button_row1(main: @mut Main, window: Window) {
-        transition main.button_col == 0 { true -> button_code7(main, window) _ -> button_row1_col1(main, window) }
+        transition main.button_col == 0 { true -> button_code7(main, window), _ -> button_row1_col1(main, window) }
     }
     machine button_row1_col1(main: @mut Main, window: Window) {
-        transition main.button_col == 1 { true -> button_code8(main, window) _ -> button_row1_col2(main, window) }
+        transition main.button_col == 1 { true -> button_code8(main, window), _ -> button_row1_col2(main, window) }
     }
     machine button_row1_col2(main: @mut Main, window: Window) {
-        transition main.button_col == 2 { true -> button_code9(main, window) _ -> button_code_divide(main, window) }
+        transition main.button_col == 2 { true -> button_code9(main, window), _ -> button_code_divide(main, window) }
     }
     machine button_row2(main: @mut Main, window: Window) {
-        transition main.button_col == 0 { true -> button_code4(main, window) _ -> button_row2_col1(main, window) }
+        transition main.button_col == 0 { true -> button_code4(main, window), _ -> button_row2_col1(main, window) }
     }
     machine button_row2_col1(main: @mut Main, window: Window) {
-        transition main.button_col == 1 { true -> button_code5(main, window) _ -> button_row2_col2(main, window) }
+        transition main.button_col == 1 { true -> button_code5(main, window), _ -> button_row2_col2(main, window) }
     }
     machine button_row2_col2(main: @mut Main, window: Window) {
-        transition main.button_col == 2 { true -> button_code6(main, window) _ -> button_code_multiply(main, window) }
+        transition main.button_col == 2 { true -> button_code6(main, window), _ -> button_code_multiply(main, window) }
     }
     machine button_row3(main: @mut Main, window: Window) {
-        transition main.button_col == 0 { true -> button_code1(main, window) _ -> button_row3_col1(main, window) }
+        transition main.button_col == 0 { true -> button_code1(main, window), _ -> button_row3_col1(main, window) }
     }
     machine button_row3_col1(main: @mut Main, window: Window) {
-        transition main.button_col == 1 { true -> button_code2(main, window) _ -> button_row3_col2(main, window) }
+        transition main.button_col == 1 { true -> button_code2(main, window), _ -> button_row3_col2(main, window) }
     }
     machine button_row3_col2(main: @mut Main, window: Window) {
-        transition main.button_col == 2 { true -> button_code3(main, window) _ -> button_code_minus(main, window) }
+        transition main.button_col == 2 { true -> button_code3(main, window), _ -> button_code_minus(main, window) }
     }
     machine button_row4(main: @mut Main, window: Window) {
-        transition main.button_col == 0 { true -> button_code_sign(main, window) _ -> button_row4_col1(main, window) }
+        transition main.button_col == 0 { true -> button_code_sign(main, window), _ -> button_row4_col1(main, window) }
     }
     machine button_row4_col1(main: @mut Main, window: Window) {
-        transition main.button_col == 1 { true -> button_code0(main, window) _ -> button_row4_col2(main, window) }
+        transition main.button_col == 1 { true -> button_code0(main, window), _ -> button_row4_col2(main, window) }
     }
     machine button_row4_col2(main: @mut Main, window: Window) {
-        transition main.button_col == 2 { true -> button_code_equals(main, window) _ -> button_code_plus(main, window) }
+        transition main.button_col == 2 { true -> button_code_equals(main, window), _ -> button_code_plus(main, window) }
     }
     machine button_code0(main: @mut Main, window: Window) { main.button_code = 0; transition { _ -> button_paint(main, window) } }
     machine button_code1(main: @mut Main, window: Window) { main.button_code = 1; transition { _ -> button_paint(main, window) } }
@@ -812,7 +812,7 @@ machine Main::main(main: @mut Main) reaches
 
     machine button_paint(main: @mut Main, window: Window) {
         main.px = 0x212121;
-        transition main.button_code == main.last_key { true -> button_active(main, window) _ -> button_border(main, window) }
+        transition main.button_code == main.last_key { true -> button_active(main, window), _ -> button_border(main, window) }
     }
     machine button_active(main: @mut Main, window: Window) {
         main.px = 0x5167ff;
@@ -820,7 +820,7 @@ machine Main::main(main: @mut Main) reaches
     }
     machine button_border(main: @mut Main, window: Window) {
         transition main.button_lx == 0 || main.button_lx == 15 || main.button_ly == 0 || main.button_ly == 8 {
-            true -> button_border_paint(main, window)
+            true -> button_border_paint(main, window),
             _ -> button_label(main, window)
         }
     }
@@ -833,12 +833,12 @@ machine Main::main(main: @mut Main) reaches
     // (always true: `col % 16` and `(row - 18) % 9` inside the button grid).
     machine button_label(main: @mut Main, window: Window) {
         transition main.button_lx >= 0 && main.button_lx <= 15 && main.button_ly >= 0 && main.button_ly <= 8 {
-            true -> button_label_kind(main, window)
+            true -> button_label_kind(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine button_label_kind(main: @mut Main, window: Window) {
-        transition main.button_code <= 9 { true -> button_digit_label(main, window) _ -> button_operator_label(main, window) }
+        transition main.button_code <= 9 { true -> button_digit_label(main, window), _ -> button_operator_label(main, window) }
     }
     machine button_digit_label(main: @mut Main, window: Window) {
         main.draw_digit = main.button_code as i32 in Saturating;
@@ -848,106 +848,106 @@ machine Main::main(main: @mut Main) reaches
     }
     machine button_segment_a(main: @mut Main, window: Window) {
         transition main.local_y == 0 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_a(main, window)
+            true -> segment_set_a(main, window),
             _ -> button_segment_b(main, window)
         }
     }
     machine button_segment_b(main: @mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 1 && main.local_y <= 3 {
-            true -> segment_set_b(main, window)
+            true -> segment_set_b(main, window),
             _ -> button_segment_c(main, window)
         }
     }
     machine button_segment_c(main: @mut Main, window: Window) {
         transition main.local_x == 6 && main.local_y >= 5 && main.local_y <= 6 {
-            true -> segment_set_c(main, window)
+            true -> segment_set_c(main, window),
             _ -> button_segment_d(main, window)
         }
     }
     machine button_segment_d(main: @mut Main, window: Window) {
         transition main.local_y == 7 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_d(main, window)
+            true -> segment_set_d(main, window),
             _ -> button_segment_e(main, window)
         }
     }
     machine button_segment_e(main: @mut Main, window: Window) {
         transition main.local_x == 0 && main.local_y >= 5 && main.local_y <= 6 {
-            true -> segment_set_e(main, window)
+            true -> segment_set_e(main, window),
             _ -> button_segment_f(main, window)
         }
     }
     machine button_segment_f(main: @mut Main, window: Window) {
         transition main.local_x == 0 && main.local_y >= 1 && main.local_y <= 3 {
-            true -> segment_set_f(main, window)
+            true -> segment_set_f(main, window),
             _ -> button_segment_g(main, window)
         }
     }
     machine button_segment_g(main: @mut Main, window: Window) {
         transition main.local_y == 4 && main.local_x >= 1 && main.local_x <= 5 {
-            true -> segment_set_g(main, window)
+            true -> segment_set_g(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
     machine button_operator_label(main: @mut Main, window: Window) {
-        transition main.button_code == 11 { true -> label_plus(main, window) _ -> label_minus_check(main, window) }
+        transition main.button_code == 11 { true -> label_plus(main, window), _ -> label_minus_check(main, window) }
     }
     machine label_minus_check(main: @mut Main, window: Window) {
-        transition main.button_code == 12 { true -> label_minus(main, window) _ -> label_multiply_check(main, window) }
+        transition main.button_code == 12 { true -> label_minus(main, window), _ -> label_multiply_check(main, window) }
     }
     machine label_multiply_check(main: @mut Main, window: Window) {
-        transition main.button_code == 13 { true -> label_multiply(main, window) _ -> label_divide_check(main, window) }
+        transition main.button_code == 13 { true -> label_multiply(main, window), _ -> label_divide_check(main, window) }
     }
     machine label_divide_check(main: @mut Main, window: Window) {
-        transition main.button_code == 14 { true -> label_divide(main, window) _ -> label_sign_check(main, window) }
+        transition main.button_code == 14 { true -> label_divide(main, window), _ -> label_sign_check(main, window) }
     }
     machine label_sign_check(main: @mut Main, window: Window) {
-        transition main.button_code == 15 { true -> label_sign(main, window) _ -> label_equals_check(main, window) }
+        transition main.button_code == 15 { true -> label_sign(main, window), _ -> label_equals_check(main, window) }
     }
     machine label_equals_check(main: @mut Main, window: Window) {
-        transition main.button_code == 16 { true -> label_equals(main, window) _ -> label_utility(main, window) }
+        transition main.button_code == 16 { true -> label_equals(main, window), _ -> label_utility(main, window) }
     }
     machine label_plus(main: @mut Main, window: Window) {
-        transition main.button_lx == 8 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_plus_bar(main, window) }
+        transition main.button_lx == 8 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window), _ -> label_plus_bar(main, window) }
     }
     machine label_plus_bar(main: @mut Main, window: Window) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_minus(main: @mut Main, window: Window) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_multiply(main: @mut Main, window: Window) {
-        transition main.button_lx == main.button_ly + 4 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_multiply_backslash(main, window) }
+        transition main.button_lx == main.button_ly + 4 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window), _ -> label_multiply_backslash(main, window) }
     }
     machine label_multiply_backslash(main: @mut Main, window: Window) {
-        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_divide(main: @mut Main, window: Window) {
-        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window) _ -> label_divide_dot_top(main, window) }
+        transition main.button_lx + main.button_ly == 12 && main.button_ly >= 2 && main.button_ly <= 6 { true -> label_paint(main, window), _ -> label_divide_dot_top(main, window) }
     }
     machine label_divide_dot_top(main: @mut Main, window: Window) {
-        transition main.button_lx == 8 && main.button_ly == 2 { true -> label_paint(main, window) _ -> label_divide_dot_bottom(main, window) }
+        transition main.button_lx == 8 && main.button_ly == 2 { true -> label_paint(main, window), _ -> label_divide_dot_bottom(main, window) }
     }
     machine label_divide_dot_bottom(main: @mut Main, window: Window) {
-        transition main.button_lx == 8 && main.button_ly == 6 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_lx == 8 && main.button_ly == 6 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_sign(main: @mut Main, window: Window) {
-        transition main.button_lx == 7 && main.button_ly >= 2 && main.button_ly <= 5 { true -> label_paint(main, window) _ -> label_sign_plus_bar(main, window) }
+        transition main.button_lx == 7 && main.button_ly >= 2 && main.button_ly <= 5 { true -> label_paint(main, window), _ -> label_sign_plus_bar(main, window) }
     }
     machine label_sign_plus_bar(main: @mut Main, window: Window) {
-        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window) _ -> label_sign_minus_bar(main, window) }
+        transition main.button_ly == 4 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window), _ -> label_sign_minus_bar(main, window) }
     }
     machine label_sign_minus_bar(main: @mut Main, window: Window) {
-        transition main.button_ly == 6 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_ly == 6 && main.button_lx >= 5 && main.button_lx <= 9 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_equals(main: @mut Main, window: Window) {
-        transition main.button_ly == 3 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> label_equals_bottom(main, window) }
+        transition main.button_ly == 3 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window), _ -> label_equals_bottom(main, window) }
     }
     machine label_equals_bottom(main: @mut Main, window: Window) {
-        transition main.button_ly == 5 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window) _ -> write_pixel_guard(main, window) }
+        transition main.button_ly == 5 && main.button_lx >= 5 && main.button_lx <= 11 { true -> label_paint(main, window), _ -> write_pixel_guard(main, window) }
     }
     machine label_utility(main: @mut Main, window: Window) {
         transition main.button_lx >= 5 && main.button_lx <= 11 && main.button_ly >= 2 && main.button_ly <= 6 {
-            true -> label_paint(main, window)
+            true -> label_paint(main, window),
             _ -> write_pixel_guard(main, window)
         }
     }
@@ -957,26 +957,26 @@ machine Main::main(main: @mut Main) reaches
     }
 
     machine write_pixel_guard(main: @mut Main, window: Window) {
-        transition main.i >= 0 && main.i < 4096 { true -> write_pixel(main, window) _ -> bad(main, window) }
+        transition main.i >= 0 && main.i < 4096 { true -> write_pixel(main, window), _ -> bad(main, window) }
     }
     machine write_pixel(main: @mut Main, window: Window) {
         main.pixels[main.i] = main.px;
         main.i = main.i + 1;
-        transition main.col == 63 { true -> render_pump_peek(main, window) _ -> fill_loop(main, window) }
+        transition main.col == 63 { true -> render_pump_peek(main, window), _ -> fill_loop(main, window) }
     }
     machine render_pump_peek(main: @mut Main, mut window: Window) {
         main.have = Gui::msg_peek(@mut window, main.message);
-        transition main.have > 0 { true -> render_pump_check_close(main, window) _ -> fill_loop(main, window) }
+        transition main.have > 0 { true -> render_pump_check_close(main, window), _ -> fill_loop(main, window) }
     }
     machine render_pump_check_close(main: @mut Main, window: Window) {
         main.msg_code = main.message[1] % 65536;
-        transition main.msg_code == 16 { true -> quit_self(main, window) _ -> render_pump_check_syscommand(main, window) }
+        transition main.msg_code == 16 { true -> quit_self(main, window), _ -> render_pump_check_syscommand(main, window) }
     }
     machine render_pump_check_syscommand(main: @mut Main, window: Window) {
-        transition main.msg_code == 274 { true -> render_pump_check_sysclose(main, window) _ -> render_pump_handle(main, window) }
+        transition main.msg_code == 274 { true -> render_pump_check_sysclose(main, window), _ -> render_pump_handle(main, window) }
     }
     machine render_pump_check_sysclose(main: @mut Main, window: Window) {
-        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window) _ -> render_pump_handle(main, window) }
+        transition main.message[2] >= 61536 && main.message[2] < 61552 { true -> quit_self(main, window), _ -> render_pump_handle(main, window) }
     }
     machine render_pump_handle(main: @mut Main, window: Window) {
         main.translated = Gui::msg_translate(@window, main.message);
@@ -985,20 +985,20 @@ machine Main::main(main: @mut Main) reaches
     }
     machine render_pump_liveness(main: @mut Main, window: Window) {
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 { true -> fill_loop(main, window) _ -> closed(main, window) }
+        transition main.alive > 0 { true -> fill_loop(main, window), _ -> closed(main, window) }
     }
 
     machine present(main: @mut Main, window: Window) {
         main.copied = Gui::blit(@window, main.hdc, 512, 512, 64, 64, main.pixels, main.info);
-        transition main.copied == 64 { true -> pace(main, window) _ -> present_failed(main, window) }
+        transition main.copied == 64 { true -> pace(main, window), _ -> present_failed(main, window) }
     }
     machine present_failed(main: @mut Main, window: Window) {
         main.alive = Gui::is_window(@window, main.hwnd);
-        transition main.alive > 0 { true -> bad(main, window) _ -> closed(main, window) }
+        transition main.alive > 0 { true -> bad(main, window), _ -> closed(main, window) }
     }
     machine pace(main: @mut Main, window: Window) {
         block Clock::sleep(16);
-        transition main.frame >= 0 && main.frame < 16384 { true -> advance(main, window) _ -> wrap_frame(main, window) }
+        transition main.frame >= 0 && main.frame < 16384 { true -> advance(main, window), _ -> wrap_frame(main, window) }
     }
     machine advance(main: @mut Main, window: Window) {
         main.frame = main.frame + 1;
@@ -1028,7 +1028,7 @@ requires
 {
     main.last_key = key_code;
     main.cooldown = 6;
-    transition main.error > 0 { true -> digit_after_error(main, digit) _ -> digit_dispatch(main, digit) }
+    transition main.error > 0 { true -> digit_after_error(main, digit), _ -> digit_dispatch(main, digit) }
 
     machine digit_after_error(main: @mut Main, digit: i32)
     requires digit >= 0 && digit <= 9
@@ -1042,7 +1042,7 @@ requires
     machine digit_dispatch(main: @mut Main, digit: i32)
     requires digit >= 0 && digit <= 9
     {
-        transition main.typing > 0 { true -> digit_append(main, digit) _ -> digit_start(main, digit) }
+        transition main.typing > 0 { true -> digit_append(main, digit), _ -> digit_start(main, digit) }
     }
     machine digit_start(main: @mut Main, digit: i32)
     requires digit >= 0 && digit <= 9
@@ -1068,12 +1068,12 @@ requires
 {
     main.last_key = key_code;
     main.cooldown = 6;
-    transition main.error > 0 { true -> done(main) _ -> operator_dispatch(main, op) }
+    transition main.error > 0 { true -> done(main), _ -> operator_dispatch(main, op) }
 
     machine operator_dispatch(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.pending == 0 { true -> store_first(main, op) _ -> evaluate_for_operator(main, op) }
+        transition main.pending == 0 { true -> store_first(main, op), _ -> evaluate_for_operator(main, op) }
     }
     machine store_first(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
@@ -1086,22 +1086,22 @@ requires
     machine evaluate_for_operator(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.pending == 1 { true -> eval_add(main, op) _ -> eval_sub_check(main, op) }
+        transition main.pending == 1 { true -> eval_add(main, op), _ -> eval_sub_check(main, op) }
     }
     machine eval_sub_check(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.pending == 2 { true -> eval_sub(main, op) _ -> eval_mul_check(main, op) }
+        transition main.pending == 2 { true -> eval_sub(main, op), _ -> eval_mul_check(main, op) }
     }
     machine eval_mul_check(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.pending == 3 { true -> eval_mul(main, op) _ -> eval_div_check(main, op) }
+        transition main.pending == 3 { true -> eval_mul(main, op), _ -> eval_div_check(main, op) }
     }
     machine eval_div_check(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.pending == 4 { true -> eval_div_guard(main, op) _ -> finish_operator(main, op) }
+        transition main.pending == 4 { true -> eval_div_guard(main, op), _ -> finish_operator(main, op) }
     }
     machine eval_add(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
@@ -1124,7 +1124,7 @@ requires
     machine eval_div_guard(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
     {
-        transition main.current == 0 { true -> divide_error(main) _ -> eval_div(main, op) }
+        transition main.current == 0 { true -> divide_error(main), _ -> eval_div(main, op) }
     }
     machine eval_div(main: @mut Main, op: i32)
     requires op >= 0 && op <= 4
@@ -1150,22 +1150,22 @@ requires
 machine Main::accept_equals(main: @mut Main) {
     main.last_key = 16;
     main.cooldown = 6;
-    transition main.error > 0 { true -> done(main) _ -> equals_dispatch(main) }
+    transition main.error > 0 { true -> done(main), _ -> equals_dispatch(main) }
 
     machine equals_dispatch(main: @mut Main) {
-        transition main.pending == 0 { true -> finish_equals(main) _ -> evaluate_pending(main) }
+        transition main.pending == 0 { true -> finish_equals(main), _ -> evaluate_pending(main) }
     }
     machine evaluate_pending(main: @mut Main) {
-        transition main.pending == 1 { true -> eval_add(main) _ -> eval_sub_check(main) }
+        transition main.pending == 1 { true -> eval_add(main), _ -> eval_sub_check(main) }
     }
     machine eval_sub_check(main: @mut Main) {
-        transition main.pending == 2 { true -> eval_sub(main) _ -> eval_mul_check(main) }
+        transition main.pending == 2 { true -> eval_sub(main), _ -> eval_mul_check(main) }
     }
     machine eval_mul_check(main: @mut Main) {
-        transition main.pending == 3 { true -> eval_mul(main) _ -> eval_div_check(main) }
+        transition main.pending == 3 { true -> eval_mul(main), _ -> eval_div_check(main) }
     }
     machine eval_div_check(main: @mut Main) {
-        transition main.pending == 4 { true -> eval_div_guard(main) _ -> finish_equals(main) }
+        transition main.pending == 4 { true -> eval_div_guard(main), _ -> finish_equals(main) }
     }
     machine eval_add(main: @mut Main) {
         main.accumulator = main.accumulator + main.current;
@@ -1180,7 +1180,7 @@ machine Main::accept_equals(main: @mut Main) {
         transition { _ -> finish_equals(main) }
     }
     machine eval_div_guard(main: @mut Main) {
-        transition main.current == 0 { true -> divide_error(main) _ -> eval_div(main) }
+        transition main.current == 0 { true -> divide_error(main), _ -> eval_div(main) }
     }
     machine eval_div(main: @mut Main) {
         main.accumulator = main.accumulator / main.current;
@@ -1215,7 +1215,7 @@ requires
 machine Main::backspace(main: @mut Main) {
     main.last_key = 23;
     main.cooldown = 6;
-    transition main.typing > 0 { true -> trim(main) _ -> done(main) }
+    transition main.typing > 0 { true -> trim(main), _ -> done(main) }
 
     machine trim(main: @mut Main) {
         main.current = main.current / 10;
@@ -1226,7 +1226,7 @@ machine Main::backspace(main: @mut Main) {
 machine Main::toggle_sign(main: @mut Main) {
     main.last_key = 15;
     main.cooldown = 6;
-    transition main.typing > 0 { true -> sign_current(main) _ -> sign_accumulator(main) }
+    transition main.typing > 0 { true -> sign_current(main), _ -> sign_accumulator(main) }
 
     machine sign_current(main: @mut Main) {
         main.current = 0 - main.current;
@@ -1239,7 +1239,7 @@ machine Main::toggle_sign(main: @mut Main) {
 machine Main::memory_add(main: @mut Main) {
     main.last_key = 20;
     main.cooldown = 6;
-    transition main.typing > 0 { true -> add_current(main) _ -> add_accumulator(main) }
+    transition main.typing > 0 { true -> add_current(main), _ -> add_accumulator(main) }
 
     machine add_current(main: @mut Main) { main.memory = main.memory + main.current; }
     machine add_accumulator(main: @mut Main) { main.memory = main.memory + main.accumulator; }

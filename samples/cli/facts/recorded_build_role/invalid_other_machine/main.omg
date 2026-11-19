@@ -2,7 +2,7 @@
 // Place: other_machine
 use my_library::values;
 machine main() crashes Trap {
-    transition ANSWER == 42 { true -> done() false -> bad() }
+    transition ANSWER == 42 { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

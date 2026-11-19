@@ -9,7 +9,7 @@ machine main() crashes Trap {
     store(@write slot);
     transition { _ -> compare(slot) }
     machine compare(v: f64) {
-        transition v == 0.75 { true -> done() _ -> bad() }
+        transition v == 0.75 { true -> done(), _ -> bad() }
     }
     machine done() {} machine bad() { crash Trap; }
 }

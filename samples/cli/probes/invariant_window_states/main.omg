@@ -24,7 +24,7 @@ machine Main::main(main: @mut Main) {
     main.start = 10;
     main.end = 20;
     transition main.start <= main.end {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

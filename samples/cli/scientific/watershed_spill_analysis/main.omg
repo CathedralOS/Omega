@@ -20,19 +20,19 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     machine read(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> finish_input(main, raster, count)
+            ByteRead::Eof -> finish_input(main, raster, count),
             ByteRead::Byte { value } -> block classify(main, raster, count, value)
         }
     }
     machine classify(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping, value: i32) {
         transition value == 32 || value == 9 || value == 10 || value == 13 {
-            true -> block read(main, raster, count)
+            true -> block read(main, raster, count),
             _ -> block validate(main, raster, count, value)
         }
     }
     machine validate(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping, value: i32) {
         transition count >= 0 && count < 25 && value >= 48 && value <= 57 {
-            true -> block store(main, raster, count, value)
+            true -> block store(main, raster, count, value),
             _ -> invalid(main)
         }
     }
@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine finish_input(main: @mut Main, raster: @mut Raster, count: i32 in Wrapping) {
         transition count == 25 {
-            true -> analyze(main, raster)
+            true -> analyze(main, raster),
             _ -> invalid(main)
         }
     }
@@ -50,7 +50,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let filled: bool = fill(raster);
         let summed: bool = sum_volumes(raster);
         transition filled && summed {
-            true -> emit(main, raster)
+            true -> emit(main, raster),
             _ -> internal_error(main)
         }
     }

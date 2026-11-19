@@ -1,16 +1,16 @@
 machine build(builder: @mut Build) {
     Build::application(builder, "static_service_exclusion_invoked");
     let logger_kit_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/logger-kit" }));
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_arm64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_x86_64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_arm64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_x86_64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, windows_x86_64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, uefi_x86_64);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, cross_platform_cli);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, local_unchecked);
-    Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, alpha_bootstrap);
-    Build::exclude_service<logger_kit::main::Sink>(builder);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_arm64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_x86_64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_arm64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, macos_x86_64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, windows_x86_64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, uefi_x86_64);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, cross_platform_cli);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, local_unchecked);
+    Build::select_provider::<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, alpha_bootstrap);
+    Build::exclude_service::<logger_kit::main::Sink>(builder);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

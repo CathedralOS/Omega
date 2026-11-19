@@ -20,7 +20,7 @@ machine Main::main(main: @mut Main) crashes Trap {
     transition main.cells[0].value == -43 && main.cells[1].value == 9
         && main.cells[0].padding == 11 && main.cells[1].padding == 23
         && main.position == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

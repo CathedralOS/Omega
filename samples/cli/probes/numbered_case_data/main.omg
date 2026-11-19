@@ -15,7 +15,7 @@ data Main {
 machine Main::main(main: @mut Main) {
     main.entry = pick(9u8);
     transition main.entry {
-        Lookup::Found { value } -> found(value)
+        Lookup::Found { value } -> found(value),
         Lookup::Missing -> missing()
     }
     machine found(value: u8) { }

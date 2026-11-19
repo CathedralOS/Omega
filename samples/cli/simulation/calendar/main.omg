@@ -42,7 +42,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     transition { _ -> block day_loop(main) }
 
     machine day_loop(main: @mut Main) {
-        transition main.d >= 1 && main.d <= 30 { true -> block place(main) _ -> block flush(main) }
+        transition main.d >= 1 && main.d <= 30 { true -> block place(main), _ -> block flush(main) }
     }
     machine place(main: @mut Main) {
         main.o = main.col * 3;
@@ -50,7 +50,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         main.tens = main.d / 10;
         main.ones = main.d % 10;
         main.oc = narrow_i32_to_u8_trapping((main.ones + 48) as i32);
-        transition main.tens > 0 { true -> block place_tens(main) _ -> block place_space(main) }
+        transition main.tens > 0 { true -> block place_tens(main), _ -> block place_space(main) }
     }
     machine place_tens(main: @mut Main) {
         main.tc = narrow_i32_to_u8_trapping((main.tens + 48) as i32);
@@ -62,7 +62,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
     machine place_guard(main: @mut Main) {
         transition main.o >= 0 && main.o < 21 && main.o1 >= 0 && main.o1 < 21 {
-            true -> block place_write(main)
+            true -> block place_write(main),
             _ -> block bad(main)
         }
     }
@@ -73,7 +73,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block advance(main) }
     }
     machine advance(main: @mut Main) {
-        transition main.col >= 7 { true -> block emit_week(main) _ -> block next_d(main) }
+        transition main.col >= 7 { true -> block emit_week(main), _ -> block next_d(main) }
     }
     machine emit_week(main: @mut Main) {
         Console::write_line(main.line);
@@ -81,7 +81,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> block clear_loop(main) }
     }
     machine clear_loop(main: @mut Main) {
-        transition main.k >= 0 && main.k < 21 { true -> block clear_cell(main) _ -> block reset_col(main) }
+        transition main.k >= 0 && main.k < 21 { true -> block clear_cell(main), _ -> block reset_col(main) }
     }
     machine clear_cell(main: @mut Main) {
         main.line[main.k] = 32;
@@ -98,7 +98,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     }
 
     machine flush(main: @mut Main) {
-        transition main.col > 0 { true -> emit_partial(main) _ -> finish(main) }
+        transition main.col > 0 { true -> emit_partial(main), _ -> finish(main) }
     }
     machine emit_partial(main: @mut Main) {
         Console::write_line(main.line);

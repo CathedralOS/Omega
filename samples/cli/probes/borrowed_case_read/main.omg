@@ -16,7 +16,7 @@ data Duo {
 
 machine Duo::code(duo: @Duo) -> u64 in Wrapping {
     transition duo {
-        Duo::Left { a } -> value(a)
+        Duo::Left { a } -> value(a),
         Duo::Right { b, c } -> value(b + c)
     }
 
@@ -27,7 +27,7 @@ machine Duo::code(duo: @Duo) -> u64 in Wrapping {
 
 machine Duo::code_mutable(duo: @mut Duo) -> u64 in Wrapping {
     transition duo {
-        Duo::Left { a } -> value(a)
+        Duo::Left { a } -> value(a),
         Duo::Right { b, c } -> value(b + c)
     }
 
@@ -47,7 +47,7 @@ machine Main::main(main: @mut Main) {
     let a: u64 in Wrapping = Duo::code(@left);
     let bc: u64 in Wrapping = Duo::code_mutable(@mut right);
     transition (a + bc) as u64 == 44 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

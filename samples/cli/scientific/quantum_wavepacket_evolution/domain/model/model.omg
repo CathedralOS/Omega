@@ -1,4 +1,3 @@
-module domain::model;
 use domain::complex;
 use domain::complex::Complex;
 public data Problem {
@@ -9,12 +8,12 @@ public data Problem {
 // Storage guards are explicit and independent of the input dimensions.
 public machine element(problem: @Problem, row: i32, column: i32) -> Complex {
     let position: i32 in Wrapping = (row as i32 in Wrapping) * 32 + (column as i32 in Wrapping);
-    transition position >= 0 && position < 1024 { true -> read(problem, position as i32) false -> (Complex { real: 0.0, imaginary: 0.0 }) }
+    transition position >= 0 && position < 1024 { true -> read(problem, position as i32), false -> (Complex { real: 0.0, imaginary: 0.0 }) }
     machine read(problem: @Problem, position: i32) -> Complex requires position >= 0 && position < 1024 { problem.matrix[position] }
 }
 public machine store(problem: @mut Problem, row: i32, column: i32, value: Complex) {
     let position: i32 in Wrapping = (row as i32 in Wrapping) * 32 + (column as i32 in Wrapping);
-    transition position >= 0 && position < 1024 { true -> write(problem, position as i32, value) false -> done() }
+    transition position >= 0 && position < 1024 { true -> write(problem, position as i32, value), false -> done() }
     machine write(problem: @mut Problem, position: i32, value: Complex) requires position >= 0 && position < 1024 { problem.matrix[position] = value; }
     machine done() {}
 }
@@ -23,8 +22,8 @@ requires row >= 0 && row < 32
 {
     let kinetic: f64 = 1.0 / (problem.spacing * problem.spacing);
     transition {
-        row == column -> (kinetic + problem.potential[row])
-        column == row - 1 || column == row + 1 || (row == 0 && column == (((problem.cells as i32 in Wrapping) - 1) as i32)) || (column == 0 && row == (((problem.cells as i32 in Wrapping) - 1) as i32)) -> (0.0 - 0.5 * kinetic)
+        row == column -> (kinetic + problem.potential[row]),
+        column == row - 1 || column == row + 1 || (row == 0 && column == (((problem.cells as i32 in Wrapping) - 1) as i32)) || (column == 0 && row == (((problem.cells as i32 in Wrapping) - 1) as i32)) -> (0.0 - 0.5 * kinetic),
         _ -> 0.0
     }
 }

@@ -8,7 +8,7 @@ machine main() reaches Required crashes Trap {
     machine read(index: u32) requires index <= 1 {
         let values: [u32; 2] = [7, 11];
         let observed: u32 = values[index];
-    transition observed == 11 { true -> done() false -> bad() }
+    transition observed == 11 { true -> done(), false -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }

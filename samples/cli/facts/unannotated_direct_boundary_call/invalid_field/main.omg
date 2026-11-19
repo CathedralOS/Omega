@@ -10,7 +10,7 @@ MarkerMark satisfies Mark {
 data Hold { value: u64; }
 machine main() reaches crashes Trap {
     let hold: Hold = Hold { value: Mark::read() };
-    transition hold.value == 7 { true -> done() _ -> bad() }
+    transition hold.value == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

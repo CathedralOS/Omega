@@ -39,7 +39,7 @@ machine forward(input: u32) -> u32 requires input == 37 ensures result == 37 {
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine consume(value: u32) requires value == 37 crashes Trap {
-    transition value == 37 { true -> finished() false -> failed() }
+    transition value == 37 { true -> finished(), false -> failed() }
 }
 
 machine main() crashes Trap { consume(forward(37)); }

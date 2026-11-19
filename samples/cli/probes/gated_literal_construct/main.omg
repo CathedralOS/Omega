@@ -26,7 +26,7 @@ machine Main::main(main: @mut Main) {
     let champion: Player = Player { health: 50 };
     let strength: i32 = champion.health;
     transition strength == 50 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

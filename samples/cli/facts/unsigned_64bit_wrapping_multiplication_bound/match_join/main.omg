@@ -20,7 +20,7 @@ ensures result == 0u64
     let headroom: u64 = 200u64 - prod;
     let margin: u64 = prod - 50u64;
     transition headroom == 80u64 && margin == 70u64 {
-        true -> ok()
+        true -> ok(),
         _ -> bad()
     }
     machine ok() -> u64 {
@@ -43,7 +43,7 @@ ensures result == 0u64
 
 machine main() crashes Trap {
     transition probe(true) == 0u64 && probe(false) == 0u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

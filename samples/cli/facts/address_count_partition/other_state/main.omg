@@ -17,7 +17,7 @@ satisfies Content<Region, IntervalSet<Nat>>::project {
 data Pieces { left: Region in Owned; right: Region in Owned; }
 machine split(whole: Region in Owned, length: u64, ceiling: addr) -> Pieces
 requires length <= whole.length && embed(whole.base) + embed(whole.length) <= embed(ceiling)
-ensures core::Identity<IntervalSet<Nat>>(
+ensures core::Identity::<IntervalSet<Nat>>(
     Owned::content(old(@whole)),
     separate(
         Owned::content(@result.right), Owned::content(@result.left))
@@ -41,7 +41,7 @@ machine main() crashes Trap {
     let { left, right } = pieces;
     drop(left);
     drop(right);
-    transition correct { true -> done() _ -> bad() }
+    transition correct { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

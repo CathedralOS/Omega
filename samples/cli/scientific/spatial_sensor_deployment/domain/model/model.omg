@@ -1,4 +1,3 @@
-module domain::model;
 // Private finite scientific model. Coordinates are synthetic integer grid units.
 // Radius is closed Euclidean distance; a served demand consumes one capacity unit.
 // Arithmetic carriers are wrapping, but fixtures keep every intermediate below 1000.

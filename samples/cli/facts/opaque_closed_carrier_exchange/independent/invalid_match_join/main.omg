@@ -13,14 +13,14 @@ machine consume(first: InternetAddress, second: InternetAddress) -> bool reaches
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 machine select(first: bool) -> InternetAddress reaches AddressParts, AddressBridge {
- match first { true -> AddressBridge::make(10, 66051) _ -> AddressBridge::make(10, 66051) }
+ match first { true -> AddressBridge::make(10, 66051), _ -> AddressBridge::make(10, 66051) }
 }
 machine observe() -> bool reaches AddressParts, AddressBridge {
  consume(select(true), AddressBridge::make(44048, 513)) && consume(select(false), AddressBridge::make(44048, 513))
 }
 
 machine main() reaches AddressParts, AddressBridge crashes Trap {
- transition observe() { true -> done() _ -> failed() }
+ transition observe() { true -> done(), _ -> failed() }
  machine done() {}
  machine failed() { crash Trap; }
 }

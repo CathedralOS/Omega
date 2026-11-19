@@ -1,4 +1,3 @@
-module domain::report;
 use omega_language_std::Console;
 use domain::cycles;
 use domain::cycles::Audit;
@@ -20,13 +19,13 @@ public machine write(audit: @mut Audit) reaches Console {
     audit.current = 0;
     transition { _ -> loop(audit) }
     machine loop(audit: @mut Audit) {
-        transition audit.index < audit.cycle_count && audit.index < 16 { true -> row(audit) false -> total(audit) }
+        transition audit.index < audit.cycle_count && audit.index < 16 { true -> row(audit), false -> total(audit) }
     }
     machine row(audit: @mut Audit) {
         audit.range = audit.ranges[audit.index];
         audit.weight = audit.weights[audit.index];
         audit.middle = audit.range * audit.weight;
-        transition audit.exponent == 2 { true -> square(audit) false -> emit(audit) }
+        transition audit.exponent == 2 { true -> square(audit), false -> emit(audit) }
     }
     machine square(audit: @mut Audit) {
         audit.middle = audit.middle * audit.range;
@@ -44,7 +43,7 @@ public machine write(audit: @mut Audit) reaches Console {
         Console::write_byte(44);
         number(audit.current);
         Console::write_byte(10);
-        transition audit.index < 16 { true -> next(audit) false -> total(audit) }
+        transition audit.index < 16 { true -> next(audit), false -> total(audit) }
     }
     machine next(audit: @mut Audit) {
         audit.index = audit.index + 1;

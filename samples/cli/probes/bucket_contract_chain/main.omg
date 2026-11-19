@@ -76,13 +76,13 @@ machine bucket_contract_chain() {
     let first: u8 = Bucket::get(@bucket, 0);
     let popped: u8 = Bucket::pop(@mut bucket);
     transition first == 7 {
-        true -> judge(popped)
+        true -> judge(popped),
         _ -> done(71)
     }
 
     machine judge(popped: u8) {
         transition popped == 7 {
-            true -> done(70)
+            true -> done(70),
             _ -> done(72)
         }
     }

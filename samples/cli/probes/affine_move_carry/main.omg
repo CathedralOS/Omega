@@ -16,7 +16,7 @@ data Ticket { value: i32; }
 
 machine route(ticket: Ticket, selected: bool) -> i32 {
     transition selected {
-        true -> take(ticket)
+        true -> take(ticket),
         _ -> take(Ticket { value: 71 })
     }
 
@@ -28,7 +28,7 @@ machine loop_until(ticket: Ticket, n: u8) -> i32 {
 
     machine spin(ticket: Ticket, n: u8) -> i32 {
         transition n < 2 {
-            true -> spin(ticket, n + 1)
+            true -> spin(ticket, n + 1),
             _ -> finish(ticket)
         }
     }
@@ -41,7 +41,7 @@ machine affine_move_carry() {
     let diverted: i32 = route(Ticket { value: 12 }, false);
     let carried: i32 = loop_until(Ticket { value: 70 }, 0);
     transition direct == 70 && diverted == 71 && carried == 70 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

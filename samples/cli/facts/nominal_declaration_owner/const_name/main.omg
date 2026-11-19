@@ -5,7 +5,7 @@ use shared::library::read;
 const TOKEN: Token = Token { value: 7 };
 machine transported() -> u8 { read(TOKEN) }
 machine main() crashes Trap {
-    transition transported() == 7 { true -> done() _ -> bad() }
+    transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -1,4 +1,3 @@
-module domain::model;
 // Explicit sample model: a projected discrete first-order amplifier, not a
 // transistor model. Feedback is sampled from the previous output. Projection
 // occurs AFTER the Euler update, so numerical instability remains observable.
@@ -34,11 +33,11 @@ public machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
     result.stable = result.multiplier > -1.0 && result.multiplier < 1.0;
     result.lower_exists = circuit.gain * (drive - circuit.feedback * circuit.lower) <= circuit.lower;
     result.upper_exists = circuit.gain * (drive - circuit.feedback * circuit.upper) >= circuit.upper;
-    result.selected = match result.lower_exists { true -> (circuit.lower) false -> (circuit.upper) };
+    result.selected = match result.lower_exists { true -> (circuit.lower), false -> (circuit.upper) };
     let denominator: f64 = 1.0 + circuit.gain * circuit.feedback;
     result.continuum = denominator == 0.0 && drive == 0.0;
     transition denominator != 0.0 {
-        true -> interior(circuit, drive, denominator, result)
+        true -> interior(circuit, drive, denominator, result),
         false -> classify(result)
     }
     machine interior(circuit: Circuit, drive: f64, denominator: f64, result: Equilibrium) -> Equilibrium {
@@ -54,7 +53,7 @@ public machine equilibria(circuit: Circuit, drive: f64) -> Equilibrium {
             || (!found.lower_exists && found.interior_exists && !found.upper_exists)
             || (!found.lower_exists && !found.interior_exists && found.upper_exists));
         transition found.interior_exists {
-            true -> select_interior(found)
+            true -> select_interior(found),
             false -> select_rail(found)
         }
     }
@@ -75,7 +74,7 @@ public machine advance(circuit: Circuit, drive: f64, previous: f64) -> Observati
     observed.feedback = circuit.feedback * previous;
     observed.raw = previous + circuit.relaxation * (circuit.gain * (drive - observed.feedback) - previous);
     transition observed.raw < circuit.lower {
-        true -> low(circuit, observed)
+        true -> low(circuit, observed),
         false -> check_high(circuit, observed)
     }
     machine low(circuit: Circuit, observed: Observation) -> Observation {
@@ -86,7 +85,7 @@ public machine advance(circuit: Circuit, drive: f64, previous: f64) -> Observati
     }
     machine check_high(circuit: Circuit, observed: Observation) -> Observation {
         transition observed.raw > circuit.upper {
-            true -> high(circuit, observed)
+            true -> high(circuit, observed),
             false -> linear(observed)
         }
     }

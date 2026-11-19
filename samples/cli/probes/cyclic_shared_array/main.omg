@@ -21,7 +21,7 @@ machine scan(numbers: @[i32; 3]) -> i32 {
     machine step(numbers: @[i32; 3], index: i32, best: i32) -> i32
     requires index >= 0 {
         transition index < 3 {
-            true -> body(numbers, index, best)
+            true -> body(numbers, index, best),
             _ -> done(best)
         }
     }
@@ -30,7 +30,7 @@ machine scan(numbers: @[i32; 3]) -> i32 {
     requires index >= 0 && index < 3 {
         let candidate: i32 = numbers[index];
         transition candidate > best {
-            true -> step(numbers, index + 1, candidate)
+            true -> step(numbers, index + 1, candidate),
             _ -> step(numbers, index + 1, best)
         }
     }
@@ -45,7 +45,7 @@ machine Main::main(main: @mut Main) {
     let numbers: [i32; 3] = [4, 42, 23];
     let found: i32 = scan(@numbers);
     transition found == 42 {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

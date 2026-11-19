@@ -36,10 +36,10 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     main.problem.spacing = spacing.value;
     main.problem.timestep = timestep.value;
     transition count.valid && count.integer && spacing.valid && timestep.valid && steps.valid && steps.integer && count.value == F64::from_i32(main.problem.cells) && steps.value == F64::from_i32(main.problem.steps) && main.problem.cells >= 8 && main.problem.cells <= 32 && main.problem.steps >= 0 && main.problem.steps <= 256 && spacing.value > 0.0 && timestep.value > 0.0 {
-        true -> block read(main, 0) false -> invalid(main)
+        true -> block read(main, 0), false -> invalid(main)
     }
     machine read(main: @mut Main, row: i32) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> block cell(main, row) false -> block finish(main) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> block cell(main, row), false -> block finish(main) }
     }
     machine cell(main: @mut Main, row: i32) requires row >= 0 && row < 32 {
         let potential: Number = block number(@mut main.reader);
@@ -47,27 +47,27 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         let imaginary: Number = block number(@mut main.reader);
         main.problem.potential[row] = potential.value;
         main.problem.amplitude[row] = Complex { real: real.value, imaginary: imaginary.value };
-        transition potential.valid && real.valid && imaginary.valid { true -> block read(main, row + 1) false -> invalid(main) }
+        transition potential.valid && real.valid && imaginary.valid { true -> block read(main, row + 1), false -> invalid(main) }
     }
     machine finish(main: @mut Main) {
         let complete: bool = block ended(@mut main.reader);
         let norm: f64 = probability_norm(@main.problem);
-        transition complete && norm > 0.0 { true -> conditioning(main, 0, norm) false -> invalid(main) }
+        transition complete && norm > 0.0 { true -> conditioning(main, 0, norm), false -> invalid(main) }
     }
     // I+i dt H/2 is nonsingular mathematically, but extreme stiffness loses
     // the identity in double-precision elimination. Refuse that numerical
     // regime before factorization rather than silently losing probability.
     machine conditioning(main: @mut Main, row: i32, norm: f64) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm) false -> normalize(main, 0, 1.0 / F64::square_root(norm)) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> coefficient(main, row, norm), false -> normalize(main, 0, 1.0 / F64::square_root(norm)) }
     }
     machine coefficient(main: @mut Main, row: i32, norm: f64) requires row >= 0 && row < 32 {
         let magnitude: f64 = absolute(main.problem.potential[row]);
         let stiffness: f64 = main.problem.timestep * (1.0 / (main.problem.spacing * main.problem.spacing) + magnitude);
-        transition stiffness <= 1000.0 { true -> conditioning(main, row + 1, norm) false -> refused(main) }
+        transition stiffness <= 1000.0 { true -> conditioning(main, row + 1, norm), false -> refused(main) }
     }
     machine refused(main: @mut Main) { Console::write_line("REFUSED quantum conditioning"); ProcessExit::exit_process(3); }
     machine normalize(main: @mut Main, row: i32, factor: f64) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> normalized(main, row, factor) false -> prepare(main) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> normalized(main, row, factor), false -> prepare(main) }
     }
     machine normalized(main: @mut Main, row: i32, factor: f64) requires row >= 0 && row < 32 {
         main.problem.amplitude[row] = scale(main.problem.amplitude[row], factor);
@@ -85,7 +85,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> amplitudes(main, iteration, 0) }
     }
     machine amplitudes(main: @mut Main, iteration: i32, row: i32) {
-        transition row >= 0 && row < main.problem.cells && row < 32 { true -> emit(main, iteration, row) false -> advance(main, iteration) }
+        transition row >= 0 && row < main.problem.cells && row < 32 { true -> emit(main, iteration, row), false -> advance(main, iteration) }
     }
     machine emit(main: @mut Main, iteration: i32, row: i32) requires row >= 0 && row < 32 {
         let value: Complex = main.problem.amplitude[row];
@@ -95,7 +95,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
         transition { _ -> amplitudes(main, iteration, row + 1) }
     }
     machine advance(main: @mut Main, iteration: i32) {
-        transition iteration >= 0 && iteration < main.problem.steps && iteration < 256 { true -> evolve(main, iteration) false -> done() }
+        transition iteration >= 0 && iteration < main.problem.steps && iteration < 256 { true -> evolve(main, iteration), false -> done() }
     }
     machine evolve(main: @mut Main, iteration: i32) requires iteration >= 0 && iteration < 256 {
         step(@mut main.problem);
@@ -107,7 +107,7 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
 machine probability_norm(problem: @Problem) -> f64 {
     transition { _ -> rows(problem, 0, 0.0) }
     machine rows(problem: @Problem, row: i32, sum: f64) -> f64 {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> accumulate(problem, row, sum) false -> (problem.spacing * sum) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> accumulate(problem, row, sum), false -> (problem.spacing * sum) }
     }
     machine accumulate(problem: @Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
         transition { _ -> rows(problem, row + 1, sum + squared(problem.amplitude[row])) }
@@ -118,10 +118,10 @@ machine probability_norm(problem: @Problem) -> f64 {
 machine energy(problem: @Problem) -> f64 {
     transition { _ -> rows(problem, 0, 0.0) }
     machine rows(problem: @Problem, row: i32, sum: f64) -> f64 {
-        transition row >= 0 && row < problem.cells && row < 32 { true -> neighbor(problem, row, sum) false -> (problem.spacing * sum) }
+        transition row >= 0 && row < problem.cells && row < 32 { true -> neighbor(problem, row, sum), false -> (problem.spacing * sum) }
     }
     machine neighbor(problem: @Problem, row: i32, sum: f64) -> f64 requires row >= 0 && row < 32 {
-        transition row + 1 < problem.cells && row + 1 < 32 { true -> accumulate(problem, row, row + 1, sum) false -> accumulate(problem, row, 0, sum) }
+        transition row + 1 < problem.cells && row + 1 < 32 { true -> accumulate(problem, row, row + 1, sum), false -> accumulate(problem, row, 0, sum) }
     }
     machine accumulate(problem: @Problem, row: i32, neighbor: i32, sum: f64) -> f64 requires row >= 0 && row < 32 && neighbor >= 0 && neighbor < 32 {
         let difference: Complex = subtract(problem.amplitude[neighbor], problem.amplitude[row]);
@@ -129,7 +129,7 @@ machine energy(problem: @Problem) -> f64 {
         transition { _ -> rows(problem, row + 1, sum + term) }
     }
 }
-machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (0.0 - value) false -> (value) } }
+machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (0.0 - value), false -> (value) } }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {

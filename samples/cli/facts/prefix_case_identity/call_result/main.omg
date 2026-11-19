@@ -23,12 +23,12 @@ crashes Trap
 {
     let local_reading: Reading = transport_result(reading);
     transition local_reading.common == expected_common {
-        true -> inspect(local_reading)
+        true -> inspect(local_reading),
         _ -> bad()
     }
     machine inspect(selected: Reading) -> u64 {
         transition selected {
-            Reading::Sample { value, .. } -> (value + 10)
+            Reading::Sample { value, .. } -> (value + 10),
             Reading::Empty { .. } -> 3
         }
     }
@@ -49,7 +49,7 @@ machine main() crashes Trap {
     transition sample_result == 42 && fallback_result == 3 && zero_result == 10
         && neighbors.left == 305419896 && neighbors.right == 1515863100
         && neighbors.reading.common == 91 && fallback.common == 73 && zero_value.common == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

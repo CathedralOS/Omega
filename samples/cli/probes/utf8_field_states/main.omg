@@ -24,7 +24,7 @@ machine Main::main(main: @mut Main) {
     machine done(main: @mut Main) {
         let b: i32 = main.label[0] as i32;
         transition b == 66 {
-            true -> good(main)
+            true -> good(main),
             false -> bad(main)
         }
     }

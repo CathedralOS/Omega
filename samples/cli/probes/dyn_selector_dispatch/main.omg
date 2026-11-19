@@ -45,7 +45,7 @@ machine dyn_selector_dispatch() {
     let b: i32 = pick(SquareShape as dyn Shape<Item>, @mut item);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
-        true -> done(70)
+        true -> done(70),
         _ -> done(71)
     }
 

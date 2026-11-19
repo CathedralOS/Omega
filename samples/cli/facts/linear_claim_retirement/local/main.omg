@@ -18,7 +18,7 @@ machine probe() -> u64 {
 
 machine main() crashes Trap {
     transition probe() == 42 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -27,7 +27,7 @@ machine main() crashes Trap {
         && input[0] == 3.0 && input[1] == 4.0
         && empty_dot_ok && empty_norm_ok && empty_dot == 0.0 && empty_norm == 0.0
         && mismatch == false && sentinel == 77.0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

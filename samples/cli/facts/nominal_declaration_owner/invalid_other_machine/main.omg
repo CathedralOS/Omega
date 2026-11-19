@@ -6,7 +6,7 @@ data Relay {}
 machine Relay::forward(token: Token) -> u8 { read(token) }
 machine transported() -> u8 { Relay::forward(Token { value: 7 }) }
 machine main() crashes Trap {
-    transition transported() == 7 { true -> done() _ -> bad() }
+    transition transported() == 7 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

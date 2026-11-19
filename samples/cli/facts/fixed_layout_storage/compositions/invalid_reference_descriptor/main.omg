@@ -36,9 +36,9 @@ machine update<const Marker: u64>(pointer: @LayoutStorage<Payload, PayloadLayout
 machine main() crashes Trap {
     let mut pointee: LayoutStorage<Payload, PayloadLayout<7u64> >;
     pointee.value = 43u64;
-    let result: u64 = update<7u64>(@pointee);
+    let result: u64 = update::<7u64>(@pointee);
     transition result == 7u64 && pointee.value == 43u64 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

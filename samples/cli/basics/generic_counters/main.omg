@@ -35,7 +35,7 @@ machine entry_start() reaches ProcessExit + Console {
     let times_flag: i32 in Wrapping = counter_count(@flag);
     let latched: bool = current_counter(@flag);
     transition latched {
-        true -> tally(total, times_score, times_flag)
+        true -> tally(total, times_score, times_flag),
         false -> wrong()
     }
     machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches ProcessExit + Console {

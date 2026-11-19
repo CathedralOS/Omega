@@ -42,7 +42,7 @@ machine run_main(main: @mut Main) reaches Reader crashes Trap {
     let value: u64 = envelope.payload.value;
     let prefix: u64 = envelope.prefix;
     drop(envelope);
-    transition observed == 37 && value == 37 && prefix == 91 { true -> done() _ -> bad() }
+    transition observed == 37 && value == 37 && prefix == 91 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

@@ -37,11 +37,11 @@ public WordCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         transition signature.parameter_count == 0 && signature.has_result
             && signature.native_parameter_count <= 1 && signature.callback_demand_count <= 1 {
-            true -> select_result(signature, signature.result)
+            true -> select_result(signature, signature.result),
             _ -> reject()
         }
     machine select_result(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
-        transition result < 256 { true -> accept(signature, result) _ -> reject() }
+        transition result < 256 { true -> accept(signature, result), _ -> reject() }
     }
     machine accept(signature: BoundarySignature, result: u64) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan;
@@ -81,10 +81,10 @@ public WordCalling satisfies CallingPolicy {
 }
 
 machine main() reaches Probe + Callback crashes Trap {
-    let first: u64 = Probe<u8>::inspect<u32, first_handler>();
-    let second: u64 = Probe<u8>::inspect<u64, first_handler>();
-    let third: u64 = Probe<u8>::inspect<u32, second_handler>();
-    transition first == 11u64 && second == 11u64 && third == 22u64 { true -> done() _ -> bad() }
+    let first: u64 = Probe::<u8>::inspect::<u32, first_handler>();
+    let second: u64 = Probe::<u8>::inspect::<u64, first_handler>();
+    let third: u64 = Probe::<u8>::inspect::<u32, second_handler>();
+    transition first == 11u64 && second == 11u64 && third == 22u64 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

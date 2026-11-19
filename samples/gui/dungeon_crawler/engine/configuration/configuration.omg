@@ -1,5 +1,3 @@
-module configuration;
-
 public const TILE_PIXELS: u16 = 16;
 public const ROOM_COLUMNS: u16 = 16;
 public const ROOM_ROWS: u16 = 10;

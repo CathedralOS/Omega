@@ -23,14 +23,14 @@ machine main() crashes Trap {
     let result: ReadOutcome = forward(@mut line);
     held[1] = 9;
     transition result {
-        ReadOutcome::Complete { count } -> evaluate(observe(@line, count))
-        ReadOutcome::End { count } -> evaluate(observe(@line, count))
-        ReadOutcome::Full { count } -> done()
+        ReadOutcome::Complete { count } -> evaluate(observe(@line, count)),
+        ReadOutcome::End { count } -> evaluate(observe(@line, count)),
+        ReadOutcome::Full { count } -> done(),
         ReadOutcome::Invalid -> done()
     }
     machine evaluate(value: u64 in Wrapping) {
         transition value == 42 {
-            true -> done()
+            true -> done(),
             false -> wrong()
         }
     }

@@ -1,4 +1,3 @@
-module terrain::raster;
 // Private storage: minimax path costs, settled flags and a drainage forest.
 // 99 exceeds every allowed height. Boundary cells drain to themselves.
 public data Raster {

@@ -43,20 +43,20 @@ machine main(main: @mut Main) reaches ProcessExit + Console {
     let second: i32 in Saturating = pop(@mut ring);
     let last: i32 in Saturating = pop(@mut ring);
     transition ring.size == 3 {
-        true -> block check_popped(@ring, first, second, last)
+        true -> block check_popped(@ring, first, second, last),
         _ -> block bad_size()
     }
 
     machine check_popped(ring: @Ring, first: i32 in Saturating, second: i32 in Saturating, last: i32 in Saturating) {
         transition first == 20 && second == 30 && last == 40 {
-            true -> block check_sum(ring)
+            true -> block check_sum(ring),
             _ -> block bad_pop()
         }
     }
     machine check_sum(ring: @Ring) {
         let sum: i32 in Saturating = ring.slots[3] + ring.slots[4] + ring.slots[5];
         transition sum == 70 {
-            true -> block good()
+            true -> block good(),
             _ -> block bad_sum()
         }
     }

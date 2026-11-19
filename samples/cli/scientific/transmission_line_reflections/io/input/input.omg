@@ -1,4 +1,3 @@
-module io::input;
 use omega_language_std::ByteRead;
 use omega_language_std::Console;
 
@@ -19,59 +18,59 @@ crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();
     transition observed {
-        ByteRead::Byte { value } -> identifier(value)
+        ByteRead::Byte { value } -> identifier(value),
         _ -> (Request { valid: false, identifier: 0, horizon: 0 })
     }
     machine identifier(value: i32) -> Request {
         transition value >= 48 && value <= 53 {
-            true -> separator((value - 48) as u64 in Saturating)
+            true -> separator((value - 48) as u64 in Saturating),
             false -> invalid()
         }
     }
     machine separator(identifier: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value: 32 } -> first(identifier)
+            ByteRead::Byte { value: 32 } -> first(identifier),
             _ -> invalid()
         }
     }
     machine first(identifier: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value } -> digit(identifier, value)
+            ByteRead::Byte { value } -> digit(identifier, value),
             _ -> invalid()
         }
     }
     machine digit(identifier: u64 in Saturating, value: i32) -> Request {
         transition value >= 49 && value <= 57 {
-            true -> second(identifier, (value - 48) as u64 in Saturating)
+            true -> second(identifier, (value - 48) as u64 in Saturating),
             false -> invalid()
         }
     }
     machine second(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
-            ByteRead::Byte { value } -> second_digit(identifier, horizon, value)
+            ByteRead::Byte { value: 10 } -> valid(identifier, horizon),
+            ByteRead::Byte { value } -> second_digit(identifier, horizon, value),
             _ -> invalid()
         }
     }
     machine second_digit(identifier: u64 in Saturating, horizon: u64 in Saturating, value: i32) -> Request {
         transition value >= 48 && value <= 57 {
-            true -> newline(identifier, horizon * 10 + ((value - 48) as u64 in Saturating))
+            true -> newline(identifier, horizon * 10 + ((value - 48) as u64 in Saturating)),
             false -> invalid()
         }
     }
     machine newline(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Byte { value: 10 } -> valid(identifier, horizon)
+            ByteRead::Byte { value: 10 } -> valid(identifier, horizon),
             _ -> invalid()
         }
     }
     machine valid(identifier: u64 in Saturating, horizon: u64 in Saturating) -> Request {
         transition horizon >= 1 && horizon <= 24 {
-            true -> (Request { valid: true, identifier: identifier, horizon: horizon })
+            true -> (Request { valid: true, identifier: identifier, horizon: horizon }),
             false -> invalid()
         }
     }

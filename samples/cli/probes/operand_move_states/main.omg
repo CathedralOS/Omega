@@ -29,7 +29,7 @@ machine Main::main(main: @mut Main) {
     machine holding(main: @mut Main, held: Token) {
         let total: i32 = settle(Pair { left: held, right: Token { code: 4 } });
         transition total == 7 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> fail(main)
         }
     }

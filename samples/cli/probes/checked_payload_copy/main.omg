@@ -7,14 +7,14 @@ data Envelope { stamp: u64; checked: CheckedExtent; }
 
 machine check(extent: Extent) -> CheckedExtent {
     transition extent.length > 0 {
-        true -> CheckedExtent::Ready { extent: extent }
+        true -> CheckedExtent::Ready { extent: extent },
         _ -> CheckedExtent::Rejected
     }
 }
 
 machine inspect(checked: CheckedExtent) -> bool {
     transition checked {
-        CheckedExtent::Ready { extent } -> retained(extent)
+        CheckedExtent::Ready { extent } -> retained(extent),
         CheckedExtent::Rejected -> (false)
     }
     machine retained(extent: Extent in Nonempty) -> bool {
@@ -24,7 +24,7 @@ machine inspect(checked: CheckedExtent) -> bool {
 
 machine inspect_nested(envelope: Envelope) -> bool {
     transition envelope.checked {
-        CheckedExtent::Ready { extent } -> retained(extent, envelope.stamp)
+        CheckedExtent::Ready { extent } -> retained(extent, envelope.stamp),
         CheckedExtent::Rejected -> (false)
     }
     machine retained(extent: Extent in Nonempty, stamp: u64) -> bool {
@@ -40,7 +40,7 @@ machine main() crashes Trap {
     });
     let rejected: bool = inspect(check(Extent { base: 4096, length: 0 }));
     transition direct && nested && !rejected {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {}

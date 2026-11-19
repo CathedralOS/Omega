@@ -28,14 +28,14 @@ machine Main::main(main: @mut Main) {
     main.left = Cell::Value { n: 30 };
     main.right = Cell::Value { n: 40 };
     transition (main.left, main.right) {
-        (Cell::Value { n as left_n }, Cell::Value { n as right_n }) -> sum(main, left_n, right_n)
-        (Cell::Value { n as left_n }, Cell::Empty) -> wrong(main)
-        (Cell::Empty, Cell::Value { n as right_n }) -> wrong(main)
+        (Cell::Value { n as left_n }, Cell::Value { n as right_n }) -> sum(main, left_n, right_n),
+        (Cell::Value { n as left_n }, Cell::Empty) -> wrong(main),
+        (Cell::Empty, Cell::Value { n as right_n }) -> wrong(main),
         (Cell::Empty, Cell::Empty) -> wrong(main)
     }
     machine sum(main: @mut Main, left_n: i32, right_n: i32) {
         transition left_n == 30 && right_n == 40 {
-            true -> pass(main)
+            true -> pass(main),
             _ -> wrong(main)
         }
     }

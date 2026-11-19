@@ -8,15 +8,15 @@ data PaddedFrame {
     tail: [u64; 8];
 }
 
-const FRAME_BYTES: u64 = size_of<PaddedFrame>();
-const FRAME_ALIGN: u64 = align_of<PaddedFrame>();
-const EXTRA_ALIGN: u64 = align_of<u32>();
+const FRAME_BYTES: u64 = size_of::<PaddedFrame>();
+const FRAME_ALIGN: u64 = align_of::<PaddedFrame>();
+const EXTRA_ALIGN: u64 = align_of::<u32>();
 
 machine main() crashes Trap {
     let geometry: u64 = FRAME_BYTES + FRAME_ALIGN + EXTRA_ALIGN;
     let diff: u64 = geometry - 100u64;
     transition diff == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

@@ -15,19 +15,19 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     machine read(context: @mut Main, position: u64) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
-            ByteRead::Eof -> finish_input(context, position)
+            ByteRead::Eof -> finish_input(context, position),
             ByteRead::Byte { value } -> classify(context, position, value)
         }
     }
     machine classify(context: @mut Main, position: u64, value: i32) {
         transition value == 10 || value == 13 || value == 32 || value == 9 {
-            true -> read(context, position)
+            true -> read(context, position),
             false -> digit(context, position, value)
         }
     }
     machine digit(context: @mut Main, position: u64, value: i32) {
         transition position < 36 && value >= 48 && value <= 56 {
-            true -> save(context, position, value)
+            true -> save(context, position, value),
             false -> reject(context, 10)
         }
     }
@@ -38,14 +38,14 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine finish_input(context: @mut Main, position: u64) {
         transition position == 36 {
-            true -> analyze_input(context)
+            true -> analyze_input(context),
             false -> reject(context, 10)
         }
     }
     machine analyze_input(context: @mut Main) {
         let status: u64 = analyze(@mut context.records);
         transition status == 0 {
-            true -> report(context)
+            true -> report(context),
             false -> reject(context, status)
         }
     }
@@ -78,7 +78,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         print_integer(context, active);
         let next: u64 = position + 1;
         transition next < 4 {
-            true -> wave(context, direction, next)
+            true -> wave(context, direction, next),
             false -> energy(context, direction)
         }
     }
@@ -92,7 +92,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         let next: u64 = direction + 1;
         transition next < 4 {
-            true -> direction(context, next)
+            true -> direction(context, next),
             false -> ambiguities(context)
         }
     }
@@ -102,7 +102,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine winner(context: @mut Main, direction: u64) requires direction < 4 {
         transition context.records.energy[direction] == context.records.best {
-            true -> emit_winner(context, direction)
+            true -> emit_winner(context, direction),
             false -> next_winner(context, direction + 1)
         }
     }
@@ -113,7 +113,7 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
     }
     machine next_winner(context: @mut Main, next: u64) {
         transition next < 4 {
-            true -> winner(context, next)
+            true -> winner(context, next),
             false -> done(context)
         }
     }
@@ -125,13 +125,13 @@ machine main(context: @mut Main) reaches ProcessExit + Console {
 
 machine print_integer(context: @mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
     transition value >= 0 - 576 && value <= 576 {
-        true -> sign(context, value)
+        true -> sign(context, value),
         false -> invalid(context)
     }
     machine sign(context: @mut Main, value: i64 in Wrapping)
     requires value >= 0 - 576 requires value <= 576 {
         transition value < 0 {
-            true -> negative(context, value)
+            true -> negative(context, value),
             false -> digits(context, value)
         }
     }
@@ -151,7 +151,7 @@ machine print_digits(context: @mut Main, value: i64 in Wrapping)
 requires value >= 0 requires value <= 576
 reaches ProcessExit + Console {
     transition value >= 100 {
-        true -> hundreds(context, value)
+        true -> hundreds(context, value),
         false -> short(context, value)
     }
     machine hundreds(context: @mut Main, value: i64 in Wrapping)
@@ -163,7 +163,7 @@ reaches ProcessExit + Console {
     machine short(context: @mut Main, value: i64 in Wrapping)
     requires value >= 0 requires value <= 576 {
         transition value >= 10 {
-            true -> tens(context, value)
+            true -> tens(context, value),
             false -> digit(context, value)
         }
     }

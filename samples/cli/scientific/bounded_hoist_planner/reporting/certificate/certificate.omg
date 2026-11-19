@@ -1,4 +1,3 @@
-module reporting::certificate;
 use omega::language::core::ProcessExit;
 use omega_language_std::Console;
 use clearance::model;
@@ -33,7 +32,7 @@ invokes Console
     Console::write_line("feasible_profiles"); number5(certificate.feasible);
     Console::write_line("optimal_ties"); number5(certificate.ties);
     transition certificate.ties > 0 {
-        true -> optimal(certificate)
+        true -> optimal(certificate),
         false -> infeasible()
     }
     machine infeasible() {

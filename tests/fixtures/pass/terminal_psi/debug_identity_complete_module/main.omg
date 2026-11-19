@@ -11,18 +11,18 @@ machine call_closure() -> i32 { constant() }
 
 machine main() crashes Trap {
     transition constant() == 42 {
-        true -> check_graph()
+        true -> check_graph(),
         _ -> bad()
     }
     machine check_graph() {
         transition state_graph() == 42 {
-            true -> check_closure()
+            true -> check_closure(),
             _ -> bad()
         }
     }
     machine check_closure() {
         transition call_closure() == 42 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

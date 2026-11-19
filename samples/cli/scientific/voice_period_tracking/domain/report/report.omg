@@ -1,4 +1,3 @@
-module domain.report;
 use omega_language_std::Console;
 
 // All report quantities are nonnegative and below 100000. No floating
@@ -9,26 +8,26 @@ invokes Console
     transition { _ -> digits(value, 10000 as +Wrapping, false) }
     machine digits(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition divisor > 0 {
-            true -> select(value, divisor, started)
+            true -> select(value, divisor, started),
             _ -> done()
         }
     }
     machine select(value: i32 in Wrapping, divisor: i32 in Wrapping, started: bool) {
         transition value >= divisor || started || divisor == 1 {
-            true -> emit(value, divisor)
+            true -> emit(value, divisor),
             _ -> smaller(value, divisor)
         }
     }
     machine emit(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         Console::write_byte((48 + value / divisor) as i32);
         transition divisor > 1 {
-            true -> digits(value % divisor, divisor / 10, true)
+            true -> digits(value % divisor, divisor / 10, true),
             _ -> done()
         }
     }
     machine smaller(value: i32 in Wrapping, divisor: i32 in Wrapping) {
         transition divisor > 1 {
-            true -> digits(value, divisor / 10, false)
+            true -> digits(value, divisor / 10, false),
             _ -> done()
         }
     }

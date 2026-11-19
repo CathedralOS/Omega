@@ -4,35 +4,35 @@ data Token { case Keyword(keyword: u8, item: Item); case Other; }
 machine inspect(item: @Item) -> u32 { item.value }
 machine classify(token: @Token) -> u32 {
     match token {
-        Token::Keyword { keyword: 7, item as _ } -> 1
-        Token::Keyword { keyword: 8, item as _ } -> 2
-        Token::Keyword { keyword as _, item } -> inspect(@item)
+        Token::Keyword { keyword: 7, item as _ } -> 1,
+        Token::Keyword { keyword: 8, item as _ } -> 2,
+        Token::Keyword { keyword as _, item } -> inspect(@item),
         _ -> 4
     }
 }
 machine select_transition(token: @Token) -> u32 {
     transition token {
-        Token::Keyword { keyword: 7, item } -> inspect(@item)
-        Token::Keyword { keyword: 8, item as _ } -> 2
-        Token::Keyword { keyword as _, item as _ } -> 3
+        Token::Keyword { keyword: 7, item } -> inspect(@item),
+        Token::Keyword { keyword: 8, item as _ } -> 2,
+        Token::Keyword { keyword as _, item as _ } -> 3,
         _ -> 4
     }
 }
 machine first_full_case(token: @Token) -> u32 {
     match token {
-        Token::Keyword { keyword as _, item as _ } -> 5
-        Token::Keyword { keyword: 7, item as _ } -> 99
+        Token::Keyword { keyword as _, item as _ } -> 5,
+        Token::Keyword { keyword: 7, item as _ } -> 99,
         _ -> 4
     }
 }
 machine first_wildcard(token: @Token) -> u32 {
-    match token { _ -> 6 Token::Keyword { keyword: 7, item as _ } -> 99 }
+    match token { _ -> 6, Token::Keyword { keyword: 7, item as _ } -> 99 }
 }
 machine touch(state: @mut u32) -> u8 { state = 9; 0 }
 machine field_test_effect(token: @Token) -> u32 {
     let mut state: u32 = 1;
     match token {
-        Token::Keyword { keyword: touch(@mut state), item as _ } -> 99
+        Token::Keyword { keyword: touch(@mut state), item as _ } -> 99,
         _ -> state
     }
 }
@@ -40,9 +40,9 @@ data Outer { case Hold(value: u32); case Empty; }
 machine nested_field_effect(outer: @mut Outer, token: @Token) -> u32 {
     match outer {
         Outer::Hold { value } -> match token {
-            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 99
+            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 99,
             _ -> value
-        }
+        },
         Outer::Empty -> 0
     }
 }
@@ -50,9 +50,9 @@ machine second(first: u32, second: u32) -> u32 { second }
 machine payload_after_match(outer: @mut Outer, token: @Token) -> u32 {
     match outer {
         Outer::Hold { value } -> second(match token {
-            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 0
+            Token::Keyword { keyword: touch(@mut outer.value), item as _ } -> 0,
             _ -> 1
-        }, value)
+        }, value),
         Outer::Empty -> 0
     }
 }
@@ -60,13 +60,13 @@ data Key [copy] { case A; case B; }
 machine == pattern_key_equal(left: Key, right: Key) -> bool { false }
 data EqualToken [copy] { case Held(key: Key); case Other; }
 machine declared_field_equality(token: @EqualToken) -> u32 {
-    match token { EqualToken::Held { key: Key::A } -> 99 _ -> 7 }
+    match token { EqualToken::Held { key: Key::A } -> 99, _ -> 7 }
 }
 machine make_token() -> Token { Token::Keyword { keyword: 8, item: Item { value: 3 } } }
 machine temporary_subject() -> u32 {
     match make_token() {
-        Token::Keyword { keyword: 7, item as _ } -> 1
-        Token::Keyword { keyword: 8, item as _ } -> 2
+        Token::Keyword { keyword: 7, item as _ } -> 1,
+        Token::Keyword { keyword: 8, item as _ } -> 2,
         _ -> 3
     }
 }
@@ -90,7 +90,7 @@ machine main() crashes Trap {
         && select_transition(@other) == 4 && first_full_case(@seven) == 5
         && first_wildcard(@seven) == 6 && field_test_effect(@seven) == 9
         && field_test_effect(@other) == 1 && temporary_subject() == 2 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

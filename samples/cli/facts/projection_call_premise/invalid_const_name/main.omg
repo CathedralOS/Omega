@@ -21,7 +21,7 @@ const NAMED: Mark = Mark { kept: false };
 machine main() crashes Trap {
     let direct: bool = project(NAMED);
     transition hold(direct) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

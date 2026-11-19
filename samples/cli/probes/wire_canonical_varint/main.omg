@@ -70,7 +70,7 @@ machine Main::main(main: @mut Main) {
         && main.good_verdict == WireVerdict::Sound
         && good.value == 18446744073709551615u64;
     transition matches {
-        true -> pass(main)
+        true -> pass(main),
         _ -> fail(main)
     }
     machine pass(main: @mut Main) { main.hits = 1; }

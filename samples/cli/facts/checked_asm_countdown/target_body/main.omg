@@ -45,7 +45,7 @@ boundary trait ForwardCountdown {
 
 X86ForwardCountdown satisfies ForwardCountdown {
     machine run(seed: u32, expected_tag: u32) -> u32 reaches Countdown crashes Trap requires seed == 2 ensures result == 0 {
-        transition expected_tag == 17 { true -> selected(seed) false -> wrong_body() }
+        transition expected_tag == 17 { true -> selected(seed), false -> wrong_body() }
         machine selected(value: u32) -> u32 requires value == 2 ensures result == 0 { Countdown::run(value) }
         machine wrong_body() -> u32 { crash Trap; }
     }
@@ -53,7 +53,7 @@ X86ForwardCountdown satisfies ForwardCountdown {
 
 ArmForwardCountdown satisfies ForwardCountdown {
     machine run(seed: u32, expected_tag: u32) -> u32 reaches Countdown crashes Trap requires seed == 2 ensures result == 0 {
-        transition expected_tag == 29 { true -> selected(seed) false -> wrong_body() }
+        transition expected_tag == 29 { true -> selected(seed), false -> wrong_body() }
         machine selected(value: u32) -> u32 requires value == 2 ensures result == 0 { Countdown::run(value) }
         machine wrong_body() -> u32 { crash Trap; }
     }
@@ -62,7 +62,7 @@ ArmForwardCountdown satisfies ForwardCountdown {
 machine finished() {}
 machine failed() crashes Trap { crash Trap; }
 machine observe_zero(value: u32) crashes Trap requires value == 0 {
-    transition value == 0 { true -> finished() false -> failed() }
+    transition value == 0 { true -> finished(), false -> failed() }
 }
 machine journey(expected_tag: u32) crashes Trap {
     let value: u32 = ForwardCountdown::run(2, expected_tag);

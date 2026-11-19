@@ -18,7 +18,7 @@ machine main() crashes Trap {
     machine check(left: lib::ops::Wrapped, right: lib::ops::Wrapped) {
         let total: u64 = lib::ops::Wrapped::describe(@left, @right);
         transition hold(total) && total == 260 {
-            true -> done()
+            true -> done(),
             _ -> bad()
         }
     }

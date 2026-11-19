@@ -1,6 +1,6 @@
 // Complete recursive Unit closure reproduction; no provider or entry acceptance.
 machine countdown(value: u64) {
-    transition value > 0 { true -> step(value) false -> done() }
+    transition value > 0 { true -> step(value), false -> done() }
     machine step(value: u64) requires value > 0 { countdown(value - 1); }
     machine done() {}
 }

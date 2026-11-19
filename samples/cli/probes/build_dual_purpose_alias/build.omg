@@ -18,7 +18,7 @@ suspends
     suspend Build::prepare_dependency(builder, kit_registration);
     let observed: i32 = kit::value();
     transition observed == 7 {
-        true -> done()
+        true -> done(),
         _ -> wrong()
     }
     machine done() {

@@ -22,7 +22,7 @@ machine exercise() -> bool {
     replaced && written && original.value == 17 && incoming.value == 41 && sibling.value == 7
 }
 machine main() crashes Trap {
-    transition exercise() { true -> done() false -> bad() }
+    transition exercise() { true -> done(), false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

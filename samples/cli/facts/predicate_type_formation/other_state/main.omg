@@ -14,14 +14,14 @@ machine payload(formed: Value<bool>) -> bool {
 }
 machine main() crashes Trap {
     transition revise() == 0 {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine revise() -> u64 {
         let formed: Value<bool> = Value::Boolean { value: true };
         let other: Value<bool> = Value::Boolean { value: false };
         transition payload(formed) == true && payload(other) == false {
-            true -> 0
+            true -> 0,
             _ -> 1
         }
     }

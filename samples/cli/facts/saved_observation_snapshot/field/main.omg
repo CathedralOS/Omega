@@ -12,10 +12,10 @@ requires observed == current && observed == 7
 machine main() crashes Trap {
     let mut marker: u64 = 0;
     let mut items: [u64; 2] = [7, 1];
-    let saved: u64 = capture<@u64>(@items[0], @mut marker, 11);
+    let saved: u64 = capture::<@u64>(@items[0], @mut marker, 11);
     items[1] = 4;
     let note: Note = Note { before: 11, observed: saved, after: 13 };
-    transition agree(note.observed, items[0]) == 7 && items[1] == 4 && marker == 11 && note.before == 11 && note.after == 13 { true -> done() _ -> bad() }
+    transition agree(note.observed, items[0]) == 7 && items[1] == 4 && marker == 11 && note.before == 11 && note.after == 13 { true -> done(), _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

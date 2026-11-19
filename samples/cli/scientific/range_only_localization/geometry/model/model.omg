@@ -1,4 +1,3 @@
-module geometry::model;
 // Private lattice geometry. Inputs are validated before any products; the
 // wrapping arithmetic domain is explicit and the application bounds guarantee
 // every actual product is small (squared distances <= 3200).
@@ -18,7 +17,7 @@ public machine feasible(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrappin
     transition { _ -> observation(problem, x, y, 0) }
     machine observation(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64) -> bool {
         transition index < 3 {
-            true -> inspect(problem, x, y, index)
+            true -> inspect(problem, x, y, index),
             false -> (true)
         }
     }
@@ -30,7 +29,7 @@ public machine feasible(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrappin
         let lower: i32 in Wrapping = problem.values[offset + 2];
         let upper: i32 in Wrapping = problem.values[offset + 3];
         transition squared >= lower * lower && squared <= upper * upper {
-            true -> observation(problem, x, y, index + 1)
+            true -> observation(problem, x, y, index + 1),
             false -> (false)
         }
     }

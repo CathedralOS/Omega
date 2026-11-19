@@ -4,7 +4,7 @@ domain<const Bound: u64> u64::BelowIndex<Bound> requires self < Bound;
 // Place: another state. The scoped instance is established before the transition.
 machine verify(observed: u64 in BelowIndex<4>, flag: bool) crashes Trap {
     transition (flag && (observed as u64) == 3) || (!flag && (observed as u64) == 3) {
-        true -> done()
+        true -> done(),
         _ -> bad()
     }
     machine done() {}

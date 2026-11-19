@@ -1,4 +1,3 @@
-module linkage::model;
 public data Record [copy] {
     identifier: u64;
     title: u64;
@@ -14,12 +13,12 @@ public data ScoreCell { bytes: [u8; 4]; }
 
 public machine read_score_byte(rows: @[ScoreCell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
     transition index < 2 {
-        true -> choose_score_cell(rows, index, dynamic)
+        true -> choose_score_cell(rows, index, dynamic),
         _ -> (0)
     }
     machine choose_score_cell(rows: @[ScoreCell; 2], index: u64, dynamic: bool) -> u64 in Wrapping {
         transition dynamic {
-            true -> score_cell(@rows[index])
+            true -> score_cell(@rows[index]),
             _ -> score_cell(@rows[1])
         }
     }
@@ -28,7 +27,7 @@ public machine read_score_byte(rows: @[ScoreCell; 2], index: u64, dynamic: bool)
     }
     machine score_bytes(value: @[u8; 4], index: u64) -> u64 in Wrapping {
         transition index < 4 {
-            true -> score_scalar(@value[index])
+            true -> score_scalar(@value[index]),
             _ -> (0)
         }
     }
@@ -76,31 +75,31 @@ public data Linkage {
 public machine pair_score(left: Record, right: Record) -> u64 {
     let mut score: u64 = 0;
     transition left.identifier > 0 && right.identifier > 0 && left.identifier != right.identifier {
-        true -> conflict()
+        true -> conflict(),
         false -> identifier(left, right, score)
     }
     machine conflict() -> u64 { 0 }
     machine identifier(left: Record, right: Record, score: u64) -> u64 {
         transition left.identifier > 0 && left.identifier == right.identifier {
-            true -> title(left, right, 12)
+            true -> title(left, right, 12),
             false -> title(left, right, score)
         }
     }
     machine title(left: Record, right: Record, score: u64) -> u64 {
         transition left.title > 0 && left.title == right.title {
-            true -> author(left, right, score % 1000 + 6)
+            true -> author(left, right, score % 1000 + 6),
             false -> author(left, right, score)
         }
     }
     machine author(left: Record, right: Record, score: u64) -> u64 {
         transition left.author > 0 && left.author == right.author {
-            true -> year(left, right, score % 1000 + 3)
+            true -> year(left, right, score % 1000 + 3),
             false -> year(left, right, score)
         }
     }
     machine year(left: Record, right: Record, score: u64) -> u64 {
         transition left.year > 0 && left.year == right.year {
-            true -> year_match(score)
+            true -> year_match(score),
             false -> score
         }
     }
@@ -112,7 +111,7 @@ public machine solve(linkage: @mut Linkage) {
     transition { _ -> matrix(linkage) }
     machine matrix(linkage: @mut Linkage) {
         transition linkage.cursor < 9 {
-            true -> pair(linkage)
+            true -> pair(linkage),
             false -> start(linkage)
         }
     }
@@ -120,7 +119,7 @@ public machine solve(linkage: @mut Linkage) {
         linkage.row = linkage.cursor / 3;
         linkage.column = linkage.cursor % 3;
         transition linkage.row < 3 && linkage.column < 3 {
-            true -> calculate(linkage)
+            true -> calculate(linkage),
             false -> done()
         }
     }
@@ -129,7 +128,7 @@ public machine solve(linkage: @mut Linkage) {
         let right: Record = linkage.right[linkage.column];
         let score: u64 = pair_score(left, right);
         transition left.identifier > 0 && right.identifier > 0 && left.identifier != right.identifier {
-            true -> conflict(linkage, score)
+            true -> conflict(linkage, score),
             false -> threshold(linkage, score)
         }
     }
@@ -139,7 +138,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine threshold(linkage: @mut Linkage, score: u64) {
         transition score >= linkage.threshold {
-            true -> edge(linkage, score)
+            true -> edge(linkage, score),
             false -> write_score(linkage, 0)
         }
     }
@@ -149,7 +148,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine write_score(linkage: @mut Linkage, score: u64) {
         transition linkage.cursor < 9 {
-            true -> store_score(linkage, score)
+            true -> store_score(linkage, score),
             false -> done()
         }
     }
@@ -164,7 +163,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine assignments(linkage: @mut Linkage) {
         transition linkage.cursor < 64 {
-            true -> decode(linkage)
+            true -> decode(linkage),
             false -> audit_start(linkage)
         }
     }
@@ -177,20 +176,20 @@ public machine solve(linkage: @mut Linkage) {
         transition (linkage.choices[0] == 0 || linkage.choices[0] != linkage.choices[1]) &&
                    (linkage.choices[0] == 0 || linkage.choices[0] != linkage.choices[2]) &&
                    (linkage.choices[1] == 0 || linkage.choices[1] != linkage.choices[2]) {
-            true -> evaluate(linkage)
+            true -> evaluate(linkage),
             false -> next(linkage)
         }
     }
     machine evaluate(linkage: @mut Linkage) {
         transition linkage.row < 3 {
-            true -> choice(linkage)
+            true -> choice(linkage),
             false -> compare(linkage)
         }
     }
     machine choice(linkage: @mut Linkage) {
         let selected: u64 = linkage.choices[linkage.row];
         transition selected > 0 && selected < 4 {
-            true -> index(linkage, selected)
+            true -> index(linkage, selected),
             false -> advance_row(linkage)
         }
     }
@@ -198,14 +197,14 @@ public machine solve(linkage: @mut Linkage) {
     requires selected > 0 && selected < 4 {
         linkage.index = (linkage.row % 3) * 3 + selected - 1;
         transition linkage.index < 9 {
-            true -> include(linkage)
+            true -> include(linkage),
             false -> done()
         }
     }
     machine include(linkage: @mut Linkage) {
         let score: u64 = linkage.scores[linkage.index];
         transition score > 0 {
-            true -> add(linkage, score)
+            true -> add(linkage, score),
             false -> next(linkage)
         }
     }
@@ -219,7 +218,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine compare(linkage: @mut Linkage) {
         transition linkage.total > linkage.best {
-            true -> replace(linkage)
+            true -> replace(linkage),
             false -> equal(linkage)
         }
     }
@@ -231,7 +230,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine equal(linkage: @mut Linkage) {
         transition linkage.total == linkage.best {
-            true -> tie(linkage)
+            true -> tie(linkage),
             false -> next(linkage)
         }
     }
@@ -242,13 +241,13 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine consensus(linkage: @mut Linkage) {
         transition linkage.row < 3 {
-            true -> merge(linkage)
+            true -> merge(linkage),
             false -> next(linkage)
         }
     }
     machine merge(linkage: @mut Linkage) {
         transition linkage.consensus[linkage.row] != linkage.choices[linkage.row] {
-            true -> ambiguous(linkage)
+            true -> ambiguous(linkage),
             false -> merge_next(linkage)
         }
     }
@@ -262,7 +261,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine next(linkage: @mut Linkage) {
         transition linkage.cursor < 64 {
-            true -> increment(linkage)
+            true -> increment(linkage),
             false -> done()
         }
     }
@@ -274,7 +273,7 @@ public machine solve(linkage: @mut Linkage) {
         let observed: u64 in Wrapping = score_byte_witness();
         linkage.row = 0;
         transition observed == 42 {
-            true -> audit(linkage)
+            true -> audit(linkage),
             false -> witness_miss(linkage)
         }
     }
@@ -284,14 +283,14 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine audit(linkage: @mut Linkage) {
         transition linkage.row < 3 {
-            true -> classify(linkage)
+            true -> classify(linkage),
             false -> done()
         }
     }
     machine classify(linkage: @mut Linkage) {
         transition linkage.consensus[linkage.row] {
-            0 -> unmatched(linkage)
-            4 -> uncertain(linkage)
+            0 -> unmatched(linkage),
+            4 -> uncertain(linkage),
             _ -> linked(linkage)
         }
     }
@@ -306,7 +305,7 @@ public machine solve(linkage: @mut Linkage) {
     machine linked(linkage: @mut Linkage) {
         linkage.linked = linkage.linked % 1000 + 1;
         transition linkage.consensus[linkage.row] == linkage.truth[linkage.row] {
-            true -> correct(linkage)
+            true -> correct(linkage),
             false -> incorrect(linkage)
         }
     }
@@ -320,7 +319,7 @@ public machine solve(linkage: @mut Linkage) {
     }
     machine missed(linkage: @mut Linkage) {
         transition linkage.truth[linkage.row] > 0 && linkage.truth[linkage.row] != linkage.consensus[linkage.row] {
-            true -> false_negative(linkage)
+            true -> false_negative(linkage),
             false -> audit_next(linkage)
         }
     }

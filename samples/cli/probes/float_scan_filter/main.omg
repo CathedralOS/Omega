@@ -31,7 +31,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
         -> @'input mut [T]
     requires retained <= cursor && cursor <= values.len {
         transition cursor < values.len {
-            true -> visit(selected, values, cursor, retained)
+            true -> visit(selected, values, cursor, retained),
             false -> (@mut values[..retained])
         }
     }
@@ -39,7 +39,7 @@ machine compact<'input, T [copy]>(selected: dyn Retain<T>, values: @'input mut [
         -> @'input mut [T]
     requires retained <= cursor && cursor < values.len {
         transition Retain::test(selected, @values[cursor]) {
-            true -> keep(selected, values, cursor, retained)
+            true -> keep(selected, values, cursor, retained),
             false -> scan(selected, values, cursor + 1, retained)
         }
     }
@@ -56,7 +56,7 @@ machine signature(values: @[Reading]) -> u64 {
     machine next(values: @[Reading], cursor: u64, result: u64) -> u64
     requires cursor <= values.len {
         transition cursor < values.len {
-            true -> read(values, cursor, result)
+            true -> read(values, cursor, result),
             false -> result
         }
     }
@@ -94,7 +94,7 @@ machine main() crashes Trap {
     let decreased: bool = exercise(Decreased as dyn Retain<Reading>, 30, 0);
     let unchanged: bool = exercise(Unchanged as dyn Retain<Reading>, 1050, 0);
     transition changed && increased && decreased && unchanged {
-        true -> done()
+        true -> done(),
         false -> wrong()
     }
     machine done() {}
