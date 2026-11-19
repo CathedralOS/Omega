@@ -470,7 +470,7 @@ impl RealizedTargetSupply {
             .target()
             .ok_or("folded constants require an explicit target")?;
         let mut original = artifact.module().clone();
-        let folded = std::mem::take(&mut original.folded_constants);
+        let folded = std::mem::take(&mut original.scalars.folded_constants);
         realization.require_program(
             terminal_codec::terminal_psi_identity(&original).map_err(|error| error.to_string())?,
         )?;
