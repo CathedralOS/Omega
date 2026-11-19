@@ -777,4 +777,11 @@ entry crossed that call and the rest of `read_input`. It returned
 `00020000005a1e0000` at `target` in
 `requester < input.package_count && target < input.package_count`,
 line 209, column 55, packed byte 7,770 / unit byte 7,640.
-The observation contains only the refusal coordinate.
+On the original frozen `b95769558667` graph, the identical compiler and
+construction entry passed the cast and multiplication in the earlier row-count
+calculation. They reached the same `target` token at line 206, column 55,
+packed byte 7,656 / unit byte 7,526, observation `0002000000e81d0000`.
+The `2486977ecd06` graph and the frozen single-unit row-count projection
+(`3c7966ee415014061465b97e08418728241b29144fa9069243f9ebb30372304e`)
+reproduced the unmodified and published coordinates respectively. Each of
+the four observations contains only the refusal coordinate.
