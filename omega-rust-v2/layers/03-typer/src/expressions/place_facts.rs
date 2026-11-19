@@ -110,7 +110,9 @@ impl BodyTyper<'_, '_> {
             site: Site::at(source, node_index),
             subject: left_type.clone(),
             domain: if id.kind == NodeKind::Domain {
-                let app = self.unit.domain_application(right, &self.catalog.types)?;
+                let app = self
+                    .unit
+                    .domain_application(right, left_type.carrier(), &self.catalog.types)?;
                 self.catalog
                     .types
                     .expanded_domain_at(&app, left_type.carrier(), true, source, right)

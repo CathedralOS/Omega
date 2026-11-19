@@ -870,3 +870,50 @@ fn child_domains_follow_the_visible_parent_on_the_annotated_carrier() {
     let err = run(&[domains, ("app", "caller.omg", body)], &[edge]).unwrap_err();
     assert_eq!(err.message, "unresolved name Positive::Small");
 }
+
+fn chapter_block(
+    chapter: &str,
+    line: usize,
+) -> String {
+    let mut blocks = Vec::new();
+    spec_corpus::extract_examples_from_markdown("chapter", chapter, &mut blocks);
+    blocks
+        .into_iter()
+        .find(|b| b.fence_line_number == line)
+        .unwrap()
+        .source_text
+}
+
+#[test]
+fn published_import_exposes_the_exact_remote_domain() {
+    let text = chapter_block(include_str!("../../../wiki/spec/language/modules.md"), 102);
+    let requester = format!("{text}\nmachine check(p:ui_policy::screen::Point in OnScreen) {{}}");
+    let library = ("policy", "screen/point.omg", "public data Point{} public domain Point::OnScreen;");
+    let edge = Dependency {
+        requester: "app",
+        alias: "ui_policy",
+        package: "policy",
+    };
+    let files = [library, ("app", "main.omg", requester.as_str())];
+    let resolved = run(&files, &[edge]).unwrap();
+    let usage = resolved
+        .uses
+        .iter()
+        .find(|u| u.file == "main.omg" && u.span.slice(requester.as_bytes()) == Some(b"OnScreen"))
+        .unwrap();
+    assert!(matches!(&usage.target,Symbol::Declaration(d) if d.package=="policy" && d.path=="screen::Point::OnScreen"));
+    let error = run(&files, &[]).unwrap_err();
+    assert_eq!(error.file, "main.omg");
+    assert!(error.message.contains("ui_policy"), "{error:?}");
+}
+
+#[test]
+fn published_type_equality_rejects_a_shadowing_value() {
+    let clause = chapter_block(include_str!("../../../wiki/spec/language/generics.md"), 306);
+    let ok = format!("machine restrict<T>() {clause} {{}}");
+    run(&[("app", "restrict.omg", &ok)], &[]).unwrap();
+    let shadow = ok.replace("restrict<T>()", "restrict<T>(u32:u16)");
+    let error = run(&[("app", "restrict.omg", &shadow)], &[]).unwrap_err();
+    assert_eq!(error.message, "type equality mixes a type and a value");
+    assert_eq!(error.span.slice(shadow.as_bytes()), Some(b"T == u32".as_slice()));
+}

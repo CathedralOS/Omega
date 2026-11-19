@@ -22,11 +22,14 @@ impl BodyTyper<'_, '_> {
             .is_some_and(|&i| source_file.nodes[i].kind == NodeKind::CastEntry);
         let (carrier, entries) = if domain_only {
             let target = if matches!(source, ValueType::Exact { .. }) {
-                let d = self.unit.domain(self.unit.single_child(rest[0])?)?;
-                expected
-                    .map(ValueType::carrier)
-                    .unwrap_or_else(|| self.catalog.types.domains.carrier(d).carrier())
-                    .clone()
+                let path = self.unit.single_child(rest[0])?;
+                let d = self.unit.domain(path)?;
+                match expected {
+                    Some(ty) => ty.carrier().clone(),
+                    None => self
+                        .unit
+                        .explicit_domain_carrier(path, self.catalog.types.domains.carrier(d).carrier(), &self.catalog.types, None)?,
+                }
             } else {
                 source.carrier().clone()
             };
@@ -66,9 +69,10 @@ impl BodyTyper<'_, '_> {
         let mut mentioned = HashSet::new();
         let mut result = Vec::new();
         for &entry in entries {
+            let path = self.unit.single_child(entry)?;
             let domain = self
                 .unit
-                .domain_application(self.unit.single_child(entry)?, &self.catalog.types)?;
+                .domain_application(path, &carrier, &self.catalog.types)?;
             let action = source_file.nodes[entry].leaves[0].text;
             for atom in self
                 .catalog

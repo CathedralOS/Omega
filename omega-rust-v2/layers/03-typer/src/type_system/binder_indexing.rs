@@ -149,6 +149,10 @@ impl<'a> ResolvedSourceFile<'a> {
             let Some(Symbol::Declaration(owner)) = self.names.get(&span).copied() else {
                 return Err(TypeError::at(source, section, "unresolved type application owner"));
             };
+            if owner.kind == NodeKind::Domain && matches!(self.symbol(node_index),Some(Symbol::Declaration(id)) if id==owner) {
+                // A qualified carrier and its attached domain have separate argument lists.
+                continue;
+            }
             let mut substitutions = types.formals(owner);
             let mut values = Vec::with_capacity(source.nodes[section].children.len());
             for (index, &arg) in source.nodes[section].children.iter().enumerate() {
