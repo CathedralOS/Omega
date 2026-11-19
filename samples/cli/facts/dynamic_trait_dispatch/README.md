@@ -35,8 +35,13 @@ as machine values with the same input and result contracts. The local helper
 declares `invokes selected` because it calls its argument through an alias. The
 call-result example returns each selected machine from `get_selector`. The field
 example reads the machine from a record and checks that both neighboring fields
-keep their original values. Each invalid example passes 39 where the callable
-requires 40. The remaining examples still use the older syntax.
+keep their original values.
+
+The parameter example calls the machine it receives. The forwarding and nested
+machine examples pass it to another machine before calling it. The named
+constant example subtracts `TARGET` from the result. Each invalid example passes
+39 where the callable requires 40. The match and Build-selected examples still
+use the older syntax.
 
 ## Places and controls
 
