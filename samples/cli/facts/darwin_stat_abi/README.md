@@ -7,7 +7,7 @@ Nearest row: [explicit nested C representations](../c_layout_nested_representati
 This row adds a real platform ABI boundary, not a larger mixed-width count: the
 actual Darwin SDK `struct stat` contains four complete timespecs, signed 32-bit
 device identifiers and the reserved tail through byte 143. Both std and these
-consumers import [the same ABI definitions](../../../../source/library/std/targets/macos_arm64/filesystem_abi.omg).
+consumers import [the same ABI definitions](../../../../source/library/std/macos_arm64_filesystem_abi.omg).
 No sample duplicates the Omega struct and no test-only public accessor is added.
 
 The C fixture fills and verifies all 23 scalar field components. Each guard
