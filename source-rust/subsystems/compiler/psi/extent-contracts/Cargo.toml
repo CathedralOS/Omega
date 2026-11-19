@@ -5,5 +5,5 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-arena = { path = "../../../../../foundation/arena" }
-record-storage = { path = "../../../../../foundation/record-storage" }
+arena = { path = "../../../../foundation/arena" }
+record-storage = { path = "../../../../foundation/record-storage" }
