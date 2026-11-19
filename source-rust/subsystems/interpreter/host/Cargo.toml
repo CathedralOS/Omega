@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 published-runtime-input = { path = "../../compiler/psi-to-native/installation/published-runtime-input" }
-access-vocabulary = { path = "../../compiler/source-to-psi/language/access-vocabulary" }
+access-vocabulary = { path = "../../compiler/psi/access" }
 storage-access = { path = "../memory/storage-access" }
 extent-contracts = { path = "../../compiler/psi/extent-contracts" }
 bignum = { path = "../../../foundation/bignum" }
