@@ -1,0 +1,4 @@
+// An arm is written with `->`.
+machine f(n: u32) -> u32 {
+    match n { 0 => 1, _ => 2 }
+}

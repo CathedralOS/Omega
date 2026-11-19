@@ -1,0 +1,66 @@
+// Exact transitive source membership and boundary-application owner validation for accepted package policy baselines.
+// Because `PackageKey` is source/name ordered rather than digest ordered, we build one digest-sorted index up front to avoid rehashing every source key for every nested policy reference.
+
+use super::PackageLockError as Error;
+use crate::resolution::graph::CanonicalSourceClosureSubject;
+use review_evidence::encoding::PackagePolicyMembershipLimits;
+use review_evidence::record::PackagePolicyBaseline;
+use semantic_vocabulary::PackageKeyIdentity;
+
+pub(super) fn policy_source_membership(
+    source: &CanonicalSourceClosureSubject,
+    baselines: &[(super::PackageCheckedContext, &PackagePolicyBaseline)],
+    maximum_owned_bytes: usize,
+    maximum_identity_nodes: usize,
+) -> Result<(), Error> {
+    let index_bytes = source
+        .packages()
+        .len()
+        .checked_mul(std::mem::size_of::<(PackageKeyIdentity, usize)>())
+        .ok_or(Error::AllocationLimitExceeded)?;
+    let mut remaining_owned = maximum_owned_bytes
+        .checked_sub(index_bytes)
+        .ok_or(Error::AllocationLimitExceeded)?;
+    let mut remaining_nodes = maximum_identity_nodes;
+    let mut packages = Vec::new();
+    crate::reserve!(packages, source.packages().len(), Error);
+    packages.extend(
+        source
+            .packages()
+            .iter()
+            .enumerate()
+            .map(|(index, source)| (source.key().identity(), index)),
+    );
+    packages.sort_unstable_by_key(|(identity, _)| *identity);
+    let lookup = |identity| {
+        packages
+            .binary_search_by_key(&identity, |(package, _)| *package)
+            .ok()
+            .map(|index| packages[index].1)
+    };
+    for (context, baseline) in baselines {
+        let usage = baseline
+            .validate_package_membership(
+                |identity| lookup(identity).is_some(),
+                PackagePolicyMembershipLimits::new(remaining_owned, remaining_nodes, 128),
+            )
+            .map_err(Error::PolicySourceMembership)?;
+        remaining_owned = remaining_owned
+            .checked_sub(usage.owned_bytes())
+            .ok_or(Error::AllocationLimitExceeded)?;
+        remaining_nodes = remaining_nodes
+            .checked_sub(usage.identity_nodes())
+            .ok_or(Error::CountLimitExceeded)?;
+        baseline
+            .validate_boundary_application_owners(|identity| {
+                baselines
+                    .iter()
+                    .find(|(owner_context, owner)| {
+                        owner.package() == identity && owner_context == context
+                    })
+                    .map(|(_, owner)| *owner)
+            })
+            .map_err(|_| Error::BoundaryApplicationMismatch)?;
+    }
+    Ok(())
+}

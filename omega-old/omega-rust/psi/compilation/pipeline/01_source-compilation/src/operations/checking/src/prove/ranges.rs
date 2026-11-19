@@ -1,0 +1,855 @@
+/*
+Range propagation through operations that use the kernel's endpoint chains:
+policy add and subtract, divide, remainder, shifts, bitwise and, bitwise or.
+
+`wiki/spec/proofs/contracts.md`, "Required automatic discharge": "Each integer
+value defined by add, subtract, multiply, divide, remainder, shift or cast
+receives bounds from its operands' bounds, once, in definition order, by the
+arithmetic of `IntegerAffineBound`." The kernel replays one such operation as
+a one-step endpoint chain: the witness roots at the operand that is a value,
+cites the operation's result equation as the only definition, and lands the
+other operand on the earlier equation that fixes it to a literal
+(`wiki/spec/terminal-psi/integer_certificates.md`, "IntegerAffineBound"). The
+prover supplies the root's own bound and reads the image the kernel computes
+(`map_integer_affine_bound`); it does no endpoint arithmetic itself.
+
+A left shift whose count is a value that no earlier result equation fixes
+(an entry `requires`, a guard or a callee `ensures` says what it is) has no
+landing. Its value is bounded instead by the kernel's direct shift form, the
+image of the value's bound under the count's literal or upper bound
+(`shift_left_image`), carried onto the result through its equation as a
+product's bound is.
+
+An unsigned remainder by a divisor that is not a literal has the kernel's
+relational form instead: `result < divisor` from `0 < divisor`
+(`remainder_below_divisor`). That is an order step between two values, and a
+bound on the result through the divisor's bound.
+
+An exact remainder by a divisor that is not a literal also takes a bound from
+its dividend, for either sign: it lies between zero and the dividend, so
+`dividend <= U` gives `result <= max(U, 0)` and `L <= dividend` gives
+`min(L, 0) <= result`, once the divisor is proved positive or below minus one
+(`remainder_within_dividend`). The kernel trusts that statement as a
+provisional rule; its mathematical core does not derive it.
+
+An exact quotient by a divisor that is a value is at most its dividend when
+the dividend is nonnegative and the divisor positive
+(`quotient_at_most_dividend`): an order step between two values, also a
+provisional rule. A divisor fixed by a literal is a value with a literal
+definition here, so `value / 2 <= value` is this step.
+
+An exact remainder by a nonzero literal divisor (excluding signed `-1`) is
+zero when its dividend expands over exact add, subtract, multiply, widen and
+exact cast into a polynomial whose every coefficient is divisible by the
+divisor (`multiple_remainder_bound`), another provisional rule
+(`AcceptedProofRule::IntegerMultipleRemainder`).
+*/
+
+use std::cmp::Ordering;
+
+use proof_admission::{
+    IntegerAffineBoundConversionError, IntegerAffineWitness, IntegerCastChainWitness,
+    PrimitiveJudgment, ProofRule, check_integer_affine_bound_conversion,
+    check_integer_affine_witness, check_integer_cast_bound_conversion,
+    check_integer_cast_chain_witness, integer_affine_wrapping_evidence, map_integer_affine_bound,
+};
+use semantic_vocabulary::{
+    IntegerMathTerm, IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType,
+};
+
+use super::{Bound, Direction, ProofNode, Prover, Unproven, node, primitive};
+
+/// The operand an endpoint chain can root at and the one it must land, for
+/// each operation the chain replays with exactly one step. A shift's root is
+/// its value and never its count.
+fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
+    match expression {
+        ScalarTerm::ExactIntegerDivide { left, right, .. }
+        | ScalarTerm::ExactIntegerRemainder { left, right, .. } => vec![(left, right)],
+        ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+        | ScalarTerm::SaturatingIntegerSubtract { left, right, .. } => vec![(left, right)],
+        ScalarTerm::WrappingIntegerAdd { left, right, .. }
+        | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+        | ScalarTerm::IntegerBitwiseOr { left, right, .. } => {
+            vec![(left, right), (right, left)]
+        }
+        ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+        | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => vec![(value, count)],
+        _ => Vec::new(),
+    }
+}
+
+impl Prover<'_> {
+    /// The earlier axiom that fixes `term` to a literal, which a chain step
+    /// cites as the landing of its literal operand.
+    pub(super) fn landing(&self, term: &ScalarTerm, before: usize) -> Option<usize> {
+        self.axioms.get(..before)?.iter().position(|axiom| {
+            matches!(
+                axiom,
+                Proposition::Equal(subject, literal)
+                    if subject == term && literal.integer_value().is_some()
+            )
+        })
+    }
+
+    /// A bound on `subject`, the output of the operation `expression` that
+    /// axiom `axiom` defines, through a one-step endpoint chain from the
+    /// operand that is not a literal. Both of the root's bounds are tried,
+    /// because a step may reverse the order (a negative divisor) or give the
+    /// same image from either (a mask).
+    pub(super) fn chain_step(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let mut best: Option<Bound> = None;
+        for (root, sibling) in chain_operands(expression) {
+            if !matches!(root, ScalarTerm::Value { .. }) {
+                continue;
+            }
+            let landing = match sibling {
+                ScalarTerm::Integer { .. } => None,
+                _ => match self.landing(sibling, axiom) {
+                    Some(landing) => Some(landing),
+                    None => continue,
+                },
+            };
+            let witness = IntegerAffineWitness {
+                root: root.clone(),
+                target: subject.clone(),
+                definition_axioms: vec![axiom],
+                literal_axioms: vec![landing],
+            };
+            let Ok(form) = check_integer_affine_witness(self.context, self.axioms, &witness) else {
+                continue;
+            };
+            for root_direction in [Direction::Upper, Direction::Lower] {
+                let Ok(root_bound) = self.evidence(root, root_direction) else {
+                    continue;
+                };
+                let (image, root_bound) =
+                    match map_integer_affine_bound(&form, &root_bound.conclusion) {
+                        Ok(image) => (image, root_bound),
+                        Err(IntegerAffineBoundConversionError::WrappingEvidenceMissing) => {
+                            // A wrapping endpoint can need headroom on its other side.
+                            // Prove precisely the guards the kernel requests.
+                            let Ok(guards) =
+                                integer_affine_wrapping_evidence(&form, &root_bound.conclusion)
+                            else {
+                                continue;
+                            };
+                            let guard_proofs = guards.iter().map(|guard| self.prove(guard));
+                            let Ok(proofs) = std::iter::once(Ok(root_bound))
+                                .chain(guard_proofs)
+                                .collect::<Result<Vec<_>, _>>()
+                            else {
+                                continue;
+                            };
+                            let premises = Proposition::Conjunction(
+                                proofs
+                                    .iter()
+                                    .map(|proof| proof.conclusion.clone())
+                                    .collect(),
+                            );
+                            let Ok(image) = map_integer_affine_bound(&form, &premises) else {
+                                continue;
+                            };
+                            let root_bound =
+                                node(premises, ProofRule::ConjunctionIntroduction(proofs));
+                            (image, root_bound)
+                        }
+                        Err(_) => continue,
+                    };
+                let literal = match (&image, direction) {
+                    (Proposition::LessOrEqual(left, right), Direction::Upper)
+                        if left == subject =>
+                    {
+                        right.integer_value()
+                    }
+                    (Proposition::LessOrEqual(left, right), Direction::Lower)
+                        if right == subject =>
+                    {
+                        left.integer_value()
+                    }
+                    _ => None,
+                };
+                let Some((_, literal)) = literal else {
+                    continue;
+                };
+                let better = best.as_ref().is_none_or(|best| {
+                    matches!(
+                        (integer.compare(literal, best.literal), direction),
+                        (Some(Ordering::Less), Direction::Upper)
+                            | (Some(Ordering::Greater), Direction::Lower)
+                    )
+                });
+                if better {
+                    best = Some(Bound {
+                        literal,
+                        proof: node(
+                            image,
+                            ProofRule::IntegerAffineBound {
+                                root_bound: Box::new(root_bound),
+                                witness: witness.clone(),
+                            },
+                        ),
+                    });
+                }
+            }
+        }
+        best
+    }
+
+    /// `output < divisor` for an unsigned remainder `output == dividend %
+    /// divisor`, from `0 < divisor`: the kernel's relational remainder form,
+    /// rooted at the divisor. `None` when the form does not apply (a signed
+    /// carrier) or the divisor is not known positive.
+    pub(super) fn remainder_below_divisor(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+    ) -> Option<(ScalarTerm, ProofNode)> {
+        let ScalarTerm::ExactIntegerRemainder {
+            scalar_type, right, ..
+        } = expression
+        else {
+            return None;
+        };
+        let divisor = right.as_ref();
+        if !matches!(divisor, ScalarTerm::Value { .. }) || divisor == output {
+            return None;
+        }
+        let witness = IntegerAffineWitness {
+            root: divisor.clone(),
+            target: output.clone(),
+            definition_axioms: vec![axiom],
+            literal_axioms: vec![None],
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let positive = self.positive(*scalar_type, divisor)?;
+        let image = map_integer_affine_bound(&form, &positive.conclusion).ok()?;
+        matches!(&image, Proposition::LessThan(left, right) if left == output && right == divisor)
+            .then(|| {
+                (
+                    divisor.clone(),
+                    node(
+                        image,
+                        ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(positive),
+                            witness,
+                        },
+                    ),
+                )
+            })
+    }
+
+    /// A bound on `output == dividend % divisor`, an exact remainder whose
+    /// divisor is a value no literal fixes, from the dividend's bound: the
+    /// kernel's remainder-within-dividend form, a provisional rule
+    /// (`AcceptedProofRule::IntegerRemainderWithinDividend`). It needs the
+    /// divisor proved positive or proved below minus one, and maps
+    /// `dividend <= U` to `output <= max(U, 0)` and `L <= dividend` to
+    /// `min(L, 0) <= output`. `None` when the kernel refuses the witness (a
+    /// literal or landed divisor is `chain_step`'s) or either premise is
+    /// unproved.
+    pub(super) fn remainder_within_dividend(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: output.clone(),
+            definition_axioms: vec![axiom],
+            literal_axioms: vec![None],
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let dividend_bound = self.evidence(dividend, direction).ok()?;
+        let nonzero = match self.positive(*scalar_type, divisor) {
+            Some(positive) => positive,
+            None if scalar_type.sign() == IntegerSign::Signed => {
+                let minus_one = ScalarTerm::integer(
+                    *scalar_type,
+                    semantic_vocabulary::IntegerValue::Signed(-1),
+                )
+                .ok()?;
+                self.prove(&Proposition::LessThan(divisor.clone(), minus_one))
+                    .ok()?
+            }
+            None => return None,
+        };
+        let parts = vec![dividend_bound, nonzero];
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let image = map_integer_affine_bound(&form, &root).ok()?;
+        let literal = match (&image, direction) {
+            (Proposition::LessOrEqual(left, right), Direction::Upper) if left == output => {
+                right.integer_value()
+            }
+            (Proposition::LessOrEqual(left, right), Direction::Lower) if right == output => {
+                left.integer_value()
+            }
+            _ => None,
+        }?
+        .1;
+        Some(Bound {
+            literal,
+            proof: node(
+                image,
+                ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(parts))),
+                    witness,
+                },
+            ),
+        })
+    }
+
+    /// `output <= dividend` for an exact quotient `output == dividend /
+    /// divisor` whose divisor is a value: the kernel's
+    /// quotient-at-most-dividend form, a provisional rule
+    /// (`AcceptedProofRule::IntegerQuotientAtMostDividend`). It needs the
+    /// dividend bounded below by a nonnegative literal and the divisor proved
+    /// positive. An order step between two values, like
+    /// `remainder_below_divisor`. `None` when the kernel refuses the witness
+    /// or either premise is unproved.
+    pub(super) fn quotient_at_most_dividend(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+    ) -> Option<(ScalarTerm, ProofNode)> {
+        let ScalarTerm::ExactIntegerDivide {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: output.clone(),
+            definition_axioms: vec![axiom],
+            literal_axioms: vec![None],
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let nonnegative = self.evidence(dividend, Direction::Lower).ok()?;
+        let positive = self.positive(*scalar_type, divisor)?;
+        let parts = vec![nonnegative, positive];
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let image = map_integer_affine_bound(&form, &root).ok()?;
+        matches!(&image, Proposition::LessOrEqual(left, right) if left == output && right == dividend)
+            .then(|| {
+                (
+                    dividend.clone(),
+                    node(
+                        image,
+                        ProofRule::IntegerAffineBound {
+                            root_bound: Box::new(node(
+                                root,
+                                ProofRule::ConjunctionIntroduction(parts),
+                            )),
+                            witness,
+                        },
+                    ),
+                )
+            })
+    }
+
+    /// The kernel's image of an exact left shift's operand bounds: a bound in
+    /// `direction` on the mathematical term `value << count`, from the
+    /// value's bound and what is known of the count (its literal when any
+    /// hypothesis, an assumption as well as an axiom, fixes it, else its
+    /// upper bound, with `0 <= count` for a signed count). The kernel picks
+    /// the count endpoint by the sign of the value's bound
+    /// (`map_direct_shift_left_bound`). It serves both the shift's own
+    /// safety goal and, through `Prover::shifted`, the bound of the value
+    /// the shift defines.
+    pub(super) fn shift_left_image(
+        &mut self,
+        value: &IntegerMathTerm,
+        count: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
+        let leaf = |leaf: &IntegerMathTerm| match leaf {
+            IntegerMathTerm::MathValue { source_type, value } => Ok((
+                *source_type,
+                ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
+            )),
+            _ => Err("shift operand is not a value"),
+        };
+        let (value_type, value) = leaf(value)?;
+        let (count_type, count) = leaf(count)?;
+        let mut parts = vec![self.evidence(&value, direction)?];
+        let fixed = self
+            .facts
+            .iter()
+            .find(|fact| {
+                // Either orientation: the kernel reads the count's literal
+                // from whichever side it stands on.
+                matches!(
+                    &fact.proposition,
+                    Proposition::Equal(left, right)
+                        if (left == &count && right.integer_value().is_some())
+                            || (right == &count && left.integer_value().is_some())
+                )
+            })
+            .map(|fact| fact.proof(&self.facts));
+        match fixed {
+            Some(fixed) => parts.push(fixed),
+            None => {
+                parts.push(self.evidence(&count, Direction::Upper)?);
+                if count_type.sign() == IntegerSign::Signed {
+                    let zero = ScalarTerm::integer(count_type, count_type.zero())
+                        .map_err(|_| "shift count zero")?;
+                    parts.push(self.prove(&Proposition::LessOrEqual(zero, count.clone()))?);
+                }
+            }
+        }
+        let target = ScalarTerm::exact_integer_shift_left(
+            value_type,
+            count_type,
+            value.clone(),
+            count.clone(),
+        )
+        .map_err(|_| "shift term")?;
+        let witness = IntegerAffineWitness {
+            root: value,
+            target,
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness)
+            .map_err(|_| "the kernel refuses the shift's witness")?;
+        let root =
+            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let image = map_integer_affine_bound(&form, &root)
+            .map_err(|_| "the kernel maps no bound through the shift")?;
+        Ok(node(
+            image,
+            ProofRule::IntegerAffineBound {
+                root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(parts))),
+                witness,
+            },
+        ))
+    }
+
+    /// A bound on `subject`, the output of the widening or exact cast
+    /// `expression` that axiom `axiom` defines: the operand's bound with its
+    /// literal restated in the output's carrier (`IntegerCastBound`; "A
+    /// checked root-bound child maps the same mathematical endpoint into the
+    /// final carrier"). An operand bound outside the output's carrier maps
+    /// to nothing, which leaves the output its carrier bound.
+    pub(super) fn cast_bound(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (ScalarTerm::IntegerWiden {
+            source_type,
+            operand,
+            ..
+        }
+        | ScalarTerm::IntegerExactCast {
+            source_type,
+            operand,
+            ..
+        }) = expression
+        else {
+            return None;
+        };
+        let ScalarTerm::Value { id, .. } = operand.as_ref() else {
+            return None;
+        };
+        let root = self.bound(*id, direction)?;
+        let literal = source_type.exact_cast_value_to(integer, root.literal)?;
+        let conclusion = Self::oriented(
+            subject,
+            ScalarTerm::integer(integer, literal).ok()?,
+            direction,
+        );
+        let witness = IntegerCastChainWitness {
+            root: operand.as_ref().clone(),
+            target: subject.clone(),
+            definition_axioms: vec![axiom],
+        };
+        let chain = check_integer_cast_chain_witness(self.context, self.axioms, &witness).ok()?;
+        check_integer_cast_bound_conversion(&chain, &root.proof.conclusion, &conclusion).ok()?;
+        Some(Bound {
+            literal,
+            proof: node(
+                conclusion,
+                ProofRule::IntegerCastBound {
+                    root_bound: Box::new(root.proof),
+                    witness,
+                },
+            ),
+        })
+    }
+
+    /// Restate a value's carrier bound over its mathematical embedding. The
+    /// caller can compare that bound with a safety limit or transport it
+    /// through a public equality, using the same checked relation.
+    pub(super) fn value_image(
+        &mut self,
+        source_type: IntegerType,
+        value: semantic_vocabulary::ValueId,
+        term: &IntegerMathTerm,
+        direction: Direction,
+    ) -> Result<ProofNode, Unproven> {
+        let subject = ScalarTerm::value(value, ScalarType::Integer(source_type));
+        let Some(bound) = self.bound(value, direction) else {
+            // Some carriers, including addresses, have mathematical bounds
+            // without a same-carrier scalar comparison rule. Ask the existing
+            // kernel judgment for this exact declared carrier and value.
+            let endpoint = match direction {
+                Direction::Lower => IntegerMathTerm::carrier_minimum(source_type),
+                Direction::Upper => IntegerMathTerm::carrier_maximum(source_type),
+            };
+            let goal = match direction {
+                Direction::Lower => Proposition::IntegerMathLessOrEqual(endpoint, term.clone()),
+                Direction::Upper => Proposition::IntegerMathLessOrEqual(term.clone(), endpoint),
+            };
+            proof_admission::decide_primitive(
+                self.context,
+                &goal,
+                PrimitiveJudgment::IntegerCarrierBound,
+            )
+            .map_err(|_| "the kernel refuses this mathematical carrier bound")?;
+            return Ok(primitive(goal, PrimitiveJudgment::IntegerCarrierBound));
+        };
+        let literal = IntegerMathTerm::literal(bound.literal);
+        let (restated, endpoint) = match direction {
+            Direction::Upper => (
+                Proposition::IntegerMathLessOrEqual(term.clone(), literal),
+                0,
+            ),
+            Direction::Lower => (
+                Proposition::IntegerMathLessOrEqual(literal, term.clone()),
+                1,
+            ),
+        };
+        // Substituting the value for itself changes nothing; the rule lets
+        // a carrier order conclude over the mathematical value.
+        let unchanged = super::primitive(
+            Proposition::Equal(subject.clone(), subject),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        Ok(node(
+            restated,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(bound.proof),
+                equality: Box::new(unchanged),
+                endpoint,
+            },
+        ))
+    }
+}
+
+impl Prover<'_> {
+    /// A bound on `output == dividend % divisor` whose divisor is a value
+    /// its own bounds fix to one literal (`divisor >= 16 && divisor <= 16`)
+    /// that no earlier result equation states, so `chain_step` has no
+    /// landing for it. The kernel bounds the remainder by that literal
+    /// spelled in place (`dividend % 16`), and the bound is carried onto the
+    /// output through its result equation and the proved `divisor == 16`
+    /// (`ValueEqualityTransport`). `None` unless the kernel's own
+    /// denotation of the conclusion is that image.
+    pub(super) fn remainder_by_fixed_divisor(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let ScalarTerm::Value { id: divisor_id, .. } = divisor else {
+            return None;
+        };
+        if !matches!(dividend, ScalarTerm::Value { .. }) || divisor == output {
+            return None;
+        }
+        let lower = self.bound(*divisor_id, Direction::Lower)?;
+        let upper = self.bound(*divisor_id, Direction::Upper)?;
+        if scalar_type.compare(lower.literal, upper.literal) != Some(Ordering::Equal) {
+            return None;
+        }
+        let literal = ScalarTerm::integer(*scalar_type, lower.literal).ok()?;
+        let fixed = node(
+            Proposition::Equal(divisor.clone(), literal.clone()),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(upper.proof),
+                backward: Box::new(lower.proof),
+            },
+        );
+        let target =
+            ScalarTerm::exact_integer_remainder(*scalar_type, dividend.clone(), literal).ok()?;
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: target.clone(),
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let equation = node(
+            self.axioms.get(axiom)?.clone(),
+            ProofRule::SemanticAxiom { index: axiom },
+        );
+        let mut best: Option<Bound> = None;
+        for root_direction in [Direction::Upper, Direction::Lower] {
+            let Ok(root_bound) = self.evidence(dividend, root_direction) else {
+                continue;
+            };
+            let Ok(image) = map_integer_affine_bound(&form, &root_bound.conclusion) else {
+                continue;
+            };
+            let found = match (&image, direction) {
+                (Proposition::LessOrEqual(left, right), Direction::Upper) if left == &target => {
+                    right.integer_value()
+                }
+                (Proposition::LessOrEqual(left, right), Direction::Lower) if right == &target => {
+                    left.integer_value()
+                }
+                _ => None,
+            };
+            let Some((_, found)) = found else {
+                continue;
+            };
+            let Ok(found_term) = ScalarTerm::integer(*scalar_type, found) else {
+                continue;
+            };
+            let conclusion = Self::oriented(output, found_term, direction);
+            let denotes = proof_admission::check_value_equality_denotation(
+                self.context,
+                &conclusion,
+                [&equation.conclusion, &fixed.conclusion],
+            );
+            if denotes.as_ref() != Ok(&image) {
+                continue;
+            }
+            let better = best.as_ref().is_none_or(|best| {
+                matches!(
+                    (scalar_type.compare(found, best.literal), direction),
+                    (Some(Ordering::Less), Direction::Upper)
+                        | (Some(Ordering::Greater), Direction::Lower)
+                )
+            });
+            if better {
+                best = Some(Bound {
+                    literal: found,
+                    proof: node(
+                        conclusion,
+                        ProofRule::ValueEqualityTransport {
+                            premise: Box::new(node(
+                                image,
+                                ProofRule::IntegerAffineBound {
+                                    root_bound: Box::new(root_bound),
+                                    witness: witness.clone(),
+                                },
+                            )),
+                            equalities: vec![equation.clone(), fixed.clone()],
+                        },
+                    ),
+                });
+            }
+        }
+        best
+    }
+
+    /// Zero bound on an exact remainder whose dividend is an exact polynomial
+    /// multiple of its literal divisor (`AcceptedProofRule::IntegerMultipleRemainder`).
+    pub(super) fn multiple_remainder_bound(
+        &mut self,
+        target: &ScalarTerm,
+        remainder_axiom: Option<usize>,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let (scalar_type, dividend, divisor, upper_axiom) = match remainder_axiom {
+            Some(index) => match self.axioms.get(index)? {
+                Proposition::Equal(
+                    lhs,
+                    ScalarTerm::ExactIntegerRemainder {
+                        scalar_type,
+                        left,
+                        right,
+                    },
+                ) if lhs == target => (*scalar_type, left.as_ref(), right.as_ref(), index),
+                _ => return None,
+            },
+            None => match target {
+                ScalarTerm::ExactIntegerRemainder {
+                    scalar_type,
+                    left,
+                    right,
+                } => (*scalar_type, left.as_ref(), right.as_ref(), usize::MAX),
+                _ => return None,
+            },
+        };
+        let mut seen = vec![false; self.axioms.len()];
+        let mut definition_axioms = Vec::new();
+        if let Some(index) = remainder_axiom {
+            seen[index] = true;
+            definition_axioms.push(index);
+        }
+        if let ScalarTerm::Value { .. } = divisor
+            && let Some(index) = self.find_axiom_before(divisor, upper_axiom)
+            && matches!(
+                self.axioms.get(index),
+                Some(Proposition::Equal(_, ScalarTerm::Integer { .. }))
+            )
+            && !std::mem::replace(&mut seen[index], true)
+        {
+            definition_axioms.push(index);
+        }
+        let mut pending = vec![(dividend, upper_axiom)];
+        while let Some((term, limit)) = pending.pop() {
+            match term {
+                ScalarTerm::Value { .. } => {
+                    let Some(index) = self.find_axiom_before(term, limit) else {
+                        continue;
+                    };
+                    let Some(Proposition::Equal(_, rhs)) = self.axioms.get(index) else {
+                        continue;
+                    };
+                    let expandable = matches!(
+                        rhs,
+                        ScalarTerm::Value { .. }
+                            | ScalarTerm::Integer { .. }
+                            | ScalarTerm::IntegerWiden { .. }
+                            | ScalarTerm::IntegerExactCast { .. }
+                            | ScalarTerm::ExactIntegerAdd { .. }
+                            | ScalarTerm::ExactIntegerSubtract { .. }
+                            | ScalarTerm::ExactIntegerMultiply { .. }
+                    );
+                    if expandable && !std::mem::replace(&mut seen[index], true) {
+                        definition_axioms.push(index);
+                        pending.push((rhs, index));
+                    }
+                }
+                ScalarTerm::IntegerWiden { operand, .. }
+                | ScalarTerm::IntegerExactCast { operand, .. } => {
+                    pending.push((operand, limit));
+                }
+                ScalarTerm::ExactIntegerAdd { left, right, .. }
+                | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+                | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
+                    pending.push((left, limit));
+                    pending.push((right, limit));
+                }
+                _ => {}
+            }
+        }
+        definition_axioms.sort_unstable();
+        let literal_axioms = vec![None; definition_axioms.len()];
+        let witness = IntegerAffineWitness {
+            root: target.clone(),
+            target: target.clone(),
+            definition_axioms,
+            literal_axioms,
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let required = form.multiple_remainder_bounds()?.to_vec();
+        let root_bound = match required.as_slice() {
+            [] => primitive(Proposition::Truth, PrimitiveJudgment::Truth),
+            [single] => self.prove(single).ok()?,
+            many => {
+                let parts = many
+                    .iter()
+                    .map(|part| self.prove(part))
+                    .collect::<Result<Vec<_>, _>>()
+                    .ok()?;
+                node(
+                    Proposition::Conjunction(many.to_vec()),
+                    ProofRule::ConjunctionIntroduction(parts),
+                )
+            }
+        };
+        let zero_literal = scalar_type.zero();
+        let zero = ScalarTerm::integer(scalar_type, zero_literal).ok()?;
+        let conclusion = match direction {
+            Direction::Upper => Proposition::LessOrEqual(target.clone(), zero),
+            Direction::Lower => Proposition::LessOrEqual(zero, target.clone()),
+        };
+        check_integer_affine_bound_conversion(&form, &root_bound.conclusion, &conclusion).ok()?;
+        Some(Bound {
+            literal: zero_literal,
+            proof: node(
+                conclusion,
+                ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(root_bound),
+                    witness,
+                },
+            ),
+        })
+    }
+
+    pub(super) fn multiple_remainder(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let (remainder, zero, direction) = match goal {
+            Proposition::LessOrEqual(
+                remainder @ ScalarTerm::ExactIntegerRemainder { .. },
+                zero,
+            ) => (remainder, zero, Direction::Upper),
+            Proposition::LessOrEqual(
+                zero,
+                remainder @ ScalarTerm::ExactIntegerRemainder { .. },
+            ) => (remainder, zero, Direction::Lower),
+            _ => return None,
+        };
+        let integer = remainder.scalar_type().as_integer()?;
+        let expected_zero = ScalarTerm::integer(integer, integer.zero()).ok()?;
+        if zero != &expected_zero {
+            return None;
+        }
+        self.multiple_remainder_bound(remainder, None, direction)
+            .map(|bound| bound.proof)
+    }
+
+    fn find_axiom_before(&self, subject: &ScalarTerm, upper: usize) -> Option<usize> {
+        if let ScalarTerm::Value { id, .. } = subject
+            && let Some(Some(equation)) = self.definitions.get(*id)
+            && let Some(index) = self.facts[self.equations[*equation]].axiom
+            && index < upper
+            && matches!(self.axioms.get(index), Some(Proposition::Equal(lhs, _)) if lhs == subject)
+        {
+            return Some(index);
+        }
+        let end = upper.min(self.axioms.len());
+        self.axioms[..end]
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(index, axiom)| match axiom {
+                Proposition::Equal(lhs, _) if lhs == subject => Some(index),
+                _ => None,
+            })
+    }
+}

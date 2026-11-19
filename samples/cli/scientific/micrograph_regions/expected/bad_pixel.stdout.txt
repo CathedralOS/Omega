@@ -1,1 +1,0 @@
-ERROR invalid image: width height 1..8, threshold 0..255, connectivity 4 or 8, exact pixels 0..255

@@ -51,22 +51,9 @@ step per rule, along head spines only:
   to fire on.
 - ι-unbox: `unbox P f (box A a) ⟶ f a`.
 
-The public conversion entries (`convertible` and `convertible_retaining`)
-first establish that `T` is a type, then check `s : T` and `t : T`. These
-premises and the comparison use one context, one inference cache and the
-caller's one `Budget`. A malformed shared type reports its own error before
-operand checking; an ill-typed operand is a typed error, even when reduction,
-reflexivity or strict irrelevance would otherwise hide it. The internal typing
-continuations retain their established premises and schedule comparisons
-directly, without recursively entering the public judgment.
-
-As for `infer_type` and `check_type`, the context and signature must already
-be well-formed; the certificate route establishes that separate premise as
-described under context validity below. A public conversion call does not
-admit an arbitrary unchecked context.
-
-Conversion `s ≡ t : T` is then decided by: the shared type must
-itself be a type; if its sort is `Strict`, both sides convert —
+Conversion `s ≡ t : T` (`convertible`) is decided by: the shared type must
+itself be a type (`infer_sort(T)` runs first, so a malformed shared type
+reports its own error); if its sort is `Strict`, both sides convert —
 definitional proof irrelevance gated on the *shared type's* sort, never the
 terms' shapes. Otherwise a reflexivity shortcut, weak-head normalization of
 both sides, a second reflexivity probe, then head-matched typed recursion:
@@ -220,10 +207,8 @@ and a strict `Pi` is already collapsed); neutral-spine cases recurse on
 strict subterms at inferred types. The `infer_type` calls inside spine
 comparison descend the same subterms.
 
-**Soundness** — under the well-formed signature and context premises,
-`convertible` answering `true` includes both operand typing judgments and
-implies `s ≡ t : T` in the declarative judgment. *Argued:* every clause either
-is a declarative rule —
+**Soundness** — `convertible` answering `true` implies `s ≡ t : T` in the
+declarative judgment. *Argued:* every clause either is a declarative rule —
 strict irrelevance, congruence, pair eta, typed function eta, reflexivity —
 or is justified by reduction being a fragment of declarative conversion
 plus transitivity. Refusals are the complementary half of correctness:
@@ -246,10 +231,8 @@ where the declarative eta rules live.
 **The ceiling is a resource bound, not a decision shortcut.** `Budget`
 makes the procedure total on arbitrary input: exhaustion is
 `CoreError::StepCeiling`, a typed error — never `Ok(false)` and never a
-hang. The public entry charges operand formation and conversion to that same
-ceiling; checking an operand never refreshes it. The honest statement is
-therefore: under a well-formed signature and context, the algorithm is *sound
-and bounded-incomplete* — a true conversion whose witness
+hang. The honest statement is therefore: the algorithm is *sound
+unconditionally and bounded-incomplete* — a true conversion whose witness
 exceeds the ceiling is refused, never wrongly decided. `DEFAULT_CONVERSION_STEPS`
 is a policy default, not part of the calculus. *Witnessed:*
 `conversion_refuses_at_the_step_ceiling` and the computation tests'
@@ -576,9 +559,8 @@ counterpart.
 
 Not claimed: K/UIP, identity eta, `Two` eta, W eta, function
 extensionality, equality reflection, cumulativity, `imax`, impredicativity.
-Conversion decides definitional equality only; under a well-formed signature
-and context it is sound and bounded-incomplete under the ceiling. Normalization
-is argued at the
+Conversion decides definitional equality only; it is sound unconditionally
+and bounded-incomplete under the ceiling. Normalization is argued at the
 reference paper's section-4 level, not mechanized. Exact assumption closure
 is computed over the stored signature; receiver acceptance of that closure
 is policy outside the kernel.

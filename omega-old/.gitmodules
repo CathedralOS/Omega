@@ -1,0 +1,3 @@
+[submodule "samples/apps/squalr"]
+	path = samples/apps/squalr
+	url = https://github.com/CathedralOS/Squalr-Omega.git

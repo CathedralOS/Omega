@@ -1,0 +1,1 @@
+fit 8-bit unsigned storage

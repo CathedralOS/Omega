@@ -1,0 +1,26 @@
+machine picked(value: u64) -> u64 requires value <= 8u64 {
+    transition value == 7u64 { true -> 42u64 false -> 99u64 }
+}
+machine other(value: u64) -> u64 { value }
+machine apply<const Callback: machine(value: u64) -> u64>(value: u64) -> u64 {
+    Callback(value)
+}
+const EXPECTED: u64 = apply<picked>(7u64);
+
+machine relay<Kind>(value: u64) -> u64 {
+    transition value == EXPECTED { true -> selected(value) false -> wrong() }
+    machine selected(value: u64) -> u64 { value }
+    machine wrong() -> u64 { 99u64 }
+}
+
+machine main() crashes Trap {
+    let observed: u64 = apply<picked>(7u64);
+    let different: u64 = apply<other>(7u64);
+    let selected: u64 = relay<u64>(observed);
+    transition EXPECTED == 42u64 && selected == 42u64 && different == 7u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

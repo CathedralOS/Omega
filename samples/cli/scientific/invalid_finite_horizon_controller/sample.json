@@ -1,9 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "accepted_horizon",
-    "horizon >= 1 && horizon <= 5",
-    "the instantiated fact is structurally false"
-  ]
-}

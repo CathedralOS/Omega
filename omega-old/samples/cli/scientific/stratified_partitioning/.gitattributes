@@ -1,0 +1,2 @@
+# Preserve CR bytes in the accepted-whitespace protocol fixture.
+data/whitespace.stdin -text

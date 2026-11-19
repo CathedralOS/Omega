@@ -1,0 +1,5 @@
+use kit;
+
+machine entry() -> i32 {
+    kit::a_value()
+}

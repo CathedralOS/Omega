@@ -1,0 +1,35 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  count: i32;
+  values: [u8; 2];
+}
+
+machine Main::main(&mut self) {
+  transition 0 { 0 -> increment() }
+  state increment() {
+    self.count = self.count + 1;
+    self.values[0] = self.values[0] + 1;
+    transition self.count {
+      3 -> done()
+      _ -> again()
+    }
+  }
+  state again() {
+    self.values[1] = self.values[1] + 1;
+    transition 0 { 0 -> increment() }
+  }
+  state done() {
+    assert self.count == 3;
+    assert self.values[0] == 3;
+    assert self.values[1] == 2;
+    self.console.write_byte(65);
+    return;
+  }
+}

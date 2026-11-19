@@ -1,0 +1,206 @@
+// Fact: Selected buffered conversions preserve caller output custody and establish a destination only with sufficient capacity.
+// Expected exit: 0
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::compose;
+use omega::language::core::convert;
+
+data Pair [copy] { first: u8; last: u8; }
+data Request<'buffer, Value> { value: Value; output: &'buffer mut [u8]; }
+data FirstFrame<'buffer> { output: &'buffer mut [u8]; }
+data SecondFrame<'buffer> { output: &'buffer mut [u8]; }
+data Reason [copy] { case Exhausted; case InvalidTag; }
+data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
+
+// The ordinary fallible map remains callable with short output. Its stronger
+// public contract covers every semantic value when the supplied resource fits.
+// No purity refinement or ambient allocator is imposed on TryFrom.
+trait BufferedEncoding<'buffer, Value, Frame, Error, const Required: u64> :
+    TryFrom<Request<'buffer, Value>, Frame, Error>
+{
+    machine encode_sufficient(request: Request<'buffer, Value>) -> Result<Frame, Error>
+    requires request.output.len >= Required
+    ensures result in Result::Ok;
+}
+
+WriteFirst<'buffer> satisfies BufferedEncoding<'buffer, Pair, FirstFrame<'buffer>, Failure<'buffer>, 3u64> {
+    machine try_from(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
+    ensures request.output.len < 3u64 || result in Result::Ok
+    {
+        transition request.output.len >= 2u64 {
+            true -> emit(request)
+            false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
+        }
+
+        machine emit(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        {
+            request.output[0u64] = 165u8;
+            request.output[1u64] = request.value.first;
+            request.output[2u64] = request.value.last;
+            Result::Ok { value: FirstFrame { output: request.output } }
+        }
+    }
+    machine encode_sufficient(request: Request<'buffer, Pair>) -> Result<FirstFrame<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures result in Result::Ok
+    {
+        try_from(request)
+    }
+
+}
+
+// Decoding hands the same explicit output resource to the next conversion.
+// Failure publishes no Pair or second-format destination.
+ReadFirst<'buffer> satisfies TryFrom<FirstFrame<'buffer>, Request<'buffer, Pair>, Failure<'buffer>> {
+    machine try_from(source: FirstFrame<'buffer>) -> Result<Request<'buffer, Pair>, Failure<'buffer>> {
+        transition source.output.len >= 3u64 {
+            true -> inspect(source)
+            false -> Result::Err { error: Failure { output: source.output, reason: Reason::Exhausted } }
+        }
+
+        machine inspect(source: FirstFrame<'buffer>) -> Result<Request<'buffer, Pair>, Failure<'buffer>>
+        requires source.output.len >= 3u64
+        {
+            transition source.output[0u64] == 165u8 {
+                true -> Result::Ok { value: Request {
+                    value: Pair { first: source.output[1u64], last: source.output[2u64] },
+                    output: source.output
+                } }
+                false -> Result::Err { error: Failure { output: source.output, reason: Reason::InvalidTag } }
+            }
+        }
+    }
+
+}
+
+// Independently authored second format: a different tag and reversed fields.
+WriteSecond<'buffer> satisfies BufferedEncoding<'buffer, Pair, SecondFrame<'buffer>, Failure<'buffer>, 3u64> {
+    machine try_from(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
+    ensures request.output.len < 3u64 || result in Result::Ok
+    {
+        transition request.output.len >= 3u64 {
+            true -> emit(request)
+            false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
+        }
+
+        machine emit(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        {
+            request.output[0u64] = 90u8;
+            request.output[1u64] = request.value.last;
+            request.output[2u64] = request.value.first;
+            Result::Ok { value: SecondFrame { output: request.output } }
+        }
+    }
+    machine encode_sufficient(request: Request<'buffer, Pair>) -> Result<SecondFrame<'buffer>, Failure<'buffer>>
+    requires request.output.len >= 3u64
+    ensures result in Result::Ok
+    {
+        try_from(request)
+    }
+
+}
+
+machine encode_sufficient<'buffer, Frame, Error,
+    Selected satisfies BufferedEncoding<'buffer, Pair, Frame, Error, 3u64>>
+    (request: Request<'buffer, Pair>) -> Result<Frame, Error>
+requires request.output.len >= 3u64
+ensures result in Result::Ok
+{
+    Selected::encode_sufficient(request)
+}
+
+machine observe<'buffer>(output: &'buffer mut [u8], value: Pair) -> bool
+requires output.len >= 3u64
+{
+    let encoded: Result<FirstFrame<'buffer>, Failure<'buffer>> =
+        encode_sufficient<FirstFrame<'buffer>, Failure<'buffer>, WriteFirst<'buffer>>(
+            Request { value: value, output: output });
+    transition encoded {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as frame } -> compose_and_observe(frame, value)
+    }
+}
+machine compose_and_observe<'buffer>(frame: FirstFrame<'buffer>, value: Pair) -> bool {
+    let converted: Result<SecondFrame<'buffer>, Failure<'buffer>> =
+        compose<FirstFrame<'buffer>, Request<'buffer, Pair>, SecondFrame<'buffer>, Failure<'buffer>,
+            ReadFirst<'buffer>, WriteSecond<'buffer>>(frame);
+    transition converted {
+        Result::Err { error as failure } -> false
+        Result::Ok { value as frame } -> inspect_second(frame, value)
+    }
+}
+machine inspect_second<'buffer>(frame: SecondFrame<'buffer>, value: Pair) -> bool {
+    transition frame.output.len >= 3u64 {
+        true -> (frame.output[0u64] == 90u8 && frame.output[1u64] == value.last
+            && frame.output[2u64] == value.first)
+        false -> false
+    }
+}
+
+machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
+    let encoded: Result<FirstFrame<'buffer>, Failure<'buffer>> =
+        convert<Request<'buffer, Pair>, FirstFrame<'buffer>, Failure<'buffer>, WriteFirst<'buffer>>(
+            Request { value: Pair { first: 17u8, last: 42u8 }, output: output });
+    transition encoded {
+        Result::Ok { value as unexpected } -> false
+        Result::Err { error as failure } -> inspect_short(failure)
+    }
+}
+machine inspect_short<'buffer>(failure: Failure<'buffer>) -> bool {
+    transition failure.output.len == 2u64 && failure.reason in Reason::Exhausted {
+        true -> (failure.output[0u64] == 61u8 && failure.output[1u64] == 62u8)
+        false -> false
+    }
+}
+
+machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
+    let converted: Result<SecondFrame<'buffer>, Failure<'buffer>> =
+        compose<FirstFrame<'buffer>, Request<'buffer, Pair>, SecondFrame<'buffer>, Failure<'buffer>,
+            ReadFirst<'buffer>, WriteSecond<'buffer>>(FirstFrame { output: output });
+    transition converted {
+        Result::Ok { value as unexpected } -> false
+        Result::Err { error as failure } -> inspect_malformed(failure)
+    }
+}
+machine inspect_malformed<'buffer>(failure: Failure<'buffer>) -> bool {
+    transition failure.output.len == 3u64 && failure.reason in Reason::InvalidTag {
+        true -> (failure.output[0u64] == 0u8 && failure.output[1u64] == 17u8
+            && failure.output[2u64] == 42u8)
+        false -> false
+    }
+}
+
+machine exercise(saved: Pair, edge: Pair) crashes Trap {
+    let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
+    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
+    let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 90u8
+        && storage[2u64] == 42u8 && storage[3u64] == 17u8 && storage[4u64] == 82u8;
+    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
+    let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 90u8
+        && storage[2u64] == 255u8 && storage[3u64] == 0u8 && storage[4u64] == 82u8;
+    let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
+    let exhausted: bool = short_output(&mut short[1u64..3u64]);
+    let unchanged: bool = short[0u64] == 91u8 && short[1u64] == 61u8
+        && short[2u64] == 62u8 && short[3u64] == 92u8;
+    let mut invalid: [u8; 5] = [71u8, 0u8, 17u8, 42u8, 72u8];
+    let rejected: bool = malformed(&mut invalid[1u64..4u64]);
+    let retained: bool = invalid[0u64] == 71u8 && invalid[1u64] == 0u8
+        && invalid[2u64] == 17u8 && invalid[3u64] == 42u8 && invalid[4u64] == 72u8;
+    transition ordinary && first_bytes && endpoints && edge_bytes && exhausted && unchanged && rejected && retained {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine forward(saved: Pair, edge: Pair) crashes Trap {
+    exercise(saved, edge)
+}
+machine main() crashes Trap {
+    let saved: Pair = Pair { first: 17u8, last: 42u8 };
+    let edge: Pair = Pair { first: 0u8, last: 255u8 };
+    forward(saved, edge)
+}

@@ -1,0 +1,34 @@
+; A retained node is (pair start (pair after (pair child-count children))).
+; Atoms have child-count -1 and children 0. Lists retain an ordered raw pair
+; spine governed only by child-count; no condition observes pair provenance.
+(def syntax_node
+  ((start Int) (after Int) (count Int) (children Int)) Int
+  (pair start (pair after (pair count children))))
+
+(def syntax_start ((node Int)) Int
+  (first node))
+
+(def syntax_after ((node Int)) Int
+  (first (second node)))
+
+(def syntax_count ((node Int)) Int
+  (first (second (second node))))
+
+(def syntax_children ((node Int)) Int
+  (second (second (second node))))
+
+; Grammar-checked fixed positions and counted consumer loops own these bounds.
+(def syntax_child ((node Int) (index Int)) Int
+  (first (syntax_drop_children (syntax_children node) index)))
+
+(def syntax_drop_children ((children Int) (count Int)) Int
+  (if (eq count 0)
+    children
+    (syntax_drop_children (second children) (- count 1))))
+
+; A program is (pair top-count top-nodes), with the same counted node spine.
+(def syntax_reverse_nodes ((count Int) (input Int) (output Int)) Int
+  (if (eq count 0)
+    output
+    (syntax_reverse_nodes
+      (- count 1) (second input) (pair (first input) output))))

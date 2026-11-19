@@ -1,0 +1,1 @@
+domain Socket::Usable = Socket::Connected, Socket::Authenticated;

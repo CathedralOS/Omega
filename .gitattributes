@@ -1,6 +1,6 @@
-# Canonical source and evidence identities are byte-sensitive. Keep every
-# detected text file stable across host checkouts; Windows launchers retain
-# their native convention.
+# Keep every text file as LF on every host, as Omega V1 does. The spec's examples and the
+# lexer's inputs are byte-sensitive, and a Windows checkout must not turn them into CRLF.
 * text=auto eol=lf
-*.bat text eol=crlf
-*.cmd text eol=crlf
+
+# Fixtures are compared byte for byte, so git must never rewrite them at all.
+layers/**/fixtures/** -text

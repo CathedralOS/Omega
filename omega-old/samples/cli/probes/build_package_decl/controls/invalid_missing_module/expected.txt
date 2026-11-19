@@ -1,0 +1,2 @@
+checked compilation failed for package `invalid_missing_module`
+import `invalid_missing_module::dep` does not select one declaration, callable family, or module in its checked package

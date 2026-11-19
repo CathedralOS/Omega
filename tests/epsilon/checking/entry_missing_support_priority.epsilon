@@ -1,2 +1,0 @@
-data Main { console: Console; }
-machine Main::main(&mut self) -> i32 { return 0; }

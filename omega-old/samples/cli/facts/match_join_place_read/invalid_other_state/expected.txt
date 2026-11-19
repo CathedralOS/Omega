@@ -1,0 +1,2 @@
+cannot prove requires contract for call read_field
+place.other == 17

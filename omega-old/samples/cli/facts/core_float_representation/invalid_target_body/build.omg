@@ -1,0 +1,11 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "core_float_representation_target_body");
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::select_provider<FloatProbe, WindowsFloatProbe>(builder, windows_x86_64);
+    Build::select_provider<FloatProbe, LinuxX86FloatProbe>(builder, linux_x86_64);
+    Build::select_provider<FloatProbe, MacFloatProbe>(builder, macos_arm64);
+    Build::select_provider<FloatProbe, LinuxArmFloatProbe>(builder, linux_arm64);
+}

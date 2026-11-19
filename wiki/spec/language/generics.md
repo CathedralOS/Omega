@@ -61,7 +61,7 @@ remove a binder kind that its checked implementation may use.
 ```omega
 boundary trait Sorting {
     machine sort<T, const Order: Ordering<T>>(
-        items: &mut [T]
+        items: @mut [T]
     )
         crashes none;
 }
@@ -221,9 +221,9 @@ The following illustrates a runtime-capable application and its checked bound;
 it is not an already supported parser/compiler example:
 
 ```omega
-machine prefix_count<Count: u32>(items: &[u8]) -> u32
+machine prefix_count<Count: u32>(items: @[u8]) -> u32
 requires
-    embed(Count) <= embed(items.len);
+    embed(Count) <= embed(items.len)
 {
     Count
 }
@@ -242,7 +242,7 @@ limit:
 ```omega
 data Index<Limit: u32>
 requires
-    value < Limit,
+    value < Limit
 {
     value: u32;
 }
@@ -366,7 +366,7 @@ domain<const Capacity: u64> u64::AtMost<Capacity>
 
 data TinyBytes<Length, const Capacity: u64>
 requires
-    Length == u64::AtMost<Capacity>
+    Length == u64::AtMost::<Capacity>
 {
     storage: [u8; Capacity];
     length: Length;
@@ -505,7 +505,7 @@ family with one common result shape:
 
 ```omega
 trait ByteScanner {
-    machine scan<Width: u32>(bytes: &[u8]) -> u64
+    machine scan<Width: u32>(bytes: @[u8]) -> u64
     requires
         Width == 16 || Width == 32 || Width == 64;
 }
@@ -627,7 +627,7 @@ separate binder species are types:
 
 | Role | Parameter | Permitted use |
 | --- | --- | --- |
-| Structural callable | `const Key: machine(card: &Card) -> u64` | Static calls under that complete callable contract. |
+| Structural callable | `const Key: machine(card: @Card) -> u64` | Static calls under that complete callable contract. |
 | Nominal callable | `const Handler: HookProcedure::call` | Static calls or contextual realization under that exact requirement. |
 | Declaration identity | `const Requirement: reflect::CallableInfo` | Identity relationships only; no invocation. |
 | Implementation | `const Order: Ranked<T>` | Calls to its exact selections, written `Order::member(...)`. |
@@ -638,9 +638,9 @@ machine apply<const F: machine(value: u32) -> u32>(x: u32) -> u32 {
     F(x)
 }
 
-machine sort<T, const Order: Ranked<T>>(items: &mut [T]) { ... }
+machine sort<T, const Order: Ranked<T>>(items: @mut [T]) { ... }
 
-machine install<const Handler: HookProcedure::call>(slot: &mut HookSlot) { ... }
+machine install<const Handler: HookProcedure::call>(slot: @mut HookSlot) { ... }
 ```
 
 `const` says when the value is known. It does not require the selected machine
@@ -760,19 +760,19 @@ noted below.
 
 ```omega
 public trait ElementStep<T> {
-    machine apply(item: &mut T) terminates;
+    machine apply(item: @mut T) terminates;
 }
 
-public machine apply_one<T, const F: ElementStep<T>::apply>(item: &mut T)
+public machine apply_one<T, const F: ElementStep<T>::apply>(item: @mut T)
 terminates
 {
     F(item);
 }
 
-public machine visit_one<T, const F: machine>(item: &mut T)
+public machine visit_one<T, const F: machine>(item: @mut T)
 terminates
 {
-    apply_one<T, F>(item);
+    apply_one::<T, F>(item);
 }
 ```
 
@@ -862,7 +862,7 @@ machine forward<
     ) -> Stream<Inner>,
     const Selected: machine(index: Nat) -> Rat
 >(value: Stream<Selected>) -> Stream<Selected> {
-    Schema<Selected>(value)
+    Schema::<Selected>(value)
 }
 ```
 

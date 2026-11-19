@@ -1,2 +1,0 @@
-# Frozen parser fixtures include CRLF, exact EOF and intentional padding bytes.
-data/*.stdin -text whitespace=-blank-at-eol,-blank-at-eof

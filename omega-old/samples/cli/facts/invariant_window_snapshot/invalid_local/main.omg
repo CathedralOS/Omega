@@ -1,0 +1,50 @@
+// A scalar read as -1 while a mixed predicate is open remains -1 after its parent is restored, so consume accepts that snapshot.
+// Expected exit: 0
+public data Pair [copy]
+requires self.start >= 0 && self.start <= self.end,
+{
+    before: u32;
+    start: i32;
+    end: i32;
+    after: u32;
+    marker: u32;
+    origin: u32;
+}
+machine require_nonnegative(value: i32) requires value >= 0 {}
+machine consume(value: i32) -> i32
+requires value >= 0
+ensures result == value
+{ value }
+public machine inspect(pair: &mut Pair, incoming: i32, expected_initial: i32, choose: bool) -> i32 crashes Trap
+requires incoming == -1
+
+{
+    let initial: i32 = pair.start;
+    pair.start = -1;
+    let saved: i32 = pair.start;
+    pair.end = 10;
+    pair.start = 0;
+    require_nonnegative(initial);
+    pair.marker = 11;
+    transition initial == expected_initial {
+        true -> consume(saved)
+        false -> failed()
+    }
+    machine failed() -> i32 { crash Trap; }
+}
+machine main() crashes Trap  {
+    let mut first: Pair = Pair { before: 0x13579BDF, start: 3, end: 10, after: 0x2468ACE0, marker: 0, origin: 11 };
+    let first_result: i32 = inspect(&mut first, -1, 3, true);
+    let mut second: Pair = Pair { before: 0x13579BDF, start: 5, end: 10, after: 0x2468ACE0, marker: 0, origin: 13 };
+    let second_result: i32 = inspect(&mut second, -1, 5, false);
+    transition first_result == -1 && second_result == -1
+        && first.start == 0 && first.end == 10 && first.marker == 11 && first.origin == 11
+        && second.start == 0 && second.end == 10 && second.marker == 11 && second.origin == 13
+        && first.before == 0x13579BDF && first.after == 0x2468ACE0
+        && second.before == 0x13579BDF && second.after == 0x2468ACE0 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,22 @@
+data Job {
+    #1 flags: u32;
+}
+
+data Queue {
+    #1 online: bool;
+    #2 selected: @Job;
+}
+
+machine can_dispatch(queue: @Queue, required: u32) -> bool {
+    queue.online && (queue.selected.flags & required) == required
+}
+
+machine enable_flags(job: @mut Job, flags: u32) {
+    job.flags = job.flags | flags;
+}
+
+machine audit_selection(slot: @@Job);
+
+machine review(queue: @Queue) {
+    audit_selection(@queue.selected);
+}

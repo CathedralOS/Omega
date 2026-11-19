@@ -1,2 +1,0 @@
-constant checking:
-cause: Trap

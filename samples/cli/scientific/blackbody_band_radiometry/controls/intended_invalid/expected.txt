@@ -1,2 +1,0 @@
-violates required fact `panels >= 1 && panels <= 320`
-the instantiated fact is structurally false

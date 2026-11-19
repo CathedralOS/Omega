@@ -1,0 +1,28 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Packet { case Bytes(value: [u8; 2]); case Empty; }
+data Main { console: Console; bytes: [u8; 2]; packet: Packet; }
+
+machine Main::main(&mut self) {
+  self.bytes[0] = 65;
+  self.bytes[1] = 66;
+  self.packet = Packet::Bytes(self.bytes);
+  transition self.packet {
+    Packet::Bytes{contents} -> next(contents.as_slice)
+    Packet::Empty -> return
+  }
+  state next(retained: &[u8]) {
+    self.packet = Packet::Empty;
+    let replacement: [u8; 2] = self.bytes;
+    replacement[0] = 67;
+    assert retained.len == 2;
+    assert retained[0] == 65;
+    transition 0 { 0 -> done(retained) }
+  }
+  state done(retained: &[u8]) { self.console.write_line(retained); }
+}

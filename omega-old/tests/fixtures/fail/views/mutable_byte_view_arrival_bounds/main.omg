@@ -1,0 +1,18 @@
+machine retain(input: &mut &mut [u8]) {}
+
+machine main() crashes Trap {
+    let mut backing: [u8; 2] = [41u8, 19u8];
+    let mut window: &mut [u8] = &mut backing[..];
+    transition window.len == 2 {
+        true -> inspect(window)
+        false -> wrong()
+    }
+    machine inspect(input: &mut [u8]) requires input.len == 2 {
+        transition input[0] == 41u8 && input[2] == 19u8 {
+            true -> done()
+            false -> wrong()
+        }
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

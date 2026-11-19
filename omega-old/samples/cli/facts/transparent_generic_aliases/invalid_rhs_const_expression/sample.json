@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count"
+  ]
+}

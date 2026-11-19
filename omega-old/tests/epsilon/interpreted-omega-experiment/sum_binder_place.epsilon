@@ -1,0 +1,30 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Cell { value: i32; }
+data Choice { case Full(record: Cell); case Empty; }
+data Main { console: Console; original: Cell; choice: Choice; }
+
+machine Main::main(&mut self) {
+  self.original.value = 64;
+  self.choice = Choice::Full(self.original);
+  transition self.choice {
+    Choice::Full{bound} -> self.done(bound, bound.increment())
+    Choice::Empty -> return
+  }
+}
+machine Cell::increment(&mut self) -> i32 { self.value = self.value + 1; return self.value; }
+machine Main::done(&mut self, snapshot: Cell, changed: i32) {
+  assert snapshot.value == 64;
+  assert changed == 65;
+  assert read(self.choice) == 64;
+  assert self.original.value == 64;
+  self.console.write_byte(65);
+}
+machine read(value: Choice) -> i32 {
+  transition value { Choice::Full{record} -> return record.value Choice::Empty -> return 0 }
+}

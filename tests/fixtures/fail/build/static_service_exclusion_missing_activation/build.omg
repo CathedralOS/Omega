@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "static_service_exclusion_missing_activation");
-    Build::exclude_service<Sink>();
-}

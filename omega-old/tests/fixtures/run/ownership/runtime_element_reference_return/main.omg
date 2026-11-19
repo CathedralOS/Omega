@@ -1,0 +1,28 @@
+// A reference to a field of one runtime-selected element names that field,
+// not the whole array, both where it is formed and where it is returned.
+data Cell { x: i64; y: i64; }
+data Grid { cells: [Cell; 4]; tag: i64; }
+machine poke(grid: &mut Grid, index: u64) requires index < 4 {
+    let chosen: &mut i64 = &mut grid.cells[index].x;
+    chosen = 10;
+}
+machine pick<'a>(grid: &'a mut Grid, index: u64) -> &'a mut i64 requires index < 4 {
+    &mut grid.cells[index].x
+}
+machine main() crashes Trap {
+    let mut grid: Grid = Grid {
+        cells: [Cell { x: 1, y: 2 }, Cell { x: 3, y: 4 }, Cell { x: 5, y: 6 }, Cell { x: 7, y: 8 }],
+        tag: 0,
+    };
+    let first: u64 = 1;
+    poke(&mut grid, first);
+    let second: u64 = 2;
+    let chosen: &mut i64 = pick(&mut grid, second);
+    chosen = 20;
+    transition grid.cells[1].x == 10 && grid.cells[2].x == 20 && grid.cells[2].y == 6 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

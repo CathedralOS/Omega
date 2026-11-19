@@ -1,0 +1,28 @@
+// One domain family has separate i32 and u32 applications. Each concrete
+// operator preserves its own exact qualification and wrapping result.
+domain<T> T::Distance;
+
+machine + Distance::add_signed(left: i32 in Distance, right: i32) -> i32 in Distance
+ensures (result as -Distance) == ((left as -Distance) +% right) {
+    ((left as -Distance) +% right) as +Distance
+}
+
+machine + Distance::add_unsigned(left: u32 in Distance, right: u32) -> u32 in Distance
+ensures (result as -Distance) == ((left as -Distance) +% right) {
+    ((left as -Distance) +% right) as +Distance
+}
+
+machine main() crashes Trap {
+    let signed: i32 in Distance = 3i32 as +Distance;
+    let unsigned: u32 in Distance = 5u32 as +Distance;
+    let signed_sum: i32 in Distance = signed + 4i32;
+    let unsigned_sum: u32 in Distance = unsigned + 3u32;
+    let signed_raw: i32 = signed_sum as -Distance;
+    let unsigned_raw: u32 = unsigned_sum as -Distance;
+    transition signed_raw == 7i32 && unsigned_raw == 8u32 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}

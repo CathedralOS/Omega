@@ -1,0 +1,37 @@
+; Layout owns tags/extent. Formation owns signatures; prior rows own child sorts.
+(def ground_symbol ((record Int) (context Int)) Int
+  (let theory Int (ground_theory context)
+    (formation_index_lookup
+      (if (eq (layout_word (+ record 4)) 1)
+        (formed_constructors theory) (formed_functions theory))
+      (layout_word (+ record 8)))))
+
+(def ground_sort ((record Int) (context Int)) Int
+  (formation_result_sort (ground_symbol record context)))
+
+(def ground_lookup ((owners Int) (witnesses Int) (identity Int)) Int
+  (let count Int (formation_index_count owners)
+    (if (lt count identity)
+      (formation_index_lookup witnesses (- identity count))
+      (formation_index_lookup owners identity))))
+
+(def ground_application ((record Int) (identity Int) (context Int)) Int
+  (let symbol Int (ground_symbol record context)
+    (if (eq symbol 0) (layout_failure (+ record 8))
+      (if (eq (layout_word (+ record 12)) (formation_arity symbol))
+        (ground_children (+ record 16) (+ symbol 12)
+          (formation_arity symbol) identity context)
+        (layout_failure (+ record 12))))))
+
+(def ground_children ((cursor Int) (signature Int) (remaining Int)
+  (identity Int) (context Int)) Int
+  (if (eq remaining 0) 0
+    (let child Int (layout_word cursor)
+      (if (if (lt child 1) 1 (lt (- identity 1) child))
+        (layout_failure cursor)
+        (let record Int
+          (ground_lookup (ground_owners context) (ground_witnesses context) child)
+          (if (eq (ground_sort record context) (layout_word signature))
+            (ground_children (+ cursor 4) (+ signature 4)
+              (- remaining 1) identity context)
+            (layout_failure cursor)))))))

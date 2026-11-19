@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::package(builder, "target_realization_scope");
+    Build::select_provider<Coordinate, SelectedCoordinate>(builder, uefi_x86_64);
+}

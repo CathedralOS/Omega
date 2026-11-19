@@ -1,0 +1,29 @@
+(def formation_clause ((function Int) (constructor Int) (clause Int)) Int
+  (let count_field Int (+ clause 8)
+    (if (eq (layout_word count_field) 0)
+      (layout_failure count_field)
+      (let templates Int (formation_index count_field)
+        (let context Int (formation_clause_context function constructor templates)
+          (let checked Int
+            (formation_template_rows (+ count_field 4) 1 (first templates) context)
+            (if (lt checked 0) checked
+              (formation_body (- (formation_record_next clause) 4) context))))))))
+
+(def formation_body ((field Int) (context Int)) Int
+  (let record Int
+    (formation_index_lookup (formation_clause_templates context) (layout_word field))
+    (if (eq record 0)
+      (layout_failure field)
+      (if (eq (formation_template_sort record context)
+        (formation_result_sort
+          (formation_function_record (formation_clause_function context))))
+        0
+        (layout_failure field)))))
+
+(def formation_template_rows ((cursor Int) (identity Int) (remaining Int)
+  (context Int)) Int
+  (if (eq remaining 0) 0
+    (let checked Int (formation_template cursor identity context)
+      (if (lt checked 0) checked
+        (formation_template_rows (formation_record_next cursor)
+          (+ identity 1) (- remaining 1) context)))))

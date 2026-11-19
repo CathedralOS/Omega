@@ -1,0 +1,108 @@
+use omega::language::core::ProcessExit;
+// Run-length encode -- scans the fixed 20-byte record "AAAABBBCCDDDDDEEEEEE"
+// and prints one "run: <value> x<count>" line per run boundary, then exits
+// with the number of runs (4 A, 3 B, 2 C, 5 D, 6 E = 5). Output streams
+// through Console::write_byte since a raw byte write into a Utf8 carrier
+// cannot be proven valid UTF-8. Exercises adjacent-element comparison,
+// emit-on-boundary control, and a computed exit code -- an encoding workload
+// the collections corpus did not hold.
+// Expected exit: 5.
+// Expected output contains: run: C x2
+
+domain [u8]::Utf8
+requires
+    valid_utf8(self);
+domain [u8; 20]::Utf8
+requires
+    valid_utf8(self);
+use omega_language_std::Console;
+use omega::language::core::narrow_u32_to_i32_trapping;
+
+data Main {
+    data: [u8; 20] in Utf8;
+    // Counters are `in Wrapping`: increments are defined arithmetic; index uses
+    // stay bounded by the `i < 20` guard.
+    i: i32 in Wrapping;
+    runs: i32 in Wrapping;
+    b: u8;
+    prev: u8;
+    count: u32 in Wrapping;
+    chi: i32;
+    pause: [u8; 256];
+}
+
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    Console::write_line("run_length_encode: 20 bytes -> one line per run, exit = number of runs");
+    main.data = "AAAABBBCCDDDDDEEEEEE" as +Utf8;
+    main.prev = main.data[0];
+    main.count = 1 as +Wrapping;
+    main.i = 1 as +Wrapping;
+    main.runs = 0 as +Wrapping;
+    transition {
+        _ -> block step(main)
+    }
+
+    machine step(main: &mut Main) {
+        transition main.i < 20 {
+            true -> block read(main)
+            _ -> block done(main)
+        }
+    }
+
+    machine read(main: &mut Main) {
+        main.b = main.data[main.i];
+        transition main.b == main.prev {
+            true -> block bump(main)
+            _ -> block emit_mid(main)
+        }
+    }
+
+    machine bump(main: &mut Main) {
+        main.count = main.count + 1;
+        main.i = main.i + 1;
+        transition {
+            _ -> block step(main)
+        }
+    }
+
+    machine emit_mid(main: &mut Main) {
+        Console::write("run: ");
+        Console::write_byte(main.prev as i32);
+        Console::write(" x");
+        main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        Console::write_byte(main.chi);
+        Console::write_line("");
+        main.runs = main.runs + 1;
+        main.prev = main.b;
+        main.count = 1 as +Wrapping;
+        main.i = main.i + 1;
+        transition {
+            _ -> block step(main)
+        }
+    }
+
+    machine done(main: &mut Main) {
+        Console::write("run: ");
+        Console::write_byte(main.prev as i32);
+        Console::write(" x");
+        main.chi = narrow_u32_to_i32_trapping((main.count + 48) as u32);
+        Console::write_byte(main.chi);
+        Console::write_line("");
+        main.runs = main.runs + 1;
+        transition {
+            _ -> block finish(main)
+        }
+    }
+
+    machine finish(main: &mut Main) {
+        Console::write_line("[press Enter to close]");
+        _ = block Console::read_line(&mut main.pause[..]);
+        ProcessExit::exit_process(main.runs as i32);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

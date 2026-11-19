@@ -1,0 +1,165 @@
+use omega::language::core::ProcessExit;
+// Expected exit: 64 (empty stdin); valid data fixtures exit 0.
+// Expected output contains: INVALID: expected scenario
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use model::integrator;
+use model::integrator::Pendulum;
+use model::integrator::pendulum_project;
+use model::integrator::step;
+use report::report;
+use report::report::print_micro;
+use omega::language::core::F64::from_i32;
+use omega::language::core::F64::square_root;
+
+data Main {
+    pendulum: Pendulum;
+    scenario: i32;
+    step: i32;
+    initial_energy: f64;
+}
+
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
+    let input: ByteRead = block Console::read_byte();
+    transition input {
+        ByteRead::Byte { value } -> block scenario(main, value)
+        ByteRead::Eof -> invalid(main)
+    }
+    machine scenario(main: &mut Main, value: i32) {
+        transition value >= 48 && value <= 51 {
+            true -> block length_input(main, value - 48)
+            false -> invalid(main)
+        }
+    }
+    machine length_input(main: &mut Main, scenario: i32) {
+        main.scenario = scenario;
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block length(main, value)
+            ByteRead::Eof -> invalid(main)
+        }
+    }
+    machine length(main: &mut Main, value: i32) {
+        transition value {
+            49 -> block unit_length(main)
+            50 -> block double_length(main)
+            _ -> invalid(main)
+        }
+    }
+    machine unit_length(main: &mut Main) {
+        main.pendulum.length = 1.0;
+        transition { _ -> block newline(main) }
+    }
+    machine double_length(main: &mut Main) {
+        main.pendulum.length = 2.0;
+        transition { _ -> block newline(main) }
+    }
+    machine newline(main: &mut Main) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Byte { value } -> block check_newline(main, value)
+            ByteRead::Eof -> invalid(main)
+        }
+    }
+    machine check_newline(main: &mut Main, value: i32) {
+        transition value == 10 {
+            true -> block end_input(main)
+            false -> invalid(main)
+        }
+    }
+    machine end_input(main: &mut Main) {
+        let input: ByteRead = block Console::read_byte();
+        transition input {
+            ByteRead::Eof -> initialize(main)
+            ByteRead::Byte { value } -> invalid(main)
+        }
+    }
+    machine initialize(main: &mut Main) {
+        main.step = 0;
+        main.pendulum.vx = 0.0;
+        main.pendulum.vy = 0.0;
+        transition main.scenario {
+            0 -> equilibrium(main)
+            1 -> small_angle(main)
+            2 -> released(main)
+            _ -> displaced(main)
+        }
+    }
+    machine equilibrium(main: &mut Main) {
+        main.pendulum.x = 0.0;
+        main.pendulum.y = 0.0 - main.pendulum.length;
+        transition { _ -> project(main) }
+    }
+    machine small_angle(main: &mut Main) {
+        main.pendulum.x = 0.01 * main.pendulum.length;
+        main.pendulum.y = 0.0 - F64::square_root(main.pendulum.length * main.pendulum.length - main.pendulum.x * main.pendulum.x);
+        transition { _ -> project(main) }
+    }
+    machine released(main: &mut Main) {
+        main.pendulum.x = 0.6 * main.pendulum.length;
+        main.pendulum.y = 0.0 - 0.8 * main.pendulum.length;
+        transition { _ -> project(main) }
+    }
+    machine displaced(main: &mut Main) {
+        main.pendulum.x = 0.66 * main.pendulum.length;
+        main.pendulum.y = 0.0 - 0.88 * main.pendulum.length;
+        main.pendulum.vx = 0.3;
+        main.pendulum.vy = 0.4;
+        transition { _ -> project(main) }
+    }
+    machine project(main: &mut Main) {
+        pendulum_project(&mut main.pendulum);
+        main.initial_energy = main.pendulum.energy;
+        transition { _ -> row(main) }
+    }
+    machine row(main: &mut Main) {
+        Console::write("ROW ");
+        print_micro(F64::from_i32(main.step));
+        Console::write(" ");
+        print_micro(main.pendulum.x);
+        Console::write(" ");
+        print_micro(main.pendulum.y);
+        Console::write(" ");
+        print_micro(main.pendulum.vx);
+        Console::write(" ");
+        print_micro(main.pendulum.vy);
+        Console::write(" ");
+        print_micro(main.pendulum.raw_drift);
+        Console::write(" ");
+        print_micro(main.pendulum.drift);
+        Console::write(" ");
+        print_micro(main.pendulum.tangent);
+        Console::write(" ");
+        print_micro(main.pendulum.energy);
+        Console::write_line("");
+        transition main.step >= 0 && main.step < 32 {
+            true -> advance(main)
+            false -> finish(main)
+        }
+    }
+    machine advance(main: &mut Main)
+    requires main.step >= 0 && main.step < 32
+    {
+        main.step = main.step + 1;
+        step(&mut main.pendulum);
+        transition { _ -> row(main) }
+    }
+    machine finish(main: &mut Main) {
+        Console::write("ENERGY_CHANGE ");
+        print_micro(main.pendulum.energy - main.initial_energy);
+        Console::write_line("");
+        Console::write_line("COMPLETE 32 steps");
+        ProcessExit::exit_process(0);
+    }
+    machine invalid(main: &mut Main) {
+        Console::write_line("INVALID: expected scenario 0..3, length 1..2, LF, EOF");
+        ProcessExit::exit_process(64);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

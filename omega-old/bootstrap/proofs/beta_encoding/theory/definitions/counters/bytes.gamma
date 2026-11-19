@@ -1,0 +1,15 @@
+; Functions 25 and 26: byte_increment(Byte)->Byte and byte_is_max(Byte)->Bool.
+; The increment's internal 255->0 case is never a public wrapped Word result.
+; Emitter arithmetic enumerates finite Byte clauses, not checker primitives.
+(def beta_counter_byte_definition ((maximum Int)) Int
+  (let length Int (beta_theory_word 2054)
+    (let signature Int (beta_theory_fields3 (if maximum 2 1) 1 1)
+      (let mode Int (beta_theory_fields3 1 0 256)
+        (beta_counter_byte_cases maximum 0)))))
+
+(def beta_counter_byte_cases ((maximum Int) (byte Int)) Int
+  (if (eq byte 256) 0
+    (let result Int
+      (if maximum (+ 257 (eq byte 255)) (+ 1 (% (+ byte 1) 256)))
+      (let clause Int (beta_constant_clause (+ byte 1) result)
+        (beta_counter_byte_cases maximum (+ byte 1))))))

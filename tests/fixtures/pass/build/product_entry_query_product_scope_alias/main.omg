@@ -1,5 +1,0 @@
-// Expected exit: 0
-use support::setup;
-machine launch() {
-    let marker: u8 = 0;
-}

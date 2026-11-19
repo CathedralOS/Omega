@@ -1,0 +1,7 @@
+(data Nat (Zero) (Succ Nat))
+(def depth ((value Nat)) Int
+  (match value
+    (Zero 0)
+    ((Succ previous) (+ 1 (depth previous)))))
+(def main () Int
+  (depth (Succ (Succ (Succ Zero)))))

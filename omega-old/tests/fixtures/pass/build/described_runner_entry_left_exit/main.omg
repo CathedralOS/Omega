@@ -1,0 +1,7 @@
+// Expected exit: 11
+// Both modules export run and Reader. Build queries left::run in a helper,
+// carries the compiler-issued description back, and binds that exact entry.
+// Its selected Reader implementation returns 11; selecting right::run would
+// exit 37, and losing the provider result or branch would exit 65.
+use left;
+use right;

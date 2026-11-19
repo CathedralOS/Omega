@@ -1,0 +1,44 @@
+// Expected exit: 0
+// A count keeps its own type, while its value is checked or reduced
+// by the shifted value's policy. Complement and OR cannot trap.
+machine exact(value: u8, count: u64 in Wrapping) -> u8
+requires value <= 127 && count == 1 {
+    value << count
+}
+
+machine wrap(value: u32 in Wrapping, count: i64 in Saturating) -> u32 {
+    ((value << count) & 7u32) as -Wrapping
+}
+
+machine saturate(value: i8 in Saturating, count: u64 in Trapping) -> i8 in Saturating
+requires count < 8 {
+    value << count
+}
+
+machine shift_right(value: i8 in Saturating, count: u64 in Wrapping) -> i8 in Saturating
+requires count < 8 {
+    value >> count
+}
+
+machine complement(value: u8 in Trapping) -> u8 in Trapping
+ensures result == ~(value | 4u8)
+crashes none {
+    ~(value | 4u8)
+}
+
+machine main() crashes Trap {
+    let exact: u8 = exact(36u8, 1u64 as +Wrapping);
+    let wrapped: u32 = wrap(1u32 as +Wrapping, 33i64 as +Saturating);
+    let high: i8 in Saturating = saturate(9i8 as +Saturating, 6u64 as +Trapping);
+    let low: i8 in Saturating = saturate(-9i8 as +Saturating, 6u64 as +Trapping);
+    let right: i8 in Saturating = shift_right(-24i8 as +Saturating, 3u64 as +Wrapping);
+    let bits: u8 in Trapping = complement(3u8 as +Trapping);
+    transition exact == 72u8 && wrapped == 2u32
+        && (high as -Saturating) == 127i8 && (low as -Saturating) == -128i8
+        && (right as -Saturating) == -3i8 && (bits as -Trapping) == 248u8 {
+        true -> done()
+        _ -> bad()
+    }
+}
+machine done() {}
+machine bad() crashes Trap { crash Trap; }

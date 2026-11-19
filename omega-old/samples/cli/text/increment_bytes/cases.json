@@ -1,0 +1,44 @@
+[
+  {
+    "id": "empty",
+    "input_hex": "",
+    "expected_exit": 0,
+    "stdout_hex": "",
+    "stderr_hex": ""
+  },
+  {
+    "id": "ascii_A",
+    "input_hex": "41",
+    "expected_exit": 1,
+    "stdout_hex": "42",
+    "stderr_hex": ""
+  },
+  {
+    "id": "ascii_AB",
+    "input_hex": "4142",
+    "expected_exit": 2,
+    "stdout_hex": "4243",
+    "stderr_hex": ""
+  },
+  {
+    "id": "ascii_ab_space",
+    "input_hex": "616220",
+    "expected_exit": 3,
+    "stdout_hex": "626321",
+    "stderr_hex": ""
+  },
+  {
+    "id": "nul",
+    "input_hex": "00",
+    "expected_exit": 1,
+    "stdout_hex": "01",
+    "stderr_hex": ""
+  },
+  {
+    "id": "ff",
+    "input_hex": "ff",
+    "expected_exit": 1,
+    "stdout_hex": "00",
+    "stderr_hex": ""
+  }
+]

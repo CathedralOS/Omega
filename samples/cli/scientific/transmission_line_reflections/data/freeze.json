@@ -1,5 +1,0 @@
-{
-  "oracle_sha256": "59e815852d9ad602a76fd9c77c8c297e0bea4973ed0873a949e74c203a3ea182",
-  "reference_sha256": "f81052886bd9e6720b3bc93fbf231a7e153277310308db4a8a5f14b6f3c5b388",
-  "policy": "Frozen before first Omega check/run; all expected values exact rational; tolerances immutable during validation."
-}

@@ -1,0 +1,3088 @@
+//! One hand-built program, as typing leaves it:
+//!
+//! ```omega
+//! machine forward<T>(item: T) -> T { item }
+//! machine relay<T>(item: T) -> T ensures item { forward<T>(item) }
+//! machine sized<const N: u64>() ensures N { }
+//! machine main() {
+//!     let a = relay<u8>(1);
+//!     let b = relay<u8>(2);
+//!     let c = relay<bool>(true);
+//! }
+//! machine counted() { sized<3>(); }
+//! ```
+//!
+//! `main` holds closed type applications, which are served. `counted` holds
+//! an application of a value parameter whose argument typing left as a
+//! spelling with no literal, which is not: it is the failing twin. The same
+//! call with the literal `3` is served (`counted_at`).
+
+use super::prepare;
+use crate::source_state::TypedTrees;
+use crate::source_state::data::{TypeParameter, TypeParameterKind};
+use crate::source_state::deferred_refusals::DeferredRequest;
+use crate::source_state::domain::ProofFact;
+use crate::source_state::expression::{
+    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression, TableNamePath,
+};
+use crate::source_state::machine::Machine;
+use crate::source_state::name::Identifier;
+use crate::source_state::signature::{SignatureContract, SignatureContractKind, StateParameter};
+use crate::source_state::state::State;
+use crate::source_state::statement::{
+    StatementNode, TableCall, TableLocalData, TableTransition, TransitionTargetNode,
+};
+use crate::source_state::static_applications::StaticMachineBindingValue;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
+use crate::source_symbols::{SymbolTableBuilder, builtin_type_symbols};
+use arena::HandleSpan;
+use numerics::integer_carrier::FixedInteger;
+use symbols::{BUILTIN_TYPE_COUNT, BuiltinTypeAtom, SymbolHandle, SymbolKind, SymbolNameRef};
+
+struct Generic {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    parameter: SymbolHandle,
+    item: SymbolHandle,
+}
+
+struct Source {
+    program: TypedTrees,
+    byte: SymbolHandle,
+    boolean: SymbolHandle,
+    forward: Generic,
+    relay: Generic,
+    nested: Option<Generic>,
+    sized_state: SymbolHandle,
+    main: SymbolHandle,
+    counted: SymbolHandle,
+}
+
+fn named(
+    program: &mut TypedTrees,
+    symbol: SymbolHandle,
+    name: &'static str,
+) -> TypeReferenceHandle {
+    program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol,
+            name: Identifier::generated(name),
+        })
+}
+
+fn name(program: &mut TypedTrees, symbol: SymbolHandle, spelled: &'static str) -> ExpressionHandle {
+    let mut members = HandleSpan::empty();
+    program
+        .expression_table
+        .push_name_path_member(&mut members, Identifier::generated(spelled));
+    program
+        .expression_table
+        .insert(ExpressionNode::Name(TableNamePath {
+            members,
+            symbol,
+            head_symbol: symbol,
+            ..TableNamePath::default()
+        }))
+}
+
+fn argument(symbol: SymbolHandle, spelled: &'static str) -> StaticMachineArgument {
+    StaticMachineArgument {
+        path: Box::new([Identifier::generated(spelled)]),
+        symbol,
+        ..StaticMachineArgument::default()
+    }
+}
+
+/// `target<static>(operand)`, as an expression held by `holder`.
+fn call(
+    program: &mut TypedTrees,
+    holder: SymbolHandle,
+    target: SymbolHandle,
+    spelled: &'static str,
+    static_argument: StaticMachineArgument,
+    operand: ExpressionHandle,
+) -> ExpressionHandle {
+    let application = program.expression_table.retain_static_machine_application(
+        target,
+        Identifier::generated(spelled),
+        std::slice::from_ref(&static_argument),
+    );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = holder;
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([operand]);
+    program
+        .expression_table
+        .insert(ExpressionNode::Call(TableCallExpression {
+            runtime_call: None,
+            authored_call_selection: None,
+            authored_call_binding: None,
+            build_selection: arena::Handle::invalid(),
+            authored_machine_application: application,
+            exact_coercion_target: TypeReferenceHandle::invalid(),
+            requirement_application: TypeReferenceHandle::invalid(),
+            receiver: ExpressionHandle::invalid(),
+            target_symbol: target,
+            static_machine_parameter: SymbolHandle::invalid(),
+            target: Identifier::generated(spelled),
+            static_requirement_dispatch: None,
+            machine_arguments: Box::new([static_argument]),
+            quotient_operation: None,
+            private_layout_operation: None,
+            installed_interrupt_operation: None,
+            layout_query: None,
+            native_code_layout: None,
+            arguments,
+            evidence_arguments: Box::new([]),
+            operational_acknowledgement: Default::default(),
+        }))
+}
+
+fn returns(program: &mut TypedTrees, value: ExpressionHandle) -> StatementNode {
+    let target = program
+        .statement_table
+        .insert_transition_target(TransitionTargetNode::Value(value));
+    StatementNode::Transition(TableTransition {
+        target,
+        ..TableTransition::default()
+    })
+}
+
+fn push_machine(
+    program: &mut TypedTrees,
+    symbol: SymbolHandle,
+    spelled: &'static str,
+    type_parameters: HandleSpan<TypeParameter>,
+    contracts: HandleSpan<SignatureContract>,
+    state: State,
+) {
+    let states = program.machine_states.insert_many([state]);
+    program.push_machine(Machine {
+        symbol,
+        name: Identifier::generated(spelled),
+        type_parameters,
+        contracts,
+        states,
+        body_is_present: true,
+        ..Default::default()
+    });
+}
+
+/// A generic machine `spelled<T>(item: T) -> T`, without its body.
+fn generic(builder: &mut SymbolTableBuilder, machine: SymbolHandle) -> Generic {
+    let children = builder.insert_children(
+        machine,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::State, SymbolNameRef::Static("entry")),
+        ],
+    );
+    let (parameter, state) = (children.handle_at(0), children.handle_at(1));
+    let item = builder
+        .insert_children(
+            state,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("item"))],
+        )
+        .handle_at(0);
+    Generic {
+        machine,
+        state,
+        parameter,
+        item,
+    }
+}
+
+fn signature(program: &mut TypedTrees, generic: &Generic) -> (HandleSpan<TypeParameter>, State) {
+    let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+        symbol: generic.parameter,
+        name: Identifier::generated("T"),
+        kind: TypeParameterKind::Type,
+        ..Default::default()
+    }]);
+    let item_type = named(program, generic.parameter, "T");
+    let parameters = program.state_parameters.insert_many([StateParameter {
+        symbol: generic.item,
+        name: Identifier::generated("item"),
+        type_reference: item_type,
+        ..Default::default()
+    }]);
+    let return_type = named(program, generic.parameter, "T");
+    (
+        type_parameters,
+        State {
+            symbol: generic.state,
+            name: Identifier::generated("entry"),
+            parameters,
+            return_type,
+            ..Default::default()
+        },
+    )
+}
+
+fn source() -> Source {
+    source_named("relay")
+}
+
+fn source_named(relay_name: &'static str) -> Source {
+    source_with_nested(relay_name, false)
+}
+
+fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
+    source_with_child_telescope(relay_name, with_nested, false)
+}
+
+fn source_with_child_telescope(
+    relay_name: &'static str,
+    with_nested: bool,
+    independent_child: bool,
+) -> Source {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let top = builder.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([
+            (SymbolKind::Machine, SymbolNameRef::Static("forward")),
+            (SymbolKind::Machine, SymbolNameRef::Static(relay_name)),
+            (SymbolKind::Machine, SymbolNameRef::Static("sized")),
+            (SymbolKind::Machine, SymbolNameRef::Static("main")),
+            (SymbolKind::Machine, SymbolNameRef::Static("counted")),
+        ]),
+    );
+    let [forward, relay, sized, main, counted] =
+        std::array::from_fn(|position| top.handle_at((BUILTIN_TYPE_COUNT + position) as u32));
+    let forward = generic(&mut builder, forward);
+    let (relay, nested) = if with_nested {
+        let children = builder.insert_children(
+            relay,
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+            ],
+        );
+        let (parameter, state) = (children.handle_at(0), children.handle_at(1));
+        let children = builder.insert_children(
+            state,
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("item")),
+                (SymbolKind::Machine, SymbolNameRef::Static("nested")),
+            ],
+        );
+        let (item, machine) = (children.handle_at(0), children.handle_at(1));
+        let child_roster = if independent_child {
+            vec![
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            ]
+        } else {
+            vec![(SymbolKind::State, SymbolNameRef::Static("entry"))]
+        };
+        let children = builder.insert_children(machine, child_roster);
+        let nested_state = children.handle_at(0);
+        let nested_parameter = if independent_child {
+            children.handle_at(1)
+        } else {
+            parameter
+        };
+        let nested_item = builder
+            .insert_children(
+                nested_state,
+                [(SymbolKind::Parameter, SymbolNameRef::Static("item"))],
+            )
+            .handle_at(0);
+        (
+            Generic {
+                machine: relay,
+                state,
+                parameter,
+                item,
+            },
+            Some(Generic {
+                machine,
+                state: nested_state,
+                parameter: nested_parameter,
+                item: nested_item,
+            }),
+        )
+    } else {
+        (generic(&mut builder, relay), None)
+    };
+    let sized_children = builder.insert_children(
+        sized,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
+            (SymbolKind::State, SymbolNameRef::Static("entry")),
+        ],
+    );
+    let (sized_parameter, sized_state) = (sized_children.handle_at(0), sized_children.handle_at(1));
+    let state_of = |builder: &mut SymbolTableBuilder, machine| {
+        builder
+            .insert_children(
+                machine,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0)
+    };
+    let main_state = state_of(&mut builder, main);
+    let counted_state = state_of(&mut builder, counted);
+    let locals = builder.insert_children(
+        main_state,
+        [
+            (SymbolKind::Local, SymbolNameRef::Static("a")),
+            (SymbolKind::Local, SymbolNameRef::Static("b")),
+            (SymbolKind::Local, SymbolNameRef::Static("c")),
+        ],
+    );
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+
+    let [byte, boolean, wide] = [
+        BuiltinTypeAtom::Integer(FixedInteger::unsigned(8)),
+        BuiltinTypeAtom::Bool,
+        BuiltinTypeAtom::Integer(FixedInteger::unsigned(64)),
+    ]
+    .map(|atom| program.symbols.builtin_atom_symbol(atom).unwrap());
+
+    // forward<T>(item: T) -> T { item }
+    let (type_parameters, mut state) = signature(&mut program, &forward);
+    let item = name(&mut program, forward.item, "item");
+    let body = returns(&mut program, item);
+    state.statement_nodes = program.statement_table.insert_statements([body]);
+    push_machine(
+        &mut program,
+        forward.machine,
+        "forward",
+        type_parameters,
+        HandleSpan::empty(),
+        state,
+    );
+
+    // relay<T>(item: T) -> T ensures item { forward<T>(item) }
+    let (type_parameters, mut state) = signature(&mut program, &relay);
+    let promised = name(&mut program, relay.item, "item");
+    let facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(promised)]);
+    let contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Ensures,
+        facts,
+        ..Default::default()
+    }]);
+    let item = name(&mut program, relay.item, "item");
+    let forwarded = call(
+        &mut program,
+        relay.machine,
+        forward.state,
+        "forward",
+        argument(relay.parameter, "T"),
+        item,
+    );
+    if let Some(nested) = &nested {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(forwarded) else {
+            panic!("call fixture");
+        };
+        call.target_symbol = nested.state;
+        call.target = Identifier::generated("nested");
+        let application = call.authored_machine_application;
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .registration_operation = nested.state;
+        if independent_child {
+            let arguments = [
+                argument(relay.parameter, "T"),
+                argument(relay.parameter, "T"),
+            ];
+            let ExpressionNode::Call(call) = program.expression_table.expression_mut(forwarded)
+            else {
+                unreachable!()
+            };
+            call.machine_arguments = arguments.clone().into();
+            program
+                .expression_table
+                .set_static_machine_application_arguments(application, &arguments);
+        }
+    }
+    let body = returns(&mut program, forwarded);
+    state.statement_nodes = program.statement_table.insert_statements([body]);
+    push_machine(
+        &mut program,
+        relay.machine,
+        relay_name,
+        type_parameters,
+        contracts,
+        state,
+    );
+
+    if let Some(nested) = &nested {
+        let mut parameters = Vec::new();
+        if independent_child {
+            parameters.push(TypeParameter {
+                symbol: relay.parameter,
+                name: Identifier::from("T"),
+                ..Default::default()
+            });
+        }
+        parameters.push(TypeParameter {
+            symbol: nested.parameter,
+            name: Identifier::from("T"),
+            ..Default::default()
+        });
+        let type_parameters = program.data_type_parameters.insert_many(parameters);
+        let item_type = named(&mut program, nested.parameter, "T");
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            symbol: nested.item,
+            name: Identifier::generated("item"),
+            type_reference: item_type,
+            ..Default::default()
+        }]);
+        let item = name(&mut program, nested.item, "item");
+        let forwarded = call(
+            &mut program,
+            nested.machine,
+            forward.state,
+            "forward",
+            argument(nested.parameter, "T"),
+            item,
+        );
+        let body = returns(&mut program, forwarded);
+        let state = State {
+            symbol: nested.state,
+            name: Identifier::generated("entry"),
+            parameters,
+            return_type: item_type,
+            statement_nodes: program.statement_table.insert_statements([body]),
+            ..Default::default()
+        };
+        push_machine(
+            &mut program,
+            nested.machine,
+            "nested",
+            type_parameters,
+            HandleSpan::empty(),
+            state,
+        );
+    }
+
+    // sized<const N: u64>() { }
+    let carrier = named(&mut program, wide, "u64");
+    let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+        symbol: sized_parameter,
+        name: Identifier::generated("N"),
+        kind: TypeParameterKind::Const {
+            type_reference: carrier,
+        },
+        ..Default::default()
+    }]);
+    let promised = name(&mut program, sized_parameter, "N");
+    let facts = program
+        .proof_facts
+        .insert_many([ProofFact::Expression(promised)]);
+    let contracts = program.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Ensures,
+        facts,
+        ..Default::default()
+    }]);
+    push_machine(
+        &mut program,
+        sized,
+        "sized",
+        type_parameters,
+        contracts,
+        State {
+            symbol: sized_state,
+            name: Identifier::generated("entry"),
+            ..Default::default()
+        },
+    );
+
+    // main() { let a = relay<u8>(1); let b = relay<u8>(2); let c = relay<bool>(true); }
+    let mut statements = Vec::new();
+    for (position, (applied, spelled, operand)) in [
+        (byte, "u8", ExpressionNode::Boolean(false)),
+        (byte, "u8", ExpressionNode::Boolean(false)),
+        (boolean, "bool", ExpressionNode::Boolean(true)),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let operand = program.expression_table.insert(operand);
+        let initial_value = call(
+            &mut program,
+            main,
+            relay.state,
+            relay_name,
+            argument(applied, spelled),
+            operand,
+        );
+        statements.push(StatementNode::LocalData(TableLocalData {
+            symbol: locals.handle_at(position as u32),
+            name: Identifier::generated(["a", "b", "c"][position]),
+            initial_value,
+            ..Default::default()
+        }));
+    }
+    let statement_nodes = program.statement_table.insert_statements(statements);
+    push_machine(
+        &mut program,
+        main,
+        "main",
+        HandleSpan::empty(),
+        HandleSpan::empty(),
+        State {
+            symbol: main_state,
+            name: Identifier::generated("entry"),
+            statement_nodes,
+            ..Default::default()
+        },
+    );
+
+    // counted() { sized<3>(); }
+    let three = StaticMachineArgument {
+        path: Box::new([Identifier::generated("3")]),
+        ..StaticMachineArgument::default()
+    };
+    let application = program.expression_table.retain_static_machine_application(
+        sized_state,
+        Identifier::generated("sized"),
+        std::slice::from_ref(&three),
+    );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = counted;
+    let statement_nodes = program
+        .statement_table
+        .insert_statements([StatementNode::Call(TableCall {
+            authored_machine_application: application,
+            target_symbol: sized_state,
+            target: Identifier::generated("sized"),
+            machine_arguments: Box::new([three]),
+            ..Default::default()
+        })]);
+    push_machine(
+        &mut program,
+        counted,
+        "counted",
+        HandleSpan::empty(),
+        HandleSpan::empty(),
+        State {
+            symbol: counted_state,
+            name: Identifier::generated("entry"),
+            statement_nodes,
+            ..Default::default()
+        },
+    );
+
+    Source {
+        program,
+        byte,
+        boolean,
+        forward,
+        relay,
+        nested,
+        sized_state,
+        main,
+        counted,
+    }
+}
+
+fn only_state(program: &TypedTrees, machine: SymbolHandle) -> &State {
+    let machine = program.machine_by_symbol(machine).expect("a machine");
+    let Some([state]) = program.machine_states(machine).as_array() else {
+        panic!("one state");
+    };
+    state
+}
+
+/// The calls a machine's one state holds as local initializers or as the
+/// value it returns, in statement order.
+fn calls(program: &TypedTrees, machine: SymbolHandle) -> Vec<&TableCallExpression> {
+    only_state(program, machine)
+        .statement_nodes
+        .handles()
+        .filter_map(|handle| {
+            let value = match program.statement_table.statement(handle) {
+                StatementNode::LocalData(local) => local.initial_value,
+                StatementNode::Transition(transition) => {
+                    match program.statement_table.transition_target(transition.target) {
+                        TransitionTargetNode::Value(value) => *value,
+                        _ => return None,
+                    }
+                }
+                _ => return None,
+            };
+            match program.expression_table.expression(value) {
+                ExpressionNode::Call(call) => Some(call),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+fn named_symbol(program: &TypedTrees, reference: TypeReferenceHandle) -> SymbolHandle {
+    match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => *symbol,
+        other => panic!("a named type, found {other:?}"),
+    }
+}
+
+#[test]
+fn qualified_operator_labels_do_not_hide_actual_attachment_obligations() {
+    for attached in [false, true] {
+        let Source {
+            mut program,
+            relay,
+            main,
+            byte,
+            ..
+        } = source();
+        let attachment = named(&mut program, byte, "u8");
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == relay.machine)
+            .unwrap();
+        let machine = program.machine_mut(position);
+        machine.spelling = Some(language_core::operator_spelling::OperatorSpelling::Add);
+        machine.attached_data = Some(Identifier::generated("Distance"));
+        if attached {
+            machine.attached_data_application = attachment;
+        }
+        prepare(&mut program).unwrap();
+        assert_eq!(program.deferred_refusal(main).is_some(), attached);
+        assert_eq!(
+            program
+                .machine_specializations
+                .iter()
+                .any(|row| row.template == relay.machine),
+            !attached
+        );
+    }
+}
+
+#[test]
+fn a_retained_type_parameter_stays_open_and_keeps_its_selected_declaration() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        boolean,
+        ..
+    } = source();
+    let mut selected = argument(relay.parameter, "T");
+    selected.type_reference = program
+        .static_operand_type_reference_in_scope(&selected, relay.machine)
+        .expect("the authored type argument retains its original scope");
+    assert!(
+        !program
+            .prepare_data_application_view(selected.type_reference)
+            .unwrap(),
+        "an open parameter is not a closed data application"
+    );
+    let operand = super::Operand::read(
+        &mut program,
+        &TypeParameter {
+            symbol: forward.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+        &selected,
+        relay.machine,
+    )
+    .unwrap_or_else(|_| panic!("an open type parameter can be passed to another generic body"));
+    assert!(operand.is_open(&program));
+    assert_eq!(operand.declaration(), Some(relay.parameter));
+    assert_eq!(
+        operand.value,
+        StaticMachineBindingValue::Type(selected.type_reference)
+    );
+    assert_eq!(
+        program
+            .type_reference_table
+            .operand_lifetime_owner(selected.type_reference),
+        relay.machine
+    );
+
+    let mut changed = selected.clone();
+    changed.symbol = boolean;
+    assert!(super::named_type(&mut program, &changed, relay.machine).is_err());
+    let parameters = program
+        .machine_by_symbol(relay.machine)
+        .unwrap()
+        .type_parameters;
+    let carrier = named(&mut program, boolean, "bool");
+    program
+        .data_type_parameters
+        .get_mut(parameters.start())
+        .kind = TypeParameterKind::Const {
+        type_reference: carrier,
+    };
+    assert!(
+        super::named_type(&mut program, &selected, relay.machine).is_err(),
+        "a const parameter cannot be passed as a type"
+    );
+}
+
+#[test]
+fn a_closed_type_application_enters_one_generated_machine_per_argument_tuple() {
+    let Source {
+        mut program,
+        byte,
+        boolean,
+        relay,
+        main,
+        ..
+    } = source();
+    prepare(&mut program).expect("the pass refuses no program");
+
+    let entered = calls(&program, main)
+        .iter()
+        .map(|call| {
+            // The generated machine has no parameter left to apply.
+            assert!(call.machine_arguments.is_empty());
+            call.target_symbol
+        })
+        .collect::<Vec<_>>();
+    let [at_byte, again, at_boolean] = entered[..] else {
+        panic!("three calls");
+    };
+    assert_eq!(at_byte, again, "one application, one machine");
+    assert_ne!(at_byte, at_boolean);
+
+    for (state, applied) in [(at_byte, byte), (at_boolean, boolean)] {
+        // The derivation names the generic machine's own state.
+        assert_eq!(program.symbols.get(state).generated_from, relay.state);
+        let machine = program.symbols.get(state).parent;
+        let generated = program.machine_by_symbol(machine).expect("generated");
+        assert!(program.machine_type_parameters(generated).is_empty());
+        let state = only_state(&program, machine);
+        let Some([item]) = program.state_parameters(state).as_array() else {
+            panic!("one formal");
+        };
+        assert_ne!(item.symbol, relay.item);
+        assert_eq!(named_symbol(&program, item.type_reference), applied);
+        assert_eq!(named_symbol(&program, state.return_type), applied);
+        // The contract speaks of the generated machine's own formal.
+        let Some([contract]) = program.machine_contracts(generated).as_array() else {
+            panic!("one clause");
+        };
+        let Some([ProofFact::Expression(promised)]) =
+            program.proof_facts.span_or_empty(contract.facts).as_array()
+        else {
+            panic!("one fact");
+        };
+        let ExpressionNode::Name(path) = program.expression_table.expression(*promised) else {
+            panic!("a name");
+        };
+        assert_eq!(path.symbol, item.symbol);
+        assert_eq!(
+            program
+                .executable_application_template(machine)
+                .expect("one template"),
+            Some(relay.machine)
+        );
+    }
+
+    // The generic machine is left as written.
+    let Some([item]) = program
+        .state_parameters(only_state(&program, relay.machine))
+        .as_array()
+    else {
+        panic!("one formal");
+    };
+    assert_eq!(named_symbol(&program, item.type_reference), relay.parameter);
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn a_query_name_without_query_identity_still_specializes() {
+    let Source {
+        mut program,
+        relay,
+        main,
+        ..
+    } = source_named("schema");
+    assert_eq!(program.symbols.name(relay.machine), "schema");
+    assert!(program.core_vocabulary(relay.machine).is_none());
+    prepare(&mut program).expect("the ordinary generic call is served");
+    let selected = calls(&program, main);
+    assert_eq!(selected.len(), 3);
+    for call in selected {
+        assert!(call.machine_arguments.is_empty());
+        assert_eq!(
+            program.symbols.get(call.target_symbol).generated_from,
+            relay.state
+        );
+        let generated = program.symbols.get(call.target_symbol).parent;
+        assert_eq!(
+            program.executable_application_template(generated).unwrap(),
+            Some(relay.machine)
+        );
+    }
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn copied_pattern_types_are_owned_by_each_application_not_the_template() {
+    use crate::source_state::expression::{
+        MatchPattern, TableDestructurePattern, TableMatchArm, TableMatchExpression,
+    };
+    let Source {
+        mut program,
+        byte,
+        boolean,
+        relay,
+        main,
+        ..
+    } = source();
+    let reference = named(&mut program, relay.parameter, "T");
+    let subject = name(&mut program, relay.item, "item");
+    let arms = program.expression_table.insert_match_arms([TableMatchArm {
+        pattern: MatchPattern::Destructure(TableDestructurePattern {
+            application_type: reference,
+            ..Default::default()
+        }),
+        value: subject,
+        ..Default::default()
+    }]);
+    let dispatch = program
+        .expression_table
+        .insert(ExpressionNode::Match(TableMatchExpression {
+            subject,
+            arms,
+            ..Default::default()
+        }));
+    program
+        .expression_table
+        .set_constructed_value_type_reference(dispatch, reference);
+    program
+        .expression_table
+        .set_construction_required_type_reference(dispatch, reference);
+    let statement = returns(&mut program, dispatch);
+    let statements = program.statement_table.insert_statements([statement]);
+    let state = program
+        .machine_by_symbol(relay.machine)
+        .unwrap()
+        .states
+        .start();
+    program.machine_states.get_mut(state).statement_nodes = statements;
+
+    prepare(&mut program).expect("the pattern application is copied");
+    for (call, expected) in calls(&program, main).iter().zip([byte, byte, boolean]) {
+        let machine = program.symbols.get(call.target_symbol).parent;
+        let state = only_state(&program, machine);
+        let mut found = false;
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            for (_, root) in program.tables.expression_roots(statement) {
+                program.subtree_for_each(root, Default::default(), |handle, node| {
+                    if let ExpressionNode::Match(dispatch) = node {
+                        let MatchPattern::Destructure(pattern) =
+                            program.expression_table.match_arms(dispatch.arms)[0].pattern
+                        else {
+                            panic!("destructure");
+                        };
+                        assert_ne!(pattern.application_type, reference);
+                        assert_eq!(named_symbol(&program, pattern.application_type), expected);
+                        assert_eq!(
+                            named_symbol(
+                                &program,
+                                program
+                                    .expression_table
+                                    .constructed_value_type_reference(handle)
+                            ),
+                            expected
+                        );
+                        assert_eq!(
+                            named_symbol(
+                                &program,
+                                program
+                                    .expression_table
+                                    .construction_required_type_reference(handle)
+                            ),
+                            expected
+                        );
+                        found = true;
+                    }
+                });
+            }
+        }
+        assert!(found);
+    }
+    assert_eq!(
+        named_symbol(&program, reference),
+        relay.parameter,
+        "the generic declaration is unchanged"
+    );
+}
+
+#[test]
+fn generated_entry_ownership_refuses_missing_foreign_and_ambiguous_correspondence() {
+    let Source {
+        mut program,
+        relay,
+        forward,
+        main,
+        ..
+    } = source();
+    prepare(&mut program).unwrap();
+    let entry = calls(&program, main)[0].target_symbol;
+    let machine = program.symbols.get(entry).parent;
+    let position = program
+        .machine_specializations
+        .iter()
+        .position(|row| row.instance == machine)
+        .unwrap();
+    let row = program.machine_specializations[position].clone();
+    assert_eq!(
+        program.executable_callable_template(entry).unwrap(),
+        Some(relay.state)
+    );
+
+    program
+        .machine_specializations
+        .edit(|rows| rows[position].states = HandleSpan::empty());
+    assert!(
+        program.executable_callable_template(entry).is_err(),
+        "symbol provenance must not repair missing application ownership"
+    );
+    program
+        .machine_specializations
+        .edit(|rows| rows[position].states = row.states);
+    program
+        .captured_machine_states
+        .get_mut(row.states.start())
+        .template = forward.state;
+    assert!(
+        program.executable_callable_template(entry).is_err(),
+        "another template's state cannot be substituted"
+    );
+    program
+        .captured_machine_states
+        .get_mut(row.states.start())
+        .template = relay.state;
+    program.machine_specializations.push(row);
+    assert!(program.machine_specialization(machine).is_none());
+    assert!(program.executable_application_template(machine).is_err());
+    assert!(program.executable_callable_template(entry).is_err());
+}
+
+#[test]
+fn a_source_application_key_uses_bound_arguments_not_generated_names() {
+    let mut first = source();
+    let mut later = source();
+    later.program.symbols.insert_generated_root_from(
+        later.relay.machine,
+        SymbolKind::Machine,
+        "unrelated",
+    );
+    prepare(&mut first.program).unwrap();
+    prepare(&mut later.program).unwrap();
+    let selected = |source: &Source, ordinal: usize| {
+        let entry = calls(&source.program, source.main)[ordinal].target_symbol;
+        source
+            .program
+            .machine_specialization(source.program.symbols.get(entry).parent)
+            .unwrap()
+            .clone()
+    };
+    let at_byte = selected(&first, 0);
+    let later_byte = selected(&later, 0);
+    assert_ne!(
+        first.program.symbols.name(at_byte.instance),
+        later.program.symbols.name(later_byte.instance)
+    );
+    let key = first
+        .program
+        .specialization_source_identity(&at_byte)
+        .unwrap();
+    assert_eq!(
+        key,
+        later
+            .program
+            .specialization_source_identity(&later_byte)
+            .unwrap()
+    );
+    assert_ne!(
+        key,
+        first
+            .program
+            .specialization_source_identity(&selected(&first, 2))
+            .unwrap()
+    );
+    let mut wrong = at_byte.clone();
+    wrong.binding_application = selected(&first, 2).binding_application;
+    assert_ne!(
+        key,
+        first
+            .program
+            .specialization_source_identity(&wrong)
+            .unwrap()
+    );
+    first
+        .program
+        .expression_table
+        .set_static_machine_application_bindings(at_byte.binding_application, &[]);
+    assert!(
+        first
+            .program
+            .specialization_source_identity(&at_byte)
+            .is_err()
+    );
+}
+
+#[test]
+fn an_application_inside_a_generated_body_is_served_in_turn() {
+    let Source {
+        mut program,
+        byte,
+        forward,
+        relay,
+        main,
+        ..
+    } = source();
+    prepare(&mut program).expect("the pass refuses no program");
+
+    // `forward<T>` in the generic `relay` stays open: it is bound to the
+    // parameter and still enters the generic `forward`.
+    let [open] = calls(&program, relay.machine)[..] else {
+        panic!("one call");
+    };
+    assert_eq!(open.target_symbol, forward.state);
+    let [binding] = program
+        .expression_table
+        .static_machine_application_bindings(open.authored_machine_application)
+    else {
+        panic!("one binding");
+    };
+    assert_eq!(binding.parameter, forward.parameter);
+    let StaticMachineBindingValue::Type(bound) = &binding.value else {
+        panic!("a type");
+    };
+    assert_eq!(named_symbol(&program, *bound), relay.parameter);
+    assert!(program.deferred_refusal(relay.machine).is_none());
+
+    // In `relay` at `u8` the same call is `forward<u8>` and enters the
+    // machine generated for it.
+    let at_byte = program
+        .symbols
+        .get(calls(&program, main)[0].target_symbol)
+        .parent;
+    let [closed] = calls(&program, at_byte)[..] else {
+        panic!("one call");
+    };
+    assert!(closed.machine_arguments.is_empty());
+    assert_eq!(
+        program.symbols.get(closed.target_symbol).generated_from,
+        forward.state
+    );
+    let forwarded = only_state(&program, program.symbols.get(closed.target_symbol).parent);
+    let Some([item]) = program.state_parameters(forwarded).as_array() else {
+        panic!("one formal");
+    };
+    assert_eq!(named_symbol(&program, item.type_reference), byte);
+    // `relay` and `forward`, each at `u8` and at `bool`.
+    assert_eq!(program.machine_specializations.len(), 4);
+}
+
+/// `source()` with `counted`'s one call given the integer literal `value`
+/// as typing records one: `sized<value>()`.
+fn counted_at(value: i64) -> Source {
+    let mut source = source();
+    let literal = StaticMachineArgument {
+        const_literal: Some(numeric_literals::IntegerLiteral::from_value(value)),
+        ..StaticMachineArgument::default()
+    };
+    let program = &mut source.program;
+    let statements = only_state(program, source.counted).statement_nodes;
+    let handle = statements.handles().next().expect("one call");
+    let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
+        panic!("one call");
+    };
+    call.machine_arguments = Box::new([literal.clone()]);
+    let application = call.authored_machine_application;
+    program
+        .expression_table
+        .static_machine_application_arguments_mut(application)[0] = literal;
+    source
+}
+
+/// A value parameter given one integer literal is served like a type
+/// parameter: the call enters a machine generated for that value, the
+/// application binds the parameter as a constant of its declared type, and
+/// where the copied contract named the parameter it holds the literal,
+/// landed in the parameter's type. The generic machine keeps the name.
+#[test]
+fn a_literal_value_application_enters_a_machine_with_the_value_in_place() {
+    let Source {
+        mut program,
+        sized_state,
+        counted,
+        ..
+    } = counted_at(3);
+    prepare(&mut program).expect("the pass refuses no program");
+
+    let state = only_state(&program, counted);
+    let [StatementNode::Call(call)] = program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("one call");
+    };
+    assert!(program.deferred_refusal(counted).is_none());
+    assert_ne!(call.target_symbol, sized_state);
+    assert!(call.machine_arguments.is_empty());
+    let [binding] = program
+        .expression_table
+        .static_machine_application_bindings(call.authored_machine_application)
+    else {
+        panic!("one binding");
+    };
+    assert!(matches!(binding.value, StaticMachineBindingValue::Const(_)));
+
+    let generated = program.symbols.get(call.target_symbol).parent;
+    let sized = program.symbols.get(sized_state).parent;
+    let source_operand = program
+        .specialization_source_operand(program.machine_specialization(generated).unwrap())
+        .unwrap();
+    assert_eq!(
+        source_operand.application.unwrap().arguments[0]
+            .const_literal
+            .as_ref()
+            .unwrap()
+            .canonical_spelling()
+            .as_str(),
+        "3",
+        "Build captures the same literal, not the parameter's receiving type"
+    );
+    let promised = |machine: SymbolHandle| {
+        let machine = program.machine_by_symbol(machine).expect("a machine");
+        let Some([contract]) = program.machine_contracts(machine).as_array() else {
+            panic!("one contract");
+        };
+        let Some([ProofFact::Expression(expression)]) =
+            program.proof_facts.span_or_empty(contract.facts).as_array()
+        else {
+            panic!("one fact");
+        };
+        program.expression_table.expression(*expression).clone()
+    };
+    let ExpressionNode::Integer(literal) = promised(generated) else {
+        panic!("the generated machine promises a literal");
+    };
+    assert_eq!(literal.canonical_spelling().as_str(), "3");
+    assert_eq!(
+        literal.landing().map(|landing| landing.landed_type),
+        Some(numeric_literals::LandedIntegerType::U64)
+    );
+    assert!(matches!(promised(sized), ExpressionNode::Name(_)));
+    assert!(
+        program
+            .machine_by_symbol(generated)
+            .is_some_and(|machine| { machine.type_parameters.is_empty() })
+    );
+}
+
+/// One value, one machine: two programs that differ only in the literal
+/// name their generated machines apart, and the machine is keyed by the
+/// value, not by where the call stands.
+#[test]
+fn a_generated_machine_is_named_for_its_value() {
+    let generated_application = |value| {
+        let Source {
+            mut program,
+            counted,
+            ..
+        } = counted_at(value);
+        prepare(&mut program).expect("the pass refuses no program");
+        let state = only_state(&program, counted);
+        let [StatementNode::Call(call)] = program.statement_table.statements(state.statement_nodes)
+        else {
+            panic!("one call");
+        };
+        let machine = program.symbols.get(call.target_symbol).parent;
+        (
+            program.symbols.name(machine).to_owned(),
+            program
+                .specialization_source_identity(program.machine_specialization(machine).unwrap())
+                .unwrap(),
+        )
+    };
+    assert_eq!(generated_application(3), generated_application(3));
+    let three = generated_application(3);
+    let four = generated_application(4);
+    assert_ne!(three.0, four.0);
+    assert_ne!(three.1, four.1, "the source key retains the static value");
+    assert!(four.0.starts_with("sized$specialized$4$"));
+}
+
+#[test]
+fn an_application_the_pass_does_not_serve_is_refused_on_its_holder_only() {
+    let Source {
+        mut program,
+        sized_state,
+        main,
+        counted,
+        ..
+    } = source();
+    prepare(&mut program).expect("the pass refuses no program");
+
+    let state = only_state(&program, counted);
+    let [StatementNode::Call(call)] = program.statement_table.statements(state.statement_nodes)
+    else {
+        panic!("one call");
+    };
+    // The call is as typing wrote it: nothing was generated for it.
+    assert_eq!(call.target_symbol, sized_state);
+    assert_eq!(call.machine_arguments.len(), 1);
+    assert!(
+        program
+            .expression_table
+            .static_machine_application_bindings(call.authored_machine_application)
+            .is_empty()
+    );
+    assert_eq!(
+        program.deferred_refusal(counted).map(|row| row.request),
+        Some(DeferredRequest::StaticApplication)
+    );
+    assert_eq!(
+        program.deferred_refusal(counted).unwrap().detail,
+        "a static scalar requires its canonical closed value"
+    );
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn scalar_specialization_keeps_the_carrier_refusal_and_open_parameter() {
+    let Source {
+        mut program,
+        byte,
+        sized_state,
+        ..
+    } = source();
+    let sized = program.symbols.get(sized_state).parent;
+    let parameters = program.machine_callable_parameters(program.machine_by_symbol(sized).unwrap());
+    let parameter = &parameters[0];
+    let TypeParameterKind::Const {
+        type_reference: parameter_carrier,
+    } = &parameter.kind
+    else {
+        panic!("one const value binder");
+    };
+    let carrier = named(&mut program, byte, "u8");
+    let negative = StaticMachineArgument {
+        const_literal: Some(numeric_literals::IntegerLiteral::from_value(-1)),
+        ..StaticMachineArgument::default()
+    };
+    assert!(matches!(
+        super::closed_scalar(&program, carrier, &negative),
+        Err(super::Stop::Unserved(reason)) if reason == "a static integer is outside its declared carrier"
+    ));
+    assert!(matches!(
+        super::closed_scalar(&program, *parameter_carrier, &argument(parameter.symbol, "N")),
+        Ok(super::Scalar::Parameter(symbol)) if symbol == parameter.symbol
+    ));
+}
+
+#[test]
+fn a_repeated_template_binder_reports_the_failed_check_before_copying() {
+    let Source {
+        mut program, relay, ..
+    } = source();
+    let position = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == relay.machine)
+        .unwrap();
+    let binder = program.machine_type_parameters(&program.machines()[position])[0].clone();
+    let binders = program
+        .data_type_parameters
+        .insert_many([binder.clone(), binder]);
+    program.machine_mut(position).type_parameters = binders;
+    let symbols = program.symbols.symbols().len();
+    assert!(matches!(
+        super::template(&program, relay.machine),
+        Err(super::Stop::Unserved(reason)) if reason == "a declaration template repeats a callable binder"
+    ));
+    assert_eq!(program.symbols.symbols().len(), symbols);
+}
+
+#[test]
+fn implementation_selection_keeps_the_owned_requirement_lookup_error() {
+    let mut builder = SymbolTableBuilder::new();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        [
+            (SymbolKind::Machine, SymbolNameRef::Static("owner")),
+            (SymbolKind::Conformance, SymbolNameRef::Static("selected")),
+        ],
+    );
+    let owner = declarations.handle_at(0);
+    let selected = declarations.handle_at(1);
+    let binder = builder
+        .insert_children(
+            owner,
+            [(
+                SymbolKind::ConformanceParameter,
+                SymbolNameRef::Static("Map"),
+            )],
+        )
+        .handle_at(0);
+    builder.insert_children(
+        binder,
+        [(SymbolKind::State, SymbolNameRef::Static("apply"))],
+    );
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    program.push_conformance(crate::source_state::trait_definition::Conformance {
+        symbol: selected,
+        ..Default::default()
+    });
+    let selected = argument(selected, "selected");
+    let operand = super::Operand {
+        parameter: binder,
+        identity: super::Identity::Declaration(selected.symbol),
+        value: StaticMachineBindingValue::Conformance(selected.clone()),
+        argument: selected,
+        scalar: None,
+    };
+    // The missing owner record makes the shared lookup return an owned error.
+    assert!(matches!(
+        super::selections(&program, &[operand]),
+        Err(super::Stop::Unserved(std::borrow::Cow::Owned(reason)))
+            if reason == "evidence child lost its declaring bound owner"
+    ));
+}
+
+#[test]
+fn nested_declarations_keep_each_enclosing_application_and_their_own_call_owner() {
+    let Source {
+        mut program,
+        byte,
+        boolean,
+        relay,
+        nested,
+        main,
+        ..
+    } = source_with_nested("relay", true);
+    let nested = nested.unwrap();
+    prepare(&mut program).unwrap();
+    let entered = calls(&program, main)
+        .iter()
+        .map(|call| call.target_symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(entered[0], entered[1]);
+    assert_ne!(entered[0], entered[2]);
+    let mut children = Vec::new();
+    for (entry, actual) in [(entered[0], byte), (entered[2], boolean)] {
+        let owner = program.symbols.get(entry).parent;
+        let child_call = calls(&program, owner)[0];
+        assert!(child_call.machine_arguments.is_empty());
+        let child_entry = child_call.target_symbol;
+        let child = program.symbols.get(child_entry).parent;
+        children.push(child);
+        assert_eq!(program.symbols.get(child).parent, entry);
+        assert_eq!(program.symbols.get(child).generated_from, nested.machine);
+        assert_eq!(
+            program.symbols.get(child_entry).generated_from,
+            nested.state
+        );
+        assert_eq!(
+            program.executable_application_template(child).unwrap(),
+            Some(nested.machine)
+        );
+        let state = only_state(&program, child);
+        let Some([item]) = program.state_parameters(state).as_array() else {
+            panic!("one formal");
+        };
+        assert_ne!(item.symbol, nested.item);
+        assert_eq!(named_symbol(&program, item.type_reference), actual);
+        assert_eq!(named_symbol(&program, state.return_type), actual);
+        let call = calls(&program, child)[0];
+        let selected = program.symbols.get(call.target_symbol).parent;
+        assert_eq!(
+            named_symbol(&program, only_state(&program, selected).return_type),
+            actual
+        );
+        assert_eq!(
+            program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner,
+            child
+        );
+        let receipt = program.machine_specialization(child).unwrap();
+        assert_eq!(
+            program
+                .data_type_parameters
+                .span_or_empty(receipt.template_parameters),
+            program.machine_type_parameters(program.machine_by_symbol(relay.machine).unwrap()),
+            "a retained prefix preserves the complete binder declarations, not its arena span"
+        );
+        assert_eq!(
+            program
+                .machine_specialization(owner)
+                .unwrap()
+                .binding_application,
+            receipt.binding_application
+        );
+    }
+    assert_ne!(children[0], children[1]);
+    assert_eq!(
+        named_symbol(&program, only_state(&program, nested.machine).return_type),
+        relay.parameter
+    );
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn an_independent_child_type_keeps_its_captured_prefix_and_own_application() {
+    let Source {
+        mut program,
+        relay,
+        nested,
+        main,
+        ..
+    } = source_with_child_telescope("relay", true, true);
+    let nested = nested.unwrap();
+    prepare(&mut program).unwrap();
+    for call in calls(&program, main) {
+        let parent = program.symbols.get(call.target_symbol).parent;
+        let call = calls(&program, parent)[0];
+        let child = program.symbols.get(call.target_symbol).parent;
+        assert!(
+            program
+                .machine_instantiation_path(child, nested.machine)
+                .is_some()
+        );
+        assert!(
+            program
+                .machine_by_symbol(child)
+                .unwrap()
+                .type_parameters
+                .is_empty()
+        );
+    }
+    assert!(program.deferred_refusal(main).is_none());
+    assert_ne!(nested.parameter, relay.parameter);
+}
+
+#[test]
+fn an_unserved_child_telescope_leaves_the_whole_specialization_unwritten() {
+    let Source {
+        mut program,
+        relay,
+        nested,
+        main,
+        ..
+    } = source_with_child_telescope("relay", true, true);
+    let nested = nested.unwrap();
+    assert_ne!(nested.parameter, relay.parameter);
+    assert_eq!(program.symbols.get(nested.parameter).parent, nested.machine);
+    // Independent type binders are supported. This twin instead retains an
+    // independent const binder with its real scalar carrier and captured T.
+    let wide = program
+        .symbols
+        .builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::unsigned(64)))
+        .unwrap();
+    let wide_type = named(&mut program, wide, "u64");
+    let child = program.machine_by_symbol(nested.machine).unwrap();
+    let own = child.type_parameters.handles().last().unwrap();
+    let child_state = child.states.start();
+    program.data_type_parameters.get_mut(own).kind = TypeParameterKind::Const {
+        type_reference: wide_type,
+    };
+    let enclosing = named(&mut program, relay.parameter, "T");
+    let item = program.machine_states.get(child_state).parameters.start();
+    program.state_parameters.get_mut(item).type_reference = enclosing;
+    program.machine_states.get_mut(child_state).return_type = enclosing;
+    let call = calls(&program, nested.machine)[0].clone();
+    let inner = call.authored_machine_application;
+    program
+        .expression_table
+        .set_static_machine_application_arguments(inner, &[argument(relay.parameter, "T")]);
+    let source_call = calls(&program, relay.machine)[0].authored_machine_application;
+    let literal = StaticMachineArgument {
+        const_literal: Some(numeric_literals::IntegerLiteral::from_value(3)),
+        ..Default::default()
+    };
+    program
+        .expression_table
+        .set_static_machine_application_arguments(
+            source_call,
+            &[argument(relay.parameter, "T"), literal],
+        );
+    let call_rows = program.expression_table.iter_expressions().filter_map(|(handle, node)| {
+        matches!(node, ExpressionNode::Call(call) if call.authored_machine_application == inner || call.authored_machine_application == source_call).then_some(handle)
+    }).collect::<Vec<_>>();
+    for handle in call_rows {
+        let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+            unreachable!()
+        };
+        let actuals = program
+            .expression_table
+            .static_machine_application_arguments(call.authored_machine_application)
+            .to_vec();
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            unreachable!()
+        };
+        call.machine_arguments = actuals.into_boxed_slice();
+    }
+    let symbols = program.symbols.symbols().len();
+    let machines = program.machines().len();
+    prepare(&mut program).unwrap();
+    assert_eq!(program.symbols.symbols().len(), symbols);
+    assert_eq!(program.machines().len(), machines);
+    assert!(program.deferred_refusal(main).is_some());
+}
+
+#[test]
+fn an_existing_nested_copy_does_not_accept_another_argument_or_source_selection() {
+    for foreign_owner in [false, true] {
+        let Source {
+            mut program,
+            byte,
+            boolean,
+            main,
+            forward,
+            ..
+        } = source_with_nested("relay", true);
+        prepare(&mut program).unwrap();
+        let owner = program
+            .symbols
+            .get(calls(&program, main)[0].target_symbol)
+            .parent;
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == owner)
+            .unwrap();
+        let site = super::call_sites(&program, position)[0];
+        let child = super::entered_machine(&program, site.applied(&program).unwrap().target)
+            .unwrap()
+            .0;
+        let requested = if foreign_owner { byte } else { boolean };
+        let argument = argument(requested, if foreign_owner { "u8" } else { "bool" });
+        let application = site.call(&program).unwrap().application();
+        let super::Site::Expression(handle) = site else {
+            panic!("fixture expression");
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            panic!("fixture call");
+        };
+        call.machine_arguments = vec![argument.clone()].into_boxed_slice();
+        program
+            .expression_table
+            .static_machine_application_arguments_mut(application)[0] = argument;
+        if foreign_owner {
+            let foreign = program
+                .machine_specializations
+                .iter()
+                .find(|row| row.template == forward.machine)
+                .unwrap()
+                .binding_application;
+            program.machine_specializations.edit(|rows| {
+                rows.iter_mut()
+                    .find(|row| row.instance == child)
+                    .unwrap()
+                    .binding_application = foreign
+            });
+        }
+        let symbols = program.symbols.symbols().len();
+        prepare(&mut program).unwrap();
+        assert_eq!(program.symbols.symbols().len(), symbols);
+        assert_eq!(
+            program.deferred_refusal(owner).map(|row| row.request),
+            Some(DeferredRequest::StaticApplication)
+        );
+        assert_eq!(calls(&program, owner)[0].machine_arguments.len(), 1);
+    }
+}
+
+#[test]
+fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
+    let mut builder = SymbolTableBuilder::default();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
+            (SymbolKind::Machine, SymbolNameRef::Static("owner")),
+        ],
+    );
+    let byte = declarations.handle_at(0);
+    let boolean = declarations.handle_at(1);
+    let owner = declarations.handle_at(2);
+    let binders = builder.insert_children(
+        owner,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("Unused")),
+        ],
+    );
+    let parameters = binders
+        .handles()
+        .zip(["T", "Unused"])
+        .map(|(symbol, name)| TypeParameter {
+            symbol,
+            name: Identifier::generated(name),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let actual = [argument(byte, "u8"), argument(boolean, "bool")];
+    let application = program.expression_table.retain_static_machine_application(
+        owner,
+        Identifier::generated("owner"),
+        &actual,
+    );
+    let selected = parameters
+        .iter()
+        .zip(&actual)
+        .map(|(parameter, argument)| {
+            super::Operand::read(&mut program, parameter, argument, owner)
+                .unwrap_or_else(|_| panic!("closed argument"))
+        })
+        .collect::<Vec<_>>();
+    super::bind(&mut program, application, &selected);
+    assert!(
+        super::bound_arguments(&mut program, &parameters, &parameters, application, &actual)
+            .is_ok()
+    );
+    let different_unused = [argument(byte, "u8"), argument(byte, "u8")];
+    assert!(matches!(
+        super::bound_arguments(
+            &mut program,
+            &parameters,
+            &parameters,
+            application,
+            &different_unused
+        ),
+        Err(super::Stop::Unserved(reason)) if reason == "a captured static argument is open or differs from its selected value"
+    ));
+}
+
+#[test]
+fn copied_headers_retain_written_empty_and_nonempty_reach_rows() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        ..
+    } = source();
+    let service =
+        program
+            .symbols
+            .insert_generated_root_from(forward.machine, SymbolKind::Trait, "Service");
+    for (owner, targets) in [
+        (relay.machine, Vec::new()),
+        (
+            forward.machine,
+            vec![crate::source_state::signature::AuthoredServiceReachTarget {
+                service,
+                source_span: Default::default(),
+            }],
+        ),
+    ] {
+        program.authored_service_reach_rows.push(
+            crate::source_state::signature::AuthoredServiceReachRow {
+                owner,
+                keyword_source_spans: vec![Default::default()],
+                targets,
+                installation_bound: false,
+            },
+        );
+    }
+    prepare(&mut program).unwrap();
+    for template in [relay.machine, forward.machine] {
+        let original = program
+            .authored_service_reach_rows_for(template)
+            .next()
+            .unwrap();
+        let mut count = 0;
+        for row in program
+            .machine_specializations
+            .iter()
+            .filter(|row| row.template == template)
+        {
+            let copied = program
+                .authored_service_reach_rows_for(row.instance)
+                .collect::<Vec<_>>();
+            assert_eq!(copied.len(), 1);
+            let mut expected = original.clone();
+            expected.owner = row.instance;
+            assert_eq!(copied[0], &expected);
+            count += 1;
+        }
+        assert!(count > 0);
+    }
+}
+
+#[test]
+fn an_installation_bound_reach_row_remains_unserved_before_copying() {
+    let Source {
+        mut program,
+        relay,
+        main,
+        ..
+    } = source();
+    program.authored_service_reach_rows.push(
+        crate::source_state::signature::AuthoredServiceReachRow {
+            owner: relay.machine,
+            keyword_source_spans: vec![Default::default()],
+            targets: Vec::new(),
+            installation_bound: true,
+        },
+    );
+    let count = program.machines().len();
+    prepare(&mut program).unwrap();
+    assert_eq!(program.machines().len(), count);
+    assert!(program.deferred_refusal(main).is_some());
+}
+
+#[test]
+fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
+    use declaration_contracts::ProgressPremise;
+    use declaration_contracts::ProgressSubject;
+    use declaration_contracts::RankingViewId;
+    use declaration_contracts::RankingWitness;
+    use declaration_contracts::SemanticDomainId;
+    use declaration_contracts::TerminationGuarantee;
+    use declaration_contracts::TerminationInterface;
+
+    for missing_custody in [false, true] {
+        let Source {
+            mut program,
+            relay,
+            main,
+            ..
+        } = source();
+        let subject = name(&mut program, relay.item, "item");
+        let witness = RankingWitness {
+            subjects: vec!["item".into()],
+            ranking_view: RankingViewId::NAT_DESCENDING,
+            view_path: "Nat::Descending".into(),
+            ..RankingWitness::default()
+        };
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == relay.machine)
+            .unwrap();
+        let original = program.machine_mut(position);
+        original.termination_plan.interface =
+            TerminationInterface::Published(TerminationGuarantee::Terminates {
+                premises: vec![ProgressPremise {
+                    profile: SemanticDomainId::default(),
+                    subject: ProgressSubject {
+                        root: relay.item,
+                        projections: Vec::new(),
+                    },
+                }],
+            });
+        original.termination_plan.implementation_witness = Some(witness.clone());
+        let original_plan = original.termination_plan.clone();
+        if !missing_custody {
+            program.ranking_expression_custody.push(
+                crate::source_state::ranking::RankingExpressionCustody {
+                    machine: relay.machine,
+                    subjects: vec![subject],
+                    ..Default::default()
+                },
+            );
+        }
+        prepare(&mut program).unwrap();
+        if missing_custody {
+            assert!(
+                program
+                    .deferred_refusal(main)
+                    .unwrap()
+                    .detail
+                    .contains("original expression custody")
+            );
+            assert_eq!(calls(&program, main)[0].target_symbol, relay.state);
+            continue;
+        }
+        let mut copied_subjects = Vec::new();
+        for call in [calls(&program, main)[0], calls(&program, main)[2]] {
+            let owner = program.symbols.get(call.target_symbol).parent;
+            let machine = program.machine_by_symbol(owner).unwrap();
+            let Some([formal]) = program
+                .state_parameters(only_state(&program, owner))
+                .as_array()
+            else {
+                panic!("one copied formal");
+            };
+            assert_ne!(formal.symbol, relay.item);
+            let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
+                &machine.termination_plan.interface
+            else {
+                panic!("the original public promise survives");
+            };
+            assert_eq!(premises.len(), 1);
+            assert_eq!(premises[0].subject.root, formal.symbol);
+            assert_eq!(
+                machine.termination_plan.checked_summary,
+                TerminationGuarantee::NoGuarantee
+            );
+            assert_eq!(
+                machine.termination_plan.implementation_witness,
+                Some(witness.clone())
+            );
+            let custody = program.ranking_expression_custody_for(owner).unwrap();
+            let [copied] = custody.subjects.as_slice() else {
+                panic!("one copied ranking subject");
+            };
+            assert_ne!(*copied, subject);
+            assert_eq!(
+                program
+                    .expression_table
+                    .name_path_node(*copied)
+                    .unwrap()
+                    .symbol,
+                formal.symbol
+            );
+            copied_subjects.push(*copied);
+        }
+        assert_ne!(copied_subjects[0], copied_subjects[1]);
+        assert_eq!(
+            program
+                .machine_by_symbol(relay.machine)
+                .unwrap()
+                .termination_plan,
+            original_plan
+        );
+        assert_eq!(
+            program
+                .expression_table
+                .name_path_node(subject)
+                .unwrap()
+                .symbol,
+            relay.item
+        );
+    }
+}
+
+#[test]
+fn the_application_index_finds_each_generated_machine_by_its_complete_key() {
+    // Applications of three unrelated templates arrive interleaved and out of
+    // key order. Each distinct (template, arguments) key gets one row, rows
+    // keep encounter order, and an equal key from another template or with
+    // another argument kind is a different application.
+    use super::{Generated, GeneratedMachines, Identity};
+    let templates = [3, 1, 2].map(|slot| SymbolHandle::from_parts(slot, 1));
+    let arguments = |n: u32| -> Vec<Identity> {
+        match n % 3 {
+            0 => vec![Identity::Declaration(SymbolHandle::from_parts(100 + n, 1))],
+            1 => vec![
+                Identity::Scalar(format!("{n}")),
+                Identity::Declaration(SymbolHandle::from_parts(n, 2)),
+            ],
+            _ => vec![
+                Identity::Type(Default::default()),
+                Identity::Scalar(format!("{n}")),
+            ],
+        }
+    };
+    let requests = (0..300u32)
+        .rev()
+        .flat_map(|n| templates.iter().map(move |&template| (template, n)))
+        .collect::<Vec<_>>();
+    let mut generated = GeneratedMachines::default();
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let key = arguments(n);
+        let slot = generated
+            .search(template, &key)
+            .expect_err("a first request is not yet generated");
+        let made = generated.insert(
+            slot,
+            Generated {
+                template,
+                arguments: key.clone(),
+                machine: SymbolHandle::from_parts(10_000 + order as u32, 1),
+                state: SymbolHandle::from_parts(20_000 + order as u32, 1),
+            },
+        );
+        assert!(made.arguments == key);
+    }
+    for (order, &(template, n)) in requests.iter().enumerate() {
+        let row = generated
+            .search(template, &arguments(n))
+            .expect("a repeated request finds its machine");
+        assert_eq!(row, order, "rows keep the order applications were met");
+        assert_eq!(generated.rows[row].template, template);
+    }
+    // Same payload, different template, generation or argument kind: unseen.
+    let unseen = [
+        (SymbolHandle::from_parts(4, 1), arguments(0)),
+        (
+            templates[0],
+            vec![Identity::Declaration(SymbolHandle::from_parts(100, 2))],
+        ),
+        (templates[0], vec![Identity::Scalar("0".into())]),
+        (templates[0], Vec::new()),
+    ];
+    for (template, key) in unseen {
+        assert!(generated.search(template, &key).is_err());
+    }
+}
+
+struct CallbackConsumer {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    callback: SymbolHandle,
+}
+
+fn callback_consumer(source: &mut Source) -> CallbackConsumer {
+    use crate::source_state::data::MachineParameterContract;
+    use crate::source_state::signature::StateSignature;
+    let program = &mut source.program;
+    let machine =
+        program
+            .symbols
+            .insert_generated_root_from(source.main, SymbolKind::Machine, "consume");
+    let children = program.symbols.insert_generated_children_from(
+        machine,
+        [
+            (
+                source.forward.parameter,
+                SymbolKind::TypeParameter,
+                "Payload",
+            ),
+            (
+                source.forward.machine,
+                SymbolKind::MachineParameter,
+                "Visit",
+            ),
+            (source.forward.state, SymbolKind::State, "entry"),
+        ],
+    );
+    let (payload, callback, state) = (
+        children.handle_at(0),
+        children.handle_at(1),
+        children.handle_at(2),
+    );
+    let item = program
+        .symbols
+        .insert_generated_children_from(
+            state,
+            [(source.forward.item, SymbolKind::Parameter, "item")],
+        )
+        .start();
+    let reference = named(program, payload, "Payload");
+    let parameters = program.state_parameters.insert_many([StateParameter {
+        symbol: item,
+        name: Identifier::from("item"),
+        type_reference: reference,
+        ..Default::default()
+    }]);
+    let type_parameters = program.data_type_parameters.insert_many([
+        TypeParameter {
+            symbol: payload,
+            name: Identifier::from("Payload"),
+            ..Default::default()
+        },
+        TypeParameter {
+            symbol: callback,
+            name: Identifier::from("Visit"),
+            kind: TypeParameterKind::Machine {
+                contract: MachineParameterContract::Structural(StateSignature {
+                    symbol: callback,
+                    parameters,
+                    return_type: reference,
+                    ..Default::default()
+                }),
+            },
+            ..Default::default()
+        },
+    ]);
+    let value = name(program, item, "item");
+    let selected = call(
+        program,
+        machine,
+        callback,
+        "Visit",
+        argument(payload, "Payload"),
+        value,
+    );
+    let ExpressionNode::Call(selected_call) = program.expression_table.expression_mut(selected)
+    else {
+        unreachable!()
+    };
+    selected_call.machine_arguments = Box::default();
+    let application = selected_call.authored_machine_application;
+    program
+        .expression_table
+        .set_static_machine_application_arguments(application, &[]);
+    let body = returns(program, selected);
+    let statement_nodes = program.statement_table.insert_statements([body]);
+    push_machine(
+        program,
+        machine,
+        "consume",
+        type_parameters,
+        HandleSpan::empty(),
+        State {
+            symbol: state,
+            name: Identifier::from("entry"),
+            parameters,
+            return_type: reference,
+            statement_nodes,
+            ..Default::default()
+        },
+    );
+    CallbackConsumer {
+        machine,
+        state,
+        callback,
+    }
+}
+
+fn applied_callback(
+    program: &mut TypedTrees,
+    target: SymbolHandle,
+    arguments: Vec<StaticMachineArgument>,
+) -> StaticMachineArgument {
+    use crate::source_state::expression::StaticSymbolApplication;
+    let ordinal = program.authored_declaration_selections().len();
+    let authored_selection = Some(
+        program
+            .record_resolved_authored_declaration_selection_once(
+                source_text::SourceSpan::new(
+                    Default::default(),
+                    source_text::Span::new(10 + ordinal, 11 + ordinal),
+                ),
+                crate::source_state::AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                crate::source_state::AuthoredDeclarationSelectionKind::StaticArgument,
+                target,
+            )
+            .unwrap(),
+    );
+    StaticMachineArgument {
+        symbol: target,
+        path: Box::from([Identifier::from("selected")]),
+        authored_selection,
+        application: Some(Box::new(StaticSymbolApplication {
+            member: arena::Handle::invalid(),
+            lifetime_arguments: Box::default(),
+            arguments: arguments.into_boxed_slice(),
+        })),
+        ..Default::default()
+    }
+}
+
+fn callback_supply(
+    source: &mut Source,
+) -> crate::source_state::static_applications::StaticMachineApplicationHandle {
+    let application = source
+        .program
+        .expression_table
+        .retain_static_machine_application(source.main, Identifier::from("main"), &[]);
+    source
+        .program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = source.main;
+    application
+}
+
+#[test]
+fn applied_callbacks_close_type_const_and_nested_applications_through_real_receipts() {
+    use super::{GeneratedMachines, close_machine_argument};
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let supplying = callback_supply(&mut source);
+    let mut generated = GeneratedMachines::default();
+    let mut first = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![argument(source.byte, "u8")],
+    );
+    let mut repeated = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![argument(source.byte, "u8")],
+    );
+    let first_selection = first.authored_selection;
+    let repeated_selection = repeated.authored_selection;
+    assert!(
+        close_machine_argument(&mut source.program, supplying, &mut first, &mut generated).unwrap()
+    );
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut repeated,
+            &mut generated
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        first.symbol, repeated.symbol,
+        "equal applications share their generated entry"
+    );
+    assert_ne!(first_selection, repeated_selection);
+    assert_eq!(first.authored_selection, first_selection);
+    assert_eq!(repeated.authored_selection, repeated_selection);
+    let selected = source.program.symbols.get(first.symbol).parent;
+    let receipt = source.program.machine_specialization(selected).unwrap();
+    assert_eq!(receipt.template, source.forward.machine);
+    let StaticMachineBindingValue::Type(actual) = source
+        .program
+        .specialization_binding(receipt, source.forward.parameter)
+        .unwrap()
+    else {
+        panic!("type binding")
+    };
+    assert_eq!(named_symbol(&source.program, *actual), source.byte);
+    assert!(source.program.instantiated_machine_state_matches(
+        selected,
+        source.forward.machine,
+        source.forward.state,
+        first.symbol
+    ));
+
+    let mut already_closed = applied_callback(
+        &mut source.program,
+        first.symbol,
+        vec![argument(source.byte, "u8")],
+    );
+    already_closed.authored_selection = first_selection;
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut already_closed,
+            &mut generated
+        )
+        .unwrap()
+    );
+    assert_eq!(already_closed.symbol, first.symbol);
+    let mut different_actual = applied_callback(
+        &mut source.program,
+        first.symbol,
+        vec![argument(source.boolean, "bool")],
+    );
+    different_actual.authored_selection = first_selection;
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut different_actual,
+            &mut generated
+        )
+        .is_err(),
+        "a retained entry cannot acquire another static tuple"
+    );
+
+    let nested = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![argument(source.byte, "u8")],
+    );
+    let nested_selection = nested.authored_selection;
+    let mut outer = applied_callback(
+        &mut source.program,
+        consumer.state,
+        vec![argument(source.byte, "u8"), nested],
+    );
+    assert!(
+        close_machine_argument(&mut source.program, supplying, &mut outer, &mut generated).unwrap()
+    );
+    let owner = source.program.symbols.get(outer.symbol).parent;
+    let receipt = source.program.machine_specialization(owner).unwrap();
+    let StaticMachineBindingValue::Machine(selected) = source
+        .program
+        .specialization_binding(receipt, consumer.callback)
+        .unwrap()
+    else {
+        panic!("callback binding")
+    };
+    assert_eq!(selected.symbol, first.symbol);
+    assert_eq!(selected.authored_selection, nested_selection);
+    assert!(selected.application.is_none());
+    assert_eq!(
+        source
+            .program
+            .static_machine_binding_position(owner, consumer.callback, first.symbol)
+            .unwrap(),
+        Some(1)
+    );
+
+    let literal = StaticMachineArgument {
+        const_literal: Some(numeric_literals::IntegerLiteral::from_value(3)),
+        ..Default::default()
+    };
+    let mut constant = applied_callback(&mut source.program, source.sized_state, vec![literal]);
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut constant,
+            &mut generated
+        )
+        .unwrap()
+    );
+    let owner = source.program.symbols.get(constant.symbol).parent;
+    let receipt = source.program.machine_specialization(owner).unwrap();
+    let binding = &source
+        .program
+        .expression_table
+        .static_machine_application_bindings(receipt.binding_application)[0]
+        .value;
+    let StaticMachineBindingValue::Const(actual) = binding else {
+        panic!("const binding")
+    };
+    assert_eq!(
+        source
+            .program
+            .static_operand_from_type_reference(*actual)
+            .unwrap()
+            .const_literal
+            .unwrap()
+            .value_i64(),
+        Some(3)
+    );
+
+    let mut wrong_count = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![
+            argument(source.byte, "u8"),
+            argument(source.boolean, "bool"),
+        ],
+    );
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut wrong_count,
+            &mut generated
+        )
+        .is_err()
+    );
+    let mut wrong_const = applied_callback(
+        &mut source.program,
+        source.sized_state,
+        vec![StaticMachineArgument {
+            path: Box::from([Identifier::from("true")]),
+            ..Default::default()
+        }],
+    );
+    assert!(
+        close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut wrong_const,
+            &mut generated
+        )
+        .is_err()
+    );
+}
+
+fn statement_callback_source() -> (
+    Source,
+    CallbackConsumer,
+    Option<crate::source_state::AuthoredDeclarationSelectionOccurrenceId>,
+) {
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let selected = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![argument(source.relay.parameter, "T")],
+    );
+    let selection = selected.authored_selection;
+    let static_arguments = vec![argument(source.relay.parameter, "T"), selected];
+    let program = &mut source.program;
+    let application = program.expression_table.retain_static_machine_application(
+        consumer.state,
+        Identifier::from("consume"),
+        &static_arguments,
+    );
+    program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = source.relay.machine;
+    let item = name(program, source.relay.item, "item");
+    let arguments = program.statement_table.insert_expression_handles([item]);
+    let statement = StatementNode::Call(TableCall {
+        target_symbol: consumer.state,
+        target: Identifier::from("consume"),
+        authored_machine_application: application,
+        machine_arguments: static_arguments.into_boxed_slice(),
+        arguments,
+        ..Default::default()
+    });
+    let item = name(program, source.relay.item, "item");
+    let result = returns(program, item);
+    let statements = program
+        .statement_table
+        .insert_statements([statement, result]);
+    let state = program
+        .machine_by_symbol(source.relay.machine)
+        .unwrap()
+        .states
+        .start();
+    program.machine_states.get_mut(state).statement_nodes = statements;
+    let value = program.expression_table.insert(ExpressionNode::Integer(
+        numeric_literals::IntegerLiteral::from_value(7),
+    ));
+    let invoked = call(
+        program,
+        source.main,
+        source.relay.state,
+        "relay",
+        argument(source.byte, "u8"),
+        value,
+    );
+    let statements = program
+        .statement_table
+        .insert_statements([StatementNode::Expression(invoked)]);
+    let state = program
+        .machine_by_symbol(source.main)
+        .unwrap()
+        .states
+        .start();
+    program.machine_states.get_mut(state).statement_nodes = statements;
+    (source, consumer, selection)
+}
+
+#[test]
+fn copied_statements_substitute_nested_callback_types_and_keep_the_original_selection() {
+    let (mut source, consumer, selection) = statement_callback_source();
+    prepare(&mut source.program).unwrap();
+    let receipt = source
+        .program
+        .machine_specializations
+        .iter()
+        .find(|row| row.template == consumer.machine)
+        .expect("closed consumer");
+    let StaticMachineBindingValue::Machine(selected) = source
+        .program
+        .specialization_binding(receipt, consumer.callback)
+        .unwrap()
+    else {
+        panic!("callback")
+    };
+    assert_eq!(selected.authored_selection, selection);
+    let callback = source
+        .program
+        .machine_specialization(source.program.symbols.get(selected.symbol).parent)
+        .unwrap();
+    let StaticMachineBindingValue::Type(actual) = source
+        .program
+        .specialization_binding(callback, source.forward.parameter)
+        .unwrap()
+    else {
+        panic!("type")
+    };
+    assert_eq!(named_symbol(&source.program, *actual), source.byte);
+    let original = only_state(&source.program, source.relay.machine)
+        .statement_nodes
+        .start();
+    let StatementNode::Call(call) = source.program.statement_table.statement(original) else {
+        panic!("call")
+    };
+    assert_eq!(
+        call.machine_arguments[1]
+            .application
+            .as_ref()
+            .unwrap()
+            .arguments[0]
+            .symbol,
+        source.relay.parameter
+    );
+}
+
+#[test]
+fn closed_callback_requirements_are_retained_for_the_lowered_checker() {
+    use crate::source_state::expression::{BinaryOperator, TableBinaryExpression};
+    for case in 0..4 {
+        let (mut source, consumer, _) = statement_callback_source();
+        let parameter = named(&mut source.program, source.forward.parameter, "T");
+        let byte = named(
+            &mut source.program,
+            match case {
+                0 => source.byte,
+                1 => source.boolean,
+                _ => source.relay.parameter,
+            },
+            "expected",
+        );
+        let left = source
+            .program
+            .expression_table
+            .insert(ExpressionNode::TypeExpression(parameter));
+        let right = source
+            .program
+            .expression_table
+            .insert(ExpressionNode::TypeExpression(byte));
+        let predicate = source
+            .program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                right,
+                operator: BinaryOperator::Equal,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            }));
+        let predicate = if case == 3 {
+            name(&mut source.program, source.forward.item, "item")
+        } else {
+            predicate
+        };
+        let facts = source
+            .program
+            .proof_facts
+            .insert_many([ProofFact::Expression(predicate)]);
+        let contracts = source
+            .program
+            .signature_contracts
+            .insert_many([SignatureContract {
+                kind: SignatureContractKind::Requires,
+                facts,
+                ..Default::default()
+            }]);
+        let position = source
+            .program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == source.forward.machine)
+            .unwrap();
+        source.program.machine_mut(position).contracts = contracts;
+        // Preparation copies the clause, including one the checker must reject.
+        // It does not prove that the selected callback refines its binder.
+        prepare(&mut source.program).unwrap();
+        let receipt = source
+            .program
+            .machine_specializations
+            .iter()
+            .find(|row| row.template == consumer.machine)
+            .unwrap();
+        let requirements = source
+            .program
+            .static_callback_requirements(receipt.binding_application)
+            .expect("the selected callback keeps its applied binder");
+        assert_eq!(requirements.len(), 1);
+        assert_eq!(requirements[0].parameter, consumer.callback);
+        let StaticMachineBindingValue::Machine(selected) = source
+            .program
+            .specialization_binding(receipt, consumer.callback)
+            .unwrap()
+        else {
+            panic!("callback")
+        };
+        let callback = source
+            .program
+            .machine_by_symbol(source.program.symbols.get(selected.symbol).parent)
+            .unwrap();
+        let Some([contract]) = source.program.machine_contracts(callback).as_array() else {
+            panic!("the selected callback must retain its one clause")
+        };
+        assert_eq!(contract.kind, SignatureContractKind::Requires);
+        let Some([ProofFact::Expression(predicate)]) = source
+            .program
+            .proof_facts
+            .span_or_empty(contract.facts)
+            .as_array()
+        else {
+            panic!("the callback requirement must retain its expression")
+        };
+        if case == 3 {
+            let ExpressionNode::Name(item) = source.program.expression_table.expression(*predicate)
+            else {
+                panic!("the runtime input requirement must remain visible")
+            };
+            let entry = only_state(&source.program, callback.symbol);
+            assert_eq!(
+                item.symbol,
+                source.program.state_parameters(entry)[0].symbol
+            );
+        } else {
+            let ExpressionNode::Binary(equation) =
+                source.program.expression_table.expression(*predicate)
+            else {
+                panic!("the type requirement must remain an equation")
+            };
+            assert_eq!(equation.operator, BinaryOperator::Equal);
+            let [
+                ExpressionNode::TypeExpression(left),
+                ExpressionNode::TypeExpression(right),
+            ] = [
+                source.program.expression_table.expression(equation.left),
+                source.program.expression_table.expression(equation.right),
+            ]
+            else {
+                panic!("the requirement must keep its type operands")
+            };
+            assert_eq!(named_symbol(&source.program, *left), source.byte);
+            assert_eq!(
+                named_symbol(&source.program, *right),
+                match case {
+                    0 => source.byte,
+                    1 => source.boolean,
+                    _ => source.relay.parameter,
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn copied_invocation_rows_rebind_only_owned_targets() {
+    use super::{Operand, copy_declarations};
+    use crate::source_state::signature::{AuthoredInvocation, AuthoredInvocationTarget};
+
+    let mut source = source();
+    let program = &mut source.program;
+    let service = program.symbols.insert_generated_root_from(
+        source.relay.machine,
+        SymbolKind::Trait,
+        "Handler",
+    );
+    // Unresolved rows remain visible to the later source check. Copying must
+    // not turn them into an omitted, inferred invocation ceiling.
+    let authored = vec![
+        AuthoredInvocation {
+            name: Identifier::generated("item"),
+            target: AuthoredInvocationTarget::Parameter {
+                ordinal: 0,
+                symbol: source.relay.item,
+            },
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("Handler"),
+            target: AuthoredInvocationTarget::Service(service),
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("unresolved"),
+            target: AuthoredInvocationTarget::Unresolved,
+            ..Default::default()
+        },
+        AuthoredInvocation {
+            name: Identifier::generated("missing"),
+            target: AuthoredInvocationTarget::Undeclared,
+            ..Default::default()
+        },
+    ];
+    let span = program.signature_invokes.insert_many(authored.clone());
+    let position = program
+        .machines()
+        .iter()
+        .position(|machine| machine.symbol == source.relay.machine)
+        .unwrap();
+    program.machine_mut(position).invokes = span;
+    let operand = Operand::read(
+        program,
+        &TypeParameter {
+            symbol: source.relay.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+        &argument(source.byte, "u8"),
+        source.relay.machine,
+    )
+    .unwrap();
+    let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
+    let machine = program.machine_by_symbol(copied.machine).unwrap();
+    let state = only_state(program, copied.machine);
+    let parameter = program.state_parameters(state)[0].symbol;
+    assert_ne!(parameter, source.relay.item);
+    assert_eq!(program.symbols.get(parameter).parent, state.symbol);
+    let rows = program.signature_invokes.span(machine.invokes).unwrap();
+    assert_eq!(rows.len(), authored.len());
+    assert_eq!(
+        rows[0].target,
+        AuthoredInvocationTarget::Parameter {
+            ordinal: 0,
+            symbol: parameter,
+        }
+    );
+    for (copied, original) in rows.iter().skip(1).zip(authored.iter().skip(1)) {
+        assert_eq!(copied, original);
+    }
+    assert_eq!(
+        program.signature_invokes.span(span).unwrap().to_vec(),
+        authored
+    );
+}
+
+#[test]
+fn copied_layout_queries_keep_the_kind_and_substitute_the_exact_type_operand() {
+    use super::{Operand, copy_declarations};
+    use crate::source_state::expression::DataLayoutQueryRequest;
+    use language_core::data_layout_queries::DataLayoutQueryKind;
+
+    for kind in [DataLayoutQueryKind::Size, DataLayoutQueryKind::Alignment] {
+        let mut source = source();
+        let program = &mut source.program;
+        let parameter = named(program, source.relay.parameter, "T");
+        let wide = program
+            .symbols
+            .builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::unsigned(64)))
+            .unwrap();
+        let result = named(program, wide, "u64");
+        let mut query = calls(program, source.relay.machine)[0].clone();
+        query.arguments = HandleSpan::empty();
+        query.machine_arguments = Box::new([]);
+        query.authored_machine_application = arena::Handle::invalid();
+        query.layout_query = Some(DataLayoutQueryRequest {
+            kind,
+            operand: StaticMachineArgument {
+                type_reference: parameter,
+                ..argument(source.relay.parameter, "T")
+            },
+            nonempty_view: ExpressionHandle::invalid(),
+        });
+        let expression = program.expression_table.insert(ExpressionNode::Call(query));
+        let body = returns(program, expression);
+        let statements = program.statement_table.insert_statements([body]);
+        let state = program
+            .machine_by_symbol(source.relay.machine)
+            .unwrap()
+            .states
+            .start();
+        program.machine_states.get_mut(state).statement_nodes = statements;
+        program.machine_states.get_mut(state).return_type = result;
+        let operand = Operand::read(
+            program,
+            &TypeParameter {
+                symbol: source.relay.parameter,
+                kind: TypeParameterKind::Type,
+                ..Default::default()
+            },
+            &argument(source.byte, "u8"),
+            source.relay.machine,
+        )
+        .unwrap();
+        let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
+        let copied_calls = calls(program, copied.machine);
+        let query = copied_calls[0].layout_query.as_ref().unwrap();
+        assert_eq!(query.kind, kind);
+        assert_eq!(query.operand.symbol, source.byte);
+        assert_eq!(
+            named_symbol(program, query.operand.type_reference),
+            source.byte
+        );
+        assert!(!query.nonempty_view.is_valid());
+        let original_calls = calls(program, source.relay.machine);
+        let original = original_calls[0].layout_query.as_ref().unwrap();
+        assert_eq!(original.operand.symbol, source.relay.parameter);
+        assert_eq!(
+            named_symbol(program, original.operand.type_reference),
+            source.relay.parameter
+        );
+    }
+}
+
+#[test]
+fn copied_statement_applications_rewrite_structural_type_operands() {
+    use super::{Operand, copy_declarations};
+    let (mut source, _, selection) = statement_callback_source();
+    let program = &mut source.program;
+    let parameter = named(program, source.relay.parameter, "T");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: parameter,
+        });
+    let view = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime: None,
+        });
+    let source_statement = only_state(program, source.relay.machine)
+        .statement_nodes
+        .start();
+    let StatementNode::Call(call) = program.statement_table.statement_mut(source_statement) else {
+        panic!("call")
+    };
+    call.machine_arguments[0] = StaticMachineArgument {
+        type_reference: view,
+        ..Default::default()
+    };
+    let source_application = call.authored_machine_application;
+    program
+        .expression_table
+        .static_machine_application_arguments_mut(source_application)[0] = StaticMachineArgument {
+        type_reference: view,
+        ..Default::default()
+    };
+    let operand = Operand::read(
+        program,
+        &TypeParameter {
+            symbol: source.relay.parameter,
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        },
+        &argument(source.byte, "u8"),
+        source.relay.machine,
+    )
+    .unwrap();
+    let copied = copy_declarations(program, source.relay.machine, &[operand]).unwrap();
+    let copied_statement = only_state(program, copied.machine).statement_nodes.start();
+    let StatementNode::Call(call) = program.statement_table.statement(copied_statement) else {
+        panic!("call")
+    };
+    let copied_arguments = program
+        .expression_table
+        .static_machine_application_arguments(call.authored_machine_application);
+    for argument in [&call.machine_arguments[0], &copied_arguments[0]] {
+        let TypeReferenceNode::Reference { referee, .. } = program
+            .type_reference_table
+            .type_reference(argument.type_reference)
+        else {
+            panic!("reference")
+        };
+        let TypeReferenceNode::Slice { element_type } =
+            program.type_reference_table.type_reference(*referee)
+        else {
+            panic!("slice")
+        };
+        assert_eq!(named_symbol(program, *element_type), source.byte);
+    }
+    for argument in [&call.machine_arguments[1], &copied_arguments[1]] {
+        assert_eq!(argument.authored_selection, selection);
+        let nested = &argument.application.as_ref().unwrap().arguments[0];
+        assert_eq!(nested.symbol, source.byte);
+    }
+}
+
+#[test]
+fn applied_callbacks_with_nested_open_types_wait_for_the_enclosing_application() {
+    use super::{GeneratedMachines, close_machine_argument};
+    let mut source = source();
+    let supplying = callback_supply(&mut source);
+    let parameter = named(&mut source.program, source.relay.parameter, "T");
+    let slice = source
+        .program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: parameter,
+        });
+    let mut callback = applied_callback(
+        &mut source.program,
+        source.forward.state,
+        vec![StaticMachineArgument {
+            type_reference: slice,
+            ..Default::default()
+        }],
+    );
+    let mut generated = GeneratedMachines::default();
+    assert!(
+        !close_machine_argument(
+            &mut source.program,
+            supplying,
+            &mut callback,
+            &mut generated
+        )
+        .unwrap()
+    );
+    assert!(callback.application.is_some());
+    assert!(generated.rows.is_empty());
+}
+
+#[test]
+fn an_open_consumer_keeps_its_call_arguments_and_application_in_agreement() {
+    let (mut source, _, selection) = statement_callback_source();
+    let statement = only_state(&source.program, source.relay.machine)
+        .statement_nodes
+        .start();
+    let StatementNode::Call(call) = source.program.statement_table.statement_mut(statement) else {
+        panic!("call")
+    };
+    call.machine_arguments[1]
+        .application
+        .as_mut()
+        .unwrap()
+        .arguments[0] = argument(source.byte, "u8");
+    let application = call.authored_machine_application;
+    source
+        .program
+        .expression_table
+        .static_machine_application_arguments_mut(application)[1]
+        .application
+        .as_mut()
+        .unwrap()
+        .arguments[0] = argument(source.byte, "u8");
+    prepare(&mut source.program).unwrap();
+    let StatementNode::Call(call) = source.program.statement_table.statement(statement) else {
+        panic!("call")
+    };
+    let retained = &source
+        .program
+        .expression_table
+        .static_machine_application_arguments(application)[1];
+    assert_eq!(call.machine_arguments[1], *retained);
+    assert!(retained.application.is_none());
+    assert_eq!(retained.authored_selection, selection);
+}
+
+#[test]
+fn nested_const_callback_applications_keep_their_values_in_the_selected_tuple() {
+    use super::{GeneratedMachines, close_machine_argument};
+    use crate::source_state::data::MachineParameterContract;
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let unit = source
+        .program
+        .type_reference_table
+        .insert(TypeReferenceNode::Unit);
+    let binder = source
+        .program
+        .data_type_parameter_handle_by_symbol(consumer.callback)
+        .unwrap();
+    let TypeParameterKind::Machine {
+        contract: MachineParameterContract::Structural(signature),
+    } = &mut source.program.data_type_parameters.get_mut(binder).kind
+    else {
+        panic!("binder")
+    };
+    signature.parameters = HandleSpan::empty();
+    signature.return_type = unit;
+    let state = source
+        .program
+        .machine_by_symbol(consumer.machine)
+        .unwrap()
+        .states
+        .start();
+    source.program.machine_states.get_mut(state).parameters = HandleSpan::empty();
+    source.program.machine_states.get_mut(state).return_type = unit;
+    let call_rows = source
+        .program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            matches!(node, ExpressionNode::Call(call) if call.target_symbol == consumer.callback)
+                .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    let arguments = source
+        .program
+        .expression_table
+        .insert_expression_handles([]);
+    for handle in call_rows {
+        let ExpressionNode::Call(call) = source.program.expression_table.expression_mut(handle)
+        else {
+            unreachable!()
+        };
+        call.arguments = arguments;
+    }
+    let supplying = callback_supply(&mut source);
+    let mut generated = GeneratedMachines::default();
+    let mut targets = Vec::new();
+    for value in [3, 4] {
+        let literal = StaticMachineArgument {
+            const_literal: Some(numeric_literals::IntegerLiteral::from_value(value)),
+            ..Default::default()
+        };
+        let nested = applied_callback(&mut source.program, source.sized_state, vec![literal]);
+        let selection = nested.authored_selection;
+        let mut callback = applied_callback(
+            &mut source.program,
+            consumer.state,
+            vec![argument(source.byte, "u8"), nested],
+        );
+        assert!(
+            close_machine_argument(
+                &mut source.program,
+                supplying,
+                &mut callback,
+                &mut generated
+            )
+            .unwrap()
+        );
+        let owner = source.program.symbols.get(callback.symbol).parent;
+        let receipt = source.program.machine_specialization(owner).unwrap();
+        let StaticMachineBindingValue::Machine(selected) = source
+            .program
+            .specialization_binding(receipt, consumer.callback)
+            .unwrap()
+        else {
+            panic!("callback")
+        };
+        assert_eq!(selected.authored_selection, selection);
+        let target = selected.symbol;
+        let inner = source
+            .program
+            .machine_specialization(source.program.symbols.get(target).parent)
+            .unwrap();
+        let StaticMachineBindingValue::Const(reference) = &source
+            .program
+            .expression_table
+            .static_machine_application_bindings(inner.binding_application)[0]
+            .value
+        else {
+            panic!("const")
+        };
+        assert_eq!(
+            source
+                .program
+                .static_operand_from_type_reference(*reference)
+                .unwrap()
+                .const_literal
+                .unwrap()
+                .value_i64(),
+            Some(value)
+        );
+        targets.push(target);
+    }
+    assert_ne!(
+        targets[0], targets[1],
+        "different values select different applications even when the body ignores them"
+    );
+}
+
+#[test]
+fn open_callback_applications_retain_the_whole_binding_tuple() {
+    use super::{GeneratedMachines, specialize_application};
+    let mut source = source();
+    let consumer = callback_consumer(&mut source);
+    let mut arguments = vec![
+        argument(source.forward.parameter, "T"),
+        applied_callback(
+            &mut source.program,
+            source.forward.state,
+            vec![argument(source.forward.parameter, "T")],
+        ),
+    ];
+    let application = source
+        .program
+        .expression_table
+        .retain_static_machine_application(
+            consumer.machine,
+            Identifier::from("consume"),
+            &arguments,
+        );
+    source
+        .program
+        .expression_table
+        .static_machine_application_mut(application)
+        .lexical_owner = source.forward.machine;
+    let parameters = source
+        .program
+        .machine_by_symbol(consumer.machine)
+        .map(|machine| source.program.machine_callable_parameters(machine))
+        .unwrap();
+    assert!(
+        specialize_application(
+            &mut source.program,
+            consumer.machine,
+            &parameters,
+            application,
+            &mut arguments,
+            &mut GeneratedMachines::default()
+        )
+        .unwrap()
+        .is_none()
+    );
+    let retained = source
+        .program
+        .expression_table
+        .static_machine_application(application);
+    assert_eq!(retained.binding_declaration, consumer.machine);
+    let bindings = source
+        .program
+        .expression_table
+        .static_machine_application_bindings(application);
+    assert_eq!(bindings.len(), parameters.len());
+    assert!(matches!(
+        bindings[0].value,
+        crate::source_state::static_applications::StaticMachineBindingValue::Type(_)
+    ));
+    let crate::source_state::static_applications::StaticMachineBindingValue::Machine(selected) =
+        &bindings[1].value
+    else {
+        panic!("the callback binding was dropped")
+    };
+    assert_eq!(selected, &arguments[1]);
+    assert_eq!(
+        selected.application.as_ref().unwrap().arguments[0].symbol,
+        source.forward.parameter
+    );
+}
+
+#[test]
+fn constructed_type_arguments_keep_their_supplying_binders_open() {
+    let Source {
+        mut program,
+        forward,
+        relay,
+        main,
+        ..
+    } = source();
+    let element = named(&mut program, relay.parameter, "T");
+    let slice = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Slice {
+            element_type: element,
+        });
+    let borrowed = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: slice,
+            access: language_core::ReferenceAccess::Mutable,
+            lifetime: None,
+        });
+    let parameters = program
+        .machine_type_parameters(program.machine_by_symbol(forward.machine).unwrap())
+        .to_vec();
+    for reference in [slice, borrowed] {
+        let mut arguments = [StaticMachineArgument {
+            type_reference: reference,
+            ..Default::default()
+        }];
+        let application = program.expression_table.retain_static_machine_application(
+            forward.machine,
+            Identifier::generated("forward"),
+            &arguments,
+        );
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .lexical_owner = relay.machine;
+        let mut generated = super::GeneratedMachines::default();
+        assert!(
+            matches!(
+                super::specialize_application(
+                    &mut program,
+                    forward.machine,
+                    &parameters,
+                    application,
+                    &mut arguments,
+                    &mut generated
+                ),
+                Ok(None)
+            ),
+            "a constructed type keeps its enclosing binder instead of generating an open body"
+        );
+        assert!(generated.rows.is_empty());
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application);
+        assert_eq!(bindings.len(), 1);
+        assert_eq!(
+            bindings[0].value,
+            StaticMachineBindingValue::Type(reference)
+        );
+        assert!(
+            matches!(super::named_type(&mut program, &arguments[0], main), Err(super::Stop::Unserved(reason)) if reason == "open operands do not close a requirement instance"),
+            "an unrelated machine cannot supply another declaration's type binder"
+        );
+    }
+}

@@ -1,0 +1,6 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "this write left the `requires` facts of `main` (data `Main`) unproved"
+  ]
+}

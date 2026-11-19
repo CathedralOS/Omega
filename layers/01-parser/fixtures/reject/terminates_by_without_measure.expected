@@ -1,0 +1,4 @@
+error UnexpectedToken at 1:27 bytes 26..27
+  found: {
+  expected: an expression
+  expected an expression

@@ -1,0 +1,357 @@
+/*
+We apply `FinalImage` relocations in place against a `FinalImageLayout` using a
+single architecture-checked driver. `relocation_field_geometry` declares each
+relocation kind's byte width and mutable instruction bitmask once for both the
+in-place patchers (AArch64 `Page21`, `PageOffset12`, `Branch26`; x86-64
+`Relative32`; and `Absolute64`) and the post-patch relocation envelope verifier.
+*/
+
+use crate::{
+    FinalImage, FinalImageLayout, FinalImageSection, final_image_imports_symbol,
+    final_image_symbol_address, final_image_symbol_name, patch_bytes,
+};
+use diagnostics::Diagnostic;
+use object_file::RelocationKind;
+use target::Architecture;
+
+pub fn apply_relocations(
+    image: &mut FinalImage,
+    layout: &FinalImageLayout,
+    output_name: &str,
+) -> Result<(), Diagnostic> {
+    let architecture = image.target.architecture;
+    let isa = architecture_name(architecture);
+    for (_, relocation) in image.relocation_table.relocations.iter() {
+        let Some(symbol_address) =
+            final_image_symbol_address(image, relocation.symbol_handle, layout)
+        else {
+            let symbol_name = final_image_symbol_name(image, relocation.symbol_handle);
+            if final_image_imports_symbol(image, relocation.symbol_handle) {
+                return Err(Diagnostic::error(format!(
+                    "{output_name} cannot import `{symbol_name}` yet; use syscalls or add dynamic binding"
+                )));
+            }
+
+            return Err(Diagnostic::error(format!(
+                "{output_name} relocation references unknown symbol `{symbol_name}`"
+            )));
+        };
+        let relocation_target = symbol_address
+            .checked_add_signed(relocation.addend)
+            .ok_or_else(|| {
+                Diagnostic::error(format!(
+                    "{output_name} {isa} relocation target overflows after addend {}",
+                    relocation.addend
+                ))
+            })?;
+        if let Some(kind_architecture) = kind_architecture(relocation.kind)
+            && kind_architecture != architecture
+        {
+            return Err(Diagnostic::error(format!(
+                "{output_name} {isa} image received {} relocation",
+                architecture_name(kind_architecture)
+            )));
+        }
+
+        match relocation.kind {
+            RelocationKind::Absolute64 => {
+                let section = relocation.section;
+                let section_bytes = image.memory.initialized_section_mut(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} {isa} absolute relocation targets non-materialized section {section:?}"
+                    ))
+                })?;
+                patch_bytes::write_u64(section_bytes, relocation.offset, relocation_target, isa)?;
+            }
+            RelocationKind::X86_64Relative32 => {
+                let section = relocation.section;
+                let section_address = layout.section_address(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} {isa} relative relocation has no section"
+                    ))
+                })?;
+                let relocation_address = section_address + relocation.offset as u64 + 4;
+                let delta = i128::from(relocation_target) - i128::from(relocation_address);
+                let value = i32::try_from(delta).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "{output_name} {isa} relative relocation is out of range: {delta} byte(s)"
+                    ))
+                })?;
+                let section_bytes = image.memory.initialized_section_mut(section).ok_or_else(|| {
+                    Diagnostic::error(format!(
+                        "{output_name} {isa} relative relocation targets non-materialized section {section:?}"
+                    ))
+                })?;
+                patch_bytes::write_i32(section_bytes, relocation.offset, value, isa)?;
+            }
+            RelocationKind::Aarch64Page21 => {
+                require_text_relocation(output_name, isa, relocation.section)?;
+                patch_aarch64_adrp(
+                    &mut image.memory.text,
+                    relocation.offset,
+                    layout.text_address + relocation.offset as u64,
+                    relocation_target,
+                    isa,
+                )?;
+            }
+            RelocationKind::Aarch64PageOffset12 => {
+                require_text_relocation(output_name, isa, relocation.section)?;
+                patch_aarch64_add_page_offset(
+                    &mut image.memory.text,
+                    relocation.offset,
+                    relocation_target,
+                    isa,
+                )?;
+            }
+            RelocationKind::Aarch64Branch26 => {
+                require_text_relocation(output_name, isa, relocation.section)?;
+                patch_aarch64_branch26(
+                    &mut image.memory.text,
+                    relocation.offset,
+                    layout.text_address + relocation.offset as u64,
+                    relocation_target,
+                    isa,
+                )?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn validate_relative_relocation_target(
+    kind: RelocationKind,
+    section_bytes: &[u8],
+    field_offset: usize,
+    section_address: u64,
+    expected_target: u64,
+) -> Result<(), Diagnostic> {
+    let (displacement, origin_bias) = match kind {
+        RelocationKind::X86_64Relative32 => (
+            i64::from(
+                patch_bytes::read_u32(section_bytes, field_offset, "relative target")? as i32,
+            ),
+            4,
+        ),
+        RelocationKind::Aarch64Branch26 => {
+            let word = patch_bytes::read_u32(section_bytes, field_offset, "relative target")?;
+            let mask = relocation_field_geometry(kind).mask as u32;
+            let immediate = ((word & mask) << 6) as i32 >> 6;
+            (i64::from(immediate) * 4, 0)
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "entry body call has no relative target field",
+            ));
+        }
+    };
+    let origin = section_address
+        .checked_add(
+            u64::try_from(field_offset)
+                .map_err(|_| Diagnostic::error("relative target field exceeds u64"))?,
+        )
+        .and_then(|address| address.checked_add(origin_bias))
+        .ok_or_else(|| Diagnostic::error("relative target origin overflows"))?;
+    if origin.checked_add_signed(displacement) != Some(expected_target) {
+        return Err(Diagnostic::error(
+            "relative field does not resolve to its exact selected target",
+        ));
+    }
+    Ok(())
+}
+
+const fn kind_architecture(kind: RelocationKind) -> Option<Architecture> {
+    match kind {
+        RelocationKind::Aarch64Page21
+        | RelocationKind::Aarch64PageOffset12
+        | RelocationKind::Aarch64Branch26 => Some(Architecture::Aarch64),
+        RelocationKind::X86_64Relative32 => Some(Architecture::X86_64),
+        RelocationKind::Absolute64 => None,
+    }
+}
+
+const fn architecture_name(architecture: Architecture) -> &'static str {
+    match architecture {
+        Architecture::Aarch64 => "AArch64",
+        Architecture::X86_64 => "x86_64",
+    }
+}
+
+pub(crate) struct RelocationFieldGeometry {
+    pub byte_width: usize,
+    pub mask: u64,
+}
+
+pub(crate) const fn relocation_field_geometry(kind: RelocationKind) -> RelocationFieldGeometry {
+    match kind {
+        RelocationKind::Aarch64Page21 => RelocationFieldGeometry {
+            byte_width: 4,
+            mask: 0x60ff_ffe0,
+        },
+        RelocationKind::Aarch64PageOffset12 => RelocationFieldGeometry {
+            byte_width: 4,
+            mask: 0x003f_fc00,
+        },
+        RelocationKind::Aarch64Branch26 => RelocationFieldGeometry {
+            byte_width: 4,
+            mask: 0x03ff_ffff,
+        },
+        RelocationKind::Absolute64 => RelocationFieldGeometry {
+            byte_width: 8,
+            mask: u64::MAX,
+        },
+        RelocationKind::X86_64Relative32 => RelocationFieldGeometry {
+            byte_width: 4,
+            mask: 0xffff_ffff,
+        },
+    }
+}
+
+fn require_text_relocation(
+    output_name: &str,
+    isa: &str,
+    section: FinalImageSection,
+) -> Result<(), Diagnostic> {
+    if section == FinalImageSection::Text {
+        Ok(())
+    } else {
+        Err(Diagnostic::error(format!(
+            "{output_name} {isa} instruction relocation targets non-text section {section:?}"
+        )))
+    }
+}
+
+fn patch_aarch64_adrp(
+    text: &mut [u8],
+    offset: usize,
+    instruction_address: u64,
+    symbol_address: u64,
+    isa: &str,
+) -> Result<(), Diagnostic> {
+    let instruction_page = instruction_address & !0xfff;
+    let symbol_page = symbol_address & !0xfff;
+    let page_delta = (symbol_page as i64 - instruction_page as i64) / 4096;
+
+    if !(-(1 << 20)..(1 << 20)).contains(&page_delta) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 ADRP relocation is out of range: {page_delta} page(s)"
+        )));
+    }
+
+    let immediate = (page_delta as u32) & 0x1f_ffff;
+    let immediate_low = immediate & 0b11;
+    let immediate_high = (immediate >> 2) & 0x7ffff;
+    let mask = relocation_field_geometry(RelocationKind::Aarch64Page21).mask as u32;
+    let mut instruction = patch_bytes::read_u32(text, offset, isa)?;
+    instruction &= !mask;
+    instruction |= (immediate_low << 29) | (immediate_high << 5);
+    patch_bytes::write_u32(text, offset, instruction, isa)
+}
+
+fn patch_aarch64_add_page_offset(
+    text: &mut [u8],
+    offset: usize,
+    symbol_address: u64,
+    isa: &str,
+) -> Result<(), Diagnostic> {
+    let page_offset = (symbol_address & 0xfff) as u32;
+    let mask = relocation_field_geometry(RelocationKind::Aarch64PageOffset12).mask as u32;
+    let mut instruction = patch_bytes::read_u32(text, offset, isa)?;
+    instruction &= !mask;
+    instruction |= page_offset << 10;
+    patch_bytes::write_u32(text, offset, instruction, isa)
+}
+
+fn patch_aarch64_branch26(
+    text: &mut [u8],
+    offset: usize,
+    instruction_address: u64,
+    symbol_address: u64,
+    isa: &str,
+) -> Result<(), Diagnostic> {
+    let byte_delta = symbol_address as i64 - instruction_address as i64;
+    if byte_delta % 4 != 0 {
+        return Err(Diagnostic::error(
+            "AArch64 branch relocation target is not instruction-aligned",
+        ));
+    }
+    let immediate = byte_delta / 4;
+    if !(-(1 << 25)..(1 << 25)).contains(&immediate) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 branch relocation is out of range: {immediate} instruction(s)"
+        )));
+    }
+
+    let mask = relocation_field_geometry(RelocationKind::Aarch64Branch26).mask as u32;
+    let mut instruction = patch_bytes::read_u32(text, offset, isa)?;
+    instruction &= !mask;
+    instruction |= (immediate as u32) & 0x03ff_ffff;
+    patch_bytes::write_u32(text, offset, instruction, isa)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_relocations;
+    use crate::{
+        FinalImage, FinalImageLayout, FinalImageMemory, FinalImageRelocation, FinalImageSection,
+        FinalImageSymbol,
+    };
+    use arena::Handle;
+    use object_file::{RelocationKind, SymbolKind};
+    use target::NativeTarget;
+
+    #[test]
+    fn absolute_relocation_applies_signed_addend_per_target() {
+        for (native_target, symbol_offset, addend, expected) in [
+            (NativeTarget::linux_arm64(), 8, -4, 0x1004u64),
+            (NativeTarget::linux_x64(), 4, 7, 0x100b),
+        ] {
+            let mut image = FinalImage::with_capacity(
+                native_target,
+                FinalImageMemory {
+                    text: vec![0; 8],
+                    data: vec![0; 8],
+                    ..Default::default()
+                },
+                Handle::invalid(),
+                1,
+                0,
+                1,
+            );
+            let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
+                name: "entry".into(),
+                section: FinalImageSection::Text,
+                offset: symbol_offset,
+                size: 1,
+                kind: SymbolKind::Function,
+            });
+            image
+                .relocation_table
+                .relocations
+                .insert(FinalImageRelocation {
+                    section: FinalImageSection::Data,
+                    offset: 0,
+                    byte_width: 8,
+                    symbol_handle: symbol,
+                    addend,
+                    kind: RelocationKind::Absolute64,
+                });
+
+            apply_relocations(
+                &mut image,
+                &FinalImageLayout {
+                    text_address: 0x1000,
+                    data_address: 0x2000,
+                    bss_address: 0x3000,
+                },
+                "test image",
+            )
+            .expect("data relocation should apply");
+
+            assert_eq!(
+                u64::from_le_bytes(image.memory.data.try_into().unwrap()),
+                expected
+            );
+        }
+    }
+}

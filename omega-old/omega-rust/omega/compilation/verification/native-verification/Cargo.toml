@@ -1,0 +1,30 @@
+[package]
+name = "native-verification"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+native-encoding = { path = "../../pipeline/06_native-encoding" }
+physical-planning = { path = "../../pipeline/04_physical-program-planning" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+machine-code = { path = "../../representations/machine-code" }
+post-allocation-machine = { path = "../../representations/post-allocation-machine" }
+register-homes = { path = "../../representations/register-homes" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
+encoding-admission = { path = "../encoding-admission" }
+register-environment = { path = "../../target-description/register-environment" }
+register-model = { path = "../../target-description/register-model" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+native-layout = { path = "../../pipeline/07_native-layout" }
+
+[dev-dependencies]
+image-fixtures = { path = "../../../../test-support/image-fixtures" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../../target-description/target" }
+isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }
+isa-aarch64 = { path = "../../pipeline/06_native-encoding/isa-aarch64" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+arena = { path = "../../../../psi/foundation/arena" }

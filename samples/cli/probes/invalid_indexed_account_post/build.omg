@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "indexed_account_post_invalid");
-}

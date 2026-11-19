@@ -1,0 +1,85 @@
+
+; Body resolution consumes one source-shaped catalog rather than repeatedly
+; rediscovering declaration ownership or assigning opaque numeric node ids.
+; Each row retains one original top-level syntax value. Fields, cases, boundary
+; members, and states stay inside that owner instead of becoming a second flat
+; tree. D56 keeps the final entry-shape candidates in type formation;
+; body/control candidates remain later facts in their separate carrier.
+(data EpsilonCatalogMachineOwner
+  (EpsilonCatalogUnqualifiedMachine)
+  (EpsilonCatalogDataMachineOwner EpsilonDeclaration)
+  (EpsilonCatalogUnknownMachineOwner EpsilonName))
+
+(data EpsilonCatalogDeclaration
+  (EpsilonCatalogBoundaryDeclaration EpsilonDeclaration)
+  (EpsilonCatalogDataDeclaration EpsilonDeclaration EpsilonDataShapeKind)
+  (EpsilonCatalogMachineDeclaration EpsilonDeclaration EpsilonCatalogMachineOwner))
+
+(data EpsilonCatalogDeclarationList
+  (NoEpsilonCatalogDeclarations)
+  (MoreEpsilonCatalogDeclarations EpsilonCatalogDeclaration EpsilonCatalogDeclarationList))
+
+(data EpsilonDataDeclarationLookup
+  (NoEpsilonDataDeclaration)
+  (OneEpsilonDataDeclaration EpsilonDeclaration))
+
+(data EpsilonCatalogOwnerLookup
+  (NoEpsilonCatalogOwner)
+  (OneEpsilonCatalogBoundaryOwner EpsilonDeclaration)
+  (OneEpsilonCatalogDataOwner EpsilonDeclaration EpsilonDataShapeKind))
+
+(data EpsilonCatalogMachineLookup
+  (NoEpsilonCatalogMachine)
+  (OneEpsilonCatalogMachine EpsilonDeclaration))
+
+(data EpsilonCatalogDataMachineLookup
+  (NoEpsilonCatalogDataMachine)
+  (OneEpsilonCatalogDataMachine EpsilonDeclaration EpsilonDeclaration))
+
+(data EpsilonCatalogBoundaryMemberLookup
+  (NoEpsilonCatalogBoundaryMember)
+  (OneEpsilonCatalogBoundaryMember EpsilonBoundaryMachine))
+
+(data EpsilonCatalogDataMemberLookup
+  (NoEpsilonCatalogDataMember)
+  (OneEpsilonCatalogField EpsilonDeclaration EpsilonDataMember)
+  (OneEpsilonCatalogCase EpsilonDeclaration EpsilonDataMember))
+
+(data EpsilonResolvedSumCase
+  (EpsilonResolvedSumCaseSyntax Int Int EpsilonName EpsilonParameterList))
+
+(data EpsilonCatalogSumCaseLookup
+  (NoEpsilonCatalogSumCase)
+  (OneEpsilonCatalogSumCase EpsilonDeclaration EpsilonResolvedSumCase))
+
+(data EpsilonCatalogStateLookup
+  (NoEpsilonCatalogState)
+  (OneEpsilonCatalogState EpsilonState))
+
+(data EpsilonFinalReasonList
+  (NoEpsilonFinalReasons)
+  (MoreEpsilonFinalReasons EpsilonRejectReason EpsilonFinalReasonList))
+
+; Equal-coordinate body/control reasons are retained as a bucket. D56 keeps
+; entry closure in the earlier type-formation carrier, so this carrier never
+; composes or compares coordinates with entry candidates. D36 owns
+; the earlier receiver grammar and callable-name census; D37 deduplicates one
+; body reason/coordinate and makes distinct same-coordinate reasons an internal
+; contradiction.
+(data EpsilonFinalCandidate
+  (NoEpsilonFinalCandidate)
+  (EpsilonFinalCandidateAt Int EpsilonFinalReasonList))
+
+(data EpsilonResolutionCatalog
+  (EpsilonResolutionCatalogSyntax EpsilonCatalogDeclarationList))
+
+(data EpsilonCatalogState
+  (EpsilonCatalogStateSyntax EpsilonResolutionCatalog EpsilonFinalCandidate))
+
+(data EpsilonCatalogedProgram
+  (EpsilonCatalogedProgramSyntax EpsilonFormedProgram EpsilonCatalogState))
+
+(data EpsilonCatalogOutcome
+  (EpsilonCatalogAccepted EpsilonCatalogedProgram)
+  (EpsilonCatalogRejected EpsilonRejectReason Int)
+  (EpsilonCatalogInternal Int))

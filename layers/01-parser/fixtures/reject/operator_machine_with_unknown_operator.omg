@@ -1,0 +1,4 @@
+// `&&` is not an operator a machine can declare, so this is not a declaration at all.
+machine && both(left: bool, right: bool) -> bool {
+    left
+}

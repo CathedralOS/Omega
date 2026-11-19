@@ -1,0 +1,98 @@
+; Enum values admitted here are total: checked nullary constructors or immutable
+; machine/state parameters. Other transports need an implemented result/place
+; ABI and remain explicit refusals.
+(def epsilon_delta_enum_parameter ((context EpsilonDeltaContext)
+  (parameter EpsilonParameter)) EpsilonDeltaCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match typeValue
+        ((EpsilonNamedType typeStart typeEnd owner)
+          (match (epsilon_delta_named_type context owner)
+            ((EpsilonDeltaCompiled typeText)
+              (EpsilonDeltaCompiled (epsilon_compiled_parameter_name (epsilon_delta_context_source context) name)))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonI32Type typeStart typeEnd) (EpsilonDeltaUnsupported start))
+        ((EpsilonU8Type typeStart typeEnd) (EpsilonDeltaUnsupported start))
+        ((EpsilonNeverType typeStart typeEnd) (EpsilonDeltaUnsupported start))
+        ((EpsilonArrayType typeStart typeEnd element extent) (EpsilonDeltaUnsupported start))
+        ((EpsilonViewType typeStart typeEnd element) (EpsilonDeltaUnsupported start))))))
+
+(def epsilon_delta_enum_local ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_local_reference expression locals)
+        (NoEpsilonResolvedLocalReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedLocalReference binding)
+          (match binding
+            ((EpsilonMachineParameterLocal parameter) (epsilon_delta_enum_parameter context parameter))
+            ((EpsilonStateParameterLocal parameter) (epsilon_delta_enum_parameter context parameter))
+            ((EpsilonLetLocal name typeValue statement)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))
+            ((EpsilonReceiverLocal name typeValue)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))
+            ((EpsilonTransitionBinderLocal pattern name)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))))))))
+
+(def epsilon_delta_enum_constructor_value ((source EpsilonSourceView)
+  (owner EpsilonDeclaration) (member EpsilonDataMember)) EpsilonDeltaCompilation
+  (match owner
+    ((EpsilonDataDeclaration start end ownerName members)
+      (if (epsilon_delta_is_closed_enum members)
+        (match member
+          ((EpsilonCaseMember memberStart memberEnd name payload)
+            (EpsilonDeltaCompiled (epsilon_delta_enum_case_name source ownerName name)))
+          ((EpsilonFieldMember memberStart memberEnd name typeValue) (EpsilonDeltaInternal memberStart)))
+        (EpsilonDeltaUnsupported start)))
+    ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
+    ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start))))
+
+(def epsilon_delta_enum_constructor ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_callable_reference_normalized expression callables)
+        (NoEpsilonResolvedCallableReference (EpsilonDeltaInternal (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedCallableReference callable)
+          (match callable
+            ((EpsilonResolvedConstructorCallable owner member)
+              (epsilon_delta_enum_constructor_value source owner member))
+            ((EpsilonResolvedDataMachineCallable owner machine)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))
+            ((EpsilonResolvedUnqualifiedMachineCallable machine)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))
+            ((EpsilonResolvedBoundaryMachineCallable owner member)
+              (EpsilonDeltaUnsupported (epsilon_expression_start expression)))))))))
+
+(def epsilon_delta_enum_expression ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match expression
+    ((EpsilonNameExpression start end name) (epsilon_delta_enum_local context expression))
+    ((EpsilonQualifiedExpression start end owner member arguments)
+      (epsilon_delta_enum_constructor context expression))
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_enum_expression context inner))
+    ((EpsilonIntegerExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonCharacterExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaUnsupported start))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaUnsupported start))
+    ((EpsilonFieldExpression start end base member) (EpsilonDeltaUnsupported start))
+    ((EpsilonCallExpression start end base arguments) (EpsilonDeltaUnsupported start))
+    ((EpsilonIndexExpression start end base index) (EpsilonDeltaUnsupported start))
+    ((EpsilonSliceExpression start end base low high) (EpsilonDeltaUnsupported start))
+    ((EpsilonNegateExpression start end operand) (EpsilonDeltaUnsupported start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (EpsilonDeltaUnsupported start))))
+
+(def epsilon_delta_enum_then ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (typeText Bytes) (continuation Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_delta_enum_expression context expression)
+    ((EpsilonDeltaCompiled value)
+      (let variable Bytes (epsilon_emit_generated "enum" (epsilon_expression_start expression))
+        (EpsilonDeltaCompiled (epsilon_emit_call "let" (epsilon_emit_spaced variable
+          (epsilon_emit_spaced typeText (epsilon_emit_spaced value continuation)))))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))

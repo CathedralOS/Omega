@@ -1,0 +1,151 @@
+// WIRE CODEC REQUIREMENTS (language guide chapter 21).
+//
+// Schemas, codec policies, and codec realizations are separate. A codec
+// realization satisfies one of the decode requirements below, making its
+// treatment of unknown fields and cases part of the selected requirement
+// identity rather than an undocumented implementation choice.
+
+// The behavior a codec publishes for members outside the consumer's known
+// schema. This is descriptive metadata for packages and artifacts; the three
+// traits below are the callable requirements.
+public data UnknownMemberBehavior {
+    case Strict;
+    case Projecting;
+    case Preserving;
+}
+
+// Decode failure never yields a partially established semantic value.
+// `Invalid` is the zero case so zero-initialized verdict/result storage remains
+// fail-closed.
+public data DecodeResult<T> {
+    case Invalid;
+    case Sound(value: T);
+}
+
+// A preserving codec retains exact unknown-member bytes plus the private
+// ordering sidecar its own encoder needs to splice them back into a frame.
+// Both live in one policy-defined envelope so the zero-copy view has one
+// unambiguous input-buffer provenance.
+// `codec_identity` prevents a relay operation from accidentally consuming a
+// remainder produced by another codec realization.
+//
+// "Opaque" here means semantically uninterpreted: no facts proved about the
+// decoded `T` extend to this byte view. It does not mean confidential or
+// unforgeable; public structural data has the visibility semantics described
+// in guide chapter 15. A zero-copy preserving decoder ties the view's loan to
+// its input, while an owned-copy package may use an owned remainder carrier.
+public data OpaqueWireRemainder<'bytes> {
+    codec_identity: u64;
+    bytes_and_ordering: &'bytes [u8];
+}
+
+// The ordinary preserving package carrier. Code may inspect or update the
+// validated known value without assigning semantic meaning to the remainder.
+public data Relayed<'bytes, T> {
+    value: T;
+    remainder: OpaqueWireRemainder<'bytes>;
+}
+
+// Encode through a validated policy plan. Dynamic carriers retain their
+// runtime length, work, and remaining-output-capacity obligations in that
+// plan. In particular, a borrowed scalar slice requires two allocation-free
+// passes per live element (exact packed-size measurement, then emission) and
+// enough output for the canonical length prefix plus exact packed body.
+public trait Encode<Policy, Value> {
+    machine encode(value: &Value, out: &mut [u8], written: &mut u64);
+}
+
+// Reject every unknown field or case and establish `Value` only after
+// validating the complete input.
+public trait StrictDecode<Policy, Value> {
+    machine decode_strict(bytes: &[u8]) -> DecodeResult<Value>;
+}
+
+// Validate all known members, discard unknown members, and establish `Value`.
+public trait ProjectingDecode<Policy, Value> {
+    machine decode_projecting(bytes: &[u8]) -> DecodeResult<Value>;
+}
+
+// Validate all known members and retain unknown bytes/order information for a
+// later faithful relay through the same codec realization.
+public trait PreservingDecode<Policy, Value> {
+    machine decode_preserving<'bytes>(bytes: &'bytes [u8]) -> DecodeResult<Relayed<'bytes, Value>>;
+}
+
+// Source-owned adapters may report a verdict alongside their output slots.
+// The adapter establishes every destination domain before reporting Sound;
+// this carrier grants no compiler-owned codec or construction authority.
+public data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+public data EncodeResult {
+    case Exhausted;
+    case Encoded(next: u64);
+}
+
+public data UnsignedRead {
+    case Invalid;
+    case Read(value: u64, next: u64);
+}
+
+// Caller-sponsored work storage keeps ordering independent of declaration and
+// physical placement order. A frame describes one complete encoded field.
+public data EncodedField [copy] {
+    number: u64;
+    start: u64;
+    end: u64;
+}
+
+public data EncodeContext<'storage, 'fields> {
+    storage: &'storage mut [u8];
+    fields: &'fields mut [EncodedField];
+    used: u64;
+    count: u64;
+    valid: bool;
+    remaining_steps: u64;
+}
+
+// Zigzag uses the signed carrier's two's-complement bits, including MIN.
+// Named numeric conversions own representation changes; integer `as` remains
+// exact. The surrounding word framing is the same canonical unsigned codec.
+public data SignedRead {
+    case Invalid;
+    case Read(value: i64, next: u64);
+}
+
+public data BlobRead<'input> {
+    case Invalid;
+    case Read(value: &'input [u8], next: u64);
+}
+
+// A staged scalar document contains descriptive plans and validated carrier
+// words. It never claims that a word is an established semantic Value.
+public data ScalarSlot [copy] {
+    number: u64;
+    is_signed: bool;
+    is_payload: bool;
+    start: u64;
+    end: u64;
+    minimum: i64;
+    maximum: i64;
+    unsigned_maximum: u64;
+    signed: i64;
+    unsigned: u64;
+}
+public data ScalarPlanContext<'slots> {
+    slots: &'slots mut [ScalarSlot];
+    count: u64;
+    valid: bool;
+}
+public data FrameRead {
+    case Invalid;
+    case Read(next: u64);
+}
+
+// Owned, target-independent capacity evidence. Invalid is explicit: an
+// overflow or excluded member cannot become a smaller successful bound.
+public data ScalarBound [copy] { bytes: u64; valid: bool; }
+
+public data PackedRead { case Invalid; case Read(count: u64); }

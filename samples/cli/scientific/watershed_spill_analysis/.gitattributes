@@ -1,2 +1,0 @@
-# This fixture intentionally exercises literal CR and CRLF input bytes.
-fixtures/whitespace.txt -text whitespace=cr-at-eol

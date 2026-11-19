@@ -1,4 +1,0 @@
-use kit::build;
-machine entry() -> i32 {
-    0
-}

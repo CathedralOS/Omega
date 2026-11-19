@@ -1,2 +1,0 @@
-does not refine `Selected`: callable type does not preserve its region identity [result-validation;
-actual: Some(Fresh(0)), required: Some(Captured(

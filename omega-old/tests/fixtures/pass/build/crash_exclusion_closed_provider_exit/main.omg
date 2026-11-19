@@ -1,0 +1,21 @@
+// Expected exit: 0
+// Generic boundary applications retain the selected implementation's behavior.
+// An unselected trapping body must not contaminate the no-op composition.
+boundary trait Assert {
+    machine check<const Count: u64>(condition: bool) reaches crashes Trap
+        requires Count == 4 || Count == 8;
+}
+NoOp satisfies Assert {
+    machine check<const Count: u64>(condition: bool) {}
+}
+Checking satisfies Assert {
+    machine check<const Count: u64>(condition: bool) crashes Trap {
+        transition condition { true -> done() _ -> bad() }
+        machine done() {}
+        machine bad() { crash Trap; }
+    }
+}
+machine main() reaches Assert crashes Trap {
+    Assert::check<4>(true);
+    Assert::check<8>(true);
+}

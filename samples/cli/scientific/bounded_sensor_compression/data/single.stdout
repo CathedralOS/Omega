@@ -1,8 +1,0 @@
-bytes: 83 67 1 1 7 255 255 15
-reconstruction: 4095
-raw_bytes: 2
-encoded_bytes: 8
-worst_bytes: 8
-tolerance_units: 7
-max_error_units: 0
-certificate: verified against original records

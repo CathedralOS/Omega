@@ -1,0 +1,1 @@
+machine `claimed_zero` cannot prove ensures contract proof fact `result == 0`

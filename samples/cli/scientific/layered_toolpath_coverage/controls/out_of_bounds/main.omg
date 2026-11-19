@@ -1,7 +1,0 @@
-// Complete intended-invalid source: index 256 cannot select a 256-cell mask.
-data Mask { cells: [i32; 256]; }
-machine main() {
-    let mut mask: Mask;
-    let index: u64 = 256;
-    mask.cells[index] = 1;
-}

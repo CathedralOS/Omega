@@ -1,5 +1,0 @@
-public machine other() -> i32
-ensures result == 9
-{
-    9
-}

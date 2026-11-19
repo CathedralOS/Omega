@@ -1,0 +1,78 @@
+; State rows retain both Resolved and Complete facts, in their original order.
+; The existing lookup owns Complete precedence and the last-Resolved fallback.
+(def epsilon_runtime_index_state_rows ((extent Int)
+  (remaining EpsilonStateApplicationReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonStateApplicationReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonStateApplicationReferences row rest)
+      (match row
+        ((EpsilonStateApplicationReferenceSyntax expressionValue machineValue stateValue progress)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimeStateReference row)
+            (epsilon_expression_start expressionValue)
+            (epsilon_expression_end expressionValue) extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_state_rows extent rest updated))))))))
+
+(def epsilon_runtime_terminal_start ((terminalValue EpsilonTerminal)) Int
+  (match terminalValue
+    ((EpsilonTransitionTerminal start end subject arms) start)
+    ((EpsilonReturnTerminal start end expressionValue) start)))
+
+(def epsilon_runtime_index_subject_rows ((extent Int)
+  (remaining EpsilonTransitionSubjectReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonTransitionSubjectReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonTransitionSubjectReferences row rest)
+      (match row
+        ((EpsilonTransitionSubjectReferenceSyntax terminalValue kind)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimeSubjectReference row)
+            (epsilon_runtime_terminal_start terminalValue)
+            (epsilon_terminal_end terminalValue) extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_subject_rows extent rest updated))))))))
+
+; Runtime queries ignore earlier pattern stages. The linear fallback still
+; contains them unchanged; no missing Complete fact becomes executable.
+(def epsilon_runtime_index_pattern_rows ((extent Int)
+  (remaining EpsilonTransitionPatternReferenceList) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match remaining
+    (NoEpsilonTransitionPatternReferences (InsertedEpsilonRuntimeReference tree))
+    ((MoreEpsilonTransitionPatternReferences row rest)
+      (match row
+        ((EpsilonTransitionPatternNameResolved terminalValue patternValue kind)
+          (epsilon_runtime_index_pattern_rows extent rest tree))
+        ((EpsilonTransitionPatternSubjectAdmitted terminalValue patternValue kind)
+          (epsilon_runtime_index_pattern_rows extent rest tree))
+        ((EpsilonTransitionPatternIdentityOwned terminalValue patternValue identity)
+          (epsilon_runtime_index_pattern_rows extent rest tree))
+        ((EpsilonTransitionPatternComplete terminalValue patternValue kind)
+          (match (epsilon_runtime_insert_reference (EpsilonRuntimePatternReference row)
+            (epsilon_pattern_start patternValue) (epsilon_pattern_end patternValue)
+            extent tree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference updated)
+              (epsilon_runtime_index_pattern_rows extent rest updated))))))))
+
+(def epsilon_runtime_index_control_rows ((extent Int)
+  (control EpsilonRuntimeControlBucket) (tree EpsilonRuntimeReferenceTree))
+  EpsilonRuntimeReferenceInsertion
+  (match control
+    ((EpsilonRuntimeControlBucketAt states subjects patterns)
+      (match (epsilon_runtime_index_state_rows extent
+        (epsilon_reverse_state_application_references states NoEpsilonStateApplicationReferences)
+        tree)
+        (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+        ((InsertedEpsilonRuntimeReference stateTree)
+          (match (epsilon_runtime_index_subject_rows extent
+            (epsilon_reverse_transition_subject_references subjects
+              NoEpsilonTransitionSubjectReferences) stateTree)
+            (InvalidEpsilonRuntimeReferenceInsertion InvalidEpsilonRuntimeReferenceInsertion)
+            ((InsertedEpsilonRuntimeReference subjectTree)
+              (epsilon_runtime_index_pattern_rows extent
+                (epsilon_reverse_transition_pattern_references patterns
+                  NoEpsilonTransitionPatternReferences) subjectTree))))))))

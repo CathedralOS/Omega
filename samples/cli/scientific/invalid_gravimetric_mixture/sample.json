@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "rejection_contains": [
-    "cannot prove the value of this cast is in the domain it adds in machine `main`",
-    "domain `i32::Nonnegative` requires `self >= 0`"
-  ]
-}

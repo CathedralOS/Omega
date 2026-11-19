@@ -1,8 +1,0 @@
-use one::main;
-use two::main;
-
-machine entry() -> i32 {
-    let a: i32 = value();
-    let b: i32 = other();
-    a + b
-}

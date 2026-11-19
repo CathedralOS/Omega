@@ -1,0 +1,23 @@
+use naming;
+
+machine build(builder: &mut Build) {
+    transition naming::enabled() {
+        true -> declare_project(builder)
+        false -> unselected(builder)
+    }
+}
+
+machine declare_project(builder: &mut Build) {
+    Build::application(builder, naming::project_name());
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}
+
+machine unselected(builder: &mut Build) {
+    Build::application(builder, "wrong_branch");
+    let mut missing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "never_acquired" });
+    dependency::with_alias(&mut missing_dependency, "missing");
+    let missing_registration: DependencyRegistration = Build::dependency(builder, missing_dependency);
+}

@@ -1,0 +1,39 @@
+// Pair.lo must retain its exact Delivered value through storage transport.
+// Named casts establish the constraint and expose plain arithmetic without
+// losing its numerical fact; byte checks observe the authored field offsets.
+// Expected exit: 0
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
+public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
+public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
+PairLayout satisfies FixedLayout<Pair> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {
+        let mut entries: [FieldEntry; 64];
+        entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };
+        entries[1] = FieldEntry { key: schema.fields[1].key, representation: FieldPlan::At { offset: 0 } };
+        LayoutPlan { entries: entries, entry_count: 2, size_fixed: 16, size_is_dynamic: false, align: 8 }
+    }
+}
+machine make() -> LayoutStorage<Pair, PairLayout> {
+    let mut value: LayoutStorage<Pair, PairLayout>;
+    value.lo = 42u64 as +Delivered;
+    value.hi = 9u64;
+    value
+}
+const SAVED: LayoutStorage<Pair, PairLayout> = make();
+machine main() crashes Trap {
+    let value: LayoutStorage<Pair, PairLayout> = SAVED;
+    let difference: u64 = (value.lo as -Delivered) - 42u64;
+    let bytes: &[u8; 16] = &value as &[u8; 16];
+    transition difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

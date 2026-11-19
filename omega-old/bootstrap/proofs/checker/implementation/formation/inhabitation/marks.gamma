@@ -1,0 +1,26 @@
+; Empty and true leaves are shared tagged pairs. Only internal updates allocate.
+(def formation_marked ((tree Int) (low Int) (high Int) (identity Int)) Int
+  (if (eq (first tree) 0) 0
+    (if (eq (- high low) 1) 1
+      (let middle Int (+ low (/ (- high low) 2))
+        (if (lt identity middle)
+          (formation_marked (first (second tree)) low middle identity)
+          (formation_marked (second (second tree)) middle high identity))))))
+
+(def formation_mark_left ((tree Int) (empty Int)) Int
+  (if (eq (first tree) 0) empty (first (second tree))))
+
+(def formation_mark_right ((tree Int) (empty Int)) Int
+  (if (eq (first tree) 0) empty (second (second tree))))
+
+(def formation_mark ((tree Int) (low Int) (high Int) (identity Int)
+  (empty Int) (present Int)) Int
+  (if (eq (- high low) 1) present
+    (let middle Int (+ low (/ (- high low) 2))
+      (let left Int (formation_mark_left tree empty)
+        (let right Int (formation_mark_right tree empty)
+          (if (lt identity middle)
+            (pair 1 (pair
+              (formation_mark left low middle identity empty present) right))
+            (pair 1 (pair left
+              (formation_mark right middle high identity empty present)))))))))

@@ -1,0 +1,19 @@
+use omega::language::core::ProcessExit;
+// Complete independent control: an unguarded index into the private observation
+// table must reject. This does not depend on the application's parser.
+use omega_language_std::Console;
+
+machine unsafe_range(values: &[i32; 3], index: u64) -> i32 { values[index] }
+
+data Main { }
+machine main(main: &mut Main) reaches ProcessExit + Console {
+    let values: [i32; 3] = [3, 4, 5];
+    let result: i32 = unsafe_range(&values, 1);
+    ProcessExit::exit_process(result);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

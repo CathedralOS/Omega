@@ -1,0 +1,69 @@
+// A boundary operator with an operand `requires` clause:
+// `boundary machine == Integer::equal(left, right)`
+// declares `right >= 0`, and the caller's effect-bearing
+// operand discharges it — `prepare(&mut value)` carries
+// `ensures value >= 0`, so `prepare(&mut value) == value`
+// proves the right operand after the effect lands.
+//
+//   * Boundary operator decl + `requires right >= 0`. The token
+//     resolves the public slot; `CheckedEquality::equal` is the
+//     selected checked satisfier, so `==` on these operands runs its
+//     body rather than primitive equality.
+//   * The operands are `i32 in Counted`, the probe's own domain home:
+//     bare i32 operands would join the core's primitive `==` family.
+//   * `prepare` mutates through `&mut` while returning —
+//     operand evaluation order: effect first, then `value`
+//     read. `prepare` stores 1 and returns 1, so the comparison
+//     holds only when the right operand observes the effect;
+//     reading `value` first would compare 1 with 5 and trap.
+//
+// No standard-library dependency.
+//
+// Expected exit: 0.
+
+domain i32::Counted requires self >= -1000000; self <= 1000000;
+
+boundary machine == Integer::equal(left: i32 in Counted, right: i32 in Counted) -> bool
+requires right >= 0;
+
+data CheckedEquality {}
+
+machine CheckedEquality::equal(left: i32 in Counted, right: i32 in Counted) -> bool
+satisfies Integer::equal
+requires right >= 0
+{
+    left <= right && left >= right
+}
+
+machine prepare(value: &mut i32 in Counted) -> i32 in Counted
+ensures value >= 0 {
+    value = 1;
+    1
+}
+
+machine compare(value: i32 in Counted) -> bool {
+    let mut held: i32 in Counted = value;
+    prepare(&mut held) == held
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    let flag: bool = compare(5);
+    transition flag {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) {
+        main.hits = -1;
+        crash Trap;
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() crashes Trap {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

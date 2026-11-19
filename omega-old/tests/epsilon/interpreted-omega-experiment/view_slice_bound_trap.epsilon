@@ -1,0 +1,17 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main { console: Console; bytes: [u8; 2]; }
+
+machine Main::main(&mut self) {
+  self.console.write_byte(65);
+  let selected: &[u8] = self.bytes[self.low()..self.high()];
+  self.console.write_line(selected);
+}
+
+machine Main::low(&mut self) -> i32 { self.console.write_byte(66); return 1 / 0; }
+machine Main::high(&mut self) -> i32 { self.console.write_byte(67); return 1; }

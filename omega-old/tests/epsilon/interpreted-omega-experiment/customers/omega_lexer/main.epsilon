@@ -1,0 +1,160 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  scanner: OmegaLexScan;
+}
+
+machine Main::main(&mut self) {
+  self.scanner.scan_at("let value=0x2a;", 0);
+  assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+  assert self.scanner.token_start == 0 && self.scanner.token_end == 3 && self.scanner.next_cursor == 3;
+  transition self.scanner.token_kind {
+    OmegaTokenKind::Keyword -> keyword()
+    _ -> self.console.exit_process(1)
+  }
+
+  state keyword() {
+    transition self.scanner.keyword {
+      OmegaKeywordKind::Let -> identifier()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state identifier() {
+    self.scanner.scan_at("let value=0x2a;", 4);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 4 && self.scanner.token_end == 9 && self.scanner.next_cursor == 9;
+    transition self.scanner.token_kind {
+      OmegaTokenKind::Identifier -> integer()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state integer() {
+    self.scanner.scan_at("let value=0x2a;", 10);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 10 && self.scanner.token_end == 14 && self.scanner.next_cursor == 14;
+    assert self.scanner.numeric_empty_digits == 0 && self.scanner.numeric_has_suffix == 0 && self.scanner.numeric_has_exponent == 0;
+    transition self.scanner.token_kind {
+      OmegaTokenKind::Integer -> integer_base()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state integer_base() {
+    transition self.scanner.numeric_base {
+      OmegaNumericBase::Hexadecimal -> punctuation()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state punctuation() {
+    self.scanner.scan_at("..=", 0);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 0 && self.scanner.token_end == 3 && self.scanner.next_cursor == 3;
+    transition self.scanner.token_kind {
+      OmegaTokenKind::Punctuation -> punctuation_kind()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state punctuation_kind() {
+    transition self.scanner.punctuation {
+      OmegaPunctuationKind::DotDotEqual -> escaped_string()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state escaped_string() {
+    self.scanner.scan_at("\"\\x41\"", 0);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 0 && self.scanner.token_end == 6 && self.scanner.next_cursor == 6;
+    assert self.scanner.decoded_length == 1;
+    transition self.scanner.token_kind {
+      OmegaTokenKind::StringLiteral -> nested_comment()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state nested_comment() {
+    self.scanner.scan_at("/*a/*b*/c*/", 0);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 0 && self.scanner.token_end == 11 && self.scanner.next_cursor == 11;
+    transition self.scanner.token_kind {
+      OmegaTokenKind::BlockComment -> whole_view()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state whole_view() {
+    self.scanner.validate_lexical("let value=0x2a;");
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 15 && self.scanner.token_end == 15 && self.scanner.next_cursor == 15;
+    self.scanner.scan_at("abc a", 0);
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 1 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 0 && self.scanner.token_end == 3 && self.scanner.next_cursor == 3;
+    self.scanner.scan_at("abc \x80", 0);
+    assert self.scanner.accepted == 0 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 4 && self.scanner.diagnostic_end == 5;
+    transition self.scanner.diagnostic_code {
+      OmegaLexDiagnosticCode::InvalidUtf8 -> outside_profile()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state outside_profile() {
+    self.scanner.scan_at("\xC2\xA9", 0);
+    assert self.scanner.accepted == 0 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 0 && self.scanner.diagnostic_end == 2;
+    transition self.scanner.diagnostic_code {
+      OmegaLexDiagnosticCode::OutsideLexicalProfile -> trailing_outside_profile()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state trailing_outside_profile() {
+    self.scanner.validate_lexical("abc \xC2\xA9");
+    assert self.scanner.accepted == 0 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 4 && self.scanner.diagnostic_end == 6;
+    transition self.scanner.diagnostic_code {
+      OmegaLexDiagnosticCode::OutsideLexicalProfile -> unterminated_comment()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state unterminated_comment() {
+    self.scanner.validate_lexical("/*");
+    assert self.scanner.accepted == 0 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 0 && self.scanner.diagnostic_end == 2;
+    transition self.scanner.diagnostic_code {
+      OmegaLexDiagnosticCode::UnterminatedBlockComment -> unsupported_escape()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state unsupported_escape() {
+    self.scanner.scan_at("\"\\q\"", 0);
+    assert self.scanner.accepted == 0 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.diagnostic_start == 1 && self.scanner.diagnostic_end == 3;
+    transition self.scanner.diagnostic_code {
+      OmegaLexDiagnosticCode::UnsupportedEscape -> reset_after_failure()
+      _ -> self.console.exit_process(1)
+    }
+  }
+
+  state reset_after_failure() {
+    self.scanner.validate_lexical("");
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 0 && self.scanner.token_end == 0 && self.scanner.next_cursor == 0;
+    self.scanner.validate_lexical("//\xC2\xA9\n\"\xC2\xA9\"");
+    assert self.scanner.accepted == 1 && self.scanner.has_token == 0 && self.scanner.internal_failure == 0;
+    assert self.scanner.token_start == 9 && self.scanner.token_end == 9 && self.scanner.next_cursor == 9;
+    self.console.write_byte(65);
+  }
+}

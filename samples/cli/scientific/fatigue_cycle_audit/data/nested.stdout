@@ -1,6 +1,0 @@
-range,half_units,damage_numerator,damage_denominator,cumulative_numerator
-0002,0002,0008,0200,0008
-0005,0002,0050,0200,0058
-0009,0001,0081,0200,0139
-0009,0001,0081,0200,0220
-total,0220,0200

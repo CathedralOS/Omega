@@ -1,0 +1,3 @@
+trait Runs {
+    count: u32;
+}

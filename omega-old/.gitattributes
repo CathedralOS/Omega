@@ -1,0 +1,6 @@
+# Canonical source and evidence identities are byte-sensitive. Keep every
+# detected text file stable across host checkouts; Windows launchers retain
+# their native convention.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,25 @@
+// Case membership Boolean plus the formed default domain recovers T == bool, so the Boolean payload is a bool.
+// This forms Integer as Value<bool>. T == i32 does not hold, so formation must reject.
+data Value<T> [copy]
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+machine payload(formed: Value<bool>) -> bool {
+    match formed {
+        Value::Boolean { value } -> value
+    }
+}
+data Holder [copy] { head: u64; formed: Value<bool>; tail: u64; }
+machine main() crashes Trap {
+    let holder: Holder = Holder { head: 11, formed: Value::Integer { value: 1 }, tail: 13 };
+    let other: Holder = Holder { head: 17, formed: Value::Boolean { value: false }, tail: 19 };
+    transition payload(holder.formed) == true && payload(other.formed) == false && holder.head == 11 && holder.tail == 13 && other.head == 17 && other.tail == 19 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

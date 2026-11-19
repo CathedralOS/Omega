@@ -1,0 +1,54 @@
+// Residual cleanup order: two call results each own a linear
+// receipt plus an affine note. Moving each receipt out leaves the
+// owner's note as a residual complement — residuals dispose in
+// REVERSE production order through the note's drop hook.
+//
+//   * `Bundle { receipt: Receipt, note: Note }` — mixed
+//     linear+affine owner.
+//   * Per-member extraction leaves a hooked residual.
+//
+// Compile-checked only: no standard-library dependency, no
+// ProcessExit provider.
+
+
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
+
+data Note dropped by drop_note { tally: i32; }
+machine drop_note(note: &mut Note) {}
+
+data Bundle { receipt: Receipt; note: Note; }
+
+machine issue(code: i32) -> Bundle {
+    let receipt: Receipt = Receipt { code: code };
+    let note: Note = Note { tally: code };
+    Bundle { receipt: receipt, note: note }
+}
+
+machine consume(receipt: Receipt) -> i32 {
+    let observed: i32 = receipt.code;
+    drop(receipt);
+    observed
+}
+
+data Main { hits: i32 in Wrapping; }
+
+machine Main::main(main: &mut Main) {
+    main.hits = 0;
+    let first: Bundle = issue(1);
+    let second: Bundle = issue(2);
+    let a: i32 = consume(first.receipt);
+    let b: i32 = consume(second.receipt);
+    transition a == 1 && b == 2 {
+        true -> pass(main)
+        _ -> fail(main)
+    }
+    machine pass(main: &mut Main) { main.hits = 1; }
+    machine fail(main: &mut Main) { main.hits = -1; }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

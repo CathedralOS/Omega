@@ -1,0 +1,9 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "cannot prove automatic cleanup requires",
+    "drop_room",
+    "room.count == 10"
+  ]
+}

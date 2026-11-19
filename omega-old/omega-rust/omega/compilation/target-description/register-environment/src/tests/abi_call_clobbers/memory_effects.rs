@@ -1,0 +1,760 @@
+/*
+We verify pointer-displacement admission limits and machine-effect catalog
+declarations for every selected scalar, indexed, and bulk memory access rule
+across all supported targets, ensuring exact memory footprint, address-register
+custody, and trap behavior while rejecting per-fact corruptions.
+*/
+
+use super::{
+    Architecture, BTreeSet, EffectRejection, RegisterConstraintKey, abi_case_context,
+    baseline_target_register_environment, binds_catalog_provenance, declaration_mut,
+    declared_pairs, encoded_mut, flags_view, produced_effects, row_and_declaration,
+    scalar_abi_cases, sole_alternative, stack_pointer_view, validate_effects, validated_effects,
+};
+use register_model::{RegisterOperandAccess, RegisterViewId};
+use selected_instructions::{
+    AccessorScalarForm, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectCatalogValidationError, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+};
+
+#[test]
+fn scalar_pointer_displacements_follow_the_selected_isa_limits() {
+    for target in [
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::linux_x64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for width in [1, 2, 4, 8] {
+            assert!(environment.admits_pointer_displacement(4095 * width, width));
+            if target.architecture == Architecture::Aarch64 {
+                assert!(!environment.admits_pointer_displacement(4096 * width, width));
+                assert_eq!(
+                    environment.admits_pointer_displacement(1, width),
+                    width == 1
+                );
+            } else {
+                assert!(environment.admits_pointer_displacement(i32::MAX as u32, width));
+                assert!(!environment.admits_pointer_displacement(1 << 31, width));
+            }
+        }
+        for width in [0, 3, 16] {
+            assert!(!environment.admits_pointer_displacement(0, width));
+        }
+    }
+}
+
+fn selected_memory_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    let keys = environment.selected_keys();
+    [
+        (keys.copy_bytes, MachineSemanticKind::CopyBytes),
+        (keys.zero_bytes, MachineSemanticKind::ZeroBytes),
+        (keys.store, MachineSemanticKind::Store),
+        (keys.address_offset, MachineSemanticKind::AddressOffset),
+        (keys.load64, MachineSemanticKind::Load64),
+        (keys.load8, MachineSemanticKind::Load8),
+        (keys.load16, MachineSemanticKind::Load16),
+        (keys.load32, MachineSemanticKind::Load32),
+        (keys.load8_indexed, MachineSemanticKind::Load8Indexed),
+        (keys.store_packed, MachineSemanticKind::StorePacked),
+        (keys.store64, MachineSemanticKind::Store64),
+        (keys.frame_address, MachineSemanticKind::FrameAddress),
+    ]
+    .into_iter()
+    .flat_map(|(key, semantic)| key.map(|key| (key, semantic)))
+    .chain(keys.load_packed.into_iter().flat_map(|key| {
+        [
+            MachineSemanticKind::LoadPacked3,
+            MachineSemanticKind::LoadPacked5,
+            MachineSemanticKind::LoadPacked6,
+            MachineSemanticKind::LoadPacked7,
+        ]
+        .into_iter()
+        .map(move |semantic| (key, semantic))
+    }))
+    .collect()
+}
+
+fn accessor_scalar_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    let keys = environment.selected_keys();
+    AccessorScalarForm::ALL
+        .into_iter()
+        .flat_map(|form| {
+            if form.write {
+                keys.access_write
+            } else {
+                keys.access_read
+            }
+            .map(|key| (key, MachineSemanticKind::AccessorScalarAccess(form)))
+        })
+        .collect()
+}
+
+fn floating_control_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> [(RegisterConstraintKey, MachineSemanticKind); 2] {
+    let keys = environment.selected_keys();
+    [
+        (
+            keys.save_floating_control.unwrap(),
+            MachineSemanticKind::SaveFloatingControl,
+        ),
+        (
+            keys.restore_floating_control.unwrap(),
+            MachineSemanticKind::RestoreFloatingControl,
+        ),
+    ]
+}
+
+fn descriptor_table_rules(
+    environment: &crate::ValidatedTargetRegisterEnvironment,
+) -> Vec<(RegisterConstraintKey, MachineSemanticKind)> {
+    environment
+        .selected_keys()
+        .global_descriptor_table
+        .into_iter()
+        .flat_map(|key| {
+            [
+                (key, MachineSemanticKind::GlobalDescriptorTableLoad),
+                (key, MachineSemanticKind::GlobalDescriptorTableStore),
+            ]
+        })
+        .collect()
+}
+
+#[test]
+fn floating_control_storage_binds_exact_architectural_state_on_every_target() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let catalog = validated_effects(case, environment.constraints());
+        let model = environment.physical().model();
+        let (stack_name, controls_name, byte_count) = match case.target.architecture {
+            Architecture::X86_64 => ("rsp", "mxcsr", 4),
+            Architecture::Aarch64 => ("sp", "fpcr", 8),
+        };
+        let stack = model.view_named(stack_name).unwrap();
+        let controls = model.view_named(controls_name).unwrap();
+        for (key, semantic) in floating_control_rules(&environment) {
+            let restore = semantic == MachineSemanticKind::RestoreFloatingControl;
+            let row = environment.constraint(key).unwrap();
+            let declaration = catalog.catalog().declaration(key).unwrap();
+            let mut uses = stack.units.clone();
+            if !restore {
+                uses.extend(&controls.units);
+            }
+            uses.sort_unstable();
+            let definitions = if restore {
+                controls.units.clone()
+            } else {
+                Vec::new()
+            };
+            let clobbers = if case.target.architecture == Architecture::Aarch64 {
+                let mut units = model.view_named("x9").unwrap().units.clone();
+                if !restore {
+                    units.extend(&model.view_named("x16").unwrap().units);
+                }
+                units.sort_unstable();
+                units
+            } else {
+                Vec::new()
+            };
+            assert!(row.operands.is_empty());
+            assert_eq!(row.implicit_uses, uses);
+            assert_eq!(row.implicit_defs, definitions);
+            assert_eq!(row.clobbers, clobbers);
+            assert_eq!(declaration.barrier, MachineBarrier::ExternalEffect);
+            assert_eq!(declaration.call, MachineCallEffect::NoneV1);
+            assert_eq!(
+                declaration.memory,
+                if restore {
+                    MachineMemoryEffect::ReadFrameStorageV1
+                } else {
+                    MachineMemoryEffect::WriteFrameStorageV1
+                }
+            );
+            let [alternative] = declaration.alternatives.as_slice() else {
+                panic!("one control form");
+            };
+            let encoded = &alternative.encoded;
+            assert!(encoded.external_operand_reads.is_empty());
+            assert!(encoded.external_operand_writes.is_empty());
+            assert_eq!(encoded.implicit_unit_uses, uses);
+            assert_eq!(encoded.implicit_unit_defs, definitions);
+            assert_eq!(encoded.implicit_unit_clobbers, clobbers);
+            assert_eq!(
+                encoded.memory,
+                if restore {
+                    MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                        stack_pointer: stack.id,
+                        byte_count,
+                    }
+                } else {
+                    MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                        stack_pointer: stack.id,
+                        byte_count,
+                    }
+                }
+            );
+            assert_eq!(encoded.stack, MachineEncodedStackEffect::UnchangedV1);
+            assert_eq!(encoded.control, MachineEncodedControlEffect::FallThroughV1);
+            assert_eq!(
+                encoded.trap,
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            );
+        }
+    }
+}
+
+struct MemoryContract {
+    accesses: &'static [RegisterOperandAccess],
+    early_clobbers: &'static [u16],
+    reads: &'static [u16],
+    writes: &'static [u16],
+    memory: MachineMemoryEffect,
+    faulting: bool,
+    uses_stack_pointer: bool,
+}
+
+fn memory_contract(semantic: MachineSemanticKind) -> MemoryContract {
+    use MachineSemanticKind::*;
+    use RegisterOperandAccess::{Def, Use};
+    match semantic {
+        CopyBytes => MemoryContract {
+            accesses: &[Use, Use, Use, Def, Def],
+            early_clobbers: &[3, 4],
+            reads: &[0, 1, 2],
+            writes: &[3, 4],
+            memory: MachineMemoryEffect::CopyBytesV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        ZeroBytes => MemoryContract {
+            accesses: &[Use, Use, Def],
+            early_clobbers: &[2],
+            reads: &[0, 1],
+            writes: &[2],
+            memory: MachineMemoryEffect::ZeroBytesV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => MemoryContract {
+            accesses: &[Use, Def, Def],
+            early_clobbers: &[1, 2],
+            reads: &[0],
+            writes: &[1, 2],
+            memory: MachineMemoryEffect::ReadPointerV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        StorePacked => MemoryContract {
+            accesses: &[Use, Use, Def],
+            early_clobbers: &[2],
+            reads: &[0, 1],
+            writes: &[2],
+            memory: MachineMemoryEffect::WritePointerV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        Store => MemoryContract {
+            accesses: &[Use, Use],
+            early_clobbers: &[],
+            reads: &[0, 1],
+            writes: &[],
+            memory: MachineMemoryEffect::WritePointerV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        AddressOffset => MemoryContract {
+            accesses: &[Use, Def],
+            early_clobbers: &[],
+            reads: &[0],
+            writes: &[1],
+            memory: MachineMemoryEffect::NoneV1,
+            faulting: false,
+            uses_stack_pointer: false,
+        },
+        Load8Indexed => MemoryContract {
+            accesses: &[Use, Use, Def],
+            early_clobbers: &[],
+            reads: &[0, 1],
+            writes: &[2],
+            memory: MachineMemoryEffect::ReadPointerV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        Load8 | Load16 | Load32 | Load64 => MemoryContract {
+            accesses: &[Use, Def],
+            early_clobbers: &[],
+            reads: &[0],
+            writes: &[1],
+            memory: MachineMemoryEffect::ReadPointerV1,
+            faulting: true,
+            uses_stack_pointer: false,
+        },
+        Store64 => MemoryContract {
+            accesses: &[Use, Def],
+            early_clobbers: &[1],
+            reads: &[0],
+            writes: &[1],
+            memory: MachineMemoryEffect::WriteFrameStorageV1,
+            faulting: true,
+            uses_stack_pointer: true,
+        },
+        FrameAddress => MemoryContract {
+            accesses: &[Def],
+            early_clobbers: &[],
+            reads: &[],
+            writes: &[0],
+            memory: MachineMemoryEffect::NoneV1,
+            faulting: false,
+            uses_stack_pointer: true,
+        },
+        other => panic!("{other:?} is not a selected memory rule"),
+    }
+}
+
+fn row_clobbers_flags(semantic: MachineSemanticKind, architecture: Architecture) -> bool {
+    match semantic {
+        MachineSemanticKind::CopyBytes | MachineSemanticKind::ZeroBytes => true,
+        MachineSemanticKind::LoadPacked3
+        | MachineSemanticKind::LoadPacked5
+        | MachineSemanticKind::LoadPacked6
+        | MachineSemanticKind::LoadPacked7
+        | MachineSemanticKind::StorePacked
+        | MachineSemanticKind::Store64
+        | MachineSemanticKind::FrameAddress => architecture == Architecture::X86_64,
+        _ => false,
+    }
+}
+
+const fn packed_load_width(semantic: MachineSemanticKind) -> u16 {
+    match semantic {
+        MachineSemanticKind::LoadPacked3 => 3,
+        MachineSemanticKind::LoadPacked5 => 5,
+        MachineSemanticKind::LoadPacked6 => 6,
+        MachineSemanticKind::LoadPacked7 => 7,
+        _ => 0,
+    }
+}
+
+fn expected_encoded_memory(
+    semantic: MachineSemanticKind,
+    stack_pointer: RegisterViewId,
+) -> MachineEncodedMemoryEffect {
+    use MachineSemanticKind::*;
+    match semantic {
+        CopyBytes => MachineEncodedMemoryEffect::CopyBytesV1 {
+            source_pointer_operand: 0,
+            destination_pointer_operand: 1,
+            count_operand: 2,
+        },
+        ZeroBytes => MachineEncodedMemoryEffect::ZeroBytesV1 {
+            destination_pointer_operand: 0,
+            count_operand: 1,
+        },
+        LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count: packed_load_width(semantic),
+            }
+        }
+        StorePacked | Store => MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+        Load8Indexed => MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+            pointer_operand: 0,
+            index_operand: 1,
+            byte_count: 1,
+        },
+        Load8 | Load16 | Load32 | Load64 => MachineEncodedMemoryEffect::ReadPointerV1 {
+            pointer_operand: 0,
+            byte_count: match semantic {
+                Load8 => 1,
+                Load16 => 2,
+                Load32 => 4,
+                _ => 8,
+            },
+        },
+        Store64 => MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+            stack_pointer,
+            byte_count: 8,
+        },
+        AddressOffset | FrameAddress => MachineEncodedMemoryEffect::NoneV1,
+        other => panic!("{other:?} is not a selected memory rule"),
+    }
+}
+
+fn expected_size(
+    semantic: MachineSemanticKind,
+    architecture: Architecture,
+) -> MachineSizeKnowledge {
+    use MachineSemanticKind::*;
+    let resolved = |minimum_bytes: u16, maximum_bytes: u16| MachineSizeKnowledge::EncoderResolved {
+        minimum_bytes,
+        maximum_bytes: Some(maximum_bytes),
+    };
+    match architecture {
+        Architecture::X86_64 => match semantic {
+            CopyBytes => MachineSizeKnowledge::ExactBytes(36),
+            ZeroBytes => MachineSizeKnowledge::ExactBytes(25),
+            LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
+                let width = packed_load_width(semantic);
+                resolved(width * 8 + (width - 1) * 7, width * 9 + (width - 1) * 7)
+            }
+            StorePacked => resolved(32, 83),
+            Store => resolved(7, 9),
+            AddressOffset | Load32 | Load64 => resolved(7, 8),
+            Load8 | Load16 => resolved(8, 9),
+            Load8Indexed => MachineSizeKnowledge::ExactBytes(9),
+            Store64 => resolved(15, 31),
+            FrameAddress => resolved(8, 23),
+            other => panic!("{other:?} is not a selected memory rule"),
+        },
+        Architecture::Aarch64 => match semantic {
+            CopyBytes => MachineSizeKnowledge::ExactBytes(28),
+            ZeroBytes => MachineSizeKnowledge::ExactBytes(24),
+            LoadPacked3 | LoadPacked5 | LoadPacked6 | LoadPacked7 => {
+                MachineSizeKnowledge::ExactBytes((2 * packed_load_width(semantic) - 1) * 4)
+            }
+            StorePacked => resolved(24, 56),
+            AddressOffset => resolved(4, 1_032),
+            FrameAddress => resolved(4, 2_068),
+            Store64 => resolved(8, 2_072),
+            Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 => {
+                MachineSizeKnowledge::ExactBytes(4)
+            }
+            other => panic!("{other:?} is not a selected memory rule"),
+        },
+    }
+}
+
+#[test]
+fn every_selected_memory_rule_binds_the_declared_abi_memory_contract() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let (model, convention, catalog, keys) = abi_case_context(&environment, case);
+        let memory_rules = selected_memory_rules(&environment);
+        assert_eq!(
+            memory_rules.len(),
+            16,
+            "{} selects an unexpected memory roster",
+            case.convention
+        );
+
+        let declared = declared_pairs(&catalog, |declaration| {
+            matches!(
+                declaration.memory,
+                MachineMemoryEffect::CopyBytesV1
+                    | MachineMemoryEffect::ZeroBytesV1
+                    | MachineMemoryEffect::ReadPointerV1
+                    | MachineMemoryEffect::WritePointerV1
+                    | MachineMemoryEffect::WriteFrameStorageV1
+                    | MachineMemoryEffect::ReadFrameStorageV1
+            )
+        });
+        assert_eq!(
+            declared,
+            memory_rules
+                .iter()
+                .copied()
+                .filter(|(_, semantic)| {
+                    memory_contract(*semantic).memory != MachineMemoryEffect::NoneV1
+                })
+                .chain(accessor_scalar_rules(&environment))
+                .chain(floating_control_rules(&environment))
+                .chain(descriptor_table_rules(&environment))
+                .collect::<BTreeSet<_>>(),
+            "{}",
+            case.convention
+        );
+
+        binds_catalog_provenance(&catalog, case, &environment, keys);
+
+        let stack_pointer = stack_pointer_view(model, case);
+        let flags = flags_view(model, case);
+        let integer_class = model.view_named(case.arguments[0]).unwrap().class;
+        assert!(
+            stack_pointer
+                .units
+                .iter()
+                .all(|unit| convention.fixed.contains(unit)),
+            "{} must fix the stack pointer",
+            case.convention
+        );
+
+        for (key, semantic) in &memory_rules {
+            let contract = memory_contract(*semantic);
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
+            assert_eq!(declaration.semantic, *semantic, "{key:?}");
+            assert_eq!(declaration.barrier, MachineBarrier::None, "{key:?}");
+            assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");
+            assert_eq!(declaration.cleanup, MachineCleanupEffect::NoneV1, "{key:?}");
+            assert_eq!(declaration.memory, contract.memory, "{key:?}");
+            assert_eq!(
+                declaration.trap,
+                if contract.faulting {
+                    MachineTrapBehavior::MayArchitecturalFaultV1
+                } else {
+                    MachineTrapBehavior::NeverV1
+                },
+                "{key:?}"
+            );
+
+            assert_eq!(row.operands.len(), contract.accesses.len(), "{key:?}");
+            for (position, operand) in row.operands.iter().enumerate() {
+                assert_eq!(operand.operand as usize, position, "{key:?}");
+                assert_eq!(operand.access, contract.accesses[position], "{key:?}");
+                assert_eq!(
+                    operand.early_clobber,
+                    contract.early_clobbers.contains(&(position as u16)),
+                    "{key:?}"
+                );
+                assert!(operand.tied_to.is_none(), "{key:?}");
+                assert!(operand.fixed_view.is_none(), "{key:?}");
+                assert_eq!(operand.class, integer_class, "{key:?}");
+            }
+
+            assert_eq!(
+                row.implicit_uses,
+                if contract.uses_stack_pointer {
+                    stack_pointer.units.clone()
+                } else {
+                    Vec::new()
+                },
+                "{key:?}"
+            );
+            assert!(row.implicit_defs.is_empty(), "{key:?}");
+            assert_eq!(
+                row.clobbers,
+                if row_clobbers_flags(*semantic, case.target.architecture) {
+                    flags.units.clone()
+                } else {
+                    Vec::new()
+                },
+                "{key:?}"
+            );
+            assert!(
+                row.implicit_uses
+                    .iter()
+                    .chain(&row.implicit_defs)
+                    .all(|unit| convention.fixed.contains(unit)),
+                "{key:?} implicit state must stay inside ABI-fixed units"
+            );
+            assert!(
+                row.clobbers.iter().all(|unit| {
+                    convention.caller_saved.contains(unit)
+                        && !convention.callee_saved.contains(unit)
+                        && !convention.fixed.contains(unit)
+                }),
+                "{key:?} clobbers must stay inside the caller-saved set"
+            );
+
+            let alternative = sole_alternative(declaration, *semantic, *key);
+            assert_eq!(
+                alternative.size,
+                expected_size(*semantic, case.target.architecture),
+                "{key:?}"
+            );
+            let encoded = &alternative.encoded;
+            assert_eq!(encoded.external_operand_reads, contract.reads, "{key:?}");
+            assert_eq!(encoded.external_operand_writes, contract.writes, "{key:?}");
+            assert_eq!(encoded.implicit_unit_uses, row.implicit_uses, "{key:?}");
+            assert_eq!(encoded.implicit_unit_defs, row.implicit_defs, "{key:?}");
+            assert_eq!(encoded.implicit_unit_clobbers, row.clobbers, "{key:?}");
+            assert_eq!(
+                encoded.memory,
+                expected_encoded_memory(*semantic, stack_pointer.id),
+                "{key:?}"
+            );
+            assert_eq!(
+                encoded.stack,
+                MachineEncodedStackEffect::UnchangedV1,
+                "{key:?}"
+            );
+            assert_eq!(
+                encoded.trap,
+                if contract.faulting {
+                    MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                } else {
+                    MachineEncodedTrapBehavior::NeverV1
+                },
+                "{key:?}"
+            );
+            assert_eq!(
+                encoded.control,
+                MachineEncodedControlEffect::FallThroughV1,
+                "{key:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_selected_memory_rule_rejects_encoded_memory_forgery_on_every_target() {
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let model = environment.physical().model();
+        let catalog = produced_effects(case, environment.constraints());
+        let stack_pointer = stack_pointer_view(model, case).id;
+        let foreign_unit = flags_view(model, case).units[0];
+        for (key, semantic) in selected_memory_rules(&environment) {
+            let contract = memory_contract(semantic);
+            let row = environment.constraint(key).unwrap();
+            macro_rules! reject_encoded {
+                ($corrupted:expr, $message:literal $(, $arg:expr)*) => {
+                    assert_eq!(
+                        validate_effects(case, environment.constraints(), $corrupted),
+                        Err(EffectRejection::Structural(
+                            MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic)
+                        )),
+                        $message $(, $arg)*
+                    );
+                };
+            }
+
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0).memory =
+                if contract.memory == MachineMemoryEffect::NoneV1 {
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
+                } else {
+                    MachineEncodedMemoryEffect::NoneV1
+                };
+            reject_encoded!(
+                corrupted,
+                "{key:?} memory-footprint substitution must reject"
+            );
+
+            let drifted = match expected_encoded_memory(semantic, stack_pointer) {
+                MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand,
+                    byte_count,
+                } => Some(MachineEncodedMemoryEffect::ReadPointerV1 {
+                    pointer_operand,
+                    byte_count: byte_count + 1,
+                }),
+                MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                    pointer_operand,
+                    index_operand,
+                    ..
+                } => Some(MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                    pointer_operand,
+                    index_operand,
+                    byte_count: 2,
+                }),
+                MachineEncodedMemoryEffect::WritePointerV1 { .. } => {
+                    Some(MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 1 })
+                }
+                MachineEncodedMemoryEffect::CopyBytesV1 { .. } => {
+                    Some(MachineEncodedMemoryEffect::CopyBytesV1 {
+                        source_pointer_operand: 1,
+                        destination_pointer_operand: 0,
+                        count_operand: 2,
+                    })
+                }
+                MachineEncodedMemoryEffect::ZeroBytesV1 { .. } => {
+                    Some(MachineEncodedMemoryEffect::ZeroBytesV1 {
+                        destination_pointer_operand: 1,
+                        count_operand: 0,
+                    })
+                }
+                MachineEncodedMemoryEffect::WriteFrameStorageV1 { stack_pointer, .. } => {
+                    Some(MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                        stack_pointer,
+                        byte_count: 4,
+                    })
+                }
+                _ => None,
+            };
+            if let Some(drifted) = drifted {
+                let mut corrupted = catalog.clone();
+                encoded_mut(&mut corrupted, key, semantic, 0).memory = drifted;
+                reject_encoded!(corrupted, "{key:?} drifted footprint must reject");
+            }
+
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0).trap = if contract.faulting {
+                MachineEncodedTrapBehavior::NeverV1
+            } else {
+                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+            };
+            let expected = if contract.faulting {
+                EffectRejection::Structural(
+                    MachineEffectCatalogValidationError::InvalidEncodedEffects(semantic),
+                )
+            } else {
+                EffectRejection::SemanticMismatch
+            };
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(expected),
+                "{key:?} encoded trap drift must reject"
+            );
+
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0).control =
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1;
+            reject_encoded!(corrupted, "{key:?} branch-encoded memory rule must reject");
+
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0).stack =
+                MachineEncodedStackEffect::PopBytesV1 {
+                    stack_pointer,
+                    byte_count: 8,
+                };
+            reject_encoded!(corrupted, "{key:?} forged stack lifecycle must reject");
+
+            if contract.uses_stack_pointer {
+                let mut corrupted = catalog.clone();
+                let encoded = encoded_mut(&mut corrupted, key, semantic, 0);
+                assert!(
+                    !encoded.implicit_unit_uses.is_empty(),
+                    "{key:?} declares no stack-pointer use"
+                );
+                encoded.implicit_unit_uses.remove(0);
+                reject_encoded!(corrupted, "{key:?} lost stack-pointer use must reject");
+            }
+
+            if !row.clobbers.is_empty() {
+                let mut corrupted = catalog.clone();
+                encoded_mut(&mut corrupted, key, semantic, 0)
+                    .implicit_unit_clobbers
+                    .remove(0);
+                reject_encoded!(corrupted, "{key:?} lost encoded clobber must reject");
+            }
+
+            let mut corrupted = catalog.clone();
+            encoded_mut(&mut corrupted, key, semantic, 0)
+                .implicit_unit_defs
+                .push(foreign_unit);
+            reject_encoded!(corrupted, "{key:?} forged implicit def must reject");
+
+            if let Some(&dropped) = contract.writes.last() {
+                let mut corrupted = catalog.clone();
+                let writes =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_writes;
+                writes.retain(|write| *write != dropped);
+                reject_encoded!(corrupted, "{key:?} lost operand write must reject");
+            }
+
+            if let Some(&dropped) = contract.reads.last() {
+                let mut corrupted = catalog.clone();
+                let reads =
+                    &mut encoded_mut(&mut corrupted, key, semantic, 0).external_operand_reads;
+                reads.retain(|read| *read != dropped);
+                reject_encoded!(corrupted, "{key:?} lost operand read must reject");
+            }
+
+            let mut corrupted = catalog.clone();
+            declaration_mut(&mut corrupted, key, semantic).alternatives[0].size =
+                MachineSizeKnowledge::ExactBytes(997);
+            assert_eq!(
+                validate_effects(case, environment.constraints(), corrupted),
+                Err(EffectRejection::SemanticMismatch),
+                "{key:?} size drift must reject"
+            );
+        }
+    }
+}

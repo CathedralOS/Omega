@@ -1,0 +1,25 @@
+// Expected exit: 0. Generic record forwarding preserves the field and its neighbors.
+data Ticket [linear] { number: u64; }
+data Envelope<T> { before: u32; item: T; after: u32; }
+machine wrap<T>(value: T) -> Envelope<T> {
+    Envelope { before: 19u32, item: move value, after: 23u32 }
+}
+machine keep<U>(value: Envelope<U>) -> Envelope<U> { move value }
+machine relay<T>(value: Envelope<T>) -> Envelope<T> { keep<T>(move value) }
+machine inspect<U>(value: &Envelope<U>) -> bool {
+    value.before == 19u32 && value.after == 23u32
+}
+machine observe_record<T>(value: &Envelope<T>) {}
+machine main() crashes Trap {
+    let envelope: Envelope<Ticket> = wrap<Ticket>(Ticket { number: 29u64 });
+    let wrapped: Envelope<Ticket> = relay<Ticket>(move envelope);
+    let neighbors: bool = inspect<Ticket>(&wrapped);
+    let { before, item, after } = move wrapped;
+    let { number } = move item;
+    transition neighbors && before == 19u32 && number == 29u64 && after == 23u32 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

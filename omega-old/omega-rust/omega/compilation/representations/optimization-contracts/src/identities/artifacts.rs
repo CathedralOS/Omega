@@ -1,0 +1,39 @@
+// Domain-separated identities for post-Terminal function fragments, text
+// sections, relocation-free object plans/containers, and optimized object
+// artifacts.
+
+s!(FunctionFragmentEmissionIdentity => b"omega.terminal-function-fragment-emission-identity.v1\0");
+canonical_identity!(
+    FunctionFragmentEmissionManifestIdentity,
+    b"omega.function-fragment-emission-manifest-identity.v1\0"
+);
+canonical_identity!(
+    TerminalRelocationFreeTextSectionIdentity,
+    b"omega.terminal-relocation-free-text-section-identity.v1\0"
+);
+canonical_identity!(
+    FunctionFragmentTextSectionManifestIdentity,
+    b"omega.function-fragment-text-section-manifest-identity.v1\0"
+);
+s!(RelocationFreeObjectPlanIdentity => b"omega.terminal-relocation-free-object-plan-identity.v1\0");
+canonical_identity!(
+    RelocationFreeObjectContainerIdentity,
+    b"omega.terminal-relocation-free-object-container-identity.v1\0"
+);
+canonical_identity!(
+    FunctionFragmentObjectContainerManifestIdentity,
+    b"omega.function-fragment-object-container-manifest-identity.v1\0"
+);
+s!(OptimizedObjectArtifactIdentity => b"omega.optimized-terminal-object-artifact-identity.v1\0");
+canonical_identity!(
+    OptimizedObjectArtifactManifestIdentity,
+    b"omega.optimized-terminal-object-artifact-manifest-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedTerminalOrdinaryCallableEntryIdentity,
+    b"omega.optimized-terminal-ordinary-callable-entry-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedOrdinaryCallableEntryManifestIdentity,
+    b"omega.optimized-terminal-ordinary-callable-entry-manifest-identity.v1\0"
+);

@@ -1,6 +1,0 @@
-// Source-invalid control: there are exactly three diprotic acid species.
-data Species { acid: [f64; 3]; }
-machine invalid(species: &Species) -> f64 {
-    let value: f64 = species.acid[3];
-    transition { _ -> value }
-}

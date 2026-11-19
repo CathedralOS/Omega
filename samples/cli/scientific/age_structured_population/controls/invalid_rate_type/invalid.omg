@@ -1,5 +1,0 @@
-// Intended-invalid: a boolean cannot initialize an integer rate.
-data TransitionRate [copy] { thousandths: i64; }
-machine main() {
-    let rate: TransitionRate = TransitionRate { thousandths: true };
-}

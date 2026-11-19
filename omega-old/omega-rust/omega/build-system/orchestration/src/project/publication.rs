@@ -1,0 +1,148 @@
+/*
+
+Publish completed compiler outputs into each target's admitted build directory.
+
+The compiler produces an in-memory `CompilationOutput`. Choosing an output path
+and writing artifact files to disk belongs to `orchestration::publication`:
+- `Check`, `Terminal`, `Inspection`, `NativeDestination::Retained`, and
+  `NativeDestination::RuntimeAdmission` write no files and return
+  `executable_path: None`.
+- `NativeDestination::Published` writes the native executable (or macOS `.app`
+  bundle) and any declared build outputs into the target's admitted canonical
+  directory via `publish_compilation`.
+- `publish_native_artifact` is used by `omega run` after Terminal Psi comparison
+  finishes to publish a `RetainedNativeArtifact` into the temporary probe
+  directory before spawning the native child process.
+
+*/
+
+use crate::{BuildError, BuildOutcome, NativeDestination, ProjectProduct, TargetBuildOutcome};
+use artifacts::compile_timings::{CompileTimings, StageMeta};
+use compiler::CompilationOutput;
+use std::path::{Path, PathBuf};
+
+pub(crate) fn publish_products(
+    work: Vec<crate::project::build_directory::TargetWork>,
+    mut reports: Vec<(target::TargetProfile, Result<CompilationOutput, BuildError>)>,
+    product: &ProjectProduct,
+    validators: &crate::StageValidatorRequest,
+    timings: &mut CompileTimings,
+) -> Vec<TargetBuildOutcome> {
+    let mut outcomes = Vec::with_capacity(work.len());
+    for target in work {
+        let result = match target.directory {
+            Err(error) => Err(error),
+            Ok(directory) => {
+                let report = match reports
+                    .iter()
+                    .position(|(profile, _)| *profile == target.profile)
+                {
+                    Some(position) => reports.remove(position).1,
+                    None => Err(BuildError::Diagnostics(vec![
+                        diagnostics::Diagnostic::error(format!(
+                            "build lost the requested product for {}",
+                            target.profile.target_name(),
+                        )),
+                    ])),
+                };
+                match report {
+                    Err(error) => Err(error),
+                    Ok(report) => publish_product(
+                        report,
+                        product,
+                        target.profile,
+                        validators,
+                        &directory,
+                        timings,
+                    ),
+                }
+            }
+        };
+        outcomes.push(TargetBuildOutcome {
+            target: target.profile,
+            result,
+        });
+    }
+    outcomes
+}
+
+fn publish_product(
+    output: CompilationOutput,
+    product: &ProjectProduct,
+    profile: target::TargetProfile,
+    validators: &crate::StageValidatorRequest,
+    directory: &Path,
+    timings: &mut CompileTimings,
+) -> Result<BuildOutcome, BuildError> {
+    let mut stage_validations = Vec::new();
+    let (output, executable_path) = match product {
+        ProjectProduct::Check
+        | ProjectProduct::Terminal
+        | ProjectProduct::Inspection { .. }
+        | ProjectProduct::Native {
+            destination: NativeDestination::Retained | NativeDestination::RuntimeAdmission,
+            ..
+        } => {
+            if !validators.is_empty() {
+                stage_validations = validators.run(product, profile, None)?;
+            }
+            (output, None)
+        }
+        ProjectProduct::Native {
+            destination: NativeDestination::Published,
+            ..
+        } => {
+            let report = output
+                .into_report()
+                .map_err(|error| BuildError::Diagnostics(error.into_diagnostics()))?;
+            // Requested validators check the retained stage output before it
+            // is written out; default compilation runs none.
+            if !validators.is_empty() {
+                stage_validations = timings.record_result(
+                    StageMeta::new("validate", "retained product", "validator rows"),
+                    || validators.run(product, profile, Some(&report)),
+                )?;
+            }
+            let (report, path) = timings
+                .record_result(
+                    StageMeta::new("publish", "retained product", "published product"),
+                    || publish_compilation(report, directory),
+                )
+                .map_err(BuildError::Publication)?;
+            (CompilationOutput::Report(report), path)
+        }
+    };
+    Ok(BuildOutcome {
+        output,
+        timings: timings.clone(),
+        executable_path,
+        stage_validations,
+    })
+}
+
+pub fn publish_compilation(
+    report: products::CompileReport,
+    build_dir: &Path,
+) -> Result<(products::CompileReport, Option<PathBuf>), String> {
+    let report = products::publication::publish_compilation(report, build_dir)?;
+    let executable = report
+        .checked_native_executable_path()
+        .map(Path::to_path_buf);
+    Ok((report, executable))
+}
+
+pub fn publish_native_artifact(
+    report: products::CompileReport,
+    build_dir: &Path,
+) -> Result<(products::CompileReport, PathBuf), String> {
+    if report.output_kind() == products::CompileOutputKind::BuildArtifacts {
+        return Err("an artifact-only build has no executable to run".into());
+    }
+    if report.output_kind() != products::CompileOutputKind::RetainedNativeArtifact {
+        return Err("running requires a retained native executable product".into());
+    }
+    let (published, path) = publish_compilation(report, build_dir)?;
+    let path =
+        path.ok_or_else(|| "native publication did not retain executable custody".to_owned())?;
+    Ok((published, path))
+}

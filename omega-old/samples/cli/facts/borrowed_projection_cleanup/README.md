@@ -1,0 +1,115 @@
+# Borrowed projection cleanup
+
+Seed.code == 7 survives each place into borrowed anonymous storage and its exact normal cleanup, including scalar copies through returned descriptors.
+
+This CML4 row carries the same code fact into cleanup hook prerequisites.
+Each place keeps the original projected `Pair` argument to a Unit call, including
+its unselected linear sibling. Two additional compositions carry that fact into
+`drop_captured_receipt`: a scalar read through a returned `CapturedView`, and a
+copied descriptor staged through a fixed array into a scalar-returning call.
+The counter is zero while the call reads and one after normal completion;
+`verify_captured` checks the value and that once-only cleanup in both engines.
+It does not supply the hook's static code prerequisite.
+
+A third composition reads `CapturedPairView.pair.second.code`. The projected
+linear `CapturedToken` contains no references, but its read still needs the
+original Pair storage. Its captured address keeps that backing alive through
+the read; the completed scalar detaches afterward. The wrapper dies before the
+parent hook and both linear-child hooks, and the parent counter becomes one.
+
+Each invalid twin changes only the transported code to 6, keeping both hooks'
+code-7 prerequisites. The pinned invalid oracles require the new
+`drop_captured_receipt` and `drop_captured_token` refusals as well as
+automatic-cleanup rejection. The root
+retains ordered construction, explicit/implicit loans, returned aggregates and
+fixed-array projections alongside these descriptor compositions.
+
+## Places
+
+The nine places carry `Seed.code == 7` into the borrowed projection of an anonymous Pair child and verify deterministic cleanup:
+
+| Place | Positive | Reject twin | Transport |
+| --- | --- | --- | --- |
+| root | [main.omg](main.omg) | — | original witness: ordered effectful construction, explicit/implicit loans, returned aggregate and fixed-array projection |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | local `Seed` binding supplies code 7 |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | record field (`Holder.seed`) supplies code 7 |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | callee machine parameter receives code 7 |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | helper call returns code 7 |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | match branches converge on code 7 |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constant supplies code 7 |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | nested-machine parameter carries code 7 |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | intermediate machine forwards code 7 |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | per-target machine body produces code 7 |
+
+## Requirements and evidence
+
+Canonical authority: [source ownership](../../../../wiki/spec/language/ownership.md#construction-and-disposal-order),
+[normal continuation ownership](../../../../wiki/spec/terminal-psi/ownership.md#roots-continuations-and-order),
+and [loan closure](../../../../wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
+
+| Requirement | Witness and limit |
+| --- | --- |
+| Establishment | The transported code enters the anonymous value before borrowing; the hook must prove code 7 at its actual death. |
+| Identity and lifetime | Returned descriptors keep original backing. A copied scalar detaches from its carrier; independently live references keep their loans. Counter observations distinguish premature, missing and duplicate hooks. |
+| Composition | All three descriptor productions occur at the consuming site in all nine places, retaining the original Unit-call/linear-sibling control. Reference-free projected children preserve their observed storage until the scalar read completes. |
+| Soundness | All nine code-6 twins reject at the unchanged cleanup prerequisites. Separate borrow controls retain a live descendant and reject early backing access. |
+| Psi 06–08 | Checked completion contexts and ordered actions survive into Terminal Psi; actual execution must return 0. |
+| Omega 00–02 | Each public project binds all four hosted entries. The measured host realizes pointer, record and fixed-array geometry and calling plans. Foreign entry bindings alone are not execution evidence. |
+| Omega 03–06 | Host execution exercises descriptor carriers, live backing storage and hook calls through instruction selection and frame realization. |
+| Omega 07–09 and emission | Native exit 0 must agree with Terminal exit 0 on the measured host. This does not claim Windows/Linux execution from macOS. |
+
+## Measured run record
+
+Producer `116d5550a53f899c0c069e9c3c436ab38a5541db`, opt-level 1,
+`macos_arm64`, integrated on published base `daf76df20a9`:
+
+- Root plus all nine public places run with native exit 0 and Terminal exit 0;
+  all nine public invalids require and match both captured cleanup-hook clauses.
+- The nine mirrored corpus places and the two retained descriptor-completion
+  fixtures run at 0 in both engines. The retained linear-Pair supplier also
+  runs at 0 in both engines. At baseline `daf76df20a9`, the new nine-place
+  composition source-checks, but the corpus target auditor refuses
+  `ReferenceDisposalConflict`; the normal public CLI runs native 0 and then
+  fails Terminal `AffineFrontierMismatch`. Both instruments now accept it.
+  At the earlier baseline `d25dcf177ece`, the added
+  direct composition refused for missing exact context, and the larger existing
+  call compositions refused disposal while a wrapper reference remained live.
+- The affected source comparison covers 128 fixtures without lost outcomes.
+  The target comparison covers 65: 63 native executions and 62 actual
+  native/Terminal agreements, including one existing 42/42 control. Two are
+  checked-only; one foreign-`abs` fixture still has no trusted Terminal host
+  implementation on both baseline and candidate. The unchanged source
+  expected-fragment gap also remains outside this repair.
+- Changing only the runtime counter oracle from 1 to 2 produces native signal 5
+  and Terminal `Trap`, so missing or duplicate cleanup cannot satisfy the oracle.
+- All ten accepted project locks stay stable during the final public replay.
+  Parent acceptance was prepared after its nested projects; no accepted lock was
+  borrowed into another checkout.
+
+Earlier Unit-call records at `cc2f948d148` and `9ff26a87021` are historical
+coverage of that production, not execution of these new compositions.
+
+## Execution scope
+
+This completed CML4 row establishes normal death after borrowed supplier reads.
+Its nine places run on macOS ARM64, including the reference-free projected
+supplier. The separate ordered-edge controls run on Linux x86-64 and Windows
+x86-64. Producer `b457b1978b87` refreshes the macOS row and work/retry provision;
+the Linux/Windows runs cover the ordered-edge controls and returned-linear row.
+
+```sh
+omega run --both samples/cli/facts/borrowed_projection_cleanup/local/main.omg
+omega --check samples/cli/facts/borrowed_projection_cleanup/invalid_local/main.omg
+```
+
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
+implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
+by explicit target-keyed Build rows. The operation, inputs, contracts and exit
+oracle are unchanged. The entry wrapper and each implementation check a tag
+(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
+Linux x86-64 native and Terminal Psi agreement for the positive and source
+rejection for the twin; the other hosted targets keep their authored rows,
+unexecuted here.

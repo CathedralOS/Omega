@@ -1,0 +1,4 @@
+(def fill ((n Int)) Int (if n (let discard Int (pair n 0) (fill (- n 1))) 0))
+
+(def main () Int (let ((ignored Int (fill 30)) (p Int (pair (pair 11 12) (pair 21 22))) (later Int (fill 100)))
+    (let ((a Int (write (first (first p)))) (b Int (write (second (first p)))) (c Int (write (first (second p))))) (second (second p)))))

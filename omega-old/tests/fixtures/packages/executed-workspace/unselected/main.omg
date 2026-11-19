@@ -1,0 +1,2 @@
+// A catalog observation must not prepare an unselected Product.
+machine deliberately_unchecked() { no_such_machine(); }

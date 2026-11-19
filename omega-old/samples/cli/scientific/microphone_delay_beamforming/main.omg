@@ -1,0 +1,185 @@
+use omega::language::core::ProcessExit;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use domain::records;
+use domain::records::Beamforming;
+use domain::beamforming;
+use domain::beamforming::analyze;
+
+data Main { records: Beamforming; }
+
+// Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
+// Reject truncation and trailing digits rather than silently selecting fixtures.
+machine main(context: &mut Main) reaches ProcessExit + Console {
+    transition { _ -> read(context, 0) }
+    machine read(context: &mut Main, position: u64) {
+        let observed: ByteRead = block Console::read_byte();
+        transition observed {
+            ByteRead::Eof -> finish_input(context, position)
+            ByteRead::Byte { value } -> classify(context, position, value)
+        }
+    }
+    machine classify(context: &mut Main, position: u64, value: i32) {
+        transition value == 10 || value == 13 || value == 32 || value == 9 {
+            true -> read(context, position)
+            false -> digit(context, position, value)
+        }
+    }
+    machine digit(context: &mut Main, position: u64, value: i32) {
+        transition position < 36 && value >= 48 && value <= 56 {
+            true -> save(context, position, value)
+            false -> reject(context, 10)
+        }
+    }
+    machine save(context: &mut Main, position: u64, value: i32)
+    requires position < 36 requires value >= 48 requires value <= 56 {
+        context.records.raw[position] = (value - 48) as u64;
+        transition { _ -> read(context, position + 1) }
+    }
+    machine finish_input(context: &mut Main, position: u64) {
+        transition position == 36 {
+            true -> analyze_input(context)
+            false -> reject(context, 10)
+        }
+    }
+    machine analyze_input(context: &mut Main) {
+        let status: u64 = analyze(&mut context.records);
+        transition status == 0 {
+            true -> report(context)
+            false -> reject(context, status)
+        }
+    }
+    machine reject(context: &mut Main, status: u64) {
+        Console::write("ERROR ");
+        print_integer(context, status as i64 in Wrapping);
+        Console::write_line("");
+        ProcessExit::exit_process(64);
+    }
+    machine report(context: &mut Main) {
+        Console::write("ACTIVE ");
+        let active: i64 in Wrapping = context.records.active;
+        print_integer(context, active);
+        Console::write_line("");
+        transition { _ -> direction(context, 0) }
+    }
+    machine direction(context: &mut Main, direction: u64) requires direction < 4 {
+        Console::write("DIRECTION ");
+        print_integer(context, direction as i64 in Wrapping);
+        Console::write(" WAVE");
+        transition { _ -> wave(context, direction, 0) }
+    }
+    machine wave(context: &mut Main, direction: u64, position: u64)
+    requires direction < 4 requires position < 4 {
+        Console::write(" ");
+        let numerator: i64 in Wrapping = context.records.waveform[direction][position];
+        print_integer(context, numerator);
+        Console::write("/");
+        let active: i64 in Wrapping = context.records.active;
+        print_integer(context, active);
+        let next: u64 = position + 1;
+        transition next < 4 {
+            true -> wave(context, direction, next)
+            false -> energy(context, direction)
+        }
+    }
+    machine energy(context: &mut Main, direction: u64) requires direction < 4 {
+        Console::write(" ENERGY ");
+        let score: i64 in Wrapping = context.records.energy[direction];
+        print_integer(context, score);
+        Console::write("/");
+        let denominator: i64 in Wrapping = context.records.active * context.records.active;
+        print_integer(context, denominator);
+        Console::write_line("");
+        let next: u64 = direction + 1;
+        transition next < 4 {
+            true -> direction(context, next)
+            false -> ambiguities(context)
+        }
+    }
+    machine ambiguities(context: &mut Main) {
+        Console::write("WINNERS");
+        transition { _ -> winner(context, 0) }
+    }
+    machine winner(context: &mut Main, direction: u64) requires direction < 4 {
+        transition context.records.energy[direction] == context.records.best {
+            true -> emit_winner(context, direction)
+            false -> next_winner(context, direction + 1)
+        }
+    }
+    machine emit_winner(context: &mut Main, direction: u64) requires direction < 4 {
+        Console::write(" ");
+        print_integer(context, direction as i64 in Wrapping);
+        transition { _ -> next_winner(context, direction + 1) }
+    }
+    machine next_winner(context: &mut Main, next: u64) {
+        transition next < 4 {
+            true -> winner(context, next)
+            false -> done(context)
+        }
+    }
+    machine done(context: &mut Main) {
+        Console::write_line("");
+        ProcessExit::exit_process(0);
+    }
+}
+
+machine print_integer(context: &mut Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+    transition value >= 0 - 576 && value <= 576 {
+        true -> sign(context, value)
+        false -> invalid(context)
+    }
+    machine sign(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 - 576 requires value <= 576 {
+        transition value < 0 {
+            true -> negative(context, value)
+            false -> digits(context, value)
+        }
+    }
+    machine invalid(context: &mut Main) { ProcessExit::exit_process(70); }
+    machine negative(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 - 576 requires value < 0 {
+        Console::write("-");
+        print_digits(context, 0 - value);
+    }
+    machine digits(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 requires value <= 576 {
+        print_digits(context, value);
+    }
+}
+// All report magnitudes are <=576, so three decimal places suffice.
+machine print_digits(context: &mut Main, value: i64 in Wrapping)
+requires value >= 0 requires value <= 576
+reaches ProcessExit + Console {
+    transition value >= 100 {
+        true -> hundreds(context, value)
+        false -> short(context, value)
+    }
+    machine hundreds(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 requires value <= 576 {
+        Console::write_byte((value / 100 + 48) as i32);
+        Console::write_byte((value / 10 % 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
+    }
+    machine short(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 requires value <= 576 {
+        transition value >= 10 {
+            true -> tens(context, value)
+            false -> digit(context, value)
+        }
+    }
+    machine tens(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 requires value <= 576 {
+        Console::write_byte((value / 10 + 48) as i32);
+        Console::write_byte((value % 10 + 48) as i32);
+    }
+    machine digit(context: &mut Main, value: i64 in Wrapping)
+    requires value >= 0 requires value <= 576 {
+        Console::write_byte((value + 48) as i32);
+    }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches ProcessExit + Console {
+    let mut entry_storage: Main;
+    block main(&mut entry_storage);
+}

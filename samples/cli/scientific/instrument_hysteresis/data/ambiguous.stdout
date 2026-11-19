@@ -1,7 +1,0 @@
-row stimulus branch prediction observed residual width (response milliunits)
-1 20 ambiguous NA 18000 NA 7000
-2 20 ambiguous NA 25000 NA 7000
-3 20 ambiguous NA 22000 NA 7000
-forward count sum_abs max_abs 0 0 0
-reverse count sum_abs max_abs 0 0 0
-trace rows ambiguous plateaus reversals max_width 3 3 2 0 7000

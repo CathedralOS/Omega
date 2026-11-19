@@ -1,0 +1,35 @@
+boundary trait Console {
+  machine exit_process(return_code: i32) -> never;
+  machine write_byte(value: i32);
+  machine read_byte() -> i32;
+  machine write_line(text: &[u8]);
+}
+
+data Main {
+  console: Console;
+  values: [i32; 2048];
+}
+
+machine Main::main(&mut self) {
+  transition 0 { 0 -> fill(0) }
+
+  state fill(index: i32) {
+    self.values[index] = index;
+    transition index {
+      2047 -> verify(0)
+      _ -> fill(index + 1)
+    }
+  }
+
+  state verify(index: i32) {
+    assert self.values[index] == index;
+    transition index {
+      2047 -> done()
+      _ -> verify(index + 1)
+    }
+  }
+
+  state done() {
+    self.console.write_byte(65);
+  }
+}

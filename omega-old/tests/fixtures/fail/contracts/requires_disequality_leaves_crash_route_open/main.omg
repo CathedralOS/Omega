@@ -1,0 +1,39 @@
+// A requirement rules out a crash route only when it contradicts the route's
+// guard. Both machines here write `crashes none` and crash when their
+// denominator is zero; `requires denominator != 1u64` admits zero, so
+// `divide(12, 0)` and `quotient(0)` still trap and both must be rejected.
+// Twin: `pending/contracts/requires_disequality_rules_out_crash_route_exit`
+// requires `denominator != 0u64`.
+// Expected: reject the uncovered Trap routes of `divide` and `quotient`
+machine divide(numerator: u64, denominator: u64) -> u64
+requires denominator != 1u64
+crashes none
+{
+    transition denominator == 0u64 {
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine checked(numerator: u64, denominator: u64) -> u64
+crashes Trap denominator == 0u64
+{
+    transition denominator == 0u64 {
+        true -> bad()
+        false -> (numerator / denominator)
+    }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine quotient(denominator: u64) -> u64
+requires denominator != 1u64
+crashes none
+{
+    checked(12u64, denominator)
+}
+machine main() reaches none crashes Trap {
+    let direct: u64 = divide(12u64, 3u64);
+    let called: u64 = quotient(3u64);
+    transition direct == called { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

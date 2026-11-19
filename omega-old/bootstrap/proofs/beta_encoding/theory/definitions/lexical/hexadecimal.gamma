@@ -1,0 +1,15 @@
+; -1 means NoHex in the author; it is not an integer constant in the theory.
+(def beta_hexadecimal_value ((byte Int)) Int
+  (if (lt byte 48) -1
+    (if (lt byte 58) (- byte 48)
+      (if (lt byte 97) -1
+        (if (lt byte 103) (- byte 87) -1)))))
+
+(def beta_hexadecimal_clause ((byte Int) (value Int)) Int
+  (if (lt value 0)
+    (beta_constant_clause (+ byte 1) 275)
+    (let header Int (beta_theory_fields3 12 (+ byte 1) 2)
+      (let nibble Int (beta_constant_template (+ 259 value))
+        (let application Int (beta_theory_fields3 4 1 276)
+          (let child Int (beta_theory_fields3 1 1 2)
+            0))))))

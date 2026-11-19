@@ -1,0 +1,30 @@
+// A nested scalar array construction [a, b] flattens fixed-array rows into row-major element reads of their storage, preserving each row's element values across all nine places.
+// Place: call result. Each row arrives as a call result before construction.
+// Expected exit: 0
+machine first() -> [u64; 2] {
+    [3, 5]
+}
+
+machine second() -> [u64; 2] {
+    [7, 11]
+}
+
+machine pair(a: [u64; 2], b: [u64; 2]) -> [[u64; 2]; 2] {
+    [a, b]
+}
+
+machine supply() -> [[u64; 2]; 2] {
+    let a: [u64; 2] = first();
+    let b: [u64; 2] = second();
+    pair(a, b)
+}
+
+machine main() crashes Trap {
+    let result: [[u64; 2]; 2] = supply();
+    transition result[0][0] == 3 && result[0][1] == 5 && result[1][0] == 7 && result[1][1] == 11 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -1,0 +1,10 @@
+// A nominal value crosses machine, state and call parameters as one typed value.
+machine enum_forward(base: OmegaNumericBase, byte: i32) -> i32 {
+    transition true {
+        true -> step(base, byte)
+        _ -> return 0
+    }
+    state step(selected: OmegaNumericBase, value: i32) {
+        return omega_digit_in_base(value, selected);
+    }
+}

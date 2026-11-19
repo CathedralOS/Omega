@@ -1,0 +1,13 @@
+// Library package whose Build declares target defaults for `Measure`. The
+// Windows default lays its storage out with overlapping fields, so preparing
+// that layout refuses the program. A consumer pays for a default's layout only
+// on the targets that choose it (wiki/spec/layouts/plans.md, "Layout demand
+// and validation").
+
+machine build(builder: &mut Build) {
+    Build::package(builder, "layout_default_kit");
+    Build::select_provider<Measure, PairMeasure>(builder, linux_x86_64);
+    Build::select_provider<Measure, PairMeasure>(builder, linux_arm64);
+    Build::select_provider<Measure, PairMeasure>(builder, macos_arm64);
+    Build::select_provider<Measure, OverlappingMeasure>(builder, windows_x86_64);
+}

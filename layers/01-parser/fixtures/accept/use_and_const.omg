@@ -1,0 +1,8 @@
+// GRAMMAR.md: use, const.
+use topology;
+use ui_policy::screen::Point::OnScreen;
+
+const LIMIT: u32 = 64;
+const EfiStatus::SUCCESS: EfiStatus = 0;
+public const clear_a = (clear satisfies A::clear);
+const mask = 0xFF & (1 << 3);

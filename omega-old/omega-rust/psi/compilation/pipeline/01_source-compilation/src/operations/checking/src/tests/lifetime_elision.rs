@@ -1,0 +1,341 @@
+//! Data that declares lifetime parameters, named in a machine's signature
+//! without them. Read from source, as a Build program: every project's
+//! `build.omg` takes `builder: &mut Build`, and the toolchain declares
+//! `data Build<'storage>`.
+
+use super::build_purpose::judge_build;
+use super::*;
+
+/// The one statement a program judged wrong breaks.
+fn violation(build: &str) -> String {
+    let verdict = judge_build(build);
+    let Ok(RouteVerdict::Rejected { violations, .. }) = verdict else {
+        panic!("expected a rejection: {verdict:?}");
+    };
+    let [violation] = violations.as_slice() else {
+        panic!("expected one violation: {violations:?}");
+    };
+    violation.statement.clone()
+}
+
+fn refusal(build: &str) -> String {
+    match judge_build(build) {
+        Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+        | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_formal_names_lifetime_parameterised_data_without_its_lifetimes() {
+    let verdict = judge_build(
+        r#"
+data Session<'storage> { ready: bool; count: u32; }
+machine build_entry(session: &mut Session) { session.ready = true; }
+"#,
+    )
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+#[test]
+fn a_formal_that_names_a_lifetime_nothing_declares_is_rejected() {
+    assert_eq!(
+        violation(
+            r#"
+data Session<'storage> { ready: bool; count: u32; }
+machine build_entry(session: &mut Session<'missing>) { session.ready = true; }
+"#
+        ),
+        "this type names the lifetime `'missing`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the signature of `build_entry`"
+    );
+}
+
+/// `Build` itself stores views: `identifier: &'storage [u8]`. The view's
+/// lifetime is a binder of the data declaration the field belongs to.
+#[test]
+fn a_field_stores_a_view_for_a_lifetime_its_declaration_binds() {
+    let verdict = judge_build(
+        r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &mut Session) { session.ready = true; }
+"#,
+    )
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+    assert_eq!(
+        violation(
+            r#"
+data Session<'storage> { ready: bool; name: &'other [u8]; }
+machine build_entry(session: &mut Session) { session.ready = true; }
+"#
+        ),
+        "this type names the lifetime `'other`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         while reading the signature of `build_entry`"
+    );
+}
+
+/// A field states the lifetime arguments of the data it names, behind a
+/// reference too. lifetimes.md: a named data application must "match the
+/// declaration's lifetime arity" and "use binders declared in the lexical
+/// owner". `&'activation mut Session` leaves out which of its owner's
+/// lifetimes the session's own views live for; it is refused by name rather
+/// than read at `Session`'s own binder, which is not the field owner's. The
+/// same record stating `Session<'storage>` is accepted, holding the borrow
+/// a signature elides into it.
+#[test]
+fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
+    let holder = |field: &str, binders: &str| {
+        format!(
+            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+             data Holder<{binders}> {{ session: {field}; }}\n\
+             machine hold<{binders}>(session: {field}) -> Holder<{binders}> {{ Holder {{ session: session }} }}\n\
+             machine mark(session: &mut Session) {{ session.ready = true; }}\n\
+             machine build_entry(session: &mut Session) {{\n    \
+             let held: Holder = hold(session);\n    \
+             mark(held.session);\n}}\n"
+        )
+    };
+    for (field, binders) in [
+        ("&'activation mut Session", "'activation"),
+        ("Session", "'activation"),
+    ] {
+        assert_eq!(
+            refusal(&holder(field, binders)),
+            "typing data field that elides a lifetime argument while reading the record application \
+             `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Holder\\)\\)))` \
+             while reading the signature of `hold`",
+            "{field}"
+        );
+    }
+    let verdict = judge_build(&holder(
+        "&'activation mut Session<'storage>",
+        "'activation, 'storage",
+    ))
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+/// A field states the lifetime of the view it stores. lifetimes.md:
+/// "Borrow-carrying data declares the lifetimes of its views." Read without
+/// one, every declaration eliding it would share one region, so a view stored
+/// in one record would be a value of any other record's field. The same
+/// record declaring `'name` is accepted.
+#[test]
+fn a_field_that_elides_its_views_lifetime_is_refused_by_name() {
+    let label = |binders: &str, view: &str, result: &str| {
+        format!(
+            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+             data Label{binders} {{ name: {view}; }}\n\
+             machine label<'storage>(session: &Session<'storage>) -> {result} {{ Label {{ name: session.name }} }}\n\
+             machine build_entry(session: &mut Session) {{\n    \
+             let made: Label = label(session);\n    \
+             session.ready = true;\n}}\n"
+        )
+    };
+    assert_eq!(
+        refusal(&label("", "&[u8]", "Label")),
+        "typing data field that elides a view's lifetime while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Label\\)\\)))` \
+         while reading the signature of `label`"
+    );
+    let verdict = judge_build(&label("<'name>", "&'name [u8]", "Label<'storage>")).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+/// Eliding a lifetime relates nothing but an elided result to its one input
+/// (`an_elided_result_is_at_the_region_of_the_one_input`). lifetimes.md: "A signature does not
+/// authorize returning unrelated storage merely because its type has the same
+/// lifetime spelling", and an elided input is not even the same spelling. A
+/// view's type carries the region it is valid for, so a view from one region
+/// is not a value of a field, or a result, of another.
+#[test]
+fn an_elided_lifetime_does_not_relate_a_view_to_another_region() {
+    assert_eq!(
+        refusal(
+            r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &mut Session, name: &[u8]) { session.name = name; }
+"#
+        ),
+        "typing assigned value type while reading the body of `build_entry`"
+    );
+    assert_eq!(
+        refusal(
+            r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(session: &mut Session) { let kept: &[u8] = helper(session); }
+machine helper(session: &Session) -> &[u8] { session.name }
+"#
+        ),
+        "typing result without a lifetime of a signature with several input lifetimes while reading \
+         the signature of `helper`"
+    );
+    assert_eq!(
+        refusal(
+            r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(name: &[u8], other: &[u8]) { let made: Session = helper(name, other); }
+machine helper(name: &[u8], other: &[u8]) -> Session { Session { ready: true, name: name } }
+"#
+        ),
+        "typing result without a lifetime of a signature with several input lifetimes while reading \
+         the signature of `helper`"
+    );
+}
+
+/// The one place eliding relates something: "For an elided output, one
+/// unambiguous reference input supplies the relation." With one input
+/// view, an elided result is at its region, so the result may hold it.
+#[test]
+fn an_elided_result_is_at_the_region_of_the_one_input() {
+    let verdict = judge_build(
+        r#"
+data Session<'storage> { ready: bool; name: &'storage [u8]; }
+machine build_entry(name: &[u8]) { let made: Session = helper(name); }
+machine helper(name: &[u8]) -> Session { Session { ready: true, name: name } }
+"#,
+    )
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+/// The source record rows of an accepted Build program, by the name of the
+/// data declaration each came from: whether the row kept a type occurrence.
+fn record_rows(build: &str) -> Vec<(String, bool)> {
+    let typed = super::build_purpose::frontier_of("machine product_entry() { }", build);
+    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let prepared = crate::lowering::prepare_compilation(
+        &typed,
+        super::build_purpose::roster(
+            &[entry],
+            &[Some(super::build_purpose::package())],
+            declaration_contracts::source_identity::DependencyScope::Build,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    let mut verdicts = crate::checking::judge_compilation(prepared.program);
+    assert_eq!(verdicts.len(), 1);
+    let verdict = verdicts.remove(0).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    let rows = prepared.source.forms[0]
+        .as_ref()
+        .expect("accepted primary form retains its source correspondence")
+        .records
+        .iter()
+        .map(|row| {
+            let data = typed.data_definition_by_symbol(row.declaration).unwrap();
+            (data.name.as_str().to_owned(), row.application.is_some())
+        })
+        .collect();
+    accepted.publish_invocation().unwrap();
+    rows
+}
+
+/// `Build` stores `elf_interpreter: ElfInterpreterSelection<'storage>`: data
+/// the program names only applied at a lifetime, as a field. That occurrence
+/// is the record's source application, as a bare `Session` is.
+#[test]
+fn data_named_only_at_a_lifetime_keeps_that_occurrence() {
+    assert_eq!(
+        record_rows(
+            r#"
+data Inner<'held> { count: u32; name: &'held [u8]; }
+data Session<'storage> { ready: bool; inner: Inner<'storage>; }
+machine build_entry(session: &mut Session) { session.ready = true; }
+"#
+        ),
+        [("Inner".to_owned(), true), ("Session".to_owned(), true)]
+    );
+    assert_eq!(
+        violation(
+            r#"
+data Inner<'held> { count: u32; }
+data Session<'storage> { ready: bool; inner: Inner<'missing>; }
+machine build_entry(session: &mut Session) { session.ready = true; }
+"#
+        ),
+        "this type names the lifetime `'missing`, which its declaration does not declare: \
+         undeclared lifetime tags reject while reading the record application \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         while reading the signature of `build_entry`"
+    );
+}
+
+/// A declaration the program never names as a type has no occurrence to
+/// keep. It is still a record of the judged program, identified by its
+/// declaration. Data with a type parameter is not such a record: it has no
+/// field types until a type applies it, so the declaration is read as
+/// written and gives no row. One that also declares a lifetime is not read.
+#[test]
+fn a_declaration_nothing_names_is_a_record_without_an_occurrence() {
+    assert_eq!(
+        record_rows(
+            r#"
+data Unused<'held> { count: u32; name: &'held [u8]; }
+machine build_entry() { }
+"#
+        ),
+        [("Unused".to_owned(), false)]
+    );
+    assert_eq!(
+        record_rows(
+            r#"
+data Unused<Payload> { count: u32; payload: Payload; }
+machine build_entry() { }
+"#
+        ),
+        []
+    );
+    assert_eq!(
+        refusal(
+            r#"
+data Unused<'held, Payload> { count: u32; payload: &'held Payload; }
+machine build_entry() { }
+"#
+        ),
+        "type generic data with lifetimes, bounds, cleanup, a quotient or retired members"
+    );
+}
+
+/// Lifetime arguments are erased regions, so every way of writing such a
+/// type, bare or at any lifetime, names the declaration's one record.
+#[test]
+fn every_spelling_of_lifetime_parameterised_data_is_one_record() {
+    let verdict = judge_build(
+        r#"
+data Inner<'held> { count: u32; name: &'held [u8]; }
+data Session<'storage> { ready: bool; inner: Inner<'storage>; }
+data Other<'kept> { inner: Inner<'kept>; }
+machine build_entry(session: &mut Session, other: &Other, bare: &Inner) {
+    session.ready = count(&session.inner) == count(&other.inner) && count(bare) == 0;
+}
+machine count(inner: &Inner) -> u32 { inner.count }
+"#,
+    )
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}

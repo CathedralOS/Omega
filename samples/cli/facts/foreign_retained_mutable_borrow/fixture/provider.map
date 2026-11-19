@@ -1,1 +1,0 @@
-RETAIN_1.0 { global: mutretain_acquire; mutretain_register; mutretain_complete; mutretain_release; mutretain_same; local: *; };

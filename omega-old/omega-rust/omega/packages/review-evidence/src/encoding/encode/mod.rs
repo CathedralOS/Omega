@@ -1,0 +1,64 @@
+/*
+Canonical package-review framing and semantic row encoding.
+
+We coordinate deterministic binary and text emission for the package policy baseline, component policies, and receipt-free review rows (`policy_rows`). Subordinate evidence-family encoders live under `values` and `declarations` so every persistence product shares one canonical field ordering and resource budget.
+*/
+
+mod baseline;
+mod callable_policy;
+pub(super) mod calling;
+pub(super) mod declarations;
+pub(super) mod encoder;
+pub(super) mod membership;
+mod policy_rows;
+mod public_api;
+mod representation;
+mod selected_providers;
+mod terminal_permissions;
+mod values;
+
+#[cfg(test)]
+pub(in crate::encoding) use values::providers::encode_compiler_intrinsic_execution;
+
+#[cfg(test)]
+pub(in crate::encoding) use values::crashes::{encode_primitive_type, encode_scalar_expression};
+
+pub use policy_rows::restricted_build_request_acceptance_text;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReviewEncodingError {
+    message: &'static str,
+}
+
+impl PackageReviewEncodingError {
+    pub(crate) const fn new(message: &'static str) -> Self {
+        Self { message }
+    }
+}
+
+impl std::fmt::Display for PackageReviewEncodingError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.message)
+    }
+}
+
+impl std::error::Error for PackageReviewEncodingError {}
+
+pub(crate) fn type_identity(
+    encoder: &mut encoder::Encoder,
+    identity: &crate::record::PackageReviewTypeIdentity,
+) -> Result<(), crate::encoding::PackageReviewEncodingError> {
+    type_identity_in_scope(encoder, identity, None)
+}
+
+pub(in crate::encoding::encode) fn type_identity_in_scope(
+    encoder: &mut encoder::Encoder,
+    identity: &crate::record::PackageReviewTypeIdentity,
+    declared_lifetimes: Option<usize>,
+) -> Result<(), crate::encoding::PackageReviewEncodingError> {
+    encoder.observe_type_identity(identity.canonical(), declared_lifetimes)?;
+    encoder.field("canonical", |encoder| encoder.string(identity.canonical()))
+}
+
+#[cfg(test)]
+pub(super) use values::contracts::encode_contract_fact;

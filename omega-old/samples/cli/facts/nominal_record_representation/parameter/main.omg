@@ -1,0 +1,35 @@
+// Fact: a declared record named string retains its nominal record representation and value >= 7 through transport, discharging value - 7 while borrowed field access preserves adjacent values.
+// Place: parameter
+// Expected exit: 0
+
+data string [copy] requires self.value >= 7 {
+    before: u64;
+    value: u64;
+    after: u64;
+}
+data Other [copy] requires self.value >= 7 {
+    before: u64;
+    value: u64;
+    after: u64;
+}
+data Seen [copy] { value: u64; marker: u64; }
+machine observe(packet: &string, marker: u64) -> Seen {
+    Seen { value: packet.value, marker: marker }
+}
+machine consume(packet: string) -> u64 crashes Trap {
+    let delta: u64 = packet.value - 7;
+    let observed: Seen = observe(&packet, 17);
+    transition observed.value == packet.value && observed.marker == 17 && packet.before == 11 && packet.after == 13 {
+        true -> done(delta)
+        false -> bad()
+    }
+    machine done(delta: u64) -> u64 { delta }
+    machine bad() -> u64 crashes Trap { crash Trap; }
+}
+machine forward(packet: string) -> u64 crashes Trap { consume(packet) }
+machine main() crashes Trap {
+    let result: u64 = forward(string { before: 11, value: 9, after: 13 });
+    transition result == 2 && size_of<string>() == 24 && size_of<&string>() == 8 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

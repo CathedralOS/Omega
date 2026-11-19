@@ -1,3 +1,0 @@
-violates required fact
-structurally false
-1000000.0

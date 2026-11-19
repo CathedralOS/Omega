@@ -70,7 +70,7 @@ the selected algebra. Branches, loops, allocation, effects, hidden state, and
 arbitrary helper calls reject. Its canonical symbolic expression and coordinate
 space/unit are semantic interface identity. There is no `content(value)`
 intrinsic: contracts name the exact projection machine, such as
-`Granted::content(&value)`, selecting the claim explicitly when a carrier has
+`Granted::content(@value)`, selecting the claim explicitly when a carrier has
 several qualifications.
 
 `IntervalSet<CoordinateSpace>` contains finitely many disjoint half-open intervals
@@ -128,11 +128,11 @@ executed or overridden by packages. For an extent's `Granted` projection to
 
 ```omega
 ensures
-    core::Identity<IntervalSet<Nat>>(
-        Granted::content(old(&whole)),
+    core::Identity::<IntervalSet<Nat>>(
+        Granted::content(old(@whole)),
         separate(
-            Granted::content(&result.left),
-            Granted::content(&result.right),
+            Granted::content(@result.left),
+            Granted::content(@result.right),
         )
     );
 ```
@@ -241,7 +241,7 @@ data Mapping<Virtual, Physical, Delta: Int> [linear] {
 }
 
 machine Installed::content<Virtual, Physical, Delta: Int>(
-    mapping: &Mapping<Virtual, Physical, Delta>
+    mapping: @Mapping<Virtual, Physical, Delta>
 ) -> IntervalSet<Translated<Virtual, Physical, Delta>>
 satisfies Content<
     Mapping<Virtual, Physical, Delta>,
