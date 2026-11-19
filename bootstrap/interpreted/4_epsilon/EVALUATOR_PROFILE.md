@@ -23,10 +23,10 @@ bound, or restores an Epsilon Alpha backend.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
-| packed Epsilon evaluator closure | 616,982 | `e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9` |
+| packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
 | execution driver `execution_driver.delta` | 2,150 | `ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
-| reconstructed evaluator receipt | 719,068 | `a682c628b7255ffb358d00bdf536369acf2078ff4510d621c20b2ab0468197b2` |
+| reconstructed evaluator receipt | 719,006 | `f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340` |
 
 Compilation of the packed evaluator plus driver plus the bound support
 section through the bound Delta compiler (`DCREQ`, profile 1) reconstructs
@@ -46,7 +46,7 @@ declared result buffer.
 The edge consumes one Gamma evaluator request:
 
 ```text
-0..4    little-endian u32 receipt length = 719,068
+0..4    little-endian u32 receipt length = 719,006
 4..     exact receipt bytes
 ...     sealed input = the private driver frame:
 
@@ -102,7 +102,7 @@ counter names its owner, limit, refusal observation, and witness.
 Two bounds therefore dominate this composition by construction:
 
 - The adapter's 4,194,304-byte sealed-input bound binds before the request
-  extent can: the largest admitted request is `4 + 719,068 + 4,194,304 =
+  extent can: the largest admitted request is `4 + 719,006 + 4,194,304 =
   4,913,376` bytes, far below 137,363,456. The request extent refuses only
   requests the adapter would already refuse, so it is a dominated outer
   bound - still pinned by the executed adjacent witness.

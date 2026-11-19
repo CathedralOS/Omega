@@ -2,17 +2,17 @@
 
 `sh tests/epsilon/evaluator-entry/run.sh` reconstructs the canonical
 section-11 evaluator edge and executes its request boundary: the packed
-`epsilon_compiler.delta.sources` closure (616,982 bytes, SHA-256
-`e12f930c4f3fcce3dd9ca0fc837f22ecdb584a93d6e7f424bef6bed4d286c9d9`) plus the
+`epsilon_compiler.delta.sources` closure (616,939 bytes, SHA-256
+`a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c`) plus the
 canonical entry
 [`evaluator_entry.delta`](evaluator_entry.delta), compiled with the bound
 Delta support section through the bound Delta compiler (`DCREQ`, profile 1,
 `ConformanceBytesV1`), on the bound Gamma evaluator tape.
 
-The entry source is bound: 10,567 bytes, SHA-256
-`cd609cfabdf04a3f913e0def10deaf63615f157bc8d600c91971c02c283cbd7e`. The
-reconstructed canonical evaluator receipt is bound: 726,667 bytes,
-SHA-256 `a2c85b9ea741d9957e1ea2f19a82b8ccace7637d40c4368ac838dfb501b16b87`. Both identities are pinned in
+The entry source is bound: 10,563 bytes, SHA-256
+`ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79`. The
+reconstructed canonical evaluator receipt is bound: 726,601 bytes,
+SHA-256 `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af`. Both identities are pinned in
 [`tools/bootstrap/epsilon/evaluator_env.sh`](../../../tools/bootstrap/epsilon/evaluator_env.sh)
 and recorded in
 [`bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md`](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md),
