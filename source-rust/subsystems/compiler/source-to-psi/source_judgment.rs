@@ -4,6 +4,7 @@ use crate::{AcceptedTerminalSource, SourceCompilationRoster, TerminalSourceCompi
 use diagnostics::Diagnostic;
 use lowered_program_to_checked_program::checking::judge_publication;
 use optimization::PsiOptimizationSelections;
+#[cfg(any(test, feature = "test-support"))]
 use std::sync::Arc;
 use typed_trees::source_state::FrozenTypedTrees;
 use prepared_typed_trees_to_lowered_program::lowering::{LoweredSourcePublication, PreparedTypedTrees};
