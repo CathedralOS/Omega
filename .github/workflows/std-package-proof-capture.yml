@@ -1,0 +1,123 @@
+name: Capture one slow std package proof
+on:
+  push:
+    branches: [work/codex/std-package-proof-capture]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      RAYON_NUM_THREADS: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 4dcd0b70412019ce76462a55858710ea4a372bc9
+          persist-credentials: false
+      - name: Restore the exact proof-tracing compiler from the filesystem run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          retained="$RUNNER_TEMP/std-diagnostic-producer"
+          gh run download 44429428438 --repo "$GITHUB_REPOSITORY" --name fs-probe-producer --dir "$retained"
+          gh run download 44429428438 --repo "$GITHUB_REPOSITORY" --name fs-probe-records --dir "$retained/records"
+          test "$(jq -r .revision "$retained/records/producer.json")" = "$(git rev-parse HEAD)"
+          printf '%s  %s\n' 98518347fe5c9f85e2c1d268048792b2eba6b445adb0ef074b7e31700d94a6e2 "$retained/omega" | sha256sum --check
+          chmod +x "$retained/omega"
+          jq -e '.executables[] | select(.cargo_artifact.target.name == "omega") | .cargo_artifact.profile.opt_level == "1"' "$retained/records/producer.json"
+      - name: Capture the first slow proof in the unchanged std package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, re, signal, subprocess, time
+
+          root = Path.cwd().resolve()
+          runner_temp = Path(os.environ['RUNNER_TEMP'])
+          producer = runner_temp / 'std-diagnostic-producer/omega'
+          out = runner_temp / 'std-proof-records'
+          out.mkdir()
+          command = [str(producer), '--check', '--target', 'linux_x86_64', 'source/library/std/main.omg']
+          before = subprocess.check_output(['git', 'status', '--porcelain'], text=True)
+          assert not before, before
+          digests = {'source': subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip(),
+                     'library_trees': subprocess.check_output(['git','rev-parse','HEAD:source/library/std','HEAD:source/library/core'], text=True).split(),
+                     'producer': hashlib.sha256(producer.read_bytes()).hexdigest()}
+          (out/'identity.json').write_text(json.dumps(digests, indent=2)+'\n')
+
+          def check(label, selected=None):
+              folder = out / label
+              folder.mkdir()
+              env = os.environ.copy()
+              env.pop('CI', None)
+              env.pop('GITHUB_ACTIONS', None)
+              env['OMEGA_FS_RANGE_TRACE'] = str(folder)
+              if selected is not None:
+                  env['OMEGA_FS_RANGE_QUERY'] = str(selected)
+              started = time.monotonic()
+              pending, last = {}, []
+              peak = 0
+              stop = None
+              choice = None
+              with (folder/'stdout').open('wb') as stdout, (folder/'stderr').open('wb') as stderr:
+                  child = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, start_new_session=True)
+                  try:
+                      with (folder/'stderr').open() as lines:
+                          while child.poll() is None:
+                              now = time.monotonic()
+                              for line in lines:
+                                  begin = re.match(r'FS_RANGE_BEGIN sequence=(\d+) ', line)
+                                  end = re.match(r'FS_RANGE_END sequence=(\d+) .*elapsed_ns=(\d+)', line)
+                                  if begin:
+                                      pending[int(begin[1])] = (now, line.strip())
+                                  if end:
+                                      pending.pop(int(end[1]), None)
+                                      last.append(line.strip())
+                                      last = last[-20:]
+                              active = [number for number, event in pending.items() if now - event[0] >= 3]
+                              if selected is None and active:
+                                  choice, stop = active[0], 'first proof active for three seconds'
+                                  break
+                              if selected is not None and (folder/'range-inputs.txt').is_file():
+                                  stop = 'saved the selected proof inputs'
+                                  break
+                              rss = subprocess.run(['ps','-p',str(child.pid),'-o','rss='], capture_output=True, text=True)
+                              if rss.returncode == 0 and rss.stdout.strip():
+                                  peak = max(peak, int(rss.stdout.strip()))
+                              if peak >= 3*1024*1024 or now - started >= 300:
+                                  stop = 'diagnostic execution limit'
+                                  break
+                              time.sleep(.1)
+                  finally:
+                      if child.poll() is None:
+                          os.killpg(child.pid, signal.SIGTERM)
+                          try:
+                              child.wait(timeout=5)
+                          except subprocess.TimeoutExpired:
+                              os.killpg(child.pid, signal.SIGKILL)
+                              child.wait()
+              result = {'command':command, 'returncode':child.returncode, 'seconds':time.monotonic()-started,
+                        'peak_rss_kib':peak, 'stop_reason':stop, 'selection':choice,
+                        'unfinished_ranges':[event[1] for event in pending.values()], 'recent_ranges':last}
+              (folder/'result.json').write_text(json.dumps(result, indent=2)+'\n')
+              print(label, json.dumps(result), flush=True)
+              return choice
+
+          choice = check('first-slow-proof')
+          if choice is not None:
+              check('saved-query', choice)
+          assert subprocess.check_output(['git','status','--porcelain'], text=True) == before
+          assert hashlib.sha256(producer.read_bytes()).hexdigest() == digests['producer']
+          PY
+      - name: Retain the exact std proof inputs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: std-proof-records
+          path: ${{ runner.temp }}/std-proof-records
+          retention-days: 14
