@@ -150,7 +150,7 @@ Psi to native code) are not planned yet.
 | L2 Resolver | syntax trees → symbol-resolved trees | locked, revised handoff signed off 2026-11-19 | 0.17 s (2026-11-18 warm median, five runs) |
 | L3 Typer | symbol-resolved trees → typed trees | static-value handoff reopened after the integer handoff sign-off on 2026-11-19 | 0.46 s (previous revision, warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | locked 2026-11-19. Direct producer and consumer tests cover closed identities, open target recipes, and the exact proof, target and resource inputs needed to freeze a value. [Preparation contract](layers/04_typed-trees-to-prepared-trees/CONTRACT.md) | — |
-| L5 Lowering | prepared tree → Terminal Psi | production lowering not started; closed fixed-array handoff exercised by a consumer test | — |
+| L5 Lowering | prepared tree → Terminal Psi | open. Production lowering assigns Psi identities and emits single-block returns for closed scalars and fixed-array parameters. [Lowering contract](layers/05_prepared-trees-to-terminal-psi/CONTRACT.md) | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
 | Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |

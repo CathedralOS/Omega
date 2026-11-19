@@ -38,6 +38,7 @@ pub(crate) enum Stage {
     Resolve,
     Type,
     Prepare,
+    Lower,
 }
 
 pub(crate) fn check_files(
@@ -86,8 +87,12 @@ pub(crate) fn check_files(
         Stage::Type => {
             omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
         }
-        Stage::Prepare => {
-            omega_preparation::prepare_source_package(&resolved).map_err(|e| stage_error("preparation", &e.package, &e.file, e.span, e.message))?;
+        Stage::Prepare | Stage::Lower => {
+            let prepared =
+                omega_preparation::prepare_source_package(&resolved).map_err(|e| stage_error("preparation", &e.package, &e.file, e.span, e.message))?;
+            if matches!(stage, Stage::Lower) {
+                omega_lowering::lower_package(&prepared).map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
+            }
         }
     }
     Ok(())

@@ -1,0 +1,16 @@
+[package]
+name = "omega-lowering"
+version = "0.0.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+omega-parser = { path = "../01_tokens-to-syntax-trees" }
+omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
+omega-typer = { path = "../03_symbol-resolved-trees-to-typed-trees" }
+omega-preparation = { path = "../04_typed-trees-to-prepared-trees" }
+num-bigint = "0.4"
+
+[dev-dependencies]
+omega-lexer = { path = "../00_bytes-to-tokens" }
