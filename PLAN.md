@@ -132,6 +132,52 @@ Psi to native code) are not planned yet.
 | L7 Publication | checked Terminal Psi → published Psi artifact | not started | — |
 | Driver | compile a stage, run it, read its plan; repeat until a plan asks for an artifact | not started; needs L5 and an interpreter | — |
 
+### The `omega` application
+
+**Proposed delivery order, 2026-11-18.** The public executable can arrive
+before the stage driver. Jarod's spellings in the Fable session were
+`omega run main.omg` and `omega build build.omg`. The command chooses the
+operation. The [build model](#v2s-build-model-a-chain-of-stages) records the
+entry conventions and which choices about direct execution are still open.
+
+**What V1 actually does.** In V1 at `0b90bdba`, the Rust package
+`omega-rust/omega/application` builds the `omega` executable. It parses OS
+arguments into a typed invocation. The run command turns that into a
+`RunRequest`, calls `run_project`, and presents program output, diagnostics
+and process status. The execution code calls `orchestration::build`. For a
+project that coordinator prepares packages, executes the Build graph, compiles
+the product and handles publication. For Psi execution the runtime consumes
+the artifact and provisions from that compilation report. V1's usual build
+spelling is `omega <root.omg>`. Its host run defaults to native execution and
+also supports Psi and differential runs.
+[V1 router](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/src/main.rs)
+· [Run command](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/src/commands/run.rs)
+· [Run compilation](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/src/execution/compilation.rs)
+· [Build coordinator](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/build-system/orchestration/src/build.rs)
+
+| Milestone | User-visible result | Acceptance test |
+| --- | --- | --- |
+| After L1 sign-off | Add an `application/` Rust workspace member producing `omega`. Proposed first command: `omega source parse <file>`. A file operation reads the bytes and invokes L0 and L1 through their public APIs. The CLI owns arguments, help, presentation and exit status. | Launch the built binary from another working directory against an existing accept fixture and a reject fixture. Check success on valid syntax, a located diagnostic on stderr for a lexical or grammar refusal, and useful errors for a missing file or argument. |
+| As L2 through L5 land | Give the compiler one operation for compiling a stage from settled inputs and an entry. Each signed-off layer extends that operation. Carry source locations through failures and stable declaration identities across stages. | A refusal identifies the source file that caused it. A later stage rebinds a serialized identity to the intended declaration and refuses a mismatch. |
+| First execution | Once L5, a Terminal Psi interpreter and its required admission checks exist, connect the run request to the driver. Start with the permitted constant first plan and the explicit Psi engine. The first direct-run fixture supplies an explicitly named file containing `machine main`; the interpreter receives the product of that invocation. | Run the binary on a file called `hello.omg`, observe exact guest output and status, and verify a compile refusal produces a diagnostic before any guest output. A sibling build-file test fixes the direct-run policy once chosen. |
+| Project builds | `omega build <file>` enters `machine build`. The driver compiles and runs each requested stage with its own settled inputs and backings. A terminal artifact request compiles and publishes the product when checking and publication are available. | Exercise the four [build-model cases](#defaults-leaning-not-decided): bind an entry, select a provider, use a generated constant from authored code, and let the build itself write to Console. A cross-build returns its artifact without executing the target product on the host. |
+
+Use V1's process-level tests as references for argument errors, raw output
+and guest status, source-located refusals, selected providers and eventually
+native/Psi agreement. Use V2 syntax and stage expectations for the fixtures.
+[V1 argument tests](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/src/arguments/mod.rs)
+· [Dependency diagnostic](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/dependency_refusal_location.rs)
+· [Selected provider](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/build_selected_providers.rs)
+· [Execution comparison](https://github.com/CathedralOS/Omega/blob/0b90bdbaaa6dbc80c3d9f4be6a1ee75ed954eebb/omega-rust/omega/application/tests/both_exit_status_comparison.rs)
+
+**Before documenting bare `omega run` as available**, settle whether a
+neighboring build file participates and what engine the bare command selects.
+The Fable discussion leaned toward running the named file directly with
+default settings. V1 and the imported [CLI](wiki/spec/build/command_line.md)
+and [execution spec](wiki/spec/build/embedding.md#standalone-execution-selection)
+provide the native-default comparison. Track the build backings, grants,
+stage budget and lockfile details with the existing driver questions below.
+
 ### L0 Lexer
 
 - **Spec owners:** [Lexical profile](wiki/spec/language/data_and_literals.md#lexical-profile),
