@@ -79,6 +79,15 @@ pub struct NativeProgram {
 }
 
 impl NativeProgram {
+    /// The settled permissions and binding selections used by both execution paths.
+    pub fn native_realization_proposal(
+        &self,
+    ) -> Result<&verified_optimization_input::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
+        self.terminal.native_realization_proposal().ok_or_else(|| {
+            vec![Diagnostic::error("prepared Psi compilation lost its native proposal")]
+        })
+    }
+
     pub fn emit(
         self,
         entry_memory: &[PrivateEntryRamInitialization],

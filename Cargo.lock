@@ -582,6 +582,7 @@ dependencies = [
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-to-admitted-native-inputs",
+ "review-evidence",
  "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
@@ -1781,6 +1782,8 @@ version = "0.1.0"
 dependencies = [
  "artifacts",
  "bounded-process",
+ "build-declarations",
+ "build-execution",
  "compiler",
  "diagnostics",
  "installation-conditions",

@@ -180,6 +180,6 @@ impl<'a> RegisteredTests<'a> {
     ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
         let checked = self.source.judge(self.continuation.clone(), None, Some((root, target)))?;
         let psi = self.source.publish(&checked)?;
-        published_target(psi, checked, target)
+        published_target(psi, checked, target, self.source.selections.subject)
     }
 }

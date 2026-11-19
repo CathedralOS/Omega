@@ -125,7 +125,7 @@ mod tests {
             packages: vec![
                 pkg(
                     "frame",
-                    stages()[9],
+                    NATIVE_STAGES[9],
                     &[("record", vocabulary, None), ("earlier", target, None)],
                 ),
                 pkg("audit", IMAGE_EMISSION, &[("earlier", target, None)]),

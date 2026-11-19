@@ -95,7 +95,7 @@ fn authored_build_returns_its_application_and_target_bindings() {
     let program = planned
         .program(TargetProfile::LinuxX64, Vec::new())
         .unwrap();
-    let compiler::Program::Source { source, target } = &program else {
+    let compiler::Program::Source { source, target, .. } = &program else {
         panic!("the named project must produce a source request");
     };
     assert_eq!(source.selections.subject, Some(subject));

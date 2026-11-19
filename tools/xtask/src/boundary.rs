@@ -16,7 +16,6 @@ use std::process::Command;
 
 pub const NATIVE_ROOT: &str = native_stages::DRIVER;
 pub const PROVIDER_SELECTION_ROOT: &str = "source-rust/subsystems/compiler/psi-to-native/verification/provider-correspondence";
-pub const PROVIDER_ADMISSION_ROOT: &str = "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission";
 pub const RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host";
 pub const NATIVE_PROVIDER_RUNTIME_ROOT: &str = "source-rust/subsystems/interpreter/host/native-worker";
 

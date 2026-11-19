@@ -13,18 +13,29 @@ pub struct TerminalPermissionAcceptance {
     pub rows: Vec<([u8; 32], String)>, // Canonical coordinate digest and readable meaning, in lock order.
 }
 
+/// A package service and method rejoined to their nominal declarations in checked source.
+pub struct RuntimeServicePermission {
+    pub owner: PackageKeyIdentity,
+    pub service_path: String,
+    pub requirement_path: String,
+    pub permitted: semantic_vocabulary::TerminalAuthorityDisposition,
+}
+
 impl TerminalPermissionAcceptance {
+    pub fn compare_service_permissions(
+        &self,
+        package: PackageKeyIdentity,
+        target: TargetProfile,
+        permissions: &[RuntimeServicePermission],
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.check_subject(package, target)?;
+        let rows = crate::encoding::runtime_service_permission_rows(package, target, permissions)
+            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        self.compare_rows(rows)
+    }
+
     pub fn compare_policy(&self, policy: &PackagePolicyBaseline) -> Result<(), Vec<Diagnostic>> {
-        if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
-            return Err(vec![Diagnostic::error(
-                "accepted runtime policy uses an obsolete schema; run omega packages update",
-            )]);
-        }
-        if policy.package() != self.package || policy.target() != self.target {
-            return Err(vec![Diagnostic::error(
-                "policy package or target differs from the accepted root activation",
-            )]);
-        }
+        self.check_subject(policy.package(), policy.target())?;
         let (rows, _) = policy
             .acceptance_rows_with_limits(Default::default())
             .map_err(|error| {
@@ -33,6 +44,24 @@ impl TerminalPermissionAcceptance {
                 ))]
             })?;
         self.compare_rows(rows)
+    }
+
+    fn check_subject(
+        &self,
+        package: PackageKeyIdentity,
+        target: TargetProfile,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
+            return Err(vec![Diagnostic::error(
+                "accepted runtime policy uses an obsolete schema; run omega packages update",
+            )]);
+        }
+        if package != self.package || target != self.target {
+            return Err(vec![Diagnostic::error(
+                "policy package or target differs from the accepted root activation",
+            )]);
+        }
+        Ok(())
     }
 
     fn compare_rows(
@@ -98,6 +127,76 @@ mod tests {
             initial_requires_decision: true,
             audit_recommended_when_present: true,
         }
+    }
+
+    #[test]
+    fn source_permission_comparison_holds_the_root_target_and_exact_method_authority() {
+        use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+        let package = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let target = TargetProfile::LinuxX64;
+        let mut acceptance = TerminalPermissionAcceptance {
+            schema_version: PACKAGE_POLICY_ROW_VERSION,
+            package,
+            target,
+            rows: vec![],
+        };
+        assert!(
+            acceptance
+                .compare_service_permissions(package, target, &[])
+                .is_ok()
+        );
+        let other = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        assert!(
+            acceptance
+                .compare_service_permissions(other, target, &[])
+                .is_err()
+        );
+        assert!(
+            acceptance
+                .compare_service_permissions(package, TargetProfile::WindowsX64, &[])
+                .is_err()
+        );
+        let permission = |class| RuntimeServicePermission {
+            owner: other,
+            service_path: "Console".into(),
+            requirement_path: "Console::write".into(),
+            permitted: TerminalAuthorityDisposition::from_classes([class]),
+        };
+        let rows = [permission(TerminalAuthorityClass::ProcessOutput)];
+        assert!(
+            acceptance
+                .compare_service_permissions(package, target, &rows)
+                .is_err()
+        );
+        acceptance.rows = crate::encoding::runtime_service_permission_rows(package, target, &rows)
+            .unwrap()
+            .into_iter()
+            .map(|row| {
+                (
+                    wire::digest_encoder::content_identity(row.key_bytes()),
+                    row.into_canonical_text(),
+                )
+            })
+            .collect();
+        assert!(
+            acceptance
+                .compare_service_permissions(package, target, &rows)
+                .is_ok()
+        );
+        assert!(
+            acceptance
+                .compare_service_permissions(package, target, &[])
+                .is_err()
+        );
+        assert!(
+            acceptance
+                .compare_service_permissions(
+                    package,
+                    target,
+                    &[permission(TerminalAuthorityClass::ProcessInput)]
+                )
+                .is_err()
+        );
     }
 
     #[test]

@@ -9,6 +9,8 @@ path = "compiler.rs"
 
 [dependencies]
 compiler-identity = { path = "foundation/compiler-identity" }
+review-evidence = { path = "../package-manager/review/evidence" }
+provider-acceptance = { path = "build/providers/acceptance" }
 psi-entry-memory = { path = "psi/access/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
@@ -28,7 +30,6 @@ host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-nativ
 verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 build-evaluation-result = { path = "build/execution/result" }
-provider-acceptance = { path = "build/providers/acceptance" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 project-build = { path = "build" }
 target-provider-admission = { path = "psi-to-native/verification/target-providers" }

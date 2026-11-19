@@ -51,6 +51,38 @@ impl PackagePolicyTerminalPermissions {
     }
 }
 
+pub(crate) fn runtime_service_permission_rows(
+    package: PackageKeyIdentity,
+    target: target::TargetProfile,
+    permissions: &[crate::permission_acceptance::RuntimeServicePermission],
+) -> Result<Vec<PackagePolicyRow>, PackageReviewEncodingError> {
+    use crate::record::{
+        PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    };
+    let mut builder = Builder::new(
+        package,
+        target,
+        permissions.len(),
+        PackagePolicyRowLimits::default(),
+        true,
+    )?;
+    for row in permissions {
+        let nominal = |path: &str| PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(row.owner),
+            path: path.to_owned(),
+        };
+        components::terminal_permission(
+            &mut builder,
+            &nominal(&row.service_path),
+            &PackagePolicyTerminalPermission {
+                requirement: nominal(&row.requirement_path),
+                permitted: row.permitted.clone(),
+            },
+        )?;
+    }
+    builder.finish().map(|(rows, _)| rows)
+}
+
 pub fn restricted_build_request_acceptance_text(
     package: PackageKeyIdentity,
     target: target::TargetProfile,

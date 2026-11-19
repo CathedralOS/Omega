@@ -147,8 +147,31 @@ impl ProductStage<'_> {
     ) -> Result<Program<'_>, Vec<Diagnostic>> {
         Ok(Program::Source {
             source: self.source(),
+            runtime_consent: self.runtime_consent(profile)?,
             target: self.native_target(profile, installation_assumptions)?,
         })
+    }
+
+    pub(super) fn runtime_consent(
+        &self,
+        profile: TargetProfile,
+    ) -> Result<Option<&review_evidence::permission_acceptance::TerminalPermissionAcceptance>, Vec<Diagnostic>> {
+        self
+            .product
+            .runtime_consents
+            .as_ref()
+            .map(|consents| {
+                consents
+                    .iter()
+                    .find(|consent| consent.target == profile)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "the locked Product has no accepted runtime policy for {}",
+                            profile.target_name()
+                        ))]
+                    })
+            })
+            .transpose()
     }
 
     pub(super) fn native_target(
@@ -164,25 +187,8 @@ impl ProductStage<'_> {
             }
             _ => None,
         };
-        let runtime_consent = self
-            .product
-            .runtime_consents
-            .as_ref()
-            .map(|consents| {
-                consents
-                    .iter()
-                    .find(|consent| consent.target == profile)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "the locked Product has no accepted runtime policy for {}",
-                            profile.target_name()
-                        ))]
-                    })
-            })
-            .transpose()?;
         Ok(SourceNativeTarget {
             profile,
-            runtime_consent,
             settings: NativeApplicationSettings {
                 application: target::NativeApplicationMetadata {
                     name,
