@@ -1,5 +1,5 @@
-; Report the exact span of the returned lexical case. The production entry
-; also runs below, so an ordinary exit, trap or diagnostic stays observable.
+; The selected token, classified token and keyword each report their authored
+; case span. A field left at sparse zero contributes no constructed case.
 (def test_lexer_case ((outcome EpsilonEvaluatorOutcome)) Bytes
   (match outcome
     ((EpsilonEvaluatorValue value place store output)
@@ -21,5 +21,9 @@
     (let roots EpsilonRuntimeRoots (MoreEpsilonRuntimeRoots 1
       (epsilon_runtime_zero_value mainType) NoEpsilonRuntimeRoots)
       (let store EpsilonRuntimeStore (EpsilonRuntimeStoreState 2 roots (EpsilonRuntimeConsoleInputAt input 0))
-        (bytes_concat (epsilon_compiled_entry input)
-          (test_lexer_case (ep_owned_4_Main_selected_token receiver store "")))))))
+        (let word EpsilonRuntimeValue (EpsilonRuntimeViewValue
+          (EpsilonRuntimeViewAt (EpsilonRuntimeLiteralBacking input) (EpsilonU8Type 0 0) 0 (bytes_length input)))
+          (bytes_concat (epsilon_compiled_entry input)
+            (bytes_concat (test_lexer_case (ep_owned_4_Main_selected_token receiver store ""))
+              (bytes_concat (test_lexer_case (ep_owned_4_Main_classified_token receiver word store ""))
+                (test_lexer_case (ep_owned_4_Main_classified_keyword receiver word store ""))))))))))

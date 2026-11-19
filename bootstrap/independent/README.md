@@ -453,7 +453,28 @@ source-built evaluator. A receiver can also return an array snapshot after its
 parameter homes are released. Constructing a case with payload arguments in a
 compiled receiver still reports the source coordinate.
 
-The 825,064-byte compiler at `b95769558667` now reaches byte 67,414. The
+At this checkpoint the 825,064-byte compiler at `b95769558667` reached byte 67,414. The
 834,350-byte compiler at `720b1a10712f` reaches byte 67,681. Both stop at the
 same string literal, `"as"`, passed to `span_equals`. The shared evaluator
 packs to 616,982 bytes, down from 617,419.
+
+### Compiling the keyword classifier’s string literals
+
+The native Epsilon compiler compiles the complete `OmegaLexScan::classify_keyword`
+method. Its calls to `span_equals` receive immutable views of the authored
+strings. The emitted Delta preserves ordinary quoted spellings, including
+shared escapes. For Epsilon’s hexadecimal escape it decodes the string with
+the checked evaluator’s decoder and emits a balanced tree of ordinary
+`bytes_single` and `bytes_concat` expressions.
+
+The compiled lexer stores the authored cases `As` and `Copy` for those two
+keywords and classifies `aside` as an identifier. The same fixture checks empty and sliced literal
+views and a bounds trap. A separate compiled program writes all 256 values of a
+hex-escaped literal. Its complete output agrees with the constructed evaluator.
+
+On the frozen 825,064-byte source at `b95769558667`, compilation advances from
+byte 67,414 to 85,007, where `OmegaLexScan::consume_digits` passes the stored
+`self.numeric_base` to the free function `omega_digit_in_base`. The compiler’s
+composed Delta grows from 760,383 to 762,106 bytes. The storage runtime grows
+by 393 bytes. The experiment composes that runtime and a driver with the emitted
+module before Delta and Gamma construct the target executable.

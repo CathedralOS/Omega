@@ -16,17 +16,17 @@
     (bytes_concat "-" (epsilon_emit_negative_digits value))
     (epsilon_emit_negative_digits (- 0 value))))
 
-(def epsilon_emit_name_bytes ((source EpsilonSourceView) (index Int) (end Int)
+(def epsilon_emit_source_bytes ((source EpsilonSourceView) (index Int) (end Int)
    (output Bytes)) Bytes
   (if (eq index end)
     output
-    (epsilon_emit_name_bytes source (+ index 1) end
+    (epsilon_emit_source_bytes source (+ index 1) end
       (bytes_concat output (bytes_single (epsilon_source_byte source index))))))
 
 (def epsilon_emit_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
   (match name
     ((EpsilonNameSpan start end)
-      (epsilon_emit_name_bytes source start end ""))))
+      (epsilon_emit_source_bytes source start end ""))))
 
 ; Length-delimited ownership avoids collisions between a free name and a
 ; qualified machine, including owners/names containing underscores.

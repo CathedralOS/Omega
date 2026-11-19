@@ -92,10 +92,10 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
             assert fields[12] == 0 and fields[13] == 0, fields
         request_report['cases'].append({'name': name, 'input': identity(payload), 'output': identity(actual)})
 
-    # Keep the complete production lexer through its keyword emission.
+    # The production keyword classifier compares its actual literal views.
     lexer = (base / 'lexer.epsilon').read_bytes()
     source = ((base / 'representations.epsilon').read_bytes()
-              + lexer[:lexer.index(b'machine OmegaLexScan::classify_keyword(')] + boundary
+              + lexer[:lexer.index(b'machine OmegaLexScan::scan_whitespace(')] + boundary
               + (FIXTURES / 'lexer_diagnostic_main.epsilon').read_bytes())
     main_start = source.index(b'Main::main(')
     span = f'{main_start} {main_start + len("Main")}'
@@ -103,13 +103,36 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     entry = ((FIXTURES / 'lexer_case_driver.delta').read_bytes()
              + f'(def main ((input Bytes)) Bytes (test_lexer_entry {main_type} input))\n'.encode())
     executable, diagnostic_report = program(source, 'lexer-diagnostic', entry)
-    output = observe(executable)
-    expected = reference(source, b'', 'lexer-diagnostic-reference')
-    assert expected == b'\0' + struct.pack('<i', 42)
-    case = b'case Keyword;'
-    start = source.index(case)
-    assert output == expected + struct.pack('<II', start, start + len(case)), (output, start)
-    diagnostic_report['output'] = identity(output)
+
+    def case_span(owner, name):
+        owner_start = source.index(b'data ' + owner + b' {')
+        owner_end = source.index(b'}', owner_start)
+        declaration = b'case ' + name + b';'
+        start = source.index(declaration, owner_start, owner_end)
+        return struct.pack('<II', start, start + len(declaration))
+
+    expected_exit = b'\0' + struct.pack('<i', 42)
+    diagnostic_report['cases'] = []
+    keyword = case_span(b'OmegaTokenKind', b'Keyword')
+    identifier = case_span(b'OmegaTokenKind', b'Identifier')
+    for label, word, observed_cases in [
+            ('empty', b'', b''), ('as', b'as', keyword + case_span(b'OmegaKeywordKind', b'As')),
+            ('copy', b'copy', keyword + case_span(b'OmegaKeywordKind', b'Copy')),
+            ('identifier', b'aside', identifier),
+            ('bounds', b'\xff', identifier)]:
+        expected = b'\x01\x06' if label == 'bounds' else expected_exit
+        assert reference(source, word, f'lexer-diagnostic-{label}') == expected
+        output = observe(executable, word)
+        # The token after a refused empty span and the keyword of an identifier
+        # are unspecified. Only check fields committed by the lexer.
+        required = expected + keyword + observed_cases
+        assert output.startswith(required) and len(output) - len(expected) in (8, 16, 24), (label, output)
+        diagnostic_report['cases'].append({'input': identity(word), 'output': identity(output)})
+
+    malformed = source.replace(br'\x00\t', br'\x0g\t', 1)
+    offset = malformed.index(br'\x0g')
+    assert observe(compiler, malformed) == b'rejected 5 ' + str(offset).encode()
+    assert reference(malformed, b'', 'lexer-invalid-string') == b'\x02\x05' + struct.pack('<I', offset)
 
     # Substitute a different sum owner at the same call and check its exact diagnostic.
     offset = source.index(b'self.scanner.reject(self.diagnostic,')
@@ -118,7 +141,8 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     assert reference(invalid, b'', 'lexer-diagnostic-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
 
     offset = source.index(b'self.scanner.set_keyword(OmegaKeywordKind::As)')
-    invalid = source.replace(b'set_keyword(OmegaKeywordKind::As)', b'set_keyword(OtherKeyword::As)', 1)
+    invalid = source.replace(b'self.scanner.set_keyword(OmegaKeywordKind::As)',
+                             b'self.scanner.set_keyword(OtherKeyword::As)', 1)
     assert observe(compiler, invalid) == b'rejected 18 ' + str(offset).encode()
     assert reference(invalid, b'', 'stored-case-wrong-owner') == b'\x02\x12' + struct.pack('<I', offset)
 
@@ -126,7 +150,7 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
                         b'machine Main::save_number(&mut self) { let number: Number = Number::Box(7); }\n')
     offset = payload.index(b'Number::Box(7)')
     assert observe(compiler, payload) == b'unsupported ' + str(offset).encode()
-    assert reference(payload, b'', 'stored-case-payload') == expected
+    assert reference(payload, b'', 'stored-case-payload') == expected_exit
 
     source = boundary + (FIXTURES / 'storage_main.epsilon').read_bytes()
     executable, storage_report = program(source, 'storage-target')
@@ -149,7 +173,19 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     live = source[:offset] + source[offset:].replace(b'Marker::Set', b'tag', 1)
     assert observe(compiler, live) == b'unsupported ' + str(offset).encode()
     assert reference(live, b'\2', 'stored-pure-argument') == b'\1\10'
-    return {'request': request_report, 'lexer_diagnostic': diagnostic_report, 'storage': storage_report}
+    # Echo all decoded octets from one source literal, crossing each control,
+    # delimiter and non-ASCII byte as data in the generated Delta program.
+    octets = bytes(range(256))
+    encoded = b''.join(f'\\x{byte:02x}'.encode() for byte in octets)
+    fixture = (FIXTURES / 'literal_bytes_main.epsilon').read_bytes()
+    assert fixture.count(b'"test bytes"') == 1
+    source = CONSOLE + fixture.replace(b'"test bytes"', b'"' + encoded + b'"')
+    executable, literal_report = program(source, 'literal-bytes')
+    expected = expected_exit + octets
+    assert observe(executable) == reference(source, b'', 'literal-bytes-reference') == expected
+    literal_report['output'] = identity(expected)
+    return {'request': request_report, 'lexer_diagnostic': diagnostic_report,
+            'storage': storage_report, 'literal_bytes': literal_report}
 
 
 def run(work, vm, producer, realize, seconds):
