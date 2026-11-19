@@ -1,0 +1,13 @@
+[package]
+name = "closed-predicates"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "closed_predicates.rs"
+
+[dependencies]
+bignum = { path = "../../../../../foundation/bignum" }
+numerics = { path = "../numeric" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }

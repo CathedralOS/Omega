@@ -420,6 +420,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "closed-predicates"
+version = "0.1.0"
+dependencies = [
+ "bignum",
+ "numerics",
+ "semantic-vocabulary",
+]
+
+[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2187,9 +2196,10 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "record-storage",
+ "closed-predicates",
  "mathematical-kernel",
  "numerics",
+ "record-storage",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -3382,7 +3392,7 @@ dependencies = [
  "access-admission",
  "access-vocabulary",
  "arena",
- "record-storage",
+ "closed-predicates",
  "evaluation-accounting",
  "evaluation-contracts",
  "extent-contracts",
@@ -3390,7 +3400,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numerics",
- "proof-admission",
+ "record-storage",
  "resource-bounds",
  "semantic-vocabulary",
  "storage-access",
@@ -3534,6 +3544,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
+ "closed-predicates",
  "language-core",
  "layout-planning",
  "layout-plans",

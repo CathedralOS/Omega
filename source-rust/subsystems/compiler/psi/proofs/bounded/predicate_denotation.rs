@@ -12,189 +12,15 @@ use semantic_vocabulary::{
 };
 
 use crate::{ProofError, ProofNode, check_certificate};
+use closed_predicates::PredicateBudget as Budget;
 
 pub(crate) use semantic_vocabulary::{scalar_term_binary_operands, scalar_term_unary_operand};
 use std::iter::once;
 
-mod budget {
-    use semantic_vocabulary::{ContentTerm, IntegerMathTerm, Proposition, ScalarTerm};
-
-    use super::PredicateDenotationError;
-    use semantic_vocabulary::scalar_term_predicate_quint_pattern;
-
-    pub(super) struct Budget {
-        remaining: usize,
-    }
-
-    impl Budget {
-        pub(super) fn new() -> Self {
-            Self { remaining: 4096 }
-        }
-
-        pub(super) fn step(&mut self, depth: usize) -> Result<(), PredicateDenotationError> {
-            if depth >= 64 {
-                return Err(PredicateDenotationError::ResourceLimitExceeded);
-            }
-            self.count(1)
-        }
-
-        fn count(&mut self, count: usize) -> Result<(), PredicateDenotationError> {
-            self.remaining = self
-                .remaining
-                .checked_sub(count)
-                .ok_or(PredicateDenotationError::ResourceLimitExceeded)?;
-            Ok(())
-        }
-
-        pub(super) fn proposition(
-            &mut self,
-            value: &Proposition,
-            depth: usize,
-        ) -> Result<(), PredicateDenotationError> {
-            self.step(depth)?;
-            match value {
-                semantic_vocabulary::scalar_comparison_operands!(left, right) => {
-                    self.scalar(left, depth + 1)?;
-                    self.scalar(right, depth + 1)?;
-                }
-                semantic_vocabulary::integer_math_comparison_operands!(left, right) => {
-                    self.mathematical(left, depth + 1)?;
-                    self.mathematical(right, depth + 1)?;
-                }
-                Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
-                    for child in children {
-                        self.proposition(child, depth + 1)?;
-                    }
-                }
-                Proposition::Implication {
-                    premise,
-                    conclusion,
-                } => {
-                    self.proposition(premise, depth + 1)?;
-                    self.proposition(conclusion, depth + 1)?;
-                }
-                Proposition::IeeeFloatComparison { left, right, .. } => {
-                    self.count(left.path().len())?;
-                    self.count(right.path().len())?;
-                }
-                Proposition::ByteSequenceEqual { left, right } => {
-                    self.count(left.path().len())?;
-                    self.count(right.path().len())?;
-                }
-                Proposition::StructuralCaseMembership { subject, .. } => {
-                    self.count(subject.path().len())?
-                }
-                Proposition::StructuralIdentity { left, right } => {
-                    self.count(left.path().len())?;
-                    self.count(right.path().len())?;
-                }
-                Proposition::FloatIntegerConversion(clause) => {
-                    self.scalar(&clause.source, depth + 1)?;
-                    self.scalar(&clause.result, depth + 1)?;
-                }
-                Proposition::IeeeFloatIntegerExact { source, .. }
-                | Proposition::IntegerIeeeFloatExact { source, .. } => {
-                    self.scalar(source, depth + 1)?
-                }
-                Proposition::FloatMeaningEqual(clause) => {
-                    self.count(clause.values.len())?;
-                    for value in &clause.values {
-                        match value {
-                            semantic_vocabulary::FloatMeaningClauseValue::Projection {
-                                source,
-                                ..
-                            } => self.scalar(source, depth + 1)?,
-                            semantic_vocabulary::FloatMeaningClauseValue::Application {
-                                operands,
-                                ..
-                            } => {
-                                self.count(operands.len())?;
-                                for operand in operands {
-                                    if let semantic_vocabulary::FloatMeaningClauseOperand::Integer(
-                                        source,
-                                    ) = operand
-                                    {
-                                        self.scalar(source, depth + 1)?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Proposition::ContentConservation(value) => {
-                    self.content(value.left(), depth + 1)?;
-                    self.content(value.right(), depth + 1)?;
-                }
-                Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
-            }
-            Ok(())
-        }
-
-        fn content(
-            &mut self,
-            value: &ContentTerm,
-            depth: usize,
-        ) -> Result<(), PredicateDenotationError> {
-            self.step(depth)?;
-            match value {
-                ContentTerm::Projection { subject, .. } => self.count(subject.segments.len())?,
-                ContentTerm::Separate(children) => {
-                    for child in children {
-                        self.content(child, depth + 1)?;
-                    }
-                }
-            }
-            Ok(())
-        }
-
-        fn mathematical(
-            &mut self,
-            value: &IntegerMathTerm,
-            depth: usize,
-        ) -> Result<(), PredicateDenotationError> {
-            self.step(depth)?;
-            if let IntegerMathTerm::Embed(term) = value {
-                return self.scalar(term, depth + 1);
-            }
-            for operand in value.operands() {
-                self.mathematical(operand, depth + 1)?;
-            }
-            Ok(())
-        }
-
-        pub(super) fn scalar(
-            &mut self,
-            value: &ScalarTerm,
-            depth: usize,
-        ) -> Result<(), PredicateDenotationError> {
-            self.step(depth)?;
-            match value {
-                ScalarTerm::Application { .. }
-                | ScalarTerm::Value { .. }
-                | ScalarTerm::Boolean(_)
-                | ScalarTerm::Integer { .. }
-                | ScalarTerm::IeeeFloatLiteral(_) => {}
-                ScalarTerm::StructuralRead { path, .. } => {
-                    self.count(path.len())?;
-                    for operand in value.operands() {
-                        self.scalar(operand, depth + 1)?;
-                    }
-                }
-                scalar_term_predicate_quint_pattern!(path, ..) => self.count(path.len())?,
-                super::scalar_term_unary_operand!(operand) => self.scalar(operand, depth + 1)?,
-                super::scalar_term_binary_operands!(left, right) => {
-                    self.scalar(left, depth + 1)?;
-                    self.scalar(right, depth + 1)?;
-                }
-            }
-            Ok(())
-        }
-    }
-}
 mod value_equalities {
     use semantic_vocabulary::{IntegerMathTerm, Proposition, ScalarTerm, ScalarType};
 
-    use super::{PredicateDenotationError, budget::Budget};
+    use super::{Budget, PredicateDenotationError};
 
     pub(super) struct ValueEqualities<'input> {
         definitions: Vec<(&'input ScalarTerm, &'input ScalarTerm)>,
@@ -403,16 +229,11 @@ mod value_equalities {
         }
     }
 }
-use budget::Budget;
 
 pub fn check_predicate_evaluation_size<'input>(
     propositions: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<(), PredicateDenotationError> {
-    let mut budget = Budget::new();
-    for proposition in propositions {
-        budget.proposition(proposition, 0)?;
-    }
-    Ok(())
+    closed_predicates::check_predicate_evaluation_size(propositions).map_err(Into::into)
 }
 
 fn checked_denotations<'input>(
@@ -422,7 +243,7 @@ fn checked_denotations<'input>(
     semantic_axioms: &'input [Proposition],
     mut convert: impl FnMut(&Proposition, &mut Budget) -> Result<Proposition, PredicateDenotationError>,
 ) -> Result<CheckedPredicateDenotations<'input>, PredicateDenotationError> {
-    let mut budget = Budget::new();
+    let mut budget = Budget::default();
     for proposition in once(goal).chain(requirements).chain(semantic_axioms) {
         budget.proposition(proposition, 0)?;
         context
@@ -530,7 +351,7 @@ pub fn check_value_equality_substitution<'input>(
     goal: &Proposition,
     equations: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<Proposition, PredicateDenotationError> {
-    let mut budget = Budget::new();
+    let mut budget = Budget::default();
     let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
     let substituted = equalities.proposition(goal, &mut budget, 0)?;
     context
@@ -545,7 +366,7 @@ pub fn check_value_equality_denotation<'input>(
     goal: &Proposition,
     equations: impl IntoIterator<Item = &'input Proposition>,
 ) -> Result<Proposition, PredicateDenotationError> {
-    let mut budget = Budget::new();
+    let mut budget = Budget::default();
     let equalities = checked_value_equalities(context, goal, equations, &mut budget)?;
     transport_denotation(context, goal, &equalities, &mut budget)
 }
@@ -857,6 +678,12 @@ pub enum PredicateDenotationError {
     InvalidValueEquality,
     Malformed(PropositionError),
     Proof(ProofError),
+}
+
+impl From<closed_predicates::PredicateSizeLimit> for PredicateDenotationError {
+    fn from(_: closed_predicates::PredicateSizeLimit) -> Self {
+        Self::ResourceLimitExceeded
+    }
 }
 
 impl From<&'static str> for PredicateDenotationError {
@@ -1651,6 +1478,41 @@ mod value_equality_tests {
                 .goal(),
             &Proposition::Truth,
             "a closed fixed-integer relation is still decided"
+        );
+    }
+}
+
+#[cfg(test)]
+mod ieee_tests {
+    use super::check_predicate_denotations;
+    use semantic_vocabulary::{
+        IeeeFloatComparisonKind, IeeeFloatFormat, Proposition, PropositionContext, ScalarTerm,
+        ScalarType, ValueId,
+    };
+
+    #[test]
+    fn predicate_denotation_leaves_an_open_ieee_relation_unchanged() {
+        // The denotation conversion is a different owner. An IEEE relation it
+        // does not rewrite stays that relation, which is the fact-validity rule
+        // for this conversion.
+        let value = ValueId::new(1).unwrap();
+        let subject = ScalarTerm::value(value, ScalarType::IeeeFloat(IeeeFloatFormat::Binary32));
+        let goal = Proposition::ScalarIeeeFloatComparison {
+            kind: IeeeFloatComparisonKind::Equal,
+            format: IeeeFloatFormat::Binary32,
+            left: subject.clone(),
+            right: subject,
+        };
+        let context = PropositionContext::from_value_types([(
+            value,
+            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+        )])
+        .unwrap();
+        assert_eq!(
+            check_predicate_denotations(&context, &goal, &[], &[])
+                .unwrap()
+                .goal(),
+            &goal
         );
     }
 }

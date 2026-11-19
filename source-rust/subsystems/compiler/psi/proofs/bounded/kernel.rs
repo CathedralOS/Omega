@@ -92,10 +92,10 @@ pub fn decide_primitive(
                 conclusion,
             },
         ) if **conclusion == Proposition::Falsehood => {
-            crate::ieee_float_rules::closed_relation(premise) == Some(false)
+            closed_predicates::closed_ieee_relation(premise) == Some(false)
         }
         (PrimitiveJudgment::ClosedIeeeFloatRelation, relation) => {
-            crate::ieee_float_rules::closed_relation(relation) == Some(true)
+            closed_predicates::closed_ieee_relation(relation) == Some(true)
         }
         (
             PrimitiveJudgment::ClosedFloatIntegerRelation,

@@ -48,6 +48,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/psi/compilation/representations/extent-contracts",
     "source-rust/subsystems/compiler/foundation/numeric-literals",
     "omega-rust/psi/compilation/representations/optimization-policy",
+    "source-rust/subsystems/compiler/psi/semantics/closed-predicates",
     "source-rust/subsystems/compiler/psi/semantics/numeric",
     "omega-rust/psi/compilation/representations/schema-reflection",
     "omega-rust/psi/compilation/representations/semantic-vocabulary",

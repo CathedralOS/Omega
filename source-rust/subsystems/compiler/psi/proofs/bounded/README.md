@@ -13,14 +13,14 @@ Admission re-decides each judgment from the supplied mathematical evidence
 and runs no proof search of its own. These checks serve source proof obligations; the
 Terminal artifact carries no certificate of the compiler's translation.
 
-[integer_rules.rs](integer_rules.rs) gives the exact meaning of signed
-mathematical integers, shared by primitive judgments and by checks of closed
-guards at run time. It never truncates to a runtime carrier or adds a proof rule. Open values and undefined negative shift counts have no closed
-relation; running out of resources is a typed incomplete-evaluation error,
-never a false mathematical judgment. When evaluation finds a closed relation
-false, the same judgment can establish `relation => Falsehood`. Contradiction
-search keeps that certificate and the exact value equalities that closed its
-operands.
+The checker and the interpreter evaluate closed signed mathematical integers
+with the same [bounded integer evaluator](../../semantics/closed-predicates/integer.rs).
+It preserves arbitrary precision and returns an unknown relation for open values
+and undefined negative shifts. Resource exhaustion reports an incomplete
+evaluation. The [integer proof rules](integer_rules.rs) also check relationships
+between open terms. A false closed relation can establish
+`relation => Falsehood`. Contradiction search retains that certificate and
+the exact value equalities that closed its operands.
 
 One evaluator per invocation shares limits across operands and repeated
 comparisons: 8,192 visited nodes, depth 128, 65,536 result bits,

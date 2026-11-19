@@ -1,4 +1,5 @@
 use super::*;
+use semantic_vocabulary::IeeeFloatValue;
 use crate::{
     AcceptedProofRule, MathematicalCoreDecision, PrimitiveJudgment, ProofNode, ProofRule,
     accept_certificate, decide_primitive,
