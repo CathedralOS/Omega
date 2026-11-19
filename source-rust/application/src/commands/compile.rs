@@ -98,16 +98,59 @@ fn compile_targets(
     let targets = resolve_targets(&arguments.target_names)?;
     let profiles = targets.profiles()?;
     let batch = matches!(targets, RequestedTargets::Batch(_));
+    // Keep checks and portable publications independent of the project's persistent build directory.
+    let scratch = if arguments.check_only || arguments.emit_psi.is_some() {
+        Some(
+            platform_custody::temporary_directory::TemporaryDirectory::create("check", false)
+                .map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "cannot prepare check workspace: {error}"
+                    ))]
+                })?,
+        )
+    } else {
+        None
+    };
+    let base = project_build::output_directory::base(
+        &arguments.root_path,
+        scratch
+            .as_ref()
+            .map(|d| d.path())
+            .or(arguments.build_dir.as_deref()),
+    );
+    let leases: Vec<_> = profiles
+        .iter()
+        .map(|profile| {
+            let directory = if batch {
+                base.join(profile.target_name())
+            } else {
+                base.clone()
+            };
+            project_build::output_directory::acquire(&directory, &arguments.root_path)
+        })
+        .collect();
+    let active: Vec<_> = profiles
+        .iter()
+        .zip(&leases)
+        .filter_map(|(profile, lease)| lease.is_ok().then_some(*profile))
+        .collect();
+    if active.is_empty() {
+        return Err(leases
+            .into_iter()
+            .filter_map(Result::err)
+            .map(|error| Diagnostic::error(error.to_string()))
+            .collect());
+    }
     let snapshot = arguments
         .build_inputs
         .clone()
         .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
     let planned = crate::project_sources::open_product(
         &arguments.root_path,
-        &profiles,
+        &active,
         arguments.offline,
         arguments.verify,
-        arguments.build_dir.as_deref(),
+        Some(&base),
         snapshot,
     )?;
     if arguments.timings {
@@ -119,10 +162,8 @@ fn compile_targets(
             );
         }
     }
-    let mut stage = planned.product_stage(&profiles)?;
+    let mut stage = planned.product_stage(&active)?;
     let rollback = stage.apply_rollback(&arguments.optimization_rollback);
-    let base =
-        project_build::output_directory::base(&arguments.root_path, arguments.build_dir.as_deref());
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
     // Emit one portable program for the entire set of deployments.
@@ -131,25 +172,27 @@ fn compile_targets(
     } else {
         profiles.len()
     };
-    for &profile in &profiles[..count] {
+    for (&profile, lease) in profiles[..count].iter().zip(&leases) {
         let name = profile.target_name();
         if batch {
             println!("target {name}:");
         }
-        let directory = if batch { base.join(name) } else { base.clone() };
         let report_name = if arguments.target_names.is_empty() {
             "host default"
         } else {
             name
         };
-        match compile_target(
-            arguments,
-            &planned,
-            &stage,
-            profile,
-            &directory,
-            rollback.as_ref(),
-        ) {
+        let result = lease.as_ref().map_err(output_error).and_then(|lease| {
+            compile_target(
+                arguments,
+                &planned,
+                &stage,
+                profile,
+                lease.directory(),
+                rollback.as_ref(),
+            )
+        });
+        match result {
             Ok(outcome) => {
                 writeln!(report, "product: {}\ntarget: {report_name}", outcome.kind).unwrap();
                 for row in arguments
@@ -318,10 +361,8 @@ fn compile_target(
         };
         test_roster =
             stage.execute_registered_tests(profile, &arguments.installation_assumptions)?;
-        let lease = project_build::output_directory::acquire(directory, &arguments.root_path)
-            .map_err(output_error)?;
         let published = product
-            .publish(&arguments.root_path, lease.directory())
+            .publish(&arguments.root_path, directory)
             .map_err(output_error)?;
         if let Some(artifact) = published.artifact() {
             writeln!(
@@ -352,15 +393,13 @@ fn compile_target(
             )
             .unwrap();
         }
-        publish_outputs(completed.take(), lease.directory(), &mut publications)?;
+        publish_outputs(completed.take(), directory, &mut publications)?;
         wrote_output = true;
         show_summary = false;
     }
     if let Some(outputs) = completed {
         if !arguments.check_only && arguments.emit_psi.is_none() {
-            let lease = project_build::output_directory::acquire(directory, &arguments.root_path)
-                .map_err(output_error)?;
-            publish_outputs(Some(outputs), lease.directory(), &mut publications)?;
+            publish_outputs(Some(outputs), directory, &mut publications)?;
             wrote_output = true;
         }
     }
