@@ -6183,7 +6183,7 @@ pub(crate) mod storage_addresses {
             Arc::get_mut(&mut program)
                 .unwrap()
                 .fixture_module_mut()
-                .structural_types
+                .types.structural_types
                 .extend([
                     declaration(
                         1,

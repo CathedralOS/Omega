@@ -71,7 +71,7 @@ fn setup(
     Arc::get_mut(&mut program)
         .unwrap()
         .fixture_module_mut()
-        .structural_types = types;
+        .types.structural_types = types;
     let result = StructuralOperationResult {
         place: PlaceId::new(1).unwrap(),
         structural_type: StructuralTypeId::new(reference).unwrap(),
@@ -151,7 +151,7 @@ fn canonical_provider_reference_preflights_the_actual_result() {
     let (execution, boundary, result) = fixture();
     assert!(
         terminal_semantics::boundary_result_slots(
-            &execution.program.catalogs.structural_types,
+            &execution.program.catalogs.types.structural_types,
             &boundary,
             terminal_semantics::descriptor_results::DescriptorSlotKind::BorrowedStorage,
             &result,
@@ -1732,7 +1732,7 @@ fn live_reference_owner_ignores_inactive_cached_descendants_of_a_live_sum() {
     Arc::get_mut(&mut execution.program)
         .unwrap()
         .fixture_module_mut()
-        .structural_types
+        .types.structural_types
         .push(ty(
             3,
             StructuralTypeShape::Sum {

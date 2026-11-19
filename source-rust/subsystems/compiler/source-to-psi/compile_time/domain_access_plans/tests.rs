@@ -376,7 +376,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     let restored = terminal_codec::decode_module(&bytes)
         .expect("the same policy links survive independent artifact receiving");
     let domain = restored
-        .structural_domains
+        .types.structural_domains
         .iter()
         .position(|domain| {
             domain.access_policy.as_ref().is_some_and(|plan| {
@@ -386,7 +386,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
             })
         })
         .expect("one actual retained issuer");
-    let route = &restored.structural_domains[domain]
+    let route = &restored.types.structural_domains[domain]
         .access_policy
         .as_ref()
         .unwrap()
@@ -462,7 +462,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         .expect("a counted entry nominal cannot replace the exact original entry")
     );
     let mut redirected = restored.clone();
-    let changed = redirected.structural_domains[domain]
+    let changed = redirected.types.structural_domains[domain]
         .access_policy
         .as_mut()
         .unwrap()
@@ -492,7 +492,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
     assert!(reader.structural_parameters.iter().any(|parameter| {
         parameter
             .qualifications
-            .contains(&restored.structural_domains[domain].id)
+            .contains(&restored.types.structural_domains[domain].id)
     }));
     assert!(reader.operations().any(|operation| {
         operation
@@ -502,7 +502,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
             .any(|(_, access)| matches!(access, Some(access_vocabulary::AccessOperation::Read)))
     }));
     let mut denied_read = restored.clone();
-    let policy = denied_read.structural_domains[domain]
+    let policy = denied_read.types.structural_domains[domain]
         .access_policy
         .as_mut()
         .unwrap();
@@ -511,7 +511,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         .push(((policy.schema.root(), Some(Vec::new())), Vec::new()));
     terminal_semantics::structural_qualifications::validate_access_policy(
         &denied_read,
-        &denied_read.structural_domains[domain],
+        &denied_read.types.structural_domains[domain],
     )
     .expect("the denied whole-subject row still names its genuine declaration");
     let denied_bytes = terminal_codec::encode_module(&denied_read)
@@ -671,7 +671,7 @@ machine write_number(ticket: @mut Ticket in Stamped) { ticket.number = 41; }
         for axis in ["read", "write"] {
             let mut denied = accepted.module().clone();
             let plan = denied
-                .structural_domains
+                .types.structural_domains
                 .iter_mut()
                 .filter_map(|domain| domain.access_policy.as_mut())
                 .find(|plan| !plan.readers.is_empty() && !plan.writers.is_empty())

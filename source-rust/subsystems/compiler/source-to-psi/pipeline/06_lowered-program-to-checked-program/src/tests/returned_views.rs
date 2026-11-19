@@ -920,7 +920,7 @@ machine entry() reaches Fs invokes Fs {
     let elaborated = elaborate(source).unwrap();
     let left = &elaborated.module;
     let mut right = left.clone();
-    let boundary = &left.boundary_machines[0];
+    let boundary = &left.interfaces.boundary_machines[0];
     let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result else {
         panic!("the boundary returns a record");
     };
@@ -938,7 +938,7 @@ machine entry() reaches Fs invokes Fs {
     assert_ne!(original, relocated);
     right.identities = identities.build();
     let record = right
-        .structural_types
+        .types.structural_types
         .iter_mut()
         .find(|row| row.id == result.structural_type)
         .unwrap();
@@ -950,7 +950,7 @@ machine entry() reaches Fs invokes Fs {
         .find(|field| field.identity == original)
         .unwrap()
         .identity = relocated;
-    right.boundary_machines[0]
+    right.interfaces.boundary_machines[0]
         .result_lifetimes
         .as_mut()
         .unwrap()[0]
@@ -960,11 +960,11 @@ machine entry() reaches Fs invokes Fs {
             left,
             boundary,
             &right,
-            &right.boundary_machines[0],
+            &right.interfaces.boundary_machines[0],
         )
         .unwrap()
     );
-    right.boundary_machines[0]
+    right.interfaces.boundary_machines[0]
         .result_lifetimes
         .as_mut()
         .unwrap()[0]
@@ -975,7 +975,7 @@ machine entry() reaches Fs invokes Fs {
             left,
             boundary,
             &right,
-            &right.boundary_machines[0],
+            &right.interfaces.boundary_machines[0],
         )
         .unwrap(),
         "equal field identities cannot hide different lifetime dependencies"

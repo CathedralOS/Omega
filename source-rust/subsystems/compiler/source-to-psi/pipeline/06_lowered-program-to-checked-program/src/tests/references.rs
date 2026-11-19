@@ -935,7 +935,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     .unwrap();
     let mut analysis =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
-            &changed.structural_types,
+            &changed.types.structural_types,
             &graph,
         );
     let caller = changed.machine(caller).unwrap();

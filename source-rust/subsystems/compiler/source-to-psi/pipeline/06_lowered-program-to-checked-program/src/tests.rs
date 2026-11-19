@@ -1762,7 +1762,7 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
         &affine_records(),
     );
     let mut array = elaboration.module.clone();
-    array.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+    array.types.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
         element: id(1),
         length: terminal_psi::ArrayExtent::Literal(100_000),
     };
@@ -1786,13 +1786,13 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
     }
     assert!(
         matches!(
-            terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
+            terminal_semantics::plain_affine::verify(&array.machines[0], &array.types.structural_types),
             Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
                 if detail.contains("exceeds its output")
         ),
         "a short supplied roster must bound reconstruction before array enumeration"
     );
-    array.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+    array.types.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
         element: id(1),
         length: terminal_psi::ArrayExtent::Literal(2),
     };
@@ -1811,7 +1811,7 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
         }
     }
     assert!(
-        matches!(terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
+        matches!(terminal_semantics::plain_affine::verify(&array.machines[0], &array.types.structural_types),
         Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. }) if detail.contains("exceeds its output")),
         "an unrelated edge's forged output cannot inflate this edge's reconstruction budget"
     );

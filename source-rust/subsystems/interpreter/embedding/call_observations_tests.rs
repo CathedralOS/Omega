@@ -192,7 +192,7 @@ fn structural_observations_read_only_the_active_case_at_the_selected_call() {
     Arc::get_mut(&mut execution.program)
         .unwrap()
         .fixture_module_mut()
-        .structural_types[0]
+        .types.structural_types[0]
         .shape = StructuralTypeShape::Opaque;
     assert!(execution.observe_direct_call(operation.id, call).is_err());
     assert_eq!(
