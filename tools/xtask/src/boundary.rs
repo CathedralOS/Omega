@@ -48,7 +48,7 @@ const REVIEW_EVIDENCE: &str = "source-rust/subsystems/package-manager/review/evi
 #[cfg(test)]
 const PSI_FACADE: &str = linear_pipeline::SOURCE_DRIVER;
 const SOURCE_PROVIDER_PUBLICATION: &str =
-    "source-rust/subsystems/compiler/source-to-psi/publication/target-providers";
+    "source-rust/subsystems/compiler/product-records/target-providers";
 const NATIVE_PROVIDER_DEMAND: &str =
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand";
 const FRONTEND_OPERATIONS: &[&str] = &[linear_pipeline::FRONTEND[0], linear_pipeline::FRONTEND[1]];
@@ -1109,10 +1109,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
         )?);
+        let mut native_driver_owners = PERMITTED_OWNERS.to_vec();
+        native_driver_owners.push(SOURCE_PROVIDER_PUBLICATION);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
-            PERMITTED_OWNERS,
+            &native_driver_owners,
         )?);
         let provider_selection_owners = &PERMITTED_OWNERS[1..];
         violations.extend(dependency_violations(
@@ -1124,7 +1126,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(dependency_violations(
             &metadata,
             linear_pipeline::NATIVE_STAGES[1],
-            provider_selection_owners,
+            &native_driver_owners[1..],
         )?);
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
