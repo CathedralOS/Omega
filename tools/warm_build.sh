@@ -78,9 +78,19 @@ shared_outputs() {
   printf '%s/out-dirs/v1\n' "${cache:-${XDG_CACHE_HOME:-$HOME/.cache}/mbx}"
 }
 
+# Lock and lease files belong to the process that built these outputs.
+shared_output_names() {
+  local entry name
+  for entry in "$1"/*; do
+    name=${entry##*/}
+    [[ "$name" =~ ^[0-9a-f]{64}$ && -d "$entry" ]] || continue
+    printf '%s\n' "$name"
+  done
+}
+
 pack() {
-  local slot=$1 out=$2 dir commit asset generated target_kib generated_kib=0
-  local -a archive=(target)
+  local slot=$1 out=$2 dir commit asset generated name target_kib generated_kib=0
+  local -a archive=(target) outputs=()
   dir=$(slot_dir "$slot")
   [ "$(pwd -P)" = "$dir" ] || fail "pack $slot runs in $dir, the path sessions build at"
   [ -x target/debug/omega ] || fail "target/debug/omega is missing; build before packing"
@@ -89,8 +99,11 @@ pack() {
   mkdir -p "$out"
   target_kib=$(du -sk target | cut -f1)
   generated=$(shared_outputs)
-  if [ -d "$generated" ]; then
-    archive+=(-C "$(dirname "$generated")" v1)
+  while IFS= read -r name; do
+    outputs+=("v1/$name")
+  done < <(shared_output_names "$generated")
+  if [ "${#outputs[@]}" -ne 0 ]; then
+    archive+=(-C "$(dirname "$generated")" "${outputs[@]}")
     generated_kib=$(du -sk "$generated" | cut -f1)
   else
     generated=
@@ -223,31 +236,32 @@ stale_restore() {
 # and omega (21-35 s). Only a clean checkout at the published commit holds the
 # exact bytes that build read, so any other checkout keeps its real times.
 settle_source_times() {
-  local dir=$1 commit=$2 when
+  local dir=$1 commit=$2 when extra_inputs
   [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" = "$commit" ] || return 0
   [ -z "$(git -C "$dir" status --porcelain --untracked-files=all 2>/dev/null)" ] || return 0
+  # The compiler also reads ignored files in these trees. Preserve their times.
+  extra_inputs=$(git -C "$dir" ls-files --others --directory -- omega-rust source/library .cargo) || return 0
+  [ -z "$extra_inputs" ] || return 0
   # The commit exists before CI starts building it, so its time is older than
   # every timestamp the build recorded.
   when=$(git -C "$dir" log -1 --format=%ct "$commit") || return 0
   (cd "$dir" && git ls-files -z | xargs -0 -r touch -h -c -d "@$when" &&
-    git ls-files -z | xargs -0 -r dirname -z | sort -zu | xargs -0 -r touch -h -c -d "@$when") ||
+    git ls-tree -rdz --name-only "$commit" | xargs -0 -r touch -h -c -d "@$when") ||
     echo "warm build: could not date $dir back to ${commit:0:12}; the first build reruns the compiler build script"
 }
 
 # Both slots can restore into one cache. Publish each complete directory by
 # renaming it on the cache filesystem, leaving any existing entry in place.
 restore_shared_outputs() (
-  local packed=$1 destination=$2 staging entry name
+  local packed=$1 destination=$2 staging name
   mkdir -p "$destination" || return 1
   staging=$(mktemp -d "$(dirname "$destination")/.warm-build.XXXXXX") || return 1
   trap 'rm -rf "$staging"' EXIT
-  for entry in "$packed"/*; do
-    name=${entry##*/}
-    [[ "$name" =~ ^[0-9a-f]{64}$ && -d "$entry" ]] || continue
+  while IFS= read -r name; do
     [ ! -e "$destination/$name" ] || continue
-    cp -a "$entry" "$staging/$name" || return 1
+    cp -a "$packed/$name" "$staging/$name" || return 1
     mv -nT "$staging/$name" "$destination/$name" || [ -d "$destination/$name" ] || return 1
-  done
+  done < <(shared_output_names "$packed")
 )
 
 # restore <slot> [replace-stale]
