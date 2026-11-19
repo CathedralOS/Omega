@@ -21,6 +21,7 @@ psi-authorization = { path = "psi/authorization" }
 terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
+native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
 native-compiler = { path = "psi-to-native", features = ["test-support"] }
 optimization-selections = { path = "foundation/optimization-selections" }

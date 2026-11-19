@@ -23,8 +23,7 @@ pub struct ComponentCompilation<'input> {
     pub plan: &'input ProviderPlan,
     pub receiving_identities: &'input TerminalIdentityTable,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
-    /// The scalar values the exports read, completed before compiling
-    /// (`build_settings::scalar_completion::complete_native_callables`).
+    /// Completed scalar values read by the exports.
     pub scalars: Option<&'input terminal_installation::AdmittedScalarApplications>,
 }
 

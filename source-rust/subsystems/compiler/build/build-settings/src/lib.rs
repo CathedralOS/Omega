@@ -60,7 +60,7 @@ The crate is organized along that lifecycle:
   to its private checkpoint.
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
-  `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
+  `provider_installation.rs`, `source_join.rs`,
   `source_result.rs`). Each execution has its own host admission and account.
   The compatibility handle in `completed_pure_build.rs` grants no cache reuse.
 - `host/` implements the host imports callable from `build(build: &mut Build)`:
@@ -81,8 +81,6 @@ mod admission;
 mod build_evaluation;
 pub mod host;
 pub mod settings;
-
-pub use activation::scalar_completion;
 
 pub use activation::completed_pure_build::PureBuildCompilation;
 pub use activation::preparation::PreparedBuildExecution;
@@ -121,5 +119,5 @@ pub use declaration_contracts::selection::RootBinding;
 pub use program_entry_selection::{SelectedProgramEntry, selected_program_entry_machine};
 
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

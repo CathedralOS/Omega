@@ -66,7 +66,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
-    let mut changed = build_settings::scalar_completion::prepare(
+    let mut changed = native_scalar_inputs::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),
         &[],
@@ -75,12 +75,8 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
     )
     .unwrap();
     changed.proposals[0].selection = Err(vec!["changed provider proposal".into()]);
-    let error = build_settings::scalar_completion::extend_native(
-        &pending.terminal,
-        changed,
-        &mut accounting,
-    )
-    .expect_err("native demand cannot reuse another provider selection");
+    let error = native_scalar_inputs::extend_native(&pending.terminal, changed, &mut accounting)
+        .expect_err("native demand cannot reuse another provider selection");
     assert!(error.contains("retained provider proposal"), "{error}");
     let report = orchestration::complete_product(output)
         .unwrap_or_else(|error| panic!("{fixture} native completion: {error:?}"))

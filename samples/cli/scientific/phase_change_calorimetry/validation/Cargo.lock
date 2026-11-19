@@ -1288,7 +1288,6 @@ name = "phase-change-validation"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
- "compiler",
  "omega-build",
  "package-manager",
  "target",

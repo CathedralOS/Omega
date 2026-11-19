@@ -42,7 +42,6 @@ pub(crate) mod completed_pure_build;
 pub(crate) mod preparation;
 mod project;
 mod provider_installation;
-pub mod scalar_completion;
 mod source_join;
 mod source_result;
 pub use source_join::BuildDependencySelection;
