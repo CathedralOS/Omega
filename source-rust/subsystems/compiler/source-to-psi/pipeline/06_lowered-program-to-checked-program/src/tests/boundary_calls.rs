@@ -3065,7 +3065,7 @@ fn a_named_map_controls_visibility_without_publishing_its_private_body() {
 
     // A generated bare call cannot borrow the public map's visibility.
     // Retain the real source and body, removing only the routed selection.
-    let mut bare = prepared;
+    let mut bare = prepared.into_inner();
     let (handle, body) = bare
         .expression_table
         .expression_entries()
@@ -3779,10 +3779,10 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         captures[1].conformance_application.identity_encoding
     );
     let verdicts = compilation_verdicts_of(&prepared);
-    let RouteVerdict::Accepted(invocation) = &verdicts[0] else {
+    let RouteVerdict::Accepted(accepted) = &verdicts[0] else {
         panic!("expected the closed invocation: {verdicts:?}");
     };
-    let module = &invocation.elaboration.module;
+    let module = &accepted.elaboration.module;
     terminal_semantics::closed_reach::validate_closed_reach_applications(module).unwrap();
     let retained = module
         .machines
