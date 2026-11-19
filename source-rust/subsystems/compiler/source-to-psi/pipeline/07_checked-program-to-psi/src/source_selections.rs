@@ -151,7 +151,7 @@ mod tests {
             )
             .unwrap();
             let accepted = crate::judge_fixture(
-                Arc::new(frozen),
+                frozen,
                 crate::production::TerminalSourceCompilation {
                     declaration_metadata: &[],
                     entries: &[entry],
@@ -256,7 +256,7 @@ mod tests {
         )
         .unwrap();
         let accepted = crate::judge_fixture(
-            Arc::new(frozen),
+            frozen,
             crate::production::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],

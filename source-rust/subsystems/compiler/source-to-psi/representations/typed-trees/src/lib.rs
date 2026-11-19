@@ -845,7 +845,7 @@ pub(crate) mod canonical_values {
 }
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, AppliedStaticCallbackRequirement,
-    CallableContractScope, CallableSubstitution, ClosedRequirementApplication,
+    CallableApplication, CallableContractScope, CallableSubstitution, ClosedRequirementApplication,
     MachineInstantiation, NamedConformanceCaptureIndex, RequirementLocalArgument,
 };
 pub(crate) mod frozen {
@@ -880,6 +880,8 @@ pub(crate) mod frozen {
 
     impl Eq for ProductSourceIdentity {}
 
+    /// An immutable representation snapshot with sealed declaration indexes.
+    /// Stage 04 retains its completed output in a separate prepared source owner.
     #[derive(Clone, Default)]
     pub struct FrozenTypedTrees(TypedTrees, OnceLock<Arc<PreparedBoundarySignatures>>);
 

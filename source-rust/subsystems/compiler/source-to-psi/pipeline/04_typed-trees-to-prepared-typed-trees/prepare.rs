@@ -4,12 +4,49 @@
 //! The stage is the ordered list of passes in [`PASSES`]. Each pass takes
 //! typed trees and returns typed trees. A pass either does its work or
 //! refuses, by name, a request it does not serve; a pass with nothing to do
-//! for a program changes nothing. No program is frozen without running the
-//! list, and nothing here judges a program: what a pass writes is input the
-//! checker reads, never a verdict.
+//! for a program changes nothing. Only a program that has completed the list
+//! can enter source lowering. The checker judges what the passes write.
+
+#![forbid(unsafe_code)]
+
+use source_declarations::declaration_selection;
+#[cfg(test)]
+use source_symbol_table::source_inputs;
+use source_symbol_table::source_symbols;
+use typed_trees::source_state;
+
+mod passes;
+mod product_operands;
+
+#[cfg(any(test, feature = "test-support"))]
+pub use product_operands::PreparedProductRequirement;
+pub use product_operands::{
+    prepare_product_operand_application, prepare_product_requirement_operand,
+    prepare_retained_product_application,
+};
 
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
+
+/// Prepare the typed program for stage 05 in the order declared in `PASSES`.
+pub fn prepare_typed_trees(
+    mut program: TypedTrees,
+    request: &PreparationRequest<'_>,
+) -> Result<(PreparedTypedTrees, PreparationAdmission), Vec<Diagnostic>> {
+    request.require_served()?;
+    for pass in PASSES {
+        (pass.run)(&mut program).map_err(|refused| {
+            refused
+                .into_iter()
+                .map(|mut diagnostic| {
+                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
+                    diagnostic
+                })
+                .collect::<Vec<_>>()
+        })?;
+    }
+    Ok((PreparedTypedTrees(std::sync::Arc::new(program.into())), request.admission()))
+}
 
 /// One step of typed preparation and the name its refusals carry.
 struct Pass {
@@ -23,18 +60,15 @@ struct Pass {
 const PASSES: &[Pass] = &[
     Pass {
         name: "specialization",
-        run: crate::preparation::passes::specialization::prepare,
+        run: crate::passes::specialization::prepare,
     },
     Pass {
         name: "domain applications",
-        run: |program| {
-            program.prepare_domain_applications();
-            Ok(())
-        },
+        run: crate::passes::domain_applications::prepare,
     },
     Pass {
         name: "record patterns",
-        run: crate::preparation::passes::record_patterns::prepare,
+        run: crate::passes::record_patterns::prepare,
     },
 ];
 
@@ -124,9 +158,6 @@ impl PreparationAdmission {
     }
 }
 
-/// Compatibility name for the request metadata; it has no judgment output.
-pub type TypedPreparation = PreparationAdmission;
-
 /// The one wording of a refusal from this stage, so a reader can tell which
 /// pass declined which request.
 fn refusal(pass: &str, request: &str) -> Diagnostic {
@@ -135,23 +166,40 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
     ))
 }
 
-pub fn prepare_typed_trees(
-    mut program: TypedTrees,
-    request: &PreparationRequest<'_>,
-) -> Result<(FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
-    request.require_served()?;
-    for pass in PASSES {
-        (pass.run)(&mut program).map_err(|refused| {
-            refused
-                .into_iter()
-                .map(|mut diagnostic| {
-                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
-                    diagnostic
-                })
-                .collect::<Vec<_>>()
-        })?;
+/// A shared snapshot of the exact trees that completed every stage 04 pass.
+///
+/// Cloning the result retains the same source owner for later judgments.
+///
+/// ```
+/// use typed_trees::source_state::TypedTrees;
+/// use typed_trees_to_prepared_typed_trees::{PreparationRequest, prepare_typed_trees};
+/// let (prepared, _) = prepare_typed_trees(TypedTrees::default(), &PreparationRequest::settled()).unwrap();
+/// assert!(std::sync::Arc::ptr_eq(&prepared, &prepared.clone()));
+/// ```
+///
+/// A read-only snapshot alone cannot establish that those passes ran.
+///
+/// ```compile_fail,E0277
+/// use typed_trees::source_state::FrozenTypedTrees;
+/// use typed_trees_to_prepared_typed_trees::PreparedTypedTrees;
+/// let _: PreparedTypedTrees = FrozenTypedTrees::default().into();
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedTypedTrees(std::sync::Arc<FrozenTypedTrees>);
+
+impl PreparedTypedTrees {
+    /// Return to mutable trees for a new preparation after edits.
+    pub fn into_inner(self) -> TypedTrees {
+        std::sync::Arc::unwrap_or_clone(self.0).into_inner()
     }
-    Ok((program.into(), request.admission()))
+}
+
+impl std::ops::Deref for PreparedTypedTrees {
+    type Target = std::sync::Arc<FrozenTypedTrees>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[cfg(test)]
@@ -294,7 +342,7 @@ mod tests {
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
         let (frozen, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
-        assert!(*frozen == before);
+        assert_eq!(frozen.into_inner(), before);
     }
 
     #[test]

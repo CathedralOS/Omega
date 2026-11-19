@@ -379,7 +379,7 @@ machine main() crashes Trap {
 }
 "#;
     let prepare = |text: &str| {
-        let typed = super::boundary_calls::typed(text);
+        let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
         let main = typed
             .machines()
             .iter()
@@ -660,7 +660,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
     ));
-    let typed = super::rankings::typed_with_ranking_catalog(program);
+    let typed = crate::prepare_fixture(super::rankings::typed_with_ranking_catalog(program));
     let checksum = typed
         .machines()
         .iter()
@@ -760,7 +760,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
 }
 
 fn permission_inputs(text: &str) -> crate::lowering::Elaboration {
-    let typed = super::boundary_calls::typed(text);
+    let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
     let entry = super::boundary_calls::entry(&typed);
     let program = crate::lowering::prepare_compilation(
         &typed,

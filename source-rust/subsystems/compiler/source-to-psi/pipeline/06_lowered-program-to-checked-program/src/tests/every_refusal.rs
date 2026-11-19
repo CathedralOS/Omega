@@ -26,7 +26,7 @@ machine entry() -> u32 {
 
 /// The entry closure's verdicts, as `judge_compilation` lists them.
 fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let typed = boundary_calls::typed(text);
+    let typed = crate::prepare_fixture(boundary_calls::typed(text));
     let entry = boundary_calls::entry(&typed);
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -187,7 +187,7 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
         take("take"),
         take("take_again"),
     );
-    let typed = boundary_calls::typed(&source);
+    let typed = crate::prepare_fixture(boundary_calls::typed(&source));
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

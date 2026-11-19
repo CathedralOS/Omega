@@ -19,7 +19,7 @@ substituted fields, `equality_preparation.rs` selects exact core comparisons.
 /*
 Stage 03 (`symbol-resolved-trees-to-typed-trees`) consumes `SymbolResolvedTrees`
 from `syntax-trees-to-symbol-resolved-trees` (Stage 02) and produces
-`TypedTrees` for `typed-trees-to-typed-trees` (Stage 04).
+`TypedTrees` for `typed-trees-to-prepared-typed-trees` (Stage 04).
 */
 
 #![forbid(unsafe_code)]

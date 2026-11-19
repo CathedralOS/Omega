@@ -417,7 +417,7 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
             machine implementation() -> u32 satisfies Probe::wait {supplied} {{ {body} }}
         "#
         );
-        let typed = boundary_calls::typed(&text);
+        let typed = crate::prepare_fixture(boundary_calls::typed(&text));
         let implementation = typed
             .machines()
             .iter()
@@ -618,7 +618,7 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
 }
 
 fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
-    let typed = boundary_calls::typed(text);
+    let typed = crate::prepare_fixture(boundary_calls::typed(text));
     let entry = typed
         .machines()
         .iter()

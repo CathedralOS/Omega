@@ -2127,7 +2127,7 @@ machine entry() -> u64 crashes none {
         )
         .unwrap();
         crate::judge_fixture(
-            Arc::new(frozen),
+            frozen,
             crate::lowering::Compilation {
                 declaration_metadata: &metadata,
                 entries: &[entry],
@@ -2147,7 +2147,7 @@ machine entry() -> u64 crashes none {
     fn closed_requirement_formed_in_build(
         calls_build: bool,
     ) -> (
-        crate::source_state::FrozenTypedTrees,
+        crate::lowering::PreparedTypedTrees,
         crate::source_state::static_applications::StaticMachineApplicationHandle,
     ) {
         use crate::declaration_selection::ProductDeclarationOperand;
@@ -2283,12 +2283,12 @@ machine entry() -> u32 crashes none {{
     }
 
     fn accept_formation_program(
-        program: crate::source_state::FrozenTypedTrees,
+        program: crate::lowering::PreparedTypedTrees,
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
         let entry = program.realized_machine_named("entry").unwrap().symbol;
         let package = program.symbols.symbol_package_identity(entry).unwrap();
         crate::judge_fixture(
-            Arc::new(program),
+            program,
             crate::lowering::Compilation {
                 declaration_metadata: &[],
                 entries: &[entry],
@@ -2359,7 +2359,12 @@ machine entry() -> u32 crashes none {{
                 .expression_table
                 .static_machine_application_mut(application)
                 .lexical_owner = owner;
-            let refusal = accept_formation_program(program.into()).err().unwrap();
+            let (prepared, _) = crate::preparation::prepare_typed_trees(
+                program,
+                &crate::preparation::PreparationRequest::settled(),
+            )
+            .unwrap();
+            let refusal = accept_formation_program(prepared).err().unwrap();
             assert!(
                 format!("{refusal:?}")
                     .contains("closed requirement call lost its supplying declaration"),

@@ -184,6 +184,8 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .find(|machine| machine.name.as_str() == "entry")
         .unwrap()
         .symbol;
+    let optional_symbol = optional.symbol;
+    let typed = crate::prepare_fixture(typed);
     let prepared = crate::lowering::prepare_compilation(
         &typed,
         crate::lowering::Compilation {
@@ -211,7 +213,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .expect("accepted primary form retains its source correspondence")
         .records
         .iter()
-        .filter(|record| record.declaration == optional.symbol)
+        .filter(|record| record.declaration == optional_symbol)
         .collect();
     assert_eq!(
         records.len(),
@@ -229,7 +231,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
 
 #[test]
 fn source_application_cannot_change_its_payload_type() {
-    let typed = source_program("true");
+    let typed = crate::prepare_fixture(source_program("true"));
     let entry = typed
         .machines()
         .iter()
@@ -271,7 +273,7 @@ fn source_application_cannot_change_its_payload_type() {
 #[test]
 fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
     for (payload, accepted) in [("7u64", true), ("true", false)] {
-        let typed = source_program_in_scope(payload, false);
+        let typed = crate::prepare_fixture(source_program_in_scope(payload, false));
         let optional = typed
             .data_definitions()
             .iter()

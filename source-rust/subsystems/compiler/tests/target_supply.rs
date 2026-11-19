@@ -85,7 +85,7 @@ fn judged(
     supplied: &str,
     program: &str,
 ) -> (
-    Arc<source_compiler::source_state::FrozenTypedTrees>,
+    source_compiler::preparation::PreparedTypedTrees,
     Vec<TargetProviderDefaults>,
     source_compiler::SourceCompilationRoster,
 ) {
@@ -147,13 +147,17 @@ fn judged(
         .find(|machine| machine.name.as_str() == "main")
         .expect("the program declares main")
         .symbol;
-    let frozen: source_compiler::source_state::FrozenTypedTrees = typed.into();
+    let (prepared, _) = source_compiler::preparation::prepare_typed_trees(
+        typed,
+        &source_compiler::preparation::PreparationRequest::settled(),
+    )
+    .expect("prepare provider fixture");
     let roster = source_compiler::SourceCompilationRoster {
         entries: vec![entry],
         subject: Some(package()),
         ..Default::default()
     };
-    (Arc::new(frozen), defaults, roster)
+    (prepared, defaults, roster)
 }
 
 /// What a product of one target reads after its source is checked.
@@ -199,7 +203,7 @@ fn supplied_on(
 /// that same frozen owner, and rejudge the same roster before execution uses it.
 /// Refused provider bodies remain the supply judgment's original diagnostic.
 fn supplied_product(
-    source: Arc<source_compiler::source_state::FrozenTypedTrees>,
+    source: source_compiler::preparation::PreparedTypedTrees,
     defaults: Vec<TargetProviderDefaults>,
     roster: source_compiler::SourceCompilationRoster,
     target: &str,
@@ -207,7 +211,7 @@ fn supplied_product(
 ) -> Result<Supplied, String> {
     let original = Arc::new(
         source_compiler::SourcePublication::judge(
-            Arc::clone(&source),
+            source.clone(),
             roster,
             optimization::PsiOptimizationSelections::default(),
         )
@@ -283,7 +287,7 @@ fn supplied_product(
         }
         product = Arc::new(
             source_compiler::SourcePublication::judge(
-                Arc::clone(&source),
+                source.clone(),
                 roster,
                 optimization::PsiOptimizationSelections::default(),
             )
@@ -317,7 +321,7 @@ fn closed_provider_demand_names_its_exact_source_judgment_and_deployment() {
     let (source, _, roster) = judged(SLOT, REACHES);
     let judge = || {
         source_compiler::SourcePublication::judge(
-            Arc::clone(&source),
+            source.clone(),
             roster.clone(),
             Default::default(),
         )
@@ -366,7 +370,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
     );
     let (source, defaults, mut roster) = judged(&declarations, REACHES);
     let original = source_compiler::SourcePublication::judge(
-        Arc::clone(&source),
+        source.clone(),
         roster.clone(),
         optimization::PsiOptimizationSelections::default(),
     )
@@ -640,8 +644,8 @@ fn process_exit_retains_its_external_demand_and_requires_supply() {
         bindings: frontier.bindings,
         ..Default::default()
     };
-    let typed = Arc::new(frontier.typed);
-    let accepted = source_compiler::judge_source_roster(roster.clone(), Arc::clone(&typed))
+    let typed = frontier.typed;
+    let accepted = source_compiler::judge_source_roster(roster.clone(), typed.clone())
         .expect("the actual ProcessExit program is accepted");
     let supply =
         prepare(&accepted, &[], &[]).expect("external completion is an ordinary provider demand");
@@ -851,7 +855,7 @@ fn a_native_binding_supplies_only_its_reached_requirement() {
         package(),
     );
     let publication = supplied_product(
-        Arc::clone(original.accepted().unwrap().source()),
+        original.accepted().unwrap().source().clone(),
         defaults.clone(),
         original.roster().unwrap().clone(),
         "windows_x86_64",

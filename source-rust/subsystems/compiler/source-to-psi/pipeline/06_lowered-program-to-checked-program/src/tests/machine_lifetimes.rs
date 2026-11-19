@@ -33,7 +33,7 @@ fn verdict(build: &str) -> String {
 fn published_label_signature(source: &str) -> (Vec<String>, String, [u8; 32]) {
     // Portable receiving checks start from package-owned Product source.
     // Invocation-scoped code deliberately cannot be serialized as an artifact.
-    let typed = super::build_purpose::frontier_of(source, "machine unused_build() {}");
+    let typed = crate::prepare_fixture(super::build_purpose::frontier_of(source, "machine unused_build() {}"));
     let entry = super::build_purpose::symbol(&typed, "build_entry");
     let input = crate::lowering::prepare_compilation(
         &typed,

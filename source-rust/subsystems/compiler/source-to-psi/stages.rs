@@ -5,7 +5,7 @@ pub use source_symbol_table::{source_inputs, source_symbols, source_tables};
 pub use symbol_resolved_trees::source_resolved;
 pub use typed_trees::source_state;
 pub use symbol_resolved_trees_to_typed_trees::product_declarations::RootBinding;
-pub use typed_trees_to_typed_trees::preparation::WireCompatibilityDemand;
+pub use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
 pub use typed_trees::{
     constrained_type_reference_pair, digest_commitment, executable_leaf_expression_pattern,
     literal_expression_pattern, spelled_literal_expression_pattern,
@@ -30,11 +30,11 @@ pub use syntax_trees_to_symbol_resolved_trees::resolution;
 #[cfg(any(test, feature = "test-support"))]
 pub use lowered_program_to_checked_program::checking;
 #[cfg(any(test, feature = "test-support"))]
-pub use typed_trees_to_lowered_program::lowering;
+pub use prepared_typed_trees_to_lowered_program::lowering;
 #[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use typed_trees_to_typed_trees::preparation;
+pub(crate) use typed_trees_to_prepared_typed_trees as preparation;
 #[cfg(any(test, feature = "test-support"))]
-pub use typed_trees_to_typed_trees::preparation;
+pub use typed_trees_to_prepared_typed_trees as preparation;
 
 use crate::source_judgment;
 pub use source_judgment::SourcePublication;
@@ -46,7 +46,7 @@ pub use crate::product::provider_settlement::{
     TargetSupplySource, judge_supplied_product, prepare_supplied_target,
 };
 
-pub use typed_trees_to_lowered_program::lowering::source_roster::{
+pub use prepared_typed_trees_to_lowered_program::lowering::source_roster::{
     SourceCallingContext, SourceCallingInputs, SourceCompilationRoster, SourceNormalizationInputs,
     SourceProgramEntryInput,
 };

@@ -59,8 +59,8 @@ pub(super) const PSI_STAGES: [&str; 8] = [
     FRONTEND[1],
     "source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-typed-trees",
-    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
 ];

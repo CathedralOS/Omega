@@ -31,6 +31,7 @@ fn program(product: &str) -> crate::source_state::TypedTrees {
 fn judge_program(
     typed: &crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    let typed = &crate::prepare_fixture(typed.clone());
     let entry = super::build_purpose::symbol(typed, "main");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

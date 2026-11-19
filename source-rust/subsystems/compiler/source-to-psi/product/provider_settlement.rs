@@ -245,7 +245,7 @@ pub fn judge_supplied_product(
             return Ok(SupplyJudgment::Supplied(publication));
         }
         publication = std::sync::Arc::new(crate::SourcePublication::judge(
-            std::sync::Arc::clone(accepted.source()),
+            accepted.source().clone(),
             roster,
             publication.optimizations().clone(),
         )?);

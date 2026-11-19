@@ -3,7 +3,7 @@ Block invariants and their arrivals.
 
 A call cycle is lowered as a loop: one head block per machine of the cycle,
 whose parameters are that machine's formals, and a jump to the head for each
-call (`typed-trees-to-lowered-program`, `lower`). The machine's `requires`, stated
+call (`prepared-typed-trees-to-lowered-program`, `lower`). The machine's `requires`, stated
 over the head's parameters, is the head's invariant, one row of the module's
 `scalar_block_invariants`, and it is the only thing known about those
 parameters inside the loop.

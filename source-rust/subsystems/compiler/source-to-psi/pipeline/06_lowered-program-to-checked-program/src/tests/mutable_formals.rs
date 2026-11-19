@@ -11,7 +11,7 @@
 // the store replaces what that field held at entry. Either way a fact from
 // `requires` must not prove anything about the formal after a write to it,
 // and the caller's argument is untouched. The reader decides which formals
-// may be written (`typed-trees-to-lowered-program/src/read/machine.rs`); these bodies
+// may be written (`prepared-typed-trees-to-lowered-program/src/read/machine.rs`); these bodies
 // are what it produces for them.
 
 use super::references::{

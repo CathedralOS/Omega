@@ -175,7 +175,7 @@ impl crate::StageSource<'_> {
             roster.supplies.push(supply);
         }
         let supplied = crate::SourcePublication::judge(
-            Arc::clone(accepted.source()),
+            accepted.source().clone(),
             roster,
             publication.optimizations().clone(),
         )?;

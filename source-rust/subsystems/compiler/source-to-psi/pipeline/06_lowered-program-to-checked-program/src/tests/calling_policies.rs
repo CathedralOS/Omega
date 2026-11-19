@@ -50,7 +50,7 @@ pub(super) fn prepared(
         .map(|machine| machine.symbol)
         .collect();
     assert!(!entries.is_empty());
-    let frozen: crate::source_state::FrozenTypedTrees = typed.into();
+    let frozen = crate::prepare_fixture(typed);
     crate::lowering::prepare_compilation(
         &frozen,
         crate::lowering::Compilation {

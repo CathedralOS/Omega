@@ -305,7 +305,6 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         normalization,
         ..
     } = *frontier;
-    let typed = std::sync::Arc::new(typed);
     let subjects = [subject];
     let calling = normalization.calling.borrow(&typed);
     let compilation = || source_compiler::lowering::Compilation {
@@ -450,7 +449,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
     let refused = source_compiler::judge_terminal_source(
-        std::sync::Arc::clone(&typed),
+        typed.clone(),
         compilation(),
         terminal_codec::TerminalPublication::Portable,
     )

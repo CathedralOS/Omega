@@ -1392,143 +1392,6 @@ pub(crate) mod domain_scopes {
             }
             Ok(identity)
         }
-
-        /// Applies every retained coordinate after callable specialization.
-        /// Copied facts may retain further applications; the same queue serves
-        /// them before the program is frozen for the lowered checker.
-        pub fn prepare_domain_applications(&mut self) {
-            let mut position = 0;
-            while position < self.applied_domain_applications.len() {
-                if self
-                    .applied_domain_applications
-                    .get(position)
-                    .is_some_and(|row| row.theory.is_none())
-                    && let Err(reason) = self.prepare_domain_application(position)
-                {
-                    self.applied_domain_applications
-                        .set_theory(position, Err(reason.to_owned()));
-                }
-                position += 1;
-            }
-        }
-
-        fn prepare_domain_application(&mut self, position: usize) -> Result<(), &'static str> {
-            let retained = self
-                .applied_domain_applications
-                .get(position)
-                .ok_or("domain application has no retained coordinate")?;
-            let declaration = retained.declaration;
-            let identity = retained.identity;
-            let arguments = retained.arguments.clone();
-            let mut theory = self
-                .domain_definition(declaration)
-                .ok_or("applied domain lost its declaration")?
-                .clone();
-            if !domain::has_direct_index_telescope(self, &theory) {
-                return Err("domain index declaration is not its direct parameter telescope");
-            }
-            let parameters = self.domain_type_parameters(&theory).to_vec();
-            if parameters.len() != arguments.len() {
-                return Err("applied domain has an incomplete declaration telescope");
-            }
-            let substitutions = parameters
-                .iter()
-                .zip(&arguments)
-                .map(|(parameter, argument)| (parameter.symbol, *argument))
-                .collect::<Vec<_>>();
-            let source_subject = theory.subject_symbol;
-            let subject = if source_subject.is_valid() {
-                self.symbols.insert_generated_root_from(
-                    source_subject,
-                    self.symbols.get(source_subject).kind,
-                    theory.subject_name.as_str(),
-                )
-            } else {
-                source_subject
-            };
-            let mut application = CallableApplication {
-                owned_signature: SymbolHandle::invalid(),
-                runtime_values: Vec::new(),
-                region_scope: declaration,
-                trait_region_application: None,
-                lifetime_declaration: declaration,
-                lifetimes: Vec::new(),
-                elided_lifetimes: Vec::new(),
-                invocation_elision: None,
-                types: substitutions,
-                static_arguments: Vec::new(),
-                static_argument_owner: SymbolHandle::invalid(),
-                selected_providers: Vec::new(),
-                symbols: source_subject
-                    .is_valid()
-                    .then_some((source_subject, subject))
-                    .into_iter()
-                    .collect(),
-                declaration_symbols: Default::default(),
-                active_requirements: Vec::new(),
-                active_runtime_contracts: Vec::new(),
-                source_binders: parameters
-                    .iter()
-                    .map(|parameter| (parameter.name.clone(), parameter.symbol))
-                    .collect(),
-            };
-            theory.target_type = application.type_reference(self, theory.target_type)?;
-            theory.subject_symbol = subject;
-            theory.facts = application.facts(self, theory.facts)?;
-            theory.type_parameters = Default::default();
-            theory.index_arguments.clear();
-            theory.semantic_id = identity;
-            theory.semantic_roles.denotation_dimension =
-                theory.semantic_roles.denotation_dimension.map(|_| identity);
-            theory.semantic_roles.arithmetic_policy =
-                theory.semantic_roles.arithmetic_policy.map(|_| identity);
-            if let Some(selection) = theory.cleanup_selection {
-                theory.cleanup_selection =
-                    Some(self.apply_cleanup_selection(&mut application, selection, declaration)?);
-            }
-            self.applied_domain_applications
-                .set_theory(position, Ok(theory));
-            Ok(())
-        }
-
-        pub(crate) fn apply_cleanup_selection(
-            &mut self,
-            application: &mut CallableApplication,
-            selection: domain::CleanupSelection,
-            lexical_owner: SymbolHandle,
-        ) -> Result<domain::CleanupSelection, &'static str> {
-            let original = self
-                .static_machine_application(selection.application)
-                .clone();
-            let mut arguments = self
-                .static_machine_application_arguments(selection.application)
-                .to_vec();
-            application.static_arguments(self, &mut arguments)?;
-            let selected = self.expression_table.retain_static_machine_application(
-                original.registration_operation,
-                original.target,
-                &arguments,
-            );
-            let lifetimes = self
-                .static_machine_application_lifetimes(selection.application)
-                .to_vec();
-            self.expression_table
-                .set_static_machine_application_lifetimes(
-                    selected,
-                    original.lifetime_binding_declaration,
-                    &lifetimes,
-                );
-            let row = self
-                .expression_table
-                .static_machine_application_mut(selected);
-            row.lexical_owner = lexical_owner;
-            row.binding_declaration = original.binding_declaration;
-            Ok(domain::CleanupSelection {
-                application: selected,
-                authorization: selection.authorization,
-                subject: application.type_reference(self, selection.subject)?,
-            })
-        }
     }
     #[cfg(test)]
     pub(crate) mod tests {
@@ -3418,7 +3281,7 @@ pub(crate) mod payloads {
     use arena::HandleSpan;
 
     impl CallableApplication {
-        pub(crate) fn type_reference(
+        pub fn type_reference(
             &mut self,
             program: &mut TypedTrees,
             original: types::TypeReferenceHandle,
@@ -4239,7 +4102,7 @@ pub(crate) mod payloads {
             Ok(())
         }
 
-        pub(crate) fn static_arguments(
+        pub fn static_arguments(
             &mut self,
             program: &mut TypedTrees,
             arguments: &mut [expression::StaticMachineArgument],
@@ -7101,7 +6964,7 @@ pub(crate) mod signatures {
             Ok(parameters)
         }
 
-        pub(crate) fn facts(
+        pub fn facts(
             &mut self,
             program: &mut TypedTrees,
             declared: HandleSpan<domain::ProofFact>,
@@ -8981,7 +8844,9 @@ pub struct AppliedMachineCallable<'a> {
 }
 
 #[derive(Default)]
-pub(crate) struct CallableApplication {
+/// Substitutes the bindings of one declaration while copying typed records.
+/// Reuse the same application for types, facts and static arguments that share a scope.
+pub struct CallableApplication {
     owned_signature: SymbolHandle,
     runtime_values: Vec<SymbolHandle>,
     region_scope: SymbolHandle,
@@ -9038,6 +8903,28 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
+    pub fn for_type_parameters<'a>(
+        declaration: SymbolHandle,
+        bindings: impl IntoIterator<
+            Item = (&'a crate::source_state::data::TypeParameter, types::TypeReferenceHandle),
+        >,
+        subject: Option<(SymbolHandle, SymbolHandle)>,
+    ) -> Self {
+        let mut application = Self {
+            region_scope: declaration,
+            lifetime_declaration: declaration,
+            symbols: subject.into_iter().collect(),
+            ..Default::default()
+        };
+        for (parameter, argument) in bindings {
+            application.types.push((parameter.symbol, argument));
+            application
+                .source_binders
+                .push((parameter.name.clone(), parameter.symbol));
+        }
+        application
+    }
+
     fn runtime_contract(
         &mut self,
         program: &mut TypedTrees,
