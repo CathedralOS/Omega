@@ -4,7 +4,7 @@
 //! Product plans. No fixture parser or second discovery pass is used. Run
 //! alone: work counters are process-wide.
 
-#[path = "../support/fixture_repository.rs"]
+#[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use artifacts::compile_timings::counters;

@@ -1,12 +1,13 @@
 //! Generic wrappers retain type, const and selected machine arguments.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, sample: &str) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("calls")
         .join(sample);

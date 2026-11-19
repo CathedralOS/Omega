@@ -1,9 +1,11 @@
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Stdio};
 
 fn project(relative: &str, fixture: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(relative)
         .join(fixture)
 }

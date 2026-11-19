@@ -8,7 +8,7 @@
 //! twin whose policy is declared nowhere. A demanded domain also carries the
 //! plan its policy returned (`build_time_evaluation`, `domain_access_plans`).
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use source_compiler::source_state::domain::{AccessPlanJudgment, CheckedIssuance, DomainIssuance};

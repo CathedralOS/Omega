@@ -1,4 +1,4 @@
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use std::path::PathBuf;

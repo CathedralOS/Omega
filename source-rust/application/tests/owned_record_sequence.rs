@@ -2,13 +2,15 @@
 //! Runtime fields, two simultaneously live results, record containment and a
 //! shorter live length exercise backing that moves with the aggregate.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str, name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("ownership")
         .join(name)

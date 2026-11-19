@@ -1,12 +1,13 @@
 //! Copying a generic helper preserves its authored invocation ceiling.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("calls/copied_invocation_contracts");
     let scratch = TemporaryDirectory::create("copied-invocation-contracts", false).unwrap();

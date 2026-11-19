@@ -1,12 +1,13 @@
 //! Static applications retain layout queries and their entry contracts.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("layout/declaration_copy_queries");
     let scratch = TemporaryDirectory::create("declaration-copy-layout", false).unwrap();

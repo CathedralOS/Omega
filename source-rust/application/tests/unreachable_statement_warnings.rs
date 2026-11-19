@@ -14,13 +14,14 @@ call.
 
 */
 
-use std::path::PathBuf;
+mod support;
+
 use std::process::Command;
 
 #[test]
 fn statements_after_a_call_that_never_returns_warn_once_and_compile() {
-    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/pass/contracts/statement_after_never_returning_call_exit");
+    let directory = support::repository_root()
+        .join("tests/fixtures/pass/contracts/statement_after_never_returning_call_exit");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
         .arg("main.omg")

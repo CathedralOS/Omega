@@ -4,13 +4,14 @@
 //! Native production must admit that same schema rather than demand a binding
 //! only a lock can supply.
 
-use std::path::Path;
+mod support;
+
 use std::process::{Command, Stdio};
 
 #[test]
 fn an_unlocked_std_entry_runs_on_both_engines() {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/calls/published_process_exit");
+    let project =
+        support::repository_root().join("tests/fixtures/run/calls/published_process_exit");
     assert!(
         !project.join("omega.lock").exists(),
         "the fixture must stay unlocked"

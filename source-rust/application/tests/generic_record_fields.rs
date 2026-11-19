@@ -1,12 +1,13 @@
 //! Generic record construction and forwarding retain each field’s ownership.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("ownership/generic_record_fields");
     let scratch = TemporaryDirectory::create("generic-record-fields", false).unwrap();
