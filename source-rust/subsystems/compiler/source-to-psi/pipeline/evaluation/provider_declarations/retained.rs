@@ -73,6 +73,38 @@ fn applied(
     Ok(())
 }
 
+/// A dependency may supply defaults for declarations outside this Product's source closure.
+/// Resolve each loaded subject and its provider against the receiving declarations.
+pub(crate) fn rejoin_provider_defaults(
+    typed: &mut TypedTrees,
+    retained: &[RetainedProviderSelection],
+) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    let mut candidates = crate::source_symbols::SourceSpanCandidates::default();
+    let mut selections = Vec::new();
+    for choice in retained {
+        let loaded = typed.symbols.source_files().any(|file| {
+            file.dependency_scope == source_provenance::DependencyScope::Product
+                && typed
+                    .symbols
+                    .source_map()
+                    .is_none_or(|sources| sources.source_is_selected(file.source_id))
+                && file.path == choice.subject.source().path
+        });
+        if loaded {
+            let selection = choice
+                .rejoin(
+                    typed,
+                    source_provenance::DependencyScope::Product,
+                    &selections,
+                    &mut candidates,
+                )
+                .map_err(|error| vec![error])?;
+            selections.push(selection);
+        }
+    }
+    Ok(selections)
+}
+
 impl RetainedProviderSelection {
     /// `selection` as the anchors a consumer can rejoin.
     pub fn capture(typed: &TypedTrees, selection: &ProviderSelection) -> Result<Self, String> {

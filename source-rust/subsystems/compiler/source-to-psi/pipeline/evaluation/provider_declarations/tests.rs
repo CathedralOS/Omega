@@ -461,19 +461,8 @@ fn retained_provider_choices_rejoin_the_same_declarations_in_another_typing() {
         .map(|selection| RetainedProviderSelection::capture(&package.typed, selection).unwrap())
         .collect::<Vec<_>>();
     let mut consumer = Fixture::new(TWO_CHOICES, PRODUCT, None).typed;
-    let mut candidates = crate::source_symbols::SourceSpanCandidates::default();
-    let mut rejoined = Vec::new();
-    for choice in &retained {
-        let selection = choice
-            .rejoin(
-                &mut consumer,
-                DependencyScope::Product,
-                &rejoined,
-                &mut candidates,
-            )
-            .unwrap_or_else(|refusal| panic!("{}", refusal.message));
-        rejoined.push(selection);
-    }
+    let rejoined = super::rejoin_provider_defaults(&mut consumer, &retained).unwrap();
+    assert_eq!(rejoined.len(), retained.len());
     for (original, rejoined) in selected.iter().zip(&rejoined) {
         assert_eq!(rejoined.target, original.target);
         assert_eq!(rejoined.composition_mode, original.composition_mode);

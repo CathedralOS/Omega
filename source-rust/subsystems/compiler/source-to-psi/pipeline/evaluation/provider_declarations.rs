@@ -4,6 +4,7 @@
 mod requests;
 #[path = "provider_declarations/retained.rs"]
 mod retained;
+pub(crate) use retained::rejoin_provider_defaults;
 #[cfg(test)]
 #[path = "provider_declarations/tests.rs"]
 mod tests;
