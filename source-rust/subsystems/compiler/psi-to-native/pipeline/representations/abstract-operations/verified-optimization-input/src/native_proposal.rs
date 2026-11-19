@@ -12,7 +12,8 @@ pub struct TerminalNativeProviders {
     pub selection: selected_provider_plans::SelectedProviderPlanFacts,
     pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
-    pub intrinsic_executions: Vec<Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>>,
+    pub intrinsic_executions:
+        Vec<Vec<Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>>>,
     pub x86_scalar_fma: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 

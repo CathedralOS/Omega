@@ -97,6 +97,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary",
     "source-rust/subsystems/compiler/psi-to-native/replay/published-objects",
     "source-rust/subsystems/compiler/psi-to-native/targets/calling-conventions",
+    "source-rust/subsystems/compiler/psi-to-native/targets/intrinsics",
     "source-rust/subsystems/compiler/psi-to-native/targets/layout",
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/targets/register-model",

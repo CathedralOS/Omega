@@ -18,8 +18,8 @@ use super::{
 };
 use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
 use diagnostics::Diagnostic;
-use effects::CompilerIntrinsicExecutionIdentity;
 use layout_plans::LayoutPlacementReport;
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId, StructuralTypeId};
 use terminal_psi::{
     CheckedBoundaryExecution, OperationKind, StructuralAccess, StructuralArgument,
@@ -134,7 +134,7 @@ pub(super) fn settle_native_lifecycles<'execution>(
                     continue;
                 }
                 let mechanism =
-                    effects::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation);
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::AccessLifecycle(plan.operation);
                 policy.classify(mechanism).map_err(|error| vec![Diagnostic::error(format!(
                     "native lifecycle at machine {:?}, operation {:?} has no receiving classification for {:?}",
                     machine.id, operation.id, error.mechanism(),

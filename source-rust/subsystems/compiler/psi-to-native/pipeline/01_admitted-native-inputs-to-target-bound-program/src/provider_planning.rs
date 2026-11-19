@@ -2,7 +2,7 @@
 #[path = "provider_rows.rs"]
 pub(crate) mod provider_rows;
 
-pub use effects::{
+pub use native_intrinsics::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };

@@ -19,10 +19,10 @@ use super::{
     float_arithmetic_signature,
 };
 use diagnostics::Diagnostic;
-use effects::CompilerIntrinsicExecutionIdentity;
 use effects::external_providers::{matches_external_selection, reconcile_numeric_meaning};
-use provider_plans::{ProviderPlan, ServiceSchema};
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_correspondence::selected_external_execution;
+use provider_plans::{ProviderPlan, ServiceSchema};
 use std::collections::BTreeSet;
 use target_operations::{CompilerBuiltinExecution, NearestIeeeFloatArithmeticRealization};
 

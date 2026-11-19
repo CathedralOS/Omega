@@ -596,7 +596,7 @@ mod physical_adapter {
 mod semantic_call {
     use super::ValidatedNativeProgramEntrySettlement;
     use crate::SelectedProgramEntryCall;
-    use effects::CompilerIntrinsicExecutionIdentity;
+    use native_intrinsics::CompilerIntrinsicExecutionIdentity;
     use provider_plans::ProviderBinding;
 
     /// Settles the `ProgramEntry` call native admission selected for

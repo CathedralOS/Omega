@@ -16,14 +16,14 @@
 
 use ::provider_admission::provider_admission;
 use effects::{
-    CompilerIntrinsicExecutionIdentity, PortableFilesystemAuthorityFacet, TerminalAuthorityClass,
-    TerminalAuthorityDisposition,
+    PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
-use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use package_manager::{
     PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
 };
 use platform_custody::temporary_directory::TemporaryDirectory;
+use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 

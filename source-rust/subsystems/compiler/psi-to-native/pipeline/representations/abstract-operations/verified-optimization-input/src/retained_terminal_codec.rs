@@ -1847,7 +1847,7 @@ fn capture(
 struct IntrinsicPlanRecord {
     plan: provider_plans::ProviderPlan,
     semantic_schema: provider_plans::ServiceSchema,
-    row_executions: Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>,
+    row_executions: Vec<Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>>,
 }
 records::record_fields!(IntrinsicPlanRecord {
     plan,

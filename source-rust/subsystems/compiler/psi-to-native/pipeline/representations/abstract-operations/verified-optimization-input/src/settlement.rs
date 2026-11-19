@@ -194,7 +194,9 @@ pub mod comparison_settlement {
         TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     };
     use diagnostics::Diagnostic;
-    use effects::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
+    use native_intrinsics::{
+        CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
+    };
     use semantic_vocabulary::{IeeeFloatComparisonOperation, IeeeFloatFormat};
 
     pub struct SelectedComparisonOccurrences {

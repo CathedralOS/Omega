@@ -452,11 +452,11 @@ impl<'a, 'module> Execution<'a, 'module> {
         &mut self,
         work: Work,
         call: RuntimeCall<'_>,
-        execution: effects::CompilerIntrinsicExecutionIdentity,
+        execution: native_intrinsics::CompilerIntrinsicExecutionIdentity,
     ) -> Result<(), String> {
         // External completion never supplies a fabricated ordinary return.
         // The original admitted mechanism, call kind and terminator must agree.
-        if execution != effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
+        if execution != native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
             || call.normal_return
         {
             return Err(format!(

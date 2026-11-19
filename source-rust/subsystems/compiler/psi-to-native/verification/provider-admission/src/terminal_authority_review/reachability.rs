@@ -186,7 +186,7 @@ impl<'a> AuthorityGraph<'a> {
                             operation: *psi_operation,
                         };
                         let mechanism =
-                            effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(
+                            native_intrinsics::CompilerIntrinsicExecutionIdentity::StaticInterrupt(
                                 language_core::static_interrupts::StaticInterruptOperation::Install,
                             )
                             .into();
@@ -260,7 +260,7 @@ impl<'a> AuthorityGraph<'a> {
                                     self.target_profile.target_name(),
                                 ));
                             }
-                            let intrinsic = effects::CompilerIntrinsicExecutionIdentity::checked_register(register_operation)
+                            let intrinsic = native_intrinsics::CompilerIntrinsicExecutionIdentity::checked_register(register_operation)
                                 .ok_or_else(|| format!("register access {operation:?} has no admitted compiler catalog identity"))?;
                             if service.is_some() != register_operation.requires_service_authority()
                             {

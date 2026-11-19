@@ -517,7 +517,7 @@ fn require_reached_providers(
                 .and_then(|callable| callable.execution.static_interrupt_operation())
             {
                 let expected = effects::TerminalMechanismIdentity::CompilerIntrinsic(
-                    effects::CompilerIntrinsicExecutionIdentity::StaticInterrupt(kind),
+                    native_intrinsics::CompilerIntrinsicExecutionIdentity::StaticInterrupt(kind),
                 );
                 let admitted = interrupt_mechanisms
                     .binary_search_by_key(boundary, |row| row.boundary)

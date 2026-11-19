@@ -483,6 +483,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-intrinsics"
+version = "0.1.0"
+dependencies = [
+ "language-core",
+ "numerics",
+ "semantic-vocabulary",
+ "sha2",
+ "terminal-psi",
+]
+
+[[package]]
 name = "proof-applications"
 version = "0.1.0"
 dependencies = [
@@ -636,6 +647,7 @@ dependencies = [
  "mimalloc",
  "native-artifact",
  "native-compiler",
+ "native-intrinsics",
  "native-encoding",
  "native-scalar-inputs",
  "numerics",
@@ -1632,6 +1644,7 @@ dependencies = [
  "installation-conditions",
  "legalized-operations",
  "machine-code",
+ "native-intrinsics",
  "object-file",
  "operation-evidence",
  "optimization-core",
@@ -2442,6 +2455,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-intrinsics",
  "numeric-literals",
  "numerics",
  "operation-evidence",
@@ -2490,6 +2504,7 @@ dependencies = [
  "effects",
  "function-identity",
  "graphs",
+ "native-intrinsics",
  "provider-plans",
  "selected-provider-plans",
  "semantic-vocabulary",
@@ -2515,6 +2530,7 @@ version = "0.1.0"
 dependencies = [
  "evaluation-admission",
  "build-scalar-evaluation",
+ "native-intrinsics",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
@@ -2761,6 +2777,7 @@ dependencies = [
  "evaluation-receipts",
  "language-core",
  "layout-plans",
+ "native-intrinsics",
  "numeric-literals",
  "numerics",
  "package-compilation",
@@ -3949,6 +3966,7 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "installation-conditions",
+ "native-intrinsics",
  "operation-evidence",
  "operation-operands",
  "provider-plans",

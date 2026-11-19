@@ -8,8 +8,8 @@
 // builtin symbols use their own IEEE format; admission still rejoins the
 // complete boundary signature independently.
 
-use effects::CompilerIntrinsicExecutionIdentity;
 use language_core::BuiltinFunction;
+use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use target_operations::CompilerBuiltinExecution;
 
 /// ```compile_fail
@@ -217,13 +217,13 @@ fn compiler_builtin_execution(
                 placement_commitment,
                 access_slot,
                 operation: match operation {
-                    effects::CompilerAccessorScalarOperation::Read => {
+                    native_intrinsics::CompilerAccessorScalarOperation::Read => {
                         terminal_psi::TerminalAccessorKind::Read
                     }
-                    effects::CompilerAccessorScalarOperation::Take => {
+                    native_intrinsics::CompilerAccessorScalarOperation::Take => {
                         terminal_psi::TerminalAccessorKind::Take
                     }
-                    effects::CompilerAccessorScalarOperation::Write => {
+                    native_intrinsics::CompilerAccessorScalarOperation::Write => {
                         terminal_psi::TerminalAccessorKind::Write
                     }
                 },
@@ -233,7 +233,7 @@ fn compiler_builtin_execution(
             return Some(CompilerBuiltinExecution::HostedReadByte);
         }
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
-            use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
+            use native_intrinsics::CompilerPrimitiveFloatBinaryOperation as Primitive;
             use semantic_vocabulary::IeeeFloatComparisonOperation as Relation;
             let operation = match operation {
                 Primitive::Add => Arithmetic::Add,
@@ -275,7 +275,7 @@ fn compiler_builtin_execution(
             target,
             domain,
         } => {
-            use effects::CompilerNumericType as Numeric;
+            use native_intrinsics::CompilerNumericType as Numeric;
             use numerics::arithmetic::ArithmeticDomain;
             use target_operations::{IeeeFloatIntegerCarrier as Carrier, IeeeFloatToIntegerDomain};
             let float = |numeric| match numeric {
@@ -329,7 +329,7 @@ fn compiler_builtin_execution(
 #[cfg(test)]
 mod integer_width_tests {
     use super::*;
-    use effects::CompilerNumericType;
+    use native_intrinsics::CompilerNumericType;
     use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
 
     #[test]
