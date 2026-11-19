@@ -157,6 +157,7 @@ version = "0.1.0"
 name = "backend-plan"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "calling-conventions",
  "declaration-contracts",
@@ -469,7 +470,7 @@ dependencies = [
 name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
- "backend-plan",
+ "provider-demand",
  "psi-authorization",
  "terminal-codec",
  "terminal-psi",
@@ -479,6 +480,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
@@ -1480,6 +1482,7 @@ dependencies = [
 name = "native-compiler"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
@@ -2004,8 +2007,8 @@ dependencies = [
 name = "portable-publication"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
- "backend-plan",
  "checked-terminal-psi-to-published-psi",
  "declaration-scope",
  "diagnostics",
@@ -2180,6 +2183,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "provider-demand"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "evaluation-receipts",
+ "host-provider-inputs",
+ "semantic-vocabulary",
+ "target",
+ "terminal-codec",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "provider-admission"
 version = "0.1.0"
 dependencies = [
@@ -2259,6 +2275,7 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "provider-demand",
  "host-provider-inputs",
  "application-identity",
  "arena",

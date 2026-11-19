@@ -1,0 +1,17 @@
+[package]
+name = "provider-demand"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "demand.rs"
+
+[dependencies]
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+evaluation-receipts = { path = "../../../../build/evaluation/receipts" }
+host-provider-inputs = { path = "../host-providers" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+terminal-codec = { path = "../../../../psi/codec" }
+terminal-semantics = { path = "../../../../psi/semantics" }

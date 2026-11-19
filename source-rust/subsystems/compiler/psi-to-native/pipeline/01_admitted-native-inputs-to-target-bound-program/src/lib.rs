@@ -32,7 +32,7 @@ mod folded_entry;
 mod package_review;
 mod selected_execution;
 pub use execution::{
-    NativeProgramPlanningError, plan_published_target_execution, plan_target_execution,
+    NativeProgramPlanningError, plan_target_execution,
     plan_unscoped_execution,
 };
 pub use folded_entry::FoldedTargetProgram;
