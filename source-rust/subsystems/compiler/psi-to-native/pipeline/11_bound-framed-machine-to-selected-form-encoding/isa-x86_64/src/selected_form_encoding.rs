@@ -15263,6 +15263,8 @@ mod memory {
     }
 }
 mod normalized_foreign_call {
+    mod callback_field;
+
     pub(crate) use target_x86_64::form_effects::normalized_foreign_call::x86_64_machine_register_encoding;
 
     use normalized_foreign_call_plan::{Fixup, Template};
@@ -15460,6 +15462,33 @@ mod normalized_foreign_call {
     }
 
     #[test]
+    fn callback_record_field_encodes_the_selected_bits() {
+        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
+        let field = X86_64CallbackMaterializationDestination::RecordField {
+            root_register: MachineRegister::X86Rdi,
+            placements: PrivateCallbackPlacements::new(&[
+                layout_plans::LayoutPlacementReport::Bits {
+                    container: 4,
+                    container_width: 32,
+                    destination_lsb: 5,
+                    source_lsb: 17,
+                    width: 10,
+                },
+            ]),
+        };
+        assert_eq!(
+            callback_group_bytes(field).unwrap(),
+            [
+                0x4c, 0x8d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x40, 0x8b, 0x87, 0x04, 0x00, 0x00, 0x00,
+                0x48, 0xc1, 0xc8, 0x05, 0x48, 0xc1, 0xe8, 0x0a, 0x48, 0xc1, 0xe0, 0x0a, 0x48, 0xc1,
+                0xc0, 0x05, 0x4d, 0x89, 0xda, 0x49, 0xc1, 0xea, 0x11, 0x49, 0xc1, 0xe2, 0x36, 0x49,
+                0xc1, 0xea, 0x36, 0x49, 0xc1, 0xe2, 0x05, 0x4c, 0x09, 0xd0, 0x40, 0x89, 0x87, 0x04,
+                0x00, 0x00, 0x00
+            ]
+        );
+    }
+
+    #[test]
     fn field_sizes_match_encoded_callbacks_and_refusals() {
         use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
         use layout_plans::LayoutPlacementReport::{At, Bits};
@@ -15529,7 +15558,7 @@ mod normalized_foreign_call {
             } => {
                 let mut group = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0];
                 for placement in placements.as_slice() {
-                    crate::post_handoff_writer::append_fragment(
+                    callback_field::append_fragment(
                         &mut group,
                         calling_conventions::MachineRegister::X86R11,
                         root_register,

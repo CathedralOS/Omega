@@ -1,7 +1,7 @@
 /*
 We provide the AArch64 physical register model, register-constraint catalog,
 machine-effect catalog, frame and FPCR custody protocols, hosted syscall
-sequences, post-handoff writer lowering, and selected-form instruction encoders
+sequences, callback field placement, and selected-form instruction encoders
 and validators for the native realization pipeline. Every interface in this
 crate consumes only normalized target, register-home, and terminal-installation
 facts, with zero dependency on source-shaped Psi representations.
@@ -32,9 +32,7 @@ emission:
   addressing steps, and FPCR save/restore sequences.
 - `selected_form_encoding`: encoding, structural decoding, and validation for
   all AArch64 selected instruction forms, branches, and call templates.
-- `generated_entry`, `hosted_sequences`, and `post_handoff_writer`: generated
-  entry replay, import-free Linux/Darwin syscall leaves, and address-free
-  post-handoff writer code generation.
+- `hosted_sequences`: import-free Linux and Darwin syscall leaves.
 */
 
 pub(crate) use ::wire::codec_bytes;
@@ -44,7 +42,6 @@ pub use target_aarch64::decode_aarch64_generated_entry;
 mod hosted_sequences;
 mod immediate_offset;
 mod machine_effects;
-mod post_handoff_writer;
 
 pub use register_model::aarch64_linux_system_call_keys;
 pub use register_model::{AARCH64_LOAD_ENCODED_SCALAR, AARCH64_STORE_ENCODED_SCALAR};
@@ -132,11 +129,6 @@ pub use machine_effects::{
     Aarch64MachineEffectCatalogValidationError, aarch64_machine_effect_catalog,
     aarch64_normalized_foreign_call_declaration, aarch64_selected_constraint_keys,
     validate_aarch64_machine_effect_catalog,
-};
-pub use post_handoff_writer::{
-    encode_generated_post_handoff_writer_bytes,
-    generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
-    generated_post_handoff_writer_width,
 };
 pub use target_aarch64::ORDINARY_DIRECT_CALL_BYTES;
 pub use target_aarch64::ORDINARY_RETURN_BYTES;

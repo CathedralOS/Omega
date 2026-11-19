@@ -21,7 +21,6 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/layout" }
-post-handoff-writer-plan = { path = "../../../installation/post-handoff-writer" }
 
 [dev-dependencies]
 selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

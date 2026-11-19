@@ -1,7 +1,7 @@
 /*
 We provide the x86-64 physical register model, register-constraint catalog,
 machine-effect catalog, frame and MXCSR custody protocols, hosted syscall
-sequences, post-handoff writer lowering, and
+sequences, callback field placement, and
 selected-form instruction encoders and validators for the native realization
 pipeline. Every interface in this crate consumes only normalized target,
 register-home, and terminal-installation facts, with zero dependency on
@@ -32,9 +32,7 @@ x64, Linux, macOS, and UEFI targets:
 - `selected_form_encoding`: encoding, structural decoding, and validation for
   all x86-64 selected instruction forms, branches, call templates, atomics, and
   installed interrupt/table sequences.
-- `generated_entry`, `hosted_kernel`, and `post_handoff_writer`: generated entry
-  replay, import-free Linux and Darwin syscall leaves, and post-handoff writer
-  lowering.
+- `hosted_kernel`: import-free Linux and Darwin syscall leaves.
 */
 
 pub(crate) use ::wire::codec_bytes;
@@ -50,7 +48,6 @@ pub use target_x86_64::PRIVILEGED_STOP_BYTES;
 mod hosted_kernel;
 mod ieee_float;
 mod machine_effects;
-mod post_handoff_writer;
 
 pub use register_model::X86_64_COPY_BYTES;
 pub use register_model::X86_64_DIVIDE_I64;
@@ -126,11 +123,6 @@ pub use machine_effects::{
     X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
     x86_64_machine_effect_catalog, x86_64_normalized_foreign_call_declaration,
     x86_64_selected_constraint_keys,
-};
-pub use post_handoff_writer::{
-    encode_generated_post_handoff_writer_bytes,
-    generated_post_handoff_writer_additional_machine_state, generated_post_handoff_writer_clobbers,
-    generated_post_handoff_writer_width,
 };
 pub use register_model::X86_64_HOSTED_WRITE_BYTE_I32;
 pub use register_model::x86_64_microsoft_normalized_foreign_call_keys;
