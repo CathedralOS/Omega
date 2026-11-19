@@ -116,21 +116,23 @@ impl SyntaxParser<'_> {
             self.bump();
         }
 
-        // The last instruction may omit its `;`, so what follows it can be the `}` or a nested machine.
-        let has_operands = !self.at(Punctuation::Semicolon) && !self.at(Punctuation::RightBrace) && !self.at_asm_machine();
+        // A comma after the last operand is allowed, as in every `% ','` list, so the same test
+        // decides whether a first operand follows the mnemonic and another follows a comma.
+        while !self.at_instruction_end() {
+            self.parse_expression(ExpressionContext::FULL)?;
 
-        if has_operands {
-            loop {
-                self.parse_expression(ExpressionContext::FULL)?;
-
-                if !self.eat(Punctuation::Comma) {
-                    break;
-                }
+            if !self.eat(Punctuation::Comma) {
+                break;
             }
         }
 
         self.close(instruction, NodeKind::Instruction);
 
         Ok(())
+    }
+
+    /// The last instruction may omit its `;`, so what follows it can be the `}` or a nested machine.
+    fn at_instruction_end(&self) -> bool {
+        self.at(Punctuation::Semicolon) || self.at(Punctuation::RightBrace) || self.at_asm_machine()
     }
 }
