@@ -33,7 +33,7 @@ pub use psi_authorization::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
-pub(crate) use evaluation_and_synchronous_calls::{compiler_evaluation, synchronous_calls};
+pub(crate) use evaluation_and_synchronous_calls::compiler_evaluation;
 pub(crate) use provider_and_target_installation::{
     component_memberships, component_provider, provider_installation, target_context,
 };
@@ -518,7 +518,6 @@ pub use scalar_applications::{
     ScalarConditionSelection, ScalarEntryChecks, ScalarEntryPrerequisites,
     ScalarLayoutObservationError, ScalarScopeInputs,
 };
-pub use synchronous_calls::{SynchronousCallClosure, SynchronousCallGraph};
 pub use target_context::{TerminalEntryError, TerminalTargetContext, terminal_target_context};
 pub use target_layouts::{
     AdmittedTargetLayouts, TargetLayoutClosure, TargetLayoutGeometry, TargetLayoutSelectionError,

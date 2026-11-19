@@ -1573,6 +1573,7 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
  "verified-optimization-input",
  "wire",
 ]
@@ -3562,6 +3563,7 @@ dependencies = [
  "arena",
  "bignum",
  "closed-predicates",
+ "graphs",
  "language-core",
  "layout-planning",
  "layout-plans",
@@ -3569,6 +3571,7 @@ dependencies = [
  "numerics",
  "optimization",
  "proof-admission",
+ "proof-applications",
  "resource-bounds",
  "schema-reflection",
  "semantic-vocabulary",

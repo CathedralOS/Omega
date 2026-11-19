@@ -33,6 +33,7 @@ native-compiler = { path = "psi-to-native", features = ["test-support"] }
 numerics = { path = "psi/semantics/numeric" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
+terminal-semantics = { path = "psi/semantics" }
 
 [[test]]
 name = "build_charge"

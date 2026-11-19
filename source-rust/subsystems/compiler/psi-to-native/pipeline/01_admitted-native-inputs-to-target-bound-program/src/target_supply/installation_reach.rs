@@ -50,7 +50,7 @@ pub(super) fn resolve_installation_reach(
             .map(str::to_owned)
             .ok_or_else(|| fail(format!("installation reach lost exact service {id:?}")))
     };
-    let graph = terminal_installation::SynchronousCallGraph::new(module, None).map_err(fail)?;
+    let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None).map_err(fail)?;
     let mut rows = Vec::new();
     for row in
         backend_plan::selected_checked_invocation_rows(selected.plans(), module).map_err(fail)?

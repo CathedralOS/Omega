@@ -693,7 +693,7 @@ pub(crate) mod capabilities {
                     AdmittedBoundarySupply::CheckedProvider(machine) => Some((boundary, *machine)),
                     _ => None,
                 });
-            terminal_installation::SynchronousCallGraph::new(&program.catalogs, None)
+            terminal_semantics::synchronous_calls::SynchronousCallGraph::new(&program.catalogs, None)
                 .and_then(|graph| graph.with_boundary_calls(calls))
                 .and_then(|graph| graph.validate_installed_service_reach(entry))
                 .map_err(TerminalInterpretError::InstallationServiceReach)?;

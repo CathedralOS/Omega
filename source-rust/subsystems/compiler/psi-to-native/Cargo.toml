@@ -70,6 +70,8 @@ terminal-installation = { path = "../psi-admission" }
 verified-optimization-input = { path = "pipeline/representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 
+terminal-semantics = { path = "../psi/semantics" }
+
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 isa-aarch64 = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }

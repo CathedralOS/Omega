@@ -303,7 +303,7 @@ fn check_reopened_installation_reach(
         panic!("fixture has an executable root");
     };
     let check = |module: &terminal_psi::TerminalModule, calls: &[_]| {
-        terminal_installation::SynchronousCallGraph::new(module, None)
+        terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None)
             .unwrap()
             .with_boundary_calls(calls.iter().copied())
             .unwrap()
