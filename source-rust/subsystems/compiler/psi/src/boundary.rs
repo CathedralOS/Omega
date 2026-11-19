@@ -3,6 +3,9 @@ Target-neutral boundary declarations, external provider contracts, runtime calla
 dispatch families, effect ceilings, and suspension/carry obligations in `TerminalModule`.
 */
 
+mod application_demands;
+pub use application_demands::TerminalBoundaryApplicationDemands;
+
 pub(crate) mod applications {
 
     use crate::terminal_module::TerminalIdentityIndex;

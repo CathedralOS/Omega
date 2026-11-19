@@ -1331,14 +1331,16 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
 #[test]
 fn physical_child_identity_binds_every_retained_field() {
     use boundary_applications::{
-        BoundaryApplication, BoundaryApplicationRealization,
-        BoundaryApplicationRealizationCompanion, BoundaryOperatorRequirement,
-        NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
-        TerminalBoundaryApplicationDemands, TerminalBoundaryApplicationRealizations,
+        BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
+        TerminalBoundaryApplicationRealizations,
     };
     use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
     use target_operations::{
         BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
+    };
+    use terminal_psi::{
+        BoundaryApplication, BoundaryOperatorRequirement, NominalDeclarationIdentity,
+        TerminalBoundaryApplicationDemand, TerminalBoundaryApplicationDemands,
     };
 
     use crate::physical::derivation::evidence::physical_child_identity;

@@ -241,7 +241,7 @@ pub struct NativeExecutionScope {
     local_adapters: Vec<SelectedProviderAdapter>,
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
-    demands: boundary_applications::TerminalBoundaryApplicationDemands,
+    demands: terminal_psi::TerminalBoundaryApplicationDemands,
     pub(super) emitted: std::sync::Arc<EmittedExecutionScope>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
     selected_candidate_positions: Vec<usize>,
@@ -475,10 +475,7 @@ impl NativeExecutionScope {
         let demands = module
             .boundary_application_demands_for_machines(emitted.machines())
             .and_then(|rows| {
-                boundary_applications::TerminalBoundaryApplicationDemands::new(
-                    artifact.identity(),
-                    rows,
-                )
+                terminal_psi::TerminalBoundaryApplicationDemands::new(artifact.identity(), rows)
             })
             .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
         Ok(Self {
@@ -736,7 +733,7 @@ impl NativeExecutionScope {
 
     pub fn boundary_application_demands(
         &self,
-    ) -> &boundary_applications::TerminalBoundaryApplicationDemands {
+    ) -> &terminal_psi::TerminalBoundaryApplicationDemands {
         &self.demands
     }
 
