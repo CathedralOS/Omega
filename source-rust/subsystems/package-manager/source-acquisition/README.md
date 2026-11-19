@@ -9,6 +9,7 @@ Start at [lib.rs](lib.rs) and follow the source through acquisition and verifica
 ```text
 source-acquisition/
 ├── lib.rs          stable resolution entrance and public results
+├── capture/        immutable source trees and per-invocation lookup across selected roots
 ├── identity/       lineages, locators, immutable revisions, and digests
 ├── tree/           source-neutral tree model and bounded no-follow capture
 │   ├── capture/       traversal policy and captured-entry observations

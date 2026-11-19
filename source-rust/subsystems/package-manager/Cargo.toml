@@ -17,7 +17,7 @@ record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 declaration-contracts = { path = "../compiler/source-to-psi/language/declaration-contracts" }
 evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
-source-capture = { path = "../../../host-support/source-capture" }
+source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/pipeline/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }

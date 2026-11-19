@@ -134,3 +134,40 @@ fn captured_inventory_lists_entries_in_deterministic_canonical_order() {
     );
     assert!(input.file(b"absent").is_none());
 }
+
+#[test]
+fn snapshot_reads_retained_bytes_and_leaves_links_inert() {
+    use super::{SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata};
+
+    let input = input_with_template();
+    assert_eq!(
+        input.read(b"templates/banner.tmpl", 6, 20),
+        Ok(&b"WORLD"[..])
+    );
+    assert_eq!(
+        input.read(b"tools/run.sh", u64::MAX, 1),
+        Err(SourceSnapshotError::InvalidRange)
+    );
+    assert_eq!(
+        input.metadata(b"link"),
+        Ok(SourceSnapshotMetadata::Symlink {
+            target_byte_length: 9
+        })
+    );
+    assert_eq!(input.read_link(b"link"), Ok(&b"templates"[..]));
+    assert_eq!(
+        input.lookup(b"link/banner.tmpl"),
+        Err(SourceSnapshotError::NotDirectory)
+    );
+    assert_eq!(
+        input.lookup(b"templates/../tools"),
+        Err(SourceSnapshotError::InvalidPath)
+    );
+    assert_eq!(
+        input.list(b"templates").unwrap(),
+        vec![(
+            &b"banner.tmpl"[..],
+            SourceSnapshotEntry::File(b"HELLO WORLD")
+        )]
+    );
+}

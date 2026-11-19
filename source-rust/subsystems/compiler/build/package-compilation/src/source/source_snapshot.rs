@@ -20,46 +20,6 @@ Provenance:
 #[path = "source_snapshot_file_read.rs"]
 mod file_read;
 
-pub(crate) fn captured_source_view(
-    input: &build_output::CapturedBuildSourceInput,
-) -> source_capture::SourceSnapshot {
-    source_capture::SourceSnapshot::new(BuildSourceSnapshotStorage(input.clone()))
-}
-
-struct BuildSourceSnapshotStorage(build_output::CapturedBuildSourceInput);
-
-fn snapshot_entry(
-    entry: &build_output::CapturedSourceEntry,
-) -> source_capture::SourceSnapshotEntry<'_> {
-    match entry {
-        build_output::CapturedSourceEntry::Directory => {
-            source_capture::SourceSnapshotEntry::Directory
-        }
-        build_output::CapturedSourceEntry::File { bytes, .. } => {
-            source_capture::SourceSnapshotEntry::File(bytes)
-        }
-        build_output::CapturedSourceEntry::Symlink { target, .. } => {
-            source_capture::SourceSnapshotEntry::Symlink(target)
-        }
-    }
-}
-
-impl source_capture::SourceSnapshotStorage for BuildSourceSnapshotStorage {
-    fn entry(&self, path: &[u8]) -> Option<source_capture::SourceSnapshotEntry<'_>> {
-        self.0.retained_entry(path).map(snapshot_entry)
-    }
-
-    fn entries(
-        &self,
-    ) -> Box<dyn Iterator<Item = (&[u8], source_capture::SourceSnapshotEntry<'_>)> + '_> {
-        Box::new(
-            self.0
-                .retained_entries()
-                .map(|(path, entry)| (path, snapshot_entry(entry))),
-        )
-    }
-}
-
 #[cfg(unix)]
 use crate::source::canonical_fs::require_canonical_mode;
 use crate::source::canonical_fs::{canonical_file_executable, os_str_bytes};

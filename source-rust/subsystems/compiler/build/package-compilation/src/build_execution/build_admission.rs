@@ -2,12 +2,11 @@
 // against the actual accepted invocation module. Host effects remain bounded
 // by structurally emitted compiler-owned Build protocol companions.
 
-use super::BuildMachineFilesystemScope;
+use super::{BuildMachineExecutionMode, BuildMachineFilesystemScope};
 use super::build_value::{BuildValueAdmission, is_build_machine};
 use diagnostics::Diagnostic;
-use source_compiler::evaluation::{
-    BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
-};
+use filesystem_authority::FilesystemMetadataLayout;
+use source_compiler::evaluation::BuildTimeValue;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
@@ -105,7 +104,7 @@ pub fn admit_build_machine(
         let filesystem = filesystem_scope.establish_filesystem_access()?;
         BuildMachineExecutionMode::Granted {
             filesystem,
-            filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
+            filesystem_metadata_layout: FilesystemMetadataLayout::default(),
         }
     };
     Ok(SelectedBuildMachine {

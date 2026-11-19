@@ -2928,7 +2928,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "source-admission",
- "source-capture",
  "source-declarations",
  "source-files",
  "source-lexer",

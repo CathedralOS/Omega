@@ -13,7 +13,8 @@ use super::{BuildValueAdmission, vocabulary};
 use crate::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
 };
-use source_compiler::evaluation::{BuildMachineFilesystemGrantRootIdentity, BuildTimeValue};
+use filesystem_authority::FilesystemGrantRootIdentity;
+use source_compiler::evaluation::BuildTimeValue;
 use source_compiler::source_state::TypedTrees;
 
 pub(super) fn initial_value(
@@ -107,7 +108,7 @@ pub(super) fn initial_value(
     if has_exact_toolchain_build_facet(typed, "BuildSource")
         && has_exact_toolchain_build_facet(typed, "BuildOutput")
     {
-        let root_facet = |type_name: &str, root: BuildMachineFilesystemGrantRootIdentity| {
+        let root_facet = |type_name: &str, root: FilesystemGrantRootIdentity| {
             BuildTimeValue::Struct {
                 type_name: type_name.to_owned(),
                 fields: vec![(
