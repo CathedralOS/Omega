@@ -14,7 +14,7 @@ use provider_admission::ProviderExecutionEvidence;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use std::collections::BTreeSet;
 use target::{Architecture, NativeTarget};
-use target_operations::{ProviderExecutionBinding, ProviderPlanReportIdentity};
+use target_vocabulary::{ProviderExecutionBinding, ProviderPlanReportIdentity};
 use terminal_psi::OperationKind;
 
 pub(crate) fn rejoin_admitted_provider_execution(
@@ -67,7 +67,7 @@ pub(crate) fn metadata_port_effect_custody(
     image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     settlement: &machine_code::BoundarySettlementRecord,
-    realization: &target_operations::MetadataOnlyPortRealization,
+    realization: &target_vocabulary::MetadataOnlyPortRealization,
     target: NativeTarget,
     function: &image_emission::ObjectFunction,
     operation: &terminal_psi::Operation,
@@ -160,7 +160,7 @@ pub(crate) fn direct_port_read_custody(
     image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     settlement: &machine_code::BoundarySettlementRecord,
-    realization: &target_operations::DirectPortReadU8Realization,
+    realization: &target_vocabulary::DirectPortReadU8Realization,
     target: NativeTarget,
     function: &image_emission::ObjectFunction,
     operation: &terminal_psi::Operation,

@@ -28,7 +28,7 @@ use machine_code::BoundaryExecutionRecord;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use std::collections::BTreeSet;
 use target::NativeTarget;
-use target_operations::BoundaryRealization;
+use target_vocabulary::BoundaryRealization;
 use terminal_psi::OperationKind;
 
 #[allow(clippy::too_many_arguments)]

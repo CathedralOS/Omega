@@ -250,7 +250,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
             digest.raw(&kernel.number.to_le_bytes());
             match kernel.execution {
-                target_operations::NormalizedForeignExecution::ProviderPlan {
+                target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     report,
                     commitment,
                 } => {
@@ -258,7 +258,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                     digest.raw(&report.to_le_bytes());
                     digest.raw(&commitment);
                 }
-                target_operations::NormalizedForeignExecution::NativeBinding(receipt) => {
+                target_vocabulary::NormalizedForeignExecution::NativeBinding(receipt) => {
                     digest.byte(1);
                     digest.raw(&receipt);
                 }
@@ -267,7 +267,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
             continue;
         }
         let contribution = match &call.binding.mechanism {
-            target_operations::NormalizedForeignCallMechanism::CompilerImport {
+            target_vocabulary::NormalizedForeignCallMechanism::CompilerImport {
                 import,
                 requirement_identity,
                 selected_plan,
@@ -278,7 +278,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 hash_bytes(&mut digest, requirement_identity.as_bytes());
                 continue;
             }
-            target_operations::NormalizedForeignCallMechanism::HostedImport {
+            target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
                 locator,
                 receipt,
                 requirement_identity,
@@ -289,7 +289,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 hash_bytes(&mut digest, requirement_identity.as_bytes());
                 continue;
             }
-            target_operations::NormalizedForeignCallMechanism::Import {
+            target_vocabulary::NormalizedForeignCallMechanism::Import {
                 locator,
                 same_stack_contribution,
             } => {
@@ -297,7 +297,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.raw(&locator.identity_digest().as_bytes());
                 same_stack_contribution
             }
-            target_operations::NormalizedForeignCallMechanism::Component {
+            target_vocabulary::NormalizedForeignCallMechanism::Component {
                 locator,
                 provider,
                 candidate,
@@ -312,7 +312,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.raw(application_commitment);
                 same_stack_contribution
             }
-            target_operations::NormalizedForeignCallMechanism::Table {
+            target_vocabulary::NormalizedForeignCallMechanism::Table {
                 target,
                 byte_offset,
                 dispatch_only,
@@ -324,7 +324,7 @@ pub(super) fn foreign_call_custody_digest(calls: &[image_emission::ObjectForeign
                 digest.raw(&[u8::from(*dispatch_only)]);
                 same_stack_contribution
             }
-            target_operations::NormalizedForeignCallMechanism::SystemCall(_) => continue,
+            target_vocabulary::NormalizedForeignCallMechanism::SystemCall(_) => continue,
         };
         digest.raw(
             &contribution
@@ -440,7 +440,7 @@ fn hash_physical_entry_requirements(
         contract.result_type_identity(),
     );
     let mut plan_bytes = Vec::new();
-    legalized_operations::encode_call_plan(&mut plan_bytes, &contract.boundary_entry_plan().call);
+    target_vocabulary::encode_call_plan(&mut plan_bytes, &contract.boundary_entry_plan().call);
     calling_conventions::encode_state_plan_identity(
         &mut plan_bytes,
         &contract.boundary_entry_plan().state,
