@@ -25,7 +25,7 @@ pub(crate) use constants::{
 
 mod calls;
 pub(crate) use calls::{
-    InvocationTarget, MeasuredEvaluation, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
+    InvocationTarget, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
 
 pub(crate) use calls::invocation_error;

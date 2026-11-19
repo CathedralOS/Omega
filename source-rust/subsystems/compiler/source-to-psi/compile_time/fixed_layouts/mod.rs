@@ -45,7 +45,7 @@ impl super::PreparedBuildMachineEntry {
         produced: Arc<crate::production::ProducedTerminalProgram>,
         target: InvocationTarget<'_>,
         accounting: &mut SourceCompletionAccounting,
-    ) -> Result<super::MeasuredEvaluation<EvaluatedLayout>, String> {
+    ) -> Result<EvaluatedLayout, String> {
         let sites = placements::executed_sites(self.accepted(), produced.view().module())?;
         let calls = sites.iter().map(|site| site.call).collect::<Vec<_>>();
         self.invoke_with_observations(
@@ -279,7 +279,7 @@ fn evaluate_application(
         },
         accounting,
     )?;
-    let validated_layout = validation::record_plan(typed, data, &fields, &result.value().value)?;
+    let validated_layout = validation::record_plan(typed, data, &fields, &result.value)?;
     let data_symbol = data.symbol;
     let data_name = data.name.to_string();
     let geometry = PlanLaidGeometry {
@@ -287,7 +287,7 @@ fn evaluate_application(
         private_callback_demands: placements::close(
             typed,
             accepted,
-            &result.value().private_layout_placements,
+            &result.private_layout_placements,
             requester,
             &policy,
             storage.semantic_type,

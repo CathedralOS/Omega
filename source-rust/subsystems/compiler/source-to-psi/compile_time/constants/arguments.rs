@@ -393,8 +393,7 @@ pub fn evaluate(
                         address_model: None,
                     },
                     accounting,
-                )?
-                .into_value();
+                )?;
             use application_identity::const_value::DecodedCanonicalConstValue;
             let spelling = match decoded(program, job.carrier, &value)? {
                 DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),

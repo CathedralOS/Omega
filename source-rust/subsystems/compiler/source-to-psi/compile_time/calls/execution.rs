@@ -1,6 +1,6 @@
 //! Execute a source-authenticated call using the common Build interpreter and its actual sponsor.
 use super::target::{InvocationTarget, complete_invocation_scalar_applications};
-use super::{MeasuredEvaluation, PreparedBuildMachineEntry, source_selection};
+use super::{PreparedBuildMachineEntry, source_selection};
 use crate::compile_time::{BuildTimeValue, SourceCompletionAccounting};
 use source_completion_accounting::SourceInvocationSite;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ impl PreparedBuildMachineEntry {
         &self,
         target: InvocationTarget<'_>,
         accounting: &mut SourceCompletionAccounting,
-    ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
+    ) -> Result<BuildTimeValue, String> {
         let produced = Arc::new(self.produce_invocation()?);
         self.invoke_produced_recorded(produced, target, accounting)
     }
@@ -20,7 +20,7 @@ impl PreparedBuildMachineEntry {
         produced: Arc<crate::production::ProducedTerminalProgram>,
         target: InvocationTarget<'_>,
         accounting: &mut SourceCompletionAccounting,
-    ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
+    ) -> Result<BuildTimeValue, String> {
         self.invoke_with_observations(produced, target, accounting, &[], |value, _| Ok(value))
     }
 
@@ -35,7 +35,7 @@ impl PreparedBuildMachineEntry {
             BuildTimeValue,
             Vec<terminal_interpreter::ObservedTerminalCall>,
         ) -> Result<T, String>,
-    ) -> Result<MeasuredEvaluation<T>, String> {
+    ) -> Result<T, String> {
         let (admitted, requirements) = self.admit_invocation(&produced, target)?;
         let sponsor = pure_terminal_invocation_account()?;
         let mut meter = terminal_work::WorkMeter::with_invocation(sponsor, None)
@@ -57,15 +57,15 @@ impl PreparedBuildMachineEntry {
             arguments: Arc::clone(&self.arguments),
             inputs: Arc::clone(&self.input_values),
         };
-        let (value, usage) = accounting.record_invocation(
+        accounting.record_invocation(
             site,
             produced,
             admitted,
             &meter,
             run,
             |(value, events)| complete(value, events),
-        )?;
-        Ok(MeasuredEvaluation { value, usage })
+        )
+        .map(|(value, _usage)| value)
     }
 
     pub fn invoke_recorded_in_targets(
@@ -85,8 +85,7 @@ impl PreparedBuildMachineEntry {
                 address_model: None,
             };
             return Ok(vec![
-                self.invoke_produced_recorded(produced, target, accounting)?
-                    .into_value(),
+                self.invoke_produced_recorded(produced, target, accounting)?,
             ]);
         }
         if targets.is_empty() {
@@ -109,7 +108,6 @@ impl PreparedBuildMachineEntry {
                     address_model: None,
                 };
                 self.invoke_produced_recorded(Arc::clone(&produced), target, accounting)
-                    .map(MeasuredEvaluation::into_value)
             })
             .collect()
     }

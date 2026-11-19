@@ -131,7 +131,7 @@ fn reflected_schema(
     requester_name: &str,
     invocation_target: InvocationTarget<'_>,
     accounting: &mut SourceCompletionAccounting,
-) -> crate::compile_time::MeasuredEvaluation<BuildTimeValue> {
+) -> BuildTimeValue {
     let (requester, expression) = query_call(typed, requester_name);
     let call = typed
         .expression_table
@@ -153,7 +153,7 @@ fn reflected_schema(
         .expect("same lexical request")
         .invoke_recorded(invocation_target, accounting)
         .expect("genuine complete TypeSchema");
-    let BuildTimeValue::Text(bytes) = field(schema.value(), "storage") else {
+    let BuildTimeValue::Text(bytes) = field(&schema, "storage") else {
         panic!("actual graph bytes")
     };
     assert!(!bytes.is_empty(), "no empty schema approximation");
@@ -186,14 +186,14 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
             .expect("actual source constructor")
             .symbol;
         let measured = prepared
-            .entry(symbol, symbol, std::slice::from_ref(schema.value()))
+            .entry(symbol, symbol, std::slice::from_ref(&schema))
             .expect("actual source entry")
             .invoke_recorded(target(&facts), &mut accounting)
             .expect("the complete AccessPlan is constructed through the checked caller");
-        let plan = measured.value();
+        let plan = &measured;
         assert_eq!(
             field(plan, "schema"),
-            schema.value(),
+            &schema,
             "borrowed constructor input preserves the complete immutable schema"
         );
         let payload = empty_case(field(plan, "issuance"), case);
@@ -215,7 +215,7 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
             .expect("ordinary checked plan transport")
             .invoke_recorded(target(&facts), &mut accounting)
             .expect("the entire returned plan can be materialized again");
-        assert_eq!(returned.value(), plan);
+        assert_eq!(&returned, plan);
         let mut truncated = plan.clone();
         let BuildTimeValue::Struct { fields, .. } = &mut truncated else {
             unreachable!()
@@ -264,7 +264,7 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
             target(&facts),
             &mut accounting,
         );
-        let arguments = std::slice::from_ref(schema.value());
+        let arguments = std::slice::from_ref(&schema);
         let domain = typed
             .domain_definitions
             .iter()
@@ -300,11 +300,11 @@ fn a_selected_access_plan_returns_its_declared_route_element_lifetimes() {
             .expect("prepare the ordinary call")
             .invoke_recorded(target(&facts), &mut accounting)
             .expect("the ordinary plan executes");
-        assert_eq!(selected.value(), direct.value());
-        assert_eq!(field(selected.value(), "schema"), schema.value());
-        assert_zero_tail(selected.value());
+        assert_eq!(&selected, &direct);
+        assert_eq!(field(&selected, "schema"), &schema);
+        assert_zero_tail(&selected);
 
-        let [(name, routes)] = empty_case(field(selected.value(), "issuance"), "Only") else {
+        let [(name, routes)] = empty_case(field(&selected, "issuance"), "Only") else {
             panic!("the selected plan returns the complete Only payload");
         };
         assert_eq!(name, "routes");
@@ -754,13 +754,13 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
     );
     let carry = typed.realized_machine_named("carry").unwrap().symbol;
     let returned = prepared
-        .entry(carry, carry, &[schema.value().clone()])
+        .entry(carry, carry, std::slice::from_ref(&schema))
         .unwrap()
         .invoke_recorded(target(&facts), &mut accounting)
         .unwrap();
     assert_eq!(
-        returned.value(),
-        schema.value(),
+        &returned,
+        &schema,
         "the real query image survives the ordinary lifetime-bound call"
     );
     let local_escape = typed.realized_machine_named("local_escape").unwrap().symbol;
@@ -864,7 +864,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
             .unwrap()
             .invoke_recorded(target(&facts), &mut accounting)
             .unwrap_or_else(|error| panic!("actual {name}: {error}"));
-        descriptions.push((value.value().clone(), last_receipt(&accounting)));
+        descriptions.push((value, last_receipt(&accounting)));
     }
     let (schema, query) = &descriptions[0];
     let builder = typed
@@ -981,7 +981,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
             "another owner, application or source revision",
         ),
     ] {
-        let mut altered = produced.value().clone();
+        let mut altered = produced.clone();
         let BuildTimeValue::Array(entries) = field_mut(&mut altered, "fields") else {
             unreachable!()
         };
@@ -995,7 +995,7 @@ fn actual_access_plan_normalization_preserves_rules_and_authenticates_descriptio
         let error = super::returned_plan::normalize(query, &last_receipt(&accounting)).unwrap_err();
         assert!(error.contains(reason), "{error}");
     }
-    let mut altered = produced.value().clone();
+    let mut altered = produced.clone();
     let BuildTimeValue::Case { payload, .. } = field_mut(&mut altered, "issuance") else {
         unreachable!()
     };
