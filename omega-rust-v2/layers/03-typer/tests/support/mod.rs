@@ -6,8 +6,8 @@ use omega_typer::{TypeError, TypedStage, type_stage};
 pub fn check(files: &[(&str, &str)]) -> Result<TypedStage, TypeError> {
     let mut parsed = Vec::new();
     for &(path, text) in files {
-        let tokens = lex(text.as_bytes()).unwrap();
-        let tree = parse_file(text.as_bytes(), &tokens).unwrap();
+        let tokens = lex(text.as_bytes()).unwrap_or_else(|error| panic!("{path}: {error:?}\n{text}"));
+        let tree = parse_file(text.as_bytes(), &tokens).unwrap_or_else(|error| panic!("{path}: {error:?}\n{text}"));
         parsed.push((path, text, tokens, tree));
     }
     let sources: Vec<_> = parsed
@@ -22,6 +22,12 @@ pub fn check(files: &[(&str, &str)]) -> Result<TypedStage, TypeError> {
             },
         })
         .collect();
-    let resolved = resolve_stage(&sources, &[]).unwrap();
+    let resolved = resolve_stage(&sources, &[]).unwrap_or_else(|error| {
+        let source = files
+            .iter()
+            .find(|(path, _)| *path == error.file)
+            .map_or("", |(_, text)| *text);
+        panic!("{error:?}\n{source}");
+    });
     type_stage(&sources, &resolved)
 }

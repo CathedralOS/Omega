@@ -48,13 +48,11 @@ pub(crate) fn type_admitted_stage(
     for unit in &units {
         unit.index_enclosing_scopes(&mut catalog.types)?;
     }
-    for unit in &units {
-        unit.index_const_carriers(&mut catalog.types)?;
-    }
     let mut output = TypedStage::default();
     if admits_toolchain_declarations {
         core_interface().install(&mut catalog, &mut output);
     }
+    crate::type_system::binder_dependencies::index_binder_carriers(&units, &mut catalog.types)?;
     collect_width_obligations(&units, &mut catalog, &mut output)?;
     for unit in &units {
         unit.index_aliases(&mut catalog.types)?;

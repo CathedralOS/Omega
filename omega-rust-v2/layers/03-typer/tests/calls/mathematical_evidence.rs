@@ -259,3 +259,90 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
     let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
     assert_eq!(check(&[("universe.omg", strict)]).unwrap_err().message, "universe argument requires its exact successor universe");
 }
+
+#[test]
+fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
+    let aliases = "data Identity<T> = T; data Sort = Identity<core::Type<0>>; data High<L:core::Level> = core::Type<L>; data Byte = u8;";
+    for bound in ["core::Type<0>", "Sort", "High<0>", "Identity<Sort>"] {
+        for call in ["id(x)", "id::<u8>(x)"] {
+            let machines = format!("machine id<A:{bound}>(x:A)->A{{x}} machine f(x:u8)->u8{{{call}}}");
+            let ordered = [("a.omg", aliases), ("z.omg", machines.as_str())];
+            let stage = check(&ordered).unwrap();
+            let selected = stage
+                .calls
+                .iter()
+                .find(|call| call.machine.path == "id")
+                .unwrap();
+            assert_eq!(
+                selected
+                    .type_arguments
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+                ["u8"]
+            );
+            assert_eq!(stage, check(&[ordered[1], ordered[0]]).unwrap());
+            check(&[("a.omg", &machines), ("z.omg", aliases)]).unwrap();
+        }
+    }
+    let family = "data Family = u8::D::Child->core::Type<0>; domain u8::D; machine ready(x:u8 in D)->bool{true} domain u8::D::Child requires ready(self); machine f<F:Family>(){}";
+    check(&[("family.omg", family)]).unwrap();
+    let wrong_carrier = format!("{family} machine wrong(x:u16)->bool{{x in u8::D::Child}}");
+    assert_eq!(check(&[("family.omg", &wrong_carrier)]).unwrap_err().message, "membership subject has the wrong carrier");
+    let cyclic = "data A=B; data B=A; machine f<T:A>(){}";
+    assert!(
+        check(&[("cycle.omg", cyclic)])
+            .unwrap_err()
+            .message
+            .contains("cyclic type alias")
+    );
+    let nominal = "data Sort{} machine f<A:Sort>(){}";
+    assert!(check(&[("nominal.omg", nominal)]).is_err());
+    let strict = "data S=core::Strict<1>; data Box<A:S>{} machine f(x:Box<core::Type<0>>){}";
+    assert_eq!(
+        check(&[("strict.omg", strict)]).unwrap_err().message,
+        "universe argument requires its exact successor universe"
+    );
+    let indices = "data Buffer<N:Byte>{} machine f(x:Buffer<7>)->Buffer<7>{x}";
+    check(&[("index.omg", indices), ("sort.omg", aliases)]).unwrap();
+    for (level, accepted) in [(0, false), (1, true), (2, false)] {
+        let code = format!("data Box<A:High<{level}>>{{}} machine f(x:Box<core::Type<0>>){{}}");
+        let result = check(&[("box.omg", &code), ("sort.omg", aliases)]);
+        if accepted {
+            result.unwrap();
+        } else {
+            assert_eq!(result.unwrap_err().message, "universe argument requires its exact successor universe");
+        }
+    }
+}
+
+#[test]
+fn generated_alias_compositions_select_the_expected_binding() {
+    // Both meanings of X are in scope. First and Last can nest, so two wrong
+    // selections can cancel each other. Compare each tree to its selected leaf.
+    let leaves = [("core::Type<0>".to_owned(), true), ("u8".to_owned(), false)];
+    let mut kinds = leaves.to_vec();
+    for _ in 0..2 {
+        let children = kinds;
+        kinds = leaves.to_vec();
+        for (left, left_is_type) in &children {
+            for (right, right_is_type) in &children {
+                kinds.push((format!("First<{left},{right}>"), *left_is_type));
+                kinds.push((format!("Last<{left},{right}>"), *right_is_type));
+            }
+        }
+    }
+    kinds.sort_by_key(|(bound, _)| bound.len());
+    for (bound, takes_type) in kinds {
+        let source = format!("data X{{}} data First<A,B> = A; data Last<A,B> = B; machine pick<T:{bound}>(){{}} machine caller<X:u8>(){{pick::<X>()}}");
+        let stage = check(&[("rule.omg", &source)]).unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+        let [call] = stage.calls.as_slice() else { panic!("{source}\nexpected one call") };
+        let [argument] = call.type_arguments.as_slice() else { panic!("{source}\nexpected one argument") };
+        let correct = if takes_type {
+            matches!(argument, ValueType::Nominal(id) if id.path == "X")
+        } else {
+            matches!(argument, ValueType::Parameter {owner, index:0} if owner.path == "caller")
+        };
+        assert!(correct, "{source}\nexpected type role = {takes_type}, selected {argument:?}");
+    }
+}

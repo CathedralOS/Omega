@@ -200,80 +200,71 @@ impl<'a> ResolvedSourceFile<'a> {
             ValueType::Applied(Box::new(id.clone()), args)
         })
     }
-    pub fn index_const_carriers(
+    pub(super) fn index_binder_carrier(
         &self,
+        node_index: usize,
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
-        for (node_index, node) in self
-            .file
-            .nodes
+        let node = &self.file.nodes[node_index];
+        let telescope = node
+            .parent
+            .ok_or_else(|| TypeError::unsupported(&self.file, node_index))?;
+        let owner = self.declaration(
+            self.file.nodes[telescope]
+                .parent
+                .ok_or_else(|| TypeError::unsupported(&self.file, node_index))?,
+        )?;
+        let index = self.file.nodes[telescope]
+            .children
             .iter()
-            .enumerate()
-            .filter(|(_, node)| matches!(node.kind, NodeKind::ConstParam | NodeKind::KindedParam))
+            .take_while(|&&i| i != node_index)
+            .filter(|&&i| self.file.nodes[i].kind != NodeKind::SomeParam)
+            .count();
+        let annotation = self.single_child(node_index)?;
+        if matches!(self.symbol(annotation),Some(Symbol::Declaration(id)) if id.kind==NodeKind::Machine)
+            || self.file.nodes[annotation].kind == NodeKind::PathType && self.file.nodes[annotation].path() == "machine"
         {
-            if node
-                .parent
-                .is_some_and(|p| self.file.nodes[p].kind == NodeKind::Fragment)
-            {
-                continue;
-            }
-            let telescope = node
-                .parent
-                .ok_or_else(|| TypeError::unsupported(&self.file, node_index))?;
-            let owner = self.declaration(
-                self.file.nodes[telescope]
-                    .parent
-                    .ok_or_else(|| TypeError::unsupported(&self.file, node_index))?,
-            )?;
-            let index = self.file.nodes[telescope]
-                .children
-                .iter()
-                .take_while(|&&i| i != node_index)
-                .filter(|&&i| self.file.nodes[i].kind != NodeKind::SomeParam)
-                .count();
-            let annotation = self.single_child(node_index)?;
-            if matches!(self.symbol(annotation),Some(Symbol::Declaration(id)) if id.kind==NodeKind::Machine)
-                || self.file.nodes[annotation].kind == NodeKind::PathType && self.file.nodes[annotation].path() == "machine"
-            {
-                continue;
-            }
-            let carrier = if let Some(Symbol::Declaration(schema)) = self.symbol(annotation)
-                && schema.kind == NodeKind::Trait
-            {
-                let args = self
-                    .file
-                    .child(annotation, NodeKind::TypeArgs)
-                    .into_iter()
-                    .flat_map(|a| self.file.nodes[a].children.iter().copied())
-                    .enumerate()
-                    .map(|(i, arg)| self.argument(arg, types, schema, i))
-                    .collect::<Result<Vec<_>, _>>()?;
-                if args.len() != types.arities[schema] {
-                    return Err(TypeError::at(&self.file, annotation, "incorrect evidence application arity"));
-                }
-                ValueType::Evidence(Box::new(crate::RequirementSlot {
-                    declaration: schema.clone(),
-                    trait_arguments: args,
-                }))
-            } else {
-                self.raw_type(annotation, None, types)?
-            };
-            if !matches!(
-                carrier,
-                ValueType::Integer { .. }
-                    | ValueType::Callable(_)
-                    | ValueType::Evidence(_)
-                    | ValueType::LevelKind
-                    | ValueType::Universe { .. }
-                    | ValueType::Function(..)
-            ) {
-                return Err(TypeError::unsupported(&self.file, node_index));
-            }
-            if node.kind == NodeKind::KindedParam && matches!(carrier, ValueType::Integer { .. }) {
-                types.runtime_indices.insert((owner, index));
-            }
-            types.const_carriers.insert((owner, index), carrier);
+            return Ok(());
         }
+        let carrier = if let Some(Symbol::Declaration(schema)) = self.symbol(annotation)
+            && schema.kind == NodeKind::Trait
+        {
+            let args = self
+                .file
+                .child(annotation, NodeKind::TypeArgs)
+                .into_iter()
+                .flat_map(|a| self.file.nodes[a].children.iter().copied())
+                .enumerate()
+                .map(|(i, arg)| self.argument(arg, types, schema, i))
+                .collect::<Result<Vec<_>, _>>()?;
+            if args.len() != types.arities[schema] {
+                return Err(TypeError::at(&self.file, annotation, "incorrect evidence application arity"));
+            }
+            ValueType::Evidence(Box::new(crate::RequirementSlot {
+                declaration: schema.clone(),
+                trait_arguments: args,
+            }))
+        } else {
+            let raw = self.raw_type(annotation, None, types)?;
+            types
+                .normalize_at(raw, &self.file, annotation)
+                .map_err(|reason| TypeError::at(&self.file, annotation, reason))?
+        };
+        if !matches!(
+            carrier,
+            ValueType::Integer { .. }
+                | ValueType::Callable(_)
+                | ValueType::Evidence(_)
+                | ValueType::LevelKind
+                | ValueType::Universe { .. }
+                | ValueType::Function(..)
+        ) {
+            return Err(TypeError::unsupported(&self.file, node_index));
+        }
+        if node.kind == NodeKind::KindedParam && matches!(carrier, ValueType::Integer { .. }) {
+            types.runtime_indices.insert((owner, index));
+        }
+        types.const_carriers.insert((owner, index), carrier);
         Ok(())
     }
     pub fn index_static_equations(
@@ -326,20 +317,33 @@ impl<'a> ResolvedSourceFile<'a> {
         types: &mut TypeCatalog<'a>,
     ) -> Result<(), TypeError> {
         let source = &self.file;
-        for (node_index, node) in source
+        for (node_index, _) in source
             .nodes
             .iter()
             .enumerate()
             .filter(|(_, node)| node.kind == NodeKind::Data && node.leaves.iter().any(|w| w.text == "="))
         {
-            let ty = *node
-                .children
-                .last()
-                .ok_or_else(|| TypeError::unsupported(source, node_index))?;
-            types
-                .aliases
-                .insert(self.declaration(node_index)?, self.raw_type(ty, None, types)?);
+            if types.aliases.contains_key(self.declaration(node_index)?) {
+                continue;
+            }
+            self.index_alias(node_index, types)?;
         }
+        Ok(())
+    }
+    pub(super) fn index_alias(
+        &self,
+        node_index: usize,
+        types: &mut TypeCatalog<'a>,
+    ) -> Result<(), TypeError> {
+        let source = &self.file;
+        let node = &source.nodes[node_index];
+        let ty = *node
+            .children
+            .last()
+            .ok_or_else(|| TypeError::unsupported(source, node_index))?;
+        types
+            .aliases
+            .insert(self.declaration(node_index)?, self.raw_type(ty, None, types)?);
         Ok(())
     }
 }

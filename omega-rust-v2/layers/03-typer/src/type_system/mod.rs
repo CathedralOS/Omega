@@ -1,4 +1,5 @@
 pub(crate) mod annotations;
+pub(crate) mod binder_dependencies;
 pub(crate) mod binder_indexing;
 pub(crate) mod dependent_subjects;
 pub(crate) mod domains;
