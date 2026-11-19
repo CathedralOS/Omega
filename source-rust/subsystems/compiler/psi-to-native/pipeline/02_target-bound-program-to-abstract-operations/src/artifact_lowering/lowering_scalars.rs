@@ -462,7 +462,8 @@ pub(crate) mod integer_conversion {
 pub(crate) mod scalar_applications {
     use abstract_operations::AbstractOperation;
     use semantic_vocabulary::ScalarApplicationId;
-    use terminal_installation::{AdmittedScalarApplications, TerminalScalarValue};
+    use terminal_semantics::entry_values::TerminalScalarValue;
+    use terminal_installation::AdmittedScalarApplications;
     use terminal_psi::Operation;
 
     use crate::artifact_lowering::lowering::LoweringError;

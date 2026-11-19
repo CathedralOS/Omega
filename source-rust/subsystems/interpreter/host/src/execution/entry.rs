@@ -15,7 +15,7 @@ pub struct EstablishedEntry {
     zero_initialized: Vec<u32>,
     erased_fields: Vec<TerminalEstablishedErasedField>,
     private_entry_ram: Vec<psi_entry_memory::CheckedPrivateEntryRamRecipe>,
-    establishments: Vec<terminal_installation::TerminalAccessViewEstablishment>,
+    establishments: Vec<terminal_semantics::entry_values::TerminalAccessViewEstablishment>,
 }
 
 impl EstablishedEntry {
@@ -96,7 +96,7 @@ pub fn establish(
         ));
         arrival
             .establishments
-            .push(terminal_installation::TerminalAccessViewEstablishment {
+            .push(terminal_semantics::entry_values::TerminalAccessViewEstablishment {
                 input: recipe.input().clone(),
                 referent: TerminalStructuralValue::minted(
                     original_identity,

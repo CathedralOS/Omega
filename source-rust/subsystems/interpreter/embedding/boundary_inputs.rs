@@ -15,7 +15,7 @@ pub(crate) mod access_views {
     use std::collections::BTreeMap;
     use terminal_psi::{StructuralAccess, TerminalAccessViewInput, TerminalModule};
 
-    pub use terminal_installation::TerminalAccessViewEstablishment;
+    pub use terminal_semantics::entry_values::TerminalAccessViewEstablishment;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct AccessViewOccurrence {

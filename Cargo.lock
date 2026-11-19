@@ -3571,6 +3571,7 @@ dependencies = [
  "proof-applications",
  "resource-bounds",
  "schema-reflection",
+ "record-storage",
  "semantic-vocabulary",
  "service-surface",
  "source-provenance",
