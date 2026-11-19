@@ -193,43 +193,6 @@ impl NativeEntryBridgeCode {
         &self.adapter_effects
     }
 
-    // Container relocation may change only the declared body-call field. Decode
-    // final bytes independently so a carried effect claim cannot authorize an
-    // unaccounted instruction or control transfer.
-    pub fn validate_published_code(&self, bytes: &[u8]) -> Result<(), Error> {
-        let field = self.call_field_offset;
-        let end = field.checked_add(4).ok_or(Error::ReplayMismatch)?;
-        if bytes.len() != self.bytes.len()
-            || bytes.get(..field) != self.bytes.get(..field)
-            || bytes.get(end..) != self.bytes.get(end..)
-        {
-            return Err(Error::ReplayMismatch);
-        }
-        if self.request.target.architecture == Architecture::Aarch64 {
-            let word = u32::from_le_bytes(
-                bytes
-                    .get(field..end)
-                    .ok_or(Error::ReplayMismatch)?
-                    .try_into()
-                    .map_err(|_| Error::ReplayMismatch)?,
-            );
-            if word & 0xfc00_0000 != 0x9400_0000 {
-                return Err(Error::ReplayMismatch);
-            }
-        }
-        let call = Some(u32::try_from(field).map_err(|_| Error::FrameOverflow)?);
-        let decoded = match self.request.target.architecture {
-            Architecture::X86_64 => target_x86_64::decode_x86_64_generated_entry(bytes, call),
-            Architecture::Aarch64 => target_aarch64::decode_aarch64_generated_entry(bytes, call),
-        }
-        .map_err(Error::GeneratedEntryEffects)?;
-        if decoded.effects != self.adapter_effects
-            || self.request.checked_complete_effects(&decoded.effects)? != self.complete_effects
-        {
-            return Err(Error::ReplayMismatch);
-        }
-        Ok(())
-    }
     pub fn complete_effects(&self) -> &StateEffectsEvidence {
         &self.complete_effects
     }

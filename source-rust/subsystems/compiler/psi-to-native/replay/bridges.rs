@@ -19,7 +19,7 @@ pub fn validate_native_entry_bridge(bridge: &EncodedNativeEntryBridge) -> Result
 }
 
 fn verify_entry_translation(bridge: &EncodedNativeEntryBridge, bytes: &[u8]) -> Result<(), Error> {
-    bridge.validate_published_code(bytes)?;
+    image_emission::verify_entry_bridge_bytes(bridge, bytes)?;
     let request = bridge.request().clone();
     let plan = match bridge.installed_interrupt() {
         Some(installed) => plan_installed_interrupt_entry_bridge(request, installed)?,

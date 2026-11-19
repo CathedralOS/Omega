@@ -56,7 +56,9 @@ mod codec_bytes {
 
 mod companion_images;
 mod entries;
+mod published_entry_bytes;
 pub use companion_images::NativeCompanionImage;
+pub use published_entry_bytes::verify_entry_bridge_bytes;
 
 pub(crate) mod function_fragments;
 mod image;
