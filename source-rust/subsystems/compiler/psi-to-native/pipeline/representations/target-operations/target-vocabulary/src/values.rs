@@ -6,7 +6,7 @@ Keeping `ReferenceRoot` alongside `TargetReferenceOrigin` and view/scalar expres
 
 use crate::ScalarParameterLocation;
 use calling_conventions::{ValuePlacement, ValueShape};
-use native_vocabulary::integer_arithmetic::{
+use operation_operands::integer_arithmetic::{
     IntegerArithmetic, IntegerShiftDirection, IntegerShiftPolicy,
 };
 use semantic_vocabulary::{

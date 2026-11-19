@@ -18,7 +18,7 @@ use ::selected_instructions::{
     SelectedScalarReferenceSource, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     SelectedValueBinding, SelectedValueTransport, VirtualRegisterId,
 };
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 use crate::FixedViewCopyDecodeError;
@@ -336,7 +336,7 @@ pub(super) fn decode_successor(
     let structural_case = decode_case(cursor)?;
     let structural_bindings = decode_list(cursor, |cursor| {
         let source_indices = decode_runtime_indices(cursor)?;
-        let semantic = native_vocabulary::values::AbstractStructuralBinding {
+        let semantic = operation_operands::values::AbstractStructuralBinding {
             parameter: decode_id(cursor, semantic_vocabulary::PlaceId::new)?,
             argument: decode_semantic_argument(cursor)?,
         };
@@ -575,7 +575,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
-                    operand: native_vocabulary::values::AbstractResult {
+                    operand: operation_operands::values::AbstractResult {
                         value: ValueId::new(14).unwrap(),
                         scalar_type: ScalarType::Integer(
                             IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -587,7 +587,7 @@ mod tests {
                     obligation: semantic_vocabulary::ObligationId::new(15).unwrap(),
                     accepted_fact: AcceptedObligationFactIdentity::from_bytes([16; 32]),
                 }],
-                semantic: native_vocabulary::values::AbstractStructuralBinding {
+                semantic: operation_operands::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(9).unwrap(),
@@ -875,7 +875,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: native_vocabulary::values::AbstractStructuralBinding {
+                semantic: operation_operands::values::AbstractStructuralBinding {
                     parameter: PlaceId::new(31).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: PlaceId::new(37).unwrap(),
@@ -1149,7 +1149,7 @@ mod tests {
             .structural_bindings
             .push(SelectedStructuralBinding {
                 source_indices: Vec::new(),
-                semantic: native_vocabulary::values::AbstractStructuralBinding {
+                semantic: operation_operands::values::AbstractStructuralBinding {
                     parameter: semantic_vocabulary::PlaceId::new(12).unwrap(),
                     argument: terminal_psi::StructuralArgument {
                         place: semantic_vocabulary::PlaceId::new(11).unwrap(),
@@ -1238,7 +1238,7 @@ mod tests {
                 .structural_bindings
                 .push(SelectedStructuralBinding {
                     source_indices: Vec::new(),
-                    semantic: native_vocabulary::values::AbstractStructuralBinding {
+                    semantic: operation_operands::values::AbstractStructuralBinding {
                         parameter: join,
                         argument: terminal_psi::StructuralArgument {
                             place: semantic_vocabulary::PlaceId::new(11).unwrap(),

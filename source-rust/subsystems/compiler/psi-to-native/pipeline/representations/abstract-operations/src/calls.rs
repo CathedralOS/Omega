@@ -59,9 +59,9 @@ impl AbstractStructuralCallResult {
     }
 }
 
-pub use native_vocabulary::calls::AbstractCallTarget;
+pub use operation_operands::calls::AbstractCallTarget;
 
-pub use native_vocabulary::calls::StructuralCallFormal;
+pub use operation_operands::calls::StructuralCallFormal;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StructuralCallResult<'declaration> {

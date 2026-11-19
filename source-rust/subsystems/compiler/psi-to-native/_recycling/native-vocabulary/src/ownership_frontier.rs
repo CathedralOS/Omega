@@ -157,11 +157,11 @@ fn encode_frontier_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
             segment,
             Vec::extend_from_slice,
             |bytes, scalar| {
-                crate::identity_encoding::encode_scalar_type(
+                semantic_vocabulary::identity_encoding::encode_scalar_type(
                     bytes,
                     scalar,
                     |bytes, tag| bytes.push(tag),
-                    crate::identity_encoding::encode_integer_type,
+                    semantic_vocabulary::identity_encoding::encode_integer_type,
                 )
             },
         );

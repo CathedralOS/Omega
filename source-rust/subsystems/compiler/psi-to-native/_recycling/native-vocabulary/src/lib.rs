@@ -21,16 +21,10 @@ pub mod access_lifecycles;
 pub mod access_reference_validation;
 pub mod access_references;
 pub mod address_joins;
-pub mod calls;
 pub mod completion_claims;
-pub mod identity_encoding;
-pub mod integer_arithmetic;
 pub mod owner_loans;
 pub mod ownership_frontier;
 pub mod provenance;
 pub mod storage_projection;
 pub mod structural_stores;
 pub mod structural_type_catalog;
-pub mod values;
-
-pub mod emission;

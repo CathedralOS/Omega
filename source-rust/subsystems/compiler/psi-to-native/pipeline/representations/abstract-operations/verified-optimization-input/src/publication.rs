@@ -1,5 +1,5 @@
 //! Closed semantic records and their issuance-time admission.
-pub use native_vocabulary::emission::{
+pub use target_vocabulary::publication::{
     DescriptorProducer, DescriptorProducerFact, EmissionFunctionFacts, EmissionOperationProvenance,
     EmissionProgramFacts, OptimizedProgramProjection, PrimitiveLocalFact, RamObligation, RamSource,
     ScalarCallOrigin, ScalarCallResultFact,

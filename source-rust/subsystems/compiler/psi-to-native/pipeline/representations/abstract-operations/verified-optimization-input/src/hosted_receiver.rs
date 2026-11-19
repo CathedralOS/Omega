@@ -16,7 +16,7 @@ impl AdmittedHostedReceiver {
         target: target::NativeTarget,
         profile: Option<target::TargetProfile>,
         admission: &crate::EmissionAdmission,
-        function: Option<&native_vocabulary::emission::EmissionFunctionFacts>,
+        function: Option<&target_vocabulary::publication::EmissionFunctionFacts>,
         abi: Option<&target_operations::LegalizedFunctionAbi>,
         entry: &crate::ValidatedNativeProgramEntrySettlement,
     ) -> Result<Self, Diagnostic> {
@@ -162,7 +162,7 @@ pub fn physical_contract_matches(
 pub struct ReceiverArgumentInput<'a> {
     pub target: target::NativeTarget,
     pub admission: &'a target_vocabulary::publication::NativeEntryFacts,
-    pub function: &'a native_vocabulary::emission::EmissionFunctionFacts,
+    pub function: &'a target_vocabulary::publication::EmissionFunctionFacts,
     pub abi: &'a target_operations::LegalizedFunctionAbi,
 }
 
@@ -208,7 +208,7 @@ pub fn validate_entry_arguments(
             != Some(source.declaration())
         || !matches!(
             function.result,
-            native_vocabulary::values::AbstractFunctionResult::Unit
+            operation_operands::values::AbstractFunctionResult::Unit
         )
         || !function.parameters.is_empty()
         || !function.entry_claims.is_empty()

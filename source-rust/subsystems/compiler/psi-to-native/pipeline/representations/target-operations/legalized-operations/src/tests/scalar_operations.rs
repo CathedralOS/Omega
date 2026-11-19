@@ -12,7 +12,7 @@ use super::{
     WorkSettlement, id, scalar_call_unit_plan,
 };
 use native_vocabulary::provenance::ValueDefinitionSite;
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use optimization_core::AcceptedObligationFactIdentity;
 
 #[test]
@@ -68,7 +68,7 @@ fn structural_control_identity_binds_descriptor_telescope_and_actual_source() {
             bindings: Vec::new(),
             work: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: native_vocabulary::values::AbstractStructuralBinding {
+                semantic: operation_operands::values::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -310,7 +310,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
             work: Vec::new(),
             cleanup_calls: Vec::new(),
             structural_bindings: vec![crate::LegalizedStructuralBinding {
-                semantic: native_vocabulary::values::AbstractStructuralBinding {
+                semantic: operation_operands::values::AbstractStructuralBinding {
                     parameter: id(500),
                     argument: terminal_psi::StructuralArgument {
                         place: id(504),
@@ -319,7 +319,7 @@ fn structural_edge_identity_and_liveness_retain_selector_evidence() {
                     },
                 },
                 indices: vec![crate::LegalizedRuntimeIndexOperand {
-                    operand: native_vocabulary::values::AbstractResult {
+                    operand: operation_operands::values::AbstractResult {
                         value: id(510),
                         scalar_type: scalar_type.as_checking(),
                     },
@@ -391,7 +391,7 @@ fn lifecycle_identity_and_liveness_retain_original_owner_and_projection_evidence
                 },
             },
             indices: vec![crate::LegalizedRuntimeIndexOperand {
-                operand: native_vocabulary::values::AbstractResult {
+                operand: operation_operands::values::AbstractResult {
                     value: id(403),
                     scalar_type: scalar_type.as_checking(),
                 },

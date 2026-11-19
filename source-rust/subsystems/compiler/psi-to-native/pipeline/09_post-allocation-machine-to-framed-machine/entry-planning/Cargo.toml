@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+operation-operands = { path = "../../representations/operation-operands" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = ".." }
 program-entry-plan = { path = "../../../installation/program-entry" }
@@ -26,4 +28,3 @@ target-aarch64 = { path = "../../../targets/target-aarch64" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../../psi" }
-native-vocabulary = { path = "../../../native-vocabulary" }

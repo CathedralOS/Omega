@@ -15,13 +15,13 @@ use target_operations::CallSiteOwner;
 struct PlanningSource<'a> {
     program: &'a post_allocation_machine::PostAllocationMachineProgram,
     frames: &'a machine_code::TargetFrameLayoutPlan,
-    semantic: &'a native_vocabulary::emission::EmissionProgramFacts,
+    semantic: &'a target_vocabulary::publication::EmissionProgramFacts,
 }
 
 pub fn capture(
     program: &post_allocation_machine::PostAllocationMachineProgram,
     frames: &machine_code::TargetFrameLayoutPlan,
-    semantic: &native_vocabulary::emission::EmissionProgramFacts,
+    semantic: &target_vocabulary::publication::EmissionProgramFacts,
 ) -> PhysicalInternalCallPlans {
     let source = PlanningSource {
         program,
@@ -67,7 +67,7 @@ mod source {
     pub(super) fn function_facts<'a>(
         source: &'a PlanningSource<'_>,
         machine: MachineId,
-    ) -> Result<&'a native_vocabulary::emission::EmissionFunctionFacts, Error> {
+    ) -> Result<&'a target_vocabulary::publication::EmissionFunctionFacts, Error> {
         let mut rows = source
             .semantic
             .functions
@@ -93,16 +93,16 @@ mod source {
             ))
     }
     pub(super) fn call_target_matches(
-        expected: native_vocabulary::calls::AbstractCallTarget,
+        expected: operation_operands::calls::AbstractCallTarget,
         actual: target_operations::NativeCallTarget,
     ) -> bool {
         match (expected, actual) {
             (
-                native_vocabulary::calls::AbstractCallTarget::Machine(expected),
+                operation_operands::calls::AbstractCallTarget::Machine(expected),
                 target_operations::NativeCallTarget::Machine(actual),
             ) => expected == actual,
             (
-                native_vocabulary::calls::AbstractCallTarget::Dynamic {
+                operation_operands::calls::AbstractCallTarget::Dynamic {
                     selector,
                     interface,
                     slot,
@@ -623,7 +623,7 @@ mod established_views {
             .filter(|row| row.operation == producer)
             .map(|row| &row.descriptor);
         match producers.next() {
-            Some(native_vocabulary::emission::DescriptorProducer::ByteSubslice(result))
+            Some(target_vocabulary::publication::DescriptorProducer::ByteSubslice(result))
                 if result.place == argument.place
                     && result.structural_type == argument.root_structural_type
                     && matches!(
@@ -633,7 +633,7 @@ mod established_views {
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty() => {}
-            Some(native_vocabulary::emission::DescriptorProducer::ElementView(result))
+            Some(target_vocabulary::publication::DescriptorProducer::ElementView(result))
                 if result.place == argument.place
                     && result.structural_type == argument.root_structural_type
                     && matches!(
@@ -647,7 +647,7 @@ mod established_views {
                         &result.projected_qualifications,
                     )
                     && result.claims.is_empty() => {}
-            Some(native_vocabulary::emission::DescriptorProducer::ByteLiteral {
+            Some(target_vocabulary::publication::DescriptorProducer::ByteLiteral {
                 place,
                 structural_type,
             }) if *place == argument.place && *structural_type == argument.root_structural_type => {
@@ -893,7 +893,7 @@ mod primitive_locals {
             producer: Option<(
                 OperationId,
                 terminal_psi::StructuralOperationResult,
-                native_vocabulary::values::AbstractResult,
+                operation_operands::values::AbstractResult,
             )>,
             selected: &SelectedFunction,
             place: PlaceId,
@@ -1164,7 +1164,7 @@ mod scalar_result {
         source: &PlanningSource<'_>,
         selected: &SelectedFunction,
         contract: &selected_instructions::SelectedCallContract,
-    ) -> Result<Option<native_vocabulary::values::AbstractResult>, Error> {
+    ) -> Result<Option<operation_operands::values::AbstractResult>, Error> {
         let Some(callee_machine) = contract.call.target.machine() else {
             return Ok(None);
         };
@@ -1186,11 +1186,11 @@ mod scalar_result {
                 return None;
             }
             let matches = match row.target {
-                native_vocabulary::emission::ScalarCallOrigin::Authored(callee) => {
+                target_vocabulary::publication::ScalarCallOrigin::Authored(callee) => {
                     installed_boundary.is_none()
                         && source::call_target_matches(callee, contract.call.target)
                 }
-                native_vocabulary::emission::ScalarCallOrigin::Boundary(boundary) => {
+                target_vocabulary::publication::ScalarCallOrigin::Boundary(boundary) => {
                     installed_boundary == Some(boundary)
                 }
             };
@@ -1239,7 +1239,7 @@ mod scalar_result {
     fn definition_is_exact(
         register: &selected_instructions::VirtualRegister,
         instruction: selected_instructions::SelectedInstructionId,
-        result: native_vocabulary::values::AbstractResult,
+        result: operation_operands::values::AbstractResult,
     ) -> bool {
         register.scalar_type == result.scalar_type
             && matches!(register.origin,
@@ -1258,7 +1258,7 @@ mod scalar_result {
         #[test]
         fn scalar_call_result_requires_the_exact_call_definition_and_value() {
             let instruction = SelectedInstructionId(7);
-            let result = native_vocabulary::values::AbstractResult {
+            let result = operation_operands::values::AbstractResult {
                 value: ValueId::new(9).unwrap(),
                 scalar_type: ScalarType::Integer(
                     semantic_vocabulary::IntegerType::new(

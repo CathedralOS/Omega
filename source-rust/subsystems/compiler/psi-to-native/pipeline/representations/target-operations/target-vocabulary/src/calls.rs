@@ -244,7 +244,7 @@ pub fn selector_carrier_type() -> semantic_vocabulary::ScalarType {
     )
 }
 
-pub type NativeCallTarget = native_vocabulary::calls::AbstractCallTarget;
+pub type NativeCallTarget = operation_operands::calls::AbstractCallTarget;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetAccessCallBinding {

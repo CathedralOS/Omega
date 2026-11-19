@@ -19,7 +19,7 @@ belong with these records; this crate contains no prepared instruction graph.
 pub use calling_conventions::MachineRegister;
 pub use installation_evidence::InstalledAssumedBindingEvidence;
 pub use native_vocabulary::completion_claims::CompletionClaimSource;
-pub use native_vocabulary::values::{AbstractResult, ValueBinding};
+pub use operation_operands::values::{AbstractResult, ValueBinding};
 
 pub mod calls;
 pub use calls::{

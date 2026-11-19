@@ -382,7 +382,7 @@ pub mod ownership {
         pub successor_operation_ordinal: usize,
         pub source_block: BlockId,
         pub target_block: BlockId,
-        pub bindings: Vec<native_vocabulary::values::ValueBinding>,
+        pub bindings: Vec<operation_operands::values::ValueBinding>,
         pub cleanup: UnitAffineCleanupRecord, // Zero-byte cleanup boundary before the successor's first operation.
     }
 

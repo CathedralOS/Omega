@@ -61,7 +61,7 @@ pub struct PhysicalInternalCall {
     pub source: InternalUnitCallSource,
     pub owner: target_vocabulary::CallSiteOwner,
     pub target: MachineId,
-    pub semantic_result: Option<native_vocabulary::values::AbstractResult>,
+    pub semantic_result: Option<operation_operands::values::AbstractResult>,
     pub scalar_arguments: Vec<PhysicalScalarCallArgument>,
     pub arguments: Vec<PhysicalStructuralCallArgument>,
     pub claim_transfers: Vec<ClaimTransfer>,

@@ -363,7 +363,7 @@ impl OptimizedAbstractProgram {
     }
 }
 
-pub(crate) use native_vocabulary::identity_encoding::encode_scalar_type;
+pub(crate) use semantic_vocabulary::identity_encoding::encode_scalar_type;
 
 pub(crate) use ::wire::cursor::TakeError;
 

@@ -9,6 +9,7 @@ name = "abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+operation-operands = { path = "../operation-operands" }
 record-storage = { path = "../../../../../../foundation/record-storage" }
 native-vocabulary = { path = "../../../native-vocabulary" }
 language-core = { path = "../../../../foundation/language-core" }

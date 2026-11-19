@@ -14,7 +14,7 @@ pub mod identity;
 pub mod publication;
 
 use native_vocabulary::provenance::WorkSettlement;
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::{
     MachineAlternativeKey, SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity,
