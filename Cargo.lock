@@ -1206,7 +1206,6 @@ dependencies = [
  "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
- "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -1240,7 +1239,6 @@ dependencies = [
  "normalized-foreign-call-plan",
  "optimization-core",
  "optimization-unit",
- "post-handoff-writer-plan",
  "register-model",
  "selected-instructions",
  "semantic-vocabulary",
@@ -2018,17 +2016,6 @@ dependencies = [
  "target-x86_64",
  "terminal-psi",
  "terminal-semantics",
-]
-
-[[package]]
-name = "post-handoff-writer-plan"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "layout-plans",
- "semantic-vocabulary",
- "storage-materialization",
- "wire",
 ]
 
 [[package]]

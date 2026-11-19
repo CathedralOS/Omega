@@ -12421,6 +12421,8 @@ pub(crate) mod movn_materialization {
     }
 }
 mod normalized_foreign_call {
+    mod callback_field;
+
     use normalized_foreign_call_plan::{Fixup, Template};
     use register_model::{RegisterOperandAccess, RegisterViewId, ValidatedPhysicalRegisterModel};
     use selected_instructions::{
@@ -12602,6 +12604,30 @@ mod normalized_foreign_call {
     }
 
     #[test]
+    fn callback_record_field_encodes_the_selected_bits() {
+        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
+        let field = Aarch64CallbackMaterializationDestination::RecordField {
+            root_register: MachineRegister::Aarch64X(0),
+            placements: PrivateCallbackPlacements::new(&[
+                layout_plans::LayoutPlacementReport::Bits {
+                    container: 4,
+                    container_width: 32,
+                    destination_lsb: 5,
+                    source_lsb: 17,
+                    width: 10,
+                },
+            ]),
+        };
+        assert_eq!(
+            callback_group_bytes(&field).unwrap(),
+            [
+                0x10, 0x00, 0x00, 0x90, 0x10, 0x02, 0x00, 0x91, 0x11, 0x04, 0x40, 0xb9, 0x0f, 0x6a,
+                0x51, 0xd3, 0xf1, 0x25, 0x7b, 0xb3, 0x11, 0x04, 0x00, 0xb9
+            ]
+        );
+    }
+
+    #[test]
     fn field_sizes_match_encoded_callbacks_and_refusals() {
         use calling_conventions::{MachineRegister as R, PrivateCallbackPlacements};
         use layout_plans::LayoutPlacementReport::{At, Bits};
@@ -12676,9 +12702,7 @@ mod normalized_foreign_call {
                 return None;
             }
             for placement in placements.as_slice() {
-                crate::post_handoff_writer::append_fragment(
-                    &mut bytes, 16, root, 15, 17, *placement,
-                )?;
+                callback_field::append_fragment(&mut bytes, 16, root, 15, 17, *placement)?;
             }
         }
         Some(bytes)
