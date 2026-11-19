@@ -101,7 +101,27 @@ impl PackageBuildHandoff {
 }
 
 impl super::PackageCompilationInputs {
-    pub fn admit_package_native_declarations(
+    /// Admit retained native declarations against the selected Product dependencies.
+    /// The consuming source resolves their symbol handles in its own typing arena.
+    pub fn product_native_bindings(
+        &self,
+    ) -> Result<
+        Vec<source_compiler::product_source::PackageNativeBindings<'_>>,
+        Vec<diagnostics::Diagnostic>,
+    > {
+        self.dependency_build_handoff_instances()
+            .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)
+            .map(|(_, handoff)| {
+                Ok(source_compiler::product_source::PackageNativeBindings {
+                    declarations: self.admit_package_native_declarations(handoff)?,
+                    intents: handoff.native_intents(),
+                    evaluation: handoff.native_evaluation(),
+                })
+            })
+            .collect()
+    }
+
+    fn admit_package_native_declarations(
         &self,
         handoff: &PackageBuildHandoff,
     ) -> Result<Vec<CapturedNativeDeclaration>, Vec<diagnostics::Diagnostic>> {
@@ -122,11 +142,5 @@ impl super::PackageCompilationInputs {
                 Ok(admitted)
             })
             .collect()
-    }
-
-    pub fn product_dependency_native_handoffs(&self) -> impl Iterator<Item = &PackageBuildHandoff> {
-        self.dependency_build_handoff_instances()
-            .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)
-            .map(|(_, handoff)| handoff)
     }
 }

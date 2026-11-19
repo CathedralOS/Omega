@@ -8,25 +8,40 @@ use crate::source_state::service_declarations::{
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
+#[path = "prepare_and_check/native_bindings.rs"]
+mod native_bindings;
+pub use native_bindings::{NativeBindingInputs, PackageNativeBindings};
+
+/// The source descriptions and events returned by the selected Build execution.
+#[derive(Default)]
+pub struct ProductPolicyInputs<'a> {
+    pub activation: Option<&'a source_admission::RetainedDeclaration>,
+    pub declared: &'a [Arc<crate::declaration_selection::ProductDeclarationRequest>],
+    pub executed: &'a [crate::declaration_selection::ExecutedProductSelection],
+    pub native_bindings: &'a [crate::declaration_selection::ExecutedNativeBinding],
+    pub exclusions: &'a [crate::declaration_selection::ExecutedEnumExclusion],
+}
+
 pub struct ProductSourceInputs<'a> {
     pub targets: &'a [crate::source_targets::SourceTarget],
     pub calling_targets: &'a [&'a str],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
     /// Bindings returned by Build. The receiving source resolves their exact declarations.
     pub root_binding_requests: &'a [crate::declaration_selection::ExecutedRootBinding],
-    pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
+    pub policy: ProductPolicyInputs<'a>,
     /// Package-authenticated declarations and closed operands from dependency Builds.
     pub default_provider_selections: &'a [crate::evaluation::provider_declarations::RetainedProviderSelection],
-    pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
-    pub representations: crate::ProductRepresentationInput<'a>,
+    pub native_bindings: NativeBindingInputs<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    pub wire_demands: &'a [crate::preparation::WireCompatibilityDemand],
     pub optimizations: optimization::PsiOptimizationSelections,
 }
 
 pub struct CompletedProductSource {
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
     pub source_completion_accounting: crate::evaluation::SourceCompletionAccounting,
+    pub grants: Vec<symbols::root_grants::AuthoredRootGrant>,
+    pub declarations: crate::evaluation::product_declarations::AdmittedProductDeclarations,
+    pub exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     pub(crate) terminal_publication: Arc<crate::SourcePublication>,
     deployments: Vec<String>,
     explicit_providers: Vec<crate::provider_choice_inputs::ProviderSelection>,
@@ -60,15 +75,30 @@ impl CompletedProductSource {
     }
 }
 
-pub fn prepare_lower_and_check(
-    mut typed: crate::source_state::TypedTrees,
+pub(crate) fn prepare_lower_and_check(
+    mut continuation: crate::SourceContinuation,
     inputs: ProductSourceInputs<'_>,
     build_accounting: &crate::evaluation::SourceCompletionAccounting,
-    accounting: &mut crate::evaluation::SourceCompletionAccounting,
     inspection: Option<&str>,
     frontier: Option<&mut Option<crate::TypedFrontier>>,
     observer: &mut impl crate::PsiCompilationObserver,
 ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
+    let policy = &inputs.policy;
+    let activation = policy.activation.map(|declaration| {
+        crate::source_state::source_subjects::rejoin_build_activation(
+            continuation.typed(), inputs.subject, declaration,
+        ).map_err(|reason| vec![Diagnostic::error(reason)])
+    }).transpose()?;
+    let admitted = continuation.admit_product_policy(crate::ProductPolicyRequest {
+        activation,
+        declared: policy.declared,
+        executed: policy.executed,
+        native_bindings: policy.native_bindings,
+        exclusions: policy.exclusions,
+    })?;
+    let native_supplies = inputs.native_bindings.resolve(&mut continuation, admitted.native_bindings)?;
+    let crate::PreparedSource { mut typed, mut accounting } =
+        continuation.complete_authored(observer)?.finish();
     accounting
         .validate_charges()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -87,13 +117,18 @@ pub fn prepare_lower_and_check(
         )?;
     let mut pass = ProductSourcePass {
         inputs,
+        activation,
+        explicit_providers: admitted.providers,
+        representations: admitted.representations,
+        declarations: admitted.declarations,
+        native_supplies,
         root_bindings,
         default_provider_selections,
         inspection,
         frontier,
         build_accounting,
         initial_accounting: accounting.clone(),
-        accounting,
+        accounting: &mut accounting,
         observer,
     };
     let mut judged = prepare_and_judge(&mut pass, typed, &[])?;
@@ -115,13 +150,21 @@ pub fn prepare_lower_and_check(
         deployments: pass.inputs.calling_targets.iter()
             .map(|target| (*target).to_owned())
             .collect(),
-        explicit_providers: pass.inputs.provider_selections.to_vec(),
-        native_supplies: pass.inputs.native_bindings.to_vec(),
+        explicit_providers: pass.explicit_providers,
+        grants: admitted.grants,
+        declarations: pass.declarations,
+        exclusions: admitted.exclusions,
+        native_supplies: pass.native_supplies,
     })
 }
 
 struct ProductSourcePass<'a, 'f, O> {
     inputs: ProductSourceInputs<'a>,
+    activation: Option<symbols::SymbolHandle>,
+    explicit_providers: Vec<crate::provider_choice_inputs::ProviderSelection>,
+    representations: Vec<crate::source_state::opaque_representations::OpaqueRepresentationSelection>,
+    declarations: crate::evaluation::product_declarations::AdmittedProductDeclarations,
+    native_supplies: Vec<crate::provider_choice_inputs::NativeBuildSupply>,
     root_bindings: Vec<crate::RootBinding>,
     default_provider_selections: Vec<crate::provider_choice_inputs::ProviderSelection>,
     inspection: Option<&'f str>,
@@ -166,8 +209,8 @@ fn prepare_and_judge(
     // for this package's entries (`judge_supplied_product`), where the
     // provider's own calls read each requirement it uses.
     let root = pass.inputs.subject;
-    let claimed = build
-        .native_bindings
+    let claimed = pass
+        .native_supplies
         .iter()
         .filter(|supply| root.is_none_or(|root| supply.selection.supplier_package == root))
         .collect::<Vec<_>>();
@@ -178,7 +221,7 @@ fn prepare_and_judge(
     let layout_scopes = layout_target_scopes(
         &typed,
         root_bindings,
-        build.provider_selections,
+        &pass.explicit_providers,
         chosen_defaults,
         &claimed_selections,
         build.targets,
@@ -241,12 +284,12 @@ fn prepare_and_judge(
         layout_scopes: &layout_scopes,
         layout_selection_authority: build.layout_selection_authority.clone(),
         representations: crate::ProductRepresentationInput {
-            activation: build.representations.activation,
-            declared: build.representations.declared,
-            executed: build.representations.executed,
-            retained: build.representations.retained,
+            activation: pass.activation,
+            declared: build.policy.declared,
+            executed: build.policy.executed,
+            retained: &pass.representations,
         },
-        wire_demands: build.wire_demands,
+        wire_demands: &pass.declarations.wire_demands,
         declarations: None,
     };
 
@@ -365,7 +408,7 @@ fn prepare_and_judge(
     } = crate::source_provider_choices::prepare_with_source_defaults(
         &program,
         build.calling_targets,
-        build.provider_selections,
+        &pass.explicit_providers,
         &[],
         &prepared_provider_defaults,
     )?;
@@ -483,8 +526,8 @@ fn prepare_and_judge(
         crate::source_supply::judge_supplied_product(crate::source_supply::ProductSupplySource {
             targets: &targets,
             publication: terminal_publication,
-            build: build.provider_selections,
-            native_bindings: build.native_bindings,
+            build: &pass.explicit_providers,
+            native_bindings: &pass.native_supplies,
             defaults: &provider_defaults,
             layout_deferred: &deferred_defaults,
             layout_prepared: chosen_defaults,

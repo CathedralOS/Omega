@@ -19,6 +19,7 @@ evaluation-receipts = { path = "../../evaluation/receipts" }
 normalized-build-settings = { path = "../normalized" }
 optimization-requests = { path = "../../optimization-policy/requests" }
 package-compilation = { path = "../../package-compilation" }
+source-admission = { path = "../../../source-to-psi/pipeline/representations/source-files/custody" }
 source-completion-accounting = { path = "../../../source-to-psi/pipeline/prepare_and_check/accounting" }
 source-declarations = { path = "../../../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 source-provenance = { path = "../../../foundation/source-provenance" }

@@ -283,6 +283,12 @@ impl PreparedBuildExecution {
             native_binding_evaluation,
             ..Default::default()
         };
+        let activation = source_compiler::source_symbols::retain_declaration(
+            &self.accepted.source().symbols, self.machine.symbol,
+        ).map_err(|reason| self.refuse(reason))?;
+        let selected_build_declaration = source_admission::RetainedDeclaration::from_retained_parts(
+            activation.source().clone(), activation.span(), activation.kind(),
+        ).map_err(|reason| self.refuse(reason))?;
         Ok(ComputedBuildConfig {
             accepted_build: Some(self.accepted),
             config,
@@ -296,7 +302,7 @@ impl PreparedBuildExecution {
             optimization_report_request: completed.optimization_report,
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
-            selected_build_machine_symbol: Some(self.machine.symbol),
+            selected_build_declaration: Some(selected_build_declaration),
             generated_sources,
         })
     }

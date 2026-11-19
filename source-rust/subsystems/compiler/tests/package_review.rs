@@ -3544,12 +3544,11 @@ machine main() {}
     let [build] = reviewed.policy.callables().callables() else {
         panic!("the selected Build must retain its own checked contract");
     };
-    assert_eq!(
-        build.identity().path(),
-        checked
-            .symbols
-            .display_path(checked.build().selected_build_machine_symbol.unwrap(), "::",)
-    );
+    let activation = checked.build().selected_build_declaration.as_ref().unwrap();
+    let selected = source_compiler::source_state::source_subjects::rejoin_build_activation(
+        &checked, Some(package), activation,
+    ).unwrap();
+    assert_eq!(build.identity().path(), checked.symbols.display_path(selected, "::"));
     assert_eq!(
         build.identity().owner(),
         review_evidence::record::PackageReviewNominalOwner::Package(package)
