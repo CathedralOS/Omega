@@ -9,6 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 provider-plans = { path = "../compiler/build/providers/plans" }
 language-core = { path = "../compiler/foundation/language-core" }
