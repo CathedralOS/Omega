@@ -163,6 +163,61 @@ fn exact_byte_literals_freeze_as_owned_array_elements() {
 }
 
 #[test]
+fn explicitly_omitted_owned_fields_use_the_checked_default_shape() {
+    let source = "data Phase [copy] {case Busy(amount:u8); case Empty;}
+                  data Settings [copy] {enabled:bool; phase:Phase; fraction:f32; attempts:u8; empty:[u8;0]; samples:[[Phase;2];2];}
+                  const VALUE:Settings=Settings{attempts:4,..};";
+    let prepared = prepare(source).unwrap();
+    let Some(PreparedValue::Record { fields, .. }) = prepared.constant(declaration(&prepared, "VALUE")) else {
+        panic!("missing Settings constant")
+    };
+    assert_eq!(fields[0], PreparedValue::Bool(false));
+    assert_eq!(
+        fields[1],
+        PreparedValue::Sum {
+            owner: declaration(&prepared, "Phase").clone(),
+            case: declaration(&prepared, "Phase::Busy").clone(),
+            fields: [PreparedValue::Integer(0.into())].into(),
+        }
+    );
+    assert_eq!(fields[2].float(), Some(omega_preparation::PreparedFloat::Binary32(0)));
+    assert_eq!(fields[3], PreparedValue::Integer(4.into()));
+    assert_eq!(fields[4], PreparedValue::Array([].into()));
+    let phases = PreparedValue::Array([fields[1].clone(), fields[1].clone()].into());
+    assert_eq!(fields[5], PreparedValue::Array([phases.clone(), phases].into()));
+
+    let gated = source.replace("data Phase [copy] {", "data Phase [copy] requires false {");
+    let error = prepare(&gated).unwrap_err().message;
+    assert!(error.contains("zero value requires proof of the data predicate"), "{error}");
+    let oversized = source.replace("[u8;0]", "[u8;18446744073709551615]");
+    let error = prepare(&oversized).unwrap_err().message;
+    assert!(error.contains("requires checked preparation storage"), "{error}");
+}
+
+#[test]
+fn selected_owned_fields_and_case_bindings_use_declaration_order() {
+    let source = "data Pair [copy]{first:u8; second:u8;}
+                  data Choice [copy]{case Selected(pair:Pair); case Empty;}
+                  data Wrapper [copy]{choice:Choice;}
+                  machine first(p:Pair)->u8 {p.first}
+                  machine branch(w:Wrapper)->u8 {match w.choice {
+                      Choice::Selected{pair}->first(pair),
+                      Choice::Empty->250u8 * 2u8,
+                  }}
+                  const VALUE:u8=branch(Wrapper{choice:Choice::Selected{pair:Pair{second:8,first:3}}});
+                  const READ:u8=RECORD.choice.first;
+                  data Nested [copy]{choice:Pair;}
+                  const RECORD:Nested=Nested{choice:Pair{second:1,first:7}};";
+    let prepared = prepare(source).unwrap();
+    assert_eq!(prepared.integer_constant(declaration(&prepared, "VALUE")), Some(&3.into()));
+    assert_eq!(prepared.integer_constant(declaration(&prepared, "READ")), Some(&7.into()));
+
+    let other = source.replace("choice:Choice::Selected{pair:Pair{second:8,first:3}}", "choice:Choice::Empty");
+    let error = prepare(&other).unwrap_err().message;
+    assert!(error.contains("exact multiplication exceeds"), "{error}");
+}
+
+#[test]
 fn differently_sized_arrays_refuse_the_same_byte_literal() {
     for width in [1, 3] {
         let source = format!(r#"const VALUE:[u8;{width}]="é";"#);

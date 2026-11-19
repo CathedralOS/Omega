@@ -12,6 +12,11 @@ const COUNTDOWN: &str = "machine count(n:u64)->u64 terminates by n {
     match n == 0u64 {true -> 7u64, false -> count(n - 1u64),}
 }
 const VALUE:u64=count(3u64);";
+const MUTUAL_COUNTDOWN: &str = "machine first(n:u64)->u64 terminates by n {second(n)}
+machine second(n:u64)->u64 terminates by n {
+    match n == 0u64 {true -> 9u64, false -> first(n - 1u64),}
+}
+const VALUE:u64=first(3u64);";
 
 fn typed<'text>(
     source: &'text str,
@@ -35,11 +40,25 @@ fn typed<'text>(
 /// production checker. The selected core view orders the unsigned parameter
 /// as a natural number. Only the nonzero branch calls back, subtracting one
 /// exactly from that parameter, so its argument is natural and strictly smaller.
-fn check_countdown<'trees, 'text>(trees: &'trees TypedTrees<'text>) -> Option<CheckedRecursiveBody<'trees, 'text>> {
+fn check_countdown<'trees, 'text>(trees: &'trees TypedTrees<'text>) -> Option<CheckedRecursiveComponent<'trees, 'text>> {
+    let (member, call) = countdown(trees, "count", "count", RecursiveApplication::default())?;
+    Some(CheckedRecursiveComponent {
+        trees,
+        members: vec![member],
+        edges: vec![CheckedRecursiveEdge { caller: 0, callee: 0, call }],
+        observations: Vec::new(),
+    })
+}
+
+fn ranked_member<'trees>(
+    trees: &'trees TypedTrees<'_>,
+    name: &str,
+    application: RecursiveApplication,
+) -> Option<(CheckedRecursiveMember<'trees>, usize)> {
     let signature = trees
         .signatures
         .iter()
-        .find(|signature| signature.machine.path == "count")?;
+        .find(|signature| signature.machine.path == name)?;
     let [(_, WORD)] = signature.parameters.as_slice() else { return None };
     if signature.result != WORD {
         return None;
@@ -79,6 +98,29 @@ fn check_countdown<'trees, 'text>(trees: &'trees TypedTrees<'text>) -> Option<Ch
     }
 
     let body = file.child(declaration, NodeKind::Body)?;
+    Some((
+        CheckedRecursiveMember {
+            signature,
+            body: file.node_id(body),
+            application,
+        },
+        parameter,
+    ))
+}
+
+fn countdown<'trees>(
+    trees: &'trees TypedTrees<'_>,
+    name: &str,
+    next_machine: &str,
+    application: RecursiveApplication,
+) -> Option<(CheckedRecursiveMember<'trees>, &'trees TypedCall)> {
+    let (member, parameter) = ranked_member(trees, name, application)?;
+    let signature = member.signature;
+    let tree = trees.trees().nth(signature.node.file)?;
+    let resolved = tree.resolved();
+    let file = resolved.file;
+    let binds_parameter = |node| matches!(resolved.symbol(node), Some(Symbol::Binding { binder_node, kind: NodeKind::Param, .. }) if *binder_node == parameter);
+    let body = member.body.node;
     let [tail] = *file.nodes[body].children.as_slice() else { return None };
     let [dispatch] = *file.nodes[tail].children.as_slice() else { return None };
     let [guard, base_arm, step_arm] = *file.nodes[dispatch].children.as_slice() else {
@@ -108,33 +150,80 @@ fn check_countdown<'trees, 'text>(trees: &'trees TypedTrees<'text>) -> Option<Ch
     }
     let call = selected_call(&tree, step, CallUse::Execution).ok()??;
     let [operand] = call.operands.as_slice() else { return None };
-    if call.caller.as_ref() != Some(&signature.machine) || call.machine != signature.machine || operand.node.file != signature.node.file {
+    if call.caller.as_ref() != Some(&signature.machine) || call.machine.path != next_machine || operand.node.file != signature.node.file {
         return None;
     }
     let next = file.ungroup(operand.node.node);
     let [subject, decrement] = *file.nodes[next].children.as_slice() else {
         return None;
     };
-    if selected_arithmetic(&tree, next, &WORD).ok()? != ("-", &WORD) || !binds_parameter(subject) || landed_value(&tree, decrement, &WORD).ok()?? != 1.into() {
+    if selected_arithmetic(&tree, next, &WORD, None).ok()? != ("-", WORD)
+        || !binds_parameter(subject)
+        || landed_value(&tree, decrement, &WORD).ok()?? != 1.into()
+    {
         return None;
     }
     let call = trees.calls.iter().find(|record| std::ptr::eq(*record, call))?;
-    Some(CheckedRecursiveBody {
+    Some((member, call))
+}
+
+/// The only transfer out of `first` preserves the rank. Every cycle must
+/// then take `second`'s sole recursive edge, which strictly lowers it.
+fn check_mutual_countdown<'trees, 'text>(trees: &'trees TypedTrees<'text>) -> Option<CheckedRecursiveComponent<'trees, 'text>> {
+    let (first, parameter) = ranked_member(trees, "first", RecursiveApplication::default())?;
+    let (second, decrement) = countdown(trees, "second", "first", RecursiveApplication::default())?;
+    let tree = trees.trees().nth(first.body.file)?;
+    let file = tree.resolved().file;
+    let [tail] = *file.nodes[first.body.node].children.as_slice() else {
+        return None;
+    };
+    let [call] = *file.nodes[tail].children.as_slice() else { return None };
+    if file.nodes[tail].kind != NodeKind::Tail {
+        return None;
+    }
+    let preserve = selected_call(&tree, call, CallUse::Execution).ok()??;
+    let [operand] = preserve.operands.as_slice() else { return None };
+    if preserve.caller.as_ref() != Some(&first.signature.machine)
+        || preserve.machine != second.signature.machine
+        || decrement.machine != first.signature.machine
+        || operand.node.file != first.body.file
+        || !matches!(tree.resolved().symbol(operand.node.node), Some(Symbol::Binding { binder_node, kind: NodeKind::Param, .. }) if *binder_node == parameter)
+    {
+        return None;
+    }
+    let preserve = trees
+        .calls
+        .iter()
+        .find(|record| std::ptr::eq(*record, preserve))?;
+    Some(CheckedRecursiveComponent {
         trees,
-        signature,
-        body: file.node_id(body),
-        edges: vec![call],
+        members: vec![first, second],
+        edges: vec![
+            CheckedRecursiveEdge {
+                caller: 0,
+                callee: 1,
+                call: preserve,
+            },
+            CheckedRecursiveEdge {
+                caller: 1,
+                callee: 0,
+                call: decrement,
+            },
+        ],
+        observations: Vec::new(),
     })
 }
 
 fn evaluate<'trees, 'text>(
     trees: &'trees TypedTrees<'text>,
-    evidence: Option<CheckedRecursiveBody<'trees, 'text>>,
+    evidence: Option<CheckedRecursiveComponent<'trees, 'text>>,
     slots: &'trees [omega_typer::BoundarySlot],
 ) -> Result<PreparedValue, TypeError> {
     let mut evaluation = ConstantEvaluation::new(trees, slots);
-    evaluation.termination.evidence = evidence;
-    evaluation.evaluate(&trees.constants[0].initializer, None)
+    evaluation.termination.evidence = evidence.into_iter().collect();
+    evaluation
+        .evaluate(&trees.constants[0].initializer, None)
+        .map(|value| PreparedValue::from(&value))
 }
 
 #[test]
@@ -157,8 +246,8 @@ fn consumes_only_evidence_for_the_exact_typed_body() {
         .iter()
         .find(|signature| signature.machine.path == "count")
         .unwrap();
-    assert_eq!(proof().signature.node, changed_signature.node);
-    assert_eq!(proof().signature.machine, changed_signature.machine);
+    assert_eq!(proof().members[0].signature.node, changed_signature.node);
+    assert_eq!(proof().members[0].signature.machine, changed_signature.machine);
 
     let second_body = COUNTDOWN.replace("count", "second");
     let second_body = second_body.trim_end_matches("const VALUE:u64=second(3u64);");
@@ -180,6 +269,194 @@ fn consumes_only_evidence_for_the_exact_typed_body() {
                 .contains(CYCLIC_INVOCATION)
         );
     }
+}
+
+#[test]
+fn requires_one_joint_proof_for_every_mutual_recursion_edge() {
+    let trees = typed(MUTUAL_COUNTDOWN, "app");
+    let proof = || check_mutual_countdown(&trees).expect("the round trip strictly lowers a natural number");
+    assert_eq!(evaluate(&trees, Some(proof()), &[]).unwrap(), PreparedValue::Integer(9.into()));
+
+    let mut missing_edge = proof();
+    missing_edge.edges.pop();
+    let mut wrong_body = proof();
+    wrong_body.members[0].body = wrong_body.members[1].body;
+    let mut wrong_call = proof();
+    wrong_call.edges[1].call = trees.calls.iter().find(|call| call.caller.is_none()).unwrap();
+    for malformed in [missing_edge, wrong_body, wrong_call] {
+        let error = evaluate(&trees, Some(malformed), &[]).unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("recursive component: first -> second -> first"),
+            "{}",
+            error.message
+        );
+    }
+
+    let mut evaluator = ConstantEvaluation::new(&trees, &[]);
+    for member in proof().members {
+        evaluator.termination.evidence.push(CheckedRecursiveComponent {
+            trees: &trees,
+            members: vec![member],
+            edges: Vec::new(),
+            observations: Vec::new(),
+        });
+    }
+    let error = evaluator
+        .evaluate(&trees.constants[0].initializer, None)
+        .unwrap_err();
+    assert!(error.message.contains(CYCLIC_INVOCATION));
+
+    let no_descent = MUTUAL_COUNTDOWN
+        .replace("n - 1u64", "n - 0u64")
+        .replace("first(3u64)", "first(0u64)");
+    let unchanged = typed(&no_descent, "app");
+    assert!(check_mutual_countdown(&unchanged).is_none());
+    assert!(
+        evaluate(&unchanged, Some(proof()), &[])
+            .unwrap_err()
+            .message
+            .contains(CYCLIC_INVOCATION)
+    );
+}
+
+#[test]
+fn independent_recursive_components_share_a_typing_pass() {
+    let source = format!(
+        "{COUNTDOWN}\n{}",
+        COUNTDOWN
+            .replace("count", "second")
+            .replace("VALUE", "SECOND")
+            .replace("7u64", "11u64")
+    );
+    let trees = typed(&source, "app");
+    let mut evaluator = ConstantEvaluation::new(&trees, &[]);
+    for name in ["count", "second"] {
+        let (member, call) = countdown(&trees, name, name, RecursiveApplication::default()).unwrap();
+        evaluator.termination.evidence.push(CheckedRecursiveComponent {
+            trees: &trees,
+            members: vec![member],
+            edges: vec![CheckedRecursiveEdge { caller: 0, callee: 0, call }],
+            observations: Vec::new(),
+        });
+    }
+    let frozen = evaluator.finish().unwrap();
+    for (name, expected) in [("VALUE", 7), ("SECOND", 11)] {
+        let (id, value) = frozen.iter().find(|(id, _)| id.path == name).unwrap();
+        assert_eq!(value, &PreparedValue::Integer(expected.into()), "{}", id.path);
+    }
+}
+
+#[test]
+fn recursive_applications_need_proofs_for_their_exact_static_substitutions() {
+    let source = "machine count<T>(n:u64)->u64 terminates by n {
+        match n == 0u64 {true -> 7u64, false -> count::<T>(n - 1u64),}
+    }
+    const FIRST:u64=count::<u8>(3u64);
+    const SECOND:u64=count::<u16>(0u64);";
+    let trees = typed(source, "app");
+    let constant = |name| {
+        &trees
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap()
+            .initializer
+    };
+    let proof = |name| {
+        let request = constant(name);
+        let entrance = trees
+            .calls
+            .iter()
+            .find(|call| call.node == request.node)
+            .unwrap();
+        let application = RecursiveApplication::select(entrance, ValueType::clone).unwrap();
+        let (member, call) = countdown(&trees, "count", "count", application).unwrap();
+        CheckedRecursiveComponent {
+            trees: &trees,
+            members: vec![member],
+            edges: vec![CheckedRecursiveEdge { caller: 0, callee: 0, call }],
+            observations: Vec::new(),
+        }
+    };
+    let mut evaluator = ConstantEvaluation::new(&trees, &[]);
+    evaluator.termination.evidence.push(proof("FIRST"));
+    assert_eq!(
+        evaluator.evaluate(constant("FIRST"), None).unwrap(),
+        omega_typer::StaticValue::Integer(7.into())
+    );
+    assert!(
+        evaluator
+            .evaluate(constant("SECOND"), None)
+            .unwrap_err()
+            .message
+            .contains(CYCLIC_INVOCATION)
+    );
+
+    let mut evaluator = ConstantEvaluation::new(&trees, &[]);
+    evaluator
+        .termination
+        .evidence
+        .extend([proof("FIRST"), proof("SECOND")]);
+    assert_eq!(
+        evaluator.evaluate(constant("SECOND"), None).unwrap(),
+        omega_typer::StaticValue::Integer(7.into())
+    );
+}
+
+#[test]
+fn termination_replays_the_exact_target_plan_used_by_its_proof() {
+    use crate::{LayoutExtent, LayoutGeometry, SelectedLayout, TargetIdentity, TargetSemantics};
+    use omega_typer::LayoutQuery;
+
+    let trees = typed(COUNTDOWN, "app");
+    let identity = TargetIdentity {
+        profile: "test".into(),
+        semantics_version: 1,
+        realization: (&b"test target"[..]).into(),
+    };
+    let target = |plan: &'static [u8]| {
+        TargetSemantics::new(
+            identity.clone(),
+            [SelectedLayout {
+                target: identity.clone(),
+                subject: WORD,
+                schema: (&b"u64"[..]).into(),
+                plan: plan.into(),
+                geometry: LayoutGeometry {
+                    extent: LayoutExtent::Fixed(8),
+                    alignment: Some(8),
+                },
+            }],
+            [],
+        )
+        .unwrap()
+    };
+    let (original, different) = (target(b"first plan"), target(b"second plan"));
+    let (size, observation) = original.observe_layout(LayoutQuery::Size, &WORD).unwrap();
+    assert_eq!(different.observe_layout(LayoutQuery::Size, &WORD).unwrap().0, size);
+    let mut proof = check_countdown(&trees).unwrap();
+    proof.observations.push(observation.clone());
+    let mut evaluator = ConstantEvaluation::new(&trees, &[]);
+    evaluator.termination.evidence.push(proof);
+    evaluator.target = Some(&different);
+    assert!(
+        evaluator
+            .evaluate(&trees.constants[0].initializer, None)
+            .unwrap_err()
+            .message
+            .contains("different target selection")
+    );
+    assert!(evaluator.observations.borrow().is_empty());
+    evaluator.target = Some(&original);
+    assert_eq!(
+        evaluator
+            .evaluate(&trees.constants[0].initializer, None)
+            .unwrap(),
+        omega_typer::StaticValue::Integer(7.into())
+    );
+    assert_eq!(evaluator.observations.borrow().as_slice(), &[observation]);
 }
 
 #[test]
@@ -225,15 +502,20 @@ fn a_recursive_return_keeps_the_enclosing_activation_active() {
     let trees = typed(COUNTDOWN, "app");
     let mut evaluation = ConstantEvaluation::new(&trees, &[]);
     let evidence = check_countdown(&trees).unwrap();
-    let signature = evidence.signature;
-    evaluation.termination.evidence = Some(evidence);
+    let signature = evidence.members[0].signature;
+    evaluation.termination.evidence.push(evidence);
     let mut execution = Execution::default();
+    let call = trees.calls.last().unwrap().node;
 
     execution.values.push(PreparedValue::Integer(0.into()));
-    evaluation.enter_call(signature, &mut execution).unwrap();
+    evaluation
+        .enter_call(call, signature, None, None, &mut execution)
+        .unwrap();
     let outer_steps = execution.steps.len();
     execution.values.push(PreparedValue::Integer(0.into()));
-    evaluation.enter_call(signature, &mut execution).unwrap();
+    evaluation
+        .enter_call(call, signature, None, None, &mut execution)
+        .unwrap();
     while execution.steps.len() > outer_steps {
         let step = execution.steps.pop().unwrap();
         evaluation.evaluate_step(step, &mut execution).unwrap();
@@ -253,7 +535,7 @@ fn checking_a_rank_does_not_allow_runtime_boundary_selection() {
     let evidence = check_countdown(&trees).unwrap();
     let slots = [BoundarySlot {
         requirement: RequirementSlot {
-            declaration: evidence.signature.machine.clone(),
+            declaration: evidence.members[0].signature.machine.clone(),
             trait_arguments: vec![],
         },
         arguments: vec![],
@@ -280,14 +562,14 @@ fn evidence_for_a_body_edge_does_not_authorize_a_distinct_call_in_an_argument() 
     let trees = typed(&source, "app");
     let mut evaluation = ConstantEvaluation::new(&trees, &[]);
     let evidence = check_countdown(&trees).unwrap();
-    let signature = evidence.signature;
-    let call = evidence.edges[0];
+    let signature = evidence.members[0].signature;
+    let call = evidence.edges[0].call;
     let tree = trees.trees().nth(signature.node.file).unwrap();
     let index = evaluation.signatures()[&signature.machine].0;
-    evaluation.termination.evidence = Some(evidence);
+    evaluation.termination.evidence.push(evidence);
     let mut execution = Execution::default();
     execution.active.insert(signature.node);
-    let body = Scope::Body(Rc::new(CallBindings(RefCell::new(vec![]))));
+    let body = Scope::Body(Rc::new(CallBindings(RefCell::new(vec![]), None)));
     evaluation
         .admit_termination(index, signature, call, &body, &tree, &execution)
         .unwrap();
@@ -308,4 +590,93 @@ fn evidence_for_a_body_edge_does_not_authorize_a_distinct_call_in_an_argument() 
         .admit_termination(index, signature, nested_call, &body, &tree, &execution)
         .unwrap_err();
     assert!(matches!(error, EvaluationError::Refused(CYCLIC_INVOCATION)));
+}
+
+pub(crate) fn countdown_evidence<'stage, 'text>(trees: &'stage TypedTrees<'text>) -> crate::CheckedPreparationEvidence<'stage, 'text> {
+    let component = check_countdown(trees).expect("the supplied countdown body decreases its natural rank");
+    crate::CheckedPreparationEvidence::default().with_recursive_component(component)
+}
+
+/// Entering through a static binder uses the same checked component as a
+/// direct call. Its indirect occurrence cannot authorize a recursive edge.
+#[test]
+fn a_ranked_static_callback_requires_the_exact_component() {
+    let source = COUNTDOWN.replace(
+        "const VALUE:u64=count(3u64);",
+        "machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+         const VALUE:u64=apply::<count>(3u64);",
+    );
+    let progress = omega_typer::TypingProgress::Complete(typed(&source, "app"));
+    let omega_typer::TypingProgress::Complete(trees) = &progress else {
+        unreachable!()
+    };
+    let error = crate::prepare_typing_pass(&progress, &[], None, crate::CheckedPreparationEvidence::default()).unwrap_err();
+    assert!(error.message.contains("requires a checked termination proof"), "{}", error.message);
+    let pass = crate::prepare_typing_pass(&progress, &[], None, countdown_evidence(trees)).unwrap();
+    let crate::PreparationAnswers::Frozen { constants, .. } = pass.answers else {
+        panic!("expected frozen countdown")
+    };
+    assert_eq!(constants[&trees.constants[0].declaration], PreparedValue::Integer(7.into()));
+}
+
+#[test]
+fn a_static_callback_wrapper_requires_its_exact_reachable_recursive_proof() {
+    let source = "machine count<const Tag:u64>(n:u64)->u64 terminates by n {
+            match n == 0u64 {true -> 7u64, false -> count::<Tag>(n - 1u64),}
+        }
+        machine relay<const Tag:u64>(n:u64)->u64 {
+            match n == 0u64 {true -> 9u64, false -> count::<Tag>(n),}
+        }
+        machine apply<const F:machine(n:u64)->u64>(n:u64)->u64 {F(n)}
+        const SKIP:u64=apply::<relay::<2>>(0u64);
+        const RUN:u64=apply::<relay::<2>>(3u64);";
+    let progress = omega_typer::TypingProgress::Complete(typed(source, "app"));
+    let omega_typer::TypingProgress::Complete(trees) = &progress else {
+        unreachable!()
+    };
+    let proof = |tag: u8| {
+        let argument = ValueType::StaticInteger {
+            carrier: Box::new(WORD),
+            value: tag.into(),
+        };
+        let application = RecursiveApplication {
+            arguments: vec![argument],
+            enclosing: vec![],
+        };
+        let (member, call) = countdown(trees, "count", "count", application).unwrap();
+        CheckedRecursiveComponent {
+            trees,
+            members: vec![member],
+            edges: vec![CheckedRecursiveEdge { caller: 0, callee: 0, call }],
+            observations: vec![],
+        }
+    };
+    // Evaluate the skipped branch first. Its direct call is absent from the
+    // execution trace, but it is still part of the callback's checked closure.
+    let skip = &trees
+        .constants
+        .iter()
+        .find(|constant| constant.declaration.path == "SKIP")
+        .unwrap()
+        .initializer;
+    for evidence in [None, Some(proof(1))] {
+        let mut evaluator = ConstantEvaluation::new(trees, &[]);
+        evaluator.termination.evidence = evidence.into_iter().collect();
+        let error = evaluator.evaluate(skip, None).unwrap_err();
+        assert!(error.message.contains(CYCLIC_INVOCATION), "{}", error.message);
+    }
+    let checked = crate::CheckedPreparationEvidence::default().with_recursive_component(proof(2));
+    let pass = crate::prepare_typing_pass(&progress, &[], None, checked).unwrap();
+    let crate::PreparationAnswers::Frozen { constants, .. } = pass.answers else {
+        panic!("expected closed callback values")
+    };
+    for (name, expected) in [("SKIP", 9), ("RUN", 7)] {
+        let declaration = &trees
+            .constants
+            .iter()
+            .find(|constant| constant.declaration.path == name)
+            .unwrap()
+            .declaration;
+        assert_eq!(constants[declaration], PreparedValue::Integer(expected.into()));
+    }
 }

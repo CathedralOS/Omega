@@ -20,7 +20,7 @@ fn specialized_callback_crash_retains_the_selected_guard_and_its_argument() {
         .unwrap();
     let spelling = |s: &omega_typer::Site| s.span.slice(code.as_bytes()).unwrap();
     assert_eq!(spelling(route.guard.as_ref().unwrap()), b"x == 0");
-    assert_eq!(spelling(&call.operands[0]), b"v");
+    assert_eq!(spelling(&call.operands[0].site), b"v");
     assert_eq!(spelling(&enclosing.site), b"forward::<guarded>(a)");
     assert_eq!(enclosing.caller.as_ref().unwrap().path, "outer");
     assert!(matches!(call.entry, omega_typer::InvocationTarget::StaticParameter { .. }));
@@ -635,7 +635,7 @@ fn guards_reference_direct_and_indirect_executions_and_their_declared_routes() {
             } => {
                 let call = stage.guarded_invocation(call).unwrap();
                 let route = stage.crash_route(route).unwrap();
-                (at(&call.site), at(&call.operands[0]), at(route.guard.as_ref().unwrap()), route.cause)
+                (at(&call.site), at(&call.operands[0].site), at(route.guard.as_ref().unwrap()), route.cause)
             }
             _ => panic!("unexpected specialization"),
         })

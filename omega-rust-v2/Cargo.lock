@@ -98,9 +98,12 @@ name = "omega-preparation"
 version = "0.0.0"
 dependencies = [
  "num-bigint",
+ "num-rational",
+ "num-traits",
  "omega-lexer",
  "omega-parser",
  "omega-resolver",
+ "omega-toolchain",
  "omega-typer",
  "spec-corpus",
 ]

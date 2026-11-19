@@ -9,6 +9,7 @@ pub struct CallableType {
     pub closed_runtime: bool,
     pub pause: PauseEffects,
     pub has_guarantee: bool,
+    pub requires: bool,
     pub reach: Option<Vec<ServiceApplication>>,
     pub terminates: bool,
     pub crash_ceiling: Option<Vec<CrashCause>>,

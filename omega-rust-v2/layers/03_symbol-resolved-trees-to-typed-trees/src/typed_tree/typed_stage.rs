@@ -44,6 +44,8 @@ pub struct FieldInitializer {
 pub struct StaticDataShape {
     pub fields: Vec<ValueType>,
     pub cases: Vec<(DeclarationId, Vec<ValueType>)>,
+    /// Every construction, including an implicit zero, owes the declaration's predicate.
+    pub requires_establishment: bool,
 }
 
 /// A local constant and the typed occurrence that initializes it.
