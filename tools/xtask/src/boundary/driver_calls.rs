@@ -23,12 +23,23 @@ const RETIRED_NATIVE_OPERATIONS: &[&str] = &[
 fn operation_owner(relative: &str, name: &str) -> Option<&'static str> {
     if SOURCE_OPERATIONS.contains(&name) {
         let source = super::linear_pipeline::SOURCE_DRIVER;
-        return (!under(relative, &[source])
-            || under(
-                relative,
-                &["source-rust/subsystems/compiler/source-to-psi/representations"],
-            ))
-        .then_some("request source compilation through its driver");
+        let module = relative
+            .strip_prefix(source)
+            .and_then(|path| path.strip_prefix('/'));
+        let allowed = match name {
+            "judge_terminal_source" | "judge_source_roster" => {
+                matches!(module, Some("source_judgment.rs" | "stages.rs"))
+            }
+            "prepare_lower_and_check" => matches!(module, Some("source_to_psi.rs" | "product.rs")),
+            _ => {
+                under(relative, &[source])
+                    && !under(
+                        relative,
+                        &["source-rust/subsystems/compiler/source-to-psi/representations"],
+                    )
+            }
+        };
+        return (!allowed).then_some("request source compilation through its driver");
     }
     if name == NATIVE_REQUEST {
         let owner = relative.strip_prefix("source-rust/subsystems/compiler/psi-to-native/");
@@ -120,6 +131,20 @@ mod tests {
     fn production_code_running_registered_tests_still_needs_a_checked_invocation() {
         assert!(!is_test_source("build/planning/registered_tests.rs"));
         assert!(is_test_source("build/execution/src/host/bindings/tests.rs"));
+    }
+
+    #[test]
+    fn compile_time_helpers_cannot_bypass_the_shared_source_judgment() {
+        let nested = "source-rust/subsystems/compiler/source-to-psi/compile_time/calls.rs";
+        assert!(operation_owner(nested, "judge_terminal_source").is_some());
+        assert!(operation_owner(nested, "prepare_lower_and_check").is_some());
+        assert!(
+            operation_owner(
+                "source-rust/subsystems/compiler/source-to-psi/source_judgment.rs",
+                "judge_terminal_source"
+            )
+            .is_none()
+        );
     }
 
     #[test]
