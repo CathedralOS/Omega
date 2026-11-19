@@ -57,6 +57,10 @@ Other packages separate shared records and preparation from program roots:
   every later form name them from here, and `check-boundary` refuses any path
   from those forms to `target-operations` itself. Selected and later forms
   also cannot reach `legalized-operations`, even through a helper crate.
+- [Structural storage](structural-storage/src/lib.rs) holds the declarations and
+  view plans carried by native forms. Its queries resolve a projection or access
+  against those declarations. Input preparation measures sequence constructors in
+  the selected machine bodies and hands the resulting bounds to the catalog.
 - [Native publication facts](target-operations/target-vocabulary/src/publication/emission.rs)
   retain each lowered function's parameters, result, source occurrences, value
   producers and memory obligations. Stage 04 records these facts while lowering

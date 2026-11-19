@@ -64,15 +64,13 @@ impl AbstractOperationPlan {
 }
 
 pub mod ownership;
-pub use native_vocabulary::structural_type_catalog;
-pub use native_vocabulary::structural_type_catalog::{
-    StructuralTypeCatalog, closed_owned_sequence_bounds,
-};
 pub use operation_operands::access_lifecycles::AccessLifecycleOperands;
 pub use operation_operands::access_references::{
     AccessReferenceBacking, BorrowedExtentBacking, ResidentReferenceBacking,
 };
 pub use ownership::CompletionClaimSource;
+pub use structural_storage::structural_type_catalog;
+pub use structural_storage::structural_type_catalog::StructuralTypeCatalog;
 pub mod atomic;
 pub use atomic::{
     AbstractAtomicEvent, AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite,

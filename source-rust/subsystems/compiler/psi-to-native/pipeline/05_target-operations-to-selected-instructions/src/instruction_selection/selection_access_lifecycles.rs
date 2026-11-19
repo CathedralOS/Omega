@@ -2329,10 +2329,10 @@ pub(crate) mod resource_profile {
                 LegalizedCallUnitParameter, LegalizedScalarInstructionKind,
                 LegalizedStructuralContract,
             };
-            use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
             use operation_operands::access_lifecycles::AccessLifecycleOperands;
             use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId};
             use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralDomainId};
+            use structural_storage::structural_type_catalog::StructuralTypeCatalog;
             use terminal_psi::{
                 StructuralAccess, StructuralArgument, StructuralMultiplicity,
                 StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,

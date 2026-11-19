@@ -79,6 +79,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions/foreign-calls",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions/physical-recipes",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/structural-storage",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary",

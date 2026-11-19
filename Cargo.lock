@@ -10,8 +10,8 @@ dependencies = [
  "operation-operands",
  "record-storage",
  "language-core",
- "native-vocabulary",
  "semantic-vocabulary",
+ "structural-storage",
  "terminal-psi",
 ]
 
@@ -51,7 +51,6 @@ dependencies = [
  "installation-evidence",
  "language-core",
  "legalized-operations",
- "native-vocabulary",
  "operation-evidence",
  "optimization-core",
  "optimization-unit",
@@ -61,6 +60,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
@@ -1336,13 +1336,13 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "language-core",
- "native-vocabulary",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
  "runtime-abi",
  "semantic-vocabulary",
  "sha2",
+ "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -1382,7 +1382,6 @@ dependencies = [
  "record-storage",
  "function-identity",
  "installation-evidence",
- "native-vocabulary",
  "optimization-core",
  "post-allocation-machine",
  "provider-stack-contribution",
@@ -1392,6 +1391,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -1616,20 +1616,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "native-vocabulary"
-version = "0.1.0"
-dependencies = [
- "arena",
- "record-storage",
- "optimization-core",
- "semantic-vocabulary",
- "terminal-psi",
- "terminal-semantics",
- "terminal-wire",
- "wire",
-]
-
-[[package]]
 name = "new031-terminal-validation"
 version = "0.1.0"
 dependencies = [
@@ -1840,10 +1826,10 @@ dependencies = [
  "abstract-operations",
  "arena",
  "declaration-contracts",
- "native-vocabulary",
  "optimization-core",
  "optimization-unit",
  "semantic-vocabulary",
+ "structural-storage",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -2052,7 +2038,6 @@ dependencies = [
  "installation-admission",
  "legalized-operations",
  "machine-code",
- "native-vocabulary",
  "operation-operands",
  "optimization-core",
  "physical-program",
@@ -2065,6 +2050,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "target-aarch64",
  "target-operations",
@@ -2415,7 +2401,6 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "layout-plans",
- "native-vocabulary",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
@@ -2426,6 +2411,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -3002,6 +2988,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "structural-storage"
+version = "0.1.0"
+dependencies = [
+ "operation-operands",
+ "semantic-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-wire",
+]
+
+[[package]]
 name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
@@ -3157,11 +3154,11 @@ dependencies = [
  "calling-conventions",
  "installation-evidence",
  "language-core",
- "native-vocabulary",
  "operation-evidence",
  "operation-operands",
  "runtime-abi",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -3183,7 +3180,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
- "native-vocabulary",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
@@ -3195,6 +3191,7 @@ dependencies = [
  "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "target-vocabulary",
  "terminal-psi",
@@ -3209,13 +3206,13 @@ dependencies = [
  "function-identity",
  "installation-evidence",
  "language-core",
- "native-vocabulary",
  "operation-evidence",
  "operation-operands",
  "optimization-core",
  "provider-stack-contribution",
  "runtime-abi",
  "semantic-vocabulary",
+ "structural-storage",
  "target",
  "terminal-psi",
  "terminal-semantics",

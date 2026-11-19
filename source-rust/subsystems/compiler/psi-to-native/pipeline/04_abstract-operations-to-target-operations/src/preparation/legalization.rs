@@ -594,7 +594,7 @@ fn entry_scalar_codecs(
                 .checked_sub(function.graph.scalar_parameters.len())
                 .and_then(|index| function.graph.parameters.get(index))
                 .ok_or_else(|| fail("scalar entry conversion has no structural parameter"))?;
-            let declaration = native_vocabulary::structural_type_catalog::unique_structural_type(
+            let declaration = structural_storage::structural_type_catalog::unique_structural_type(
                 function.graph.structural_types.iter(),
                 structural.structural_type,
             )

@@ -41,7 +41,7 @@ pub(super) fn encode(
     bytes: &mut Vec<u8>,
     function: &LegalizedScalarFunction,
     cached_catalog: &mut Option<(
-        native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+        structural_storage::structural_type_catalog::StructuralTypeCatalog,
         Vec<u8>,
     )>,
 ) {

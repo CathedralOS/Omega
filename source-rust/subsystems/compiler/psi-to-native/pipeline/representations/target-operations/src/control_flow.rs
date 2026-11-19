@@ -38,7 +38,7 @@ pub struct TargetStructuralContract {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetControlGraph {
-    pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+    pub structural_types: structural_storage::structural_type_catalog::StructuralTypeCatalog,
     pub call_plan: CallPlan,
     pub scalar_parameters: Vec<ScalarAbiValue>,
     pub parameters: Vec<TargetStructuralParameter>,

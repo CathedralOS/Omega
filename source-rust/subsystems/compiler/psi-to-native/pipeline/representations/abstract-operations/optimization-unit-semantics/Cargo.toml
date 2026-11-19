@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
 arena = { path = "../../../../../../../foundation/arena" }
-native-vocabulary = { path = "../../../../native-vocabulary" }
+structural-storage = { path = "../../structural-storage" }
 optimization-core = { path = "../../optimization-records" }
 optimization-unit = { path = "../optimization-unit" }
 abstract-operations = { path = ".." }

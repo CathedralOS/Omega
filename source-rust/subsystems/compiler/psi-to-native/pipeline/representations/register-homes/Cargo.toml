@@ -10,7 +10,7 @@ operation-operands = { path = "../operation-operands" }
 wire = { path = "../../../../../../foundation/wire" }
 target-vocabulary = { path = "../target-operations/target-vocabulary" }
 register-environment = { path = "../../../targets/register-environment" }
-native-vocabulary = { path = "../../../native-vocabulary" }
+structural-storage = { path = "../structural-storage" }
 layout-plans = { path = "../../../../psi/layout" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../function-identity" }

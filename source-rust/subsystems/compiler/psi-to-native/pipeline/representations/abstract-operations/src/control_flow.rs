@@ -9,7 +9,7 @@ both across the function entrance roster and every non-entry block's ordered
 or entry-block parameter collision.
 */
 
-pub use native_vocabulary::{address_joins, owner_loans};
+pub use structural_storage::{address_joins, owner_loans};
 
 use crate::{AbstractFunctionResult, AbstractOperation, AbstractParameter, ValueBinding};
 use semantic_vocabulary::{

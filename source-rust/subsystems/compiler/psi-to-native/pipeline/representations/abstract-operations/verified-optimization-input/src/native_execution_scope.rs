@@ -4,8 +4,11 @@
   machine, boundary, cleanup and interrupt edges without changing the module.
   Later stages retain that same selection with the lowered program.
 */
+mod sequence_bounds;
+
 use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use sequence_bounds::closed_owned_sequence_bounds;
 use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 struct ScalarDemand<'scope> {
@@ -467,10 +470,8 @@ impl NativeExecutionScope {
         ));
         index.selected_candidate_positions.sort_unstable();
         let owned_sequence_bounds =
-            abstract_operations::closed_owned_sequence_bounds(module, |machine| {
-                emitted.contains_machine(machine)
-            })
-            .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
+            closed_owned_sequence_bounds(module, |machine| emitted.contains_machine(machine))
+                .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
         let demands = module
             .boundary_application_demands_for_machines(emitted.machines())
             .and_then(|rows| {
@@ -603,12 +604,18 @@ impl NativeExecutionScope {
         &self.callbacks
     }
 
+    /// Derive bounds from all machine bodies when lowering the complete input.
+    pub fn full_module_owned_sequence_bounds(
+        module: &TerminalModule,
+    ) -> Result<Vec<(semantic_vocabulary::StructuralTypeId, u64)>, &'static str> {
+        closed_owned_sequence_bounds(module, |_| true)
+    }
+
     pub fn full_module_scalar_demand(
         module: &TerminalModule,
         layouts: &terminal_installation::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
-        let bounds = abstract_operations::closed_owned_sequence_bounds(module, |_| true)
-            .map_err(str::to_owned)?;
+        let bounds = Self::full_module_owned_sequence_bounds(module).map_err(str::to_owned)?;
         ScalarDemand {
             emitted: None,
             owned_sequence_bounds: &bounds,
@@ -896,6 +903,24 @@ mod scope_tests {
             &[],
             &[],
         )
+    }
+
+    #[test]
+    fn sequence_bounds_read_only_selected_constructors() {
+        let mut module = TerminalModule::for_entry(machine_id(1));
+        module.machines = vec![machine(
+            2,
+            OperationKind::EstablishStructuralArray { elements: vec![] },
+        )];
+        // The fixture has a scalar result, so including this machine must reject it.
+        assert_eq!(
+            closed_owned_sequence_bounds(&module, |id| id == machine_id(1)),
+            Ok(vec![])
+        );
+        assert_eq!(
+            closed_owned_sequence_bounds(&module, |_| true),
+            Err("sequence construction has no structural result")
+        );
     }
 
     #[test]

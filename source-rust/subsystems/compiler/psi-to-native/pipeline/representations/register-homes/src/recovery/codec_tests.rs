@@ -9,7 +9,6 @@ use access_admission::validate_placement;
 use access_vocabulary::BoundaryReach;
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use operation_evidence::provenance::{
     EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
 };
@@ -34,6 +33,7 @@ use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralDomainId, StructuralFieldId, StructuralTypeId,
     ValueId, WorkScheduleIdentity,
 };
+use structural_storage::structural_type_catalog::StructuralTypeCatalog;
 use target_vocabulary::{LegalizedScalarCall, LegalizedStructuralContract, NativeCallOrigin};
 use terminal_psi::{
     CrashCause, CrashRouteBucket, CrashRouteGuard, NominalDeclarationIdentity, SemanticFingerprint,

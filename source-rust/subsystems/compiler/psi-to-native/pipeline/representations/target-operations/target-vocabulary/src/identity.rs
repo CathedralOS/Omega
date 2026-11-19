@@ -48,7 +48,7 @@ use terminal_psi::{StructuralAccess, StructuralOperationResult, TerminalAccessVi
 /// catalogs are canonical; a failure here is a preparation bug.
 fn encode_access_view_catalog(
     bytes: &mut Vec<u8>,
-    catalog: &native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+    catalog: &structural_storage::structural_type_catalog::StructuralTypeCatalog,
 ) {
     let views = terminal_wire::encode_access_view_catalog(catalog.access_views())
         .expect("canonical access-view plans");
@@ -305,7 +305,7 @@ pub fn encode_structural_contract(
     bytes: &mut Vec<u8>,
     function: &LegalizedStructuralContract,
     cached_catalog: &mut Option<(
-        native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+        structural_storage::structural_type_catalog::StructuralTypeCatalog,
         Vec<u8>,
     )>,
 ) {

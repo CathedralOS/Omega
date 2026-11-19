@@ -24,7 +24,7 @@ use terminal_psi::StructuralPlaceDeclaration;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralContract {
     pub result: Option<terminal_psi::StructuralResultDeclaration>,
-    pub structural_types: native_vocabulary::structural_type_catalog::StructuralTypeCatalog,
+    pub structural_types: structural_storage::structural_type_catalog::StructuralTypeCatalog,
     pub parameters: Vec<LegalizedCallUnitParameter>,
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     pub entry_claims: Vec<EntryClaim>,
