@@ -127,9 +127,9 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
-| L2 Resolver | syntax tree → bound names and candidates for typing | done, signed off 2026-11-18 | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
-| L3 Typer | resolved tree → typed tree | typing and downstream proof obligations tested. Awaiting owner sign-off | 0.46 s (warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
+| L1 Parser | tokens → syntax trees | done, signed off 2026-11-18 | 1.12 s |
+| L2 Resolver | syntax trees → symbol-resolved trees | done, signed off 2026-11-18 | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
+| L3 Typer | symbol-resolved trees → typed trees | typing and downstream proof obligations tested. Awaiting owner sign-off | 0.46 s (warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
@@ -140,7 +140,7 @@ Psi to native code) are not planned yet.
 
 **Application built through syntax parsing, 2026-11-18.** Build the executable
 with `cargo build --release -p omega`, or try it from this checkout with
-`cargo run -p omega -- source parse layers/01-parser/fixtures/accept/types.omg`.
+`cargo run -p omega -- source parse layers/01_tokens-to-syntax-trees/fixtures/accept/types.omg`.
 Success is silent. A lexical or grammar refusal identifies the file, line
 and byte column on stderr. Jarod's spellings in the Fable session were
 `omega run main.omg` and `omega build build.omg`. The command chooses the
@@ -195,7 +195,7 @@ stage budget and lockfile details with the existing driver questions below.
   decimal, `0x`, `0b`, `0o` with digit underscores and carrier suffixes;
   quoted literals are bytes with seven escapes (`\n \r \t \0 \\ \" \xNN`), and
   codepoint escapes and raw newlines inside quotes reject.
-- **Contract:** [layers/00-lexer/CONTRACT.md](layers/00-lexer/CONTRACT.md).
+- **Contract:** [layers/00_bytes-to-tokens/CONTRACT.md](layers/00_bytes-to-tokens/CONTRACT.md).
   17 rules, each with its spec source and the fixtures that cover it.
 - **Built and signed off 2026-11-18.** Gate results:
   - 7 accept fixtures, 28 reject fixtures and 28 byte-level tests pass.
@@ -206,7 +206,7 @@ stage budget and lockfile details with the existing driver questions below.
     745 MB/s on one thread and 11 GB/s on all 32, up from about 78 MB/s
     at first. On the real path the lexer is not the limit: opening the
     files is, at about 100 MB/s. See
-    [layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md). Run with
+    [layers/00_bytes-to-tokens/EXPERIMENTS.md](layers/00_bytes-to-tokens/EXPERIMENTS.md). Run with
     `cargo run --release -p omega-lexer --example lex_tree -- <directory>`.
     None of those files is lexically invalid, so this checks what V2
     accepts, not what it refuses.
@@ -235,9 +235,9 @@ stage budget and lockfile details with the existing driver questions below.
 
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
   is carried by examples spread across `wiki/spec/language/`.
-- **Contract:** [layers/01-parser/GRAMMAR.md](layers/01-parser/GRAMMAR.md),
+- **Contract:** [layers/01_tokens-to-syntax-trees/GRAMMAR.md](layers/01_tokens-to-syntax-trees/GRAMMAR.md),
   derived from the spec's prose and all 132 examples, each form citing the
-  examples that show it. The parser in `layers/01-parser/src` was built
+  examples that show it. The parser in `layers/01_tokens-to-syntax-trees/src` was built
   against it on 2026-11-18.
 - **Gate passed and signed off 2026-11-18.**
 
@@ -251,7 +251,7 @@ stage budget and lockfile details with the existing driver questions below.
   | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,515 one-token deletions pass the robustness checks. |
   | Mutation | All 38 deliberate parser changes were caught, including removal of conformance selection rows and two changes to nested `@` after an access word. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
   | Suite time | 1.12 s median wall clock across three warm runs of `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
-  | Speed | The first three optimizations brought parsing to 571 MB/s on one thread (6.5 ns per token, 8.4% faster than the first build) and 8.1 GB/s on 32 threads. Experiment 9 cut parsing time on individual V2 fixtures by 8.5–11.2% and combined lexer and parser time by 2.6–4.0% across three build layouts. [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md) |
+  | Speed | The first three optimizations brought parsing to 571 MB/s on one thread (6.5 ns per token, 8.4% faster than the first build) and 8.1 GB/s on 32 threads. Experiment 9 cut parsing time on individual V2 fixtures by 8.5–11.2% and combined lexer and parser time by 2.6–4.0% across three build layouts. [EXPERIMENTS.md](layers/01_tokens-to-syntax-trees/EXPERIMENTS.md) |
 
 - **Design:** recursive descent, one function per grammar rule, with
   precedence climbing for binary operators. The tree is a flat list of
@@ -276,7 +276,7 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L2 to L4
 
-The [L2 resolver contract](layers/02-resolver/CONTRACT.md) covers the admitted
+The [L2 resolver contract](layers/02_syntax-trees-to-symbol-resolved-trees/CONTRACT.md) covers the admitted
 stage, lexical and package scope, visibility, domains, operators, requirements,
 generic applications and target names. The suite checks source provenance,
 input-order independence and the outcome of every spec fragment.
@@ -284,7 +284,7 @@ L2 binds the visible overload candidates at a call. L3 selects the machine
 using the typed operands. L3 and L4 establish closed application identities
 after argument values are known. Jarod signed off L2 on 2026-11-18.
 
-The [L3 typing contract](layers/03-typer/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 38 that reach L3. L3 selects typed operations and publishes the exact premises, conclusions, effects and static arguments that L4 and the proof checker consume. The contract distinguishes the tested typing paths from the outstanding cross-layer execution checks.
+The [L3 typing contract](layers/03_symbol-resolved-trees-to-typed-trees/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 38 that reach L3. L3 selects typed operations and publishes the exact premises, conclusions, effects and static arguments that L4 and the proof checker consume. The contract distinguishes the tested typing paths from the outstanding cross-layer execution checks.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
@@ -587,7 +587,7 @@ decisions belong in the [repository owner-question queue](../OWNER_QUESTIONS.md)
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all twelve decisions made and signed off. |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01_tokens-to-syntax-trees/GRAMMAR.md`, all twelve decisions made and signed off. |
 | 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
 | 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
@@ -636,7 +636,7 @@ questions in [Omega's root owner-question queue](../OWNER_QUESTIONS.md).
 | --- | --- | --- | --- | --- |
 | 1 | May `build.omg` register a build-only package while it runs and then use it? If yes, `build.omg` itself still needs staged checking (reason 2 under [Why V1 loops back](#why-v1-loops-back)). If build-only packages must be known before it runs, the only loop left is source discovery. | 2026-11-18 | driver | Answered 2026-11-18: no. A stage may discover a package and put it in its plan; a later stage imports it. Nothing is used in the stage that registers it. |
 | 2 | Where do a Build's own services come from? `build.omg` may import a file that declares or uses a service such as `Console`, but calling it needs a provider, and the decided Build model does not say who supplies one. Raised by Zac. | 2026-11-18 | driver, interpreter | Answered 2026-11-18: from the stage before it. The core-supplied first stage selects the ordinary build backings for `build.omg`, and the invocation grants the resources. See the [Build model](#v2s-build-model-a-chain-of-stages). |
-| 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
+| 4 | How should V2 load source files? Measured on V1's 19,442 files: reading file by file tops out near 90,000 files per second (about 125 MB/s) at 4 threads, or about 115,000 with real-time antivirus off, because each file costs 24 to 30 microseconds of operating-system work whatever its size. Reading the same bytes as one packed file runs at 6 to 9 GB/s. Getting near the drive therefore needs a packed copy of the sources plus a cheap way to see which files changed. Is that wanted, and at which stage? Details in [EXPERIMENTS.md](layers/00_bytes-to-tokens/EXPERIMENTS.md), experiment 6. | 2026-11-18 | driver, source loading | Deferred 2026-11-18, worth revisiting. Not built now: staleness detection is the hard part and nothing downstream exists to show what share of a build reading is. Revisit when a real build can be timed end to end and reading is more than about 10 to 20 percent of it, or when the full test suite's read time is felt. First thing to measure then: how cheaply the OS can report which files changed. See [What the operating system costs](#what-the-operating-system-costs). |
 | 5 | Should a comparison be allowed as the operand of another comparison? Today it is, because every operator groups to the left (grammar decision 6). The cost: a generic call written the old way, `apply<set_time>(x)`, is a valid expression, `(apply < set_time) > (x)`, and gets past the parser. The typer will refuse it, but with a message about comparing a machine. Refusing chained comparisons in the parser would catch it there with a message that says to write `::<`. No spec example chains comparisons. | 2026-11-18 | L1 | Answered 2026-11-18, after it was decided, undone and decided again: no. A comparison is not the operand of another without parentheses, for all six comparison operators as one group, so `a < b < c`, `a == b == c` and `a < b == c` are refused (grammar decision 11). The reason: the grouping has to be something the writer wrote. Where the types differ the typer would refuse a chain anyway (`false < 32`), which is why keeping the chain looked harmless. Where all three are booleans nothing objects: `a == b == c` type-checks as `(a == b) == c`, which is not "all three are equal". Rust, Zig and Lean refuse chains the same way; Rocq defines a chain as both comparisons holding; Odin groups to the left. Not adopted: forcing parentheses where `&&` and `||` are mixed. Not a reason: what a V1 user might write. |
 | 6 | How should a reader distinguish a nested borrow from an AND operator? | 2026-11-18 | L0, L1 | The initial answer kept prefix `&` and required spacing. Superseded by grammar decision 12: each `@` starts one reference or borrow, so `@@T` and `@@x` express two layers. |
 
@@ -669,7 +669,7 @@ Windows charges per file, not per byte:
 Put together: lexing the whole corpus takes about 2.4 ms and reading it file
 by file takes at least 170 ms. The compiler is not what a build of many small
 files waits for. Full figures and method are in
-[layers/00-lexer/EXPERIMENTS.md](layers/00-lexer/EXPERIMENTS.md), experiments
+[layers/00_bytes-to-tokens/EXPERIMENTS.md](layers/00_bytes-to-tokens/EXPERIMENTS.md), experiments
 4, 6 and 7. What to do about it is owner question 4.
 ## Decision log
 
@@ -685,7 +685,7 @@ files waits for. Full figures and method are in
 | 2026-11-18 | Rust on stable, `layers/NN-name/` layout, git repository; start with the lexer. | Jarod |
 | 2026-11-18 | Build model generalized to a chain of stages: every program is a stage, a stage starts with its inputs and backings settled, and selecting a backing is not granting a resource. Proposed by Zac, refined by Astra's review. | Jarod |
 | 2026-11-18 | L0 Lexer signed off, with its six gap rules accepted as consistent with the spec. L1 Parser starts with its grammar. | Jarod |
-| 2026-11-18 | Eight parser grammar decisions made, recorded in `layers/01-parser/GRAMMAR.md`: no `if` statement; `match` and `transition` are one grammar; nothing after `requires` before a body; no reserved words; V1's precedence; assembly parsed; `satisfies` expressions and `some` binders in. | Jarod |
+| 2026-11-18 | Eight parser grammar decisions made, recorded in `layers/01_tokens-to-syntax-trees/GRAMMAR.md`: no `if` statement; `match` and `transition` are one grammar; nothing after `requires` before a body; no reserved words; V1's precedence; assembly parsed; `satisfies` expressions and `some` binders in. | Jarod |
 | 2026-11-18 | Last two grammar decisions: arms are separated by commas; generic arguments in expressions are written `::<`. V2 may break compatibility with V1's source and the spec's examples freely. | Jarod, with Zac |
 | 2026-11-18 | A packed source copy is deferred, not rejected: revisit when a real build shows reading is a meaningful share of it. The per-file cost Windows imposes is recorded in the plan. | Jarod |
 | 2026-11-18 | Comparisons do not chain: a comparison needs parentheses to be the operand of another, for `==` and `!=` as well as the relational four. V1 is not an audience; a rule is not justified by what a V1 user might write. | Jarod, with Zac |

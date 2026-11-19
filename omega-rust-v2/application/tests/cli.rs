@@ -24,7 +24,7 @@ fn accepts_a_whole_file_with_v2_reference_syntax() {
         &[
             "source",
             "parse",
-            "../layers/01-parser/fixtures/accept/types.omg",
+            "../layers/01_tokens-to-syntax-trees/fixtures/accept/types.omg",
         ],
     );
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
@@ -33,7 +33,7 @@ fn accepts_a_whole_file_with_v2_reference_syntax() {
 
 #[test]
 fn resolves_only_the_named_package_files_and_locates_missing_callees() {
-    let root = application_directory().join("../layers/02-resolver/fixtures");
+    let root = application_directory().join("../layers/02_syntax-trees-to-symbol-resolved-trees/fixtures");
     let pass = invoke(
         &root.join("accept/sibling_machine"),
         &["source", "resolve", "combat/main.omg", "combat/scoring.omg"],
@@ -52,7 +52,7 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
 
 #[test]
 fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
-    let root = application_directory().join("../layers/03-typer/fixtures");
+    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
     let pass = invoke(&root, &["source", "type", "draw.omg", "render.omg"]);
     assert!(pass.status.success() && pass.stderr.is_empty() && pass.stdout.is_empty());
     let fail = invoke(&root, &["source", "type", "draw.omg", "wrong_result.omg"]);
@@ -67,7 +67,7 @@ fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
 
 #[test]
 fn types_a_computed_width_and_reports_the_overflowing_specialization() {
-    let fixtures = application_directory().join("../layers/03-typer/fixtures");
+    let fixtures = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
     let ok = invoke(&fixtures.join("accept"), &["source", "type", "computed_width.omg"]);
     let error = invoke(&fixtures.join("reject"), &["source", "type", "computed_width.omg"]);
     assert!(ok.status.success() && ok.stdout.is_empty() && ok.stderr.is_empty());
@@ -82,11 +82,11 @@ fn types_a_computed_width_and_reports_the_overflowing_specialization() {
 fn reports_layer_refusals_at_the_original_file_position() {
     for (path, diagnostic) in [
         (
-            "../layers/01-parser/fixtures/reject/ampersand_reference_type.omg",
+            "../layers/01_tokens-to-syntax-trees/fixtures/reject/ampersand_reference_type.omg",
             ":1:18: parser: expected a type (bytes 17..18)",
         ),
         (
-            "../layers/00-lexer/fixtures/reject/invalid_hex_escape.omg",
+            "../layers/00_bytes-to-tokens/fixtures/reject/invalid_hex_escape.omg",
             ":1:10: lexer: \\x must be followed by exactly two hexadecimal digits (bytes 9..11)",
         ),
     ] {
@@ -153,7 +153,7 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
 }
 #[test]
 fn source_type_checks_inherited_rows_and_locates_ambiguous_evidence() {
-    let root = application_directory().join("../layers/03-typer/fixtures");
+    let root = application_directory().join("../layers/03_symbol-resolved-trees-to-typed-trees/fixtures");
     let accepted = invoke(&root.join("accept"), &["source", "type", "inherited_row.omg"]);
     assert!(accepted.status.success(), "{}", String::from_utf8_lossy(&accepted.stderr));
     assert!(accepted.stdout.is_empty() && accepted.stderr.is_empty());
