@@ -192,7 +192,18 @@ pub fn optimize_selected_instructions(
     selected: instruction_selection::StagedOptimizedSelectedInstructions,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
     let body = std::sync::Arc::clone(selected.body_facts());
-    let liveness = stage_optimized_liveness(selected.into_optimization_input())
+    let program = selected.selected_program();
+    let custody = selected.custody().core();
+    let (register_environment, selections, budget_per_pass) = selected.into_optimization_settings();
+    let input = SelectedOptimizationInput {
+        program,
+        custody,
+        register_environment,
+        selections,
+        budget_per_pass,
+        record: SelectedOptimizationRecord::default(),
+    };
+    let liveness = stage_optimized_liveness(input)
         .map_err(SelectedInstructionOptimizationError::Liveness)?;
     let ranges = stage_optimized_live_ranges(liveness)
         .map_err(SelectedInstructionOptimizationError::LiveRanges)?;

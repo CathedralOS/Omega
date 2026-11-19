@@ -3632,7 +3632,6 @@ dependencies = [
  "register-environment",
  "register-model",
  "runtime-abi",
- "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
