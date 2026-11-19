@@ -11,8 +11,7 @@ use integer_constants::IntegerEvaluation;
 use num_bigint::BigInt;
 use omega_resolver::DeclarationId;
 use omega_typer::{
-    SourcePackage, SpecializedIndexValue, StaticIntegerDemand, StaticIntegerRequest, TypeError, TypedTrees, TypingEnvironment, TypingProgress,
-    type_source_package_for_preparation,
+    SourcePackage, SpecializedIndexValue, StaticIntegerDemand, TypeError, TypedTrees, TypingEnvironment, TypingProgress, type_source_package_for_preparation,
 };
 
 /// Typed trees whose demanded closed indices have been evaluated and materialized.
@@ -93,19 +92,19 @@ pub fn prepare_source_package<'text>(source: &SourcePackage<'text>) -> Result<Pr
             let request = match pending.demands().first().expect("pending typing has a demand") {
                 StaticIntegerDemand::Closed(request) | StaticIntegerDemand::Specialized { request, .. } => request,
             };
-            return Err(refusal(request, "typing did not advance after receiving the evaluation result"));
+            return Err(refusal(&request.expression, "typing did not advance after receiving the evaluation result"));
         }
     }
 }
 
 fn refusal(
-    request: &StaticIntegerRequest,
+    site: &omega_typer::Site,
     reason: &str,
 ) -> TypeError {
     TypeError {
-        package: request.expression.package.clone(),
-        file: request.expression.file.clone(),
-        span: request.expression.span,
+        package: site.package.clone(),
+        file: site.file.clone(),
+        span: site.span,
         message: format!("static evaluation cannot admit this invocation: {reason}"),
     }
 }
