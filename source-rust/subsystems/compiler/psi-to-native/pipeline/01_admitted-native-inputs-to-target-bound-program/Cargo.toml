@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+build-value-projection = { path = "../../../build/evaluation/value-projection" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }

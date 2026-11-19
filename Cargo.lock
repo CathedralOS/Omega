@@ -251,6 +251,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-invocation"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "build-value-projection",
+ "evaluation-accounting",
+ "evaluation-admission",
+ "layout-plans",
+ "psi-scalar-applications",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-work",
+]
+
+[[package]]
 name = "build-output"
 version = "0.1.0"
 dependencies = [
@@ -339,6 +356,17 @@ version = "0.1.0"
 dependencies = [
  "language-core",
  "source-provenance",
+]
+
+[[package]]
+name = "build-value-projection"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2656,6 +2684,7 @@ dependencies = [
  "application-identity",
  "arena",
  "build-time-values",
+ "build-value-projection",
  "calling-conventions",
  "declaration-scope",
  "diagnostics",
