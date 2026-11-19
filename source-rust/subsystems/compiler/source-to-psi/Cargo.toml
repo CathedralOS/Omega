@@ -92,16 +92,6 @@ path = "pipeline/00_source-files-to-tokens/benchmarks/lexer_timing.rs"
 harness = false
 required-features = ["test-support"]
 
-[[test]]
-name = "parsing_diagnostics"
-path = "pipeline/01_tokens-to-syntax-trees/tests/diagnostics.rs"
-required-features = ["test-support"]
-
-[[test]]
-name = "parsing_sample_files"
-path = "pipeline/01_tokens-to-syntax-trees/tests/sample_files.rs"
-required-features = ["test-support"]
-
 [[example]]
 name = "typing_declaration_shapes"
 path = "pipeline/03_symbol-resolved-trees-to-typed-trees/examples/declaration_shapes.rs"
@@ -155,11 +145,6 @@ required-features = ["test-support"]
 [[example]]
 name = "source_resolved_diagnostic_name_allocations"
 path = "pipeline/representations/symbol-resolved-trees/examples/diagnostic_name_allocations.rs"
-required-features = ["test-support"]
-
-[[test]]
-name = "parsing_stage_contract"
-path = "pipeline/01_tokens-to-syntax-trees/tests/stage_contract.rs"
 required-features = ["test-support"]
 
 [[bench]]

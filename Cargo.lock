@@ -2887,7 +2887,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "rayon",
- "source-admission",
  "source-files",
  "source-lexer",
  "source-text",
@@ -3012,7 +3011,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3020,7 +3018,7 @@ dependencies = [
  "record-storage",
  "serde",
  "serde_json",
- "source-admission",
+ "source-files",
  "source-text",
  "syntax-trees-derive",
 ]

@@ -3,8 +3,10 @@
 Start at [parser.rs](parser.rs). `parse_into` reads one token stream into a
 syntax page and returns its declaration roots. It dispatches declarations
 through [declarations/items.rs](declarations/items.rs). The
-[source compiler](../source-compilation/src/source_parsing.rs) calls this operation as it lexes each
+[streaming caller](streaming.rs) calls this operation as it lexes each
 file, recycling each token buffer after parsing.
+
+The [source-files input](../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic, stage-contract and sample tests with `mbx test --locked -p source-parser`.
 
 For an already-tokenized batch, `parse(&LexedSources, ParseOptions)` schedules
 pages, calls the same `parse_into` for each source and returns `ParsedSyntaxPages`.

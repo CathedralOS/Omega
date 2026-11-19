@@ -9,7 +9,9 @@ use source_lexer as lexing;
 use source_parser as parsing;
 use symbol_resolved_trees::source_resolved;
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend_operations.rs"]
+use source_admission::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
 
 #[path = "resolver.rs"]

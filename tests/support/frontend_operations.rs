@@ -1,13 +1,12 @@
 //! Fixture construction through the public lexical and parsing operations.
 #![allow(dead_code)]
-use super::{lexing, parsing};
-use source_admission::LoadedSource;
+use super::{LoadedSource, lexing, parsing};
 use source_text::SourceId;
 use syntax_trees::{ParsedRootItems, SyntaxTrees};
 
 #[path = "lexing.rs"]
 mod lexical;
-pub use lexical::{Lexer, lex_retained};
+pub use lexical::*;
 
 pub fn parse_syntax_trees(
     tokens: &tokens::TokenStream<'_>,

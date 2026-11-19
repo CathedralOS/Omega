@@ -19,5 +19,7 @@ use typed_trees_to_typed_trees::preparation;
 #[path = "src/lib.rs"]
 pub mod checking;
 #[cfg(test)]
-#[path = "../../../../../tests/support/frontend_operations.rs"]
+use source_admission::LoadedSource;
+#[cfg(test)]
+#[path = "../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;

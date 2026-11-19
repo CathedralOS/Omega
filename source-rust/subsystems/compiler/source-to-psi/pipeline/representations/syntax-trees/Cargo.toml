@@ -9,10 +9,9 @@ name = "syntax_trees"
 path = "lib.rs"
 
 [dependencies]
+source-files = { path = "../source-files" }
 artifacts = { path = "../../../../foundation/measurements" }
-declaration-contracts = { path = "../../../language/declaration-contracts" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
-source-admission = { path = "../../../inputs/source-admission" }
 source-text = { path = "../../../../../../foundation/source-text" }
 record-storage = { path = "../../../../../../foundation/record-storage" }
 syntax-trees-derive = { path = "derive" }

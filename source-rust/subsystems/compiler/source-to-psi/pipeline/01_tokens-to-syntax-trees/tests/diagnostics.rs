@@ -95,5 +95,9 @@ fn a_trait_requirement_carries_its_token_on_the_ordinary_machine_head() {
     );
 }
 
-#[path = "../../../../../../tests/support/frontend.rs"]
+use source_files::LoadedSource;
+use source_lexer as lexing;
+use source_parser as parsing;
+
+#[path = "../../../../../../../tests/support/frontend_operations.rs"]
 mod frontend_fixture;
