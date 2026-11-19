@@ -121,3 +121,90 @@ fn apply_cleanup_selection(
         subject: application.type_reference(program, selection.subject)?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_state::{data, name::Identifier, types::TypeReferenceNode};
+    use crate::source_symbols::SymbolTableBuilder;
+    use symbols::{SymbolKind, SymbolNameRef};
+
+    #[test]
+    fn a_refused_domain_coordinate_does_not_block_a_later_application_or_change_on_retry() {
+        let mut symbols = SymbolTableBuilder::new();
+        let declarations = ["MissingIndex", "GenericCarrier"].map(|name| {
+            let declaration = symbols.insert_root(SymbolKind::Domain, SymbolNameRef::Static(name));
+            let parameter = symbols
+                .insert_children(
+                    declaration,
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+                )
+                .start();
+            (name, declaration, parameter)
+        });
+        let mut program = TypedTrees::default();
+        program.symbols = symbols.finish();
+        let argument = program.type_reference_table.insert(TypeReferenceNode::Unit);
+        for (name, declaration, parameter) in declarations {
+            let index_is_missing = name == "MissingIndex";
+            let target_type = if index_is_missing {
+                argument
+            } else {
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol: parameter,
+                        name: Identifier::generated("T"),
+                    })
+            };
+            let type_parameters = program
+                .data_type_parameters
+                .insert_many([data::TypeParameter {
+                    name: Identifier::generated("T"),
+                    symbol: parameter,
+                    kind: data::TypeParameterKind::Type,
+                    ..Default::default()
+                }]);
+            let identity = program.semantic_domains.intern(name);
+            program.push_domain_definition(domain::DomainDefinition {
+                name: Identifier::generated(name),
+                symbol: declaration,
+                target_type,
+                type_parameters,
+                semantic_id: identity,
+                ..Default::default()
+            });
+            let indices = if index_is_missing {
+                std::slice::from_ref(&argument)
+            } else {
+                &[]
+            };
+            program
+                .retain_domain_application(declaration, argument, indices)
+                .unwrap();
+        }
+        prepare(&mut program).unwrap();
+        let rows = &program.applied_domain_applications;
+        assert_eq!(
+            rows.get(0)
+                .unwrap()
+                .theory
+                .as_ref()
+                .unwrap()
+                .as_ref()
+                .unwrap_err(),
+            "domain index declaration is not its direct parameter telescope"
+        );
+        let valid = rows.get(1).unwrap();
+        let theory = valid.theory.as_ref().unwrap().as_ref().unwrap();
+        assert_eq!(theory.semantic_id, valid.identity);
+        assert!(theory.type_parameters.is_empty());
+        assert_eq!(
+            program.type_reference_node(theory.target_type),
+            &TypeReferenceNode::Unit
+        );
+        let prepared = rows.clone();
+        prepare(&mut program).unwrap();
+        assert_eq!(program.applied_domain_applications, prepared);
+    }
+}
