@@ -773,6 +773,12 @@ impl ProofSearchActivity {
     }
 }
 
+#[derive(Clone, Debug)]
+struct ActiveCut {
+    proposition: Proposition,
+    origin: Option<crate::checking::known::DisjunctionOrigin>,
+}
+
 pub(crate) struct Prover<'a> {
     activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
@@ -807,7 +813,7 @@ pub(crate) struct Prover<'a> {
     remaining_case_branches: usize,
     /// A branch already assumes one alternative of each cut on this path.
     /// Splitting that exact predicate again supplies no new information.
-    active_cuts: Vec<Proposition>,
+    active_cuts: Vec<ActiveCut>,
     /// An auxiliary sign query can revisit its parent through contradiction
     /// search. The same goal under these unchanged premises supplies no proof.
     active_goals: Vec<Proposition>,
@@ -1635,11 +1641,20 @@ impl<'a> Prover<'a> {
             let Proposition::Disjunction(parts) = &fact.proposition else {
                 continue;
             };
-            if self.active_cuts.contains(&fact.proposition) {
+            let origin = fact.disjunction_origin(&self.facts);
+            if self.active_cuts.iter().any(|active| {
+                active.proposition == fact.proposition
+                    || origin
+                        .as_ref()
+                        .is_some_and(|origin| active.origin.as_ref() == Some(origin))
+            }) {
                 continue;
             }
             let parts = parts.clone();
-            self.active_cuts.push(fact.proposition.clone());
+            self.active_cuts.push(ActiveCut {
+                proposition: fact.proposition.clone(),
+                origin,
+            });
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {

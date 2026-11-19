@@ -926,6 +926,80 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
 }
 
 #[test]
+fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let values = IdTable::from_rows((1..=2).map(|raw| {
+        (
+            ValueId::new(raw).unwrap(),
+            ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter {
+                    position: u32::try_from(raw - 1).unwrap(),
+                },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let terms: Vec<_> = values
+        .keys()
+        .map(|id| ScalarTerm::value(id, scalar))
+        .collect();
+    let cuts: Vec<_> = terms
+        .iter()
+        .map(|term| {
+            Proposition::Disjunction(
+                [1, 2]
+                    .into_iter()
+                    .map(|limit| {
+                        Proposition::LessOrEqual(
+                            term.clone(),
+                            ScalarTerm::integer(integer, IntegerValue::Unsigned(limit)).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    let goal = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::embed(terms[0].clone()).unwrap()),
+            Box::new(IntegerMathTerm::embed(terms[1].clone()).unwrap()),
+        ),
+        IntegerMathTerm::literal(IntegerValue::Unsigned(4)),
+    );
+    let assumptions = [Proposition::Conjunction(cuts.clone())];
+    let proof = Prover::new(
+        &context,
+        &assumptions,
+        &[],
+        &values,
+        &mut ProofSearchActivity::default(),
+    )
+    .prove(&goal)
+    .unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    for omitted in 0..cuts.len() {
+        let assumptions = [cuts[1 - omitted].clone()];
+        assert!(
+            Prover::new(
+                &context,
+                &assumptions,
+                &[],
+                &values,
+                &mut ProofSearchActivity::default(),
+            )
+            .prove(&goal)
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -962,7 +1036,10 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
 
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    active.active_cuts.push(cut);
+    active.active_cuts.push(ActiveCut {
+        proposition: cut.clone(),
+        origin: None,
+    });
     assert!(active.split(&Proposition::Truth).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);
@@ -971,6 +1048,46 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
     assert!(failed.split(&unknown).is_none());
     assert_eq!(failed.activity.disjunction_materializations, 0);
+
+    let Proposition::Disjunction(parts) = cut else {
+        unreachable!("the test premise is a disjunction");
+    };
+    let mut values = values.clone();
+    let flag = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let definition = Proposition::Equal(
+        ScalarTerm::value(flag, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    let wrapped = Proposition::Disjunction(vec![
+        Proposition::Conjunction(vec![parts[0].clone(), definition.clone()]),
+        parts[1].clone(),
+    ]);
+    let assumptions = [wrapped.clone()];
+    let axioms = [definition];
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    assert!(active.facts.iter().any(|fact| {
+        matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
+    }));
+    let original = active
+        .facts
+        .iter()
+        .find(|fact| fact.proposition == wrapped)
+        .unwrap();
+    active.active_cuts.push(ActiveCut {
+        proposition: wrapped,
+        origin: original.disjunction_origin(&active.facts),
+    });
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(active.activity.disjunction_materializations, 0);
 }
 
 #[test]
