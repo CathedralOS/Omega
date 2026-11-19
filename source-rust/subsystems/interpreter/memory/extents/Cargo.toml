@@ -1,0 +1,14 @@
+[package]
+name = "extents"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "extents"
+path = "src/lib.rs"
+
+[dependencies]
+resource-bounds = { path = "../../../compiler/representations/psi/storage-bounds" }
+extent-contracts = { path = "../../../compiler/source-to-psi/language/extent-contracts" }
+arena = { path = "../../../../foundation/arena" }

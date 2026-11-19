@@ -1,0 +1,26 @@
+[package]
+name = "legalized-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "legalized_operations"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../../../../foundation/arena" }
+wire = { path = "../../../../../../../foundation/wire" }
+target-vocabulary = { path = "../target-vocabulary" }
+native-vocabulary = { path = "../../../../native-vocabulary" }
+language-core = { path = "../../../../../source-to-psi/language/source-vocabulary" }
+calling-conventions = { path = "../../../../targets/calling-conventions" }
+function-identity = { path = "../../../../native-vocabulary/function-identity" }
+optimization-core = { path = "../../../../optimization-contracts" }
+target = { path = "../../../../targets/target" }
+semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../representations/psi" }
+terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+runtime-abi = { path = "../../../../targets/runtime-abi" }
+terminal-wire = { path = "../../../../../representations/psi/wire" }
+sha2 = "0.10.9"

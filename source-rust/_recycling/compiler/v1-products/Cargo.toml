@@ -1,0 +1,46 @@
+[package]
+name = "products"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+published-program = { path = "../published-program" }
+published-runtime-input = { path = "../representations/published-runtime-input" }
+product-publication = { path = "../../../subsystems/compiler/build/build-output/product-publication" }
+portable-publication = { path = "source-publication" }
+compilation-inputs = { package = "psi-to-admitted-native-inputs", path = "../../../subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
+declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
+optimization-requests = { path = "optimization-requests" }
+source-text = { path = "../../../foundation/source-text" }
+provider-choices = { path = "../../../psi/compilation/representations/provider-choices" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
+component-description = { path = "../representations/component-description" }
+build-declarations = { path = "../../packages/build-declarations" }
+build-output = { path = "../../packages/build-output" }
+calling-conventions = { path = "../target-description/calling-conventions" }
+runtime-abi = { path = "../target-description/runtime-abi" }
+effects = { path = "../representations/native-effects" }
+native-compiler = { path = "../native-compiler" }
+provider-correspondence = { path = "../verification/provider-correspondence" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
+symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+task-plans = { path = "../representations/task-plans" }
+artifacts = { path = "measurements" }
+backend-plan = { path = "../representations/provider-plans" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+optimization-core = { path = "../representations/optimization-contracts" }
+package-compilation = { path = "../../packages/package-compilation" }
+platform-custody = { path = "../../host-support/platform-custody" }
+target = { path = "../target-description/target" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
+program-entry-plan = { path = "../representations/program-entry" }
+target-operations = { path = "../representations/target-operations" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+provider-admission = { path = "../verification/provider-admission" }
+installation-evidence = { path = "../representations/installation-evidence" }
+boundary-applications = { path = "../representations/boundary-applications" }

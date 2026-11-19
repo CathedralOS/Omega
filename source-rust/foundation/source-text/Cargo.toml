@@ -1,0 +1,8 @@
+[package]
+name = "source-text"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+record-storage = { path = "../record-storage" }

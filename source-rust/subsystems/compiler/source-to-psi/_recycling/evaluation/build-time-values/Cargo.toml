@@ -1,0 +1,11 @@
+[package]
+name = "build-time-values"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+numeric-literals = { path = "../../language/numeric-literals" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+numerics = { path = "../../language/scalar-values" }
+layout-plans = { path = "../../../../psi/layout" }

@@ -1,0 +1,51 @@
+[package]
+name = "compiler"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "compiler.rs"
+
+[dependencies]
+diagnostics = { path = "../../foundation/diagnostics" }
+native-compiler = { path = "psi-to-native" }
+product-publication = { path = "build/build-output/product-publication" }
+psi-to-native = { package = "published-program", path = "psi-to-native/published-program" }
+semantic-vocabulary = { path = "source-to-psi/language/semantic-vocabulary" }
+source-admission = { path = "source-to-psi/inputs/source-admission" }
+source-compiler = { path = "source-to-psi" }
+source-text = { path = "../../foundation/source-text" }
+target = { path = "psi-to-native/targets/target" }
+terminal-codec = { path = "representations/psi/codec" }
+terminal-installation = { path = "psi-admission" }
+
+[[test]]
+name = "build_charge"
+path = "tests/process/build_charge.rs"
+harness = false
+
+[[test]]
+name = "build_session"
+path = "tests/process/build_session.rs"
+harness = false
+
+[[test]]
+name = "default_build"
+path = "tests/process/default_build.rs"
+harness = false
+
+[[test]]
+name = "executed_git_source"
+path = "tests/process/executed_git_source.rs"
+harness = false
+
+[[test]]
+name = "package_batch_sources"
+path = "tests/process/package_batch_sources.rs"
+harness = false
+
+[[test]]
+name = "terminal_sharing"
+path = "tests/process/terminal_sharing.rs"
+harness = false

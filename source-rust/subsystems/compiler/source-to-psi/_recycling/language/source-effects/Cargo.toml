@@ -1,0 +1,17 @@
+[package]
+name = "flow-effects"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "flow_effects"
+path = "src/lib.rs"
+
+[dependencies]
+declaration-contracts = { path = "../declaration-contracts" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+arena = { path = "../../../../../foundation/arena" }
+symbols = { path = "../declaration-identity" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }

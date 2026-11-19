@@ -18,14 +18,14 @@ struct Snapshot {
     statements: usize,
     types: usize,
     shared: bool,
-    limits: compiler_storage::RecordLimits,
+    limits: record_storage::RecordLimits,
 }
 
 fn capture(typed: &TypedTrees, site: &'static str, shared: bool) -> Option<Snapshot> {
     trace::directory()?;
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let ordinal = NEXT.fetch_add(1, Ordering::Relaxed);
-    static LIMITS: std::sync::OnceLock<compiler_storage::RecordLimits> = std::sync::OnceLock::new();
+    static LIMITS: std::sync::OnceLock<record_storage::RecordLimits> = std::sync::OnceLock::new();
     let limits = *LIMITS.get_or_init(|| {
         let configuration = match std::env::var(snapshot_limits::ENVIRONMENT) {
             Ok(value) => value,
@@ -36,7 +36,7 @@ fn capture(typed: &TypedTrees, site: &'static str, shared: bool) -> Option<Snaps
         };
         let [bytes, allocation, elements, depth] =
             snapshot_limits::parse(&configuration).expect("validated private snapshot limits");
-        compiler_storage::RecordLimits {
+        record_storage::RecordLimits {
             bytes,
             allocation,
             elements,
@@ -82,7 +82,7 @@ impl Snapshot {
         // Export the returned clone before its caller mutates it. Reading the
         // payload beforehand would warm every table before the measured copy.
         if self.shared {
-            let bytes = compiler_storage::encode(typed, self.limits)
+            let bytes = record_storage::encode(typed, self.limits)
                 .expect("bounded real typed-program snapshot encodes");
             let length = bytes.len();
             std::fs::write(

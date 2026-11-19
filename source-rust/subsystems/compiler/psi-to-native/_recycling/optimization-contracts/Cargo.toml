@@ -1,0 +1,11 @@
+[package]
+name = "optimization-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+
+[dependencies]
+wire = { path = "../../../../foundation/wire" }
+optimization = { path = "../../representations/psi/optimization-selections" }

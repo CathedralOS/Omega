@@ -1,0 +1,25 @@
+[package]
+name = "compiler-tools"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[[bin]]
+name = "route_probe"
+path = "route_probe.rs"
+
+[[bin]]
+name = "generic_certificate_carry"
+path = "generic_certificate_carry.rs"
+
+[dependencies]
+compiler = { path = "../../source-rust/subsystems/compiler" }
+declaration-contracts = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-contracts" }
+package-compilation = { path = "../../source-rust/subsystems/compiler/build/package-compilation" }
+semantic-vocabulary = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/semantic-vocabulary" }
+source-admission = { path = "../../source-rust/subsystems/compiler/source-to-psi/inputs/source-admission" }
+source-compiler = { path = "../../source-rust/subsystems/compiler/source-to-psi", features = ["test-support"] }
+symbols = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-identity" }
+terminal-check-tables = { path = "../../source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program" }
+terminal-codec = { path = "../../source-rust/subsystems/compiler/representations/psi/codec" }

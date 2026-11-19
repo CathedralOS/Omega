@@ -1,0 +1,40 @@
+[package]
+name = "package-compilation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
+optimization-requests = { path = "../optimization-policy/requests" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-capture = { path = "../../../host-support/source-capture" }
+source-admission = { path = "../../source-to-psi/inputs/source-admission" }
+source-text = { path = "../../../../foundation/source-text" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+wire = { path = "../../../../foundation/wire" }
+record-storage = { path = "../../../../foundation/record-storage" }
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+source-acquisition = { path = "../source-acquisition" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+artifacts = { path = "../../compilation/products/measurements" }
+flow-effects = { path = "../../source-to-psi/language/source-effects" }
+optimization-core = { path = "../../psi-to-native/optimization-contracts" }
+arena = { path = "../../../../foundation/arena" }
+symbols = { path = "../../source-to-psi/language/declaration-identity" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+build-declarations = { path = "../build-declarations" }
+build-output = { path = "../build-output" }
+platform-custody = { path = "../../host-support/platform-custody" }
+effects = { path = "../../psi-to-native/installation/native-effects" }
+target = { path = "../../compilation/target-description/target" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../representations/psi" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+sha2 = "0.10.9"
+
+[target.'cfg(windows)'.dependencies]
+cap-primitives = "4.0.3"
+

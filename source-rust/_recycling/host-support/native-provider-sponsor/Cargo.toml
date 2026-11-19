@@ -1,0 +1,20 @@
+[package]
+name = "native-provider-sponsor"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[features]
+test-support = []
+
+[dependencies]
+bounded-process = { path = "../bounded-process" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+native-provider-runtime = { path = "../../interpreter/native-provider-runtime" }
+product-publication = { path = "../../../subsystems/compiler/build/build-output/product-publication" }
+
+[dev-dependencies]
+target = { path = "../../compilation/target-description/target" }
+image-emission = { path = "../../../subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission" }
+image-fixtures = { path = "../../../test-support/image-fixtures" }

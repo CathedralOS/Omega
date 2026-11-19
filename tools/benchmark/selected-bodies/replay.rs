@@ -42,7 +42,7 @@ fn main() -> Result<(), String> {
         return Err("snapshot limit identity differs from executed configuration".into());
     }
     let [bytes, allocation, elements, depth] = snapshot_limits::parse(configuration)?;
-    let limits = compiler_storage::RecordLimits {
+    let limits = record_storage::RecordLimits {
         bytes,
         allocation,
         elements,
@@ -112,7 +112,7 @@ fn main() -> Result<(), String> {
                 path.display()
             ));
         }
-        let typed = compiler_storage::decode::<source_compiler::source_state::TypedTrees>(&bytes, limits)
+        let typed = record_storage::decode::<source_compiler::source_state::TypedTrees>(&bytes, limits)
             .map_err(|error| format!("{}: {error}", path.display()))?;
         let input = typed;
         let (candidate, counts) = trace::measure(|| std::hint::black_box(input.clone()));

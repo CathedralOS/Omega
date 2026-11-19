@@ -1,0 +1,27 @@
+[package]
+name = "object-file"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "object_file"
+path = "src/lib.rs"
+
+[dependencies]
+installation-admission = { path = "../../verification/installation-admission" }
+physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
+physical-program = { path = "../representations/post-allocation-machine/body-facts" }
+wire = { path = "../../../../../foundation/wire" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+layout-plans = { path = "../../../psi/layout" }
+function-layout = { path = "../14_resolved-layout-to-placed-functions" }
+machine-code = { path = "../representations/machine-code" }
+function-identity = { path = "../../native-vocabulary/function-identity" }
+optimization-core = { path = "../../optimization-contracts" }
+selected-instructions = { path = "../representations/selected-instructions" }
+arena = { path = "../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+target = { path = "../../target-description/target" }
+target-operations = { path = "../representations/target-operations" }

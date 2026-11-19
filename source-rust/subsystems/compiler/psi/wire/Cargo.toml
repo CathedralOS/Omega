@@ -1,0 +1,34 @@
+[package]
+name = "terminal-wire"
+autotests = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_wire"
+path = "src/lib.rs"
+
+[dependencies]
+access-vocabulary = { path = "../../../source-to-psi/language/access-vocabulary" }
+declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
+schema-reflection = { path = "../../../source-to-psi/language/schema-reflection" }
+application-identity = { path = "../../../source-to-psi/language/application-identity" }
+numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
+bignum = { path = "../../../../../foundation/bignum" }
+wire = { path = "../../../../../foundation/wire" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+arena = { path = "../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+optimization = { path = "../optimization-selections" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+proof-admission = { path = "../../../source-to-psi/proof-admission" }
+terminal-psi = { path = ".." }
+terminal-semantics = { path = "../semantics" }
+
+access-admission = { path = "../../../source-to-psi/access-admission" }
+layout-plans = { path = "../layout" }
+
+[features]
+# Lets terminal-codec's tests encode deliberately malformed modules.
+test-support = []

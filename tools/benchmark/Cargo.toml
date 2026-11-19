@@ -23,9 +23,9 @@ name = "runner"
 required-features = ["fixtures"]
 
 [dependencies]
-declaration-contracts = { path = "../../omega-rust/psi/compilation/representations/declaration-contracts" }
-arena = { path = "../../omega-rust/psi/foundation/arena" }
-source-admission = { path = "../../omega-rust/psi/compilation/representations/source-admission" }
+declaration-contracts = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-contracts" }
+arena = { path = "../../source-rust/foundation/arena" }
+source-admission = { path = "../../source-rust/subsystems/compiler/source-to-psi/inputs/source-admission" }
 source-compiler = { path = "../../omega-rust/psi/compilation/pipeline/source-compilation" }
 bounded-process = { path = "../../omega-rust/omega/host-support/bounded-process" }
 serde = { version = "1.0", features = ["derive"] }

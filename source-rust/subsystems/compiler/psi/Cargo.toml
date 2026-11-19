@@ -1,0 +1,34 @@
+[package]
+name = "terminal-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_psi"
+path = "src/lib.rs"
+
+[dependencies]
+access-vocabulary = { path = "../../source-to-psi/language/access-vocabulary" }
+declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
+schema-reflection = { path = "../../source-to-psi/language/schema-reflection" }
+application-identity = { path = "../../source-to-psi/language/application-identity" }
+source-text = { path = "../../../foundation/source-text" }
+bignum = { path = "../../../../foundation/bignum" }
+wire = { path = "../../../../foundation/wire" }
+symbols = { path = "../../source-to-psi/language/declaration-identity" }
+record-storage = { path = "../../../../foundation/record-storage" }
+arena = { path = "../../../../foundation/arena" }
+optimization = { path = "optimization-selections" }
+numerics = { path = "../../source-to-psi/language/scalar-values" }
+semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
+language-core = { path = "../../source-to-psi/language/source-vocabulary" }
+flow-effects = { path = "../../source-to-psi/language/source-effects" }
+
+access-admission = { path = "../../source-to-psi/access-admission" }
+layout-plans = { path = "layout" }
+
+[dev-dependencies]
+bundled-declarations = { path = "../../source-to-psi/inputs/bundled-declarations" }
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../../test-support/source-audit" }

@@ -1,0 +1,49 @@
+[package]
+name = "build-settings"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[dependencies]
+published-program = { path = "../../compilation/published-program" }
+declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
+optimization-requests = { path = "../optimization-policy/requests" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-admission = { path = "../../source-to-psi/inputs/source-admission" }
+source-text = { path = "../../../../foundation/source-text" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+artifact-evaluation = { path = "../../../psi/evaluation/artifact-evaluation" }
+backend-plan = { path = "../../psi-to-native/installation/provider-plans" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+terminal-interpreter = { path = "../../../psi/interpreter" }
+terminal-installation = { path = "../../psi-admission" }
+terminal-work = { path = "../../representations/psi/work" }
+terminal-codec = { path = "../../representations/psi/codec" }
+syntax-trees = { path = "../../source-to-psi/pipeline/representations/syntax-trees" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+artifacts = { path = "../../compilation/products/measurements" }
+products = { path = "../../compilation/products" }
+arena = { path = "../../../../foundation/arena" }
+language-core = { path = "../../source-to-psi/language/source-vocabulary" }
+build-output = { path = "../../packages/build-output" }
+effects = { path = "../../psi-to-native/installation/native-effects" }
+optimization-core = { path = "../../psi-to-native/optimization-contracts" }
+package-compilation = { path = "../../packages/package-compilation" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
+terminal-runtime = { path = "../../interpreter/terminal-runtime" }
+target = { path = "../../compilation/target-description/target" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../representations/psi" }
+layout-plans = { path = "../../psi/layout" }
+symbols = { path = "../../source-to-psi/language/declaration-identity" }
+build-declarations = { path = "../../packages/build-declarations" }
+
+[dev-dependencies]
+tokens = { path = "../../source-to-psi/pipeline/representations/tokens" }
+
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }

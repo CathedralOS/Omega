@@ -1,0 +1,28 @@
+[package]
+name = "source-parser"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+autotests = false
+autobenches = false
+
+[lib]
+path = "parser.rs"
+
+[dependencies]
+arena = { path = "../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+worker-budget = { path = "../../../foundation/worker-budget" }
+language-core = { path = "../../language/source-vocabulary" }
+numeric-literals = { path = "../../language/numeric-literals" }
+numerics = { path = "../../language/scalar-values" }
+rayon = "1.11"
+source-text = { path = "../../../../../foundation/source-text" }
+syntax-trees = { path = "../representations/syntax-trees" }
+tokens = { path = "../representations/tokens" }
+
+[dev-dependencies]
+declaration-contracts = { path = "../../language/declaration-contracts" }
+source-admission = { path = "../../inputs/source-admission" }
+source-lexer = { path = "../00_source-files-to-tokens" }

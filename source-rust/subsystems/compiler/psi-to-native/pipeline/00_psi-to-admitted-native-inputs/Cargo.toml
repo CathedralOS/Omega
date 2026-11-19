@@ -1,0 +1,19 @@
+[package]
+name = "psi-to-admitted-native-inputs"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+backend-plan = { path = "../../installation/provider-plans" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+optimization-core = { path = "../../optimization-contracts" }
+optimization-requests = { path = "../../../build/optimization-policy/requests" }
+provider-admission = { path = "../../verification/provider-admission" }
+target = { path = "../../target-description/target" }
+terminal-installation = { path = "../../../psi-admission" }
+
+[dev-dependencies]
+terminal-psi = { path = "../../../representations/psi" }

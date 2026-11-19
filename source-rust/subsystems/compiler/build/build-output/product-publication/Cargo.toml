@@ -1,0 +1,19 @@
+[package]
+name = "product-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+image-emission = { path = "../../../psi-to-native/pipeline/16_objects-to-image/image-emission" }
+native-artifact = { path = "../../../psi-to-native/pipeline/16_objects-to-image/native-artifact" }
+optimization-requests = { path = "../../optimization-policy/requests" }
+platform-custody = { path = "../../../../../_recycling/host-support/platform-custody" }
+target = { path = "../../../psi-to-native/targets/target" }
+terminal-codec = { path = "../../../psi/codec" }
+verified-optimization-input = { path = "../../../psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
+
+[dev-dependencies]
+image = { path = "../../../psi-to-native/pipeline/16_objects-to-image/image" }
+image-macho = { path = "../../../psi-to-native/pipeline/16_objects-to-image/image-macho" }
+object-file = { path = "../../../psi-to-native/pipeline/15_placed-functions-to-objects" }

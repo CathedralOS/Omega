@@ -1,0 +1,39 @@
+[package]
+name = "symbol-resolved-trees-to-typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[features]
+test-support = ["symbol-resolved-trees/test-support"]
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+source-declarations = { path = "../../language/source-declarations" }
+symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
+typed-trees = { path = "../representations/typed-trees" }
+declaration-contracts = { path = "../../language/declaration-contracts" }
+application-identity = { path = "../../language/application-identity" }
+numeric-literals = { path = "../../language/numeric-literals" }
+source-admission = { path = "../../inputs/source-admission" }
+source-text = { path = "../../../../../foundation/source-text" }
+wire = { path = "../../../../../foundation/wire" }
+arena = { path = "../../../../../foundation/arena" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+language-core = { path = "../../language/source-vocabulary" }
+numerics = { path = "../../language/scalar-values" }
+semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+symbols = { path = "../../language/declaration-identity" }
+syntax-trees = { path = "../representations/syntax-trees" }
+
+[dev-dependencies]
+source-parser = { path = "../01_tokens-to-syntax-trees" }
+source-lexer = { path = "../00_source-files-to-tokens" }
+tokens = { path = "../representations/tokens" }
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }

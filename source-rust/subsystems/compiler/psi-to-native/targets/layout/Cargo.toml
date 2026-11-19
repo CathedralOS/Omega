@@ -1,0 +1,22 @@
+[package]
+name = "layout"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "layout"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../../foundation/arena" }
+symbols = { path = "../../../source-to-psi/language/declaration-identity" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+layout-plans = { path = "../../../psi/layout" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+runtime-abi = { path = "../runtime-abi" }
+target = { path = "../target" }
+calling-conventions = { path = "../calling-conventions" }

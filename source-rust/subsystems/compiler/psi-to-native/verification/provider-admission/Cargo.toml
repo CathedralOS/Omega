@@ -1,0 +1,41 @@
+[package]
+name = "provider-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
+application-identity = { path = "../../../source-to-psi/language/application-identity" }
+numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
+arena = { path = "../../../../../foundation/arena" }
+wire = { path = "../../../../../foundation/wire" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+layout = { path = "../../target-description/layout" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+provider-correspondence = { path = "../../verification/provider-correspondence" }
+component-description = { path = "../../components/description" }
+optimization-core = { path = "../../optimization-contracts" }
+function-identity = { path = "../../native-vocabulary/function-identity" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+layout-plans = { path = "../../../psi/layout" }
+target-operations = { path = "../../pipeline/representations/target-operations" }
+task-plans = { path = "../../installation/task-plans" }
+symbols = { path = "../../../source-to-psi/language/declaration-identity" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+abstract-operations = { path = "../../pipeline/representations/abstract-operations" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+bound-installations = { path = "../../installation/bound-installations" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+backend-plan = { path = "../../installation/provider-plans" }
+effects = { path = "../../installation/native-effects" }
+target = { path = "../../target-description/target" }
+
+[dev-dependencies]
+optimization-unit-semantics = { path = "../../pipeline/representations/abstract-operations/optimization-unit-semantics" }
+terminal-work = { path = "../../../representations/psi/work" }

@@ -1,0 +1,13 @@
+[package]
+name = "arena"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "arena"
+path = "src/lib.rs"
+
+[dependencies]
+record-storage = { path = "../record-storage" }
+arc-swap = "1.7"

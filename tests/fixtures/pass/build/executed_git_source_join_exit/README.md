@@ -12,7 +12,7 @@ test moves the repository selector before Product completion.
 Run the application SDK journey with:
 
 ```sh
-cargo run -p compiler --example executed_git_source
+mbx test -p compiler --test executed_git_source
 ```
 
 The Unix test harness selects a test-owned Git transport proxy through ordinary

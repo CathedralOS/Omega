@@ -1,0 +1,16 @@
+[package]
+name = "layout-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "layout_plans"
+path = "layout.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+wire = { path = "../../../../foundation/wire" }
+record-storage = { path = "../../../../foundation/record-storage" }

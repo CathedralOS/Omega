@@ -1,0 +1,6642 @@
+/*
+We represent typed value expressions (`values::expression`), constant integers
+(`const_integer`), subtree visitors (`subtrees`), and cross-table expression
+copying in `TypedTrees`.
+*/
+
+pub(crate) mod captures {
+
+    impl crate::source_state::TypedTrees {
+        pub fn saved_value_source(
+            &self,
+            saved: &crate::source_state::expression::TableSavedSubject,
+        ) -> Option<crate::source_state::expression::ExpressionHandle> {
+            use crate::source_state::expression::ValueCaptureOwner;
+            let table = &self.expression_table;
+            if !table.contains_value_capture(saved.capture) {
+                return None;
+            }
+            let capture = table.value_capture(saved.capture);
+            let source = match capture.owner {
+                ValueCaptureOwner::Match => return table.saved_subject_source(saved),
+                ValueCaptureOwner::ExpressionArgument { call, position } => {
+                    if !table.expression_is_valid(call) {
+                        return None;
+                    }
+                    let call = table.call_node(call)?;
+                    *table
+                        .expression_handles(call.arguments)
+                        .get(position as usize)?
+                }
+                ValueCaptureOwner::StatementArgument { call, position } => {
+                    if !self.statement_table.statement_is_valid(call) {
+                        return None;
+                    }
+                    let call = self.statement_table.statement(call).as_call()?;
+                    *self
+                        .statement_table
+                        .expression_handles(call.arguments)
+                        .get(position as usize)?
+                }
+            };
+            (!saved.pattern_head.is_valid()
+                && source == capture.subject
+                && table.expression_is_valid(source))
+            .then_some(source)
+        }
+    }
+}
+pub mod const_integer {
+    use super::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable};
+    use symbols::SymbolHandle;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum ConstIntegerExpression {
+        Closed(i128),
+        Open,
+    }
+
+    pub fn classify(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+        is_binder: &impl Fn(SymbolHandle, &str) -> bool,
+    ) -> Option<ConstIntegerExpression> {
+        fold(
+            expressions,
+            expression,
+            &|leaf| match leaf {
+                IntegerLeaf::Literal(literal) => literal
+                    .value_i64()
+                    .map(i128::from)
+                    .or_else(|| literal.value_u64().map(i128::from))
+                    .map(ConstIntegerExpression::Closed),
+                IntegerLeaf::Name { symbol, spelling } => {
+                    if !symbol.is_valid()
+                        && let Ok(value) = spelling.parse::<i128>()
+                    {
+                        return Some(ConstIntegerExpression::Closed(value));
+                    }
+                    is_binder(symbol, spelling).then_some(ConstIntegerExpression::Open)
+                }
+            },
+            &|operator, left, right| match (left, right) {
+                (ConstIntegerExpression::Closed(left), ConstIntegerExpression::Closed(right)) => {
+                    apply(operator, left, right).map(ConstIntegerExpression::Closed)
+                }
+                _ => Some(ConstIntegerExpression::Open),
+            },
+        )
+    }
+
+    enum IntegerLeaf<'expression> {
+        Literal(&'expression numeric_literals::IntegerLiteral),
+        Name {
+            symbol: SymbolHandle,
+            spelling: &'expression str,
+        },
+    }
+
+    fn fold<Value>(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+        leaf: &impl Fn(IntegerLeaf<'_>) -> Option<Value>,
+        operation: &impl Fn(BinaryOperator, Value, Value) -> Option<Value>,
+    ) -> Option<Value> {
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => leaf(IntegerLeaf::Literal(literal)),
+            ExpressionNode::Name(path) if !path.static_application.is_valid() => {
+                let [member] = expressions.name_path_members(path.members) else {
+                    return None;
+                };
+                leaf(IntegerLeaf::Name {
+                    symbol: path.symbol,
+                    spelling: member.as_str(),
+                })
+            }
+            ExpressionNode::Binary(binary)
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
+                ) =>
+            {
+                operation(
+                    binary.operator,
+                    fold(expressions, binary.left, leaf, operation)?,
+                    fold(expressions, binary.right, leaf, operation)?,
+                )
+            }
+            _ => None,
+        }
+    }
+
+    fn apply(operator: BinaryOperator, left: i128, right: i128) -> Option<i128> {
+        match operator {
+            BinaryOperator::Add => left.checked_add(right),
+            BinaryOperator::Subtract => left.checked_sub(right),
+            BinaryOperator::Multiply => left.checked_mul(right),
+            BinaryOperator::Divide => left.checked_div(right),
+            BinaryOperator::Modulo => left.checked_rem(right),
+            _ => None,
+        }
+    }
+
+    /*
+    A static argument may be written as a calculation, `configure<(8u64 +
+    9u64)>(..)`. generics.md, "Closed applications and canonical identity":
+    "Equivalent literals and named canonical values have the same application
+    identity. Anonymous numeric expressions land under the expected carrier's
+    exact rules, not their decimal spelling." So a calculation whose operands
+    are all literals is the literal of its value, and every reader of a
+    static argument reads that one literal.
+
+    Only what needs no machine and no declaration is folded: integer literals
+    under the bare `+`, `-` and `*`. numeric_values.md, "Literal landing and
+    destinations": a suffixed literal "retains its chosen carrier", and "an
+    already typed operand selects its operation's declared admission rules:
+    computational arithmetic lands an anonymous peer in its carrier". Typed
+    operands must therefore agree on one carrier, an anonymous operand must
+    fit it, and every typed result must fit it at its own node; a wholly
+    anonymous calculation stays exact and keeps no carrier. Division is left
+    out: between anonymous literals it is rational division, which this
+    reader has no value for.
+
+    Anything else (a name, a call, another operator, two carriers, a value
+    out of its carrier's range) is not this fold's to decide and yields
+    nothing, so the argument stays as written for the pass that would
+    evaluate or reject it.
+    */
+    pub fn closed_literal(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<numeric_literals::IntegerLiteral> {
+        use numeric_literals::{IntegerLiteral, IntegerRadix};
+        if !matches!(
+            expressions.expression(expression),
+            ExpressionNode::Binary(_)
+        ) {
+            return None;
+        }
+        let (value, landing) = closed_value(expressions, expression)?;
+        let literal = match i64::try_from(value) {
+            Ok(narrow) => IntegerLiteral::from_value(narrow),
+            Err(_) => IntegerLiteral::from_parts(
+                value < 0,
+                IntegerRadix::Decimal,
+                &value.unsigned_abs().to_string(),
+            )
+            .ok()?,
+        };
+        Some(match landing {
+            Some(landing) => literal.with_landing(landing),
+            None => literal,
+        })
+    }
+
+    fn closed_value(
+        expressions: &ExpressionTable,
+        expression: ExpressionHandle,
+    ) -> Option<(i128, Option<numeric_literals::IntegerLanding>)> {
+        match expressions.expression(expression) {
+            ExpressionNode::Integer(literal) => {
+                let value = literal
+                    .value_i64()
+                    .map(i128::from)
+                    .or_else(|| literal.value_u64().map(i128::from))?;
+                let landing = literal.landing();
+                landing
+                    .is_none_or(|landing| landing.landed_type.admits_i128(value))
+                    .then_some((value, landing))
+            }
+            ExpressionNode::Binary(binary)
+                if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    ) =>
+            {
+                let (left, left_landing) = closed_value(expressions, binary.left)?;
+                let (right, right_landing) = closed_value(expressions, binary.right)?;
+                let landing = match (left_landing, right_landing) {
+                    (Some(left), Some(right)) if left != right => return None,
+                    (left, right) => left.or(right),
+                };
+                let value = apply(binary.operator, left, right)?;
+                // An anonymous peer lands in the typed operand's carrier, and
+                // the typed result is a value of that carrier.
+                landing
+                    .is_none_or(|landing| {
+                        [left, right, value]
+                            .into_iter()
+                            .all(|value| landing.landed_type.admits_i128(value))
+                    })
+                    .then_some((value, landing))
+            }
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::expression::TableBinaryExpression;
+        use super::*;
+        use numeric_literals::{IntegerLanding, IntegerLiteral, LandedIntegerType};
+        use numerics::arithmetic::ArithmeticDomain;
+
+        fn landed(value: i64, name: &str) -> IntegerLiteral {
+            IntegerLiteral::from_value(value).with_landing(IntegerLanding {
+                landed_type: LandedIntegerType::from_name(name).expect("an integer type"),
+                domain: ArithmeticDomain::Exact,
+            })
+        }
+
+        fn calculation(
+            left: IntegerLiteral,
+            operator: BinaryOperator,
+            right: IntegerLiteral,
+        ) -> Option<(String, Option<String>)> {
+            let mut expressions = ExpressionTable::default();
+            let left = expressions.insert(ExpressionNode::Integer(left));
+            let right = expressions.insert(ExpressionNode::Integer(right));
+            let root = expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                left,
+                operator,
+                right,
+                policy: ArithmeticDomain::Exact,
+            }));
+            closed_literal(&expressions, root).map(|literal| {
+                (
+                    literal.canonical_spelling().to_string(),
+                    literal.landing().map(|landing| landing.landed_type.name()),
+                )
+            })
+        }
+
+        /// A calculation over literals is the literal of its value, in the
+        /// carrier its typed operands state; an anonymous operand lands in
+        /// that carrier and a wholly anonymous calculation keeps none.
+        #[test]
+        fn a_calculation_over_literals_is_the_literal_of_its_value() {
+            let anonymous = IntegerLiteral::from_value;
+            assert_eq!(
+                calculation(landed(8, "u64"), BinaryOperator::Add, landed(9, "u64")),
+                Some(("17".to_owned(), Some("u64".to_owned())))
+            );
+            assert_eq!(
+                calculation(landed(8, "u64"), BinaryOperator::Multiply, anonymous(2)),
+                Some(("16".to_owned(), Some("u64".to_owned())))
+            );
+            assert_eq!(
+                calculation(anonymous(20), BinaryOperator::Subtract, anonymous(3)),
+                Some(("17".to_owned(), None))
+            );
+        }
+
+        /// The twins: nothing is folded where the operands state two
+        /// carriers, where a typed result or an anonymous peer is outside
+        /// the carrier, or under an operator this fold has no value for.
+        #[test]
+        fn a_calculation_with_no_single_value_in_its_carrier_is_left_as_written() {
+            let anonymous = IntegerLiteral::from_value;
+            for (left, operator, right) in [
+                (landed(8, "u64"), BinaryOperator::Add, landed(9, "u32")),
+                (landed(255, "u8"), BinaryOperator::Add, landed(1, "u8")),
+                (landed(3, "u8"), BinaryOperator::Subtract, landed(4, "u8")),
+                (landed(1, "u8"), BinaryOperator::Add, anonymous(-1)),
+                (anonymous(7), BinaryOperator::Divide, anonymous(2)),
+            ] {
+                assert_eq!(calculation(left, operator, right), None);
+            }
+            // One literal is not a calculation: its reader takes it as is.
+            let mut expressions = ExpressionTable::default();
+            let literal = expressions.insert(ExpressionNode::Integer(anonymous(3)));
+            assert!(closed_literal(&expressions, literal).is_none());
+        }
+    }
+}
+pub mod expression {
+
+    use crate::source_state::AuthoredDeclarationSelectionOccurrenceId;
+    use crate::source_state::name::Identifier;
+    use crate::source_state::static_applications::{
+        StaticMachineApplication, StaticMachineApplicationHandle, StaticMachineBinding,
+        StaticMachineLifetimeBinding,
+    };
+    use arena::{Handle, HandleSpan, RetainedArena as Arena};
+    pub type BuildSelectionRequest = crate::declaration_selection::BuildSelectionRequest<
+        crate::source_state::types::TypeReferenceHandle,
+    >;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum BuildSelectionPhase {
+        Preparation,
+        Commit,
+    }
+
+    /// An authored input keeps the ledger occurrence captured for its original
+    /// static argument. Generated runtime arguments do not change that position.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct BuildSelectionInput {
+        pub occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        pub argument_ordinal: u32,
+        pub resolved_target: Option<SymbolHandle>,
+        pub target: crate::declaration_selection::AuthoredDeclarationSelectionTarget,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct BuildSelectionInputs {
+        pub request: Handle<BuildSelectionCall>,
+        pub lexical_owner: SymbolHandle,
+        pub phase: BuildSelectionPhase,
+        pub inputs: Vec<BuildSelectionInput>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    struct BuildSelectionInputStorage(Vec<Option<BuildSelectionInputs>>);
+
+    impl record_storage::Record for BuildSelectionInputStorage {
+        fn write(
+            &self,
+            output: &mut record_storage::RecordWriter,
+        ) -> Result<(), record_storage::RecordError> {
+            // Older expression tables have no exact input association. They
+            // must be rebuilt rather than decoded as permission-bearing rows.
+            b"BLDINPUT2".write(output)?;
+            self.0.write(output)
+        }
+
+        fn read<Context>(
+            input: &mut record_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, record_storage::RecordError> {
+            if <[u8; 9]>::read(input)? != *b"BLDINPUT2" {
+                return Err(input.error("Build input association storage has another version"));
+            }
+            Ok(Self(Vec::read(input)?))
+        }
+    }
+    /// What one generated call of the Build selection protocol carries:
+    /// the request the author wrote and the protocol operation typing chose
+    /// for this call. A selection is two calls (the lending `prepare` and the
+    /// committing operation), each with its own row, so a reader identifies
+    /// the operation from this row rather than from the requirement's name.
+    ///
+    /// The arena's zero row is the default request, a root binding, with the
+    /// operation that commits one.
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct BuildSelectionCall {
+        pub request: BuildSelectionRequest,
+        pub operation: declaration_contracts::build_requests::SelectionProtocolOperation,
+    }
+
+    impl Default for BuildSelectionCall {
+        fn default() -> Self {
+            Self {
+                request: BuildSelectionRequest::default(),
+                operation: declaration_contracts::build_requests::SelectionProtocolOperation::Bind,
+            }
+        }
+    }
+    use crate::source_symbols::JoinedPath;
+    use numeric_literals::IntegerLiteral;
+    use source_text::SourceSpan;
+    use std::ops::Deref;
+    use std::sync::Arc;
+    use symbols::SymbolHandle;
+
+    pub(crate) mod display {
+        use diagnostics::{bracketed_display_names, comma_join_display};
+
+        use crate::source_state::expression::OwnedMatchPattern;
+        use crate::source_state::expression::{
+            BinaryExpression, BinaryOperator, CallExpression, CastExpression, Expression,
+            ExpressionHandle, ExpressionNode, ExpressionTable, RangeExpression,
+            StaticMachineArgument, TableBinaryExpression, TableCallExpression, TableCastExpression,
+            TableUnaryExpression, UnaryExpression, UnaryOperator,
+        };
+        use crate::source_state::name::Identifier;
+
+        struct ExpressionDisplay<'table> {
+            table: &'table ExpressionTable,
+            displayed_expression: &'table dyn Fn(ExpressionHandle) -> ExpressionHandle,
+        }
+
+        impl std::ops::Deref for ExpressionDisplay<'_> {
+            type Target = ExpressionTable;
+
+            fn deref(&self) -> &Self::Target {
+                self.table
+            }
+        }
+
+        impl ExpressionDisplay<'_> {
+            fn write_display_name(&self, expression: ExpressionHandle, rendered: &mut String) {
+                self.table
+                    .expression((self.displayed_expression)(expression))
+                    .write_display_name_with(self, rendered);
+            }
+        }
+
+        macro_rules! display_name_via_writer {
+            () => {
+                pub fn display_name(&self, table: &ExpressionTable) -> String {
+                    let mut rendered = String::new();
+                    self.write_display_name_with(
+                        &ExpressionDisplay {
+                            table,
+                            displayed_expression: &|expression| expression,
+                        },
+                        &mut rendered,
+                    );
+                    rendered
+                }
+            };
+        }
+
+        impl Expression {
+            pub fn display_name(&self) -> String {
+                match self {
+                    Expression::Match(dispatch) => {
+                        let arms = dispatch
+                            .arms
+                            .iter()
+                            .map(|arm| {
+                                let pattern = match &arm.pattern {
+                                    OwnedMatchPattern::Value(value) => value.display_name(),
+                                    OwnedMatchPattern::Wildcard => "_".to_owned(),
+                                };
+                                format!("{pattern} => {}", arm.value.display_name())
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("match {} {{ {arms} }}", dispatch.subject.display_name())
+                    }
+                    Expression::ArrayLiteral(values) => {
+                        bracketed_display_names(values.iter(), Expression::display_name)
+                    }
+                    Expression::Atomic(atomic) => format!(
+                        "atomic[{:?}]({})",
+                        atomic.ordering,
+                        atomic.value.display_name()
+                    ),
+                    Expression::Binary(binary) => binary.display_name(),
+                    Expression::Boolean(value) => value.to_string(),
+                    Expression::Cast(cast) => cast.display_name(),
+                    Expression::Call(call) => call.display_name(),
+                    Expression::Float(value) => value.to_string(),
+                    Expression::UndeterminedNaN(format) => {
+                        format!("<undetermined NaN {}>", format.name())
+                    }
+                    Expression::Indexed(indexed) => {
+                        format!(
+                            "{}[{}]",
+                            indexed.collection.display_name(),
+                            indexed.index.display_name()
+                        )
+                    }
+                    Expression::Integer(value) => value.to_string(),
+                    Expression::Member(member) => format!(
+                        "{}{}{}",
+                        member.receiver.display_name(),
+                        language_core::PLACE_MEMBER_SEPARATOR,
+                        member.member
+                    ),
+                    Expression::Borrow(expression) => format!(
+                        "{}{}",
+                        expression.access.borrow_prefix(),
+                        expression.target.display_name()
+                    ),
+                    Expression::Name(path) => display_name_path(path, "::"),
+                    Expression::MachineValue(value) => {
+                        display_name_path(&value.selected.path, "::")
+                    }
+                    Expression::Range(range) => range.display_name(),
+                    Expression::StructLiteral(struct_literal) => {
+                        struct_literal.type_name.to_string()
+                    }
+                    Expression::String(value) => source_text::display_literal_bytes(value),
+                    Expression::Unary(unary) => unary.display_name(),
+                    Expression::TypeExpression(_) => "type".to_owned(),
+                    Expression::ZeroValue(_) => "zero_value<type>()".to_owned(),
+                }
+            }
+        }
+
+        impl ExpressionNode {
+            display_name_via_writer!();
+
+            pub fn write_display_name(&self, table: &ExpressionTable, out: &mut String) {
+                self.write_display_name_with(
+                    &ExpressionDisplay {
+                        table,
+                        displayed_expression: &|expression| expression,
+                    },
+                    out,
+                );
+            }
+
+            fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
+                use std::fmt::Write as _;
+                match self {
+                    Self::Match(dispatch) => {
+                        out.push_str("match ");
+                        table.write_display_name(dispatch.subject, out);
+                        out.push_str(" { ");
+                        for (index, arm) in table.match_arms(dispatch.arms).iter().enumerate() {
+                            if index > 0 {
+                                out.push_str(", ");
+                            }
+                            match arm.pattern {
+                                crate::source_state::expression::MatchPattern::Value(value) => {
+                                    table.write_display_name(value, out)
+                                }
+                                crate::source_state::expression::MatchPattern::Destructure(_) => {
+                                    out.push_str(&display_match_pattern(
+                                        table.table,
+                                        arm.pattern,
+                                        |value| {
+                                            let mut rendered = String::new();
+                                            table.write_display_name(value, &mut rendered);
+                                            rendered
+                                        },
+                                    ))
+                                }
+                                crate::source_state::expression::MatchPattern::Wildcard => {
+                                    out.push('_')
+                                }
+                            }
+                            out.push_str(" => ");
+                            table.write_display_name(arm.value, out);
+                        }
+                        out.push_str(" }");
+                    }
+                    Self::SavedSubject(saved) => {
+                        let _ = write!(
+                            out,
+                            "<saved subject #{}:{}>",
+                            saved.capture.arena_index(),
+                            saved.capture.generation()
+                        );
+                    }
+                    Self::ArrayLiteral(values) => {
+                        out.push('[');
+                        for (index, value) in table.expression_handles(*values).iter().enumerate() {
+                            if index > 0 {
+                                out.push_str(", ");
+                            }
+                            table.write_display_name(*value, out);
+                        }
+                        out.push(']');
+                    }
+                    Self::Atomic(atomic) => {
+                        let _ = write!(out, "atomic[{:?}](", atomic.ordering);
+                        table.write_display_name(atomic.value, out);
+                        out.push(')');
+                    }
+                    Self::Binary(binary) => binary.write_display_name_with(table, out),
+                    Self::Boolean(value) => {
+                        let _ = write!(out, "{value}");
+                    }
+                    Self::Cast(cast) => cast.write_display_name_with(table, out),
+                    Self::Call(call) => call.write_display_name_with(table, out),
+                    Self::Float(value) => {
+                        let _ = write!(out, "{value}");
+                    }
+                    Self::UndeterminedNaN(format) => {
+                        let _ = write!(out, "<undetermined NaN {}>", format.name());
+                    }
+                    Self::Indexed(indexed) => {
+                        table.write_display_name(indexed.collection, out);
+                        out.push('[');
+                        table.write_display_name(indexed.index, out);
+                        out.push(']');
+                    }
+                    Self::Integer(value) => {
+                        let _ = write!(out, "{value}");
+                    }
+                    Self::Member(member) => {
+                        table.write_display_name(member.receiver, out);
+                        let _ = write!(
+                            out,
+                            "{}{}",
+                            language_core::PLACE_MEMBER_SEPARATOR,
+                            member.member
+                        );
+                    }
+                    Self::Borrow(expression) => {
+                        out.push_str(expression.access.borrow_prefix());
+                        table.write_display_name(expression.target, out);
+                    }
+                    Self::Name(path) => {
+                        if let Some(argument) = table.static_member(path.static_application) {
+                            out.push_str(&argument.display_name_in(table));
+                        } else if path.static_application.is_valid() {
+                            out.push_str("<missing applied declaration>");
+                        } else {
+                            write_display_name_path(
+                                table.name_path_members(path.members),
+                                "::",
+                                out,
+                            )
+                        }
+                    }
+                    Self::MachineValue(value) => {
+                        write_display_name_path(&value.selected.path, "::", out)
+                    }
+                    Self::Range(range) => {
+                        if range.start.is_valid() {
+                            table.write_display_name(range.start, out);
+                        }
+                        out.push_str("..");
+                        if range.end.is_valid() {
+                            table.write_display_name(range.end, out);
+                        }
+                    }
+                    Self::StructLiteral(struct_literal) => {
+                        let _ = write!(out, "{}", struct_literal.type_name);
+                    }
+                    Self::String(value) => out.push_str(&source_text::display_literal_bytes(value)),
+                    Self::Unary(unary) => unary.write_display_name_with(table, out),
+                    Self::TypeExpression(_) => out.push_str("type"),
+                    Self::ZeroValue(_) => out.push_str("zero_value<type>()"),
+                }
+            }
+        }
+
+        pub fn display_match_pattern(
+            table: &ExpressionTable,
+            pattern: crate::source_state::expression::MatchPattern,
+            render: impl Fn(ExpressionHandle) -> String,
+        ) -> String {
+            use crate::source_state::expression::{MatchFieldAction, MatchPattern};
+            let pattern = match pattern {
+                MatchPattern::Value(value) => return render(value),
+                MatchPattern::Wildcard => return "_".to_owned(),
+                MatchPattern::Destructure(pattern) => pattern,
+            };
+            let mut fields = table
+                .match_fields(pattern.fields)
+                .iter()
+                .map(|field| {
+                    let member = field.member.as_str();
+                    match &field.action {
+                        MatchFieldAction::Bind(binding) if binding.as_str() == member => {
+                            member.to_owned()
+                        }
+                        MatchFieldAction::Bind(binding) => {
+                            format!("{member} as {}", binding.as_str())
+                        }
+                        MatchFieldAction::Equal(value) => format!("{member}: {}", render(*value)),
+                        MatchFieldAction::Waive => format!("{member} as _"),
+                    }
+                })
+                .collect::<Vec<_>>();
+            if pattern.has_rest {
+                fields.push("..".to_owned());
+            }
+            let selectors = table.match_proof_selectors(pattern.proof_selectors);
+            let proofs = if selectors.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "; {}",
+                    selectors
+                        .iter()
+                        .map(|selector| format!(
+                            "{}: {}",
+                            selector.output_field.as_str(),
+                            selector.binding.as_str()
+                        ))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            };
+            let guard = if pattern.guard.is_valid() {
+                format!(" if {}", render(pattern.guard))
+            } else {
+                String::new()
+            };
+            format!(
+                "{} {{ {}{proofs} }}{guard}",
+                render(pattern.head),
+                fields.join(", ")
+            )
+        }
+
+        impl RangeExpression {
+            pub fn display_name(&self) -> String {
+                let separator = if self.end_inclusive { "..=" } else { ".." };
+                match (&self.start, &self.end) {
+                    (Some(start), Some(end)) => {
+                        format!(
+                            "{}{}{}",
+                            start.display_name(),
+                            separator,
+                            end.display_name()
+                        )
+                    }
+                    (Some(start), None) => format!("{}{}", start.display_name(), separator),
+                    (None, Some(end)) => format!("{}{}", separator, end.display_name()),
+                    (None, None) => separator.to_string(),
+                }
+            }
+        }
+
+        pub fn display_name_path(path: &[Identifier], separator: &str) -> String {
+            let byte_count = path.iter().map(|name| name.as_str().len()).sum::<usize>()
+                + separator.len().saturating_mul(path.len().saturating_sub(1));
+            let mut display_name = String::with_capacity(byte_count);
+            write_display_name_path(path, separator, &mut display_name);
+            display_name
+        }
+
+        pub fn display_call_label(
+            table: &ExpressionTable,
+            call: &TableCallExpression,
+            render: impl Fn(ExpressionHandle) -> String,
+        ) -> String {
+            let arguments = table
+                .expression_handles(call.arguments)
+                .iter()
+                .map(|argument| render(*argument))
+                .collect::<Vec<_>>()
+                .join(", ");
+            if let Some(binding) = call.runtime_call {
+                return format!("{}({arguments})", render(binding.callee));
+            }
+            if call.receiver.is_valid() {
+                format!("{}.{}({arguments})", render(call.receiver), call.target)
+            } else {
+                format!("{}({arguments})", call.target)
+            }
+        }
+
+        fn write_display_name_path(path: &[Identifier], separator: &str, out: &mut String) {
+            for (index, name) in path.iter().enumerate() {
+                if index > 0 {
+                    out.push_str(separator);
+                }
+
+                out.push_str(name.as_str());
+            }
+        }
+
+        impl BinaryExpression {
+            pub fn display_name(&self) -> String {
+                format!(
+                    "{} {} {}",
+                    self.left.display_name(),
+                    self.operator.display_name(),
+                    self.right.display_name()
+                )
+            }
+        }
+
+        impl TableBinaryExpression {
+            display_name_via_writer!();
+
+            fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
+                table.write_display_name(self.left, out);
+                out.push(' ');
+                out.push_str(self.operator.display_name());
+                out.push(' ');
+                table.write_display_name(self.right, out);
+            }
+        }
+
+        impl TableUnaryExpression {
+            display_name_via_writer!();
+
+            fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
+                out.push_str(self.operator.display_name());
+                table.write_display_name(self.operand, out);
+            }
+        }
+
+        impl UnaryExpression {
+            pub fn display_name(&self) -> String {
+                format!(
+                    "{}{}",
+                    self.operator.display_name(),
+                    self.operand.display_name()
+                )
+            }
+        }
+
+        impl CastExpression {
+            pub fn display_name(&self) -> String {
+                format!(
+                    "{} as {}",
+                    self.value.display_name(),
+                    display_name_path(&self.target_label, "::")
+                )
+            }
+        }
+
+        impl TableCastExpression {
+            display_name_via_writer!();
+
+            fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
+                table.write_display_name(self.value, out);
+                out.push_str(" as ");
+                write_display_name_path(table.name_path_members(self.target_label), "::", out);
+            }
+        }
+
+        impl CallExpression {
+            pub fn display_name(&self) -> String {
+                let arguments = comma_join_display(&*self.arguments, Expression::display_name);
+
+                if let Some(binding) = &self.runtime_call {
+                    format!("({})({arguments})", binding.callee.display_name())
+                } else if let Some(receiver) = &self.receiver {
+                    format!("{}.{}({arguments})", receiver.display_name(), self.target)
+                } else {
+                    format!("{}({arguments})", self.target)
+                }
+            }
+        }
+
+        impl TableCallExpression {
+            display_name_via_writer!();
+
+            fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
+                use std::fmt::Write as _;
+                if let Some(binding) = self.runtime_call {
+                    out.push('(');
+                    table.write_display_name(binding.callee, out);
+                    out.push(')');
+                } else if self.receiver.is_valid() {
+                    table.write_display_name(self.receiver, out);
+                    out.push('.');
+                }
+                if self.runtime_call.is_none() {
+                    let _ = write!(out, "{}", self.target);
+                }
+                let private_slot = self
+                    .private_layout_operation
+                    .as_ref()
+                    .map(|operation| &operation.selected_slot);
+                let installed_operands = self
+                    .installed_interrupt_operation
+                    .as_ref()
+                    .map(|request| [&request.registrar, &request.timer_slot]);
+                if !self.machine_arguments.is_empty()
+                    || private_slot.is_some()
+                    || installed_operands.is_some()
+                {
+                    out.push('<');
+                    for (index, argument) in installed_operands
+                        .into_iter()
+                        .flatten()
+                        .chain(self.machine_arguments.iter())
+                        .chain(private_slot)
+                        .enumerate()
+                    {
+                        if index > 0 {
+                            out.push_str(", ");
+                        }
+                        out.push_str(&argument.display_name());
+                    }
+                    out.push('>');
+                }
+                out.push('(');
+                for (index, argument) in table.expression_handles(self.arguments).iter().enumerate()
+                {
+                    if index > 0 {
+                        out.push_str(", ");
+                    }
+                    table.write_display_name(*argument, out);
+                }
+                out.push(')');
+            }
+        }
+
+        impl StaticMachineArgument {
+            pub fn display_name(&self) -> String {
+                self.display_name_with_owner(None)
+            }
+
+            pub fn display_name_in(&self, table: &ExpressionTable) -> String {
+                self.display_name_with_owner(Some(table))
+            }
+
+            fn display_name_with_owner(&self, table: Option<&ExpressionTable>) -> String {
+                // An authored type operand has no name path. A named operand may
+                // also carry a type reference that records the scope it was
+                // written in; it is still shown by its name.
+                if self.type_reference.is_valid() && self.path.is_empty() {
+                    return "<structural type>".to_owned();
+                }
+                if let Some(literal) = &self.const_literal {
+                    return literal.to_string();
+                }
+                if let Some(projection) = &self.evidence_projection {
+                    return format!("{}.{}", projection.term, projection.member);
+                }
+                let mut rendered = display_name_path(&self.path, "::");
+                if let Some(application) = &self.application {
+                    let mut arguments = application
+                        .lifetime_arguments
+                        .iter()
+                        .map(|lifetime| format!("'{lifetime}"))
+                        .collect::<Vec<_>>();
+                    arguments.extend(
+                        application
+                            .arguments
+                            .iter()
+                            .map(|argument| argument.display_name_with_owner(table)),
+                    );
+                    rendered.push('<');
+                    rendered.push_str(&arguments.join(", "));
+                    rendered.push('>');
+                    if application.member.is_valid() {
+                        rendered.push_str("::");
+                        match table.and_then(|table| table.static_member(application.member)) {
+                            Some(member) => {
+                                rendered.push_str(&member.display_name_with_owner(table))
+                            }
+                            None => rendered.push_str("<qualified member requires owning table>"),
+                        }
+                    }
+                }
+                rendered
+            }
+        }
+
+        impl BinaryOperator {
+            pub fn display_name(self) -> &'static str {
+                match self {
+                    Self::Add => "+",
+                    Self::And => "&&",
+                    Self::BitwiseAnd => "&",
+                    Self::BitwiseOr => "|",
+                    Self::BitwiseXor => "^",
+                    Self::Divide => "/",
+                    Self::Equal => "==",
+                    Self::Greater => ">",
+                    Self::GreaterOrEqual => ">=",
+                    Self::Less => "<",
+                    Self::LessOrEqual => "<=",
+                    Self::Modulo => "%",
+                    Self::Multiply => "*",
+                    Self::NotEqual => "!=",
+                    Self::Or => "||",
+                    Self::ShiftLeft => "<<",
+                    Self::ShiftRight => ">>",
+                    Self::Subtract => "-",
+                    Self::CaseMembership => "in",
+                }
+            }
+        }
+
+        impl UnaryOperator {
+            pub fn display_name(self) -> &'static str {
+                match self {
+                    Self::BitwiseNot => "~",
+                    Self::LogicalNot => "!",
+                }
+            }
+        }
+    }
+    pub(crate) mod shape {
+        use crate::source_state::expression::TableCallExpression;
+
+        impl TableCallExpression {
+            pub fn selects_only_nominal_route(&self) -> bool {
+                self.runtime_call.is_none()
+                    && self.static_requirement_dispatch.is_none()
+                    && self.quotient_operation.is_none()
+                    && self.private_layout_operation.is_none()
+                    && self.installed_interrupt_operation.is_none()
+                    && self.layout_query.is_none()
+                    && self.native_code_layout.is_none()
+            }
+
+            pub fn carries_only_positional_arguments(&self) -> bool {
+                self.machine_arguments.is_empty() && self.evidence_arguments.is_empty()
+            }
+
+            pub fn is_ordinary_positional_call(&self) -> bool {
+                !self.receiver.is_valid()
+                    && !self.static_machine_parameter.is_valid()
+                    && self.selects_only_nominal_route()
+                    && self.carries_only_positional_arguments()
+            }
+        }
+    }
+    pub(crate) mod static_members {
+        use super::{ExpressionTable, StaticMachineArgument};
+        use crate::source_state::remapped;
+
+        impl ExpressionTable {
+            pub fn copy_static_argument_from(
+                &mut self,
+                source: &Self,
+                argument: &StaticMachineArgument,
+            ) -> StaticMachineArgument {
+                self.copy_static_argument_members(Some(source), argument)
+            }
+
+            pub fn copy_static_argument_from_self(
+                &mut self,
+                argument: &StaticMachineArgument,
+            ) -> StaticMachineArgument {
+                self.copy_static_argument_members(None, argument)
+            }
+
+            fn copy_static_argument_members(
+                &mut self,
+                source: Option<&Self>,
+                argument: &StaticMachineArgument,
+            ) -> StaticMachineArgument {
+                let mut copied = argument.clone();
+                if let Some(application) = &mut copied.application {
+                    application.arguments = application
+                        .arguments
+                        .iter()
+                        .map(|argument| self.copy_static_argument_members(source, argument))
+                        .collect();
+                    if application.member.is_valid() {
+                        let member = source
+                            .unwrap_or(self)
+                            .static_member(application.member)
+                            .expect(
+                                "qualified static member belongs to its source expression table",
+                            )
+                            .clone();
+                        let copied_member = self.copy_static_argument_members(source, &member);
+                        application.member = self.insert_static_member(copied_member);
+                    }
+                }
+                copied
+            }
+
+            pub fn remap_static_argument_symbols<'scope>(
+                &mut self,
+                argument: &mut StaticMachineArgument,
+                symbols: impl Into<crate::source_state::SymbolRebinding<'scope>>,
+            ) {
+                let symbols = symbols.into();
+                argument.symbol = remapped(argument.symbol, symbols);
+                if let Some(application) = &mut argument.application {
+                    for argument in application.arguments.iter_mut() {
+                        self.remap_static_argument_symbols(argument, symbols);
+                    }
+                    if application.member.is_valid() {
+                        let mut member = self
+                            .static_member(application.member)
+                            .expect(
+                                "qualified static member belongs to its receiving expression table",
+                            )
+                            .clone();
+                        self.remap_static_argument_symbols(&mut member, symbols);
+                        *self.static_member_mut(application.member).expect(
+                            "qualified static member remains in its receiving expression table",
+                        ) = member;
+                    }
+                }
+            }
+        }
+
+        impl ExpressionTable {
+            pub fn remap_static_application_operands<'scope>(
+                &mut self,
+                handle: crate::source_state::static_applications::StaticMachineApplicationHandle,
+                symbols: impl Into<crate::source_state::SymbolRebinding<'scope>>,
+            ) {
+                let symbols = symbols.into();
+                let mut arguments = self.static_machine_application_arguments(handle).to_vec();
+                for argument in &mut arguments {
+                    self.remap_static_argument_symbols(argument, symbols.authored());
+                }
+                self.static_machine_application_arguments_mut(handle)
+                    .clone_from_slice(&arguments);
+                let mut selected = self
+                    .static_machine_application_selected_machines(handle)
+                    .to_vec();
+                for argument in &mut selected {
+                    self.remap_static_argument_symbols(argument, symbols.execution());
+                }
+                self.static_machine_application_selected_machines_mut(handle)
+                    .clone_from_slice(&selected);
+            }
+
+            pub fn remap_static_binding_symbols<'scope>(
+                &mut self,
+                binding: &mut crate::source_state::static_applications::StaticMachineBinding,
+                symbols: impl Into<crate::source_state::SymbolRebinding<'scope>>,
+            ) {
+                use crate::source_state::static_applications::StaticMachineBindingValue;
+                let symbols = symbols.into();
+                match &mut binding.value {
+                    StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Conformance(argument) => {
+                        self.remap_static_argument_symbols(argument, symbols)
+                    }
+                    StaticMachineBindingValue::RuntimeValue { subject, .. } => {
+                        *subject = remapped(*subject, symbols);
+                    }
+                    StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
+                }
+            }
+        }
+
+        impl super::TableCallExpression {
+            pub fn request_static_arguments(&self) -> impl Iterator<Item = &StaticMachineArgument> {
+                self.native_code_layout
+                    .iter()
+                    .map(|request| &request.operand)
+                    .chain(self.layout_query.iter().map(|request| &request.operand))
+                    .chain(
+                        self.private_layout_operation
+                            .iter()
+                            .map(|request| &request.selected_slot),
+                    )
+                    .chain(
+                        self.installed_interrupt_operation
+                            .iter()
+                            .flat_map(|request| [&request.registrar, &request.timer_slot]),
+                    )
+                    .chain(self.quotient_operation.iter().flat_map(|request| {
+                        std::iter::once(&request.representative_operation).chain(
+                            request
+                                .theorem_evidence
+                                .iter()
+                                .map(|theorem| &theorem.application),
+                        )
+                    }))
+            }
+
+            pub fn request_static_arguments_mut(
+                &mut self,
+            ) -> impl Iterator<Item = &mut StaticMachineArgument> {
+                if let Some(request) = &mut self.installed_interrupt_operation {
+                    request.invalidate_preparation();
+                }
+                self.native_code_layout
+                    .iter_mut()
+                    .map(|request| &mut request.operand)
+                    .chain(
+                        self.layout_query
+                            .iter_mut()
+                            .map(|request| &mut request.operand),
+                    )
+                    .chain(
+                        self.private_layout_operation
+                            .iter_mut()
+                            .map(|request| &mut request.selected_slot),
+                    )
+                    .chain(
+                        self.installed_interrupt_operation
+                            .iter_mut()
+                            .flat_map(|request| [&mut request.registrar, &mut request.timer_slot]),
+                    )
+                    .chain(self.quotient_operation.iter_mut().flat_map(|request| {
+                        std::iter::once(&mut request.representative_operation).chain(
+                            request
+                                .theorem_evidence
+                                .iter_mut()
+                                .map(|theorem| &mut theorem.application),
+                        )
+                    }))
+            }
+
+            pub(crate) fn visit_static_arguments_mut(
+                &mut self,
+                mut visit: impl FnMut(&mut StaticMachineArgument),
+            ) {
+                for argument in &mut self.machine_arguments {
+                    visit(argument);
+                }
+                for argument in self.request_static_arguments_mut() {
+                    visit(argument);
+                }
+            }
+        }
+
+        impl crate::source_state::statement::TableCall {
+            pub fn request_static_arguments(&self) -> impl Iterator<Item = &StaticMachineArgument> {
+                self.installed_interrupt_operation
+                    .iter()
+                    .flat_map(|request| [&request.registrar, &request.timer_slot])
+            }
+            pub fn request_static_arguments_mut(
+                &mut self,
+            ) -> impl Iterator<Item = &mut StaticMachineArgument> {
+                if let Some(request) = &mut self.installed_interrupt_operation {
+                    request.invalidate_preparation();
+                }
+                self.installed_interrupt_operation
+                    .iter_mut()
+                    .flat_map(|request| [&mut request.registrar, &mut request.timer_slot])
+            }
+        }
+    }
+    pub(crate) mod table_copies {
+
+        use super::CompletedValueCapture;
+        use super::ValueCaptureOwner;
+        use crate::source_state::name::Identifier;
+        use crate::source_state::remapped;
+        use crate::source_state::values::expression::{
+            ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, TableAtomicExpression,
+            TableBinaryExpression, TableBorrowExpression, TableCallExpression, TableCastExpression,
+            TableIndexedExpression, TableMatchArm, TableMatchExpression, TableMemberExpression,
+            TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
+            TableUnaryExpression,
+        };
+        use arena::{Handle, HandleSpan};
+
+        #[derive(Default)]
+        struct CopyGraph {
+            expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
+            subjects: Vec<(Handle<CompletedValueCapture>, Handle<CompletedValueCapture>)>,
+            build_calls: Vec<(
+                Handle<super::BuildSelectionCall>,
+                Handle<super::BuildSelectionCall>,
+            )>,
+        }
+        use symbols::SymbolHandle;
+
+        pub struct ExpressionCopy {
+            pub root: ExpressionHandle,
+            pub correspondence: Vec<(ExpressionHandle, ExpressionHandle)>,
+        }
+
+        #[derive(Clone, Copy)]
+        enum CopySource<'source> {
+            Own,
+            Table(&'source ExpressionTable),
+        }
+
+        impl<'source> CopySource<'source> {
+            fn table<'table>(self, destination: &'table ExpressionTable) -> &'table ExpressionTable
+            where
+                'source: 'table,
+            {
+                match self {
+                    Self::Own => destination,
+                    Self::Table(source) => source,
+                }
+            }
+        }
+
+        fn retain_every_field(_: &TableStructLiteral, _: &TableStructLiteralField) -> bool {
+            true
+        }
+
+        #[cfg(test)]
+        mod correspondence_tests {
+            use super::*;
+            use crate::source_state::expression::BinaryOperator;
+
+            #[test]
+            fn expression_copy_correspondence_preserves_shared_occurrences_in_both_sources() {
+                let mut source = ExpressionTable::default();
+                let child = source.insert(ExpressionNode::Boolean(true));
+                let root = source.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: child,
+                    operator: BinaryOperator::And,
+                    right: child,
+                }));
+                let own = source.copy_graph(None, root);
+                let mut destination = ExpressionTable::default();
+                let external = destination.copy_graph(Some(&source), root);
+                for (table, copy) in [(&source, own), (&destination, external)] {
+                    assert_eq!(copy.correspondence.len(), 2);
+                    let child_copy = copy
+                        .correspondence
+                        .iter()
+                        .find(|(original, _)| *original == child)
+                        .expect("child correspondence")
+                        .1;
+                    assert_eq!(
+                        copy.correspondence
+                            .iter()
+                            .filter(|(original, _)| *original == root)
+                            .count(),
+                        1
+                    );
+                    let ExpressionNode::Binary(binary) = table.expression(copy.root) else {
+                        panic!("copied binary");
+                    };
+                    assert_eq!(binary.left, child_copy);
+                    assert_eq!(binary.right, child_copy);
+                }
+                let first = source.copy_graph(None, root);
+                let second = source.copy_graph(None, root);
+                assert_ne!(first.root, second.root);
+                assert_eq!(source.expression(child), &ExpressionNode::Boolean(true));
+            }
+
+            #[test]
+            fn copied_value_binding_names_the_same_evaluation_as_its_call_operand() {
+                use crate::source_state::static_applications::{
+                    StaticMachineBinding, StaticMachineBindingValue,
+                };
+                let mut source = ExpressionTable::default();
+                let value = source.insert(ExpressionNode::Boolean(true));
+                let application = source.retain_static_machine_application(
+                    SymbolHandle::invalid(),
+                    Identifier::generated("invoke"),
+                    &[],
+                );
+                source.set_static_machine_application_bindings(
+                    application,
+                    &[StaticMachineBinding {
+                        parameter: SymbolHandle::invalid(),
+                        value: StaticMachineBindingValue::RuntimeValue {
+                            type_reference:
+                                crate::source_state::types::TypeReferenceHandle::invalid(),
+                            subject: SymbolHandle::invalid(),
+                            expression: value,
+                        },
+                    }],
+                );
+                let mut destination = ExpressionTable::default();
+                destination.insert(ExpressionNode::Boolean(false));
+                let (arguments, _, copied) =
+                    destination.copy_call_operands_from(&source, &[value, value], application);
+                let actuals = destination.expression_handles(arguments);
+                assert_eq!(actuals[0], actuals[1]);
+                let StaticMachineBindingValue::RuntimeValue { expression, .. } =
+                    destination.static_machine_application_bindings(copied)[0].value
+                else {
+                    panic!("copied runtime binding");
+                };
+                assert_eq!(expression, actuals[0]);
+                assert_eq!(
+                    destination.expression(expression),
+                    &ExpressionNode::Boolean(true)
+                );
+                assert_eq!(
+                    source.static_machine_application_bindings(application)[0].value,
+                    StaticMachineBindingValue::RuntimeValue {
+                        type_reference: crate::source_state::types::TypeReferenceHandle::invalid(),
+                        subject: SymbolHandle::invalid(),
+                        expression: value,
+                    }
+                );
+            }
+        }
+
+        impl ExpressionTable {
+            fn copy_build_selection_call(
+                &mut self,
+                source: CopySource<'_>,
+                request: Handle<super::BuildSelectionCall>,
+                copies: &mut CopyGraph,
+            ) -> Handle<super::BuildSelectionCall> {
+                if !request.is_valid() {
+                    return request;
+                }
+                if let Some((_, copied)) = copies
+                    .build_calls
+                    .iter()
+                    .find(|(original, _)| *original == request)
+                {
+                    return *copied;
+                }
+                let original = source
+                    .table(self)
+                    .build_selection_call(request)
+                    .expect("copied Build call keeps its exact operation generation")
+                    .clone();
+                let copied = self.insert_build_selection_call(original);
+                copies.build_calls.push((request, copied));
+                copied
+            }
+
+            pub fn copy_graph(
+                &mut self,
+                source: Option<&ExpressionTable>,
+                expression: ExpressionHandle,
+            ) -> ExpressionCopy {
+                let source = source.map_or(CopySource::Own, CopySource::Table);
+                let mut copies = CopyGraph::default();
+                let root = self.copy_subtree_with_occurrences(
+                    source,
+                    expression,
+                    &retain_every_field,
+                    &mut copies,
+                );
+                ExpressionCopy {
+                    root,
+                    correspondence: copies.expressions,
+                }
+            }
+
+            pub(crate) fn remap_static_application(
+                &mut self,
+                handle: crate::source_state::static_applications::StaticMachineApplicationHandle,
+                symbols: crate::source_state::SymbolRebinding<'_>,
+            ) {
+                if !handle.is_valid() {
+                    return;
+                }
+                let application = self.static_machine_application_mut(handle);
+                application.lexical_owner = remapped(application.lexical_owner, symbols);
+                self.remap_static_application_operands(handle, symbols);
+                let subject_expressions = self
+                    .static_machine_application_bindings(handle)
+                    .iter()
+                    .filter_map(|binding| match &binding.value {
+                        crate::source_state::static_applications::StaticMachineBindingValue::RuntimeValue {
+                            expression,
+                            ..
+                        } if expression.is_valid() => Some(*expression),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                let mut bindings = self.static_machine_application_bindings(handle).to_vec();
+                for binding in &mut bindings {
+                    self.remap_static_binding_symbols(binding, symbols.authored());
+                }
+                self.static_machine_application_bindings_mut(handle)
+                    .clone_from_slice(&bindings);
+                for expression in subject_expressions {
+                    self.remap_symbols_in(expression, symbols);
+                }
+            }
+
+            fn copy_static_machine_application(
+                &mut self,
+                source: CopySource<'_>,
+                application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+                copies: &mut CopyGraph,
+            ) -> crate::source_state::static_applications::StaticMachineApplicationHandle
+            {
+                if !application.is_valid() {
+                    return application;
+                }
+                let origin = source.table(self);
+                let declaration = origin.static_machine_application(application).clone();
+                let arguments = origin
+                    .static_machine_application_arguments(application)
+                    .to_vec();
+                let bindings = origin
+                    .static_machine_application_bindings(application)
+                    .to_vec();
+                let selected = origin
+                    .static_machine_application_selected_machines(application)
+                    .to_vec();
+                let lifetimes = origin
+                    .static_machine_application_lifetimes(application)
+                    .to_vec();
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| match source {
+                        CopySource::Own => self.copy_static_argument_from_self(argument),
+                        CopySource::Table(table) => self.copy_static_argument_from(table, argument),
+                    })
+                    .collect::<Vec<_>>();
+                let selected = selected
+                    .iter()
+                    .map(|argument| match source {
+                        CopySource::Own => self.copy_static_argument_from_self(argument),
+                        CopySource::Table(table) => self.copy_static_argument_from(table, argument),
+                    })
+                    .collect::<Vec<_>>();
+                let mut bindings = bindings;
+                for binding in &mut bindings {
+                    if let crate::source_state::static_applications::StaticMachineBindingValue::RuntimeValue {
+                        expression,
+                        ..
+                    } = &mut binding.value
+                        && expression.is_valid()
+                    {
+                        *expression = self.copy_subtree_with_occurrences(
+                            source,
+                            *expression,
+                            &retain_every_field,
+                            copies,
+                        );
+                    }
+                    if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(
+                        argument,
+                    )
+                    | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
+                        argument,
+                    ) = &mut binding.value
+                    {
+                        *argument = match source {
+                            CopySource::Own => self.copy_static_argument_from_self(argument),
+                            CopySource::Table(table) => {
+                                self.copy_static_argument_from(table, argument)
+                            }
+                        };
+                    }
+                }
+                let copy = self.retain_static_machine_application(
+                    declaration.registration_operation,
+                    declaration.target,
+                    &arguments,
+                );
+                self.static_machine_application_mut(copy).lexical_owner = declaration.lexical_owner;
+                self.static_machine_application_mut(copy)
+                    .source_record_receiver = declaration.source_record_receiver;
+                self.static_machine_application_mut(copy)
+                    .binding_declaration = declaration.binding_declaration;
+                self.static_machine_application_mut(copy)
+                    .conformance_selection =
+                    declaration.conformance_selection.map(|mut selection| {
+                        selection.application = None;
+                        selection
+                    });
+                self.set_static_machine_application_bindings(copy, &bindings);
+                self.set_static_machine_application_selected_machines(copy, &selected);
+                self.set_static_machine_application_lifetimes(
+                    copy,
+                    declaration.lifetime_binding_declaration,
+                    &lifetimes,
+                );
+                copy
+            }
+
+            pub fn replace_with_existing(
+                &mut self,
+                destination: ExpressionHandle,
+                source: ExpressionHandle,
+            ) {
+                let component = if self.direct_pattern_component(destination)
+                    == Some(language_core::PatternComponent::Case)
+                    || self.direct_pattern_component(source)
+                        == Some(language_core::PatternComponent::Case)
+                {
+                    language_core::PatternComponent::Case
+                } else {
+                    language_core::PatternComponent::Fields
+                };
+                let node = self.expression(source).clone();
+                let occurrences = self.metadata(source).authored_selection_occurrences;
+                let build_inputs = self
+                    .build_selection_inputs(source)
+                    .expect("replaced expression keeps its Build input association")
+                    .cloned();
+                let source_span = self.source_span(source);
+                let materialization_source = self.materialization_source(source);
+                let materialization_source = if materialization_source == destination {
+                    self.insert_copy(materialization_source)
+                } else {
+                    materialization_source
+                };
+                let carrier = self.constructed_value_type_reference(source);
+                *self.expression_mut(destination) = node;
+                self.set_pattern_component(destination, component);
+                self.set_source_span(destination, source_span);
+                self.metadata_mut(destination)
+                    .authored_selection_occurrences = occurrences;
+                self.metadata_mut(destination).materialization_source = materialization_source;
+                self.build_selection_inputs.0[super::source_span_index(destination)] = build_inputs;
+                if carrier.is_valid() {
+                    self.set_constructed_value_type_reference(destination, carrier);
+                } else {
+                    self.metadata_mut(destination).constructed_value_type = Default::default();
+                }
+                self.metadata_mut(destination).construction_required_type = Default::default();
+            }
+
+            pub fn copy_from(
+                &mut self,
+                source: &ExpressionTable,
+                expression: ExpressionHandle,
+            ) -> ExpressionHandle {
+                self.copy_subtree(CopySource::Table(source), expression, &retain_every_field)
+            }
+
+            pub fn insert_copy(&mut self, expression: ExpressionHandle) -> ExpressionHandle {
+                self.copy_subtree(CopySource::Own, expression, &retain_every_field)
+            }
+
+            pub fn remap_symbols_in<'scope>(
+                &mut self,
+                root: ExpressionHandle,
+                symbols: impl Into<crate::source_state::SymbolRebinding<'scope>>,
+            ) {
+                let symbols = symbols.into();
+                let mut visited = Vec::new();
+                self.remap_symbols_in_inner(root, symbols, &mut visited);
+            }
+
+            pub(crate) fn remap_symbols_in_with_visited(
+                &mut self,
+                root: ExpressionHandle,
+                symbols: crate::source_state::SymbolRebinding<'_>,
+                visited: &mut Vec<ExpressionHandle>,
+            ) {
+                self.remap_symbols_in_inner(root, symbols, visited);
+            }
+
+            fn remap_symbols_in_inner(
+                &mut self,
+                root: ExpressionHandle,
+                symbols: crate::source_state::SymbolRebinding<'_>,
+                visited: &mut Vec<ExpressionHandle>,
+            ) {
+                if !root.is_valid() || visited.contains(&root) {
+                    return;
+                }
+                visited.push(root);
+                self.remap_symbols_in_inner(self.materialization_source(root), symbols, visited);
+                if let Some(inputs) = self
+                    .build_selection_inputs
+                    .0
+                    .get_mut(super::source_span_index(root))
+                    .and_then(Option::as_mut)
+                {
+                    inputs.lexical_owner = remapped(inputs.lexical_owner, symbols);
+                    for input in &mut inputs.inputs {
+                        input.resolved_target = input
+                            .resolved_target
+                            .map(|target| remapped(target, symbols));
+                    }
+                }
+
+                let mut tests = self.executable_domain_tests(root).to_vec();
+                for test in &mut tests {
+                    self.remap_symbols_in_inner(test.subject, symbols, visited);
+                    test.domain = remapped(test.domain, symbols);
+                }
+                if !tests.is_empty() {
+                    self.replace_executable_domain_tests(root, tests);
+                }
+
+                let node = self.expression(root).clone();
+                match node {
+                    ExpressionNode::Match(dispatch) => {
+                        self.remap_symbols_in_inner(dispatch.subject, symbols, visited);
+                        let arms = self.match_arms(dispatch.arms).to_vec();
+                        for arm in arms {
+                            for pattern in self
+                                .match_pattern_dependencies(arm.pattern)
+                                .collect::<Vec<_>>()
+                            {
+                                self.remap_symbols_in_inner(pattern, symbols, visited);
+                            }
+                            if let MatchPattern::Destructure(pattern) = arm.pattern {
+                                for position in 0..pattern.fields.count() {
+                                    let field =
+                                        self.match_field_mut(pattern.fields.handle_at(position));
+                                    field.field_symbol = remapped(field.field_symbol, symbols);
+                                }
+                            }
+                            self.remap_symbols_in_inner(arm.value, symbols, visited);
+                        }
+                    }
+                    ExpressionNode::SavedSubject(_) => {}
+                    ExpressionNode::ArrayLiteral(values) => {
+                        let children = self.expression_handles(values).to_vec();
+                        for child in children {
+                            self.remap_symbols_in_inner(child, symbols, visited);
+                        }
+                    }
+                    ExpressionNode::Atomic(atomic) => {
+                        self.remap_symbols_in_inner(atomic.value, symbols, visited);
+                        self.remap_symbols_in_inner(atomic.result, symbols, visited);
+                    }
+                    ExpressionNode::Binary(binary) => {
+                        self.remap_symbols_in_inner(binary.left, symbols, visited);
+                        self.remap_symbols_in_inner(binary.right, symbols, visited);
+                    }
+                    ExpressionNode::Cast(cast) => {
+                        self.remap_symbols_in_inner(cast.value, symbols, visited)
+                    }
+                    ExpressionNode::MachineValue(value) => {
+                        let mut value = value;
+                        self.remap_static_argument_symbols(
+                            &mut value.selected,
+                            symbols.execution(),
+                        );
+                        self.remap_static_application(value.application, symbols);
+                        value.conformance = remapped(value.conformance, symbols);
+                        value.requirement = remapped(value.requirement, symbols);
+                        if let ExpressionNode::MachineValue(current) = self.expression_mut(root) {
+                            *current = value;
+                        }
+                    }
+                    ExpressionNode::Call(call) => {
+                        if let Some(binding) = call.runtime_call {
+                            self.remap_symbols_in_inner(binding.callee, symbols, visited);
+                        }
+                        self.remap_symbols_in_inner(call.receiver, symbols, visited);
+                        self.remap_static_application(call.authored_machine_application, symbols);
+                        let arguments = self.expression_handles(call.arguments).to_vec();
+                        for argument in arguments {
+                            self.remap_symbols_in_inner(argument, symbols, visited);
+                        }
+                        let mut call = call;
+                        call.target_symbol = remapped(call.target_symbol, symbols);
+                        if let Some(binding) = &mut call.authored_call_binding {
+                            binding.selected = remapped(binding.selected, symbols);
+                        }
+                        call.visit_static_arguments_mut(|argument| {
+                            self.remap_static_argument_symbols(argument, symbols.execution())
+                        });
+                        *self.expression_mut(root) = ExpressionNode::Call(call);
+                    }
+                    ExpressionNode::Indexed(indexed) => {
+                        self.remap_symbols_in_inner(indexed.collection, symbols, visited);
+                        self.remap_symbols_in_inner(indexed.index, symbols, visited);
+                    }
+                    ExpressionNode::Member(member) => {
+                        self.remap_symbols_in_inner(member.receiver, symbols, visited);
+                        let ExpressionNode::Member(member) = self.expression_mut(root) else {
+                            unreachable!();
+                        };
+                        if let crate::source_state::expression::MemberSelection::Field(symbol) =
+                            &mut member.selection
+                        {
+                            *symbol = remapped(*symbol, symbols);
+                        }
+                    }
+                    ExpressionNode::Borrow(inner) => {
+                        self.remap_symbols_in_inner(inner.target, symbols, visited)
+                    }
+                    ExpressionNode::Name(path) => {
+                        let name_symbols = if path.static_application.is_valid() {
+                            symbols.authored()
+                        } else {
+                            symbols.execution()
+                        };
+                        if let Some(mut application) =
+                            self.static_member(path.static_application).cloned()
+                        {
+                            self.remap_static_argument_symbols(&mut application, name_symbols);
+                            *self
+                                .static_member_mut(path.static_application)
+                                .expect("declaration application remains in its owning table") =
+                                application;
+                        }
+                        let ExpressionNode::Name(current) = self.expression_mut(root) else {
+                            unreachable!();
+                        };
+                        current.head_symbol = remapped(path.head_symbol, name_symbols);
+                        current.symbol = remapped(path.symbol, name_symbols);
+                        current.reserved_result_of =
+                            remapped(path.reserved_result_of, symbols.execution());
+                        for member_symbol in self
+                            .name_path_member_symbols
+                            .span_mut_or_empty(path.member_symbols)
+                        {
+                            *member_symbol = remapped(*member_symbol, name_symbols);
+                        }
+                    }
+                    ExpressionNode::Range(range) => {
+                        self.remap_symbols_in_inner(range.start, symbols, visited);
+                        self.remap_symbols_in_inner(range.end, symbols, visited);
+                    }
+                    ExpressionNode::StructLiteral(literal) => {
+                        let children: Vec<_> = self
+                            .struct_fields(literal.fields)
+                            .iter()
+                            .map(|field| field.value)
+                            .collect();
+                        for child in children {
+                            self.remap_symbols_in_inner(child, symbols, visited);
+                        }
+                    }
+                    ExpressionNode::Unary(unary) => {
+                        self.remap_symbols_in_inner(unary.operand, symbols, visited)
+                    }
+                    ExpressionNode::TypeExpression(_)
+                    | crate::source_state::spelled_literal_expression_pattern!() => {}
+                }
+            }
+
+            /// Copy the existing call inputs and application into this table.
+            /// The caller assigns the new invocation owner and judges it; the
+            /// original application's tuple and scope remain untouched.
+            pub fn copy_call_operands_from(
+                &mut self,
+                source: &ExpressionTable,
+                expressions: &[ExpressionHandle],
+                application: crate::source_state::static_applications::StaticMachineApplicationHandle,
+            ) -> (
+                HandleSpan<ExpressionHandle>,
+                Vec<(Handle<CompletedValueCapture>, ValueCaptureOwner)>,
+                crate::source_state::static_applications::StaticMachineApplicationHandle,
+            ) {
+                let mut copies = CopyGraph::default();
+                let expressions = self.copy_expression_list_with_occurrences(
+                    CopySource::Table(source),
+                    expressions,
+                    &retain_every_field,
+                    &mut copies,
+                );
+                let application = self.copy_static_machine_application(
+                    CopySource::Table(source),
+                    application,
+                    &mut copies,
+                );
+                (
+                    expressions,
+                    copies
+                        .subjects
+                        .into_iter()
+                        .map(|(original, capture)| (capture, source.value_capture(original).owner))
+                        .collect(),
+                    application,
+                )
+            }
+
+            pub fn relocate_statement_operand_captures(
+                &mut self,
+                source: crate::source_state::statement::StatementHandle,
+                target: crate::source_state::statement::StatementHandle,
+            ) {
+                let captures = self
+                    .completed_values
+                    .iter()
+                    .filter_map(|(capture, value)| {
+                        matches!(value.owner,
+                            ValueCaptureOwner::StatementArgument { call, .. } if call == source
+                        )
+                        .then_some((capture, value.owner))
+                    })
+                    .collect::<Vec<_>>();
+                self.rebind_statement_operand_captures(&captures, source, target);
+            }
+
+            pub(crate) fn rebind_statement_operand_captures(
+                &mut self,
+                captures: &[(Handle<CompletedValueCapture>, ValueCaptureOwner)],
+                source: crate::source_state::statement::StatementHandle,
+                target: crate::source_state::statement::StatementHandle,
+            ) {
+                for &(capture, owner) in captures {
+                    if let ValueCaptureOwner::StatementArgument { call, position } = owner
+                        && call == source
+                    {
+                        self.completed_values.get_mut(capture).owner =
+                            ValueCaptureOwner::StatementArgument {
+                                call: target,
+                                position,
+                            };
+                    }
+                }
+            }
+
+            fn copy_subtree<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                expression: ExpressionHandle,
+                retain: &RetainField,
+            ) -> ExpressionHandle
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                self.copy_subtree_with_occurrences(
+                    source,
+                    expression,
+                    retain,
+                    &mut CopyGraph::default(),
+                )
+            }
+
+            fn copy_subtree_with_occurrences<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                expression: ExpressionHandle,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> ExpressionHandle
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                if !expression.is_valid() {
+                    return expression;
+                }
+                if let Some((_, copied)) = copies
+                    .expressions
+                    .iter()
+                    .find(|(original, _)| *original == expression)
+                {
+                    return *copied;
+                }
+                let origin = source.table(self);
+                let source_span = origin.source_span(expression);
+                let unresolved_name = origin.unresolved_name(expression);
+                let component = origin
+                    .direct_pattern_component(expression)
+                    .expect("copied expression retains its component row");
+                let materialization_source = origin.materialization_source(expression);
+                let domain_tests = origin.executable_domain_tests(expression).to_vec();
+                let carrier = origin.constructed_value_type_reference(expression);
+                let required = origin.construction_required_type_reference(expression);
+                let occurrences = origin
+                    .authored_selection_occurrences(expression)
+                    .collect::<Vec<_>>();
+                let build_inputs = origin
+                    .build_selection_inputs(expression)
+                    .expect("copied expression keeps its exact Build input association")
+                    .cloned();
+                let copied = match origin.expression(expression).clone() {
+                    ExpressionNode::Match(dispatch) => {
+                        let subject = self.copy_subtree_with_occurrences(
+                            source,
+                            dispatch.subject,
+                            retain,
+                            copies,
+                        );
+                        let capture =
+                            self.copy_match_subject(source, dispatch.capture, retain, copies);
+                        let source_arms = source.table(self).match_arms(dispatch.arms).to_vec();
+                        let mut arms = Vec::with_capacity(source_arms.len());
+                        for arm in source_arms {
+                            let pattern = match arm.pattern {
+                                MatchPattern::Value(value) => {
+                                    MatchPattern::Value(self.copy_subtree_with_occurrences(
+                                        source, value, retain, copies,
+                                    ))
+                                }
+                                MatchPattern::Wildcard => MatchPattern::Wildcard,
+                                MatchPattern::Destructure(pattern) => MatchPattern::Destructure(
+                                    self.copy_destructure_pattern(source, pattern, retain, copies),
+                                ),
+                            };
+                            let value = self
+                                .copy_subtree_with_occurrences(source, arm.value, retain, copies);
+                            arms.push(TableMatchArm {
+                                pattern,
+                                value,
+                                source_span: arm.source_span,
+                            });
+                        }
+                        let arms = self.insert_match_arms(arms);
+                        self.insert(ExpressionNode::Match(TableMatchExpression {
+                            subject,
+                            capture,
+                            arms,
+                        }))
+                    }
+                    ExpressionNode::SavedSubject(saved) => {
+                        let copied_capture =
+                            copies.subjects.iter().find_map(|(original, copied)| {
+                                (*original == saved.capture).then_some(*copied)
+                            });
+                        if copied_capture.is_none() && matches!(source, CopySource::Own) {
+                            self.insert(ExpressionNode::SavedSubject(saved))
+                        } else {
+                            let capture =
+                                self.copy_match_subject(source, saved.capture, retain, copies);
+                            let pattern_head = self.copy_subtree_with_occurrences(
+                                source,
+                                saved.pattern_head,
+                                retain,
+                                copies,
+                            );
+                            self.insert(ExpressionNode::SavedSubject(super::TableSavedSubject {
+                                component: saved.component,
+                                capture,
+                                pattern_head,
+                            }))
+                        }
+                    }
+                    ExpressionNode::ArrayLiteral(values) => {
+                        let values = self.copy_expression_span(source, values, retain, copies);
+                        self.insert(ExpressionNode::ArrayLiteral(values))
+                    }
+                    ExpressionNode::Atomic(atomic) => {
+                        let value = self.copy_subtree_with_occurrences(
+                            source,
+                            atomic.value,
+                            retain,
+                            copies,
+                        );
+                        let result =
+                            self.copy_optional_subtree(source, atomic.result, retain, copies);
+                        self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                            value,
+                            result,
+                            ordering: atomic.ordering,
+                            result_custody: atomic.result_custody,
+                        }))
+                    }
+                    ExpressionNode::Binary(binary) => {
+                        let left =
+                            self.copy_subtree_with_occurrences(source, binary.left, retain, copies);
+                        let right = self.copy_subtree_with_occurrences(
+                            source,
+                            binary.right,
+                            retain,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: binary.policy,
+                            left,
+                            operator: binary.operator,
+                            right,
+                        }))
+                    }
+                    ExpressionNode::Boolean(value) => self.insert(ExpressionNode::Boolean(value)),
+                    ExpressionNode::Cast(cast) => {
+                        let value =
+                            self.copy_subtree_with_occurrences(source, cast.value, retain, copies);
+                        let target_label = self.copy_name_path_members(source, cast.target_label);
+                        let semantic_domain =
+                            self.copy_name_path_members(source, cast.semantic_domain);
+                        self.insert(ExpressionNode::Cast(TableCastExpression {
+                            value,
+                            target_type: cast.target_type,
+                            result_type: cast.result_type,
+                            target_label,
+                            domain: cast.domain,
+                            semantic_domain,
+                            semantic_domain_arguments: cast.semantic_domain_arguments,
+                            semantic_domain_symbol: cast.semantic_domain_symbol,
+                            semantic_domain_id: cast.semantic_domain_id,
+                            form: cast.form,
+                        }))
+                    }
+                    ExpressionNode::MachineValue(value) => {
+                        let mut value = value;
+                        value.selected = match source {
+                            CopySource::Own => self.copy_static_argument_from_self(&value.selected),
+                            CopySource::Table(table) => {
+                                self.copy_static_argument_from(table, &value.selected)
+                            }
+                        };
+                        value.application =
+                            self.copy_static_machine_application(source, value.application, copies);
+                        self.insert(ExpressionNode::MachineValue(value))
+                    }
+                    ExpressionNode::Call(call) => {
+                        let runtime_call = call.runtime_call.map(|binding| {
+                            crate::source_state::callable_values::RuntimeCallBinding {
+                                callee: self.copy_subtree_with_occurrences(
+                                    source,
+                                    binding.callee,
+                                    retain,
+                                    copies,
+                                ),
+                                contract: binding.contract,
+                            }
+                        });
+                        let receiver =
+                            self.copy_optional_subtree(source, call.receiver, retain, copies);
+                        let arguments =
+                            self.copy_expression_span(source, call.arguments, retain, copies);
+                        let mut call = call;
+                        if let Some(request) = call.layout_query.as_mut()
+                            && request.nonempty_view.is_valid()
+                        {
+                            request.nonempty_view = self.copy_subtree_with_occurrences(
+                                source,
+                                request.nonempty_view,
+                                retain,
+                                copies,
+                            );
+                        }
+                        call.visit_static_arguments_mut(|argument| {
+                            *argument = match source {
+                                CopySource::Own => self.copy_static_argument_from_self(argument),
+                                CopySource::Table(table) => {
+                                    self.copy_static_argument_from(table, argument)
+                                }
+                            };
+                        });
+                        let build_selection =
+                            self.copy_build_selection_call(source, call.build_selection, copies);
+                        let authored_machine_application = self.copy_static_machine_application(
+                            source,
+                            call.authored_machine_application,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
+                            authored_call_selection: call.authored_call_selection,
+                            authored_call_binding: call.authored_call_binding,
+                            authored_machine_application,
+                            requirement_application: call.requirement_application,
+                            exact_coercion_target: call.exact_coercion_target,
+                            receiver,
+                            target_symbol: call.target_symbol,
+                            target: call.target,
+                            static_requirement_dispatch: call.static_requirement_dispatch,
+                            static_machine_parameter: call.static_machine_parameter,
+                            machine_arguments: call.machine_arguments,
+                            quotient_operation: call.quotient_operation,
+                            private_layout_operation: call.private_layout_operation,
+                            installed_interrupt_operation: call.installed_interrupt_operation,
+                            layout_query: call.layout_query,
+                            native_code_layout: call.native_code_layout,
+                            build_selection,
+                            arguments,
+                            evidence_arguments: call.evidence_arguments,
+                            operational_acknowledgement: call.operational_acknowledgement,
+                        }))
+                    }
+                    ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+                    ExpressionNode::UndeterminedNaN(format) => {
+                        self.insert(ExpressionNode::UndeterminedNaN(format))
+                    }
+                    ExpressionNode::Indexed(indexed) => {
+                        let collection = self.copy_subtree_with_occurrences(
+                            source,
+                            indexed.collection,
+                            retain,
+                            copies,
+                        );
+                        let index = self.copy_subtree_with_occurrences(
+                            source,
+                            indexed.index,
+                            retain,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                            collection,
+                            index,
+                        }))
+                    }
+                    ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value)),
+                    ExpressionNode::Member(member) => {
+                        let receiver = self.copy_subtree_with_occurrences(
+                            source,
+                            member.receiver,
+                            retain,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Member(TableMemberExpression {
+                            receiver,
+                            selection: member.selection,
+                            member: member.member,
+                            case_variant: member.case_variant,
+                        }))
+                    }
+                    ExpressionNode::Borrow(borrow) => {
+                        let target = self.copy_subtree_with_occurrences(
+                            source,
+                            borrow.target,
+                            retain,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                            target,
+                            access: borrow.access,
+                        }))
+                    }
+                    ExpressionNode::Name(path) => {
+                        let static_application = if path.static_application.is_valid() {
+                            let argument = source.table(self).static_member(path.static_application)
+                                .expect("declaration application belongs to its source expression table").clone();
+                            let copied = match source {
+                                CopySource::Own => self.copy_static_argument_from_self(&argument),
+                                CopySource::Table(table) => {
+                                    self.copy_static_argument_from(table, &argument)
+                                }
+                            };
+                            self.insert_static_member(copied)
+                        } else {
+                            arena::Handle::invalid()
+                        };
+                        let members = self.copy_name_path_members(source, path.members);
+                        let member_symbols =
+                            self.copy_name_path_member_symbols(source, path.member_symbols);
+                        self.insert(ExpressionNode::Name(TableNamePath {
+                            members,
+                            member_symbols,
+                            head_symbol: path.head_symbol,
+                            symbol: path.symbol,
+                            reserved_result_of: path.reserved_result_of,
+                            static_application,
+                        }))
+                    }
+                    ExpressionNode::Range(range) => {
+                        let start = self.copy_optional_subtree(source, range.start, retain, copies);
+                        let end = self.copy_optional_subtree(source, range.end, retain, copies);
+                        self.insert(ExpressionNode::Range(TableRangeExpression {
+                            start,
+                            end,
+                            end_inclusive: range.end_inclusive,
+                        }))
+                    }
+                    ExpressionNode::StructLiteral(literal) => {
+                        let fields =
+                            self.copy_struct_literal_fields(source, &literal, retain, copies);
+                        self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            zero_omitted_fields: literal.zero_omitted_fields,
+                            application_type: literal.application_type,
+                            type_name: literal.type_name,
+                            type_symbol: literal.type_symbol,
+                            case_name: literal.case_name,
+                            case_symbol: literal.case_symbol,
+                            fields,
+                        }))
+                    }
+                    ExpressionNode::String(value) => self.insert(ExpressionNode::String(value)),
+                    ExpressionNode::Unary(unary) => {
+                        let operand = self.copy_subtree_with_occurrences(
+                            source,
+                            unary.operand,
+                            retain,
+                            copies,
+                        );
+                        self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                            operator: unary.operator,
+                            operand,
+                        }))
+                    }
+                    ExpressionNode::TypeExpression(type_reference) => {
+                        self.insert(ExpressionNode::TypeExpression(type_reference))
+                    }
+                    ExpressionNode::ZeroValue(type_reference) => {
+                        self.insert(ExpressionNode::ZeroValue(type_reference))
+                    }
+                };
+                self.set_source_span(copied, source_span);
+                self.set_unresolved_name(copied, unresolved_name);
+                if carrier.is_valid() {
+                    self.set_constructed_value_type_reference(copied, carrier);
+                }
+                if required.is_valid() {
+                    self.set_construction_required_type_reference(copied, required);
+                }
+                self.attach_authored_selection_occurrences(copied, occurrences);
+                if let Some(mut inputs) = build_inputs {
+                    let ExpressionNode::Call(call) = self.expression(copied) else {
+                        unreachable!("Build inputs were copied with their call");
+                    };
+                    inputs.request = call.build_selection;
+                    self.retain_build_selection_inputs(copied, inputs)
+                        .expect("copied Build input association follows its exact call");
+                }
+                self.set_pattern_component(copied, component);
+                copies.expressions.push((expression, copied));
+                if materialization_source.is_valid() {
+                    let authored = self.copy_subtree_with_occurrences(
+                        source,
+                        materialization_source,
+                        retain,
+                        copies,
+                    );
+                    self.retain_materialization_source(copied, authored);
+                }
+                for test in domain_tests {
+                    let subject =
+                        self.copy_subtree_with_occurrences(source, test.subject, retain, copies);
+                    self.retain_executable_domain_test(
+                        copied,
+                        super::ExecutableDomainTest {
+                            subject,
+                            domain: test.domain,
+                        },
+                    );
+                }
+                for (original, capture) in &copies.subjects {
+                    if let ValueCaptureOwner::ExpressionArgument { call, position } =
+                        source.table(self).value_capture(*original).owner
+                        && call == expression
+                    {
+                        self.completed_values.get_mut(*capture).owner =
+                            ValueCaptureOwner::ExpressionArgument {
+                                call: copied,
+                                position,
+                            };
+                    }
+                }
+                copied
+            }
+
+            pub(crate) fn copy_transition_pattern_from(
+                &mut self,
+                source: &ExpressionTable,
+                retained: crate::source_state::statement::TransitionPattern,
+            ) -> crate::source_state::statement::TransitionPattern {
+                let copies = &mut CopyGraph::default();
+                let source = CopySource::Table(source);
+                let subject = self.copy_subtree_with_occurrences(
+                    source,
+                    retained.subject,
+                    &retain_every_field,
+                    copies,
+                );
+                let pattern = self.copy_destructure_pattern(
+                    source,
+                    retained.pattern,
+                    &retain_every_field,
+                    copies,
+                );
+                crate::source_state::statement::TransitionPattern {
+                    is_structural: retained.is_structural,
+                    subject,
+                    pattern,
+                }
+            }
+
+            fn copy_match_subject<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                capture: Handle<CompletedValueCapture>,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> Handle<CompletedValueCapture>
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                if !capture.is_valid() {
+                    return capture;
+                }
+                if let Some((_, copied)) = copies
+                    .subjects
+                    .iter()
+                    .find(|(original, _)| *original == capture)
+                {
+                    return *copied;
+                }
+                let captured = *source.table(self).value_capture(capture);
+                let subject =
+                    self.copy_subtree_with_occurrences(source, captured.subject, retain, copies);
+                let copied = if matches!(captured.owner, ValueCaptureOwner::Match) {
+                    self.insert_match_subject(subject)
+                } else {
+                    let owner = match captured.owner {
+                        ValueCaptureOwner::ExpressionArgument { call, position } => {
+                            let call = copies
+                                .expressions
+                                .iter()
+                                .find(|(source, _)| *source == call)
+                                .map(|(_, copied)| *copied)
+                                .unwrap_or_else(ExpressionHandle::invalid);
+                            ValueCaptureOwner::ExpressionArgument { call, position }
+                        }
+                        ValueCaptureOwner::StatementArgument { position, .. } => {
+                            ValueCaptureOwner::StatementArgument {
+                                call: crate::source_state::statement::StatementHandle::invalid(),
+                                position,
+                            }
+                        }
+                        owner => owner,
+                    };
+                    self.insert_call_operand_capture(subject, owner)
+                };
+                copies.subjects.push((capture, copied));
+                copied
+            }
+
+            /// A record pattern's field roster: it names no expression, so
+            /// the rows copy as they stand.
+            pub fn copy_pattern_fields_from(
+                &mut self,
+                source: &ExpressionTable,
+                fields: HandleSpan<super::TableMatchField>,
+            ) -> HandleSpan<super::TableMatchField> {
+                let fields = source.match_fields(fields).to_vec();
+                self.insert_match_fields(fields)
+            }
+
+            fn copy_destructure_pattern<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                pattern: super::TableDestructurePattern,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> super::TableDestructurePattern
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                let head = self.copy_subtree_with_occurrences(source, pattern.head, retain, copies);
+                let mut fields = source.table(self).match_fields(pattern.fields).to_vec();
+                for field in &mut fields {
+                    if let super::MatchFieldAction::Equal(value) = &mut field.action {
+                        *value = self.copy_subtree_with_occurrences(source, *value, retain, copies);
+                    }
+                }
+                let fields = self.insert_match_fields(fields);
+                let guard =
+                    self.copy_subtree_with_occurrences(source, pattern.guard, retain, copies);
+                let condition =
+                    self.copy_subtree_with_occurrences(source, pattern.condition, retain, copies);
+                let selectors = source
+                    .table(self)
+                    .match_proof_selectors(pattern.proof_selectors)
+                    .to_vec();
+                let proof_selectors = self.insert_match_proof_selectors(selectors);
+                super::TableDestructurePattern {
+                    application_type: pattern.application_type,
+                    head,
+                    fields,
+                    has_rest: pattern.has_rest,
+                    guard,
+                    condition,
+                    proof_selectors,
+                }
+            }
+
+            fn copy_optional_subtree<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                expression: ExpressionHandle,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> ExpressionHandle
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                if expression.is_valid() {
+                    self.copy_subtree_with_occurrences(source, expression, retain, copies)
+                } else {
+                    ExpressionHandle::invalid()
+                }
+            }
+
+            fn copy_expression_span<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                expressions: HandleSpan<ExpressionHandle>,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> HandleSpan<ExpressionHandle>
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                let expressions = source.table(self).expression_handles(expressions).to_vec();
+                self.copy_expression_list_with_occurrences(source, &expressions, retain, copies)
+            }
+
+            fn copy_expression_list_with_occurrences<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                expressions: &[ExpressionHandle],
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> HandleSpan<ExpressionHandle>
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                let copied = self.reserve_expression_handles(
+                    expressions
+                        .len()
+                        .try_into()
+                        .expect("expression handle span count overflow"),
+                );
+
+                for (offset, expression) in expressions.iter().enumerate() {
+                    let expression =
+                        self.copy_subtree_with_occurrences(source, *expression, retain, copies);
+                    self.set_expression_handle_at_offset(
+                        copied,
+                        offset
+                            .try_into()
+                            .expect("expression handle span count overflow"),
+                        expression,
+                    );
+                }
+
+                copied
+            }
+
+            fn copy_name_path_members(
+                &mut self,
+                source: CopySource<'_>,
+                members: HandleSpan<Identifier>,
+            ) -> HandleSpan<Identifier> {
+                let members = source.table(self).name_path_members(members).to_vec();
+                let mut copied = HandleSpan::empty();
+
+                for member in members {
+                    self.name_path_members.append_to_span(&mut copied, member);
+                }
+
+                copied
+            }
+
+            fn copy_name_path_member_symbols(
+                &mut self,
+                source: CopySource<'_>,
+                member_symbols: HandleSpan<SymbolHandle>,
+            ) -> HandleSpan<SymbolHandle> {
+                let member_symbols = source
+                    .table(self)
+                    .name_path_member_symbols(member_symbols)
+                    .to_vec();
+                let mut copied = HandleSpan::empty();
+
+                for member_symbol in member_symbols {
+                    self.name_path_member_symbols
+                        .append_to_span(&mut copied, member_symbol);
+                }
+
+                copied
+            }
+
+            fn copy_struct_literal_fields<RetainField>(
+                &mut self,
+                source: CopySource<'_>,
+                literal: &TableStructLiteral,
+                retain: &RetainField,
+                copies: &mut CopyGraph,
+            ) -> HandleSpan<TableStructLiteralField>
+            where
+                RetainField: Fn(&TableStructLiteral, &TableStructLiteralField) -> bool,
+            {
+                let retained = source
+                    .table(self)
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .filter(|field| retain(literal, field))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let copied = self.reserve_struct_fields(
+                    retained
+                        .len()
+                        .try_into()
+                        .expect("struct literal field span count overflow"),
+                );
+
+                for (offset, field) in retained.into_iter().enumerate() {
+                    let value =
+                        self.copy_subtree_with_occurrences(source, field.value, retain, copies);
+                    self.set_struct_field_at_offset(
+                        copied,
+                        offset
+                            .try_into()
+                            .expect("struct literal field span count overflow"),
+                        TableStructLiteralField {
+                            name: field.name,
+                            field_symbol: field.field_symbol,
+                            value,
+                        },
+                    );
+                }
+
+                copied
+            }
+        }
+
+        #[cfg(test)]
+        mod materialization_tests {
+            use super::*;
+
+            #[test]
+            fn pattern_dependencies_retain_the_combined_condition_once() {
+                use crate::source_state::expression::{
+                    BinaryOperator, MatchFieldAction, MatchPattern, TableDestructurePattern,
+                    TableMatchArm, TableMatchExpression, TableMatchField,
+                };
+
+                let mut trees = crate::source_state::TypedTrees::default();
+                let table = &mut trees.expression_table;
+                let head = table.insert(ExpressionNode::Boolean(true));
+                let observed = table.insert(ExpressionNode::Boolean(false));
+                let expected = table.insert(ExpressionNode::Boolean(true));
+                let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: observed,
+                    operator: BinaryOperator::Equal,
+                    right: expected,
+                }));
+                let guard = table.insert(ExpressionNode::Boolean(true));
+                let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: equality,
+                    operator: BinaryOperator::And,
+                    right: guard,
+                }));
+                let fields = table.insert_match_fields([TableMatchField {
+                    action: MatchFieldAction::Equal(expected),
+                    ..Default::default()
+                }]);
+                let pattern = MatchPattern::Destructure(TableDestructurePattern {
+                    head,
+                    fields,
+                    guard,
+                    condition,
+                    ..Default::default()
+                });
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(pattern)
+                        .collect::<Vec<_>>(),
+                    [head, condition]
+                );
+                let ExpressionNode::Binary(combined) = table.expression(condition) else {
+                    panic!("retained condition contains both predicate inputs");
+                };
+                assert_eq!([combined.left, combined.right], [equality, guard]);
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Value(equality))
+                        .collect::<Vec<_>>(),
+                    [equality]
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Wildcard)
+                        .count(),
+                    0
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Destructure(Default::default()))
+                        .count(),
+                    0
+                );
+
+                let subject = table.insert(ExpressionNode::Boolean(true));
+                let result = table.insert(ExpressionNode::Boolean(false));
+                let capture = table.insert_match_subject(subject);
+                let arms = table.insert_match_arms([TableMatchArm {
+                    pattern,
+                    value: result,
+                    ..Default::default()
+                }]);
+                let dispatch = table.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    capture,
+                    arms,
+                }));
+                let mut visited = Vec::new();
+                trees.subtree_for_each(
+                    dispatch,
+                    crate::source_state::values::subtrees::SubtreeEdges {
+                        pattern_dependencies: true,
+                        ..Default::default()
+                    },
+                    |expression, _| visited.push(expression),
+                );
+                assert_eq!(
+                    visited,
+                    [
+                        dispatch, subject, head, condition, equality, observed, expected, guard,
+                        result
+                    ]
+                );
+            }
+
+            /// A contract's reserved `result` is known by its owner identity,
+            /// not its spelling, so a name rebuilt from an owned tree must
+            /// keep that owner; an edited path is a different name and
+            /// loses it.
+            #[test]
+            fn inserting_a_tree_keeps_the_reserved_result_owner() {
+                use crate::source_state::expression::{Expression, NamePath};
+                let owner = SymbolHandle::from_arena_index(7);
+                let name = |text: &str| Identifier::from(text);
+                let result =
+                    NamePath::unresolved(vec![name("result")]).denoting_reserved_result_of(owner);
+                let mut table = ExpressionTable::default();
+                let stored = table.insert_tree(&Expression::Name(result.clone()));
+                let ExpressionNode::Name(path) = table.expression(stored) else {
+                    panic!("a name is stored as a name")
+                };
+                assert_eq!(path.reserved_result_of, owner);
+                assert!(!path.symbol.is_valid());
+                let copied = table.insert_copy(stored);
+                let new_owner = SymbolHandle::from_arena_index(17);
+                let mut prepared = crate::source_state::PreparedSymbolRebinding::default();
+                assert!(prepared.insert_execution(owner, new_owner).is_none());
+                table.remap_symbols_in(copied, prepared.rebinding());
+                assert_eq!(
+                    table.name_path_node(copied).unwrap().reserved_result_of,
+                    new_owner
+                );
+                assert_eq!(
+                    table.name_path_node(stored).unwrap().reserved_result_of,
+                    owner
+                );
+
+                let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![name(
+                    "result",
+                )])));
+                let ExpressionNode::Name(path) = table.expression(plain) else {
+                    panic!("a name is stored as a name")
+                };
+                assert!(!path.reserved_result_of.is_valid());
+
+                let mut edited = result;
+                edited.push(name("field"));
+                assert!(!edited.reserved_result_of().is_valid());
+            }
+
+            #[test]
+            fn applied_names_keep_authored_targets_and_complete_arguments_in_copies() {
+                for indexed in [false, true] {
+                    use crate::source_state::expression::{
+                        StaticMachineArgument, StaticSymbolApplication,
+                    };
+                    use numeric_literals::IntegerLiteral;
+                    let original = SymbolHandle::from_arena_index(7);
+                    let entry = SymbolHandle::from_arena_index(8);
+                    let parameter = SymbolHandle::from_arena_index(9);
+                    let replacement = SymbolHandle::from_arena_index(17);
+                    let new_entry = SymbolHandle::from_arena_index(18);
+                    let new_parameter = SymbolHandle::from_arena_index(19);
+                    let mut table = ExpressionTable::default();
+                    let member = table.insert_static_member(StaticMachineArgument {
+                        symbol: entry,
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member: Default::default(),
+                            arguments: Box::new([StaticMachineArgument {
+                                const_literal: Some(IntegerLiteral::from_value(3)),
+                                ..Default::default()
+                            }]),
+                            lifetime_arguments: Box::default(),
+                        })),
+                        ..Default::default()
+                    });
+                    let application = table.insert_static_member(StaticMachineArgument {
+                        symbol: original,
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member,
+                            arguments: Box::new([
+                                StaticMachineArgument {
+                                    const_literal: Some(IntegerLiteral::from_value(7)),
+                                    ..Default::default()
+                                },
+                                StaticMachineArgument {
+                                    symbol: parameter,
+                                    ..Default::default()
+                                },
+                            ]),
+                            lifetime_arguments: Box::default(),
+                        })),
+                        ..Default::default()
+                    });
+                    let mut members = HandleSpan::empty();
+                    table.push_name_path_member(&mut members, Identifier::generated("value"));
+                    let described = table.insert(ExpressionNode::Name(TableNamePath {
+                        static_application: application,
+                        ..TableNamePath::new(members, Default::default(), original, original)
+                    }));
+                    let ordinary = table.insert(ExpressionNode::Name(TableNamePath::new(
+                        members,
+                        Default::default(),
+                        original,
+                        original,
+                    )));
+                    let copied = table.insert_copy(described);
+                    assert!(table.expressions_structurally_equal(described, copied));
+                    assert!(!table.expressions_structurally_equal(described, ordinary));
+                    let copied_application =
+                        table.name_path_node(copied).unwrap().static_application;
+                    assert_ne!(application, copied_application);
+                    table
+                        .static_member_mut(copied_application)
+                        .unwrap()
+                        .application
+                        .as_mut()
+                        .unwrap()
+                        .arguments[0]
+                        .const_literal = Some(IntegerLiteral::from_value(8));
+                    assert!(
+                        !table.expressions_structurally_equal(described, copied),
+                        "outer arguments are part of the path"
+                    );
+                    let local_copy = table.insert_copy(described);
+                    let local_application = table
+                        .static_member(table.name_path_node(local_copy).unwrap().static_application)
+                        .unwrap()
+                        .application
+                        .as_ref()
+                        .unwrap()
+                        .member;
+                    assert_ne!(member, local_application);
+                    table
+                        .static_member_mut(local_application)
+                        .unwrap()
+                        .application
+                        .as_mut()
+                        .unwrap()
+                        .arguments[0]
+                        .const_literal = Some(IntegerLiteral::from_value(4));
+                    assert!(
+                        !table.expressions_structurally_equal(described, local_copy),
+                        "member arguments are part of the path"
+                    );
+                    let executable = [
+                        (original, replacement),
+                        (entry, new_entry),
+                        (parameter, new_parameter),
+                    ];
+                    let authored = [(parameter, new_parameter)];
+                    let mut prepared = crate::source_state::PreparedSymbolRebinding::default();
+                    for (source, target) in executable {
+                        assert!(prepared.insert_execution(source, target).is_none());
+                    }
+                    for (source, target) in authored {
+                        assert!(prepared.insert_authored(source, target).is_none());
+                    }
+                    let rebinding = if indexed {
+                        prepared.rebinding()
+                    } else {
+                        crate::source_state::SymbolRebinding::new(&executable, &authored)
+                    };
+                    assert_eq!(rebinding.iter().copied().collect::<Vec<_>>(), executable);
+                    table.remap_symbols_in(described, rebinding);
+                    table.remap_symbols_in(ordinary, rebinding);
+                    let path = table.name_path_node(described).unwrap();
+                    assert_eq!((path.head_symbol, path.symbol), (original, original));
+                    let selected = table.static_member(path.static_application).unwrap();
+                    assert_eq!(selected.symbol, original);
+                    let arguments = selected.application.as_ref().unwrap();
+                    assert_eq!(arguments.arguments[1].symbol, new_parameter);
+                    assert_eq!(table.static_member(arguments.member).unwrap().symbol, entry);
+                    let ordinary_path = table.name_path_node(ordinary).unwrap();
+                    assert_eq!(
+                        (ordinary_path.head_symbol, ordinary_path.symbol),
+                        (replacement, replacement)
+                    );
+                    assert!(!table.name_path_is_single_member(path));
+                    assert!(table.single_name_member(described).is_none());
+                    assert!(path.resolved_symbol().is_none());
+                    assert!(!table.names_parameter(
+                        described,
+                        &crate::source_state::signature::StateParameter {
+                            symbol: original,
+                            name: Identifier::generated("value"),
+                            ..Default::default()
+                        }
+                    ));
+                    let mut result_name = HandleSpan::empty();
+                    table.push_name_path_member(&mut result_name, Identifier::generated("result"));
+                    let result_description = table.insert(ExpressionNode::Name(TableNamePath {
+                        members: result_name,
+                        static_application: application,
+                        ..Default::default()
+                    }));
+                    assert!(!table.names_reserved_result(result_description));
+                }
+            }
+
+            #[test]
+            fn replacing_the_computation_retains_its_original_occurrence() {
+                let mut table = ExpressionTable::default();
+                let authored = table.insert(ExpressionNode::Boolean(false));
+                let value = table.insert(ExpressionNode::Boolean(true));
+                table.retain_materialization_source(value, authored);
+                table.replace_with_existing(authored, value);
+                let original = table.materialization_source(authored);
+                assert!(original.is_valid() && original != authored);
+                assert_eq!(table.expression(authored), &ExpressionNode::Boolean(true));
+                assert_eq!(table.expression(original), &ExpressionNode::Boolean(false));
+            }
+
+            #[test]
+            fn materialized_value_copy_retains_its_distinct_authored_computation() {
+                let mut source = ExpressionTable::default();
+                let authored = source.insert(ExpressionNode::Boolean(false));
+                let value = source.insert(ExpressionNode::Boolean(true));
+                source.retain_materialization_source(value, authored);
+                let own = source.insert_copy(value);
+                let mut destination = ExpressionTable::default();
+                for _ in 0..8 {
+                    destination.insert(ExpressionNode::Boolean(true));
+                }
+                let copied = destination.copy_from(&source, value);
+                for (table, copied) in [(&source, own), (&destination, copied)] {
+                    let authored = table.materialization_source(copied);
+                    assert!(authored.is_valid() && authored != copied);
+                    assert_eq!(table.expression(copied), &ExpressionNode::Boolean(true));
+                    assert_eq!(table.expression(authored), &ExpressionNode::Boolean(false));
+                }
+            }
+        }
+    }
+    pub(crate) mod tree_conversion {
+        use crate::source_state::name::Identifier;
+        use crate::source_state::values::expression::{
+            Expression, ExpressionHandle, ExpressionNode, ExpressionTable, MatchPattern, NamePath,
+            OwnedMatchPattern, StructLiteralField, TableAtomicExpression, TableBinaryExpression,
+            TableBorrowExpression, TableCallExpression, TableCastExpression,
+            TableIndexedExpression, TableMatchArm, TableMatchExpression, TableMemberExpression,
+            TableNamePath, TableRangeExpression, TableStructLiteral, TableStructLiteralField,
+            TableUnaryExpression,
+        };
+        use arena::HandleSpan;
+        use symbols::SymbolHandle;
+
+        impl ExpressionTable {
+            fn insert_name_path_members(&mut self, path: &NamePath) -> HandleSpan<Identifier> {
+                let mut members = HandleSpan::empty();
+
+                for member in path.members() {
+                    self.name_path_members
+                        .append_to_span(&mut members, member.clone());
+                }
+
+                members
+            }
+
+            fn insert_name_path_member_symbols(
+                &mut self,
+                path: &NamePath,
+            ) -> HandleSpan<SymbolHandle> {
+                let mut member_symbols = HandleSpan::empty();
+
+                for member_symbol in path.member_symbols() {
+                    self.name_path_member_symbols
+                        .append_to_span(&mut member_symbols, *member_symbol);
+                }
+
+                member_symbols
+            }
+
+            fn insert_expression_handle_span_from_trees(
+                &mut self,
+                expressions: &[Expression],
+            ) -> HandleSpan<ExpressionHandle> {
+                let handles = self.reserve_expression_handles(
+                    expressions
+                        .len()
+                        .try_into()
+                        .expect("expression handle span count overflow"),
+                );
+
+                for (offset, expression) in expressions.iter().enumerate() {
+                    let expression = self.insert_tree(expression);
+                    self.set_expression_handle_at_offset(
+                        handles,
+                        offset
+                            .try_into()
+                            .expect("expression handle span count overflow"),
+                        expression,
+                    );
+                }
+
+                handles
+            }
+
+            fn insert_struct_field_span_from_tree(
+                &mut self,
+                fields: &[StructLiteralField],
+            ) -> HandleSpan<TableStructLiteralField> {
+                let field_span = self.reserve_struct_fields(
+                    fields
+                        .len()
+                        .try_into()
+                        .expect("struct literal field span count overflow"),
+                );
+
+                for (offset, field) in fields.iter().enumerate() {
+                    let value = self.insert_tree(&field.value);
+                    self.set_struct_field_at_offset(
+                        field_span,
+                        offset
+                            .try_into()
+                            .expect("struct literal field span count overflow"),
+                        TableStructLiteralField {
+                            name: field.name.clone(),
+                            field_symbol: SymbolHandle::invalid(),
+                            value,
+                        },
+                    );
+                }
+
+                field_span
+            }
+
+            pub fn insert_tree(&mut self, expression: &Expression) -> ExpressionHandle {
+                match expression {
+                    Expression::Match(dispatch) => {
+                        let subject = self.insert_tree(&dispatch.subject);
+                        let mut arms = Vec::with_capacity(dispatch.arms.len());
+                        for arm in dispatch.arms.iter() {
+                            let pattern = match &arm.pattern {
+                                OwnedMatchPattern::Value(value) => {
+                                    MatchPattern::Value(self.insert_tree(value))
+                                }
+                                OwnedMatchPattern::Wildcard => MatchPattern::Wildcard,
+                            };
+                            let value = self.insert_tree(&arm.value);
+                            arms.push(TableMatchArm {
+                                pattern,
+                                value,
+                                source_span: arm.source_span,
+                            });
+                        }
+                        let arms = self.insert_match_arms(arms);
+                        self.insert(ExpressionNode::Match(TableMatchExpression {
+                            subject,
+                            arms,
+                            ..Default::default()
+                        }))
+                    }
+                    Expression::ArrayLiteral(values) => {
+                        let values = self.insert_expression_handle_span_from_trees(values);
+                        self.insert(ExpressionNode::ArrayLiteral(values))
+                    }
+                    Expression::Atomic(atomic) => {
+                        let value = self.insert_tree(&atomic.value);
+                        let result = atomic
+                            .result
+                            .as_ref()
+                            .map(|result| self.insert_tree(result))
+                            .unwrap_or_else(ExpressionHandle::invalid);
+                        self.insert(ExpressionNode::Atomic(TableAtomicExpression {
+                            value,
+                            result,
+                            ordering: atomic.ordering,
+                            result_custody: atomic.result_custody,
+                        }))
+                    }
+                    Expression::Binary(binary) => {
+                        let left = self.insert_tree(&binary.left);
+                        let right = self.insert_tree(&binary.right);
+                        self.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            left,
+                            operator: binary.operator,
+                            right,
+                        }))
+                    }
+                    Expression::Boolean(value) => self.insert(ExpressionNode::Boolean(*value)),
+                    Expression::Cast(cast) => {
+                        let value = self.insert_tree(&cast.value);
+                        let target_label = self.insert_name_path_members(&cast.target_label);
+                        self.insert(ExpressionNode::Cast(TableCastExpression {
+                            value,
+                            target_type: cast.target_type,
+                            result_type: crate::source_state::types::TypeReferenceHandle::invalid(),
+                            target_label,
+                            domain: cast.domain,
+                            semantic_domain: HandleSpan::empty(),
+                            semantic_domain_arguments: HandleSpan::empty(),
+                            semantic_domain_symbol: SymbolHandle::invalid(),
+                            semantic_domain_id: declaration_contracts::SemanticDomainId::NULL,
+                            form: cast.form,
+                        }))
+                    }
+                    Expression::MachineValue(value) => {
+                        self.insert(ExpressionNode::MachineValue(value.clone()))
+                    }
+                    Expression::Call(call) => {
+                        let runtime_call = call.runtime_call.as_ref().map(|binding| {
+                            crate::source_state::callable_values::RuntimeCallBinding {
+                                callee: self.insert_tree(&binding.callee),
+                                contract: binding.contract,
+                            }
+                        });
+                        let receiver = call
+                            .receiver
+                            .as_ref()
+                            .map(|receiver| self.insert_tree(receiver))
+                            .unwrap_or_else(ExpressionHandle::invalid);
+                        let arguments =
+                            self.insert_expression_handle_span_from_trees(&call.arguments);
+                        self.insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
+                            authored_call_selection: call.authored_call_selection,
+                            authored_call_binding: call.authored_call_binding,
+                            authored_machine_application: Default::default(),
+                            requirement_application: call.requirement_application,
+                            exact_coercion_target: call.exact_coercion_target,
+                            receiver,
+                            target_symbol: call.target_symbol,
+                            target: call.target.clone(),
+                            static_requirement_dispatch: None,
+                            static_machine_parameter: SymbolHandle::invalid(),
+                            machine_arguments: Box::default(),
+                            quotient_operation: None,
+                            private_layout_operation: None,
+                            installed_interrupt_operation: None,
+                            layout_query: None,
+                            native_code_layout: None,
+                            build_selection: Default::default(),
+                            arguments,
+                            evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
+                            operational_acknowledgement: call.operational_acknowledgement,
+                        }))
+                    }
+                    Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
+                    Expression::UndeterminedNaN(format) => {
+                        self.insert(ExpressionNode::UndeterminedNaN(*format))
+                    }
+                    Expression::Indexed(indexed) => {
+                        let collection = self.insert_tree(&indexed.collection);
+                        let index = self.insert_tree(&indexed.index);
+                        self.insert(ExpressionNode::Indexed(TableIndexedExpression {
+                            collection,
+                            index,
+                        }))
+                    }
+                    Expression::Integer(value) => {
+                        self.insert(ExpressionNode::Integer(value.clone()))
+                    }
+                    Expression::Member(member) => {
+                        let receiver = self.insert_tree(&member.receiver);
+                        self.insert(ExpressionNode::Member(TableMemberExpression {
+                            receiver,
+                            selection: member.selection,
+                            member: member.member.clone(),
+                            case_variant: member.case_variant.clone(),
+                        }))
+                    }
+                    Expression::Borrow(inner_expression) => {
+                        let target = self.insert_tree(&inner_expression.target);
+                        self.insert(ExpressionNode::Borrow(TableBorrowExpression {
+                            target,
+                            access: inner_expression.access,
+                        }))
+                    }
+                    Expression::Name(path) => {
+                        let members = self.insert_name_path_members(path);
+                        let member_symbols = self.insert_name_path_member_symbols(path);
+                        self.insert(ExpressionNode::Name(TableNamePath {
+                            members,
+                            member_symbols,
+                            head_symbol: path.head_symbol(),
+                            symbol: path.symbol(),
+                            static_application: arena::Handle::invalid(),
+                            reserved_result_of: path.reserved_result_of(),
+                        }))
+                    }
+                    Expression::Range(range) => {
+                        let start = range
+                            .start
+                            .as_ref()
+                            .map(|start| self.insert_tree(start))
+                            .unwrap_or_else(ExpressionHandle::invalid);
+                        let end = range
+                            .end
+                            .as_ref()
+                            .map(|end| self.insert_tree(end))
+                            .unwrap_or_else(ExpressionHandle::invalid);
+                        self.insert(ExpressionNode::Range(TableRangeExpression {
+                            start,
+                            end,
+                            end_inclusive: range.end_inclusive,
+                        }))
+                    }
+                    Expression::StructLiteral(struct_literal) => {
+                        let fields =
+                            self.insert_struct_field_span_from_tree(&struct_literal.fields);
+                        self.insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                            zero_omitted_fields: struct_literal.zero_omitted_fields,
+                            application_type: Default::default(),
+                            type_name: struct_literal.type_name.clone(),
+                            type_symbol: SymbolHandle::invalid(),
+                            case_name: struct_literal.case_name.clone(),
+                            case_symbol: None,
+                            fields,
+                        }))
+                    }
+                    Expression::String(value) => self.insert(ExpressionNode::String(value.clone())),
+                    Expression::Unary(unary) => {
+                        let operand = self.insert_tree(&unary.operand);
+                        self.insert(ExpressionNode::Unary(TableUnaryExpression {
+                            operator: unary.operator,
+                            operand,
+                        }))
+                    }
+                    Expression::TypeExpression(type_reference) => {
+                        self.insert(ExpressionNode::TypeExpression(*type_reference))
+                    }
+                    Expression::ZeroValue(type_reference) => {
+                        self.insert(ExpressionNode::ZeroValue(*type_reference))
+                    }
+                }
+            }
+        }
+    }
+
+    pub use table_copies::ExpressionCopy;
+
+    pub use display::{display_call_label, display_match_pattern, display_name_path};
+    pub type ExpressionHandle = Handle<ExpressionNode>;
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    struct StoredAuthoredSelectionOccurrenceId(Option<AuthoredDeclarationSelectionOccurrenceId>);
+
+    impl StoredAuthoredSelectionOccurrenceId {
+        fn new(occurrence: AuthoredDeclarationSelectionOccurrenceId) -> Self {
+            Self(Some(occurrence))
+        }
+
+        fn occurrence(self) -> AuthoredDeclarationSelectionOccurrenceId {
+            self.0
+                .expect("expression occurrence spans cannot contain the arena dummy sentinel")
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Expression {
+        MachineValue(crate::source_state::callable_values::MachineValue),
+        TypeExpression(crate::source_state::types::TypeReferenceHandle),
+        Match(Box<MatchExpression>),
+        ArrayLiteral(Arc<[Expression]>),
+        Atomic(Box<AtomicExpression>),
+        Binary(Box<BinaryExpression>),
+        Boolean(bool),
+        Cast(Box<CastExpression>),
+        Call(Box<CallExpression>),
+        Float(FloatLiteral),
+        UndeterminedNaN(numeric_literals::FloatFormat),
+        Indexed(Box<IndexedExpression>),
+        Integer(IntegerLiteral),
+        Member(Box<MemberExpression>),
+        Borrow(Box<BorrowExpression>),
+        Name(NamePath),
+        Range(Box<RangeExpression>),
+        StructLiteral(StructLiteral),
+        String(source_text::SourceBytes),
+        Unary(Box<UnaryExpression>),
+        ZeroValue(crate::source_state::types::TypeReferenceHandle),
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct BorrowExpression {
+        pub target: Expression,
+        pub access: language_core::ReferenceAccess,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AtomicExpression {
+        pub value: Expression,
+        pub result: Option<Expression>,
+        pub ordering: language_core::atomic::AtomicOrderingPlan,
+        pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct ExecutableDomainTest {
+        pub subject: ExpressionHandle,
+        pub domain: SymbolHandle,
+    }
+
+    // A continuation appends nodes and their provenance in the same private
+    // rows. Sharing the nodes alone would still copy every metadata column.
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    struct StoredExpression {
+        node: ExpressionNode,
+        metadata: ExpressionMetadata,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    struct ExpressionMetadata {
+        source_span: SourceSpan,
+        unresolved_name: crate::source_symbols::UnresolvedName,
+        pattern_component: language_core::PatternComponent,
+        // Preserve invocation custody without executing the original checked
+        // computation again after static materialization replaces its node.
+        materialization_source: ExpressionHandle,
+        constructed_value_type: Handle<crate::source_state::types::TypeReferenceHandle>,
+        construction_required_type: Handle<crate::source_state::types::TypeReferenceHandle>,
+        authored_selection_occurrences: HandleSpan<StoredAuthoredSelectionOccurrenceId>,
+        executable_domain_tests: HandleSpan<ExecutableDomainTest>,
+    }
+
+    fn stored_expression_handle(handle: ExpressionHandle) -> Handle<StoredExpression> {
+        Handle::from_parts(handle.arena_index(), handle.generation())
+    }
+
+    fn expression_handle(handle: Handle<StoredExpression>) -> ExpressionHandle {
+        Handle::from_parts(handle.arena_index(), handle.generation())
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct ExpressionTable {
+        build_selection_inputs: BuildSelectionInputStorage,
+        expressions: Arena<StoredExpression>,
+        build_selection_requests: Arena<BuildSelectionCall>,
+        expression_roots: Arena<ExpressionHandle>,
+        constructed_value_types: Arena<crate::source_state::types::TypeReferenceHandle>,
+        // The source records type attachments only through these initialized
+        // prefixes. Materialization may extend, but not rewrite, that input.
+        constructed_value_type_count: usize,
+        construction_required_types: Arena<crate::source_state::types::TypeReferenceHandle>,
+        construction_required_type_count: usize,
+        authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
+        executable_domain_test_rows: Arena<ExecutableDomainTest>,
+        expression_handles: Arena<ExpressionHandle>,
+        name_path_members: Arena<Identifier>,
+        name_path_member_symbols: Arena<SymbolHandle>,
+        struct_fields: Arena<TableStructLiteralField>,
+        match_arms: Arena<TableMatchArm>,
+        match_fields: Arena<TableMatchField>,
+        completed_values: Arena<CompletedValueCapture>,
+        match_proof_selectors: Arena<crate::source_state::statement::OutcomeProofSelector>,
+        static_machine_applications: Arena<StaticMachineApplication>,
+        static_machine_arguments: Arena<StaticMachineArgument>,
+        static_machine_bindings: Arena<StaticMachineBinding>,
+        static_machine_lifetime_bindings: Arena<StaticMachineLifetimeBinding>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct ExpressionTableCapacity {
+        pub expressions: usize,
+        pub authored_selection_occurrences: usize,
+        pub expression_handles: usize,
+        pub name_path_members: usize,
+        pub name_path_member_symbols: usize,
+        pub struct_fields: usize,
+        pub match_arms: usize,
+        pub match_fields: usize,
+        pub completed_values: usize,
+        pub match_proof_selectors: usize,
+    }
+
+    impl ExpressionTableCapacity {}
+
+    macro_rules! expression_node_accessors {
+    ($($(#[$doc:meta])* $name:ident($variant:ident) -> $node_type:ty;)*) => {
+        $(
+            $(#[$doc])*
+            pub fn $name(&self, handle: ExpressionHandle) -> Option<&$node_type> {
+                match self.expression(handle) {
+                    ExpressionNode::$variant(node) => Some(node),
+                    _ => None,
+                }
+            }
+        )*
+    };
+}
+
+    impl ExpressionTable {
+        pub fn insert_static_member(
+            &mut self,
+            member: StaticMachineArgument,
+        ) -> Handle<StaticMachineArgument> {
+            self.static_machine_arguments.insert(member)
+        }
+
+        pub fn static_member(
+            &self,
+            member: Handle<StaticMachineArgument>,
+        ) -> Option<&StaticMachineArgument> {
+            self.static_machine_arguments
+                .is_valid(member)
+                .then(|| self.static_machine_arguments.get(member))
+        }
+
+        pub fn static_member_mut(
+            &mut self,
+            member: Handle<StaticMachineArgument>,
+        ) -> Option<&mut StaticMachineArgument> {
+            if self.static_machine_arguments.is_valid(member) {
+                Some(self.static_machine_arguments.get_mut(member))
+            } else {
+                None
+            }
+        }
+
+        pub fn insert_match_arms(
+            &mut self,
+            arms: impl IntoIterator<Item = TableMatchArm>,
+        ) -> HandleSpan<TableMatchArm> {
+            self.match_arms.insert_many(arms)
+        }
+
+        pub fn match_arms(&self, arms: HandleSpan<TableMatchArm>) -> &[TableMatchArm] {
+            self.match_arms.span_or_empty(arms)
+        }
+
+        pub fn insert_match_fields(
+            &mut self,
+            fields: impl IntoIterator<Item = TableMatchField>,
+        ) -> HandleSpan<TableMatchField> {
+            self.match_fields.insert_many(fields)
+        }
+
+        pub fn match_fields(&self, fields: HandleSpan<TableMatchField>) -> &[TableMatchField] {
+            self.match_fields.span_or_empty(fields)
+        }
+
+        pub fn match_field_mut(&mut self, field: Handle<TableMatchField>) -> &mut TableMatchField {
+            self.match_fields.get_mut(field)
+        }
+
+        pub fn insert_match_subject(
+            &mut self,
+            subject: ExpressionHandle,
+        ) -> Handle<CompletedValueCapture> {
+            self.completed_values.insert(CompletedValueCapture {
+                subject,
+                owner: ValueCaptureOwner::Match,
+                definition: ExpressionHandle::invalid(),
+                value_anchor: ExpressionHandle::invalid(),
+            })
+        }
+
+        pub fn insert_call_operand_capture(
+            &mut self,
+            subject: ExpressionHandle,
+            owner: ValueCaptureOwner,
+        ) -> Handle<CompletedValueCapture> {
+            self.completed_values.insert(CompletedValueCapture {
+                subject,
+                owner,
+                value_anchor: subject,
+                ..Default::default()
+            })
+        }
+
+        pub fn value_capture(
+            &self,
+            capture: Handle<CompletedValueCapture>,
+        ) -> &CompletedValueCapture {
+            self.completed_values.get(capture)
+        }
+
+        pub fn contains_value_capture(&self, capture: Handle<CompletedValueCapture>) -> bool {
+            self.completed_values.is_valid(capture)
+        }
+
+        pub fn saved_subject_source(&self, saved: &TableSavedSubject) -> Option<ExpressionHandle> {
+            if !self.contains_value_capture(saved.capture) {
+                return None;
+            }
+            let capture = self.value_capture(saved.capture);
+            if !self.expression_is_valid(capture.definition) {
+                return None;
+            }
+            let ExpressionNode::Match(dispatch) = self.expression(capture.definition) else {
+                return None;
+            };
+            (dispatch.capture == saved.capture
+                && dispatch.subject == capture.subject
+                && self.expression_is_valid(capture.subject)
+                && self.match_arms(dispatch.arms).iter().any(|arm| {
+                    matches!(arm.pattern, MatchPattern::Destructure(pattern)
+                    if pattern.head == saved.pattern_head
+                    && (saved.component == language_core::PatternComponent::Fields
+                        || self.match_fields(pattern.fields).iter().any(|field|
+                            field.component == language_core::PatternComponent::Case
+                                && matches!(field.action, MatchFieldAction::Bind(_)))))
+                }))
+            .then_some(capture.subject)
+        }
+
+        pub fn insert_match_proof_selectors(
+            &mut self,
+            selectors: impl IntoIterator<Item = crate::source_state::statement::OutcomeProofSelector>,
+        ) -> HandleSpan<crate::source_state::statement::OutcomeProofSelector> {
+            self.match_proof_selectors.insert_many(selectors)
+        }
+
+        pub fn match_proof_selectors(
+            &self,
+            selectors: HandleSpan<crate::source_state::statement::OutcomeProofSelector>,
+        ) -> &[crate::source_state::statement::OutcomeProofSelector] {
+            self.match_proof_selectors.span_or_empty(selectors)
+        }
+
+        pub fn match_pattern_dependencies(
+            &self,
+            pattern: MatchPattern,
+        ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+            // The lowered condition includes field equalities, the authored
+            // guard and any case test. Its graph owns those dependencies.
+            let roots = match pattern {
+                MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
+                MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
+            };
+            roots.into_iter().filter(|root| root.is_valid())
+        }
+
+        pub fn match_pattern_operands(
+            &self,
+            pattern: MatchPattern,
+        ) -> impl Iterator<Item = ExpressionHandle> + '_ {
+            let value = match pattern {
+                MatchPattern::Value(value) => value,
+                MatchPattern::Destructure(pattern) => pattern.condition,
+                MatchPattern::Wildcard => ExpressionHandle::invalid(),
+            };
+            value.is_valid().then_some(value).into_iter()
+        }
+
+        pub fn match_arms_all(
+            &self,
+            arms: HandleSpan<TableMatchArm>,
+            mut visit: impl FnMut(MatchPattern, ExpressionHandle) -> bool,
+        ) -> bool {
+            self.match_arms(arms)
+                .iter()
+                .all(|arm| visit(arm.pattern, arm.value))
+        }
+
+        pub fn new() -> Self {
+            Self::with_expression_capacity(0)
+        }
+
+        pub fn with_expression_capacity(expression_capacity: usize) -> Self {
+            Self::with_expression_and_handle_capacity(expression_capacity, 0)
+        }
+
+        pub fn with_expression_and_handle_capacity(
+            expression_capacity: usize,
+            expression_handle_capacity: usize,
+        ) -> Self {
+            Self::with_capacities(ExpressionTableCapacity {
+                expressions: expression_capacity,
+                expression_handles: expression_handle_capacity,
+                ..ExpressionTableCapacity::default()
+            })
+        }
+
+        pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
+            Self {
+                build_selection_inputs: BuildSelectionInputStorage::default(),
+                expressions: Arena::with_capacity(capacity.expressions),
+                build_selection_requests: Arena::default(),
+                expression_roots: Arena::with_capacity(capacity.expressions),
+                constructed_value_types: Arena::default(),
+                constructed_value_type_count: 0,
+                construction_required_types: Arena::default(),
+                construction_required_type_count: 0,
+                authored_selection_occurrence_ids: Arena::with_capacity(
+                    capacity.authored_selection_occurrences,
+                ),
+                executable_domain_test_rows: Arena::default(),
+                expression_handles: Arena::with_capacity(capacity.expression_handles),
+                name_path_members: Arena::with_capacity(capacity.name_path_members),
+                name_path_member_symbols: Arena::with_capacity(capacity.name_path_member_symbols),
+                struct_fields: Arena::with_capacity(capacity.struct_fields),
+                match_arms: Arena::with_capacity(capacity.match_arms),
+                match_fields: Arena::with_capacity(capacity.match_fields),
+                completed_values: Arena::with_capacity(capacity.completed_values),
+                match_proof_selectors: Arena::with_capacity(capacity.match_proof_selectors),
+                static_machine_applications: Arena::default(),
+                static_machine_arguments: Arena::default(),
+                static_machine_bindings: Arena::default(),
+                static_machine_lifetime_bindings: Arena::default(),
+            }
+        }
+
+        pub(crate) fn finish_output_page(&mut self) {
+            // Later source applications replace expression nodes. Their child
+            // lists remain append batches rather than tiny per-owner pages.
+            self.expressions.finish_append_page();
+        }
+
+        pub fn clear(&mut self) {
+            self.build_selection_inputs.0.clear();
+            self.expressions.retire_all_retain_capacity();
+            self.build_selection_requests.retire_all_retain_capacity();
+            self.expression_roots.retire_all_retain_capacity();
+            self.constructed_value_types.retire_all_retain_capacity();
+            self.constructed_value_type_count = 0;
+            self.construction_required_types
+                .retire_all_retain_capacity();
+            self.construction_required_type_count = 0;
+            self.authored_selection_occurrence_ids
+                .retire_all_retain_capacity();
+            self.executable_domain_test_rows
+                .retire_all_retain_capacity();
+            self.expression_handles.retire_all_retain_capacity();
+            self.name_path_members.retire_all_retain_capacity();
+            self.name_path_member_symbols.retire_all_retain_capacity();
+            self.struct_fields.retire_all_retain_capacity();
+            self.match_arms.retire_all_retain_capacity();
+            self.match_fields.retire_all_retain_capacity();
+            self.completed_values.retire_all_retain_capacity();
+            self.match_proof_selectors.retire_all_retain_capacity();
+            self.static_machine_applications
+                .retire_all_retain_capacity();
+            self.static_machine_arguments.retire_all_retain_capacity();
+            self.static_machine_bindings.retire_all_retain_capacity();
+            self.static_machine_lifetime_bindings
+                .retire_all_retain_capacity();
+        }
+
+        pub fn retain_static_machine_application(
+            &mut self,
+            registration_operation: SymbolHandle,
+            target: Identifier,
+            arguments: &[StaticMachineArgument],
+        ) -> StaticMachineApplicationHandle {
+            let arguments = self
+                .static_machine_arguments
+                .insert_many(arguments.iter().cloned());
+            self.static_machine_applications
+                .insert(StaticMachineApplication {
+                    callable_contract_source: StaticMachineApplicationHandle::invalid(),
+                    source_record_receiver: None,
+                    registration_operation,
+                    lexical_owner: SymbolHandle::invalid(),
+                    target,
+                    arguments,
+                    input_selections: HandleSpan::empty(),
+                    selected_machine_arguments: HandleSpan::empty(),
+                    bindings: HandleSpan::empty(),
+                    lifetime_bindings: HandleSpan::empty(),
+                    lifetime_binding_declaration: SymbolHandle::invalid(),
+                    binding_declaration: SymbolHandle::invalid(),
+                    conformance_selection: None,
+                })
+        }
+
+        /// Fill an inferred argument tuple without losing the application's
+        /// retained source selections and supplying scope.
+        pub fn set_static_machine_application_arguments(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            arguments: &[StaticMachineArgument],
+        ) {
+            let arguments = self
+                .static_machine_arguments
+                .insert_many(arguments.iter().cloned());
+            self.static_machine_applications
+                .get_mut(application)
+                .arguments = arguments;
+        }
+
+        pub fn static_machine_applications(
+            &self,
+        ) -> impl Iterator<Item = (StaticMachineApplicationHandle, &StaticMachineApplication)>
+        {
+            self.static_machine_applications.iter()
+        }
+
+        pub fn static_machine_application_is_valid(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> bool {
+            self.static_machine_applications.is_valid(application)
+        }
+
+        pub fn static_machine_application(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> &StaticMachineApplication {
+            self.static_machine_applications.get(application)
+        }
+
+        pub fn static_machine_application_mut(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+        ) -> &mut StaticMachineApplication {
+            self.static_machine_applications.get_mut(application)
+        }
+
+        pub fn static_machine_application_bindings(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> &[StaticMachineBinding] {
+            self.static_machine_bindings
+                .span_or_empty(self.static_machine_application(application).bindings)
+        }
+
+        pub fn snapshot_static_machine_bindings(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+        ) -> HandleSpan<StaticMachineBinding> {
+            let mut bindings = self
+                .static_machine_application_bindings(application)
+                .to_vec();
+            for binding in &mut bindings {
+                if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(argument)
+                | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
+                    argument,
+                ) = &mut binding.value
+                {
+                    *argument = self.copy_static_argument_from_self(argument);
+                }
+            }
+            self.static_machine_bindings.insert_many(bindings)
+        }
+
+        pub fn static_machine_binding_snapshot(
+            &self,
+            bindings: HandleSpan<StaticMachineBinding>,
+        ) -> &[StaticMachineBinding] {
+            self.static_machine_bindings.span_or_empty(bindings)
+        }
+
+        pub fn static_machine_application_bindings_mut(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+        ) -> &mut [StaticMachineBinding] {
+            let bindings = self.static_machine_applications.get(application).bindings;
+            self.static_machine_bindings.span_mut_or_empty(bindings)
+        }
+
+        pub fn set_static_machine_application_bindings(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            bindings: &[StaticMachineBinding],
+        ) {
+            let previous = self.static_machine_applications.get(application).bindings;
+            if self.static_machine_bindings.span_or_empty(previous) == bindings {
+                return;
+            }
+            if previous.len() == bindings.len() {
+                self.static_machine_bindings
+                    .span_mut_or_empty(previous)
+                    .clone_from_slice(bindings);
+            } else {
+                let bindings = self
+                    .static_machine_bindings
+                    .insert_many(bindings.iter().cloned());
+                self.static_machine_applications
+                    .get_mut(application)
+                    .bindings = bindings;
+            }
+        }
+
+        pub fn static_machine_application_arguments(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> &[StaticMachineArgument] {
+            self.static_machine_arguments
+                .span_or_empty(self.static_machine_application(application).arguments)
+        }
+
+        pub fn static_machine_application_selected_machines(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> &[StaticMachineArgument] {
+            self.static_machine_arguments.span_or_empty(
+                self.static_machine_application(application)
+                    .selected_machine_arguments,
+            )
+        }
+
+        pub fn static_machine_application_selected_machines_mut(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+        ) -> &mut [StaticMachineArgument] {
+            let selected = self
+                .static_machine_applications
+                .get(application)
+                .selected_machine_arguments;
+            self.static_machine_arguments.span_mut_or_empty(selected)
+        }
+
+        pub fn set_static_machine_application_selected_machines(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            selected: &[StaticMachineArgument],
+        ) {
+            if self.static_machine_application_selected_machines(application) == selected {
+                return;
+            }
+            let selected = self
+                .static_machine_arguments
+                .insert_many(selected.iter().cloned());
+            self.static_machine_applications
+                .get_mut(application)
+                .selected_machine_arguments = selected;
+        }
+
+        pub fn static_machine_application_lifetimes(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> &[StaticMachineLifetimeBinding] {
+            self.static_machine_lifetime_bindings.span_or_empty(
+                self.static_machine_application(application)
+                    .lifetime_bindings,
+            )
+        }
+
+        pub fn set_static_machine_application_lifetimes(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+            declaration: SymbolHandle,
+            bindings: &[StaticMachineLifetimeBinding],
+        ) {
+            self.static_machine_applications
+                .get_mut(application)
+                .lifetime_binding_declaration = declaration;
+            let previous = self
+                .static_machine_applications
+                .get(application)
+                .lifetime_bindings;
+            if self
+                .static_machine_lifetime_bindings
+                .span_or_empty(previous)
+                == bindings
+            {
+                return;
+            }
+            if previous.len() == bindings.len() {
+                self.static_machine_lifetime_bindings
+                    .span_mut_or_empty(previous)
+                    .clone_from_slice(bindings);
+            } else {
+                let bindings = self
+                    .static_machine_lifetime_bindings
+                    .insert_many(bindings.iter().cloned());
+                self.static_machine_applications
+                    .get_mut(application)
+                    .lifetime_bindings = bindings;
+            }
+        }
+
+        pub fn static_machine_application_arguments_mut(
+            &mut self,
+            application: StaticMachineApplicationHandle,
+        ) -> &mut [StaticMachineArgument] {
+            let arguments = self.static_machine_applications.get(application).arguments;
+            self.static_machine_arguments.span_mut_or_empty(arguments)
+        }
+
+        pub fn direct_pattern_component(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Option<language_core::PatternComponent> {
+            self.expression_is_valid(expression)
+                .then(|| self.metadata(expression).pattern_component)
+        }
+
+        /// A component belongs to the produced occurrence, not the current node
+        /// shape. Replacing a name by its captured place must retain this view.
+        pub fn set_pattern_component(
+            &mut self,
+            expression: ExpressionHandle,
+            component: language_core::PatternComponent,
+        ) {
+            if self.metadata(expression).pattern_component != component {
+                self.metadata_mut(expression).pattern_component = component;
+            }
+        }
+
+        pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
+            let component = match &expression {
+                ExpressionNode::SavedSubject(saved) => saved.component,
+                _ => language_core::PatternComponent::Fields,
+            };
+            let capture = match &expression {
+                ExpressionNode::Match(dispatch) => dispatch.capture,
+                _ => Handle::invalid(),
+            };
+            let alias_capture = match &expression {
+                ExpressionNode::SavedSubject(saved) => saved.capture,
+                _ => Handle::invalid(),
+            };
+            let handle = expression_handle(self.expressions.insert(StoredExpression {
+                node: expression,
+                metadata: ExpressionMetadata {
+                    pattern_component: component,
+                    ..Default::default()
+                },
+            }));
+            if self.completed_values.is_valid(alias_capture) {
+                let capture = self.completed_values.get_mut(alias_capture);
+                if !capture.value_anchor.is_valid() {
+                    capture.value_anchor = handle;
+                }
+            }
+            if self.completed_values.is_valid(capture) {
+                let subject = self.completed_values.get_mut(capture);
+                if !subject.definition.is_valid() {
+                    subject.definition = handle;
+                }
+            }
+            self.expression_roots.insert(handle);
+            self.build_selection_inputs.0.push(None);
+            handle
+        }
+
+        fn metadata(&self, handle: ExpressionHandle) -> &ExpressionMetadata {
+            source_span_index(handle);
+            &self
+                .expressions
+                .get(stored_expression_handle(handle))
+                .metadata
+        }
+
+        fn metadata_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionMetadata {
+            source_span_index(handle);
+            &mut self
+                .expressions
+                .get_mut(stored_expression_handle(handle))
+                .metadata
+        }
+
+        pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
+            self.metadata(handle).materialization_source
+        }
+
+        pub fn retain_materialization_source(
+            &mut self,
+            value: ExpressionHandle,
+            authored: ExpressionHandle,
+        ) {
+            assert!(value.is_valid() && authored.is_valid() && value != authored);
+            assert!(!self.materialization_source(value).is_valid());
+            self.metadata_mut(value).materialization_source = authored;
+        }
+
+        pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {
+            self.metadata(handle).source_span
+        }
+
+        pub fn try_source_span(&self, handle: ExpressionHandle) -> Option<SourceSpan> {
+            if !self.expression_is_valid(handle) {
+                return None;
+            }
+            Some(self.metadata(handle).source_span)
+        }
+
+        /// The source owner's scoped result, retained through copying and typing.
+        pub fn unresolved_name(
+            &self,
+            handle: ExpressionHandle,
+        ) -> crate::source_symbols::UnresolvedName {
+            if !self.expression_is_valid(handle) {
+                return Default::default();
+            }
+            self.metadata(handle).unresolved_name
+        }
+
+        pub fn set_unresolved_name(
+            &mut self,
+            handle: ExpressionHandle,
+            outcome: crate::source_symbols::UnresolvedName,
+        ) {
+            self.metadata_mut(handle).unresolved_name = outcome;
+        }
+
+        pub fn insert_build_selection_call(
+            &mut self,
+            call: BuildSelectionCall,
+        ) -> Handle<BuildSelectionCall> {
+            self.build_selection_requests.insert(call)
+        }
+
+        pub fn build_selection_call(
+            &self,
+            call: Handle<BuildSelectionCall>,
+        ) -> Option<&BuildSelectionCall> {
+            self.build_selection_requests
+                .is_valid(call)
+                .then(|| self.build_selection_requests.get(call))
+        }
+
+        pub fn build_selection_request(
+            &self,
+            call: Handle<BuildSelectionCall>,
+        ) -> Option<&BuildSelectionRequest> {
+            self.build_selection_call(call).map(|call| &call.request)
+        }
+
+        pub(crate) fn replace_build_selection_request(
+            &mut self,
+            request: Handle<BuildSelectionCall>,
+            replacement: BuildSelectionRequest,
+        ) {
+            self.build_selection_requests.get_mut(request).request = replacement;
+        }
+
+        pub fn retain_build_selection_inputs(
+            &mut self,
+            expression: ExpressionHandle,
+            inputs: BuildSelectionInputs,
+        ) -> Result<(), &'static str> {
+            self.build_selection_call_request(expression, inputs.request)?;
+            if !inputs.lexical_owner.is_valid() {
+                return Err("Build input association has no lexical source owner");
+            }
+            self.require_build_selection_phase(inputs.request, inputs.phase)?;
+            if inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty() {
+                return Err("Build preparation carries designation inputs");
+            }
+            let slot = self
+                .build_selection_inputs
+                .0
+                .get_mut(source_span_index(expression))
+                .ok_or("Build call lost its input association slot")?;
+            if slot.as_ref().is_some_and(|previous| previous != &inputs) {
+                return Err("Build call changes its exact input association");
+            }
+            *slot = Some(inputs);
+            let _ = self
+                .expressions
+                .get_mut(stored_expression_handle(expression));
+            Ok(())
+        }
+
+        fn build_selection_call_request(
+            &self,
+            expression: ExpressionHandle,
+            request: Handle<BuildSelectionCall>,
+        ) -> Result<(), &'static str> {
+            if !self
+                .expressions
+                .is_valid(stored_expression_handle(expression))
+            {
+                return Err("Build input association names a stale expression");
+            }
+            let ExpressionNode::Call(call) = self.expression(expression) else {
+                return Err("Build input association names no call");
+            };
+            if !self.build_selection_requests.is_valid(request) || call.build_selection != request {
+                return Err("Build input association names another request or generation");
+            }
+            Ok(())
+        }
+
+        fn require_build_selection_phase(
+            &self,
+            call: Handle<BuildSelectionCall>,
+            phase: BuildSelectionPhase,
+        ) -> Result<(), &'static str> {
+            let call = self
+                .build_selection_call(call)
+                .ok_or("Build input phase names a stale operation")?;
+            if call.operation.prepares() != (phase == BuildSelectionPhase::Preparation) {
+                return Err("Build input phase differs from its actual protocol operation");
+            }
+            Ok(())
+        }
+
+        pub fn build_selection_inputs(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Result<Option<&BuildSelectionInputs>, &'static str> {
+            if !self
+                .expressions
+                .is_valid(stored_expression_handle(expression))
+            {
+                return Err("Build input lookup names a stale expression");
+            }
+            let inputs = self
+                .build_selection_inputs
+                .0
+                .get(source_span_index(expression))
+                .ok_or("expression has no Build input association slot")?;
+            let ExpressionNode::Call(call) = self.expression(expression) else {
+                return if inputs.is_some() {
+                    Err("Build input association is attached to a non-call")
+                } else {
+                    Ok(None)
+                };
+            };
+            if !call.build_selection.is_valid() {
+                return if inputs.is_some() {
+                    Err("ordinary call retains a Build input association")
+                } else {
+                    Ok(None)
+                };
+            }
+            let inputs = inputs
+                .as_ref()
+                .ok_or("Build call has no exact input association")?;
+            self.build_selection_call_request(expression, inputs.request)?;
+            self.require_build_selection_phase(inputs.request, inputs.phase)?;
+            if !inputs.lexical_owner.is_valid()
+                || (inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty())
+            {
+                return Err("Build call has an invalid source input association");
+            }
+            Ok(Some(inputs))
+        }
+
+        pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
+            self.metadata_mut(handle).source_span = source_span;
+        }
+
+        pub fn constructed_value_type_reference(
+            &self,
+            handle: ExpressionHandle,
+        ) -> crate::source_state::types::TypeReferenceHandle {
+            if !self.expression_is_valid(handle) {
+                return crate::source_state::types::TypeReferenceHandle::invalid();
+            }
+            let reference = self.metadata(handle).constructed_value_type;
+            if reference.is_valid() {
+                *self.constructed_value_types.get(reference)
+            } else {
+                crate::source_state::types::TypeReferenceHandle::invalid()
+            }
+        }
+
+        pub fn set_constructed_value_type_reference(
+            &mut self,
+            handle: ExpressionHandle,
+            type_reference: crate::source_state::types::TypeReferenceHandle,
+        ) {
+            let position = source_span_index(handle);
+            let reference = self.metadata(handle).constructed_value_type;
+            if reference.is_valid() {
+                *self.constructed_value_types.get_mut(reference) = type_reference;
+            } else {
+                let reference = self.constructed_value_types.insert(type_reference);
+                self.metadata_mut(handle).constructed_value_type = reference;
+            }
+            self.constructed_value_type_count = self.constructed_value_type_count.max(position + 1);
+        }
+
+        pub fn construction_required_type_reference(
+            &self,
+            handle: ExpressionHandle,
+        ) -> crate::source_state::types::TypeReferenceHandle {
+            if !self.expression_is_valid(handle) {
+                return crate::source_state::types::TypeReferenceHandle::invalid();
+            }
+            let reference = self.metadata(handle).construction_required_type;
+            if reference.is_valid() {
+                *self.construction_required_types.get(reference)
+            } else {
+                crate::source_state::types::TypeReferenceHandle::invalid()
+            }
+        }
+
+        pub fn set_construction_required_type_reference(
+            &mut self,
+            handle: ExpressionHandle,
+            type_reference: crate::source_state::types::TypeReferenceHandle,
+        ) {
+            let position = source_span_index(handle);
+            let reference = self.metadata(handle).construction_required_type;
+            if reference.is_valid() {
+                *self.construction_required_types.get_mut(reference) = type_reference;
+            } else {
+                let reference = self.construction_required_types.insert(type_reference);
+                self.metadata_mut(handle).construction_required_type = reference;
+            }
+            self.construction_required_type_count =
+                self.construction_required_type_count.max(position + 1);
+        }
+
+        pub fn attach_authored_selection_occurrences(
+            &mut self,
+            handle: ExpressionHandle,
+            occurrences: impl IntoIterator<Item = AuthoredDeclarationSelectionOccurrenceId>,
+        ) {
+            let mut combined = self
+                .authored_selection_occurrences(handle)
+                .collect::<Vec<_>>();
+
+            for occurrence in occurrences {
+                if !combined.contains(&occurrence) {
+                    combined.push(occurrence);
+                }
+            }
+
+            let retained = self.authored_selection_occurrence_ids.insert_many(
+                combined
+                    .into_iter()
+                    .map(StoredAuthoredSelectionOccurrenceId::new),
+            );
+            self.metadata_mut(handle).authored_selection_occurrences = retained;
+        }
+
+        pub fn authored_selection_occurrences(
+            &self,
+            handle: ExpressionHandle,
+        ) -> impl ExactSizeIterator<Item = AuthoredDeclarationSelectionOccurrenceId> + '_ {
+            self.authored_selection_occurrence_ids
+                .span_or_empty(self.metadata(handle).authored_selection_occurrences)
+                .iter()
+                .copied()
+                .map(StoredAuthoredSelectionOccurrenceId::occurrence)
+        }
+
+        pub fn executable_domain_tests(
+            &self,
+            expression: ExpressionHandle,
+        ) -> &[ExecutableDomainTest] {
+            self.executable_domain_test_rows
+                .span_or_empty(self.metadata(expression).executable_domain_tests)
+        }
+
+        pub fn retain_executable_domain_test(
+            &mut self,
+            expression: ExpressionHandle,
+            test: ExecutableDomainTest,
+        ) {
+            if !self.executable_domain_tests(expression).contains(&test) {
+                let mut tests = self.metadata(expression).executable_domain_tests;
+                self.executable_domain_test_rows
+                    .append_to_span(&mut tests, test);
+                self.metadata_mut(expression).executable_domain_tests = tests;
+            }
+        }
+
+        fn replace_executable_domain_tests(
+            &mut self,
+            expression: ExpressionHandle,
+            tests: impl IntoIterator<Item = ExecutableDomainTest>,
+        ) {
+            let tests = self.executable_domain_test_rows.insert_many(tests);
+            self.metadata_mut(expression).executable_domain_tests = tests;
+        }
+
+        pub fn insert_expression_handles(
+            &mut self,
+            expressions: impl IntoIterator<Item = ExpressionHandle>,
+        ) -> HandleSpan<ExpressionHandle> {
+            self.expression_handles.insert_many(expressions)
+        }
+
+        crate::source_state::span_columns! {
+            expression_handles(ExpressionHandle)
+                reserve reserve_expression_handles("expression handle span count overflow")
+                set set_expression_handle_at_offset
+                push push_expression_handle;
+            struct_fields(TableStructLiteralField)
+                reserve reserve_struct_fields("struct literal field span count overflow")
+                set set_struct_field_at_offset
+                push push_struct_field;
+            name_path_members(Identifier)
+                reserve reserve_name_path_members("name path member span count overflow")
+                set set_name_path_member_at_offset
+                push push_name_path_member;
+            name_path_member_symbols(SymbolHandle)
+                reserve reserve_name_path_member_symbols("name path member symbol span count overflow")
+                set set_name_path_member_symbol_at_offset
+                push push_name_path_member_symbol;
+        }
+
+        pub fn insert_struct_fields(
+            &mut self,
+            fields: impl IntoIterator<Item = TableStructLiteralField>,
+        ) -> HandleSpan<TableStructLiteralField> {
+            self.struct_fields.insert_many(fields)
+        }
+
+        pub fn expression_handle_at_offset(
+            &self,
+            expressions: HandleSpan<ExpressionHandle>,
+            offset: u32,
+        ) -> ExpressionHandle {
+            *self.expression_handles.get(expressions.handle_at(offset))
+        }
+
+        pub fn expression_mut(&mut self, handle: ExpressionHandle) -> &mut ExpressionNode {
+            &mut self
+                .expressions
+                .get_mut(stored_expression_handle(handle))
+                .node
+        }
+
+        #[inline]
+        pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
+            &self.expressions.get(stored_expression_handle(handle)).node
+        }
+
+        expression_node_accessors! {
+            name_path_node(Name) -> TableNamePath;
+
+            range_node(Range) -> TableRangeExpression;
+
+            call_node(Call) -> TableCallExpression;
+
+            member_node(Member) -> TableMemberExpression;
+
+            indexed_node(Indexed) -> TableIndexedExpression;
+
+            cast_node(Cast) -> TableCastExpression;
+
+            binary_node(Binary) -> TableBinaryExpression;
+
+            boolean_node(Boolean) -> bool;
+
+            match_node(Match) -> TableMatchExpression;
+
+            array_literal_node(ArrayLiteral) -> HandleSpan<ExpressionHandle>;
+
+            struct_literal_node(StructLiteral) -> TableStructLiteral;
+
+            string_node(String) -> source_text::SourceBytes;
+
+            unary_node(Unary) -> TableUnaryExpression;
+
+            integer_node(Integer) -> IntegerLiteral;
+
+        }
+
+        #[inline]
+        pub fn expression_is_valid(&self, handle: ExpressionHandle) -> bool {
+            self.expressions.is_valid(stored_expression_handle(handle))
+        }
+
+        pub fn borrow_expression(
+            &self,
+            handle: ExpressionHandle,
+        ) -> Option<&TableBorrowExpression> {
+            let ExpressionNode::Borrow(borrow) = self.expression(handle) else {
+                return None;
+            };
+            Some(borrow)
+        }
+
+        pub fn authored_length_receiver(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Option<ExpressionHandle> {
+            let member = self.member_node(expression)?;
+            if member.case_variant.is_some() {
+                return None;
+            }
+            // A selected operation has already acquired its meaning. An
+            // unresolved occurrence can still request source completion,
+            // but its spelling alone supplies no selected operation.
+            match member.selection {
+                MemberSelection::CollectionMeasure(CollectionMeasure::Length) => {
+                    Some(member.receiver)
+                }
+                MemberSelection::Unresolved
+                    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                        == Some(CollectionMeasure::Length) =>
+                {
+                    Some(member.receiver)
+                }
+                _ => None,
+            }
+        }
+
+        pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {
+            self.name_path_members(span).joined_path()
+        }
+
+        pub fn iter_expressions(
+            &self,
+        ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+            self.expression_roots
+                .iter()
+                .map(|(_, handle)| (*handle, self.expression(*handle)))
+        }
+
+        /// Include nested rows so handle-indexed consumers can authenticate
+        /// expressions that are absent from the root traversal.
+        pub fn iter_backing_expressions(
+            &self,
+        ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+            self.expressions
+                .iter()
+                .map(|(handle, row)| (expression_handle(handle), &row.node))
+        }
+
+        pub fn iter_expressions_from(
+            &self,
+            start_arena_index: usize,
+        ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> + '_ {
+            let start_root = self
+                .expression_roots
+                .partition_point(|handle| (handle.arena_index() as usize) < start_arena_index);
+            self.expression_roots
+                .iter_from(start_root)
+                .filter(move |(_, handle)| handle.arena_index() as usize >= start_arena_index)
+                .map(|(_, handle)| (*handle, self.expression(*handle)))
+        }
+
+        /// Keep the unowned expression roots `retain` accepts. It reads the
+        /// table as it was before any root left.
+        pub fn retain_expression_roots(
+            &mut self,
+            mut retain: impl FnMut(&Self, ExpressionHandle) -> bool,
+        ) {
+            let table = &*self;
+            let retained = table
+                .expression_roots
+                .iter()
+                .map(|(_, handle)| *handle)
+                .filter(|handle| retain(table, *handle))
+                .collect::<Vec<_>>();
+            self.expression_roots.reset_retain_capacity();
+            self.expression_roots.insert_many(retained);
+        }
+
+        #[inline]
+        pub fn expression_handles(
+            &self,
+            span: HandleSpan<ExpressionHandle>,
+        ) -> &[ExpressionHandle] {
+            self.expression_handles.span_or_empty(span)
+        }
+
+        #[inline]
+        pub fn struct_fields(
+            &self,
+            span: HandleSpan<TableStructLiteralField>,
+        ) -> &[TableStructLiteralField] {
+            self.struct_fields.span_or_empty(span)
+        }
+
+        #[inline]
+        pub fn single_name_member(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Option<(&TableNamePath, &Identifier)> {
+            let path = self.name_path_node(expression)?;
+            if path.static_application.is_valid() {
+                return None;
+            }
+            let [name] = self.name_path_members(path.members) else {
+                return None;
+            };
+            Some((path, name))
+        }
+
+        pub fn name_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
+            self.name_path_members.span_or_empty(span)
+        }
+
+        pub(crate) fn checked_name_path_members(
+            &self,
+            span: HandleSpan<Identifier>,
+        ) -> Option<&[Identifier]> {
+            self.name_path_members.span(span)
+        }
+
+        #[inline]
+        pub fn name_path_member_symbols(&self, span: HandleSpan<SymbolHandle>) -> &[SymbolHandle] {
+            self.name_path_member_symbols.span_or_empty(span)
+        }
+
+        pub fn name_path_is_single_member(&self, path: &TableNamePath) -> bool {
+            !path.static_application.is_valid()
+                && path.symbol.is_valid()
+                && path.head_symbol == path.symbol
+                && self.name_path_members(path.members).len() == 1
+        }
+
+        pub fn names_reserved_result(&self, expression: ExpressionHandle) -> bool {
+            let Some(path) = self.name_path_node(expression) else {
+                return false;
+            };
+            !path.static_application.is_valid()
+                && !path.symbol.is_valid()
+                && !path.head_symbol.is_valid()
+                && matches!(self.name_path_members(path.members), [name] if name.is_reserved_result())
+                && self
+                    .name_path_member_symbols(path.member_symbols)
+                    .iter()
+                    .all(|symbol| !symbol.is_valid())
+        }
+
+        pub fn names_parameter(
+            &self,
+            expression: ExpressionHandle,
+            parameter: &crate::source_state::signature::StateParameter,
+        ) -> bool {
+            let Some(path) = self.name_path_node(expression) else {
+                return false;
+            };
+            if path.static_application.is_valid() {
+                return false;
+            }
+            let [name] = self.name_path_members(path.members) else {
+                return false;
+            };
+            (parameter.symbol.is_valid()
+                && (path.symbol == parameter.symbol || path.head_symbol == parameter.symbol))
+                || name.as_str() == parameter.name.as_str()
+        }
+
+        pub(crate) fn static_arguments_equal_with(
+            &self,
+            left: &StaticMachineArgument,
+            right: &StaticMachineArgument,
+            equal_types: &impl Fn(
+                crate::source_state::types::TypeReferenceHandle,
+                crate::source_state::types::TypeReferenceHandle,
+            ) -> bool,
+        ) -> bool {
+            self.static_arguments_equal_inner(left, right, equal_types, &mut Vec::new())
+        }
+
+        fn static_arguments_equal_inner(
+            &self,
+            left: &StaticMachineArgument,
+            right: &StaticMachineArgument,
+            equal_types: &impl Fn(
+                crate::source_state::types::TypeReferenceHandle,
+                crate::source_state::types::TypeReferenceHandle,
+            ) -> bool,
+            members: &mut Vec<(Handle<StaticMachineArgument>, Handle<StaticMachineArgument>)>,
+        ) -> bool {
+            left.symbol == right.symbol
+                && left.path == right.path
+                && left.const_literal == right.const_literal
+                && left.evidence_projection == right.evidence_projection
+                && equal_types(left.type_reference, right.type_reference)
+                && match (&left.application, &right.application) {
+                    (None, None) => true,
+                    (Some(left), Some(right)) => {
+                        left.lifetime_arguments == right.lifetime_arguments
+                            && left.arguments.len() == right.arguments.len()
+                            && left
+                                .arguments
+                                .iter()
+                                .zip(&right.arguments)
+                                .all(|(left, right)| {
+                                    self.static_arguments_equal_inner(
+                                        left,
+                                        right,
+                                        equal_types,
+                                        members,
+                                    )
+                                })
+                            && if !left.member.is_valid() && !right.member.is_valid() {
+                                true
+                            } else if members.contains(&(left.member, right.member)) {
+                                false
+                            } else if let (Some(left_member), Some(right_member)) = (
+                                self.static_member(left.member),
+                                self.static_member(right.member),
+                            ) {
+                                members.push((left.member, right.member));
+                                let equal = self.static_arguments_equal_inner(
+                                    left_member,
+                                    right_member,
+                                    equal_types,
+                                    members,
+                                );
+                                members.pop();
+                                equal
+                            } else {
+                                false
+                            }
+                    }
+                    _ => false,
+                }
+        }
+
+        /// Preserve the captured input storage while materialization appends
+        /// output rows and replaces only its separately authenticated value
+        /// occurrences. Equal expression nodes alone do not preserve an input:
+        /// their spans can still name overwritten argument or capture rows.
+        /// The caller joins the source owner and approved node substitutions.
+        pub fn retains_input_storage(&self, source: &Self) -> bool {
+            fn rows<T: Default + PartialEq>(current: &Arena<T>, source: &Arena<T>) -> bool {
+                super::retains_input_rows(current, source, |_, current, original| {
+                    current == original
+                })
+            }
+            if self.constructed_value_type_count < source.constructed_value_type_count
+                || self.construction_required_type_count < source.construction_required_type_count
+            {
+                return false;
+            }
+            if !super::retains_input_rows(
+                &self.expressions,
+                &source.expressions,
+                |handle, current, original| {
+                    let position = source_span_index(expression_handle(handle));
+                    let mut expected = original.metadata;
+                    // A source records attachments through its initialized prefix.
+                    // Adding one beyond that prefix does not rewrite a source input.
+                    if position >= source.constructed_value_type_count {
+                        expected.constructed_value_type = current.metadata.constructed_value_type;
+                    }
+                    if position >= source.construction_required_type_count {
+                        expected.construction_required_type =
+                            current.metadata.construction_required_type;
+                    }
+                    expected == current.metadata
+                },
+            ) {
+                return false;
+            }
+            macro_rules! storage {
+                ($($arena:ident),* $(,)?) => {{
+                    // Exhaustive destructuring makes adding an unaccounted
+                    // storage family a compile error. Node changes are the
+                    // explicit exception, authenticated by the materializer.
+                    let Self {
+                        expressions: _,
+                        build_selection_inputs: _,
+                        constructed_value_type_count: _,
+                        construction_required_type_count: _,
+                        $($arena: _,)*
+                    } = self;
+                    if self.build_selection_inputs.0.get(..source.build_selection_inputs.0.len())
+                        != Some(source.build_selection_inputs.0.as_slice())
+                    {
+                        return false;
+                    }
+                    $(if !rows(&self.$arena, &source.$arena) { return false; })*
+                    true
+                }};
+            }
+            storage!(
+                build_selection_requests,
+                expression_roots,
+                constructed_value_types,
+                construction_required_types,
+                authored_selection_occurrence_ids,
+                executable_domain_test_rows,
+                expression_handles,
+                name_path_members,
+                name_path_member_symbols,
+                struct_fields,
+                match_arms,
+                match_fields,
+                completed_values,
+                match_proof_selectors,
+                static_machine_applications,
+                static_machine_arguments,
+                static_machine_bindings,
+                static_machine_lifetime_bindings,
+            )
+        }
+
+        pub fn expressions_structurally_equal(
+            &self,
+            a: ExpressionHandle,
+            b: ExpressionHandle,
+        ) -> bool {
+            if a == b {
+                return true;
+            }
+            if !a.is_valid()
+                || !b.is_valid()
+                || self.direct_pattern_component(a) != self.direct_pattern_component(b)
+            {
+                return false;
+            }
+            match (self.expression(a), self.expression(b)) {
+                (ExpressionNode::Match(x), ExpressionNode::Match(y)) => {
+                    let x_arms = self.match_arms(x.arms);
+                    let y_arms = self.match_arms(y.arms);
+                    x.capture == y.capture
+                        && self.expressions_structurally_equal(x.subject, y.subject)
+                        && x_arms.len() == y_arms.len()
+                        && x_arms.iter().zip(y_arms).all(|(x, y)| {
+                            let patterns_equal = match (x.pattern, y.pattern) {
+                                (MatchPattern::Value(x), MatchPattern::Value(y)) => {
+                                    self.expressions_structurally_equal(x, y)
+                                }
+                                (MatchPattern::Wildcard, MatchPattern::Wildcard) => true,
+                                (
+                                    MatchPattern::Destructure(left),
+                                    MatchPattern::Destructure(right),
+                                ) => left == right,
+                                _ => false,
+                            };
+                            patterns_equal && self.expressions_structurally_equal(x.value, y.value)
+                        })
+                }
+                (ExpressionNode::SavedSubject(left), ExpressionNode::SavedSubject(right)) => {
+                    if left.component != right.component {
+                        return false;
+                    }
+                    left.capture == right.capture
+                        && self
+                            .expressions_structurally_equal(left.pattern_head, right.pattern_head)
+                }
+                (ExpressionNode::Integer(x), ExpressionNode::Integer(y)) => x == y,
+                (ExpressionNode::Boolean(x), ExpressionNode::Boolean(y)) => x == y,
+                (ExpressionNode::String(x), ExpressionNode::String(y)) => x == y,
+                (ExpressionNode::Float(x), ExpressionNode::Float(y)) => x == y,
+                (ExpressionNode::UndeterminedNaN(left), ExpressionNode::UndeterminedNaN(right)) => {
+                    left == right
+                }
+                (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
+                    x.head_symbol == y.head_symbol
+                        && x.symbol == y.symbol
+                        && match (
+                            self.static_member(x.static_application),
+                            self.static_member(y.static_application),
+                        ) {
+                            (Some(left), Some(right)) => {
+                                self.static_arguments_equal_with(left, right, &|left, right| {
+                                    left == right
+                                })
+                            }
+                            (None, None) => {
+                                !x.static_application.is_valid() && !y.static_application.is_valid()
+                            }
+                            _ => false,
+                        }
+                        && identifier_texts_equal(
+                            self.name_path_members(x.members),
+                            self.name_path_members(y.members),
+                        )
+                }
+                (ExpressionNode::Member(x), ExpressionNode::Member(y)) => {
+                    x.selection == y.selection
+                        && x.member.as_str() == y.member.as_str()
+                        && self.expressions_structurally_equal(x.receiver, y.receiver)
+                }
+                (ExpressionNode::Borrow(x), ExpressionNode::Borrow(y)) => {
+                    x.access == y.access && self.expressions_structurally_equal(x.target, y.target)
+                }
+                (ExpressionNode::Unary(x), ExpressionNode::Unary(y)) => {
+                    x.operator == y.operator
+                        && self.expressions_structurally_equal(x.operand, y.operand)
+                }
+                (ExpressionNode::Binary(x), ExpressionNode::Binary(y)) => {
+                    x.operator == y.operator
+                        && self.expressions_structurally_equal(x.left, y.left)
+                        && self.expressions_structurally_equal(x.right, y.right)
+                }
+                (ExpressionNode::Indexed(x), ExpressionNode::Indexed(y)) => {
+                    self.expressions_structurally_equal(x.collection, y.collection)
+                        && self.expressions_structurally_equal(x.index, y.index)
+                }
+                (ExpressionNode::Range(x), ExpressionNode::Range(y)) => {
+                    x.end_inclusive == y.end_inclusive
+                        && self.optional_expression_structurally_equal(x.start, y.start)
+                        && self.optional_expression_structurally_equal(x.end, y.end)
+                }
+                (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
+                    // Descriptor identity and an effect-free signature do not
+                    // establish a mathematical function or repeatable result.
+                    x.runtime_call.is_none()
+                        && y.runtime_call.is_none()
+                        && x.target_symbol == y.target_symbol
+                        && x.exact_coercion_target == y.exact_coercion_target
+                        && x.target.as_str() == y.target.as_str()
+                        && self.expressions_structurally_equal(x.receiver, y.receiver)
+                        && self.expression_spans_structurally_equal(x.arguments, y.arguments)
+                }
+                _ => false,
+            }
+        }
+
+        fn optional_expression_structurally_equal(
+            &self,
+            a: ExpressionHandle,
+            b: ExpressionHandle,
+        ) -> bool {
+            if a.is_valid() != b.is_valid() {
+                return false;
+            }
+            !a.is_valid() || self.expressions_structurally_equal(a, b)
+        }
+
+        fn expression_spans_structurally_equal(
+            &self,
+            a: HandleSpan<ExpressionHandle>,
+            b: HandleSpan<ExpressionHandle>,
+        ) -> bool {
+            let a = self.expression_handles(a);
+            let b = self.expression_handles(b);
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b.iter())
+                    .all(|(x, y)| self.expressions_structurally_equal(*x, *y))
+        }
+
+        pub fn expression_count(&self) -> usize {
+            self.expressions.len()
+        }
+
+        pub fn expression_nodes(&self) -> impl Iterator<Item = &ExpressionNode> {
+            self.iter_expressions().map(|(_, node)| node)
+        }
+
+        pub fn expression_entries(
+            &self,
+        ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+            self.iter_expressions()
+        }
+
+        pub fn struct_field_count(&self) -> usize {
+            self.struct_fields.len()
+        }
+
+        pub fn display_name(&self, handle: ExpressionHandle) -> String {
+            let mut rendered = String::new();
+            self.write_display_name(handle, &mut rendered);
+            rendered
+        }
+
+        pub fn write_display_name(&self, handle: ExpressionHandle, out: &mut String) {
+            self.expression(handle).write_display_name(self, out);
+        }
+
+        pub fn constant_integer_value(&self, handle: ExpressionHandle) -> Option<i64> {
+            if !handle.is_valid() {
+                return None;
+            }
+            match self.expression(handle) {
+                ExpressionNode::Integer(value) => value.value_i64(),
+                ExpressionNode::Borrow(inner) => self.constant_integer_value(inner.target),
+                ExpressionNode::Binary(binary) => {
+                    let left = self.constant_integer_value(binary.left)?;
+                    let right = self.constant_integer_value(binary.right)?;
+                    match binary.operator {
+                        BinaryOperator::Add => left.checked_add(right),
+                        BinaryOperator::Subtract => left.checked_sub(right),
+                        BinaryOperator::Multiply => left.checked_mul(right),
+                        BinaryOperator::Divide => left.checked_div(right),
+                        BinaryOperator::Modulo => left.checked_rem(right),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+
+        pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&[u8]> {
+            match self.expression(handle) {
+                ExpressionNode::String(value) => Some(value.as_ref()),
+                _ => None,
+            }
+        }
+    }
+
+    fn source_span_index(handle: ExpressionHandle) -> usize {
+        usize::try_from(handle.arena_index())
+            .expect("expression index overflow")
+            .checked_sub(1)
+            .expect("invalid expression handle has no source span")
+    }
+
+    impl Default for ExpressionTable {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub enum ExpressionNode {
+        MachineValue(crate::source_state::callable_values::MachineValue),
+        TypeExpression(crate::source_state::types::TypeReferenceHandle),
+        Match(TableMatchExpression),
+        SavedSubject(TableSavedSubject),
+        ArrayLiteral(HandleSpan<ExpressionHandle>),
+        Atomic(TableAtomicExpression),
+        Binary(TableBinaryExpression),
+        Boolean(bool),
+        Cast(TableCastExpression),
+        Call(TableCallExpression),
+        Float(FloatLiteral),
+        UndeterminedNaN(numeric_literals::FloatFormat),
+        Indexed(TableIndexedExpression),
+        Integer(IntegerLiteral),
+        Member(TableMemberExpression),
+        Borrow(TableBorrowExpression),
+        Name(TableNamePath),
+        Range(TableRangeExpression),
+        StructLiteral(TableStructLiteral),
+        String(source_text::SourceBytes),
+        Unary(TableUnaryExpression),
+        ZeroValue(crate::source_state::types::TypeReferenceHandle),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableBorrowExpression {
+        pub target: ExpressionHandle,
+        pub access: language_core::ReferenceAccess,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableAtomicExpression {
+        pub value: ExpressionHandle,
+        pub result: ExpressionHandle,
+        pub ordering: language_core::atomic::AtomicOrderingPlan,
+        pub result_custody: language_core::atomic::AtomicExpressionResultCustody,
+    }
+
+    impl Default for ExpressionNode {
+        fn default() -> Self {
+            Self::Integer(IntegerLiteral::zero())
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableBinaryExpression {
+        pub left: ExpressionHandle,
+        pub operator: BinaryOperator,
+        pub right: ExpressionHandle,
+        /// The policy an operator suffix chose for this one operation
+        /// (`+%`, `+|`, `+!`); `Exact` for the bare operator. Executable code,
+        /// contracts and mathematical definitions may retain this suffix for
+        /// their policy-aware lowering; constant type positions reject it.
+        /// Canonical identities support raw Exact recipes. A non-Exact raw
+        /// recipe needs a complete selected operation identity, including its
+        /// carrier, and refuses until that representation is available.
+        pub policy: numerics::arithmetic::ArithmeticDomain,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct UnaryExpression {
+        pub operator: UnaryOperator,
+        pub operand: Expression,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableUnaryExpression {
+        pub operator: UnaryOperator,
+        pub operand: ExpressionHandle,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableCastExpression {
+        pub value: ExpressionHandle,
+        pub target_type: crate::source_state::types::TypeReferenceHandle,
+        pub result_type: crate::source_state::types::TypeReferenceHandle,
+        pub target_label: HandleSpan<Identifier>,
+        /// The written policy, or Exact when none was named. An Entry
+        /// preserves this even for removal; result_type records the
+        /// resulting qualification independently.
+        pub domain: numerics::arithmetic::ArithmeticDomain,
+        pub semantic_domain: HandleSpan<Identifier>,
+        pub semantic_domain_arguments: HandleSpan<crate::source_state::types::TypeReferenceHandle>,
+        pub semantic_domain_symbol: SymbolHandle,
+        pub semantic_domain_id: declaration_contracts::SemanticDomainId,
+        pub form: language_core::cast_form::CastForm,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableIndexedExpression {
+        pub collection: ExpressionHandle,
+        pub index: ExpressionHandle,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct TableRangeExpression {
+        pub start: ExpressionHandle,
+        pub end: ExpressionHandle,
+        pub end_inclusive: bool,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct RangeExpression {
+        pub start: Option<Box<Expression>>,
+        pub end: Option<Box<Expression>>,
+        pub end_inclusive: bool,
+    }
+
+    pub use crate::declaration_selection::CollectionMeasure;
+
+    /// A nominal field and a builtin collection observation are different
+    /// selections. Retaining the selected operation avoids asking a later
+    /// checker to recover its meaning from a diagnostic member spelling.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub enum MemberSelection {
+        #[default]
+        Unresolved,
+        Field(SymbolHandle),
+        CollectionMeasure(CollectionMeasure),
+    }
+
+    impl MemberSelection {
+        pub const fn field_symbol(self) -> SymbolHandle {
+            match self {
+                Self::Field(symbol) => symbol,
+                Self::Unresolved | Self::CollectionMeasure(_) => SymbolHandle::invalid(),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod member_selection_tests {
+        use super::*;
+
+        #[test]
+        fn member_selection_keeps_its_role_through_copy_remap_and_records() {
+            let old = SymbolHandle::from_arena_index(7);
+            let new = SymbolHandle::from_arena_index(9);
+            for (selected, rebound) in [
+                (MemberSelection::Field(old), MemberSelection::Field(new)),
+                (
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                ),
+                (MemberSelection::Unresolved, MemberSelection::Unresolved),
+            ] {
+                let bytes = record_storage::encode(&selected, Default::default()).unwrap();
+                let decoded: MemberSelection =
+                    record_storage::decode(&bytes, Default::default()).unwrap();
+                assert_eq!(decoded, selected);
+                let mut source = ExpressionTable::default();
+                let receiver = source.insert(ExpressionNode::Boolean(false));
+                let member = source.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    selection: decoded,
+                    member: Identifier::generated("len"),
+                    case_variant: None,
+                }));
+                let own_copy = source.insert_copy(member);
+                assert_eq!(source.member_node(own_copy).unwrap().selection, selected);
+                let mut target = ExpressionTable::default();
+                let copied = target.copy_from(&source, member);
+                target.remap_symbols_in(copied, &vec![(old, new)]);
+                assert_eq!(target.member_node(copied).unwrap().selection, rebound);
+            }
+        }
+
+        #[test]
+        fn a_selected_measure_does_not_depend_on_its_diagnostic_spelling() {
+            let mut table = ExpressionTable::default();
+            let receiver = table.insert(ExpressionNode::Boolean(false));
+            let member = table.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                selection: MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                member: Identifier::generated("diagnostic-only"),
+                case_variant: None,
+            }));
+            assert_eq!(table.authored_length_receiver(member), Some(receiver));
+            let ExpressionNode::Member(selected) = table.expression_mut(member) else {
+                unreachable!();
+            };
+            selected.selection = MemberSelection::Field(SymbolHandle::invalid());
+            assert_eq!(table.authored_length_receiver(member), None);
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct MemberExpression {
+        pub receiver: Expression,
+        pub selection: MemberSelection,
+        pub member: Identifier,
+        pub case_variant: Option<Identifier>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct TableMemberExpression {
+        pub receiver: ExpressionHandle,
+        pub selection: MemberSelection,
+        pub member: Identifier,
+        pub case_variant: Option<Identifier>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct CallExpression {
+        pub runtime_call: Option<crate::source_state::callable_values::RuntimeCallExpression>,
+        pub authored_call_selection:
+            Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
+        pub authored_call_binding:
+            Option<crate::declaration_selection::ResolvedAuthoredCallBinding>,
+        pub exact_coercion_target: crate::source_state::types::TypeReferenceHandle,
+        pub requirement_application: crate::source_state::types::TypeReferenceHandle,
+        pub receiver: Option<Box<Expression>>,
+        pub target_symbol: SymbolHandle,
+        pub target: Identifier,
+        pub arguments: Arc<[Expression]>,
+        pub evidence_arguments: Arc<[Identifier]>,
+        pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableCallExpression {
+        pub runtime_call: Option<crate::source_state::callable_values::RuntimeCallBinding>,
+        pub authored_call_selection:
+            Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
+        pub authored_call_binding:
+            Option<crate::declaration_selection::ResolvedAuthoredCallBinding>,
+        pub build_selection: Handle<BuildSelectionCall>,
+        pub authored_machine_application: StaticMachineApplicationHandle,
+        pub exact_coercion_target: crate::source_state::types::TypeReferenceHandle,
+        pub requirement_application: crate::source_state::types::TypeReferenceHandle,
+        pub receiver: ExpressionHandle,
+        pub target_symbol: SymbolHandle,
+        pub static_machine_parameter: SymbolHandle,
+        pub target: Identifier,
+        pub static_requirement_dispatch: Option<crate::source_state::StaticRequirementDispatch>,
+        pub machine_arguments: Box<[StaticMachineArgument]>,
+        pub quotient_operation: Option<QuotientOperationRequest>,
+        pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
+        pub installed_interrupt_operation: Option<InstalledInterruptOperationRequest>,
+        pub layout_query: Option<DataLayoutQueryRequest>,
+        pub native_code_layout: Option<NativeCodeLayoutRequest>,
+        pub arguments: HandleSpan<ExpressionHandle>,
+        pub evidence_arguments: Box<[Identifier]>,
+        pub operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct InstalledInterruptOperationRequest {
+        pub registrar_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub registrar_target: SymbolHandle,
+        pub registrar_receiving_scope: crate::source_state::trait_definition::RetainedTraitScope,
+        pub registrar_selection:
+            Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
+        pub registrar_trait: SymbolHandle,
+        pub registrar: StaticMachineArgument,
+        pub timer_slot: StaticMachineArgument,
+    }
+
+    impl InstalledInterruptOperationRequest {
+        pub fn invalidate_preparation(&mut self) {
+            self.registrar_application =
+                crate::source_state::static_applications::StaticMachineApplicationHandle::invalid();
+            self.registrar_target = SymbolHandle::invalid();
+            self.registrar_receiving_scope = Default::default();
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct NativeCodeLayoutRequest {
+        pub operand: StaticMachineArgument,
+        pub discards_result: bool,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub struct AccessBorrowOperationRequest {
+        pub factory: SymbolHandle,
+        pub source_parameter: SymbolHandle,
+        pub view_parameter: SymbolHandle,
+        pub access: language_core::ReferenceAccess,
+        pub backing: AccessBorrowBacking,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum AccessBorrowBacking {
+        Ordinary,
+        Resident {
+            extent: SymbolHandle,
+            granted: SymbolHandle,
+            resident: SymbolHandle,
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct PrivateLayoutOperationRequest {
+        pub selected_slot: StaticMachineArgument,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct DataLayoutQueryRequest {
+        pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
+        pub operand: StaticMachineArgument,
+        pub nonempty_view: ExpressionHandle,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum QuotientOperationKind {
+        Lift,
+        Define,
+    }
+
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
+    )]
+    pub enum QuotientTheoremRole {
+        Congruence,
+        ForwardPreconditionTransport,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct QuotientTheoremSelection {
+        pub role: QuotientTheoremRole,
+        pub application: StaticMachineArgument,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct QuotientOperationRequest {
+        pub kind: QuotientOperationKind,
+        pub representative_operation: StaticMachineArgument,
+        pub theorem_evidence: Box<[QuotientTheoremSelection]>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct StaticMachineArgument {
+        /// Forwarding keeps the author's exact declaration selection, including
+        /// its compiler-copy owner, after names lose their source coordinates.
+        pub authored_selection:
+            Option<crate::source_selections::AuthoredDeclarationSelectionOccurrenceId>,
+        pub type_reference: crate::source_state::types::TypeReferenceHandle,
+        pub path: Box<[Identifier]>,
+        pub application: Option<Box<StaticSymbolApplication>>,
+        /// An open selected machine keeps its complete prepared binder tuple.
+        /// This records source context and grants no invocation authority.
+        pub authored_machine_application:
+            crate::source_state::static_applications::StaticMachineApplicationHandle,
+        pub const_literal: Option<numeric_literals::IntegerLiteral>,
+        pub evidence_projection: Option<EvidenceProjection>,
+        pub symbol: SymbolHandle,
+    }
+
+    impl StaticMachineArgument {
+        /// The Boolean this argument is, when it is `true` or `false` and
+        /// nothing else. Both are keywords, so no declaration answers them
+        /// and typing keeps the argument as that one written word with no
+        /// symbol; a name that resolved to a declaration is not one.
+        pub fn closed_boolean(&self) -> Option<bool> {
+            let [word] = self.path.as_ref() else {
+                return None;
+            };
+            if self.symbol.is_valid()
+                || self.type_reference.is_valid()
+                || self.application.is_some()
+                || self.authored_machine_application.is_valid()
+                || self.const_literal.is_some()
+                || self.evidence_projection.is_some()
+            {
+                return None;
+            }
+            match word.as_str() {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            }
+        }
+
+        pub fn names_implementation(&self, symbols: &crate::source_symbols::SymbolTable) -> bool {
+            self.symbol.is_valid()
+                && matches!(
+                    symbols.get(self.symbol).kind,
+                    symbols::SymbolKind::Conformance | symbols::SymbolKind::ConformanceParameter
+                )
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct StaticSymbolApplication {
+        pub member: Handle<StaticMachineArgument>,
+        pub lifetime_arguments: Box<[Identifier]>,
+        pub arguments: Box<[StaticMachineArgument]>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+    pub struct EvidenceProjection {
+        pub term: Identifier,
+        pub member: Identifier,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableNamePath {
+        pub members: HandleSpan<Identifier>,
+        pub member_symbols: HandleSpan<SymbolHandle>,
+        pub head_symbol: SymbolHandle,
+        pub symbol: SymbolHandle,
+        pub static_application: arena::Handle<StaticMachineArgument>,
+        /// The callable whose reserved `result` this name denotes, or invalid
+        /// when it denotes no result. Stage 02 sets it once, where it decides a
+        /// contract name is the reserved result occurrence
+        /// (`wiki/spec/terminal-psi/calls_and_outcomes.md`: "The reserved
+        /// result occurrence belongs to its contract owner, not any local or
+        /// parameter spelled `result`"), so a later reader takes the result
+        /// by this identity instead of comparing the spelling. `symbol` stays
+        /// invalid, as before, so readers of the spelling route are unchanged.
+        pub reserved_result_of: SymbolHandle,
+    }
+
+    impl TableNamePath {
+        pub const fn new(
+            members: HandleSpan<Identifier>,
+            member_symbols: HandleSpan<SymbolHandle>,
+            head_symbol: SymbolHandle,
+            symbol: SymbolHandle,
+        ) -> Self {
+            Self {
+                members,
+                member_symbols,
+                head_symbol,
+                symbol,
+                static_application: arena::Handle::invalid(),
+                reserved_result_of: SymbolHandle::invalid(),
+            }
+        }
+
+        pub fn resolved_symbol(&self) -> Option<SymbolHandle> {
+            if self.static_application.is_valid() {
+                return None;
+            }
+            self.head_symbol
+                .is_valid()
+                .then_some(self.head_symbol)
+                .or_else(|| self.symbol.is_valid().then_some(self.symbol))
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableStructLiteral {
+        /// A final source `..` requests ordinary zero values for missing runtime fields.
+        pub zero_omitted_fields: bool,
+        pub application_type: crate::source_state::types::TypeReferenceHandle,
+        pub type_name: Identifier,
+        pub type_symbol: SymbolHandle,
+        pub case_name: Option<Identifier>,
+        pub case_symbol: Option<SymbolHandle>,
+        pub fields: HandleSpan<TableStructLiteralField>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableStructLiteralField {
+        pub name: Identifier,
+        pub field_symbol: SymbolHandle,
+        pub value: ExpressionHandle,
+    }
+
+    impl Default for Expression {
+        fn default() -> Self {
+            Self::Integer(IntegerLiteral::zero())
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct NamePath {
+        members: Arc<[Identifier]>,
+        member_symbols: Arc<[SymbolHandle]>,
+        head_symbol: SymbolHandle,
+        symbol: SymbolHandle,
+        /// The contract owner whose reserved `result` this name denotes, as
+        /// `TableNamePath::reserved_result_of`; invalid for every other name.
+        /// Held here so `ExpressionTable::insert_tree` stores the identity
+        /// instead of leaving a name that only spells `result`.
+        reserved_result_of: SymbolHandle,
+    }
+
+    impl NamePath {
+        pub fn unresolved(members: Vec<Identifier>) -> Self {
+            let member_symbols = vec![SymbolHandle::invalid(); members.len()];
+            Self {
+                members: Arc::from(members.into_boxed_slice()),
+                member_symbols: Arc::from(member_symbols.into_boxed_slice()),
+                head_symbol: SymbolHandle::invalid(),
+                symbol: SymbolHandle::invalid(),
+                reserved_result_of: SymbolHandle::invalid(),
+            }
+        }
+
+        pub fn resolved(
+            members: Vec<Identifier>,
+            head_symbol: SymbolHandle,
+            symbol: SymbolHandle,
+        ) -> Self {
+            let member_symbols = vec![SymbolHandle::invalid(); members.len()];
+            Self::resolved_with_member_symbols(members, member_symbols, head_symbol, symbol)
+        }
+
+        pub fn resolved_with_member_symbols(
+            members: Vec<Identifier>,
+            mut member_symbols: Vec<SymbolHandle>,
+            head_symbol: SymbolHandle,
+            symbol: SymbolHandle,
+        ) -> Self {
+            if member_symbols.len() != members.len() {
+                member_symbols.resize(members.len(), SymbolHandle::invalid());
+            }
+            if let Some(first_symbol) = member_symbols.first_mut() {
+                *first_symbol = head_symbol;
+            }
+            if let Some(last_symbol) = member_symbols.last_mut() {
+                *last_symbol = symbol;
+            }
+            Self {
+                members: Arc::from(members.into_boxed_slice()),
+                member_symbols: Arc::from(member_symbols.into_boxed_slice()),
+                head_symbol,
+                symbol,
+                reserved_result_of: SymbolHandle::invalid(),
+            }
+        }
+
+        /// This name as the reserved `result` of the contract owned by
+        /// `owner`. Any later edit of the path's members clears it, because
+        /// the edited path is a different name.
+        pub fn denoting_reserved_result_of(mut self, owner: SymbolHandle) -> Self {
+            self.reserved_result_of = owner;
+            self
+        }
+
+        pub fn reserved_result_of(&self) -> SymbolHandle {
+            self.reserved_result_of
+        }
+
+        pub fn resolved_from_iter(
+            members: impl IntoIterator<Item = Identifier>,
+            head_symbol: SymbolHandle,
+            symbol: SymbolHandle,
+        ) -> Self {
+            Self::resolved(members.into_iter().collect(), head_symbol, symbol)
+        }
+
+        pub fn members(&self) -> &[Identifier] {
+            &self.members
+        }
+
+        pub fn member_symbols(&self) -> &[SymbolHandle] {
+            &self.member_symbols
+        }
+
+        pub fn member_symbol(&self, index: usize) -> SymbolHandle {
+            self.member_symbols
+                .get(index)
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid)
+        }
+
+        pub fn len(&self) -> usize {
+            self.members.len()
+        }
+
+        pub fn is_empty(&self) -> bool {
+            self.members.is_empty()
+        }
+
+        pub fn first(&self) -> Option<&Identifier> {
+            self.members.first()
+        }
+
+        pub fn last(&self) -> Option<&Identifier> {
+            self.members.last()
+        }
+
+        pub fn last_mut(&mut self) -> Option<&mut Identifier> {
+            self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
+            if let Some(last_symbol) = Arc::make_mut(&mut self.member_symbols).last_mut() {
+                *last_symbol = SymbolHandle::invalid();
+            }
+            Arc::make_mut(&mut self.members).last_mut()
+        }
+
+        pub fn push(&mut self, member: Identifier) {
+            let mut members = self.members.iter().cloned().collect::<Vec<_>>();
+            members.push(member);
+            self.members = Arc::from(members.into_boxed_slice());
+
+            let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
+            member_symbols.push(SymbolHandle::invalid());
+            self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
+            self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
+        }
+
+        pub fn extend_from_slice(&mut self, members: &[Identifier]) {
+            let mut path = self.members.iter().cloned().collect::<Vec<_>>();
+            path.extend_from_slice(members);
+            self.members = Arc::from(path.into_boxed_slice());
+
+            let mut member_symbols = self.member_symbols.iter().copied().collect::<Vec<_>>();
+            member_symbols
+                .extend(std::iter::repeat_with(SymbolHandle::invalid).take(members.len()));
+            self.member_symbols = Arc::from(member_symbols.into_boxed_slice());
+            self.symbol = SymbolHandle::invalid();
+            self.reserved_result_of = SymbolHandle::invalid();
+        }
+
+        pub fn head_symbol(&self) -> SymbolHandle {
+            self.head_symbol
+        }
+
+        pub fn symbol(&self) -> SymbolHandle {
+            self.symbol
+        }
+    }
+
+    impl Deref for NamePath {
+        type Target = [Identifier];
+
+        fn deref(&self) -> &Self::Target {
+            self.members()
+        }
+    }
+
+    impl<'path> IntoIterator for &'path NamePath {
+        type Item = &'path Identifier;
+        type IntoIter = std::slice::Iter<'path, Identifier>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.members.iter()
+        }
+    }
+
+    pub use numeric_literals::FloatLiteral;
+
+    fn identifier_texts_equal(a: &[Identifier], b: &[Identifier]) -> bool {
+        a.len() == b.len()
+            && a.iter()
+                .zip(b.iter())
+                .all(|(left, right)| left.as_str() == right.as_str())
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct BinaryExpression {
+        pub left: Expression,
+        pub operator: BinaryOperator,
+        pub right: Expression,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum BinaryOperator {
+        Add,
+        And,
+        BitwiseAnd,
+        BitwiseOr,
+        BitwiseXor,
+        Divide,
+        Equal,
+        Greater,
+        GreaterOrEqual,
+        Less,
+        LessOrEqual,
+        Modulo,
+        Multiply,
+        NotEqual,
+        Or,
+        ShiftLeft,
+        ShiftRight,
+        Subtract,
+        CaseMembership,
+    }
+
+    impl BinaryOperator {
+        pub fn is_arithmetic(self) -> bool {
+            matches!(
+                self,
+                BinaryOperator::Add
+                    | BinaryOperator::Subtract
+                    | BinaryOperator::Multiply
+                    | BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
+            )
+        }
+
+        pub fn is_shift(self) -> bool {
+            matches!(self, Self::ShiftLeft | Self::ShiftRight)
+        }
+
+        /// Choose the policy of an unsuffixed core signature once the exact
+        /// operand carriers and absence of other domains have been checked.
+        pub fn core_integer_policy(
+            self,
+            left: numerics::arithmetic::ArithmeticDomain,
+            right: numerics::arithmetic::ArithmeticDomain,
+        ) -> Option<numerics::arithmetic::ArithmeticDomain> {
+            self.scalar_operation()?.selected_policy(left, right)
+        }
+
+        pub fn scalar_operation(
+            self,
+        ) -> Option<declaration_contracts::numeric_intrinsics::ScalarBinaryOperation> {
+            use declaration_contracts::numeric_intrinsics::ScalarBinaryOperation as Operation;
+            Some(match self {
+                Self::Add => Operation::Add,
+                Self::Subtract => Operation::Subtract,
+                Self::Multiply => Operation::Multiply,
+                Self::Divide => Operation::Divide,
+                Self::Modulo => Operation::Remainder,
+                Self::ShiftLeft => Operation::ShiftLeft,
+                Self::ShiftRight => Operation::ShiftRight,
+                Self::BitwiseAnd => Operation::BitwiseAnd,
+                Self::BitwiseOr => Operation::BitwiseOr,
+                Self::BitwiseXor => Operation::BitwiseXor,
+                Self::Equal => Operation::Equal,
+                Self::NotEqual => Operation::NotEqual,
+                Self::Less => Operation::Less,
+                Self::LessOrEqual => Operation::LessOrEqual,
+                Self::Greater => Operation::Greater,
+                Self::GreaterOrEqual => Operation::GreaterOrEqual,
+                Self::And | Self::Or | Self::CaseMembership => return None,
+            })
+        }
+
+        pub fn is_comparison(self) -> bool {
+            matches!(
+                self,
+                BinaryOperator::Equal
+                    | BinaryOperator::NotEqual
+                    | BinaryOperator::Less
+                    | BinaryOperator::LessOrEqual
+                    | BinaryOperator::Greater
+                    | BinaryOperator::GreaterOrEqual
+            )
+        }
+
+        pub fn evaluate_comparison<T: Ord>(self, left: &T, right: &T) -> Option<bool> {
+            Some(match self {
+                BinaryOperator::Equal => left == right,
+                BinaryOperator::NotEqual => left != right,
+                BinaryOperator::Less => left < right,
+                BinaryOperator::LessOrEqual => left <= right,
+                BinaryOperator::Greater => left > right,
+                BinaryOperator::GreaterOrEqual => left >= right,
+                _ => return None,
+            })
+        }
+
+        pub fn mirrored(self) -> BinaryOperator {
+            match self {
+                BinaryOperator::Less => BinaryOperator::Greater,
+                BinaryOperator::LessOrEqual => BinaryOperator::GreaterOrEqual,
+                BinaryOperator::Greater => BinaryOperator::Less,
+                BinaryOperator::GreaterOrEqual => BinaryOperator::LessOrEqual,
+                other => other,
+            }
+        }
+
+        pub fn complement(self) -> Option<BinaryOperator> {
+            match self {
+                BinaryOperator::Equal => Some(BinaryOperator::NotEqual),
+                BinaryOperator::NotEqual => Some(BinaryOperator::Equal),
+                BinaryOperator::Less => Some(BinaryOperator::GreaterOrEqual),
+                BinaryOperator::LessOrEqual => Some(BinaryOperator::Greater),
+                BinaryOperator::Greater => Some(BinaryOperator::LessOrEqual),
+                BinaryOperator::GreaterOrEqual => Some(BinaryOperator::Less),
+                _ => None,
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
+    pub enum UnaryOperator {
+        BitwiseNot,
+        LogicalNot,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct CastExpression {
+        pub value: Expression,
+        pub target_type: crate::source_state::types::TypeReferenceHandle,
+        pub target_label: NamePath,
+        pub domain: numerics::arithmetic::ArithmeticDomain,
+        pub form: language_core::cast_form::CastForm,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct IndexedExpression {
+        pub collection: Expression,
+        pub index: Expression,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct StructLiteral {
+        pub zero_omitted_fields: bool,
+        pub type_name: Identifier,
+        pub case_name: Option<Identifier>,
+        pub fields: Arc<[StructLiteralField]>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct StructLiteralField {
+        pub name: Identifier,
+        pub value: Expression,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableMatchExpression {
+        pub subject: ExpressionHandle,
+        pub capture: Handle<CompletedValueCapture>,
+        pub arms: HandleSpan<TableMatchArm>,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct CompletedValueCapture {
+        pub subject: ExpressionHandle,
+        pub owner: ValueCaptureOwner,
+        pub definition: ExpressionHandle,
+        pub value_anchor: ExpressionHandle,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub enum ValueCaptureOwner {
+        #[default]
+        Match,
+        ExpressionArgument {
+            call: ExpressionHandle,
+            position: u32,
+        },
+        StatementArgument {
+            call: crate::source_state::statement::StatementHandle,
+            position: u32,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableSavedSubject {
+        pub component: language_core::PatternComponent,
+        pub capture: Handle<CompletedValueCapture>,
+        pub pattern_head: ExpressionHandle,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableMatchArm {
+        pub pattern: MatchPattern,
+        pub value: ExpressionHandle,
+        pub source_span: SourceSpan,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub enum MatchPattern {
+        Value(ExpressionHandle),
+        Destructure(TableDestructurePattern),
+        #[default]
+        Wildcard,
+    }
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableDestructurePattern {
+        pub application_type: crate::source_state::types::TypeReferenceHandle,
+        pub head: ExpressionHandle,
+        pub fields: HandleSpan<TableMatchField>,
+        pub has_rest: bool,
+        pub guard: ExpressionHandle,
+        pub condition: ExpressionHandle,
+        pub proof_selectors: HandleSpan<crate::source_state::statement::OutcomeProofSelector>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableMatchField {
+        pub component: language_core::PatternComponent,
+        pub member: Identifier,
+        pub field_symbol: SymbolHandle,
+        pub action: MatchFieldAction,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub enum MatchFieldAction {
+        Bind(Identifier),
+        Equal(ExpressionHandle),
+        #[default]
+        Waive,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct MatchExpression {
+        pub subject: Expression,
+        pub arms: Arc<[MatchArm]>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct MatchArm {
+        pub pattern: OwnedMatchPattern,
+        pub value: Expression,
+        pub source_span: SourceSpan,
+    }
+
+    #[macro_export]
+    macro_rules! executable_leaf_expression_pattern {
+        () => {
+            $crate::source_state::expression::ExpressionNode::Boolean(_)
+                | $crate::source_state::expression::ExpressionNode::Float(_)
+                | $crate::source_state::expression::ExpressionNode::UndeterminedNaN(_)
+                | $crate::source_state::expression::ExpressionNode::Integer(_)
+                | $crate::source_state::expression::ExpressionNode::Name(_)
+                | $crate::source_state::expression::ExpressionNode::String(_)
+        };
+    }
+
+    #[macro_export]
+    macro_rules! spelled_literal_expression_pattern {
+        () => {
+            $crate::source_state::expression::ExpressionNode::Boolean(_)
+                | $crate::source_state::expression::ExpressionNode::Float(_)
+                | $crate::source_state::expression::ExpressionNode::UndeterminedNaN(_)
+                | $crate::source_state::expression::ExpressionNode::Integer(_)
+                | $crate::source_state::expression::ExpressionNode::String(_)
+                | $crate::source_state::expression::ExpressionNode::ZeroValue(_)
+        };
+    }
+
+    #[macro_export]
+    macro_rules! literal_expression_pattern {
+        () => {
+            $crate::source_state::expression::ExpressionNode::Boolean(_)
+                | $crate::source_state::expression::ExpressionNode::Float(_)
+                | $crate::source_state::expression::ExpressionNode::UndeterminedNaN(_)
+                | $crate::source_state::expression::ExpressionNode::Integer(_)
+                | $crate::source_state::expression::ExpressionNode::Name(_)
+                | $crate::source_state::expression::ExpressionNode::String(_)
+                | $crate::source_state::expression::ExpressionNode::ZeroValue(_)
+        };
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum OwnedMatchPattern {
+        Value(Expression),
+        Wildcard,
+    }
+}
+mod pattern_components {
+    //! A case view keeps its decomposition contract when a reference aliases it.
+    //!
+    //! Carrier geometry does not turn that view into an owned copy of the whole
+    //! data. Locals retain the component established by their initializer, and
+    //! receiving checks enforce it on later writes. This is a binding contract,
+    //! not a claim that the initializer's contents or old referents remain live.
+    //! Ordinary loan and storage-version checks still authenticate each use.
+
+    use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+    use language_core::PatternComponent;
+    use std::collections::BTreeMap;
+
+    impl crate::source_state::TypedTrees {
+        pub fn pattern_component(&self, expression: ExpressionHandle) -> Option<PatternComponent> {
+            Query {
+                program: self,
+                visited: BTreeMap::new(),
+            }
+            .read(expression)
+        }
+    }
+
+    struct Query<'a> {
+        program: &'a crate::source_state::TypedTrees,
+        // Only actual transparent dependencies enter this request-local map.
+        // Full coordinates retain generations without allocating global ID gaps.
+        // The initial None also refuses cycles, and shared aliases are read once.
+        visited: BTreeMap<(u32, u32), Option<PatternComponent>>,
+    }
+
+    impl Query<'_> {
+        fn read(&mut self, expression: ExpressionHandle) -> Option<PatternComponent> {
+            let program = self.program;
+            let table = &program.expression_table;
+            if !table.expression_is_valid(expression) {
+                return None;
+            }
+            let node = table.expression(expression);
+            let direct = table.direct_pattern_component(expression)?;
+            if let ExpressionNode::SavedSubject(saved) = node {
+                self.program.saved_value_source(saved)?;
+                return Some(if direct == PatternComponent::Case {
+                    direct
+                } else {
+                    saved.component
+                });
+            }
+            if direct == PatternComponent::Case {
+                return Some(direct);
+            }
+            let source = match node {
+                ExpressionNode::Name(name) => {
+                    if table.names_reserved_result(expression) {
+                        return Some(PatternComponent::Fields);
+                    }
+                    let symbol = name.resolved_symbol()?;
+                    if self.program.symbols.get(symbol).kind != symbols::SymbolKind::Local {
+                        return Some(PatternComponent::Fields);
+                    }
+                    let local = self.program.unique_local_data_for_symbol(symbol)?;
+                    if !local.role.is_runtime_binding() {
+                        return None;
+                    }
+                    if !local.initial_value.is_valid() {
+                        return Some(PatternComponent::Fields);
+                    }
+                    Some(local.initial_value)
+                }
+                ExpressionNode::Borrow(borrow) => Some(borrow.target),
+                ExpressionNode::Cast(cast) => Some(cast.value),
+                ExpressionNode::Match(_) => None,
+                _ => return Some(PatternComponent::Fields),
+            };
+            if let Some(source) = source {
+                if !table.expression_is_valid(source) {
+                    return None;
+                }
+                let leaf = match table.expression(source) {
+                    ExpressionNode::Borrow(_)
+                    | ExpressionNode::Cast(_)
+                    | ExpressionNode::Match(_) => false,
+                    ExpressionNode::Name(name) => {
+                        name.resolved_symbol().is_none_or(|symbol| {
+                            self.program.symbols.get(symbol).kind != symbols::SymbolKind::Local
+                        }) || table.direct_pattern_component(source) == Some(PatternComponent::Case)
+                    }
+                    _ => true,
+                };
+                if leaf {
+                    return self.read(source);
+                }
+            }
+            let coordinate = (expression.arena_index(), expression.generation());
+            if let Some(component) = self.visited.get(&coordinate) {
+                return *component;
+            }
+            self.visited.insert(coordinate, None);
+            let result = if let Some(source) = source {
+                self.read(source)
+            } else {
+                let ExpressionNode::Match(dispatch) = node else {
+                    return None;
+                };
+                let mut selected = None;
+                for arm in table.match_arms(dispatch.arms) {
+                    let component = self.read(arm.value)?;
+                    if selected.is_some_and(|prior| prior != component) {
+                        return None;
+                    }
+                    selected = Some(component);
+                }
+                selected
+            };
+            self.visited.insert(coordinate, result);
+            result
+        }
+    }
+}
+pub mod subtrees {
+    use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
+
+    /// The source operands retained by an atomic single-attempt observation.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AtomicCarrierAccess {
+        pub operation: access_vocabulary::AtomicAccessOperation,
+        pub place: ExpressionHandle,
+        pub operands: Vec<ExpressionHandle>,
+        pub result: ExpressionHandle,
+    }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub struct SubtreeEdges {
+        pub saved_sources: bool,
+        pub atomic_results: bool,
+        pub pattern_dependencies: bool,
+    }
+
+    impl SubtreeEdges {
+        pub const VALUES: Self = Self {
+            saved_sources: false,
+            atomic_results: false,
+            pattern_dependencies: false,
+        };
+
+        pub const STRUCTURAL: Self = Self {
+            saved_sources: false,
+            atomic_results: true,
+            pattern_dependencies: false,
+        };
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum SubtreeVisit {
+        Found,
+        Descend,
+        Prune,
+        Instead(ExpressionHandle),
+        InsteadEach(Vec<ExpressionHandle>),
+    }
+
+    impl crate::source_state::TypedTrees {
+        pub fn atomic_once_operands(
+            &self,
+            atomic: &crate::source_state::expression::TableAtomicExpression,
+        ) -> Option<AtomicCarrierAccess> {
+            use access_vocabulary::AtomicAccessOperation;
+            use language_core::atomic::AtomicOrderingPlan;
+            let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering
+            else {
+                return None;
+            };
+            if !atomic.result_custody.is_valid_for(atomic.ordering)
+                || atomic.result.is_valid()
+                || !failure.valid_compare_exchange_failure(success)
+            {
+                return None;
+            }
+            let language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(custody) =
+                atomic.result_custody
+            else {
+                return None;
+            };
+            let ExpressionNode::Call(call) = self.expression_table.expression(atomic.value) else {
+                return None;
+            };
+            let [expected, replacement] = self.expression_table.expression_handles(call.arguments)
+            else {
+                return None;
+            };
+            if !call.receiver.is_valid()
+                || call.target.as_str() != custody.observation.single_attempt_member_name()
+                || !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+            {
+                return None;
+            }
+            Some(AtomicCarrierAccess {
+                operation: AtomicAccessOperation::single_attempt(
+                    custody.observation,
+                    success,
+                    failure,
+                ),
+                place: call.receiver,
+                operands: vec![*expected, *replacement],
+                result: ExpressionHandle::invalid(),
+            })
+        }
+
+        /// Direct source children in operand order. Atomic observation
+        /// operands follow their retained custody declaration.
+        pub fn expression_children(
+            &self,
+            node: &ExpressionNode,
+            mut child: impl FnMut(ExpressionHandle),
+        ) {
+            if let ExpressionNode::Atomic(atomic) = node
+                && let Some(once) = self.atomic_once_operands(atomic)
+            {
+                child(once.place);
+                for operand in once.operands {
+                    child(operand);
+                }
+                return;
+            }
+            self.subtree_children(node, SubtreeEdges::STRUCTURAL, |expression| {
+                child(expression);
+                false
+            });
+        }
+
+        /// Type dependencies include complete callable signature operands.
+        pub fn collect_type_expression_trees(
+            &self,
+            reference: crate::source_state::types::TypeReferenceHandle,
+            visited: &mut Vec<crate::source_state::types::TypeReferenceHandle>,
+            expressions: &mut Vec<ExpressionHandle>,
+        ) {
+            if !reference.is_valid() || visited.contains(&reference) {
+                return;
+            }
+            let inputs = crate::source_state::references::type_reference_inputs(self, reference);
+            for reference in inputs.types {
+                if !visited.contains(&reference) {
+                    visited.push(reference);
+                }
+            }
+            for expression in inputs.expressions {
+                if !expressions.contains(&expression) {
+                    expressions.push(expression);
+                }
+            }
+        }
+
+        /*
+            Visits `root`'s subtree in pre-order, children in edge order, and
+            stops at the first `Found`. The walk keeps its pending nodes in a
+            stack it owns rather than on the thread's call stack, so a long
+            operator chain or deep nesting costs memory, not stack depth.
+        */
+        pub fn subtree_any(
+            &self,
+            root: ExpressionHandle,
+            edges: SubtreeEdges,
+            mut visit: impl FnMut(ExpressionHandle, &ExpressionNode) -> SubtreeVisit,
+        ) -> bool {
+            let mut pending = vec![root];
+            let mut children = Vec::new();
+            while let Some(expression) = pending.pop() {
+                if !expression.is_valid() {
+                    continue;
+                }
+                let node = self.expression_table.expression(expression);
+                match visit(expression, node) {
+                    SubtreeVisit::Found => return true,
+                    SubtreeVisit::Prune => continue,
+                    SubtreeVisit::Instead(child) => pending.push(child),
+                    SubtreeVisit::InsteadEach(replacements) => {
+                        pending.extend(replacements.into_iter().rev());
+                    }
+                    SubtreeVisit::Descend => {
+                        self.subtree_children(node, edges, |child| {
+                            children.push(child);
+                            false
+                        });
+                        pending.extend(children.drain(..).rev());
+                    }
+                }
+            }
+            false
+        }
+
+        pub fn subtree_for_each(
+            &self,
+            root: ExpressionHandle,
+            edges: SubtreeEdges,
+            mut visit: impl FnMut(ExpressionHandle, &ExpressionNode),
+        ) {
+            self.subtree_any(root, edges, |expression, node| {
+                visit(expression, node);
+                SubtreeVisit::Descend
+            });
+        }
+
+        pub fn subtree_children(
+            &self,
+            node: &ExpressionNode,
+            edges: SubtreeEdges,
+            mut child: impl FnMut(ExpressionHandle) -> bool,
+        ) {
+            let table = &self.expression_table;
+            match node {
+                ExpressionNode::SavedSubject(saved) => {
+                    if edges.saved_sources
+                        && let Some(source) = self.saved_value_source(saved)
+                    {
+                        child(source);
+                    }
+                }
+                ExpressionNode::Match(dispatch) => {
+                    if child(dispatch.subject) {
+                        return;
+                    }
+                    for arm in table.match_arms(dispatch.arms) {
+                        let stop = if edges.pattern_dependencies {
+                            table
+                                .match_pattern_dependencies(arm.pattern)
+                                .any(&mut child)
+                        } else {
+                            table.match_pattern_operands(arm.pattern).any(&mut child)
+                        };
+                        if stop || child(arm.value) {
+                            return;
+                        }
+                    }
+                }
+                ExpressionNode::Atomic(atomic) => {
+                    let _ = child(atomic.value) || (edges.atomic_results && child(atomic.result));
+                }
+                ExpressionNode::ArrayLiteral(values) => {
+                    let _ = table
+                        .expression_handles(*values)
+                        .iter()
+                        .any(|value| child(*value));
+                }
+                ExpressionNode::Binary(binary) => {
+                    let _ = child(binary.left) || child(binary.right);
+                }
+                ExpressionNode::Call(call) => {
+                    let _ = call
+                        .runtime_call
+                        .as_ref()
+                        .is_some_and(|runtime| child(runtime.callee))
+                        || child(call.receiver)
+                        || table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .any(|argument| child(*argument));
+                }
+                ExpressionNode::Cast(cast) => {
+                    child(cast.value);
+                }
+                ExpressionNode::Indexed(indexed) => {
+                    let _ = child(indexed.collection) || child(indexed.index);
+                }
+                ExpressionNode::Range(range) => {
+                    let _ = child(range.start) || child(range.end);
+                }
+                ExpressionNode::Member(member) => {
+                    child(member.receiver);
+                }
+                ExpressionNode::Borrow(borrow) => {
+                    child(borrow.target);
+                }
+                ExpressionNode::Unary(unary) => {
+                    child(unary.operand);
+                }
+                ExpressionNode::StructLiteral(literal) => {
+                    let _ = table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .any(|field| child(field.value));
+                }
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::TypeExpression(_)
+                | crate::source_state::literal_expression_pattern!() => {}
+            }
+        }
+    }
+}
+
+// Both tables yield active handles in slot order. Merge their streams rather
+// than searching a page directory again for each retained row. New rows may
+// appear between old ones, but every retained generation and value must match.
+fn retains_input_rows<T: Default>(
+    current: &arena::RetainedArena<T>,
+    source: &arena::RetainedArena<T>,
+    mut equivalent: impl FnMut(arena::Handle<T>, &T, &T) -> bool,
+) -> bool {
+    let mut current = current.iter().peekable();
+    for (handle, original) in source.iter() {
+        while current
+            .peek()
+            .is_some_and(|(candidate, _)| candidate.arena_index() < handle.arena_index())
+        {
+            current.next();
+        }
+        let Some((candidate, value)) = current.next() else {
+            return false;
+        };
+        if candidate != handle || !equivalent(handle, value, original) {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod build_selection_input_tests {
+    use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
+    use crate::declaration_selection::AuthoredDeclarationSelectionKind;
+    use crate::declaration_selection::EnumExclusionRequest;
+    use crate::declaration_selection::ExclusionVocabulary;
+    use crate::source_selections::AuthoredDeclarationSelections;
+    use crate::source_state::expression::{
+        BuildSelectionCall, BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest,
+        ExpressionNode, ExpressionTable, TableCallExpression,
+    };
+    use record_storage::{RecordLimits, decode, encode};
+    use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn build_inputs_follow_the_exact_commit_and_shared_request_when_copied() {
+        let owner = SymbolHandle::from_parts(3, 7);
+        let selected = SymbolHandle::from_parts(4, 7);
+        let mut ledger = AuthoredDeclarationSelections::default();
+        let occurrence = ledger
+            .record_resolved(
+                source_text::SourceSpan::new(
+                    source_text::SourceId(0),
+                    source_text::Span::new(1, 2),
+                ),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::StaticArgument,
+                selected,
+            )
+            .unwrap();
+        let input = super::expression::BuildSelectionInput {
+            occurrence,
+            argument_ordinal: 2,
+            resolved_target: Some(selected),
+            target: ledger.get(occurrence).unwrap().target(),
+        };
+        let mut source = ExpressionTable::default();
+        let declaration = BuildSelectionRequest::Exclusion(EnumExclusionRequest {
+            source_span: Default::default(),
+            vocabulary: ExclusionVocabulary::CrashCause,
+        });
+        let preparation = source.insert_build_selection_call(BuildSelectionCall {
+            request: declaration.clone(),
+            operation: Protocol::Prepare,
+        });
+        let request = source.insert_build_selection_call(BuildSelectionCall {
+            request: declaration,
+            operation: Protocol::Exclude,
+        });
+        let prepared = source.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: preparation,
+            ..Default::default()
+        }));
+        source
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request: preparation,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let arguments = source.insert_expression_handles([prepared]);
+        let commit = source.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: request,
+            arguments,
+            ..Default::default()
+        }));
+        source
+            .retain_build_selection_inputs(
+                commit,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs: vec![input],
+                },
+            )
+            .unwrap();
+        let mut destination = ExpressionTable::default();
+        destination.insert_build_selection_call(BuildSelectionCall::default());
+        destination.insert(ExpressionNode::Boolean(false));
+        let copied = destination.copy_graph(Some(&source), commit).root;
+        let captured = destination.build_selection_inputs(copied).unwrap().unwrap();
+        assert_ne!(captured.request, request);
+        assert_eq!(captured.inputs, [input]);
+        let copied_request = captured.request;
+        let ExpressionNode::Call(call) = destination.expression(copied) else {
+            panic!("copied commit")
+        };
+        let preparation = destination.expression_handles(call.arguments)[0];
+        let prepared_inputs = destination
+            .build_selection_inputs(preparation)
+            .unwrap()
+            .unwrap();
+        assert_ne!(prepared_inputs.request, copied_request);
+        assert_eq!(
+            destination.build_selection_request(prepared_inputs.request),
+            destination.build_selection_request(copied_request),
+        );
+        assert_eq!(
+            destination
+                .build_selection_call(prepared_inputs.request)
+                .unwrap()
+                .operation,
+            Protocol::Prepare,
+        );
+        assert_eq!(
+            destination
+                .build_selection_call(copied_request)
+                .unwrap()
+                .operation,
+            Protocol::Exclude,
+        );
+        assert_eq!(prepared_inputs.phase, BuildSelectionPhase::Preparation);
+        assert!(prepared_inputs.inputs.is_empty());
+        let replacement = SymbolHandle::from_parts(5, 7);
+        destination.remap_symbols_in(copied, &[(owner, replacement)][..]);
+        assert_eq!(
+            destination
+                .build_selection_inputs(copied)
+                .unwrap()
+                .unwrap()
+                .lexical_owner,
+            replacement
+        );
+        assert_eq!(
+            destination
+                .build_selection_inputs(copied)
+                .unwrap()
+                .unwrap()
+                .inputs,
+            [input]
+        );
+        assert_eq!(
+            source
+                .build_selection_inputs(commit)
+                .unwrap()
+                .unwrap()
+                .lexical_owner,
+            owner
+        );
+        let encoded = encode(&destination, RecordLimits::default()).unwrap();
+        let restored: ExpressionTable = decode(&encoded, RecordLimits::default()).unwrap();
+        assert_eq!(
+            restored.build_selection_inputs(copied).unwrap(),
+            destination.build_selection_inputs(copied).unwrap()
+        );
+        let mut old_marker = encoded;
+        old_marker[8] ^= 1;
+        assert!(decode::<ExpressionTable>(&old_marker, RecordLimits::default()).is_err());
+    }
+
+    #[test]
+    fn build_inputs_refuse_missing_rows_wrong_requests_and_stale_occurrences() {
+        let mut table = ExpressionTable::default();
+        let request = table.insert_build_selection_call(BuildSelectionCall::default());
+        let call = table.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: request,
+            ..Default::default()
+        }));
+        assert!(table.build_selection_inputs(call).is_err());
+        table
+            .retain_build_selection_inputs(
+                call,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: SymbolHandle::from_parts(3, 1),
+                    phase: BuildSelectionPhase::Commit,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let stale = super::expression::ExpressionHandle::from_parts(
+            call.arena_index(),
+            call.generation().wrapping_add(1),
+        );
+        assert!(table.build_selection_inputs(stale).is_err());
+        let other = table.insert_build_selection_call(BuildSelectionCall::default());
+        let ExpressionNode::Call(current) = table.expression_mut(call) else {
+            unreachable!()
+        };
+        current.build_selection = other;
+        assert!(table.build_selection_inputs(call).is_err());
+        table.clear();
+        let current = table.insert(ExpressionNode::Boolean(true));
+        assert_eq!(current.arena_index(), call.arena_index());
+        assert_ne!(current.generation(), call.generation());
+        assert!(table.build_selection_inputs(call).is_err());
+        assert_eq!(table.build_selection_inputs(current).unwrap(), None);
+        let current_request = table.insert_build_selection_call(BuildSelectionCall::default());
+        assert_eq!(current_request.arena_index(), request.arena_index());
+        assert_ne!(current_request.generation(), request.generation());
+    }
+}
+
+#[cfg(test)]
+mod storage_ownership_tests {
+    use super::retains_input_rows;
+    use crate::source_state::expression::{ExpressionNode, ExpressionTable};
+    use crate::source_state::statement::{StatementNode, StatementTable};
+    use crate::source_state::types::TypeReferenceHandle;
+    use language_core::PatternComponent;
+    use source_text::{SourceId, SourceSpan, Span};
+
+    #[test]
+    fn trait_conformance_forks_share_rows_and_only_detach_the_changed_record() {
+        use crate::source_state::machine::TraitConformance;
+        let mut original = crate::source_state::TypedTrees::default();
+        let rows = original.machine_trait_conformances.insert_many([
+            TraitConformance {
+                trait_lifetime_arguments: vec![1, 2],
+                ..Default::default()
+            },
+            TraitConformance {
+                trait_lifetime_arguments: vec![3],
+                ..Default::default()
+            },
+        ]);
+        let machine = crate::source_state::machine::Machine {
+            satisfies: rows,
+            ..Default::default()
+        };
+        let mut child = original.clone();
+        for ordinal in 0..2 {
+            assert!(std::ptr::eq(
+                original.machine_trait_conformances(&machine).at(ordinal),
+                child.machine_trait_conformances(&machine).at(ordinal)
+            ));
+        }
+        let appended = child
+            .machine_trait_conformances
+            .append(TraitConformance::default());
+        assert!(!original.machine_trait_conformances.is_valid(appended));
+        assert!(std::ptr::eq(
+            original.machine_trait_conformances(&machine).at(0),
+            child.machine_trait_conformances(&machine).at(0)
+        ));
+        child
+            .machine_trait_conformances
+            .get_mut(rows.start())
+            .trait_lifetime_arguments
+            .push(7);
+        assert_eq!(
+            original.machine_trait_conformances(&machine)[0].trait_lifetime_arguments,
+            [1, 2]
+        );
+        assert!(std::ptr::eq(
+            original.machine_trait_conformances(&machine).at(1),
+            child.machine_trait_conformances(&machine).at(1)
+        ));
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(&child, limits).unwrap();
+        let decoded: crate::source_state::TypedTrees =
+            record_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, child);
+        let stale =
+            arena::Handle::from_parts(rows.start().arena_index(), rows.start().generation() + 1);
+        assert!(!decoded.machine_trait_conformances.is_valid(stale));
+    }
+
+    #[test]
+    fn input_row_merge_keeps_active_slots_generations_and_value_comparisons() {
+        let mut original = arena::RetainedArena::new();
+        let first = original.append(1u32);
+        let second = original.append(2);
+        let mut source = original.clone();
+        source.free(first);
+        assert!(retains_input_rows(&original, &source, |_, a, b| a == b));
+        let mut missing = original.clone();
+        missing.free(second);
+        assert!(!retains_input_rows(&missing, &source, |_, a, b| a == b));
+
+        // An empty directory has no element encoding. Use a normal Arena
+        // record to vary its generation without adding a production constructor.
+        #[derive(record_storage::Record)]
+        struct AppendedRows {
+            pages: Vec<u8>,
+            appended: std::sync::Arc<arena::Arena<u32>>,
+            start: usize,
+        }
+        let mut other = arena::Arena::with_generation(9);
+        other.insert_many([1u32, 2]);
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(
+            &AppendedRows {
+                pages: Vec::new(),
+                appended: std::sync::Arc::new(other),
+                start: 0,
+            },
+            limits,
+        )
+        .unwrap();
+        let other: arena::RetainedArena<u32> = record_storage::decode(&bytes, limits).unwrap();
+        assert!(!retains_input_rows(&other, &original, |_, a, b| a == b));
+
+        let mut non_reflexive = arena::RetainedArena::new();
+        non_reflexive.append(f64::NAN);
+        assert!(!retains_input_rows(
+            &non_reflexive,
+            &non_reflexive,
+            |_, a, b| a == b
+        ));
+    }
+
+    #[test]
+    fn declaration_output_keeps_untouched_body_pages_shared() {
+        let mut source = crate::source_state::TypedTreeTables::default();
+        source.begin_declaration_output();
+        let first = source
+            .expression_table
+            .insert(ExpressionNode::Boolean(true));
+        let first_statement = source
+            .statement_table
+            .insert(StatementNode::Expression(first));
+        let revision = source.statement_table.declaration_revision();
+        source.begin_declaration_output();
+        assert_eq!(source.statement_table.declaration_revision(), revision);
+        let second = source
+            .expression_table
+            .insert(ExpressionNode::Boolean(false));
+        let second_statement = source
+            .statement_table
+            .insert(StatementNode::Expression(second));
+        let mut selected = source.clone();
+        *selected.expression_table.expression_mut(first) = ExpressionNode::Boolean(false);
+        *selected.statement_table.statement_mut(first_statement) =
+            StatementNode::Expression(second);
+        assert_eq!(
+            source.expression_table.expression(first),
+            &ExpressionNode::Boolean(true)
+        );
+        assert!(std::ptr::eq(
+            source.expression_table.expression(second),
+            selected.expression_table.expression(second)
+        ));
+        assert!(std::ptr::eq(
+            source.statement_table.statement(second_statement),
+            selected.statement_table.statement(second_statement)
+        ));
+        assert_eq!(
+            selected
+                .expression_table
+                .iter_expressions_from(second.arena_index() as usize)
+                .map(|(handle, _)| handle)
+                .collect::<Vec<_>>(),
+            [second]
+        );
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(&selected, limits).unwrap();
+        let decoded: crate::source_state::TypedTreeTables =
+            record_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(selected, decoded);
+    }
+
+    #[test]
+    fn body_tables_share_retained_rows_and_keep_metadata_with_their_handles() {
+        let mut source = ExpressionTable::new();
+        let old = source.insert(ExpressionNode::default());
+        let span = SourceSpan::new(SourceId(7), Span::new(1, 2));
+        source.set_source_span(old, span);
+        source.set_pattern_component(old, PatternComponent::Case);
+        let mut selected = source.clone();
+        let added = selected.insert(ExpressionNode::default());
+        assert_eq!(added.arena_index(), old.arena_index() + 1);
+        assert!(std::ptr::eq(
+            source.expression(old),
+            selected.expression(old)
+        ));
+        assert_eq!(selected.source_span(old), span);
+        assert_eq!(
+            selected.direct_pattern_component(old),
+            Some(PatternComponent::Case)
+        );
+        selected.set_pattern_component(old, PatternComponent::Fields);
+        assert_eq!(
+            source.direct_pattern_component(old),
+            Some(PatternComponent::Case)
+        );
+        let limits = record_storage::RecordLimits::default();
+        let bytes = record_storage::encode(&selected, limits).unwrap();
+        let decoded: ExpressionTable = record_storage::decode(&bytes, limits).unwrap();
+        assert_eq!(decoded, selected);
+
+        let mut statements = StatementTable::new();
+        let old = statements.insert(StatementNode::default());
+        let original_revision = statements.declaration_revision();
+        let mut selected = statements.clone();
+        let added = selected.insert(StatementNode::default());
+        assert_eq!(added.arena_index(), old.arena_index() + 1);
+        assert!(std::ptr::eq(
+            statements.statement(old),
+            selected.statement(old)
+        ));
+        assert_eq!(statements.declaration_revision(), original_revision);
+        assert_eq!(statements.statement_count(), 1);
+    }
+
+    #[test]
+    fn source_storage_guard_preserves_initialized_type_attachment_prefixes() {
+        let mut source = ExpressionTable::new();
+        let first = source.insert(ExpressionNode::default());
+        let second = source.insert(ExpressionNode::default());
+        let original_type = TypeReferenceHandle::from_arena_index(7);
+        let other_type = TypeReferenceHandle::from_arena_index(8);
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(first, original_type);
+        selected.set_construction_required_type_reference(first, original_type);
+        assert!(selected.retains_input_storage(&source));
+
+        source.set_constructed_value_type_reference(second, original_type);
+        source.set_construction_required_type_reference(second, original_type);
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(first, original_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_construction_required_type_reference(first, original_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_constructed_value_type_reference(second, other_type);
+        assert!(!selected.retains_input_storage(&source));
+        let mut selected = source.clone();
+        selected.set_source_span(first, SourceSpan::new(SourceId(2), Span::new(3, 4)));
+        assert!(!selected.retains_input_storage(&source));
+    }
+
+    #[test]
+    fn clearing_expression_storage_drops_metadata_from_reused_slots() {
+        let mut table = ExpressionTable::new();
+        let old = table.insert(ExpressionNode::default());
+        table.set_pattern_component(old, PatternComponent::Case);
+        table.clear();
+        let new = table.insert(ExpressionNode::default());
+        assert_eq!(new.arena_index(), old.arena_index());
+        assert_eq!(
+            table.direct_pattern_component(new),
+            Some(PatternComponent::Fields)
+        );
+    }
+}

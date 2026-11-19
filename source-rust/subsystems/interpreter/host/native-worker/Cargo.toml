@@ -1,0 +1,29 @@
+[package]
+name = "native-provider-runtime"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+wire = { path = "../../../../foundation/wire" }
+bounded-process = { path = "../../host-support/bounded-process" }
+target = { path = "../../compilation/target-description/target" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
+sha2 = "0.10.9"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.186"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem",
+    "Win32_System_IO", "Win32_System_Memory", "Win32_System_Pipes",
+    "Win32_System_Threading", "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+] }
+
+[dev-dependencies]
+native-provider-sponsor = { path = "../../host-support/native-provider-sponsor", features = ["test-support"] }
+image-fixtures = { path = "../../../test-support/image-fixtures" }
+image-emission = { path = "../../../compiler/psi-to-native/pipeline/16_objects-to-image/image-emission" }

@@ -1,0 +1,30 @@
+[package]
+name = "effects"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "effects"
+path = "src/lib.rs"
+
+[dependencies]
+declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
+application-identity = { path = "../../../source-to-psi/language/application-identity" }
+numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
+source-text = { path = "../../../../../../foundation/source-text" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+optimization-core = { path = "../../optimization-contracts" }
+terminal-psi = { path = "../../../representations/psi" }
+target = { path = "../../targets/target" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+symbols = { path = "../../../source-to-psi/language/declaration-identity" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../test-support/source-audit" }

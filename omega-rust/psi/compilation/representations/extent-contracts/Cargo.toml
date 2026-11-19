@@ -1,9 +1,0 @@
-[package]
-name = "extent-contracts"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-arena = { path = "../../../foundation/arena" }
-compiler-storage = { path = "../../../foundation/compiler-storage" }

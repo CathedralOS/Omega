@@ -10,7 +10,7 @@ commands are Rust and need no PowerShell.
 ```text
 mbx build --release -p omega-bench
 mbx build --release -p terminal-psi-to-terminal-psi --example proof_preparation --example proof_preparation_timing
-mbx build --release -p compiler --example route_probe
+mbx build --release -p compiler-tools --bin route_probe
 ```
 
 Keep each version's executables before changing it. The examples take

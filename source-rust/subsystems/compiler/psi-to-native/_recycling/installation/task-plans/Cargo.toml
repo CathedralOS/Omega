@@ -1,0 +1,25 @@
+[package]
+name = "task-plans"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "task_plans"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../../foundation/arena" }
+wire = { path = "../../../../../foundation/wire" }
+calling-conventions = { path = "../../targets/calling-conventions" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+effects = { path = "../native-effects" }
+target = { path = "../../targets/target" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+optimization-core = { path = "../../optimization-contracts" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../test-support/source-audit" }

@@ -1,0 +1,28 @@
+[package]
+name = "abstract-operations-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+abstract-operations = { path = "../representations/abstract-operations" }
+arena = { path = "../../../../../foundation/arena" }
+optimization = { path = "../../../representations/psi/optimization-selections" }
+optimization-core = { path = "../../optimization-contracts" }
+optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+terminal-work = { path = "../../../representations/psi/work" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+wire = { path = "../../../../../foundation/wire" }
+
+[dev-dependencies]
+source-compiler = { path = "../../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../02_target-bound-program-to-abstract-operations" }
