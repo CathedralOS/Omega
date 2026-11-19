@@ -26,7 +26,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline",
     "source-rust/subsystems/compiler/psi-to-native/verification",
     "source-rust/subsystems/compiler/psi-to-native/targets",
-    "source-rust/subsystems/compiler/psi-to-native/replay",
+    "source-rust/subsystems/compiler/psi-to-native/representations",
     "source-rust/subsystems/compiler/psi",
     "source-rust/subsystems/compiler/foundation",
     "source-rust/foundation",
@@ -154,7 +154,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/execution/result", linear_pipeline::PSI_STAGES[7]),
-            ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/source-to-psi/product/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
         ..rule(
             vec![""],
@@ -192,7 +192,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
     rules.push(Rule {
         forbidden_packages: vec![SOURCE_DRIVER],
         ..rule(
-            vec!["source-rust/subsystems/compiler/source-to-psi/pipeline/representations"],
+            vec!["source-rust/subsystems/compiler/source-to-psi/representations"],
             vec![],
             "source records cannot depend on the source driver",
         )
@@ -291,26 +291,26 @@ pub fn stale_allowance_violations(
 /// Earlier executable program forms: the abstract program, the optimization
 /// unit, and the unit's independent semantic checker (all under this path).
 const EARLIER_PROGRAM_FORMS: &str =
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
 
 /// Stage 02's working program: `TargetOperationPlan` and its control graph.
 /// The records it shares with later forms live in `target-vocabulary`, nested
 /// in this directory as a separate package.
 const STAGE_02_WORKING_FORM: &str =
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations";
 
 /// Instruction selection, the installation record it is handed, and the forms
 /// from the prepared plan onward. None of them is handed stage 02's working
 /// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/register-homes",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
@@ -328,11 +328,11 @@ const SEALED_TERMINAL_MODULE: &str =
 /// Selection and later forms carry shared contracts, not the prepared plan's
 /// instruction graph. Follow indirect production edges as well as direct ones.
 const AFTER_SELECTION: &[&str] = &[
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/register-homes",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
@@ -340,7 +340,7 @@ const AFTER_SELECTION: &[&str] = &[
 ];
 
 const PREPARED_EXECUTION_PLAN: &str =
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations";
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
 
 /// Instruction selection, the forms from the prepared plan onward, the stages
 /// that turn one into the next, the target setup and installation record they
@@ -350,16 +350,16 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/structural-storage",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
+    "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
+    "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
+    "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions/analyses",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/register-homes",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine",
-    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code",
+    "source-rust/subsystems/compiler/psi-to-native/representations/register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/representations/machine-code",
     "source-rust/subsystems/compiler/psi-to-native/targets/register-environment",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
@@ -631,12 +631,12 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/",
-    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
 /// The target-operation accessor for its working program.
 const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
-const TARGET_REPLAY_RECORD: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
+const TARGET_REPLAY_RECORD: &str = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
 /// Binding belongs to the driver after preparation, not to setters on the
 /// prepared stage output. Neither the old definitions nor callers may return.
 const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
@@ -648,7 +648,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
-    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
@@ -760,7 +760,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
@@ -775,7 +775,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/layout/mod.rs",
+        "source-rust/subsystems/compiler/psi-to-native/representations/machine-code/encoding-admission/src/layout/mod.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
@@ -901,8 +901,8 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
-    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
-    errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
+    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
+    errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
         root,
         &["retain_target_operations"],
@@ -921,7 +921,7 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
@@ -951,7 +951,7 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
-            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs",
             "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
@@ -1051,7 +1051,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &["bind_target_reach"],
             &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
             &[(
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
                 "pub fn bind_target_reach(",
             )],
             "stage 01 issues reachability before a native body can be lowered",
@@ -1357,9 +1357,9 @@ mod tests {
     #[test]
     fn selection_representations_cannot_reach_earlier_forms_through_any_crate() {
         let plan =
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
-        let unit = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit";
+        let unit = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit";
         let reaches = |kind: Option<&str>| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1390,10 +1390,10 @@ mod tests {
 
     #[test]
     fn a_nested_package_is_not_the_crate_it_sits_in() {
-        let form = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code";
+        let form = "source-rust/subsystems/compiler/psi-to-native/representations/machine-code";
         let working = STAGE_02_WORKING_FORM;
         let vocabulary =
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/target-vocabulary";
         let metadata = |dependency: &str| Metadata {
             workspace_root: "/repo".to_owned(),
             packages: vec![
@@ -1475,7 +1475,7 @@ mod tests {
     #[test]
     fn native_forms_reach_vocabulary_encoders_but_not_the_sealed_module() {
         let plan =
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations";
+            "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations";
         let helper = "omega-rust/omega/compilation/backend/helper";
         let wire = "source-rust/subsystems/compiler/psi/wire";
         assert!(native_forms().contains(&plan));
@@ -1548,7 +1548,7 @@ mod tests {
             "source-rust/subsystems/compiler/tests/executed_fixture_discovery.rs"
         ));
         assert!(!is_test_source(
-            "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs"
+            "source-rust/subsystems/compiler/psi-to-native/driver.rs"
         ));
     }
 
@@ -1598,11 +1598,11 @@ mod tests {
                  let retained = ObjectArtifact::retained_target_operations;\n",
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/verification/published-objects/src/lib.rs".to_owned(),
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/driver.rs".to_owned(),
                 "let pair = SemanticEmissionFacts::retain_target_operations;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
@@ -1701,16 +1701,16 @@ mod tests {
 
     #[test]
     fn selection_cannot_reach_the_forms_its_plan_was_prepared_from() {
-        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations";
+        const ABSTRACT: &str = "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations";
         for (dependency, kind, permitted) in [
             (ABSTRACT, None, false),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
                 None,
                 false,
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/optimization-unit-semantics",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics",
                 None,
                 false,
             ),
@@ -1722,12 +1722,12 @@ mod tests {
             // Tests may build a plan the way stage 02 does.
             (ABSTRACT, Some("dev"), true),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/target-operations/legalized-operations",
+                "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
                 None,
                 true,
             ),
             (
-                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
+                "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
                 None,
                 true,
             ),
@@ -1764,7 +1764,7 @@ mod tests {
                 FRONTEND_OPERATIONS[0],
             ),
             (
-                "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program",
+                "source-rust/subsystems/compiler/source-to-psi/representations/lowered-program",
                 "source-rust/subsystems/compiler/foundation/semantic-records",
                 PSI_FACADE,
             ),
@@ -1799,22 +1799,22 @@ mod tests {
                     NATIVE_ROOT,
                     &[(
                         "effects",
-                        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
+                        "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
                         None,
                     )],
                 ),
                 pkg(
                     "effects",
-                    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
+                    "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
                     &[(
                         "typed-trees",
-                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
                         None,
                     )],
                 ),
                 pkg(
                     "typed-trees",
-                    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
+                    "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
                     &[],
                 ),
             ],

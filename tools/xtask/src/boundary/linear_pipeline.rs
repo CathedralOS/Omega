@@ -44,8 +44,8 @@ pub(super) const TEXT_READER: &str =
 pub(super) const FRONTEND: [&str; 4] = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees",
-    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/tokens",
-    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees",
+    "source-rust/subsystems/compiler/source-to-psi/representations/tokens",
+    "source-rust/subsystems/compiler/source-to-psi/representations/syntax-trees",
 ];
 
 pub(super) const PSI_STAGES: [&str; 8] = [
@@ -110,9 +110,9 @@ fn forbidden_frontend(start: &str, dependency: &str) -> bool {
                     &[
                         tokens,
                         syntax,
-                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations",
-                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees",
-                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/declarations",
+                        "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
                     ],
                 )
         }

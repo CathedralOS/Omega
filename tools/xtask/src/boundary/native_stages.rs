@@ -13,13 +13,13 @@ pub(super) const DRIVER: &str = native!("");
 const HOST_PROVIDERS: &str = native!("/pipeline/00_psi-to-admitted-native-inputs/host-providers");
 const ANALYSES: &str =
     native!("/pipeline/06_selected-instructions-to-selected-instructions/analyses");
-const ENCODING: &str = native!("/pipeline/representations/machine-code/encoding-admission");
+const ENCODING: &str = native!("/representations/machine-code/encoding-admission");
 const AARCH64: &str =
     native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-aarch64");
 const X86: &str = native!("/pipeline/11_bound-framed-machine-to-selected-form-encoding/isa-x86_64");
 pub(super) const IMAGE_EMISSION: &str = native!("/pipeline/16_objects-to-image/image-emission");
 pub(super) const NATIVE_ARTIFACT: &str = native!("/pipeline/16_objects-to-image/native-artifact");
-pub(super) const OBJECT_REPLAY: &str = native!("/replay/published-objects");
+pub(super) const OBJECT_REPLAY: &str = native!("/verification/published-objects");
 pub(super) const PRODUCT_PUBLICATION: &str =
     "source-rust/subsystems/compiler/build/build-output/product-publication";
 
@@ -75,9 +75,9 @@ pub(super) fn rules() -> Vec<Rule> {
         });
     }
     let earlier_forms = vec![
-        native!("/pipeline/representations/abstract-operations"),
-        native!("/pipeline/representations/target-operations"),
-        native!("/pipeline/representations/target-operations/legalized-operations"),
+        native!("/representations/abstract-operations"),
+        native!("/representations/target-operations"),
+        native!("/representations/target-operations/legalized-operations"),
     ];
     // The image package still contains the requested object correspondence audit.
     // Its accessor and validator call sites are also restricted by boundary.rs.
@@ -108,8 +108,8 @@ mod tests {
 
     #[test]
     fn physical_stages_can_read_shared_operands_without_importing_the_earlier_program() {
-        let target = native!("/pipeline/representations/target-operations");
-        let vocabulary = native!("/pipeline/representations/target-operations/target-vocabulary");
+        let target = native!("/representations/target-operations");
+        let vocabulary = native!("/representations/target-operations/target-vocabulary");
         let metadata = Metadata {
             workspace_root: "/repo".into(),
             packages: vec![
