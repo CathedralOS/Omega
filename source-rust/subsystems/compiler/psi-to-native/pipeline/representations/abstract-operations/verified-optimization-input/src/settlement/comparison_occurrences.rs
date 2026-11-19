@@ -1,154 +1,24 @@
-/*
-We represent the source-free D29 boundary-operator application coverage,
-selected comparison occurrence proposals, and by-value opaque representation
-custody retained beside one canonical Terminal artifact. Our root carrier,
-`TerminalBoundaryApplicationCoverage`, pairs sorted `demands` with one-to-one
-`realization` companions, derives reconstructible `coverage` references, and
-attaches canonical `opaque_applications` custody while `TerminalIeeeFloatComparisonOccurrenceProposal`
-and `TerminalIntegerComparisonOccurrenceProposal` replay selected comparison
-plans against the Terminal operation roster.
-*/
-/*
-We separate portable boundary-application evidence from source-arena state and
-native realization authority so producers and consumers can verify exact D29
-coverage and comparison plan custody without carrying AST handles, display
-spellings, or mutable lowering tables across artifact boundaries. Keeping full
-demand and realization rows alongside their derived references lets an artifact
-distinguish an verified empty demand set from unrecorded coverage.
-*/
-/*
-Checked Psi establishes typed operator applications, selected provider plans,
-and opaque representation commitments; Terminal Psi (`terminal_psi`) supplies
-the canonical operation and identity tables that our demands, realizations, and
-comparison occurrence proposals validate against before `native-artifact` binds
-them into physical execution evidence.
-*/
-#![forbid(unsafe_code)]
+//! Verify the provider plan and operand types selected for each comparison
+//! before accepting the abstract program's native execution scope.
 
-use effects::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
+use native_intrinsics::{CompilerNumericType, CompilerPrimitiveIntegerComparisonOperation};
 use semantic_vocabulary::{IntegerType, ScalarType};
-
-pub(crate) use ::wire::digest_encoder;
-
-pub mod coverage;
-pub mod demands;
-pub mod opaque_applications;
-pub mod realization;
-mod source_guards;
-
-pub use coverage::OperatorApplicationCoverageRef;
-pub use demands::{
-    BoundaryApplication, BoundaryApplicationArgument, BoundaryOperatorRequirement,
-    BoundaryTypeIdentity, NominalDeclarationIdentity, TerminalBoundaryApplicationDemand,
-    TerminalBoundaryApplicationDemands,
-};
-pub use opaque_applications::{
-    BoundaryOpaqueRepresentationApplication, BoundaryOpaqueRepresentationApplications,
-};
-pub use realization::{
-    BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
-    TerminalBoundaryApplicationRealizations,
-};
-
-pub mod boundary_applications {
-    pub use crate::*;
-}
-
-pub mod ieee_float_comparisons {
-    pub use crate::TerminalIeeeFloatComparisonOccurrenceProposal;
-}
-
-pub mod integer_comparisons {
-    pub use crate::TerminalIntegerComparisonOccurrenceProposal;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalBoundaryApplicationCoverage {
-    demands: TerminalBoundaryApplicationDemands,
-    realizations: TerminalBoundaryApplicationRealizations,
-    references: Vec<OperatorApplicationCoverageRef>,
-    opaque_applications: opaque_applications::BoundaryOpaqueRepresentationApplications,
-}
-
-impl TerminalBoundaryApplicationCoverage {
-    pub fn new(
-        demands: TerminalBoundaryApplicationDemands,
-        realizations: TerminalBoundaryApplicationRealizations,
-    ) -> Result<Self, &'static str> {
-        let references = realizations.coverage_references(&demands)?;
-        Ok(Self {
-            demands,
-            realizations,
-            references,
-            opaque_applications:
-                opaque_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
-        })
-    }
-
-    pub fn with_opaque_applications(
-        mut self,
-        applications: opaque_applications::BoundaryOpaqueRepresentationApplications,
-    ) -> Self {
-        self.opaque_applications = applications;
-        self
-    }
-
-    pub fn validate_for_terminal(
-        &self,
-        terminal: terminal_psi::TerminalPsiIdentity,
-    ) -> Result<(), &'static str> {
-        self.demands.validate_for_terminal(terminal)?;
-        self.realizations.validate_for_demands(&self.demands)?;
-        if self.references != self.realizations.coverage_references(&self.demands)? {
-            return Err("boundary application coverage references do not replay");
-        }
-        Ok(())
-    }
-
-    pub const fn demands(&self) -> &TerminalBoundaryApplicationDemands {
-        &self.demands
-    }
-
-    pub const fn realizations(&self) -> &TerminalBoundaryApplicationRealizations {
-        &self.realizations
-    }
-
-    pub fn references(&self) -> &[OperatorApplicationCoverageRef] {
-        &self.references
-    }
-
-    pub const fn opaque_applications(
-        &self,
-    ) -> &opaque_applications::BoundaryOpaqueRepresentationApplications {
-        &self.opaque_applications
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        TerminalBoundaryApplicationDemands,
-        TerminalBoundaryApplicationRealizations,
-        opaque_applications::BoundaryOpaqueRepresentationApplications,
-    ) {
-        (self.demands, self.realizations, self.opaque_applications)
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalIeeeFloatComparisonOccurrenceProposal {
     pub terminal_machine: semantic_vocabulary::MachineId,
     pub terminal_operation: semantic_vocabulary::OperationId,
     pub provider_plan_index: usize,
-    pub provider_plan_commitment: effects::provider_plan::ProviderPlanDigest,
+    pub provider_plan_commitment: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     pub comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
     pub format: semantic_vocabulary::IeeeFloatFormat,
 }
 
 impl TerminalIeeeFloatComparisonOccurrenceProposal {
-    pub fn execution_identity(&self) -> effects::CompilerIntrinsicExecutionIdentity {
-        use effects::CompilerPrimitiveFloatBinaryOperation as Execution;
+    pub fn execution_identity(&self) -> native_intrinsics::CompilerIntrinsicExecutionIdentity {
+        use native_intrinsics::CompilerPrimitiveFloatBinaryOperation as Execution;
         use semantic_vocabulary::IeeeFloatComparisonOperation as Comparison;
-        effects::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+        native_intrinsics::CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
             operation: match self.comparison {
                 Comparison::Equal => Execution::Equal,
                 Comparison::NotEqual => Execution::NotEqual,
@@ -159,10 +29,10 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
             },
             format: match self.format {
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                    numeric_literals::FloatFormat::F32
+                    numerics::intrinsics::FloatFormat::F32
                 }
                 semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                    numeric_literals::FloatFormat::F64
+                    numerics::intrinsics::FloatFormat::F64
                 }
             },
         }
@@ -170,7 +40,7 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
 
     pub fn validate_roster(
         module: &terminal_psi::TerminalModule,
-        plans: &[effects::provider_plan::ProviderPlan],
+        plans: &[provider_plans::ProviderPlan],
         occurrences: &[Self],
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
@@ -207,9 +77,12 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
             if !seen.insert((occurrence.terminal_machine, occurrence.terminal_operation)) {
                 return Err("Terminal proposal repeats an IEEE comparison occurrence");
             }
-            plans
+            let plan = plans
                 .get(occurrence.provider_plan_index)
                 .ok_or("Terminal IEEE comparison names an absent selected plan")?;
+            if plan.identity_digest() != occurrence.provider_plan_commitment {
+                return Err("Terminal IEEE comparison changed its selected plan");
+            }
             let matching = comparisons
                 .iter()
                 .filter(|(machine, operation)| {
@@ -265,16 +138,18 @@ pub struct TerminalIntegerComparisonOccurrenceProposal {
     pub terminal_machine: semantic_vocabulary::MachineId,
     pub terminal_operation: semantic_vocabulary::OperationId,
     pub provider_plan_index: usize,
-    pub provider_plan_commitment: effects::provider_plan::ProviderPlanDigest,
+    pub provider_plan_commitment: semantic_vocabulary::provider_identity::ProviderPlanDigest,
     pub comparison: CompilerPrimitiveIntegerComparisonOperation,
     pub integer_type: CompilerNumericType,
 }
 
 impl TerminalIntegerComparisonOccurrenceProposal {
-    pub fn execution_identity(&self) -> Option<effects::CompilerIntrinsicExecutionIdentity> {
+    pub fn execution_identity(
+        &self,
+    ) -> Option<native_intrinsics::CompilerIntrinsicExecutionIdentity> {
         self.scalar_type()?;
         Some(
-            effects::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            native_intrinsics::CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
                 operation: self.comparison,
                 integer_type: self.integer_type,
             },
@@ -290,7 +165,7 @@ impl TerminalIntegerComparisonOccurrenceProposal {
 
     pub fn validate_roster(
         module: &terminal_psi::TerminalModule,
-        plans: &[effects::provider_plan::ProviderPlan],
+        plans: &[provider_plans::ProviderPlan],
         occurrences: &[Self],
         execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
@@ -433,9 +308,9 @@ mod comparison_tests {
         TerminalIeeeFloatComparisonOccurrenceProposal as FloatOccurrence,
         TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence,
     };
-    use effects::CompilerPrimitiveIntegerComparisonOperation as Authored;
-    use effects::provider_plan::ProviderPlan;
-    use effects::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
+    use native_intrinsics::CompilerPrimitiveIntegerComparisonOperation as Authored;
+    use native_intrinsics::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
+    use provider_plans::ProviderPlan;
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
         ValueId,
@@ -552,6 +427,43 @@ mod comparison_tests {
         assert_eq!(
             IntegerOccurrence::validate_roster(&module, &[], &[], &scope),
             invalid
+        );
+    }
+
+    #[test]
+    fn ieee_occurrences_rejoin_the_exact_selected_plan() {
+        let plans = [ProviderPlan::default()];
+        let format = semantic_vocabulary::IeeeFloatFormat::Binary32;
+        let comparison = semantic_vocabulary::IeeeFloatComparisonOperation::Equal;
+        let module = comparison_module(
+            ScalarType::IeeeFloat(format),
+            OperationKind::IeeeFloatCompare {
+                comparison,
+                left: ValueId::new(1).unwrap(),
+                right: ValueId::new(2).unwrap(),
+            },
+        );
+        let machine = module.machines[0].id;
+        let occurrence = FloatOccurrence {
+            terminal_machine: machine,
+            terminal_operation: OperationId::new(1).unwrap(),
+            provider_plan_index: 0,
+            provider_plan_commitment: plans[0].identity_digest(),
+            comparison,
+            format,
+        };
+        assert_eq!(
+            FloatOccurrence::validate_roster(&module, &plans, &[occurrence], &[machine]),
+            Ok(())
+        );
+        let changed = FloatOccurrence {
+            provider_plan_commitment:
+                semantic_vocabulary::provider_identity::ProviderPlanDigest::from_digest([0; 32]),
+            ..occurrence
+        };
+        assert_eq!(
+            FloatOccurrence::validate_roster(&module, &plans, &[changed], &[machine]),
+            Err("Terminal IEEE comparison changed its selected plan")
         );
     }
 

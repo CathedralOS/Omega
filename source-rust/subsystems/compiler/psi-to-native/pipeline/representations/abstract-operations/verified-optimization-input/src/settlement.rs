@@ -188,13 +188,15 @@ pub mod boundary_application_settlement {
     }
 }
 pub use crate::callback_settlement;
+pub mod comparison_occurrences;
+
 pub mod comparison_settlement {
-    use boundary_applications::{
-        BoundaryApplicationRealization, TerminalBoundaryApplicationCoverage,
+    use super::comparison_occurrences::{
         TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     };
+    use boundary_applications::{BoundaryApplicationRealization, TerminalBoundaryApplicationCoverage};
     use diagnostics::Diagnostic;
-    use effects::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
+    use native_intrinsics::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
     use semantic_vocabulary::{IeeeFloatComparisonOperation, IeeeFloatFormat};
 
     pub struct SelectedComparisonOccurrences {

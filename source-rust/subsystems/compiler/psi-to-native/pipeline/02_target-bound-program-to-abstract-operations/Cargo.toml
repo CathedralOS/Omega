@@ -12,7 +12,7 @@ psi-scalar-applications = { path = "../../../psi/scalar-applications" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }
-boundary-applications = { path = "../../installation/boundary-applications" }
+boundary-applications = { path = "../representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }

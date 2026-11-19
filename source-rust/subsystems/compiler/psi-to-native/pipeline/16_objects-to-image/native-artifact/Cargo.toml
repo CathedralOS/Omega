@@ -24,7 +24,7 @@ runtime-abi = { path = "../../../targets/runtime-abi" }
 platform-custody = { path = "../../../../../../foundation/filesystem" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-boundary-applications = { path = "../../../installation/boundary-applications" }
+boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 effects = { path = "../../../installation/native-effects" }
 function-identity = { path = "../../representations/function-identity" }

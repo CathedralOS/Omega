@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+native-intrinsics = { path = "../../../../targets/intrinsics" }
 target-provider-admission = { path = "../../../../verification/target-providers" }
 selected-provider-plans = { path = "../../../../../build/providers/selections" }
 provider-plans = { path = "../../../../../build/providers/plans" }
@@ -45,7 +46,7 @@ target = { path = "../../../../targets/target" }
 terminal-semantics = { path = "../../../../../psi/semantics" }
 program-entry-contracts = { path = "../../../01_admitted-native-inputs-to-target-bound-program/program-entry-contracts" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }
-boundary-applications = { path = "../../../../installation/boundary-applications" }
+boundary-applications = { path = "../../operation-evidence/boundary-applications" }
 provider-correspondence = { path = "../../../../verification/provider-correspondence" }
 function-identity = { path = "../../function-identity" }
 optimization-selections = { path = "../../../../../foundation/optimization-selections" }
