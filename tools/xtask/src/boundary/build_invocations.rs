@@ -22,7 +22,9 @@ impl<'ast> Visit<'ast> for Operations {
     fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
         if !item.attrs.iter().any(|attr| {
             attr.path().is_ident("cfg")
-                && attr.parse_args::<syn::Ident>().is_ok_and(|cfg| cfg == "test")
+                && attr
+                    .parse_args::<syn::Ident>()
+                    .is_ok_and(|cfg| cfg == "test")
         }) {
             visit::visit_item_mod(self, item);
         }
@@ -39,7 +41,10 @@ impl<'ast> Visit<'ast> for Operations {
 pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
-    for scope in ["source-rust/subsystems/compiler/build", "source-rust/subsystems/package-manager"] {
+    for scope in [
+        "source-rust/subsystems/compiler/build",
+        "source-rust/subsystems/package-manager",
+    ] {
         collect_rs_files(&root.join(scope), &mut files);
     }
     for path in files {
@@ -64,6 +69,12 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn production_code_running_registered_tests_still_needs_a_checked_invocation() {
+        assert!(!is_test_source("build/planning/registered_tests.rs"));
+        assert!(is_test_source("build/execution/src/host/bindings/tests.rs"));
+    }
 
     #[test]
     fn detects_stage_imports_and_construction_in_a_build_host() {

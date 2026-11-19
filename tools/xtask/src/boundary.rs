@@ -672,7 +672,7 @@ const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
 ];
 
 fn is_test_source(relative: &str) -> bool {
-    relative.contains("/tests/") || relative.ends_with("tests.rs")
+    relative.contains("/tests/") || Path::new(relative).file_name().is_some_and(|name| name == "tests.rs")
 }
 
 fn line_calls_any(line: &str, entries: &[&str]) -> bool {
