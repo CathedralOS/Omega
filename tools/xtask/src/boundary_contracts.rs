@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 
-pub const MANIFEST: &str = "source-rust/subsystems/compiler/pipeline-contracts.json";
+pub const MANIFEST: &str = "tools/xtask/pipeline-contracts.json";
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
