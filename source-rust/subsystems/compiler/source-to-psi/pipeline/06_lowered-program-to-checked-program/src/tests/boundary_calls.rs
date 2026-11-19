@@ -465,6 +465,9 @@ boundary trait Child: Parent<i32> + Other {}",
             .contains("inherited with different applications"),
         "{refused:?}"
     );
+    // Lowering also refuses this child when its substituted parent contract
+    // lacks a prepared header. The projection above identifies the conflict.
+    assert!(form(conflicting).is_err());
 }
 
 #[test]

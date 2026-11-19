@@ -454,10 +454,26 @@ impl<'program> Program<'program> {
             root.clone(),
         )
         .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+        let mut required_headers = std::collections::HashSet::new();
         for parent in scopes.iter().skip(1) {
             let declaration = parent.declaration;
-            // The calling-policy check covers these inherited boundary methods.
-            if declaration.is_boundary && selected_calling.is_some() {
+            if declaration.is_boundary {
+                // Calling checks its selected headers separately. In a plain
+                // service, the declaring boundary owns each inherited contract.
+                if selected_calling.is_none() && !declaration.machines.is_empty() {
+                    self.boundary_trait_declaration(context, declaration)?;
+                    for requirement in typed.trait_machine_signatures(declaration) {
+                        let header = typed
+                            .applied_callable_signature(parent, requirement.symbol)
+                            .or_else(|| {
+                                parent.keeps_declared_signatures(typed).then_some(requirement)
+                            })
+                            .ok_or_else(|| {
+                                unavailable("inherited boundary call has no complete applied header")
+                            })?;
+                        required_headers.insert(header.symbol);
+                    }
+                }
                 continue;
             }
             if !declaration.machines.is_empty() {
@@ -465,7 +481,7 @@ impl<'program> Program<'program> {
                     "inherited boundary calls need an admitted contract owner",
                 ));
             }
-            if declaration.is_boundary || Some(declaration.symbol) == selected_calling {
+            if Some(declaration.symbol) == selected_calling {
                 continue;
             }
             if calling_vocabulary
@@ -488,6 +504,22 @@ impl<'program> Program<'program> {
                         ));
                     }
                 }
+            }
+        }
+        if !required_headers.is_empty() {
+            for (id, source) in self.declaration_sources.iter() {
+                if self
+                    .declaration_selections
+                    .get(id)
+                    .is_some_and(Option::is_none)
+                {
+                    required_headers.remove(&source.symbol);
+                }
+            }
+            if !required_headers.is_empty() {
+                return Err(unavailable(
+                    "inherited boundary call has no admitted declaration contract",
+                ));
             }
         }
         Ok(())
