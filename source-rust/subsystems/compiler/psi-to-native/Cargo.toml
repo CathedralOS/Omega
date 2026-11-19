@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+native-behavior-exclusions = { path = "verification/behavior-exclusions" }
 behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
 target-provider-admission = { path = "verification/target-providers" }
@@ -51,7 +52,6 @@ bound-installations = { path = "verification/installation-admission/bound-instal
 installation-conditions = { path = "verification/installation-admission/conditions" }
 provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
 component-description = { path = "../psi/component-description" }
-effects = { path = "installation/native-effects" }
 selected-instruction-analyses = { path = "pipeline/06_selected-instructions-to-selected-instructions/analyses" }
 native-encoding = { path = "pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 object-file = { path = "pipeline/15_placed-functions-to-objects" }

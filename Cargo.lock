@@ -511,6 +511,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-behavior-exclusions"
+version = "0.1.0"
+dependencies = [
+ "behavior-exclusion-requests",
+ "diagnostics",
+ "provider-plans",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "terminal-authority-receipts",
+ "terminal-psi",
+]
+
+[[package]]
 name = "native-intrinsics"
 version = "0.1.0"
 dependencies = [
@@ -1725,6 +1738,7 @@ name = "native-compiler"
 version = "0.1.0"
 dependencies = [
  "behavior-exclusion-requests",
+ "native-behavior-exclusions",
  "provider-correspondence",
  "provider-demand",
  "host-provider-inputs",
@@ -1739,7 +1753,6 @@ dependencies = [
  "component-description",
  "declaration-scope",
  "diagnostics",
- "effects",
  "encoding-admission",
  "entry-planning",
  "function-identity",
@@ -3738,8 +3751,8 @@ dependencies = [
  "abstract-operations",
  "boundary-applications",
  "diagnostics",
- "effects",
  "installation-conditions",
+ "native-behavior-exclusions",
  "operation-evidence",
  "optimization-selections",
  "provider-admission",
@@ -4015,6 +4028,7 @@ dependencies = [
  "direct-boundary-bindings",
  "host-provider-inputs",
  "installation-conditions",
+ "native-behavior-exclusions",
  "native-binding-admission",
  "native-intrinsics",
  "operation-evidence",
@@ -4028,7 +4042,6 @@ dependencies = [
  "record-storage",
  "component-description",
  "diagnostics",
- "effects",
  "function-identity",
  "language-core",
  "layout-plans",

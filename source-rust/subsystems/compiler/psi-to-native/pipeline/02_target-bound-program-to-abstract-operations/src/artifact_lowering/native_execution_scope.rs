@@ -17,7 +17,7 @@ pub(crate) mod native_admission {
         pub private_entry_ram: &'request [psi_entry_memory::CheckedPrivateEntryRamRecipe],
         pub providers: ProviderAdmissionRequest<'request, 'execution>,
         pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
-        pub behavior_exclusions: &'request effects::BehaviorExclusions,
+        pub behavior_exclusions: &'request native_behavior_exclusions::BehaviorExclusions,
     }
 
     pub struct AdmittedNativeRealization<'execution> {

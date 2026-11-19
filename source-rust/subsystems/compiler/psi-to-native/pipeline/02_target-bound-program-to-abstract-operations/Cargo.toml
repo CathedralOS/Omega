@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+native-behavior-exclusions = { path = "../../verification/behavior-exclusions" }
 target-provider-admission = { path = "../../verification/target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
@@ -14,7 +15,6 @@ psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }
 boundary-applications = { path = "../representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-effects = { path = "../../installation/native-effects" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
 operation-evidence = { path = "../representations/operation-evidence" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }

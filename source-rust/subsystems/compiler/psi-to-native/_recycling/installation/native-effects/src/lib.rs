@@ -37,12 +37,6 @@ pub mod external_providers;
 mod provider_evidence;
 pub mod provider_grants;
 
-pub use provider_evidence::executable_scopes::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusionReport,
-    BehaviorExclusionVerdict, BehaviorExclusions, EvidenceGapKind,
-    authored_behavior_exclusion_set_in, establish_behavior_exclusions,
-    resolve_authored_behavior_exclusion,
-};
 
 pub use host_provider_inputs::ServiceTerminalAuthorityPermission;
 pub use native_intrinsics::{
