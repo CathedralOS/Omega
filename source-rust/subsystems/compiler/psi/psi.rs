@@ -108,16 +108,13 @@ pub mod callback_application;
 pub mod installed_interrupt;
 #[path = "boundary/calling_policies.rs"]
 pub mod calling_policies;
-#[path = "layout/native_layouts.rs"]
+#[path = "types/layouts/native_layouts.rs"]
 pub mod native_layouts;
 #[path = "machines/unoptimized_behavior.rs"]
 pub mod unoptimized_behavior;
 #[path = "boundary/callback_declarations.rs"]
 pub mod callback_declarations;
-#[cfg(test)]
-#[path = "tests/ir_schema.rs"]
-mod source_guards;
-#[path = "layout/target_layouts.rs"]
+#[path = "types/layouts/target_layouts.rs"]
 pub mod target_layouts;
 #[path = "machines/direct_calls.rs"]
 pub mod direct_calls;

@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 #[test]
 fn terminal_module_carries_no_string_identity_fields() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf();
     let mut directories = vec![root.clone()];
     let mut violations = Vec::new();
     while let Some(directory) = directories.pop() {
@@ -17,7 +17,10 @@ fn terminal_module_carries_no_string_identity_fields() {
                 .and_then(|name| name.to_str())
                 .unwrap_or_default();
             if path.is_dir() {
-                if !name.starts_with('.') && !matches!(name, "tests" | "examples" | "target") {
+                if !name.starts_with('.')
+                    && !matches!(name, "tests" | "examples" | "target")
+                    && !path.join("Cargo.toml").is_file()
+                {
                     directories.push(path);
                 }
                 continue;
@@ -32,7 +35,7 @@ fn terminal_module_carries_no_string_identity_fields() {
                 .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
             let relative = path
                 .strip_prefix(&root)
-                .expect("scanned file is inside src");
+                .expect("scanned file is inside the Psi model");
             for (line, text) in source.lines().enumerate() {
                 if text.trim_start().starts_with("//") {
                     continue;
