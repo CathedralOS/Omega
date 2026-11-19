@@ -1,6 +1,8 @@
 //! Execute acquired Build declarations and join their issuing activations to the resolved graph.
 mod services;
 
+use artifacts::compile_timings::CompileTimings;
+use diagnostics::Diagnostic;
 use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs};
 use package_manager::resolution::source::{
     AcquiredBuildSource, AcquiredWorkspaceBuild, BuildSourceAcquisition, BuildSourceAcquisitions,
@@ -10,6 +12,7 @@ use package_manager::resolution::source::{
 use package_manager::{PackageBuildSession, PackageCommandError};
 use project_build::planning::{self, PlanningRequest, PlanningSources, ReturnedPlanningStage};
 use std::path::Path;
+use std::rc::Rc;
 use target::TargetProfile;
 
 /// The original root Build has joined its own requests to this graph. Ordinary
@@ -49,6 +52,7 @@ pub(crate) fn resolve(
         session,
         acquisitions,
         profile,
+        timings: false,
         observed: Vec::new(),
         active: Vec::new(),
         settled: Vec::new(),
@@ -73,6 +77,7 @@ struct SourceHost<'session, 'policy> {
     session: &'session mut PackageBuildSession,
     acquisitions: &'session mut BuildSourceAcquisitions<'policy>,
     profile: TargetProfile,
+    timings: bool,
     // Workspace members are executed to read their names. Retain their actual returns
     // so selection can settle those same invocations without charging for a second run.
     observed: Vec<(AcquiredBuildSource, ReturnedPlanningStage)>,
@@ -102,7 +107,7 @@ impl SourceHost<'_, '_> {
                 artifact_only: false,
             },
             Default::default(),
-            Default::default(),
+            planning_timings(self.timings),
         )?;
         self.active.push(acquired.clone());
         let result = planning::interpret(
@@ -258,55 +263,61 @@ impl SourceHost<'_, '_> {
     }
 }
 
-pub(crate) enum ProjectProducts {
-    Shared(planning::PlannedProduct),
-    Deployments(Vec<(TargetProfile, planning::PlannedProduct)>),
-}
+type Deployment = Result<Rc<planning::PlannedProduct>, Vec<Diagnostic>>;
+
+pub(crate) struct ProjectProducts(Vec<(TargetProfile, Deployment)>);
 
 impl ProjectProducts {
+    fn shared(profiles: &[TargetProfile], planned: planning::PlannedProduct) -> Self {
+        let planned = Rc::new(planned);
+        Self(
+            profiles
+                .iter()
+                .map(|&target| (target, Ok(Rc::clone(&planned))))
+                .collect(),
+        )
+    }
+
     pub fn select(
         &self,
         target: TargetProfile,
-    ) -> Result<&planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
-        match self {
-            Self::Shared(planned) => Ok(planned),
-            Self::Deployments(products) => products
-                .iter()
-                .find(|(profile, _)| *profile == target)
-                .map(|(_, planned)| planned)
-                .ok_or_else(|| {
-                    vec![diagnostics::Diagnostic::error(format!(
-                        "project did not prepare target {}",
-                        target.target_name()
-                    ))]
-                }),
-        }
+    ) -> Result<&planning::PlannedProduct, Vec<Diagnostic>> {
+        self.0
+            .iter()
+            .find(|(profile, _)| *profile == target)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "project did not prepare target {}",
+                    target.target_name()
+                ))]
+            })?
+            .1
+            .as_deref()
+            .map_err(Clone::clone)
+    }
+}
+
+fn planning_timings(enabled: bool) -> CompileTimings {
+    if enabled {
+        CompileTimings::enabled()
+    } else {
+        CompileTimings::default()
     }
 }
 
 pub(crate) fn open_product(
     root: &Path,
-    profiles: &[TargetProfile],
+    profile: TargetProfile,
     offline: bool,
-    verify: bool,
     build_directory: Option<&Path>,
     snapshot: Option<BuildSnapshotRequest>,
-) -> Result<planning::PlannedProduct, Vec<diagnostics::Diagnostic>> {
-    let [_] = profiles else {
-        return Err(vec![diagnostics::Diagnostic::error(
-            "this project request needs one deployment",
-        )]);
-    };
-    match open_products(root, profiles, offline, verify, build_directory, snapshot)? {
-        ProjectProducts::Shared(planned) => Ok(planned),
-        ProjectProducts::Deployments(mut products) => {
-            products.pop().map(|(_, planned)| planned).ok_or_else(|| {
-                vec![diagnostics::Diagnostic::error(
-                    "project produced no deployment",
-                )]
-            })
-        }
-    }
+) -> Deployment {
+    open_products(root, &[profile], offline, false, build_directory, snapshot)?
+        .0
+        .into_iter()
+        .next()
+        .expect("one deployment was requested")
+        .1
 }
 
 /// Resolve and execute the authored Build once for the entire deployment set.
@@ -315,7 +326,7 @@ pub(crate) fn open_products(
     root: &Path,
     profiles: &[TargetProfile],
     offline: bool,
-    _verify: bool,
+    timings: bool,
     build_directory: Option<&Path>,
     snapshot: Option<BuildSnapshotRequest>,
 ) -> Result<ProjectProducts, Vec<diagnostics::Diagnostic>> {
@@ -339,6 +350,15 @@ pub(crate) fn open_products(
     let mut session = PackageBuildSession::create(&workspace.join("package-manager"))
         .map_err(|e| error(e.into()))?;
     let result = (|| -> Result<_, PackageCommandError> {
+        if let Some(preparation) = &preparation {
+            let rejected: Vec<_> = preparation
+                .requested_target_errors()
+                .map(|(target, reason)| (target, Err(vec![Diagnostic::error(reason.to_string())])))
+                .collect();
+            if rejected.len() == profiles.len() {
+                return Ok(ProjectProducts(rejected));
+            }
+        }
         let selected = match snapshot.as_ref().map(|snapshot| snapshot.capture()) {
             Some(BuildSnapshotCapture::Scoped(selected)) => Some(selected),
             _ => None,
@@ -365,9 +385,10 @@ pub(crate) fn open_products(
                     artifact_only: false,
                 },
                 Default::default(),
-                Default::default(),
+                planning_timings(timings),
             )?;
-            return Ok(ProjectProducts::Shared(
+            return Ok(ProjectProducts::shared(
+                profiles,
                 planning::interpret(stage, &mut ())?.open_product(None)?,
             ));
         };
@@ -381,6 +402,7 @@ pub(crate) fn open_products(
             session: &mut session,
             acquisitions: &mut acquisitions,
             profile,
+            timings,
             observed: Vec::new(),
             active: Vec::new(),
             settled: Vec::new(),
@@ -389,59 +411,77 @@ pub(crate) fn open_products(
         let returned = host.execute(&entry, &acquired, snapshot, false)?;
         if returned.returned().declaration().is_none() {
             preparation.require_unlocked_anonymous()?;
-            return Ok(ProjectProducts::Shared(returned.open_product(None)?));
+            return Ok(ProjectProducts::shared(
+                profiles,
+                returned.open_product(None)?,
+            ));
         }
         let resolved = host.join(acquired, returned)?;
         let settled = host.settled;
         let project = preparation.complete_source_resolution(resolved.sources)?;
-        let mut consents = Vec::new();
-        for &profile in profiles {
-            // The graph, exact compiler, and accepted target belong to this invocation.
-            // Fresh verification never imports cached judgments into the source compiler.
-            if let Some(consent) = project.accepted_root_permissions(profile)? {
-                consents.push(consent);
-            }
-        }
+        // Source acquisition uses the lock's exact pins. Both ordinary checking and
+        // --check --verify start from captured source, without installing recorded trust
+        // admissions or a restricted-Build checkpoint. Runtime consent is a separate decision.
+        let decisions: Vec<_> = profiles
+            .iter()
+            .copied()
+            .map(|target| {
+                (
+                    target,
+                    project
+                        .accepted_deployment(target)
+                        .map_err(|reason| vec![Diagnostic::error(reason)]),
+                )
+            })
+            .collect();
         if resolved
             .inputs
             .required_dependency_source_instances()
             .is_empty()
+            && decisions
+                .iter()
+                .all(|(_, policy)| matches!(policy, Ok(None)))
         {
-            let planned = resolved.root.open_product(Some(&resolved.inputs))?;
-            return Ok(ProjectProducts::Shared(if consents.is_empty() {
-                planned
-            } else {
-                planned.with_runtime_consents(consents)
-            }));
+            return Ok(ProjectProducts::shared(
+                profiles,
+                resolved.root.open_product(Some(&resolved.inputs))?,
+            ));
         }
         let root = resolved.root.settle_dependency(resolved.inputs)?;
-        let sources = services::HandoffSources {
-            profile,
-            settled: &settled,
-        };
-        let mut cache = Vec::new();
-        let mut products = Vec::new();
-        for &target in profiles {
-            let planned = sources.dependency_product(
-                &root,
-                build_declarations::DependencyPurpose::Product,
-                target,
-                &mut cache,
-            )?;
-            let planned = if consents.is_empty() {
-                planned
-            } else {
-                planned.with_runtime_consents(
-                    consents
-                        .iter()
-                        .filter(|row| row.target == target)
-                        .cloned()
-                        .collect(),
-                )
-            };
-            products.push((target, planned));
-        }
-        Ok(ProjectProducts::Deployments(products))
+        Ok(ProjectProducts(
+            decisions
+                .into_iter()
+                .map(|(target, decision)| {
+                    let product = decision.and_then(|accepted| {
+                        let sources = services::HandoffSources {
+                            profile,
+                            settled: &settled,
+                            accepted,
+                        };
+                        // A Build-host occurrence can carry different accepted bindings in different
+                        // deployment sections even when its target and host are the same.
+                        let mut cache = Vec::new();
+                        let consent = accepted
+                            .map(|policy| policy.root_permissions())
+                            .transpose()
+                            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                        let planned = sources
+                            .dependency_product(
+                                &root,
+                                build_declarations::DependencyPurpose::Product,
+                                target,
+                                &mut cache,
+                            )
+                            .map_err(|failure| error(failure.into()))?;
+                        Ok(Rc::new(match consent {
+                            Some(consent) => planned.with_runtime_consents(vec![consent]),
+                            None => planned,
+                        }))
+                    });
+                    (target, product)
+                })
+                .collect(),
+        ))
     })();
     session.dispose(result).map_err(error)
 }

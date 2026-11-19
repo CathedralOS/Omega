@@ -205,6 +205,7 @@ impl PlanningServices for SourceServices<'_, '_, '_> {
 }
 
 pub(super) struct HandoffSources<'a> {
+    pub accepted: Option<package_manager::operations::AcceptedDeployment<'a>>,
     pub profile: target::TargetProfile,
     pub settled: &'a [super::SettledSource],
 }
@@ -212,6 +213,7 @@ pub(super) struct HandoffSources<'a> {
 impl SourceHost<'_, '_> {
     fn handoffs(&self) -> HandoffSources<'_> {
         HandoffSources {
+            accepted: None,
             profile: self.profile,
             settled: &self.settled,
         }
@@ -237,6 +239,12 @@ impl HandoffSources<'_> {
                     "cannot select dependency compilation purpose: {errors:?}"
                 ))
             })?;
+        let inputs = match self.accepted {
+            Some(policy) => policy
+                .bind_compilation_inputs(inputs, target, self.profile)
+                .map_err(refused)?,
+            None => inputs,
+        };
         let mut bundles = Vec::new();
         for (package, purpose) in inputs.required_dependency_source_instances() {
             let deployment = match purpose {

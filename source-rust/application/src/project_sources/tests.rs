@@ -16,9 +16,8 @@ fn compile(
     let profile = TargetProfile::MacosArm64;
     let product = super::open_product(
         &project.join("main.omg"),
-        &[profile],
+        profile,
         true,
-        false,
         None,
         None,
     )?;

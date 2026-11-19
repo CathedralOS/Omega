@@ -138,8 +138,7 @@ pub(super) fn compile(
             .map_err(|error| vec![error])?;
         let planned = crate::project_sources::open_product(
             &root_path,
-            &[profile],
-            false,
+            profile,
             false,
             Some(&build_directory),
             build_snapshot,

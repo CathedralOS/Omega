@@ -134,27 +134,39 @@ fn compile_targets(
         .zip(&leases)
         .filter_map(|(profile, lease)| lease.is_ok().then_some(*profile))
         .collect();
-    if active.is_empty() {
-        return Err(leases
-            .into_iter()
-            .filter_map(Result::err)
-            .map(|error| Diagnostic::error(error.to_string()))
-            .collect());
-    }
     let snapshot = arguments
         .build_inputs
         .clone()
         .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture));
-    let plans = crate::project_sources::open_products(
-        &arguments.root_path,
-        &active,
-        arguments.offline,
-        arguments.verify,
-        Some(&base),
-        snapshot,
-    )?;
-    if arguments.timings {
-        for phase in plans.select(active[0])?.timings().phases() {
+    let plans = if active.is_empty() {
+        None
+    } else {
+        Some(crate::project_sources::open_products(
+            &arguments.root_path,
+            &active,
+            arguments.offline,
+            arguments.timings,
+            Some(&base),
+            snapshot,
+        ))
+    };
+    let prepared: Vec<_> = profiles
+        .iter()
+        .zip(&leases)
+        .map(|(&profile, lease)| {
+            let lease = lease.as_ref().map_err(output_error)?;
+            let plans = plans
+                .as_ref()
+                .expect("an acquired target lease opens a Product")
+                .as_ref()
+                .map_err(Clone::clone)?;
+            Ok::<_, NativeValidationError>((plans.select(profile)?, lease))
+        })
+        .collect();
+    if arguments.timings
+        && let Some((planned, _)) = prepared.iter().find_map(|row| row.as_ref().ok())
+    {
+        for phase in planned.timings().phases() {
             eprintln!(
                 "{:>10.3} ms  {}",
                 phase.microseconds as f64 / 1_000.0,
@@ -164,13 +176,9 @@ fn compile_targets(
     }
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
-    // Emit one portable program for the entire set of deployments.
-    let count = if arguments.emit_psi.is_some() {
-        1
-    } else {
-        profiles.len()
-    };
-    for (&profile, lease) in profiles[..count].iter().zip(&leases) {
+    let mut portable = Vec::new();
+    let mut portable_plans = Vec::new();
+    for (&profile, prepared) in profiles.iter().zip(prepared) {
         let name = profile.target_name();
         if batch {
             println!("target {name}:");
@@ -180,18 +188,50 @@ fn compile_targets(
         } else {
             name
         };
-        let result = lease.as_ref().map_err(output_error).and_then(|lease| {
-            let planned = plans.select(profile)?;
-            let mut stage = planned.product_stage(&active)?;
-            let rollback = stage.apply_rollback(&arguments.optimization_rollback);
-            compile_target(
-                arguments,
-                planned,
-                &stage,
-                profile,
-                lease.directory(),
-                rollback.as_ref(),
-            )
+        // A shared plan with the complete target set issues a single portable program.
+        if arguments.emit_psi.is_some()
+            && let Ok((planned, _)) = &prepared
+        {
+            if portable_plans
+                .iter()
+                .any(|&previous| std::ptr::eq(previous, *planned))
+            {
+                continue;
+            }
+            portable_plans.push(*planned);
+        }
+        let result = prepared.and_then(|(planned, lease)| {
+            let deployments = if arguments.emit_psi.is_some() {
+                &profiles
+            } else {
+                std::slice::from_ref(&profile)
+            };
+            let result = (|| {
+                let mut stage = planned.product_stage(deployments)?;
+                let rollback = stage.apply_rollback(&arguments.optimization_rollback);
+                let mut result = compile_target(
+                    arguments,
+                    planned,
+                    &stage,
+                    profile,
+                    lease.directory(),
+                    rollback.as_ref(),
+                )?;
+                if let Some(candidate) = result.portable.take() {
+                    portable.push(candidate);
+                }
+                Ok(result)
+            })();
+            result.map_err(|mut error| {
+                match &mut error {
+                    NativeValidationError::Compilation(rows) => planned.attribute_diagnostics(rows),
+                    NativeValidationError::Unavailable(row) => {
+                        planned.attribute_diagnostics(std::slice::from_mut(row))
+                    }
+                    NativeValidationError::Failed(_) => {}
+                }
+                error
+            })
         });
         match result {
             Ok(outcome) => {
@@ -238,6 +278,21 @@ fn compile_targets(
             }
         }
     }
+    if failures.is_empty()
+        && let Some(path) = &arguments.emit_psi
+    {
+        let mut products: Vec<_> = portable.iter_mut().collect();
+        CompletedProduct::save_shared_psi(&mut products, path)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let identity = portable[0]
+            .artifact()
+            .expect("saved Psi retains its artifact")
+            .manifest()
+            .identity();
+        println!("Psi manifest {identity}");
+        writeln!(report, "Psi manifest {identity}").unwrap();
+    }
+    let count = profiles.len();
     if batch && !failed_targets.is_empty() {
         eprintln!(
             "{} of {count} targets failed: {}",
@@ -249,6 +304,7 @@ fn compile_targets(
 }
 
 struct TargetReport {
+    portable: Option<CompletedProduct>,
     kind: &'static str,
     summary: String,
     show_summary: bool,
@@ -277,6 +333,7 @@ fn compile_target(
         .map_err(output_error)?
         .flatten();
     let mut publications = String::new();
+    let mut portable = None;
     let mut advisories = Vec::new();
     let mut test_roster = Vec::new();
     let mut wrote_output = false;
@@ -327,14 +384,11 @@ fn compile_target(
                 "source compilation returned an unexpected product",
             ));
         };
-        if let Some(path) = &arguments.emit_psi {
-            let identity = artifact.manifest().identity();
-            CompletedProduct::from_published_psi(artifact.clone(), rollback.cloned())
-                .map_err(output_error)?
-                .save_published_psi(path)
-                .map_err(output_error)?;
-            writeln!(publications, "Psi manifest {identity}").unwrap();
-            wrote_output = true;
+        if arguments.emit_psi.is_some() {
+            portable = Some(
+                CompletedProduct::from_published_psi(artifact, rollback.cloned())
+                    .map_err(output_error)?,
+            );
         }
     } else {
         let program = stage.program(
@@ -411,6 +465,7 @@ fn compile_target(
         eprintln!("{test}");
     }
     if !advisories.is_empty() {
+        planned.attribute_diagnostics(&mut advisories);
         let mut text = String::new();
         diagnostics::write_diagnostics(&mut text, &advisories).unwrap();
         eprintln!("{text}");
@@ -420,11 +475,15 @@ fn compile_target(
         .files()
         .filter(|file| sources.source_is_selected(file.source_id))
         .count();
-    let summary = format!(
-        "compiled {file_count} source file(s) from {}; wrote_output={wrote_output}",
+    let mut summary = format!(
+        "compiled {file_count} source file(s) from {}",
         arguments.root_path.display()
     );
+    if portable.is_none() {
+        write!(summary, "; wrote_output={wrote_output}").unwrap();
+    }
     Ok(TargetReport {
+        portable,
         kind,
         summary,
         show_summary,
