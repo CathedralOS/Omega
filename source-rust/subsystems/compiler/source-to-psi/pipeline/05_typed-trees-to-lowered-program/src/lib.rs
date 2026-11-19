@@ -1800,7 +1800,7 @@ fn lower_program<'source>(
                     Unserved::Machine("contract identity overflow"),
                 )
             })?;
-        let lowered = lower::machine(
+        let mut lowered = lower::machine(
             id,
             contract,
             bodies,
@@ -1815,6 +1815,9 @@ fn lower_program<'source>(
             requirements.contains(&id),
             &mut qualifications,
         )?;
+        if let Some(typed) = typed_source {
+            operational::retain_callee_spans(typed, &mut lowered);
+        }
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
