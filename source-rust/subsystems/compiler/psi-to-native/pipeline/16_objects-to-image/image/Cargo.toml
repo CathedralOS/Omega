@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 machine-code = { path = "../../representations/machine-code" }
 wire = { path = "../../../../../../foundation/wire" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../representations/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
@@ -21,4 +20,3 @@ target = { path = "../../../targets/target" }
 
 [dev-dependencies]
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
-terminal-psi = { path = "../../../../psi" }

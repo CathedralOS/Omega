@@ -45,7 +45,6 @@ target = { path = "../../../targets/target" }
 machine-code = { path = "../../representations/machine-code" }
 function-identity = { path = "../../representations/function-identity" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
-boundary-applications = { path = "../../../installation/boundary-applications" }
 target-operations = { path = "../../representations/target-operations" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
@@ -53,11 +52,9 @@ semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-installation = { path = "../../../../psi-admission" }
-terminal-codec = { path = "../../../../psi/codec" }
-terminal-work = { path = "../../../../psi/work" }
-iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/entry-planning" }
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
@@ -67,5 +64,3 @@ image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }
 optimization-core = { path = "../../representations/optimization-records" }
 extents = { path = "../../../../../interpreter/memory/extents" }
-
-source-compiler = { path = "../../../../source-to-psi", features = ["test-support"] }

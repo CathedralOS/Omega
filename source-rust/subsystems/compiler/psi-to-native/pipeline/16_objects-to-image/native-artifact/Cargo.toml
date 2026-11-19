@@ -17,9 +17,7 @@ provider-stack-contribution = { path = "../../../verification/provider-admission
 runtime-abi = { path = "../../../targets/runtime-abi" }
 terminal-installation = { path = "../../../../psi-admission" }
 platform-custody = { path = "../../../../../../foundation/filesystem" }
-register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../../installation/boundary-applications" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
@@ -41,7 +39,6 @@ terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-codec = { path = "../../../../psi/codec" }
 sha2 = "0.10.9"
-program-entry-plan = { path = "../../../installation/program-entry" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 backend-plan = { path = "../../../installation/provider-plans" }
