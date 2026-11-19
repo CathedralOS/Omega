@@ -8,7 +8,7 @@ version.workspace = true
 path = "source_files.rs"
 
 [dependencies]
-source-provenance = { path = "../../../../foundation/source-provenance" }
-arena = { path = "../../../../../../foundation/arena" }
-record-storage = { path = "../../../../../../foundation/record-storage" }
-source-text = { path = "../../../../../../foundation/source-text" }
+source-provenance = { path = "../../../foundation/source-provenance" }
+arena = { path = "../../../../../foundation/arena" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+source-text = { path = "../../../../../foundation/source-text" }

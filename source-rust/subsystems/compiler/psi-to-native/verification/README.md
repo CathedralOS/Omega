@@ -40,9 +40,9 @@ install a handler. Their callers need the checked records during compilation.
   and rechecks every retained folded-constant dependency before installation.
 - [Runtime publication](runtime-publication/publication.rs) compares the admitted
   component call, authority and exact ABI to the emitted image's export slot and
-  [measured stack](../pipeline/representations/machine-code/stack-demand/physical_stack.rs).
+  [measured stack](../representations/machine-code/stack-demand/physical_stack.rs).
   The interpreter receives the checked component roster and host provisions.
 
-[Machine-code checks](../pipeline/representations/machine-code/) compare a
+[Machine-code checks](../representations/machine-code/) compare a
 frame, instruction encoding or layout with its contract. [Object replay](../replay/)
 checks an emitted object against the original stage inputs kept for a validator request.

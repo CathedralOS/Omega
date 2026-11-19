@@ -10,14 +10,14 @@ path = "lib.rs"
 
 [dependencies]
 source-files = { path = "../source-files" }
-artifacts = { path = "../../../../foundation/measurements" }
-numeric-literals = { path = "../../../../foundation/numeric-literals" }
-source-text = { path = "../../../../../../foundation/source-text" }
-record-storage = { path = "../../../../../../foundation/record-storage" }
+artifacts = { path = "../../../foundation/measurements" }
+numeric-literals = { path = "../../../foundation/numeric-literals" }
+source-text = { path = "../../../../../foundation/source-text" }
+record-storage = { path = "../../../../../foundation/record-storage" }
 syntax-trees-derive = { path = "derive" }
-arena = { path = "../../../../../../foundation/arena" }
-diagnostics = { path = "../../../../../../foundation/diagnostics" }
-language-core = { path = "../../../../foundation/language-core" }
-numerics = { path = "../../../../psi/semantics/numeric" }
+arena = { path = "../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+language-core = { path = "../../../foundation/language-core" }
+numerics = { path = "../../../psi/semantics/numeric" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

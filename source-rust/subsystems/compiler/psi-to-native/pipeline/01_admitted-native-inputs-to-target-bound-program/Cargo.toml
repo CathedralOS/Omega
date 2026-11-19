@@ -9,7 +9,7 @@ test-support = []
 
 [dependencies]
 native-execution-scope = { path = "execution-scope" }
-verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 build-value-projection = { path = "../../../build/evaluation/value-projection" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
@@ -37,7 +37,7 @@ language-core = { path = "../../../foundation/language-core" }
 layout = { path = "../../targets/layout" }
 optimization = { path = "../../../psi/optimization-selections" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
-program-entry-contracts = { path = "../representations/program-entry-contracts" }
+program-entry-contracts = { path = "../../representations/program-entry-contracts" }
 provider-admission = { path = "../../verification/provider-admission" }
 provider-correspondence = { path = "../../verification/provider-correspondence" }
 runtime-abi = { path = "../../targets/runtime-abi" }

@@ -16,7 +16,7 @@ image = { path = "../image" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
 
-machine-code = { path = "../../representations/machine-code" }
+machine-code = { path = "../../../representations/machine-code" }
 
 [dev-dependencies]
 image = { path = "../image", features = ["test-support"] }

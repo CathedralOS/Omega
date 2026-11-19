@@ -25,7 +25,7 @@ fn compilation_and_cli_do_not_own_runtime_integration() {
     for line in runtime.lines().filter(|line| line.contains("/pipeline/")) {
         assert_eq!(
             line,
-            r#"target-vocabulary = { path = "../../compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary" }"#,
+            r#"target-vocabulary = { path = "../../compiler/psi-to-native/representations/target-operations/target-vocabulary" }"#,
             "the only shared native pipeline dependency is the target vocabulary"
         );
     }

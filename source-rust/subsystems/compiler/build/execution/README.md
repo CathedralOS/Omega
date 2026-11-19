@@ -1,6 +1,6 @@
 # Build execution
 
-This directory runs a project’s authored Build. Package acquisition supplies its captured source and grants. The source compiler judges the selected Build invocation and publishes the program that will run. A prepared evaluation keeps that program, its source and its execution profile together. [Build source compilation](../../source-to-psi/pipeline/build_invocation.rs) · [Evaluation entry](src/build_evaluation.rs)
+This directory runs a project’s authored Build. Package acquisition supplies its captured source and grants. The source compiler judges the selected Build invocation and publishes the program that will run. A prepared evaluation keeps that program, its source and its execution profile together. [Build source compilation](../../source-to-psi/build_invocation.rs) · [Evaluation entry](src/build_evaluation.rs)
 
 The interpreter runs one activation against those grants. Host calls can observe captured inputs, register dependencies, query Product declarations or request a provider. Project planning services each suspension and resumes the same activation. Normal return produces the configuration, binding requests, generated source and accounting for that execution. [Activation](src/activation.rs) · [Host bindings](src/host/bindings.rs) · [Planning](../planning.rs)
 

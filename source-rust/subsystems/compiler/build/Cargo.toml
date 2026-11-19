@@ -13,7 +13,7 @@ review-evidence = { path = "../../package-manager/review/evidence" }
 optimization-requests = { path = "optimization-policy/requests" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 installation-conditions = { path = "../psi-to-native/verification/installation-admission/conditions" }
-source-declarations = { path = "../source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
+source-declarations = { path = "../source-to-psi/representations/symbol-resolved-trees/declarations" }
 build-declarations = { path = "build-declarations" }
 source-compiler = { path = "../source-to-psi" }
 artifacts = { path = "../foundation/measurements" }

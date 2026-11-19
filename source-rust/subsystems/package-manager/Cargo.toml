@@ -10,7 +10,7 @@ path = "package_manager.rs"
 
 [dependencies]
 build-evaluation-result = { path = "../compiler/build/execution/result" }
-source-completion-accounting = { path = "../compiler/source-to-psi/pipeline/prepare_and_check/accounting" }
+source-completion-accounting = { path = "../compiler/source-to-psi/product/accounting" }
 installation-conditions = { path = "../compiler/psi-to-native/verification/installation-admission/conditions" }
 provider-acceptance = { path = "../compiler/build/providers/acceptance" }
 provider-plans = { path = "../compiler/build/providers/plans" }
@@ -23,7 +23,7 @@ evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
 source-provenance = { path = "../compiler/foundation/source-provenance" }
 evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
 source-capture = { path = "source-acquisition/capture" }
-source-admission = { path = "../compiler/source-to-psi/pipeline/representations/source-files/custody" }
+source-admission = { path = "../compiler/source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
 terminal-codec = { path = "../compiler/psi/codec" }
@@ -45,9 +45,9 @@ semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 filesystem-authority = { path = "../compiler/build/evaluation/filesystem" }
 diagnostics = { path = "../../foundation/diagnostics" }
 source-syntax = { path = "../compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
-syntax-trees = { path = "../compiler/source-to-psi/pipeline/representations/syntax-trees" }
+syntax-trees = { path = "../compiler/source-to-psi/representations/syntax-trees" }
 terminal-psi = { path = "../compiler/psi" }
-tokens = { path = "../compiler/source-to-psi/pipeline/representations/tokens" }
+tokens = { path = "../compiler/source-to-psi/representations/tokens" }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"

@@ -10,7 +10,7 @@ macro_rules! source_bytes {
         pub const fn bytes(file: BundledFile) -> &'static [u8] {
             match file {
                 $(BundledFile::$variant => include_bytes!(concat!(
-                    env!("CARGO_MANIFEST_DIR"), "/../../../../../../../../source/library/", $path
+                    env!("CARGO_MANIFEST_DIR"), "/../../../../../../../source/library/", $path
                 )),)+
             }
         }

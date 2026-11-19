@@ -12,5 +12,5 @@ path = "src/lib.rs"
 test-support = ["dep:register-model", "dep:selected-instructions"]
 
 [dependencies]
-register-model = { path = "../../../../targets/register-model", optional = true }
+register-model = { path = "../../../targets/register-model", optional = true }
 selected-instructions = { path = "../../selected-instructions", optional = true }

@@ -5,5 +5,5 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-optimization-selections = { path = "../../../../foundation/optimization-selections" }
-wire = { path = "../../../../../../foundation/wire" }
+optimization-selections = { path = "../../../foundation/optimization-selections" }
+wire = { path = "../../../../../foundation/wire" }

@@ -13,10 +13,10 @@ provider-plans = { path = "../../../build/providers/plans" }
 numerics = { path = "../../../psi/semantics/numeric" }
 language-core = { path = "../../../foundation/language-core" }
 calling-conventions = { path = "../../targets/calling-conventions" }
-function-identity = { path = "../../pipeline/representations/function-identity" }
+function-identity = { path = "../../representations/function-identity" }
 application-identity = { path = "../../../psi/application-identity" }
 graphs = { path = "../../../foundation/graphs" }
-boundary-applications = { path = "../../pipeline/representations/operation-evidence/boundary-applications" }
+boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 terminal-psi = { path = "../../../psi" }
 target = { path = "../../targets/target" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

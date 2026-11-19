@@ -5,8 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-record-storage = { path = "../../../../../../../foundation/record-storage" }
+record-storage = { path = "../../../../../../foundation/record-storage" }
 source-files = { path = ".." }
-source-provenance = { path = "../../../../../foundation/source-provenance" }
-source-text = { path = "../../../../../../../foundation/source-text" }
-symbols = { path = "../../../../../foundation/declaration-identity" }
+source-provenance = { path = "../../../../foundation/source-provenance" }
+source-text = { path = "../../../../../../foundation/source-text" }
+symbols = { path = "../../../../foundation/declaration-identity" }

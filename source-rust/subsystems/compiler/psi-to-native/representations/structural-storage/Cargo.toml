@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 operation-operands = { path = "../operation-operands" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-terminal-psi = { path = "../../../../psi" }
-terminal-semantics = { path = "../../../../psi/semantics" }
-terminal-wire = { path = "../../../../psi/wire" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../psi" }
+terminal-semantics = { path = "../../../psi/semantics" }
+terminal-wire = { path = "../../../psi/wire" }

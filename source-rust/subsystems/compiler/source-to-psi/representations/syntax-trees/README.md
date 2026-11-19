@@ -21,14 +21,14 @@ checkpoints, page adoption and root publication stay beside those structures.
 | Constant declarations | [constants.rs](declarations/constants.rs) keeps the parsed initializer. [constant_preparation.rs](declarations/constant_preparation.rs) records the materialized value and obligations for that occurrence when resolution needs them. |
 | Diagnostic snapshots | [inspection/snapshot.rs](inspection/snapshot.rs): the snapshot representation; adjacent files expand the grammar domains |
 
-The [parser](../../01_tokens-to-syntax-trees/parser.rs) produces this
-representation. [Symbol resolution](../../02_syntax-trees-to-symbol-resolved-trees)
+The [parser](../../pipeline/01_tokens-to-syntax-trees/parser.rs) produces this
+representation. [Symbol resolution](../../pipeline/02_syntax-trees-to-symbol-resolved-trees)
 is its next consumer. Source spelling, syntax structure and storage identity
 remain distinct; these trees do not claim that names, types or proofs are valid.
 
 ## Ownership
 
-Generic handle/span arithmetic belongs to [foundation/arena](../../../../../../foundation/arena/src/arena.rs).
+Generic handle/span arithmetic belongs to [foundation/arena](../../../../../foundation/arena/src/arena.rs).
 Both individual and whole-span appends use its contiguous-span checks. Parser
 code accesses the public table fields directly; it has no private span builder
 or table-access wrapper layer. Tree copying belongs here and keeps the meaning

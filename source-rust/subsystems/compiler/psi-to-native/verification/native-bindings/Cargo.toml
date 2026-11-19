@@ -14,7 +14,7 @@ provider-plans = { path = "../../../build/providers/plans" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 service-surface = { path = "../../../psi/service-surface" }
 target = { path = "../../targets/target" }
-target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
 wire = { path = "../../../../../foundation/wire" }

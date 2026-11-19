@@ -16,7 +16,7 @@ diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
 product-publication = { path = "build/build-output/product-publication" }
 semantic-vocabulary = { path = "foundation/semantic-records" }
-source-admission = { path = "source-to-psi/pipeline/representations/source-files/custody" }
+source-admission = { path = "source-to-psi/representations/source-files/custody" }
 source-compiler = { path = "source-to-psi" }
 source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
@@ -27,7 +27,7 @@ psi-authorization = { path = "psi/authorization" }
 source-compiler = { path = "source-to-psi", features = ["test-support"] }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
-verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "psi-to-native/representations/abstract-operations/verified-optimization-input" }
 artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 build-evaluation-result = { path = "build/execution/result" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }

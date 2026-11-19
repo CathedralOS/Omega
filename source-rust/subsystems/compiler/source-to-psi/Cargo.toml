@@ -28,24 +28,24 @@ psi-target-layouts = { path = "../psi/layout/admission" }
 access-admission = { path = "../psi/access/admission" }
 access-vocabulary = { path = "../psi/access" }
 schema-reflection = { path = "../psi/schema" }
-source-completion-accounting = { path = "pipeline/prepare_and_check/accounting" }
+source-completion-accounting = { path = "product/accounting" }
 build-scalar-evaluation = { path = "../build/evaluation/scalars" }
 build-time-values = { path = "../build/evaluation/values" }
 build-value-projection = { path = "../build/evaluation/value-projection" }
 service-surface = { path = "../psi/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
-source-files = { path = "pipeline/representations/source-files" }
+source-files = { path = "representations/source-files" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi" }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program" }
 typed-trees-to-lowered-program = { path = "pipeline/05_typed-trees-to-lowered-program" }
 typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-source-declarations = { path = "pipeline/representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "pipeline/representations/symbol-resolved-trees/symbol-table" }
-symbol-resolved-trees = { path = "pipeline/representations/symbol-resolved-trees" }
-typed-trees = { path = "pipeline/representations/typed-trees" }
+source-declarations = { path = "representations/symbol-resolved-trees/declarations" }
+source-symbol-table = { path = "representations/symbol-resolved-trees/symbol-table" }
+symbol-resolved-trees = { path = "representations/symbol-resolved-trees" }
+typed-trees = { path = "representations/typed-trees" }
 source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
@@ -55,7 +55,7 @@ layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }
 evaluation-contracts = { path = "../build/evaluation/usage" }
 evaluation-receipts = { path = "../build/evaluation/receipts" }
-source-admission = { path = "pipeline/representations/source-files/custody" }
+source-admission = { path = "representations/source-files/custody" }
 source-text = { path = "../../../foundation/source-text" }
 bignum = { path = "../../../foundation/bignum" }
 sha2 = "0.10.9"
@@ -73,14 +73,14 @@ optimization = { path = "../psi/optimization-selections" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 symbols = { path = "../foundation/declaration-identity" }
-syntax-trees = { path = "pipeline/representations/syntax-trees" }
-terminal-check-tables = { path = "pipeline/representations/lowered-program" }
+syntax-trees = { path = "representations/syntax-trees" }
+terminal-check-tables = { path = "representations/lowered-program" }
 terminal-codec = { path = "../psi/codec" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-psi = { path = "../psi" }
 terminal-semantics = { path = "../psi/semantics" }
 terminal-work = { path = "../psi/work" }
-tokens = { path = "pipeline/representations/tokens" }
+tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
@@ -134,22 +134,22 @@ required-features = ["test-support"]
 
 [[example]]
 name = "source_state_declaration_lookups"
-path = "pipeline/representations/typed-trees/examples/declaration_lookups.rs"
+path = "representations/typed-trees/examples/declaration_lookups.rs"
 required-features = ["test-support"]
 
 [[example]]
 name = "source_state_declaration_owner"
-path = "pipeline/representations/typed-trees/examples/declaration_owner.rs"
+path = "representations/typed-trees/examples/declaration_owner.rs"
 required-features = ["test-support"]
 
 [[test]]
 name = "source_resolved_authored_declaration_selection_ledger"
-path = "pipeline/representations/symbol-resolved-trees/tests/authored_declaration_selection_ledger.rs"
+path = "representations/symbol-resolved-trees/tests/authored_declaration_selection_ledger.rs"
 required-features = ["test-support"]
 
 [[example]]
 name = "source_resolved_diagnostic_name_allocations"
-path = "pipeline/representations/symbol-resolved-trees/examples/diagnostic_name_allocations.rs"
+path = "representations/symbol-resolved-trees/examples/diagnostic_name_allocations.rs"
 required-features = ["test-support"]
 
 [[bench]]

@@ -16,7 +16,7 @@ source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../evaluation/usage" }
 source-capture = { path = "../../../package-manager/source-acquisition/capture" }
-source-admission = { path = "../../source-to-psi/pipeline/representations/source-files/custody" }
+source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
 wire = { path = "../../../../foundation/wire" }

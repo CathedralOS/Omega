@@ -6,7 +6,7 @@ through [declarations/items.rs](declarations/items.rs). The
 [streaming caller](streaming.rs) calls this operation as it lexes each
 file, recycling each token buffer after parsing.
 
-The [source-files input](../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic, stage-contract and sample tests with `mbx test --locked -p source-parser`.
+The [source-files input](../../representations/source-files/source_files.rs) defines the origin and dependency scope retained on each parsed page. Run the parser unit, diagnostic, stage-contract and sample tests with `mbx test --locked -p source-parser`.
 
 For an already-tokenized batch, `parse(&LexedSources, ParseOptions)` schedules
 pages, calls the same `parse_into` for each source and returns `ParsedSyntaxPages`.
@@ -37,12 +37,12 @@ why an atomic cell's `store` checks its ordering argument. For a transition,
 [dispatch preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/dispatches.rs)
 takes the authored arms and arranges to evaluate the subjects once.
 
-The output belongs to [syntax-trees](../representations/syntax-trees/syntax_trees.rs).
-Its [files/pages.rs](../representations/syntax-trees/files/pages.rs) owns
+The output belongs to [syntax-trees](../../representations/syntax-trees/syntax_trees.rs).
+Its [files/pages.rs](../../representations/syntax-trees/files/pages.rs) owns
 `ParsedSyntaxPages` and the source-to-page associations. Converting `ParseError`
 to a diagnostic retains the existing path, line, column and message format.
 Generic spans come from [foundation/arena](../../../../../foundation/arena/src/arena.rs);
-[tree copying](../representations/syntax-trees/copying/statement_paths.rs) belongs
+[tree copying](../../representations/syntax-trees/copying/statement_paths.rs) belongs
 to the representation. The parser accesses its public tables directly.
 This stage preserves authored syntax and source spans. Symbol resolution, typing
 and proof checking follow it. It neither changes the token representation nor

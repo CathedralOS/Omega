@@ -1,6 +1,6 @@
 # Application identities in published Psi
 
-Source typing writes the canonical type, constant, conformance and callback identities that Psi carries across compilation. Native compilation, the interpreter and package review read those same records. Builtin symbol conversion belongs to [typed trees](../../source-to-psi/pipeline/representations/typed-trees/src/type_identity.rs).
+Source typing writes the canonical type, constant, conformance and callback identities that Psi carries across compilation. Native compilation, the interpreter and package review read those same records. Builtin symbol conversion belongs to [typed trees](../../source-to-psi/representations/typed-trees/src/type_identity.rs).
 
 - [Callback declarations](src/callback_declarations.rs) bind a private destination to its selected application.
 - [Conformance identities](src/conformance_identity.rs) encode selected applications and compute their commitments.

@@ -9,13 +9,13 @@ name = "optimization_unit_semantics"
 path = "src/lib.rs"
 
 [dependencies]
-arena = { path = "../../../../../../../foundation/arena" }
+arena = { path = "../../../../../../foundation/arena" }
 structural-storage = { path = "../../structural-storage" }
 optimization-core = { path = "../../optimization-records" }
 optimization-unit = { path = "../optimization-unit" }
 abstract-operations = { path = ".." }
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
-terminal-psi = { path = "../../../../../psi" }
-terminal-codec = { path = "../../../../../psi/codec" }
-terminal-work = { path = "../../../../../psi/work" }
-terminal-semantics = { path = "../../../../../psi/semantics" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../../psi" }
+terminal-codec = { path = "../../../../psi/codec" }
+terminal-work = { path = "../../../../psi/work" }
+terminal-semantics = { path = "../../../../psi/semantics" }

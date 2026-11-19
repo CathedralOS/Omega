@@ -19,11 +19,11 @@ numeric-literals = { path = "../../../foundation/numeric-literals" }
 numerics = { path = "../../../psi/semantics/numeric" }
 rayon = "1.11"
 source-text = { path = "../../../../../foundation/source-text" }
-syntax-trees = { path = "../representations/syntax-trees" }
-tokens = { path = "../representations/tokens" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
-source-files = { path = "../representations/source-files" }
+source-files = { path = "../../representations/source-files" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 
 [[test]]

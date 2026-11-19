@@ -21,13 +21,13 @@ test-support = [
 
 [dependencies]
 operation-evidence = { path = "../../operation-evidence", optional = true }
-layout-plans = { path = "../../../../../psi/layout", optional = true }
-register-model = { path = "../../../../targets/register-model" }
+layout-plans = { path = "../../../../psi/layout", optional = true }
+register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = ".." }
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
-target = { path = "../../../../targets/target" }
-calling-conventions = { path = "../../../../targets/calling-conventions", optional = true }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+calling-conventions = { path = "../../../targets/calling-conventions", optional = true }
 function-identity = { path = "../../function-identity", optional = true }
-provider-stack-contribution = { path = "../../../../verification/provider-admission/same-stack", optional = true }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack", optional = true }
 target-vocabulary = { path = "../../target-operations/target-vocabulary", optional = true }
-terminal-psi = { path = "../../../../../psi", optional = true }
+terminal-psi = { path = "../../../../psi", optional = true }

@@ -6,6 +6,6 @@ version.workspace = true
 
 [dependencies]
 optimization-core = { path = "../optimization-records" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-terminal-psi = { path = "../../../../psi" }
-wire = { path = "../../../../../../foundation/wire" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../psi" }
+wire = { path = "../../../../../foundation/wire" }

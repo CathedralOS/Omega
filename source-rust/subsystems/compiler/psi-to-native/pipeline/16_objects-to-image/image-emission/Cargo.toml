@@ -14,27 +14,27 @@ test-support = []
 [dependencies]
 psi-entry-memory = { path = "../../../../psi/access/entry-memory" }
 sha2 = "0.10.9"
-physical-recipes = { path = "../../representations/selected-instructions/physical-recipes" }
-physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
+physical-recipes = { path = "../../../representations/selected-instructions/physical-recipes" }
+physical-program = { path = "../../../representations/post-allocation-machine/body-facts" }
 installation-admission = { path = "../../../verification/installation-admission" }
-register-homes = { path = "../../representations/register-homes" }
+register-homes = { path = "../../../representations/register-homes" }
 wire = { path = "../../../../../../foundation/wire" }
-target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 language-core = { path = "../../../../foundation/language-core" }
 provider-admission = { path = "../../../verification/provider-admission" }
 register-model = { path = "../../../targets/register-model" }
-post-allocation-machine = { path = "../../representations/post-allocation-machine" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 arena = { path = "../../../../../../foundation/arena" }
-optimization-core = { path = "../../representations/optimization-records" }
-program-entry-contracts = { path = "../../representations/program-entry-contracts" }
-legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
-selected-instructions = { path = "../../representations/selected-instructions" }
+optimization-core = { path = "../../../representations/optimization-records" }
+program-entry-contracts = { path = "../../../representations/program-entry-contracts" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-abstract-operations = { path = "../../representations/abstract-operations" }
-optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
-optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/layout" }
 image = { path = "../image" }
@@ -43,10 +43,10 @@ image-macho = { path = "../image-macho" }
 image-pe = { path = "../image-pe" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 target = { path = "../../../targets/target" }
-machine-code = { path = "../../representations/machine-code" }
-function-identity = { path = "../../representations/function-identity" }
+machine-code = { path = "../../../representations/machine-code" }
+function-identity = { path = "../../../representations/function-identity" }
 installation-conditions = { path = "../../../verification/installation-admission/conditions" }
-target-operations = { path = "../../representations/target-operations" }
+target-operations = { path = "../../../representations/target-operations" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
@@ -59,8 +59,8 @@ entry-planning = { path = "../../09_post-allocation-machine-to-framed-machine/en
 frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../09_post-allocation-machine-to-framed-machine" }
 native-encoding = { path = "../../11_bound-framed-machine-to-selected-form-encoding" }
 isa-x86_64 = { path = "../../11_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
-optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../psi/layout" }
-optimization-core = { path = "../../representations/optimization-records" }
+optimization-core = { path = "../../../representations/optimization-records" }
 extents = { path = "../../../../../interpreter/memory/extents" }

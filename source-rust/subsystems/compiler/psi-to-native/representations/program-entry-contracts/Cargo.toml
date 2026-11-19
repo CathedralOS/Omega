@@ -8,11 +8,11 @@ version.workspace = true
 path = "program_entry.rs"
 
 [dependencies]
-calling-conventions = { path = "../../../targets/calling-conventions" }
-diagnostics = { path = "../../../../../../foundation/diagnostics" }
-provider-plans = { path = "../../../../build/providers/plans" }
-psi-entry-memory = { path = "../../../../psi/access/entry-memory" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-target = { path = "../../../targets/target" }
-terminal-psi = { path = "../../../../psi" }
-wire = { path = "../../../../../../foundation/wire" }
+calling-conventions = { path = "../../targets/calling-conventions" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+provider-plans = { path = "../../../build/providers/plans" }
+psi-entry-memory = { path = "../../../psi/access/entry-memory" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+target = { path = "../../targets/target" }
+terminal-psi = { path = "../../../psi" }
+wire = { path = "../../../../../foundation/wire" }

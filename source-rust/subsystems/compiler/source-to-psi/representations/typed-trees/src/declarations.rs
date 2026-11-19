@@ -182,7 +182,7 @@ pub mod boundary_completions {
 
         const NEVER_SOURCE: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../../source/library/core/never.omg"
+            "/../../../../../../source/library/core/never.omg"
         ));
 
         fn fixture(
@@ -249,7 +249,7 @@ pub mod boundary_completions {
 
         const PROCESS_EXIT_SOURCE: &str = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../../../source/library/core/process_exit.omg"
+            "/../../../../../../source/library/core/process_exit.omg"
         ));
 
         fn completion_fixture(

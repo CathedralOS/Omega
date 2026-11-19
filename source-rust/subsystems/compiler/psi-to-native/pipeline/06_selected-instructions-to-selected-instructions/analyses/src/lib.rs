@@ -550,7 +550,7 @@ mod selected_optimization_record {
     }
 }
 pub use selected_optimization_record::SelectedOptimizationRecord;
-#[path = "../../../representations/selected-instructions/allocation_input.rs"]
+#[path = "../../../../representations/selected-instructions/allocation_input.rs"]
 mod allocation_input;
 pub use ::wire::cursor;
 pub use allocation_input::SelectedAllocationInput;

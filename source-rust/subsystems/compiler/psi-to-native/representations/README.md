@@ -1,6 +1,6 @@
 # Native pipeline representations
 
-Six program families define the successive native forms. Stage 06 computes [allocation analyses](../06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
+Six program families define the successive native forms. Stage 06 computes [allocation analyses](../pipeline/06_selected-instructions-to-selected-instructions/analyses) and hands [the selected program and its results](selected-instructions/allocation_input.rs) to stage 07.
 
 ## Program families and pipeline boundaries
 
@@ -10,11 +10,11 @@ tokens or replay evidence a stage keeps beside it.
 
 | Family | Current program root | Producing and consuming operations |
 | --- | --- | --- |
-| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../02_target-bound-program-to-abstract-operations/selected_input.rs) lowers the target-bound Psi program; [stage 03](../03_abstract-operations-to-abstract-operations/src/lib.rs) optimizes the abstract program without changing its public form; stage 04 consumes it. |
-| `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [stage 04](../04_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; stage 05 consumes the resulting target program. |
-| `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [stage 05](../05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs) legalizes target operations and selects instructions; [stage 06](../06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs) rewrites that same program form and hands stage 07 one [`SelectedAllocationInput`](../06_selected-instructions-to-selected-instructions/analyses/src/lib.rs): the current program, the analyses it established, and its `SelectedOptimizationRecord`; stage 07 assigns register homes. stage 06's completed run is kept only as validator replay evidence. |
-| `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [stage 07](../07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs) consumes the selected program stage 06 hands it and publishes its current allocation; stage 08 consumes that current allocation's facts. |
-| `post-allocation-machine/` | [`PostAllocationMachineProgram`](post-allocation-machine/src/program.rs), including physical choices in [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [stage 08](../08_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions and carries settled preservation requirements; frame planning and stage 11 read that current form. |
+| `abstract-operations/` | [`AbstractOperationPlan`](abstract-operations/src/lib.rs) | [stage 02](../pipeline/02_target-bound-program-to-abstract-operations/selected_input.rs) lowers the target-bound Psi program; [stage 03](../pipeline/03_abstract-operations-to-abstract-operations/src/lib.rs) optimizes the abstract program without changing its public form; stage 04 consumes it. |
+| `target-operations/` | [`TargetOperationPlan`](target-operations/src/lib.rs) | [stage 04](../pipeline/04_abstract-operations-to-target-operations/src/lib.rs) lowers abstract operations with target and provider settlements; stage 05 consumes the resulting target program. |
+| `selected-instructions/` | [`SelectedInstructionPlan`](selected-instructions/src/lib.rs) | [stage 05](../pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs) legalizes target operations and selects instructions; [stage 06](../pipeline/06_selected-instructions-to-selected-instructions/src/selected_rewrites/selected_optimization.rs) rewrites that same program form and hands stage 07 one [`SelectedAllocationInput`](../pipeline/06_selected-instructions-to-selected-instructions/analyses/src/lib.rs): the current program, the analyses it established, and its `SelectedOptimizationRecord`; stage 07 assigns register homes. stage 06's completed run is kept only as validator replay evidence. |
+| `register-homes/` | [`AllocatedProgram`](register-homes/src/lib.rs), including [`RegisterHomePlan`](register-homes/src/lib.rs) | [stage 07](../pipeline/07_selected-instructions-to-register-homes/src/allocation/register_allocation.rs) consumes the selected program stage 06 hands it and publishes its current allocation; stage 08 consumes that current allocation's facts. |
+| `post-allocation-machine/` | [`PostAllocationMachineProgram`](post-allocation-machine/src/program.rs), including physical choices in [`PostAllocationMachinePlan`](post-allocation-machine/src/lib.rs) | [stage 08](../pipeline/08_register-homes-to-post-allocation-machine/src/lib.rs) derives physical machine instructions and carries settled preservation requirements; frame planning and stage 11 read that current form. |
 | `machine-code/` | Encoding, resolved-layout, and emitted-code roots listed below | stages 11–13 and backend emission share this family while retaining distinct program forms. |
 
 Other packages separate shared records and preparation from program roots:
@@ -35,8 +35,8 @@ Other packages separate shared records and preparation from program roots:
 - [`abstract-operations/optimization-unit/`](abstract-operations/optimization-unit/src/lib.rs)
   owns `PsiOptimizationUnit`, a rebuildable form of control flow, values,
   ownership and facts used to rewrite and replay abstract programs.
-  [stage 03 builds it](../03_abstract-operations-to-abstract-operations/src/abstract_optimization/verified_unit.rs)
-  from the verified input, [publishes an `AbstractOperationPlan`](../03_abstract-operations-to-abstract-operations/src/abstract_optimization/publication.rs)
+  [stage 03 builds it](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/verified_unit.rs)
+  from the verified input, [publishes an `AbstractOperationPlan`](../pipeline/03_abstract-operations-to-abstract-operations/src/abstract_optimization/publication.rs)
   and keeps the unit for replay. It is derived from abstract operations, not
   another numbered stage after them. Its
   [independent semantic checker](abstract-operations/optimization-unit-semantics/src/lib.rs)
@@ -44,9 +44,9 @@ Other packages separate shared records and preparation from program roots:
 - [`target-operations/legalized-operations/`](target-operations/legalized-operations/src/lib.rs)
   owns `LegalizedOperationPlan` and its sealed form, `PreparedExecutionPlan`:
   the execution plan stage 04 publishes. stage 04
-  [prepares it from the target program](../04_abstract-operations-to-target-operations/src/preparation/legalization.rs)
+  [prepares it from the target program](../pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization.rs)
   as its last step, and stage 05
-  [selects instructions from it](../05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs)
+  [selects instructions from it](../pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/selection.rs)
   without reading anything behind it. The package also holds the layout
   queries both stages ask of the plan's structural declarations.
 - [`target-operations/target-vocabulary/`](target-operations/target-vocabulary/src/lib.rs)
@@ -78,8 +78,8 @@ type; the folder is not one IR:
 | Program form | Root and operation |
 | --- | --- |
 | Framed machine program | [`FramedMachineProgram`](machine-code/src/layout.rs): current physical instructions and function contracts with concrete frame coordinates and protocol. [Backend machine emission](../../backend/machine-emission/src/function_realization.rs) computes it from one current physical program; stage 11 reads it. |
-| Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
-| Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../12_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [stage 13](../13_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
+| Layout-independent selected-form encoding | [`EncodedMachineProgram`](machine-code/src/layout.rs), produced by [stage 11](../pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs), adds actual encoded rows while retaining the current instruction and frame columns. |
+| Function-relative resolved layout | [`ResolvedMachineProgram`](machine-code/src/layout.rs), produced by [stage 12](../pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs), adds exact layout rows. [stage 13](../pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs) rewrites that layout in the same current form. Final assembly reads the resolved form and checked publication receipts; original stage artifacts remain only in named independent replay custody. |
 | Emitted machine-code program | [`FunctionFragmentEmissionPlan`](machine-code/src/fragments.rs) placed into one [`RelocationFreeTextSectionPlacement`](machine-code/src/layout/text_section.rs), containing target fragments and their executable bytes. [Backend machine emission](../../backend/machine-emission/src/lib.rs) owns function realization, fragment emission, frame application, and text placement; object and image owners consume their results. Fragment emission reads the resolved form plus [`EmissionFacts`](../../backend/machine-emission/src/emission_facts.rs), which the [native driver](../../native-compiler/src/pipeline.rs) copies out of stage 04's output: the admitted lowering facts and the optimized abstract program with its projection identities. Callable reach and the pre-physical root come from the current form's execution contracts. |
 
 [`ResolvedMachineProgram`](machine-code/src/layout.rs)
@@ -94,11 +94,11 @@ reach the object only when a validator request retains them for
 
 [Callback function identity](function-identity/src/lib.rs) pairs the published Psi
 program with its callback placement. Admission, native program forms and object
-verification carry that same identity. The [object stage](../15_placed-functions-to-objects/src/names.rs)
+verification carry that same identity. The [object stage](../pipeline/15_placed-functions-to-objects/src/names.rs)
 gives a private callback its linker symbol when building an object.
 
 Target descriptions, calling conventions and physical register models live under
-[`targets/`](../../targets/); provider-plan
+[`targets/`](../targets/); provider-plan
 evidence lives in [`backend/plans/effects/`](../../backend/plans/effects/src/lib.rs),
 and artifact boundary coverage in
 [`backend/artifacts/boundary-applications/`](../../backend/artifacts/boundary-applications/src/lib.rs).
@@ -147,7 +147,7 @@ Independent replay must still rebuild and check the carried facts; that is
 not the repeated semantic discovery the ownership rule forbids. Unsupported
 lowering fails with an error. A missing selection must not drop a write,
 substitute a slot or invent a result. The
-[lowering owner](../04_abstract-operations-to-target-operations/src/target_lowering/README.md)
+[lowering owner](../pipeline/04_abstract-operations-to-target-operations/src/target_lowering/README.md)
 describes current structural access and argument-replay boundaries.
 
 ## Encoding and artifact scope

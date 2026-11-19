@@ -8,30 +8,30 @@ version.workspace = true
 test-support = []
 
 [dependencies]
-operation-evidence = { path = "../representations/operation-evidence" }
-operation-operands = { path = "../representations/operation-operands" }
+operation-evidence = { path = "../../representations/operation-evidence" }
+operation-operands = { path = "../../representations/operation-operands" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 provider-admission = { path = "../../verification/provider-admission" }
 installation-admission = { path = "../../verification/installation-admission" }
 target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
-physical-program = { path = "../representations/post-allocation-machine/body-facts" }
+physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 terminal-semantics = { path = "../../../psi/semantics" }
 access-admission = { path = "../../../psi/access/admission" }
 layout-plans = { path = "../../../psi/layout" }
-legalized-operations = { path = "../representations/target-operations/legalized-operations" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 language-core = { path = "../../../foundation/language-core" }
 bound-installations = { path = "../../verification/installation-admission/bound-installations" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
-target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 access-vocabulary = { path = "../../../psi/access" }
-optimization-core = { path = "../representations/optimization-records" }
+optimization-core = { path = "../../representations/optimization-records" }
 register-environment = { path = "../../targets/register-environment" }
 register-model = { path = "../../targets/register-model" }
-selected-instructions = { path = "../representations/selected-instructions" }
+selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../targets/target" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
-structural-storage = { path = "../representations/structural-storage" }
+structural-storage = { path = "../../representations/structural-storage" }

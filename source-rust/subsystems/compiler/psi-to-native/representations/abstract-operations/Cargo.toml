@@ -11,8 +11,8 @@ path = "src/lib.rs"
 [dependencies]
 operation-evidence = { path = "../operation-evidence" }
 operation-operands = { path = "../operation-operands" }
-record-storage = { path = "../../../../../../foundation/record-storage" }
+record-storage = { path = "../../../../../foundation/record-storage" }
 structural-storage = { path = "../structural-storage" }
-language-core = { path = "../../../../foundation/language-core" }
-semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-terminal-psi = { path = "../../../../psi" }
+language-core = { path = "../../../foundation/language-core" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../psi" }

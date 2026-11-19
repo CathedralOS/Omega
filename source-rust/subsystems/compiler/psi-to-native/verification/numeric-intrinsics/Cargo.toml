@@ -17,7 +17,7 @@ provider-correspondence = { path = "../provider-correspondence" }
 provider-plans = { path = "../../../build/providers/plans" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

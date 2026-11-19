@@ -11,19 +11,19 @@ path = "src/lib.rs"
 [dependencies]
 operation-evidence = { path = "../../operation-evidence" }
 operation-operands = { path = "../../operation-operands" }
-wire = { path = "../../../../../../../foundation/wire" }
+wire = { path = "../../../../../../foundation/wire" }
 structural-storage = { path = "../../structural-storage" }
-language-core = { path = "../../../../../foundation/language-core" }
-calling-conventions = { path = "../../../../targets/calling-conventions" }
+language-core = { path = "../../../../foundation/language-core" }
+calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../function-identity" }
-target = { path = "../../../../targets/target" }
-provider-stack-contribution = { path = "../../../../verification/provider-admission/same-stack" }
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
-terminal-psi = { path = "../../../../../psi" }
+target = { path = "../../../targets/target" }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../../psi" }
 
-runtime-abi = { path = "../../../../targets/runtime-abi" }
-terminal-semantics = { path = "../../../../../psi/semantics" }
+runtime-abi = { path = "../../../targets/runtime-abi" }
+terminal-semantics = { path = "../../../../psi/semantics" }
 
 
 optimization-core = { path = "../../optimization-records" }
-terminal-wire = { path = "../../../../../psi/wire" }
+terminal-wire = { path = "../../../../psi/wire" }

@@ -14,8 +14,8 @@ Rust callers; it contains no representation logic.
 | `spelling` and `literal_bytes` | [token_stream.rs](token_stream.rs) returns the original UTF-8 spelling for every token. Quoted literals also expose their decoded bytes. |
 | `LexedSource`, `LexedSources` | [files/lexed.rs](files/lexed.rs): file identity, path, scope and token-stream batches |
 
-The [lexer](../../00_source-files-to-tokens/lexer.rs) produces these
-streams; the [parser](../../01_tokens-to-syntax-trees/parser.rs) consumes
+The [lexer](../../pipeline/00_source-files-to-tokens/lexer.rs) produces these
+streams; the [parser](../../pipeline/01_tokens-to-syntax-trees/parser.rs) consumes
 them. Each file gets its text from its token stream. Decoded strings use stream-owned
 byte ranges. Buffer recycling, retained-source identity and logical equality
 stay with the stream whose storage they describe.

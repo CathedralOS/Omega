@@ -8,13 +8,13 @@ version.workspace = true
 path = "symbol_table.rs"
 
 [dependencies]
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
-arena = { path = "../../../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+arena = { path = "../../../../../../foundation/arena" }
 bundled-declarations = { path = "../../source-files/bundled-declarations" }
-language-core = { path = "../../../../../foundation/language-core" }
-numerics = { path = "../../../../../psi/semantics/numeric" }
-record-storage = { path = "../../../../../../../foundation/record-storage" }
+language-core = { path = "../../../../foundation/language-core" }
+numerics = { path = "../../../../psi/semantics/numeric" }
+record-storage = { path = "../../../../../../foundation/record-storage" }
 source-admission = { path = "../../source-files/custody" }
-source-provenance = { path = "../../../../../foundation/source-provenance" }
-source-text = { path = "../../../../../../../foundation/source-text" }
-symbols = { path = "../../../../../foundation/declaration-identity" }
+source-provenance = { path = "../../../../foundation/source-provenance" }
+source-text = { path = "../../../../../../foundation/source-text" }
+symbols = { path = "../../../../foundation/declaration-identity" }

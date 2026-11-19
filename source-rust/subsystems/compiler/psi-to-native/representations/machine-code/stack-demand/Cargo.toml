@@ -9,8 +9,8 @@ path = "physical_stack.rs"
 
 [dependencies]
 function-identity = { path = "../../function-identity" }
-provider-stack-contribution = { path = "../../../../verification/provider-admission/same-stack" }
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
-target = { path = "../../../../targets/target" }
+provider-stack-contribution = { path = "../../../verification/provider-admission/same-stack" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
-terminal-psi = { path = "../../../../../psi" }
+terminal-psi = { path = "../../../../psi" }

@@ -7,7 +7,7 @@ of the complete selection. The portable Psi vocabulary lives with
 [Psi](../../psi/optimization-selections/).
 
 Native stages keep decision records and validate their manifests using
-[optimization records](../../psi-to-native/pipeline/representations/optimization-records/).
+[optimization records](../../psi-to-native/representations/optimization-records/).
 Each numbered stage implements its own rewrites. See the [exact-rule inventory](rules.md).
 
 ## Exact-rule promotion records

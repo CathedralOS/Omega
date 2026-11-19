@@ -4,7 +4,7 @@ Start at [lexer.rs](lexer.rs). It turns loaded UTF-8 source into ordered token
 streams. The [streaming parser](../01_tokens-to-syntax-trees/streaming.rs) calls
 `lex_file` for each file and recycles token buffers between files.
 `lex(LoadedSources)` returns a complete token batch for consumers that retain it.
-The [source-files representation](../representations/source-files/source_files.rs) carries the captured text, origin and scope.
+The [source-files representation](../../representations/source-files/source_files.rs) carries the captured text, origin and scope.
 
 Run the scanner and batch tests with `mbx test --locked -p source-lexer`.
 The private scanner publishes each token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
@@ -15,7 +15,7 @@ Follow the two substantial spelling domains under `literals/`:
 - [numbers.rs](literals/numbers.rs) recognizes radix, fractional, exponent and suffix boundaries.
 - [quoted_bytes.rs](literals/quoted_bytes.rs) validates quoting and escapes, then decodes bytes.
 
-[Token vocabulary](../representations/tokens/lexemes/kinds.rs)
+[Token vocabulary](../../representations/tokens/lexemes/kinds.rs)
 owns the shared keyword and punctuation definitions. Ordinary tokens borrow the
 source; quoted literals use the token stream's byte buffer. Whitespace and
 comments retain exact spans, including LF after a line comment.

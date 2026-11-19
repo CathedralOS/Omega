@@ -8,16 +8,16 @@ version.workspace = true
 path = "scope.rs"
 
 [dependencies]
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../../verification/provider-admission" }
 provider-correspondence = { path = "../../../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
 terminal-codec = { path = "../../../../psi/codec" }
 terminal-psi = { path = "../../../../psi" }
 
 [dev-dependencies]
 terminal-semantics = { path = "../../../../psi/semantics" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../representations/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 psi-target-layouts = { path = "../../../../psi/layout/admission" }

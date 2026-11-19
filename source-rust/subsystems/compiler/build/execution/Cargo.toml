@@ -22,13 +22,13 @@ declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../evaluation/usage" }
-source-admission = { path = "../../source-to-psi/pipeline/representations/source-files/custody" }
+source-admission = { path = "../../source-to-psi/representations/source-files/custody" }
 source-text = { path = "../../../../foundation/source-text" }
 evaluation-receipts = { path = "../evaluation/receipts" }
 terminal-interpreter = { path = "../../../interpreter" }
 terminal-work = { path = "../../psi/work" }
 terminal-codec = { path = "../../psi/codec" }
-syntax-trees = { path = "../../source-to-psi/pipeline/representations/syntax-trees" }
+syntax-trees = { path = "../../source-to-psi/representations/syntax-trees" }
 source-compiler = { path = "../../source-to-psi" }
 evaluation-accounting = { path = "../evaluation/accounting" }
 filesystem-authority = { path = "../evaluation/filesystem" }
@@ -46,5 +46,5 @@ symbols = { path = "../../foundation/declaration-identity" }
 build-declarations = { path = "../build-declarations" }
 
 [dev-dependencies]
-tokens = { path = "../../source-to-psi/pipeline/representations/tokens" }
+tokens = { path = "../../source-to-psi/representations/tokens" }
 source-compiler = { path = "../../source-to-psi", features = ["test-support"] }

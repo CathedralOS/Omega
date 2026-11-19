@@ -8,13 +8,13 @@ version.workspace = true
 path = "declarations.rs"
 
 [dependencies]
-application-identity = { path = "../../../../../psi/application-identity" }
-arena = { path = "../../../../../../../foundation/arena" }
-language-core = { path = "../../../../../foundation/language-core" }
-numeric-literals = { path = "../../../../../foundation/numeric-literals" }
-numerics = { path = "../../../../../psi/semantics/numeric" }
-record-storage = { path = "../../../../../../../foundation/record-storage" }
-semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
+application-identity = { path = "../../../../psi/application-identity" }
+arena = { path = "../../../../../../foundation/arena" }
+language-core = { path = "../../../../foundation/language-core" }
+numeric-literals = { path = "../../../../foundation/numeric-literals" }
+numerics = { path = "../../../../psi/semantics/numeric" }
+record-storage = { path = "../../../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 source-admission = { path = "../../source-files/custody" }
-source-text = { path = "../../../../../../../foundation/source-text" }
-symbols = { path = "../../../../../foundation/declaration-identity" }
+source-text = { path = "../../../../../../foundation/source-text" }
+symbols = { path = "../../../../foundation/declaration-identity" }

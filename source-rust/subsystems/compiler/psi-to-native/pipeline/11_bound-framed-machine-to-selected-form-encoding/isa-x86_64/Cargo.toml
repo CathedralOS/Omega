@@ -11,26 +11,26 @@ path = "src/lib.rs"
 [dependencies]
 target-x86_64 = { path = "../../../targets/target-x86_64" }
 wire = { path = "../../../../../../foundation/wire" }
-normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
+normalized-foreign-call-plan = { path = "../../../representations/selected-instructions/foreign-calls" }
 x86_64-encoding = { path = "../x86_64-encoding" }
-encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding" }
+encoded-scalar-plan = { path = "../../../representations/machine-code/scalar-encoding" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
-optimization-core = { path = "../../representations/optimization-records" }
+optimization-core = { path = "../../../representations/optimization-records" }
 register-model = { path = "../../../targets/register-model" }
 target = { path = "../../../targets/target" }
-selected-instructions = { path = "../../representations/selected-instructions" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 layout-plans = { path = "../../../../psi/layout" }
 
 [dev-dependencies]
-selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }
+selected-instructions = { path = "../../../representations/selected-instructions", features = ["test-support"] }
 register-model = { path = "../../../targets/register-model", features = ["test-support"] }
 isa-conformance = { path = "../../../tests/isa-conformance" }
-normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls", features = ["test-support"] }
-encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding", features = ["test-support"] }
-optimization-core = { path = "../../representations/optimization-records" }
-optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
-legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
-target-operations = { path = "../../representations/target-operations" }
+normalized-foreign-call-plan = { path = "../../../representations/selected-instructions/foreign-calls", features = ["test-support"] }
+encoded-scalar-plan = { path = "../../../representations/machine-code/scalar-encoding", features = ["test-support"] }
+optimization-core = { path = "../../../representations/optimization-records" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+target-operations = { path = "../../../representations/target-operations" }
 terminal-psi = { path = "../../../../psi" }

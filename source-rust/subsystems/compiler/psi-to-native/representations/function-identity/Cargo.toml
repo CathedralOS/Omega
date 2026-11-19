@@ -5,5 +5,5 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-wire = { path = "../../../../../../foundation/wire" }
-terminal-psi = { path = "../../../../psi" }
+wire = { path = "../../../../../foundation/wire" }
+terminal-psi = { path = "../../../psi" }

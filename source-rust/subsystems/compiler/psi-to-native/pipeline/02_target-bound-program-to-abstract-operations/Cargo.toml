@@ -19,11 +19,11 @@ provider-correspondence = { path = "../../verification/provider-correspondence" 
 psi-scalar-applications = { path = "../../../psi/scalar-applications" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
-abstract-operations = { path = "../representations/abstract-operations" }
-boundary-applications = { path = "../representations/operation-evidence/boundary-applications" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 installation-conditions = { path = "../../verification/installation-admission/conditions" }
-operation-evidence = { path = "../representations/operation-evidence" }
+operation-evidence = { path = "../../representations/operation-evidence" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }
@@ -33,4 +33,4 @@ terminal-codec = { path = "../../../psi/codec" }
 psi-authorization = { path = "../../../psi/authorization" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
-verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

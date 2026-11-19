@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 calling-conventions = { path = "../../../targets/calling-conventions" }
-function-identity = { path = "../../../pipeline/representations/function-identity" }
+function-identity = { path = "../../../representations/function-identity" }
 installation-conditions = { path = "../conditions" }
 language-core = { path = "../../../../foundation/language-core" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }

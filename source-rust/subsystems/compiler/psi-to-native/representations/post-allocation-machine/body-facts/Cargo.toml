@@ -5,7 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-installation-admission = { path = "../../../../verification/installation-admission" }
+installation-admission = { path = "../../../verification/installation-admission" }
 function-identity = { path = "../../function-identity" }
 machine-code = { path = "../../machine-code" }
 selected-instructions = { path = "../../selected-instructions" }
