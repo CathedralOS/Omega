@@ -45,11 +45,11 @@ pub(crate) mod name {
 }
 pub(crate) mod progress {
     use crate::source_state as typed;
-    use declaration_contracts::ProgressPremise;
-    use declaration_contracts::ProgressSubject;
-    use declaration_contracts::TerminationGuarantee;
-    use declaration_contracts::TerminationInterface;
     use diagnostics::Diagnostic;
+    use source_declarations::ProgressPremise;
+    use source_declarations::ProgressSubject;
+    use source_declarations::TerminationGuarantee;
+    use source_declarations::TerminationInterface;
     use typed::machine::resolve_satisfied_declaration;
 
     pub(crate) fn normalize_trait_progress_premises(

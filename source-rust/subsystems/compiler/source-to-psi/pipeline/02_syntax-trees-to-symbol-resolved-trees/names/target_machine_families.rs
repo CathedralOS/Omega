@@ -4,8 +4,8 @@
 */
 
 use crate::source_resolved::SymbolResolvedTrees;
-use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
+use source_provenance::DependencyScope;
 
 mod contracts {
     /*

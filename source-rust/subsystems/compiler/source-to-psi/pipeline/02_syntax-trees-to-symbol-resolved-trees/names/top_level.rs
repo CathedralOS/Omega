@@ -273,7 +273,7 @@ mod machines {
         assign_type_reference_symbol_with_locals_and_constraints,
     };
     use crate::source_resolved::data::TypeParameterKind;
-    use declaration_contracts::MachineSupplyMode;
+    use source_declarations::MachineSupplyMode;
 
     pub(super) fn assign_machine_symbols(
         program: &mut SymbolResolvedTrees,

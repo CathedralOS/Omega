@@ -78,7 +78,7 @@ fn scoped_sources(
     units: &[(
         &str,
         &str,
-        declaration_contracts::source_identity::DependencyScope,
+        source_provenance::DependencyScope,
         source_admission::SourceOrigin,
     )],
 ) -> Result<crate::source_resolved::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
@@ -113,8 +113,8 @@ fn scoped_sources(
 
 #[test]
 fn domain_token_homes_keep_distinct_build_and_product_instances() {
-    use declaration_contracts::source_identity::DependencyScope;
     use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
     let text = "domain<T, const U: u64> T::Quantity<U>;\n\
             machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
             -> u32 in Quantity<1> { left }";
@@ -166,8 +166,8 @@ fn domain_token_homes_keep_distinct_build_and_product_instances() {
 
 #[test]
 fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
-    use declaration_contracts::source_identity::DependencyScope;
     use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
     let text = "domain<T, const U: u64> T::Quantity<U>;\n\
             machine + Quantity::add(left: u32 in Quantity<1>, right: u32 in Quantity<1>) \
             -> u32 in Quantity<1> { left }";
@@ -277,8 +277,8 @@ fn inactive_retained_token_bindings_do_not_rejoin_a_product_frontier() {
 
 #[test]
 fn an_unimported_same_leaf_domain_does_not_supply_an_operand_home() {
-    use declaration_contracts::source_identity::DependencyScope;
     use source_admission::SourceOrigin;
+    use source_provenance::DependencyScope;
     let errors = scoped_sources(&[
         ("foreign/domain.omg", "public domain u32::Mine;", DependencyScope::Product, SourceOrigin::User),
         ("requester/main.omg", "boundary machine - Comparison::subtract(left: u32 in Mine, right: u32 in Mine) -> u32;", DependencyScope::Product, SourceOrigin::User),

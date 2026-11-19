@@ -464,7 +464,7 @@ mod callback_contract_recovery_tests {
                 ..Default::default()
             }]),
             return_type: unit,
-            termination_guarantee: declaration_contracts::TerminationGuarantee::Terminates {
+            termination_guarantee: source_declarations::TerminationGuarantee::Terminates {
                 premises: Vec::new(),
             },
             ..Default::default()
@@ -565,7 +565,7 @@ mod callback_contract_recovery_tests {
             let mut row = row.clone();
             if change == 0 {
                 row.signature.termination_guarantee =
-                    declaration_contracts::TerminationGuarantee::NoGuarantee;
+                    source_declarations::TerminationGuarantee::NoGuarantee;
             } else {
                 let expression = forged
                     .expression_table

@@ -364,7 +364,7 @@ impl TokenBinding<'_> {
     */
     fn missing_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
         let machine = self.machine?;
-        if machine.supply_mode == declaration_contracts::MachineSupplyMode::TopLevelRequirement {
+        if machine.supply_mode == source_declarations::MachineSupplyMode::TopLevelRequirement {
             return None;
         }
         let operand_types = &self.operand_types;
@@ -424,7 +424,7 @@ impl TokenBinding<'_> {
     */
     fn foreign_semantic_home(&self, program: &SymbolResolvedTrees) -> Option<Diagnostic> {
         let machine = self.machine?;
-        if machine.supply_mode == declaration_contracts::MachineSupplyMode::TopLevelRequirement {
+        if machine.supply_mode == source_declarations::MachineSupplyMode::TopLevelRequirement {
             return None;
         }
         let binding_package = program.symbols.symbol_package_identity(machine.symbol)?;

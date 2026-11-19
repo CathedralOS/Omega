@@ -1535,7 +1535,7 @@ pub mod product_operand {
                         .iter()
                         .filter(|machine| {
                             machine.supply_mode
-                                == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                                == source_declarations::MachineSupplyMode::TopLevelRequirement
                         })
                         .map(|machine| (machine.symbol, machine.is_public)),
                 )
@@ -1557,8 +1557,8 @@ pub mod product_operand {
                         .filter(|machine| {
                             matches!(
                                 machine.supply_mode,
-                                declaration_contracts::MachineSupplyMode::AdmissionClaim
-                                    | declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                                source_declarations::MachineSupplyMode::AdmissionClaim
+                                    | source_declarations::MachineSupplyMode::TopLevelRequirement
                             )
                         })
                         .map(|machine| (machine.symbol, machine.is_public)),
@@ -3282,12 +3282,12 @@ pub mod trait_definition {
                                 .blocks_keyword_source_spans
                                 .extend_from_slice(&clause.signature.blocks_keyword_source_spans);
                         }
-                        if let declaration_contracts::TerminationGuarantee::Terminates { premises } =
+                        if let source_declarations::TerminationGuarantee::Terminates { premises } =
                             &clause.signature.termination_guarantee
                             && (premises.is_empty()
                                 || matches!(
                                     signature.termination_guarantee,
-                                    declaration_contracts::TerminationGuarantee::NoGuarantee
+                                    source_declarations::TerminationGuarantee::NoGuarantee
                                 ))
                         {
                             signature.termination_guarantee =
@@ -4655,7 +4655,8 @@ pub mod trait_definition {
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum TraitRefinementReach {        #[default]
+    pub enum TraitRefinementReach {
+        #[default]
         Inherited,
         Concrete(semantic_vocabulary::ServiceReachRowId),
         IndependentBounded(Vec<ClauseAbstractReachRow>),

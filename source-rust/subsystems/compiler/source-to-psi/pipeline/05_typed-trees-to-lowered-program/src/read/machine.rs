@@ -10,9 +10,9 @@ use crate::source_state::signature::{SignatureContractKind, StateParameter, Stat
 use crate::source_state::state::State;
 use crate::source_state::statement::StatementNode;
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
-use declaration_contracts::TerminationGuarantee;
-use declaration_contracts::TerminationInterface;
 use semantic_vocabulary::{MachineId, ValueId};
+use source_declarations::TerminationGuarantee;
+use source_declarations::TerminationInterface;
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
@@ -1396,7 +1396,7 @@ impl<'t> Program<'t> {
             ));
             return Err(refusal);
         }
-        if machine.supply_mode != declaration_contracts::MachineSupplyMode::CheckedBody {
+        if machine.supply_mode != source_declarations::MachineSupplyMode::CheckedBody {
             return unserved("supply mode other than a checked body");
         }
         if machine.purpose != MachinePurpose::Runtime {

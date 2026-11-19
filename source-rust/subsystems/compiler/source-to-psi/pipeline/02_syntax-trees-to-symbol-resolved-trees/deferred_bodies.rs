@@ -292,8 +292,8 @@ impl DeferredResolvedFrontier {
         &self,
         scope: DeferredBodyScope,
     ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-        use declaration_contracts::source_identity::DependencyScope;
         use source_admission::SourceOrigin;
+        use source_provenance::DependencyScope;
 
         let symbols = &self.trees.symbols;
         let selected = match scope {

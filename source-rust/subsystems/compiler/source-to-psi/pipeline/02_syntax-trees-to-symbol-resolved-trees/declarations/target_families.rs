@@ -12,9 +12,9 @@
 
 use crate::source_inputs::SourceMap;
 use arena::HandleSpan;
-use declaration_contracts::source_identity::DependencyScope;
 use diagnostics::Diagnostic;
 use source_admission::SourceFile;
+use source_provenance::DependencyScope;
 use std::cmp::Ordering;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;

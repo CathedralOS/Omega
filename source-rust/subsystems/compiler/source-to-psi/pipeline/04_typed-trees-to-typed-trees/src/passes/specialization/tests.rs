@@ -1752,13 +1752,13 @@ fn an_installation_bound_reach_row_remains_unserved_before_copying() {
 
 #[test]
 fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
-    use declaration_contracts::ProgressPremise;
-    use declaration_contracts::ProgressSubject;
-    use declaration_contracts::RankingWitness;
-    use declaration_contracts::TerminationGuarantee;
-    use declaration_contracts::TerminationInterface;
     use semantic_vocabulary::RankingViewId;
     use semantic_vocabulary::SemanticDomainId;
+    use source_declarations::ProgressPremise;
+    use source_declarations::ProgressSubject;
+    use source_declarations::RankingWitness;
+    use source_declarations::TerminationGuarantee;
+    use source_declarations::TerminationInterface;
 
     for missing_custody in [false, true] {
         let Source {

@@ -1175,7 +1175,7 @@ fn termination(
     signature: &StateSignature,
     context: &TypeIdentityContext<'_>,
 ) -> IdentityResult<String> {
-    let declaration_contracts::TerminationGuarantee::Terminates { premises } =
+    let source_declarations::TerminationGuarantee::Terminates { premises } =
         &signature.termination_guarantee
     else {
         return Ok(scalar("termination", "none"));

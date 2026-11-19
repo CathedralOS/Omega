@@ -539,8 +539,8 @@ impl Program<'_> {
                             && binding.is_public == machine.is_public
                             && binding.is_boundary
                                 == matches!(machine.supply_mode,
-                            declaration_contracts::MachineSupplyMode::Boundary
-                                | declaration_contracts::MachineSupplyMode::TopLevelRequirement)
+                            source_declarations::MachineSupplyMode::Boundary
+                                | source_declarations::MachineSupplyMode::TopLevelRequirement)
                             && binding.lifetime_parameters == machine.lifetime_parameters
                             && binding.type_parameters == machine.type_parameters
                             && binding.parameters == state.parameters

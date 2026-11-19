@@ -1735,7 +1735,7 @@ pub(crate) mod domain_scopes {
                         symbol: domain_symbol,
                         arguments: vec![operand],
                         semantic_id: original,
-                        semantic_roles: declaration_contracts::DomainSemanticRoles {
+                        semantic_roles: source_declarations::DomainSemanticRoles {
                             denotation_dimension: Some(original),
                             arithmetic_policy: Some(original),
                         },
@@ -4860,7 +4860,7 @@ mod declaration_invocations {
             else {
                 return Ok(None);
             };
-            if machine.supply_mode != declaration_contracts::MachineSupplyMode::Boundary
+            if machine.supply_mode != source_declarations::MachineSupplyMode::Boundary
                 || !machine.has_bodyless_signature()
             {
                 return Ok(None);
@@ -4948,10 +4948,10 @@ mod declaration_invocations {
                     blocks: machine.blocks,
                     contracts: machine.contracts,
                     termination_guarantee: match &machine.termination_plan.interface {
-                        declaration_contracts::TerminationInterface::Published(guarantee) => {
+                        source_declarations::TerminationInterface::Published(guarantee) => {
                             guarantee.clone()
                         }
-                        _ => declaration_contracts::TerminationGuarantee::NoGuarantee,
+                        _ => source_declarations::TerminationGuarantee::NoGuarantee,
                     },
                     declares_no_crash_route: machine.declares_no_crash_route,
                     ..Default::default()
@@ -6973,7 +6973,7 @@ pub(crate) mod signatures {
                         .append_to_span(&mut applied.contracts, contract);
                 }
                 applied.invokes = self.invocations(program, declared.invokes)?;
-                if let declaration_contracts::TerminationGuarantee::Terminates { premises } =
+                if let source_declarations::TerminationGuarantee::Terminates { premises } =
                     &mut applied.termination_guarantee
                 {
                     for premise in premises {
@@ -7754,7 +7754,7 @@ pub(crate) mod table {
             let other_generation = StaticMachineApplicationHandle::from_parts(3, 2);
             let source = StateSignature {
                 symbol: SymbolHandle::from_parts(7, 1),
-                termination_guarantee: declaration_contracts::TerminationGuarantee::Terminates {
+                termination_guarantee: source_declarations::TerminationGuarantee::Terminates {
                     premises: Vec::new(),
                 },
                 ..Default::default()
