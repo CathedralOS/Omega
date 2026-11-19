@@ -16,7 +16,8 @@ use psi_authorization::{
 };
 
 pub use native_compiler::{
-    SavedProgramTarget as NativeTarget, TargetProviderInstallation, stage_validators,
+    NativeApplicationSettings, SavedProgramTarget as NativeTarget, TargetProviderInstallation,
+    stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
@@ -26,20 +27,33 @@ pub enum CompileRequest<'a> {
     /// Admit the chosen entry and providers for execution on the Psi interpreter.
     Runtime {
         program: Program<'a>,
-        target: NativeTarget<'a>,
         entry_memory: &'a [psi_entry_memory::PrivateEntryRamInitialization],
     },
     Native {
         program: Program<'a>,
-        target: NativeTarget<'a>,
         entry_memory: &'a [psi_entry_memory::PrivateEntryRamInitialization],
     },
 }
 
+/// The source producer supplies its checked deployment; a saved program uses the
+/// receiving host's installation already pinned to the authorized manifest.
 pub enum Program<'a> {
-    Source(StageSource<'a>),
-    /// The receiving host admitted this exact published artifact and its producer.
-    Psi(AuthorizedTerminalArtifact),
+    Source {
+        source: StageSource<'a>,
+        target: SourceNativeTarget<'a>,
+    },
+    Psi {
+        program: AuthorizedTerminalArtifact,
+        target: NativeTarget<'a>,
+    },
+}
+
+pub struct SourceNativeTarget<'a> {
+    pub profile: target::TargetProfile,
+    pub settings: NativeApplicationSettings<'a>,
+    pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
+    pub semantic_bindings: std::sync::Arc<[host_provider_inputs::AcceptedSemanticBinding]>,
+    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 }
 
 pub enum Artifact {
@@ -53,27 +67,21 @@ pub fn compile(request: CompileRequest<'_>) -> Result<Artifact, Vec<Diagnostic>>
         CompileRequest::Psi(source) => source_to_psi::compile(source).map(Artifact::Psi),
         CompileRequest::Runtime {
             program,
-            target,
             entry_memory,
         } => {
-            let admitted = native_compiler::admit_published_runtime(
-                program.into_authorized_psi()?,
-                target,
-                entry_memory,
-                &mut Vec::new(),
-            )?;
+            let admitted = program
+                .prepare()?
+                .admit_runtime(entry_memory, &mut Vec::new())?;
             Ok(Artifact::Runtime(
                 product_publication::CompletedProduct::from_runtime(admitted, None),
             ))
         }
         CompileRequest::Native {
             program,
-            target,
             entry_memory,
         } => {
-            let psi = program.into_authorized_psi()?;
-            let application = target.application.clone();
-            let image = native_compiler::emit(psi, target, entry_memory)?;
+            let application = program.application().clone();
+            let image = program.prepare()?.emit(entry_memory)?;
             Ok(Artifact::Native(
                 product_publication::CompletedProduct::from_native(image, None, application),
             ))
@@ -95,19 +103,12 @@ pub fn compile_with_validators(
     let rows = match request {
         CompileRequest::Native {
             program,
-            target,
             entry_memory,
         } => {
-            let application = target.application.clone();
-            let authorized = program
-                .into_authorized_psi()
-                .map_err(NativeValidationError::Compilation)?;
-            let (image, rows) = native_compiler::emit_with_validators(
-                authorized,
-                target,
-                entry_memory,
-                validators,
-            )?;
+            let application = program.application().clone();
+            let (image, rows) = program
+                .prepare()?
+                .emit_with_validators(entry_memory, validators)?;
             let product =
                 product_publication::CompletedProduct::from_native(image, None, application);
             return Ok((Artifact::Native(product), rows));
@@ -116,8 +117,8 @@ pub fn compile_with_validators(
             source.selections.calling_targets,
             |_| "this product stops at Terminal Psi before target operations",
         )?,
-        CompileRequest::Runtime { ref target, .. } => validators.stages_not_produced(
-            &[target.profile.target_name()],
+        CompileRequest::Runtime { ref program, .. } => validators.stages_not_produced(
+            &[program.profile().target_name()],
             |_| "runtime admission stops before target lowering",
         )?,
     };
@@ -126,16 +127,100 @@ pub fn compile_with_validators(
 }
 
 impl Program<'_> {
-    fn into_authorized_psi(self) -> Result<AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    fn profile(&self) -> target::TargetProfile {
         match self {
-            Self::Psi(authorized) => Ok(authorized),
-            Self::Source(source) => {
-                let published = source_to_psi::compile(source)?;
-                // Trust applies only to the checked output this invocation just produced.
-                let compiler = HostProducerTrust::accept("current compiler invocation");
-                authorize_terminal_artifact(published, Some(&compiler))
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+            Self::Psi { target, .. } => target.profile,
+            Self::Source { target, .. } => target.profile,
+        }
+    }
+
+    fn application(&self) -> &target::NativeApplicationMetadata {
+        match self {
+            Self::Psi { target, .. } => &target.application,
+            Self::Source { target, .. } => &target.settings.application,
+        }
+    }
+
+    fn prepare(self) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
+        match self {
+            Self::Psi { program, target } => {
+                native_compiler::prepare_saved_program(program, target)
+            }
+            Self::Source { source, target } => {
+                let publication =
+                    source_to_psi::compile_for_target(source, target.profile.target_name())?;
+                target.prepare(publication)
             }
         }
+    }
+}
+
+impl SourceNativeTarget<'_> {
+    fn prepare(
+        self,
+        publication: source_compiler::PublishedTargetProgram,
+    ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
+        use provider_demand::{
+            IssuedProviderDemand, PackageReviewRequirements, ProviderDemandInputs,
+        };
+        use source_compiler::provider_supply::SourceProviderDemand;
+        use std::sync::Arc;
+
+        let (artifact, demand) = publication.into_parts();
+        let SourceProviderDemand::Target {
+            closed,
+            labels,
+            bindings,
+            review,
+        } = demand
+        else {
+            return Err(vec![Diagnostic::error(
+                "source provider demand lost its selected deployment",
+            )]);
+        };
+        let producer = HostProducerTrust::accept("current compiler invocation");
+        let authorized = authorize_terminal_artifact(Arc::clone(&artifact), Some(&producer))
+            .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        let manifest = artifact.manifest().identity();
+        let has_bound_applications = artifact
+            .publication_metadata()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "checked source lost its publication metadata",
+                )]
+            })?
+            .has_bound_applications();
+        let inputs = host_provider_inputs::ProviderInstallationInputs {
+            bindings,
+            package_permissions: self.package_permissions,
+            semantic_bindings: self.semantic_bindings,
+        };
+        let origins = host_provider_inputs::ProviderExecutionOrigins::from_inputs(
+            artifact,
+            self.profile,
+            inputs,
+        );
+        let (logical, bodies) = closed.into_parts();
+        let issued = IssuedProviderDemand::issue(
+            manifest,
+            ProviderDemandInputs::Target {
+                profile: self.profile,
+                logical,
+                bodies,
+                has_bound_applications,
+                origins,
+                labels,
+                review: review.map(|requirements| PackageReviewRequirements {
+                    numeric: requirements.numeric,
+                    bindings: requirements.bindings,
+                }),
+            },
+        );
+        native_compiler::prepare_issued_program(
+            authorized,
+            issued,
+            self.settings,
+            self.installation_assumptions,
+        )
     }
 }

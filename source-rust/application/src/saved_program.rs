@@ -161,16 +161,14 @@ pub(crate) fn prepare(
             .admit_for(Some(profile))
             .map_err(|reason| vec![Diagnostic::error(reason)])?,
     };
-    let program = Program::Psi(program);
+    let program = Program::Psi { program, target };
     let request = match requested {
         ExecutionProduct::Native => CompileRequest::Native {
             program,
-            target,
             entry_memory,
         },
         ExecutionProduct::Runtime => CompileRequest::Runtime {
             program,
-            target,
             entry_memory,
         },
     };

@@ -8,11 +8,11 @@ pub mod stage_validators;
 pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstallation};
 pub use native_artifact::AdmittedRuntimeProgram;
 pub use pipeline::prepare::published_application::{
-    NativeApplicationSettings, SavedProgramTarget, prepare_issued_program,
+    NativeApplicationSettings, SavedProgramTarget, prepare_issued_program, prepare_saved_program,
 };
 
 use diagnostics::Diagnostic;
-use pipeline::prepare::published_application::{complete_entry_scalars, prepare_saved_program};
+use pipeline::prepare::published_application::complete_entry_scalars;
 use pipeline::request::NativeCompileRequest;
 use provider_admission::current_terminal_authority_policy;
 use psi_authorization::AuthorizedTerminalArtifact;

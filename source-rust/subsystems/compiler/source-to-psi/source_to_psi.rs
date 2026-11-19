@@ -30,6 +30,40 @@ pub struct StageSource<'a> {
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    publish_stage(source).map(|(artifact, _)| artifact)
+}
+
+/// Source choices for one deployment, judged by the same stage that published the Psi.
+pub struct PublishedTargetProgram {
+    artifact: PublishedPsi,
+    demand: provider_supply::SourceProviderDemand,
+}
+
+impl PublishedTargetProgram {
+    pub fn into_parts(self) -> (PublishedPsi, provider_supply::SourceProviderDemand) {
+        (self.artifact, self.demand)
+    }
+}
+
+pub fn compile_for_target(
+    source: StageSource<'_>,
+    target: &str,
+) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
+    if !source.selections.calling_targets.contains(&target) {
+        return Err(vec![Diagnostic::error(format!(
+            "source program did not select deployment target `{target}`"
+        ))]);
+    }
+    let (artifact, checked) = publish_stage(source)?;
+    let demand = checked
+        .prepare_provider_demand(target)?
+        .receive(checked.terminal_publication(), Some(target))?;
+    Ok(PublishedTargetProgram { artifact, demand })
+}
+
+fn publish_stage(
+    source: StageSource<'_>,
+) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
     let mut observer = UnmeasuredProduction;
     let parsed = lex_and_parse(&source, &mut observer)?;
     let PreparedSource { typed, mut accounting } = parsed.resolve_and_type(&mut observer)?;
@@ -46,7 +80,7 @@ pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>>
     let psi = checked.terminal_publication.publish(
         &optimizations, source.declaration_authority, &mut observer,
     )?;
-    Ok(Arc::clone(psi.artifact()))
+    Ok((Arc::clone(psi.artifact()), checked))
 }
 
 fn lex_and_parse(
