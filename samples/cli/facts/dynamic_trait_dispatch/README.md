@@ -28,13 +28,15 @@ its arguments, including the mutable output, stay explicit under
 [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 and [named implementations](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent).
 
-## Local machine-value migration
+## Machine values in the root and local programs
 
-The local program stores `UnitCombine::combine` and
+The root and local programs store `UnitCombine::combine` and
 `OtherCombine::combine` as machine values with the same input and result
 contracts. `probe` declares `invokes selected` because it calls its argument
 through a local alias. The invalid local program still passes 39 to a callable
-that requires 40. The root and other places still use the older syntax.
+that requires 40. The sample gate passes the root's own source files to the
+compiler and checks each nested project separately. The other places still
+use the older syntax.
 
 ## Places and controls
 
