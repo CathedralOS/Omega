@@ -7,13 +7,13 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub(crate) struct Domains<'a> {
-    entries: HashMap<&'a DeclarationId, Domain<'a>>,
+    entries: HashMap<&'a DeclarationId, Domain>,
     paths: HashMap<(&'a str, &'a str), &'a DeclarationId>,
 }
-struct Domain<'a> {
+struct Domain {
     carrier: ValueType,
     indices: usize,
-    alias: Vec<&'a DeclarationId>,
+    alias: Vec<DomainApplication>,
 }
 
 impl<'a> ResolvedSourceFile<'a> {
@@ -89,10 +89,16 @@ impl<'a> ResolvedSourceFile<'a> {
                 continue;
             }
             match f.nodes[d].kind {
-                NodeKind::PathType => alias.push(self.domain(d)?),
+                NodeKind::PathType => alias.push(self.checked_domain_application(d, types)?),
                 NodeKind::Requires | NodeKind::DroppedBy | NodeKind::Access => {}
                 _ => return Err(TypeError::unsupported(f, d)),
             }
+        }
+        if !alias.is_empty()
+            && types.arities[id] != indices
+            && !(indices == 0 && types.arities[id] == 1 && matches!(&carrier, ValueType::Parameter { owner, index: 0 } if owner.as_ref() == id))
+        {
+            return Err(TypeError::at(f, head, "indexed domain alias requires its complete binder tuple"));
         }
         types
             .domains
@@ -144,26 +150,29 @@ impl Domains<'_> {
         application: &DomainApplication,
         carrier: &ValueType,
         ancestors: bool,
+        mut normalize: impl FnMut(&mut DomainApplication) -> Result<(), String>,
     ) -> Result<Vec<DomainApplication>, String> {
-        let id = &application.declaration;
-        if application.arguments.len() != self.index_arity(id) {
-            return Err("incorrect indexed domain arity".into());
-        }
         let mut atoms = Vec::new();
         // Exit markers distinguish shared subgraphs from a cyclic alias.
-        let mut pending = vec![(id, false)];
+        let mut pending = vec![(application.clone(), false)];
         let mut active = HashSet::new();
         let mut done = HashSet::new();
-        while let Some((id, exit)) = pending.pop() {
+        while let Some((mut app, exit)) = pending.pop() {
             if exit {
-                active.remove(id);
-                done.insert(id);
+                active.remove(&app.declaration);
+                done.insert(app);
                 continue;
             }
-            if done.contains(id) {
+            let id = &app.declaration;
+            if app.arguments.len() != self.index_arity(id) {
+                return Err("incorrect indexed domain arity".into());
+            }
+            normalize(&mut app)?;
+            if done.contains(&app) {
                 continue;
             }
-            if !active.insert(id) {
+            let id = &app.declaration;
+            if !active.insert(id.clone()) {
                 return Err(format!("cyclic domain alias {}", id.path));
             }
             let info = self
@@ -173,21 +182,30 @@ impl Domains<'_> {
             if !self.admits(id, carrier) {
                 return Err(format!("domain {} belongs to {}, found {carrier}", id.path, info.carrier));
             }
-            pending.push((id, true));
-            if info.alias.is_empty() {
-                atoms.push(DomainApplication {
-                    declaration: id.clone(),
-                    arguments: if id == &application.declaration {
-                        application.arguments.clone()
-                    } else {
-                        Vec::new()
-                    },
-                });
-            } else {
-                pending.extend(info.alias.iter().map(|a| (*a, false)));
-            }
+            pending.push((app.clone(), true));
             if ancestors && let Some(parent) = self.parent_domain(id) {
-                pending.push((parent, false));
+                pending.push((
+                    DomainApplication {
+                        declaration: parent.clone(),
+                        arguments: Vec::new(),
+                    },
+                    false,
+                ));
+            }
+            if info.alias.is_empty() {
+                atoms.push(app);
+            } else {
+                // A carrier-generic alias takes its sole binder from the subject.
+                let arguments = if matches!(&info.carrier, ValueType::Parameter { owner, index: 0 } if owner.as_ref() == id) {
+                    std::slice::from_ref(carrier)
+                } else {
+                    app.arguments.as_slice()
+                };
+                pending.extend(
+                    info.alias
+                        .iter()
+                        .map(|term| (term.substitute(id, arguments), false)),
+                );
             }
         }
         Ok(atoms)
