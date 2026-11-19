@@ -1,0 +1,3 @@
+// A generic argument that starts `name in` is read as a qualified type. A value there is written in parentheses.
+machine f(a: Check<x in D && ready>) {
+}

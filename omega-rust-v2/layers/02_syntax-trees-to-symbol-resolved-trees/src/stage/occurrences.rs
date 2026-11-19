@@ -17,6 +17,8 @@ impl Catalog<'_> {
     ) -> Result<(), NameError> {
         use NodeKind::*;
         let mut argument_roles = HashMap::new();
+        // Domains of a qualified generic argument read as the membership test it denotes under a value binder.
+        let mut membership_domains = BTreeSet::new();
         let mut overload_roles = HashMap::<usize, Vec<(usize, Option<super::GenericBinder>)>>::new();
         let mut application_bases = HashMap::new();
         let mut type_operands = BTreeSet::new();
@@ -141,10 +143,11 @@ impl Catalog<'_> {
             let last = node.words().next_back().unwrap_or(first);
             let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
             let parent = node.parent.map(|p| file.nodes[p].kind);
-            let membership_target = node.parent.is_some_and(|p| {
-                let binary = &file.nodes[p];
-                binary.kind == Binary && binary.children.get(1) == Some(&n) && binary.leaves.iter().any(|leaf| leaf.text == "in")
-            });
+            let membership_target = membership_domains.contains(&n)
+                || node.parent.is_some_and(|p| {
+                    let binary = &file.nodes[p];
+                    binary.kind == Binary && binary.children.get(1) == Some(&n) && binary.leaves.iter().any(|leaf| leaf.text == "in")
+                });
             let ty = argument_roles
                 .get(&n)
                 .copied()
@@ -384,6 +387,13 @@ impl Catalog<'_> {
                         application_bases.insert(arg_list, index);
                     }
                     for (position, &argument) in file.nodes[arg_list].children.iter().enumerate() {
+                        // `Box<u8 in P>` and `Check<N in P>` share one tree. The binder's role
+                        // belongs to its head: a type binder reads a qualified type, and a value
+                        // binder reads the membership test `N in P`.
+                        let (argument, domains) = match file.nodes[argument].children.split_first() {
+                            Some((&head, domains)) if file.nodes[argument].kind == QualifiedType => (head, domains),
+                            _ => (argument, &[][..]),
+                        };
                         let role = |i: usize| {
                             self.entries[i]
                                 .generic_roles
@@ -401,6 +411,12 @@ impl Catalog<'_> {
                             );
                         } else if let Some(expected) = expected {
                             argument_roles.insert(argument, expected);
+                            if !expected {
+                                for &domain in domains {
+                                    argument_roles.insert(domain, false);
+                                    membership_domains.insert(domain);
+                                }
+                            }
                         }
                     }
                 }

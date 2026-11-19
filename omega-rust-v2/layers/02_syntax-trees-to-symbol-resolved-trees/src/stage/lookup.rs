@@ -266,8 +266,10 @@ impl Catalog<'_> {
         membership_target: bool,
     ) -> Vec<usize> {
         let parent = file.nodes[node].parent.map(|p| &file.nodes[p]);
+        // A membership test names its domain without a carrier, even when it is written as a
+        // qualified generic argument under a value binder.
         let implicit_carrier = parent
-            .filter(|p| p.kind == NodeKind::QualifiedType && p.children.first() != Some(&node))
+            .filter(|p| !membership_target && p.kind == NodeKind::QualifiedType && p.children.first() != Some(&node))
             .map(|p| file.nodes[p.children[0]].path());
         let domain_position = implicit_carrier.is_some() || parent.is_some_and(|p| p.kind == NodeKind::CastEntry) || membership_target;
         if !domain_position && !path.contains("::") {
