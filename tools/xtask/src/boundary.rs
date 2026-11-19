@@ -530,6 +530,7 @@ pub fn dependency_violations(
 pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     const SOURCE: &str = "source-rust/subsystems/compiler/source-to-psi";
     const FORMAT: &str = "source-rust/subsystems/compiler/psi";
+    const BUILD: &str = "source-rust/subsystems/compiler/build";
     const NATIVE: &str = native_stages::DRIVER;
 
     let root = Path::new(&metadata.workspace_root);
@@ -559,7 +560,7 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
     }
     for (owner, forbidden) in [
         (SOURCE, &[NATIVE][..]),
-        (FORMAT, &[SOURCE, NATIVE][..]),
+        (FORMAT, &[SOURCE, NATIVE, BUILD][..]),
         (NATIVE, &[SOURCE][..]),
     ] {
         let mut pending = VecDeque::new();
@@ -582,7 +583,7 @@ pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>
                     .get(next)
                     .map_or(next.as_str(), |name| name.as_str());
                 let chain = format!("{chain} -> {next_name}");
-                if under(next, forbidden) {
+                if under(next, forbidden) || (owner == FORMAT && next == PRODUCT_COORDINATOR) {
                     violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
                 } else {
                     pending.push_back((next, chain));
@@ -1056,6 +1057,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let rules = forbidden_rules();
         violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
         violations.extend(stale_allowance_violations(&metadata, &rules)?);
+        violations.extend(pipeline_dependency_violations(&metadata)?);
         if ownership_only {
             return Ok(violations);
         }
@@ -1105,7 +1107,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
         )?);
-        violations.extend(pipeline_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
@@ -1894,6 +1895,30 @@ mod tests {
             );
         }
         assert_eq!(violations.len(), 4);
+    }
+
+    #[test]
+    fn psi_record_readers_do_not_reach_project_build_or_the_compiler_facade() {
+        let psi = "source-rust/subsystems/compiler/psi";
+        let build = "source-rust/subsystems/compiler/build/evaluation/receipts";
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg("psi", psi, &[]),
+                pkg("codec", &format!("{psi}/codec"), &[("psi", psi, None)]),
+                pkg("authorized", &format!("{psi}/authorization"), &[("codec", &format!("{psi}/codec"), None)]),
+                pkg("providers", &format!("{psi}/providers"), &[("helper", "shared/helper", None)]),
+                pkg("helper", "shared/helper", &[("facade", PRODUCT_COORDINATOR, None), ("receipts", build, Some("build"))]),
+                pkg("facade", PRODUCT_COORDINATOR, &[]),
+                pkg("receipts", build, &[]),
+                pkg("source", SOURCE_COMPILER, &[]),
+                pkg("native", native_stages::DRIVER, &[]),
+            ],
+        };
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(violations.iter().any(|row| row.contains("providers -> helper -> facade")));
+        assert!(violations.iter().any(|row| row.contains("providers -> helper -> receipts")));
     }
 
     #[test]
