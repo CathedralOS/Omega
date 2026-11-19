@@ -180,7 +180,7 @@ fn windows_canonicalize_receiver() {
                 &leaf.plan,
                 matches!(
                     leaf.execution,
-                    backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                    direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(
                         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                     ))
                 ),

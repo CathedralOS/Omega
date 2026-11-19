@@ -91,7 +91,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         if leaf.plan.target != target_name
             || !matches!(
                 leaf.execution,
-                backend_plan::DirectBoundaryExecution::Intrinsic(Some(
+                direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(Some(
                     native_intrinsics::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
                 ))
             )

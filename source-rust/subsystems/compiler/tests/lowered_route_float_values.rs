@@ -535,12 +535,12 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
             let executions = selection.plans().iter().map(|plan| {
                 let leaf = leaves.iter().find(|leaf| leaf.plan == *plan).unwrap();
-                let backend_plan::DirectBoundaryExecution::Intrinsic(execution) = leaf.execution else { panic!("numeric leaf needs an intrinsic") };
+                let direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(execution) = leaf.execution else { panic!("numeric leaf needs an intrinsic") };
                 vec![execution]
             }).collect::<Vec<_>>();
             let demands = module.boundary_machines.iter().map(|boundary|
                 module.identities.text(boundary.identity).unwrap().to_owned()).collect();
-            let settle = |direct: &[backend_plan::DirectBoundaryLeaf]| {
+            let settle = |direct: &[direct_boundary_bindings::DirectBoundaryLeaf]| {
                 provider_admission::provider_admission::derive_selected_intrinsic_settlement_proposals(
                     &selection, selection.plans().iter().zip(&executions).map(|(plan, row_executions)|
                         provider_correspondence::CompilerIntrinsicPlanProvenance { plan, semantic_schema: &plan.schema, row_executions }),

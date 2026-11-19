@@ -143,7 +143,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
     module: &terminal_psi::TerminalModule,
-    direct_leaves: &[backend_plan::DirectBoundaryLeaf],
+    direct_leaves: &[direct_boundary_bindings::DirectBoundaryLeaf],
 ) -> Result<Vec<TerminalCompilerBuiltinProposal>, Vec<Diagnostic>> {
     let boundaries = &module.boundary_machines;
     let external_providers = &module.external_providers;
@@ -252,7 +252,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             leaf.validate_bound_calling_custody(module).and_then(|()| {
                 if &leaf.satisfied_schema != selected_row.semantic_schema
                     || leaf.execution
-                        != backend_plan::DirectBoundaryExecution::Intrinsic(selected_row.execution)
+                        != direct_boundary_bindings::DirectBoundaryExecution::Intrinsic(selected_row.execution)
                 {
                     return Err(
                         "direct callable settlement changes its retained schema or execution"

@@ -3,14 +3,14 @@
 // complete checked promise together with the selected Build locator receipt.
 
 use super::TrustAdmission;
-use declaration_contracts::selection::AuthoredRootGrant;
-use declaration_contracts::selection::RootGrantSubject;
 use declaration_contracts::trust_declarations::{
     AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality,
     TrustDeclarations,
 };
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
+use symbols::root_grants::AuthoredRootGrant;
+use symbols::root_grants::RootGrantSubject;
 
 enum PreparedTrustIdentity {
     ProviderPlan {
@@ -59,7 +59,7 @@ pub fn reconstruct_trust_obligations(
     root_grants: &[AuthoredRootGrant],
     provider_plans: &[&provider_plans::ProviderPlan],
     selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
-    native_grants: &[Result<backend_plan::NativeRequirementTrust, String>],
+    native_grants: &[Result<direct_boundary_bindings::NativeRequirementTrust, String>],
     policy: RootTrustPolicy,
 ) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {
     let mut rows = Vec::<PreparedTrustObligation>::new();

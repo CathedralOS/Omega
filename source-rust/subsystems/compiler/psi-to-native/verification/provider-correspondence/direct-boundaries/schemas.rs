@@ -2,12 +2,10 @@
 //! module. A direct primitive does not require an unrelated selected provider
 //! just to recover that contract's nominal result and progress information.
 
-use declaration_contracts::service_surface::{
-    ServiceReceiverApplication, ServiceSynchronousInvocation,
-};
-use effects::provider_plan::{ServiceMethod, ServiceSchema, ServiceSurface};
 use language_core::sealed_intrinsics::HostedOperation;
+use provider_plans::{ServiceMethod, ServiceSchema, ServiceSurface};
 use semantic_vocabulary::BoundaryMachineId;
+use service_surface::{ServiceReceiverApplication, ServiceSynchronousInvocation};
 use terminal_psi::{CheckedBoundaryExecution, TerminalCallableInvocation, TerminalModule};
 
 /// Project the complete supported hosted requirement, preserving declared type
@@ -165,7 +163,7 @@ fn requirement_schema(
         requirement_owner: owner.into(),
         requirement_identity,
         parameter_count: boundary.parameter_order.len(),
-        declared_type_signature: declaration_contracts::service_surface::declared_type_signature(
+        declared_type_signature: service_surface::declared_type_signature(
             declaration
                 .source
                 .parameter_types

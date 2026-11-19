@@ -7,7 +7,7 @@ use diagnostics::Diagnostic;
 use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
-    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
+    pub direct_boundary_leaves: Vec<direct_boundary_bindings::DirectBoundaryLeaf>,
     pub native_bindings: native_binding_admission::RetainedNativeBindings,
     pub selection: selected_provider_plans::SelectedProviderPlanFacts,
     pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
@@ -173,7 +173,7 @@ mod proposal {
     pub struct TerminalNativeProposalRequest<'input> {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
         pub native_bindings: &'input [native_binding_admission::NativeBindingInput<'input>],
-        pub direct_boundary_leaves: Vec<&'input backend_plan::DirectBoundaryLeaf>,
+        pub direct_boundary_leaves: Vec<&'input direct_boundary_bindings::DirectBoundaryLeaf>,
         pub target_profile: Option<target::TargetProfile>,
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
         pub native_target: Option<target::NativeTarget>,
@@ -401,8 +401,8 @@ mod proposal {
 
     fn bind_direct_boundary_leaves(
         module: &terminal_psi::TerminalModule,
-        candidates: &[&backend_plan::DirectBoundaryLeaf],
-    ) -> Result<Vec<backend_plan::DirectBoundaryLeaf>, Vec<Diagnostic>> {
+        candidates: &[&direct_boundary_bindings::DirectBoundaryLeaf],
+    ) -> Result<Vec<direct_boundary_bindings::DirectBoundaryLeaf>, Vec<Diagnostic>> {
         let mut bound = Vec::new();
         for candidate in candidates {
             let mut leaf = (*candidate).clone();

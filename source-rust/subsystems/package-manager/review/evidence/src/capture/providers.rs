@@ -1116,7 +1116,7 @@ impl PolicySource<'_> {
             signature.return_type,
         )?;
         if !declaration.method_arguments.is_empty() {
-            let abi = backend_plan::DirectBoundaryLeaf::declared_calling_abi(
+            let abi = direct_boundary_bindings::DirectBoundaryLeaf::declared_calling_abi(
                 declarations.accepted.module(),
                 boundary.id,
             )

@@ -5,7 +5,7 @@ pub struct SelectedTrustEvidence<'a> {
     pub program: terminal_psi::TerminalPsiIdentity,
     pub target: Option<&'a str>,
     pub plans: &'a selected_provider_plans::SelectedProviderPlanFacts,
-    pub leaves: &'a [backend_plan::DirectBoundaryLeaf],
+    pub leaves: &'a [direct_boundary_bindings::DirectBoundaryLeaf],
     pub bindings: &'a [provider_plans::EvaluatedNativeBinding],
     pub identities: &'a terminal_psi::TerminalIdentityTable,
 }
@@ -14,7 +14,7 @@ impl SelectedTrustEvidence<'_> {
     pub fn admit_root_grants(
         &self,
         declarations: &declaration_contracts::trust_declarations::TrustDeclarations,
-        grants: &[declaration_contracts::selection::AuthoredRootGrant],
+        grants: &[symbols::root_grants::AuthoredRootGrant],
         policy: super::RootTrustPolicy,
         artifact: Option<terminal_codec::TerminalArtifactView<'_>>,
     ) -> Result<Vec<super::TrustAdmission>, Vec<Diagnostic>> {
@@ -32,10 +32,13 @@ impl SelectedTrustEvidence<'_> {
 
     fn native_grant_evidence(
         &self,
-        grants: &[declaration_contracts::selection::AuthoredRootGrant],
+        grants: &[symbols::root_grants::AuthoredRootGrant],
         artifact: Option<terminal_codec::TerminalArtifactView<'_>>,
-    ) -> Result<Vec<Result<backend_plan::NativeRequirementTrust, String>>, Vec<Diagnostic>> {
-        use declaration_contracts::selection::RootGrantSubject;
+    ) -> Result<
+        Vec<Result<direct_boundary_bindings::NativeRequirementTrust, String>>,
+        Vec<Diagnostic>,
+    > {
+        use symbols::root_grants::RootGrantSubject;
         let requests = grants
             .iter()
             .filter_map(|grant| {
@@ -53,7 +56,7 @@ impl SelectedTrustEvidence<'_> {
             return Ok(Vec::new());
         }
         let mut leaves = self.leaves.iter().collect::<Vec<_>>();
-        fn key(leaf: &backend_plan::DirectBoundaryLeaf) -> (&str, &str) {
+        fn key(leaf: &direct_boundary_bindings::DirectBoundaryLeaf) -> (&str, &str) {
             (&leaf.declaration_identity, &leaf.callable_identity)
         }
         leaves.sort_unstable_by(|left, right| key(left).cmp(&key(right)));
