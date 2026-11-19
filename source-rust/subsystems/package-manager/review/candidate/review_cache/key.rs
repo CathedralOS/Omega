@@ -109,7 +109,7 @@ pub(super) fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 
 mod tests {
     use super::{compiled_review_key, compiled_review_key_with_identity};
     use crate::declarations::DependencyPurpose;
-    use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+    use package_compilation::{BuildSnapshotRequest, PackageCompilationInputs, PackageSourceBinding};
     use semantic_vocabulary::PackageKeyIdentity;
     use std::path::{Path, PathBuf};
 
