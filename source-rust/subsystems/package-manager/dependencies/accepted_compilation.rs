@@ -17,6 +17,7 @@ package build session.
 */
 
 use crate::declarations::BuildDeclarationKind;
+use build_evaluation_result::CompileFailure;
 use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::iter::empty;
 #[path = "accepted_compilation_identity.rs"]
@@ -41,6 +42,7 @@ use compiler::{
 };
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
+use package_compilation::build_execution::RestrictedBuildGrants;
 use std::path::Path;
 
 type Error = CompileResolvedPackageReviewsError;
@@ -59,7 +61,7 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::new(
         crate::review::CompileResolvedPackageReviewCause::Compilation {
             package: package.clone(),
-            failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(message.into())]),
+            failure: CompileFailure::Diagnostics(vec![Diagnostic::error(message.into())]),
         },
     )
 }
@@ -206,10 +208,7 @@ impl ProjectCompilationAdmissionRequest<'_> {
         self.refuse_compilation(vec![Diagnostic::error(reason)].into())
     }
 
-    pub fn refuse_compilation(
-        self,
-        refused: products::CompileFailure,
-    ) -> Vec<ProjectCompilationOutcome> {
+    pub fn refuse_compilation(self, refused: CompileFailure) -> Vec<ProjectCompilationOutcome> {
         let accounting = refused
             .source_completion_accounting()
             .cloned()
@@ -686,7 +685,7 @@ fn prepare_occurrences(
                         key.identity(),
                         context,
                         closure.dependency_path(&key),
-                    )) as Box<dyn compiler::RestrictedBuildGrants>
+                    )) as Box<dyn RestrictedBuildGrants>
                 }),
                 // Each occurrence is the root of its own scope. A consumer
                 // compile product-checks only the root occurrence and the

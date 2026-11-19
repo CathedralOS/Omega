@@ -17,6 +17,7 @@ session disposal removes the private directory before any checked result can
 escape.
 */
 
+use source_completion_accounting::SourceCompletionAccounting;
 use std::iter::empty;
 use std::process::id;
 mod bindings;
@@ -52,7 +53,7 @@ pub struct PackageBuildSession {
     evaluation_sponsor: BuildEvaluationSponsor,
     next_occurrence: u64,
     active: bool,
-    source_completion_accounting: products::SourceCompletionAccounting,
+    source_completion_accounting: SourceCompletionAccounting,
 }
 
 impl std::fmt::Debug for PackageBuildSession {
@@ -268,11 +269,11 @@ impl PackageBuildSession {
 
     /// Retain actual occurrences before a coordinator drops its source/result.
     /// Shared histories join once; independent invocations remain separate costs.
-    pub fn record_source_completion(&mut self, accounting: products::SourceCompletionAccounting) {
+    pub fn record_source_completion(&mut self, accounting: SourceCompletionAccounting) {
         self.source_completion_accounting.append(accounting);
     }
 
-    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 

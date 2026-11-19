@@ -15,13 +15,14 @@ use crate::lock::PackageCheckedContext;
 use crate::resolution::graph::DependencyRequestPath;
 use crate::resolution::source::PackageSourceSelectionEvidenceError;
 use crate::review::restricted_build_grants::UngrantedRestrictedBuildRequest;
+use build_evaluation_result::CompileFailure;
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemSponsorError;
 use package_compilation::{BuildDeclarationKind, PackageCompilationInputError};
 use provider_acceptance::AcceptedSemanticBindingRole;
-use products::CompileFailure;
 use review_evidence::encoding::PackageReviewEncodingError;
 use source_acquisition::SourceResolveError;
+use source_completion_accounting::SourceCompletionAccounting;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
@@ -129,7 +130,7 @@ pub enum CompileResolvedPackageReviewCause {
 #[derive(Debug)]
 pub struct CompileResolvedPackageReviewsError {
     pub cause: CompileResolvedPackageReviewCause,
-    accounting: products::SourceCompletionAccounting,
+    accounting: SourceCompletionAccounting,
 }
 
 impl CompileResolvedPackageReviewsError {
@@ -144,22 +145,19 @@ impl CompileResolvedPackageReviewsError {
         Self { cause, accounting }
     }
 
-    pub fn source_completion_accounting(&self) -> Option<&products::SourceCompletionAccounting> {
+    pub fn source_completion_accounting(&self) -> Option<&SourceCompletionAccounting> {
         (!self.accounting.receipts().is_empty()).then_some(&self.accounting)
     }
 
     pub fn with_source_completion_accounting(
         mut self,
-        accounting: products::SourceCompletionAccounting,
+        accounting: SourceCompletionAccounting,
     ) -> Self {
         self.append_source_completion_accounting(accounting);
         self
     }
 
-    pub fn append_source_completion_accounting(
-        &mut self,
-        accounting: products::SourceCompletionAccounting,
-    ) {
+    pub fn append_source_completion_accounting(&mut self, accounting: SourceCompletionAccounting) {
         self.accounting.append(accounting);
     }
 
@@ -382,7 +380,13 @@ impl CompileResolvedPackageReviewsError {
             CompileResolvedPackageReviewCause::Projection {
                 package,
                 diagnostics,
-            } => render_package_diagnostics(formatter, "review projection", package, diagnostics, render),
+            } => render_package_diagnostics(
+                formatter,
+                "review projection",
+                package,
+                diagnostics,
+                render,
+            ),
             CompileResolvedPackageReviewCause::Encoding { package, error, .. } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",
