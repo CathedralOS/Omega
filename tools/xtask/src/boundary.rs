@@ -1048,9 +1048,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         )?);
         violations.extend(call_violations(
             &root,
-            &[".bind_target_reach("],
+            &["bind_target_reach"],
             &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
-            &[],
+            &[(
+                "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
+                "pub fn bind_target_reach(",
+            )],
             "stage 01 issues reachability before a native body can be lowered",
         ));
         violations.extend(plan_validator_call_violations(&root));
