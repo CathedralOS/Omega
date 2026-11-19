@@ -1,5 +1,6 @@
 [package]
 name = "compiler"
+build = "build_identity.rs"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -19,6 +20,9 @@ source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
+
+[build-dependencies]
+wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
 provider-acceptance = { path = "build/providers/acceptance" }

@@ -30,7 +30,7 @@ artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/build-declarations" }
 build-settings = { path = "../compiler/build/build-settings" }
 build-output = { path = "../compiler/build/build-output" }
-compiler = { path = "../../compilation/compiler" }
+compiler = { path = "../compiler" }
 products = { path = "../../compilation/products" }
 review-evidence = { path = "review/evidence" }
 source-acquisition = { path = "source-acquisition" }
