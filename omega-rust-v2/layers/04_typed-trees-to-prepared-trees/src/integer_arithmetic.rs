@@ -39,11 +39,17 @@ impl IntegerRange {
             "+" | "+%" | "+|" => (left + right, "exact addition exceeds its selected integer carrier"),
             "-" | "-%" | "-|" => (left - right, "exact subtraction exceeds its selected integer carrier"),
             "*" | "*%" | "*|" => (left * right, "exact multiplication exceeds its selected integer carrier"),
-            "/" | "/%" | "/|" | "%" | "%%" | "%|" => {
+            "/" | "/!" | "/%" | "/|" | "%" | "%!" | "%%" | "%|" => {
+                if right.sign() == Sign::NoSign && token.ends_with('!') {
+                    return Err("a zero divisor leaves the selected Trap route possible");
+                }
                 if right.sign() == Sign::NoSign {
                     return Err("integer division or remainder requires a nonzero divisor");
                 }
                 let quotient = &left / &right;
+                if token.ends_with('!') && !self.fits(&quotient) {
+                    return Err("an unrepresentable quotient leaves the selected Trap route possible");
+                }
                 if token.starts_with('%') {
                     // Exact remainder also requires the common quotient to fit.
                     if token == "%" && !self.fits(&quotient) {

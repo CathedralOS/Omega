@@ -214,6 +214,20 @@ impl IntegerEvaluation<'_, '_> {
         let signature = self
             .signature(&call.machine)
             .ok_or("the selected declaration has no typed signature")?;
+        if call.use_site == CallUse::Execution {
+            for record in request_tree.semantics_at(call.node.node) {
+                match record {
+                    NodeSemantics::Call(_) | NodeSemantics::Expression(_) => {}
+                    NodeSemantics::Obligation(obligation) if matches!(&obligation.kind, ObligationKind::CallPrecondition(target) if target == &call.machine) => {
+                    }
+                    // Each declared cause is checked against the bound operands
+                    // before the selected machine body can run.
+                    NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CrashCoverage { machine, cause } if call.caller.as_ref() == Some(machine) && signature.crash_ceiling.as_ref().is_some_and(|causes| causes.contains(cause))) =>
+                        {}
+                    _ => return Err(UNSUPPORTED_BODY.into()),
+                }
+            }
+        }
         let body_tree = self
             .trees
             .trees()
@@ -231,10 +245,6 @@ impl IntegerEvaluation<'_, '_> {
         if signature.has_guarantee
             || signature.satisfies.is_some()
             || signature.reach.as_ref().is_some_and(|reach| !reach.is_empty())
-            || signature
-                .crash_ceiling
-                .as_ref()
-                .is_some_and(|crashes| !crashes.is_empty())
             || signature.pause.suspend == Some(true)
             || signature.pause.block == Some(true)
             || &signature.result != carrier
@@ -288,6 +298,8 @@ impl IntegerEvaluation<'_, '_> {
             }
         }
 
+        self.check_crash_routes(signature, &body_tree, &bound)?;
+
         let body = file
             .child(declaration, NodeKind::Body)
             .ok_or(UNSUPPORTED_BODY)?;
@@ -314,6 +326,52 @@ impl IntegerEvaluation<'_, '_> {
             .map(CallResult::Value)
     }
 
+    fn check_crash_routes(
+        &self,
+        signature: &omega_typer::TypedSignature,
+        tree: &TypedTree<'_>,
+        scope: &Scope<'_>,
+    ) -> Result<(), EvaluationError> {
+        let causes = signature.crash_ceiling.as_deref().unwrap_or_default();
+        if causes.is_empty() {
+            return Ok(());
+        }
+        for cause in causes {
+            let mut routes = self
+                .trees
+                .crash_routes
+                .iter()
+                .filter(|route| route.contract == signature.site && route.cause == *cause)
+                .peekable();
+            if routes.peek().is_none() {
+                return Err("the selected crash cause has no typed route".into());
+            }
+            for route in routes {
+                if let Some(guard) = &route.guard {
+                    let obligation = self
+                        .trees
+                        .obligations
+                        .iter()
+                        .find(|obligation| {
+                            obligation.site == *guard
+                                && obligation.node.file == signature.node.file
+                                && matches!(obligation.kind, ObligationKind::TotalCrashGuard)
+                        })
+                        .ok_or("the selected crash guard has no typed predicate")?;
+                    if !self.integer_precondition(tree, obligation.node.node, scope)? {
+                        continue;
+                    }
+                }
+                return Err(match cause {
+                    omega_typer::CrashCause::Trap => "the selected Trap route remains possible for the supplied arguments",
+                    omega_typer::CrashCause::Abort => "the selected Abort route remains possible for the supplied arguments",
+                }
+                .into());
+            }
+        }
+        Ok(())
+    }
+
     fn integer_precondition(
         &self,
         tree: &TypedTree<'_>,
@@ -322,6 +380,13 @@ impl IntegerEvaluation<'_, '_> {
     ) -> Result<bool, EvaluationError> {
         let file = tree.resolved().file;
         let node = file.ungroup(predicate);
+        if let Some(Symbol::Builtin(name)) = tree.resolved().symbol(node) {
+            match name.as_str() {
+                "true" => return Ok(true),
+                "false" => return Ok(false),
+                _ => {}
+            }
+        }
         let [left, right] = *file.nodes[node].children.as_slice() else {
             return Err(UNSUPPORTED_CONTRACT.into());
         };
@@ -332,6 +397,7 @@ impl IntegerEvaluation<'_, '_> {
         for record in tree.semantics_at(node) {
             match record {
                 NodeSemantics::Operation(selected) if selected.result == ValueType::Bool && operation.is_none() => operation = Some(selected),
+                NodeSemantics::Obligation(o) if matches!(o.kind, ObligationKind::TotalCrashGuard) => {}
                 NodeSemantics::Expression(_) => {}
                 _ => return Err(UNSUPPORTED_CONTRACT.into()),
             }
@@ -518,16 +584,6 @@ fn selected_call<'a>(
             return Err("the request does not select one ordinary integer invocation".into());
         }
     }
-    if use_site == CallUse::Execution {
-        let call = selected.ok_or(UNSUPPORTED_BODY)?;
-        for record in tree.semantics_at(node) {
-            match record {
-                NodeSemantics::Call(_) | NodeSemantics::Expression(_) => {}
-                NodeSemantics::Obligation(obligation) if matches!(&obligation.kind, ObligationKind::CallPrecondition(target) if target == &call.machine) => {}
-                _ => return Err(UNSUPPORTED_BODY.into()),
-            }
-        }
-    }
     Ok(selected)
 }
 
@@ -538,6 +594,7 @@ fn selected_arithmetic<'a>(
 ) -> Result<&'a str, EvaluationError> {
     let same_carrier = |operands: &[ValueType]| matches!(operands, [left, right] if left == carrier && right == carrier);
     let mut operation = None;
+    let mut covers_trap = false;
     let mut contract = None;
     for record in tree.semantics_at(node) {
         match record {
@@ -545,6 +602,17 @@ fn selected_arithmetic<'a>(
                 if operation.replace(selected.token.as_str()).is_some() {
                     return Err(UNSUPPORTED_BODY.into());
                 }
+            }
+            NodeSemantics::Obligation(o)
+                if matches!(
+                    o.kind,
+                    ObligationKind::CrashCoverage {
+                        cause: omega_typer::CrashCause::Trap,
+                        ..
+                    }
+                ) =>
+            {
+                covers_trap = true;
             }
             NodeSemantics::Obligation(obligation) => {
                 let ObligationKind::OperationContract { token, operands } = &obligation.kind else {
@@ -559,7 +627,7 @@ fn selected_arithmetic<'a>(
         }
     }
     operation
-        .filter(|token| Some(*token) == contract)
+        .filter(|token| Some(*token) == contract && (!covers_trap || token.ends_with('!')))
         .ok_or_else(|| UNSUPPORTED_BODY.into())
 }
 

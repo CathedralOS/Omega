@@ -465,3 +465,73 @@ fn tail_cycle_detection_uses_declaration_identity_across_files() {
         }
     }
 }
+
+#[test]
+fn closed_crash_guards_use_the_selected_callees_entry_values() {
+    let definitions = "machine divide(n:u64,d:u64)->u64 crashes Trap (d == 0) {n /! d}
+                       machine width(d:u64)->u64{divide(12,d)}";
+    for callee in ["width", "divide"] {
+        let call = |divisor| {
+            if callee == "width" {
+                format!("width({divisor})")
+            } else {
+                format!("divide(12,{divisor})")
+            }
+        };
+        for extent in [true, false] {
+            let demand = |divisor| {
+                if extent {
+                    format!("machine carry(x:[u8; {}])->[u8;4]{{x}}", call(divisor))
+                } else {
+                    format!("const SIZE:u64={}; machine carry(x:[u8; SIZE])->[u8;4]{{x}}", call(divisor))
+                }
+            };
+            let pass = demand(3);
+            prepare_files([("guard.omg", definitions), ("use.omg", &pass)]).unwrap();
+            let fail = demand(0);
+            let error = prepare_files([("guard.omg", definitions), ("use.omg", &fail)]).unwrap_err();
+            let expected = "static evaluation cannot admit this invocation: the selected Trap route remains possible for the supplied arguments";
+            if callee == "width" {
+                assert_eq!(error.message, format!("{expected}\ncall chain: width -> divide"));
+                assert_eq!(error.file, "guard.omg");
+                assert_eq!(error.span.slice(definitions.as_bytes()), Some(b"divide(12,d)".as_slice()));
+            } else {
+                assert_eq!(error.message, expected);
+                assert_eq!(error.file, "use.omg");
+                assert_eq!(error.span.slice(fail.as_bytes()), Some(b"divide(12,0)".as_slice()));
+            }
+        }
+    }
+}
+
+#[test]
+fn every_crash_alternative_and_the_operation_itself_must_be_safe() {
+    let program = |routes, value| format!("machine f(n:i8)->i8 {routes} {{ 12i8 /! n }} const SIZE:i8=f({value});");
+    prepare(&program("crashes Trap false crashes Abort (n == 9)", "3")).unwrap();
+    for (routes, value, expected) in [
+        (
+            "crashes Trap false crashes Abort (n == 9)",
+            "9",
+            "the selected Abort route remains possible for the supplied arguments",
+        ),
+        (
+            "crashes Trap false crashes Trap (n == 9)",
+            "9",
+            "the selected Trap route remains possible for the supplied arguments",
+        ),
+        ("crashes Abort", "3", "the selected Abort route remains possible for the supplied arguments"),
+        ("crashes Trap true", "3", "the selected Trap route remains possible for the supplied arguments"),
+        ("crashes Trap false", "0", "a zero divisor leaves the selected Trap route possible"),
+    ] {
+        let source = program(routes, value);
+        let error = prepare(&source).unwrap_err();
+        assert_eq!(error.message, format!("static evaluation cannot admit this invocation: {expected}"));
+    }
+    for op in ["/!", "%!"] {
+        let source = format!("machine div(n:i8,d:i8)->i8 crashes Trap (d == 0) {{n {op} d}} const SIZE:i8=div(-128,-1);");
+        assert_eq!(
+            prepare(&source).unwrap_err().message,
+            "static evaluation cannot admit this invocation: an unrepresentable quotient leaves the selected Trap route possible"
+        );
+    }
+}
