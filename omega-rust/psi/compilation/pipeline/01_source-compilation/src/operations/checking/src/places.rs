@@ -7958,7 +7958,7 @@ mod observation_tests {
         let source = r#"
 data Placement requires count <= 16 { count: u64; }
 data Plan { placements: [Placement; 2]; }
-machine entry(plan: &mut Plan, index: u64) -> u64 requires index < 2 {
+machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
     let selected: u64 = index + 0;
     plan.placements[selected].count = 1;
     plan.placements[selected].count
@@ -8409,14 +8409,14 @@ machine entry(plan: &mut Plan, index: u64) -> u64 requires index < 2 {
     #[test]
     fn a_saved_slice_cannot_use_a_later_iterations_endpoints() {
         let source = r#"
-machine walk<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, first: bool) {
-    let fresh: &'a [u8] = bytes[0..count];
+machine walk<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, first: bool) {
+    let fresh: @'a [u8] = bytes[0..count];
     transition first {
         true -> inspect(bytes, fresh, count, fresh)
         false -> inspect(bytes, saved, count, fresh)
     }
 }
-machine inspect<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, fresh: &'a [u8]) {
+machine inspect<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, fresh: @'a [u8]) {
     let current: u64 = fresh.len;
     let previous: u64 = saved.len;
     transition count > 1 {
@@ -8427,7 +8427,7 @@ machine inspect<'a>(bytes: &'a [u8], saved: &'a [u8], count: u64, fresh: &'a [u8
 }
 machine entry() {
     let bytes: [u8; 3] = [11, 22, 33];
-    walk(&bytes[..], &bytes[..], 3, true);
+    walk(@bytes[..], @bytes[..], 3, true);
 }
 "#;
         let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(source);

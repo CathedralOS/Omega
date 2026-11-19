@@ -81,7 +81,7 @@ fn build(name: &str, expected_sum: &str, registration: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{
+            "machine build(builder: @mut Build) {{
     Build::application(builder, \"{name}\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {registration}

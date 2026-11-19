@@ -1,6 +1,6 @@
 // window_demo is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "window_demo");
     builder.identifier = "com.omega.window-demo";
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {

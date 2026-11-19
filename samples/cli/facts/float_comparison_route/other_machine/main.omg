@@ -2,12 +2,12 @@
 // Place: other_machine. Comparator::equal receives both operands through borrowed caller storage and compares them.
 // Expected exit: 0
 data Comparator { }
-machine Comparator::equal(comparator: &mut Comparator, left: f64, right: f64) -> bool {
+machine Comparator::equal(comparator: @mut Comparator, left: f64, right: f64) -> bool {
     left == right
 }
 machine main() crashes Trap {
     let mut comparator: Comparator;
-    let equal: bool = Comparator::equal(&mut comparator, 212.0, 2.0);
+    let equal: bool = Comparator::equal(@mut comparator, 212.0, 2.0);
     transition equal { true -> bad() _ -> done() }
     machine done() {}
     machine bad() { crash Trap; }

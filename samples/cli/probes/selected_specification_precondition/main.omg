@@ -18,7 +18,7 @@ ensures core::Identity<Nat>(selected_identity<Modulus>(value), value)
 
 machine zero_modulus(value: Nat) -> Nat terminates { Nat::Zero }
 data Main { }
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     identity<zero_modulus>(Nat::Zero);
     ProcessExit::exit_process(70);
 }
@@ -26,5 +26,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

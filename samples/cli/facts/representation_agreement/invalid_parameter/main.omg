@@ -176,30 +176,30 @@ data NoResources [copy] { }
 // The checker proves that a record is its own fields rebuilt, and that equal
 // fields rebuild equal records. Citing the first fact for both records gives
 // identity from field equality.
-machine pair_rebuilt<'value>(value: &'value Pair) reaches none terminates
+machine pair_rebuilt<'value>(value: @'value Pair) reaches none terminates
 ensures core::Identity<Pair>(value, Pair { first: value.first, last: value.last }) { }
-machine pair_same<'left, 'right>(left: &'left Pair, right: &'right Pair) reaches none terminates
+machine pair_same<'left, 'right>(left: @'left Pair, right: @'right Pair) reaches none terminates
 requires left.first == right.first
 requires left.last == right.last
 ensures core::Identity<Pair>(left, right) { pair_rebuilt(left); pair_rebuilt(right); }
 
 FirstModel satisfies RepresentationModel<Pair, FirstFrame> {
-    machine valid<'view>(frame: &'view FirstFrame) -> bool
+    machine valid<'view>(frame: @'view FirstFrame) -> bool
     reaches none terminates { frame.tag == 165u8 }
-    machine represents<'view, 'value>(frame: &'view FirstFrame, value: &'value Pair) -> bool
+    machine represents<'view, 'value>(frame: @'view FirstFrame, value: @'value Pair) -> bool
     reaches none terminates { frame.first == value.first && frame.last == value.last }
-    machine unique<'view, 'left, 'right>(frame: &'view FirstFrame, left: &'left Pair, right: &'right Pair)
+    machine unique<'view, 'left, 'right>(frame: @'view FirstFrame, left: @'left Pair, right: @'right Pair)
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
     ensures core::Identity<Pair>(left, right) { pair_same(left, right); }
 }
 SecondModel satisfies RepresentationModel<Pair, SecondFrame> {
-    machine valid<'view>(frame: &'view SecondFrame) -> bool
+    machine valid<'view>(frame: @'view SecondFrame) -> bool
     reaches none terminates { frame.tag == 90u8 }
-    machine represents<'view, 'value>(frame: &'view SecondFrame, value: &'value Pair) -> bool
+    machine represents<'view, 'value>(frame: @'view SecondFrame, value: @'value Pair) -> bool
     reaches none terminates { frame.first == value.last && frame.last == value.first }
-    machine unique<'view, 'left, 'right>(frame: &'view SecondFrame, left: &'left Pair, right: &'right Pair)
+    machine unique<'view, 'left, 'right>(frame: @'view SecondFrame, left: @'left Pair, right: @'right Pair)
     reaches none terminates
     requires represents(frame, left)
     requires represents(frame, right)
@@ -292,19 +292,19 @@ ensures result in Result::Err
         }
     }
 }
-StandardWriteFirst<'value> satisfies TryFrom<RepresentationRequest<&'value Pair, NoResources>, FirstFrame, Failure> {
-    machine try_from(source: RepresentationRequest<&'value Pair, NoResources>) -> Result<FirstFrame, Failure>
+StandardWriteFirst<'value> satisfies TryFrom<RepresentationRequest<@'value Pair, NoResources>, FirstFrame, Failure> {
+    machine try_from(source: RepresentationRequest<@'value Pair, NoResources>) -> Result<FirstFrame, Failure>
     reaches none terminates
     ensures result in Result::Ok
-    ensures FirstModel::valid(&result.value)
-    ensures FirstModel::represents(&result.value, source.value)
+    ensures FirstModel::valid(@result.value)
+    ensures FirstModel::represents(@result.value, source.value)
     { WriteFirst::try_from(Pair { first: source.value.first, last: source.value.last }) }
 }
 StandardReadFirst<'frame> satisfies TryFrom<RepresentationDecodeRequest<'frame, FirstFrame, NoResources>, RepresentationRequest<Pair, NoResources>, Failure> {
     machine try_from(source: RepresentationDecodeRequest<'frame, FirstFrame, NoResources>) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
     reaches none terminates
     ensures FirstModel::valid(source.frame) == (result in Result::Ok)
-    ensures (result in Result::Err) || FirstModel::represents(source.frame, &result.value.value)
+    ensures (result in Result::Err) || FirstModel::represents(source.frame, @result.value.value)
     {
         let frame: FirstFrame = FirstFrame { tag: source.frame.tag, first: source.frame.first, last: source.frame.last };
         transition FirstValidity::valid(frame) {
@@ -313,19 +313,19 @@ StandardReadFirst<'frame> satisfies TryFrom<RepresentationDecodeRequest<'frame, 
         }
     }
 }
-StandardWriteSecond<'value> satisfies TryFrom<RepresentationRequest<&'value Pair, NoResources>, SecondFrame, Failure> {
-    machine try_from(source: RepresentationRequest<&'value Pair, NoResources>) -> Result<SecondFrame, Failure>
+StandardWriteSecond<'value> satisfies TryFrom<RepresentationRequest<@'value Pair, NoResources>, SecondFrame, Failure> {
+    machine try_from(source: RepresentationRequest<@'value Pair, NoResources>) -> Result<SecondFrame, Failure>
     reaches none terminates
     ensures result in Result::Ok
-    ensures SecondModel::valid(&result.value)
-    ensures SecondModel::represents(&result.value, source.value)
+    ensures SecondModel::valid(@result.value)
+    ensures SecondModel::represents(@result.value, source.value)
     { WriteSecond::try_from(Pair { first: source.value.first, last: source.value.last }) }
 }
 StandardReadSecond<'frame> satisfies TryFrom<RepresentationDecodeRequest<'frame, SecondFrame, NoResources>, RepresentationRequest<Pair, NoResources>, Failure> {
     machine try_from(source: RepresentationDecodeRequest<'frame, SecondFrame, NoResources>) -> Result<RepresentationRequest<Pair, NoResources>, Failure>
     reaches none terminates
     ensures SecondModel::valid(source.frame) == (result in Result::Ok)
-    ensures (result in Result::Err) || SecondModel::represents(source.frame, &result.value.value)
+    ensures (result in Result::Err) || SecondModel::represents(source.frame, @result.value.value)
     {
         let frame: SecondFrame = SecondFrame { tag: source.frame.tag, first: source.frame.first, last: source.frame.last };
         transition SecondValidity::valid(frame) {
@@ -370,10 +370,10 @@ machine standard_rejects(decoded: Result<RepresentationRequest<Pair, NoResources
     }
 }
 machine observe_standard<'value, 'frame, Frame,
-    Encode satisfies TryFrom<RepresentationRequest<&'value Pair, NoResources>, Frame, Failure>,
+    Encode satisfies TryFrom<RepresentationRequest<@'value Pair, NoResources>, Frame, Failure>,
     Decode satisfies TryFrom<RepresentationDecodeRequest<'frame, Frame, NoResources>, RepresentationRequest<Pair, NoResources>, Failure>,
     OriginalDecode satisfies TryFrom<Frame, Pair, Failure>>
-    (value: &'value Pair, frame: &'frame Frame, malformed: &'frame Frame, first: u8, last: u8) -> bool
+    (value: @'value Pair, frame: @'frame Frame, malformed: @'frame Frame, first: u8, last: u8) -> bool
 {
     let encoded: Result<Frame, Failure> = Encode::try_from(RepresentationRequest { value: value, resources: NoResources { } });
     let encoded_ok: bool = standard_encoded_matches<Frame, OriginalDecode>(encoded, first, last);
@@ -389,15 +389,15 @@ machine standard_agreement<'value, 'frame, Frame,
     Decode satisfies RepresentationDecoding<'frame, Pair, NoResources, Frame, Failure, Model>,
     Agreement satisfies Representation<'value, 'frame, Pair, NoResources, NoResources, Frame, Failure, Failure, Model, Encode, Decode>,
     OriginalDecode satisfies TryFrom<Frame, Pair, Failure>>
-    (value: &'value Pair, frame: &'frame Frame, malformed: &'frame Frame, first: u8, last: u8) -> bool
+    (value: @'value Pair, frame: @'frame Frame, malformed: @'frame Frame, first: u8, last: u8) -> bool
 requires Model::valid(frame)
 requires Model::represents(frame, value)
 requires !Model::valid(malformed)
 {
     observe_standard<Frame, Encode, Decode, OriginalDecode>(value, frame, malformed, first, last)
 }
-machine standard_first<'value, 'frame>(value: &'value Pair, frame: &'frame FirstFrame,
-    malformed: &'frame FirstFrame, first: u8, last: u8) -> bool
+machine standard_first<'value, 'frame>(value: @'value Pair, frame: @'frame FirstFrame,
+    malformed: @'frame FirstFrame, first: u8, last: u8) -> bool
 requires FirstModel::valid(frame)
 requires FirstModel::represents(frame, value)
 requires !FirstModel::valid(malformed)
@@ -405,8 +405,8 @@ requires !FirstModel::valid(malformed)
     standard_agreement<FirstFrame, FirstModel, StandardWriteFirst<'value>, StandardReadFirst<'frame>,
         FirstRepresentation<'value, 'frame>, ReadFirst>(value, frame, malformed, first, last)
 }
-machine standard_second<'value, 'frame>(value: &'value Pair, frame: &'frame SecondFrame,
-    malformed: &'frame SecondFrame, first: u8, last: u8) -> bool
+machine standard_second<'value, 'frame>(value: @'value Pair, frame: @'frame SecondFrame,
+    malformed: @'frame SecondFrame, first: u8, last: u8) -> bool
 requires SecondModel::valid(frame)
 requires SecondModel::represents(frame, value)
 requires !SecondModel::valid(malformed)
@@ -424,8 +424,8 @@ machine consume(value: Pair, expected_first: u8, expected_last: u8) -> bool {
     use_agreement<SecondFrame, WriteSecond, ReadSecond, SecondValidity, SecondAgreement>(value, second, malformed_second);
     let first_ok: bool = observe<FirstFrame, WriteFirst, ReadFirst>(value, malformed_first);
     let second_ok: bool = observe<SecondFrame, WriteSecond, ReadSecond>(value, malformed_second);
-    let standard_first_ok: bool = standard_first(&value, &first, &malformed_first, expected_first, expected_last);
-    let standard_second_ok: bool = standard_second(&value, &second, &malformed_second, expected_first, expected_last);
+    let standard_first_ok: bool = standard_first(@value, @first, @malformed_first, expected_first, expected_last);
+    let standard_second_ok: bool = standard_second(@value, @second, @malformed_second, expected_first, expected_last);
     first_ok && second_ok && standard_first_ok && standard_second_ok && value.first == expected_first && value.last == expected_last
 }
 

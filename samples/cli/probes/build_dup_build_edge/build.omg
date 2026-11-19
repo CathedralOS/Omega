@@ -4,15 +4,15 @@
 
 use k1;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "build_dup_build_edge");
     let mut k1_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
-    dependency::with_alias(&mut k1_dependency, "k1");
+    dependency::with_alias(@mut k1_dependency, "k1");
     let k1_registration: DependencyRegistration = Build::build_dependency(builder, k1_dependency);
     let mut k2_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
-    dependency::with_alias(&mut k2_dependency, "k2");
+    dependency::with_alias(@mut k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
     suspend Build::prepare_dependency(builder, k1_registration);
     let observed: i32 = k1::seed();

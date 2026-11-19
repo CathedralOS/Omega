@@ -41,7 +41,7 @@ machine windows_removal_dispose(handle: i64 in WindowsPrivateNonalertFileOrAbsen
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches FilesystemNamespaceMutation {
     let disposition: WindowsNativeFileDisposition = WindowsNativeFileDisposition { delete: 1 };
-    let succeeded: i32 = block WindowsFilesystemRemovalIo::dispose(handle, 4, &disposition, 1);
+    let succeeded: i32 = block WindowsFilesystemRemovalIo::dispose(handle, 4, @disposition, 1);
     transition succeeded != 0 {
         true -> block windows_removal_close(handle, 0)
         false -> block failed(handle)

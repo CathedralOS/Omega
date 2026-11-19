@@ -20,7 +20,7 @@ requires
 
 data LabelMessage<'view> {
     #0 count: u32;
-    #1 label: &'view [u8] in Utf8;
+    #1 label: @'view [u8] in Utf8;
 }
 
 data Main {
@@ -29,23 +29,23 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let mut msg: LabelMessage;
     msg.count = 7;
     msg.label = "hi";
-    LabelMessage::encode(&msg, &mut main.buffer, &mut main.written);
+    LabelMessage::encode(@msg, @mut main.buffer, @mut main.written);
     transition main.written == 7 && main.buffer[2] == 7 && main.buffer[4] == 2
         && main.buffer[5] == 104 && main.buffer[6] == 105 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -5,10 +5,10 @@ use omega::language::core::TryFrom;
 use omega::language::core::convert;
 
 data Pair [copy] { first: u8; last: u8; }
-data Request<'buffer> { value: Pair; output: &'buffer mut [u8]; }
-data Frame<'buffer> { output: &'buffer mut [u8]; }
+data Request<'buffer> { value: Pair; output: @'buffer mut [u8]; }
+data Frame<'buffer> { output: @'buffer mut [u8]; }
 data Reason [copy] { case Exhausted; case InvalidTag; }
-data Failure<'buffer> { output: &'buffer mut [u8]; reason: Reason; }
+data Failure<'buffer> { output: @'buffer mut [u8]; reason: Reason; }
 
 // Callers can use the bytes written by this completed operation. The first
 // length check makes each later indexed observation well formed.
@@ -57,14 +57,14 @@ Writer<'buffer> satisfies Encoding<'buffer> {
 // These promises describe this call's result and current bytes; no call is
 // repeated as a mathematical expression.
 trait Decoding<'buffer> {
-    machine decode<'frame>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason>
+    machine decode<'frame>(source: @'frame Frame<'buffer>) -> Result<Pair, Reason>
     requires source.output.len >= 3u64
     ensures source.output[0u64] != 165u8 || result in Result::Ok
     ensures (result in Result::Err) || (result.value.first == source.output[1u64]
         && result.value.last == source.output[2u64]);
 }
 Reader<'buffer> satisfies Decoding<'buffer> {
-    machine decode<'frame>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason>
+    machine decode<'frame>(source: @'frame Frame<'buffer>) -> Result<Pair, Reason>
     requires source.output.len >= 3u64
     ensures source.output[0u64] != 165u8 || result in Result::Ok
     ensures (result in Result::Err) || (result.value.first == source.output[1u64]
@@ -78,8 +78,8 @@ Reader<'buffer> satisfies Decoding<'buffer> {
         }
     }
 }
-ReadFrame<'frame, 'buffer> satisfies TryFrom<&'frame Frame<'buffer>, Pair, Reason> {
-    machine try_from(source: &'frame Frame<'buffer>) -> Result<Pair, Reason> {
+ReadFrame<'frame, 'buffer> satisfies TryFrom<@'frame Frame<'buffer>, Pair, Reason> {
+    machine try_from(source: @'frame Frame<'buffer>) -> Result<Pair, Reason> {
         transition source.output.len >= 3u64 {
             true -> Reader<'buffer>::decode(source)
             false -> Result::Err { error: Reason::Exhausted }
@@ -89,8 +89,8 @@ ReadFrame<'frame, 'buffer> satisfies TryFrom<&'frame Frame<'buffer>, Pair, Reaso
 
 // The frame borrow and the buffer it contains have distinct lifetimes. Name
 // both for the selected map; this helper intentionally publishes no value law.
-machine read_frame<'frame, 'buffer>(source: &'frame Frame<'buffer>) -> Result<Pair, Reason> {
-    convert<&'frame Frame<'buffer>, Pair, Reason, ReadFrame<'frame, 'buffer>>(source)
+machine read_frame<'frame, 'buffer>(source: @'frame Frame<'buffer>) -> Result<Pair, Reason> {
+    convert<@'frame Frame<'buffer>, Pair, Reason, ReadFrame<'frame, 'buffer>>(source)
 }
 
 trait BufferedRoundTrip<'buffer> {
@@ -117,7 +117,7 @@ FirstAgreement<'buffer> satisfies BufferedRoundTrip<'buffer> {
             && result.value.value.first == frame.output[1u64]
             && result.value.value.last == frame.output[2u64]
         {
-            let decoded: Result<Pair, Reason> = Reader<'buffer>::decode(&frame);
+            let decoded: Result<Pair, Reason> = Reader<'buffer>::decode(@frame);
             transition decoded {
                 Result::Ok { value as value } -> Result::Ok { value: Request { value: value, output: frame.output } }
                 Result::Err { error as reason } -> Result::Err { error: Failure { output: frame.output, reason: reason } }
@@ -141,7 +141,7 @@ machine returned_result<'buffer>(incoming: Result<Request<'buffer>, Failure<'buf
 ensures core::Identity<Result<Request<'buffer>, Failure<'buffer>>>(result, incoming)
 { incoming }
 
-machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+machine observe<'buffer>(output: @'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
@@ -177,7 +177,7 @@ RoundTrip<'buffer> satisfies TryFrom<Request<'buffer>, Request<'buffer>, Failure
     }
 }
 
-machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+machine observe_weak<'buffer>(output: @'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
@@ -206,7 +206,7 @@ requires output.len >= 3u64
     }
 }
 
-machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
+machine short_output<'buffer>(output: @'buffer mut [u8]) -> bool {
     let answer: Result<Frame<'buffer>, Failure<'buffer>> =
         convert<Request<'buffer>, Frame<'buffer>, Failure<'buffer>, Writer<'buffer>>(
             Request { value: Pair { first: 17u8, last: 42u8 }, output: output });
@@ -221,9 +221,9 @@ machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
         }
     }
 }
-machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
+machine malformed<'buffer>(output: @'buffer mut [u8]) -> bool {
     let frame: Frame<'buffer> = Frame { output: output };
-    let answer: Result<Pair, Reason> = read_frame(&frame);
+    let answer: Result<Pair, Reason> = read_frame(@frame);
     transition answer {
         Result::Ok { value as unexpected } -> false
         Result::Err { error as reason } -> (reason in Reason::InvalidTag)
@@ -232,24 +232,24 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
 
 machine main() crashes Trap {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
+    let ordinary: bool = observe(@mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
+    let ordinary_weak: bool = observe_weak(@mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
+    let endpoints: bool = observe(@mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
-    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
+    let endpoints_weak: bool = observe_weak(@mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
-    let exhausted: bool = short_output(&mut short[1u64..3u64]);
+    let exhausted: bool = short_output(@mut short[1u64..3u64]);
     let short_unchanged: bool = short[0u64] == 91u8 && short[1u64] == 61u8
         && short[2u64] == 62u8 && short[3u64] == 92u8;
     let mut invalid: [u8; 5] = [71u8, 0u8, 17u8, 42u8, 72u8];
-    let rejected: bool = malformed(&mut invalid[1u64..4u64]);
+    let rejected: bool = malformed(@mut invalid[1u64..4u64]);
     let invalid_unchanged: bool = invalid[0u64] == 71u8 && invalid[1u64] == 0u8
         && invalid[2u64] == 17u8 && invalid[3u64] == 42u8 && invalid[4u64] == 72u8;
     transition ordinary && first_bytes && ordinary_weak && weak_bytes

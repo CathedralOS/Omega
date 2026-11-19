@@ -2,14 +2,14 @@
 // Expected exit: 0
 const BYTES: [u8; 3] = [7, 11, 13];
 boundary trait Bytes {
-    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T reaches requires Count > 0 crashes none;
+    machine last<const Count: u64, T [copy]>(bytes: @[T; Count]) -> T reaches requires Count > 0 crashes none;
 }
 SelectedBytes satisfies Bytes {
-    machine last<const Count: u64, T [copy]>(bytes: &[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }
+    machine last<const Count: u64, T [copy]>(bytes: @[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }
 }
 machine main() crashes Trap {
     let bytes: [u8; 3] = BYTES;
-    let observed: u8 = Bytes::last<3u64>(&bytes);
+    let observed: u8 = Bytes::last<3u64>(@bytes);
     transition observed == 13 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

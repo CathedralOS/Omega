@@ -17,9 +17,9 @@
 
 data Bits { x: i32; y: u32; }
 
-machine Bits::go(bits: &mut Bits) {
-    bits.y = ((bits.x & 0xffff) as u32) & (&bits.x as &u32);
-    bits.y = bits.y & (&mut bits.x as &mut u32);
+machine Bits::go(bits: @mut Bits) {
+    bits.y = ((bits.x & 0xffff) as u32) & (@bits.x as @u32);
+    bits.y = bits.y & (@mut bits.x as @mut u32);
 }
 
 data Main {
@@ -31,7 +31,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.value = -2;
     main.small = -56;
@@ -39,25 +39,25 @@ machine Main::main(main: &mut Main) {
     main.bytes[4] = 255;
     main.k = 3;
     main.bits = Bits { x: -1, y: 0 };
-    Bits::go(&mut main.bits);
-    let bits: &u32 = &main.value as &u32;
-    transition bits == 4294967294 && (&main.small as &u8) == 200 && main.k <= 4 && main.bits.y == 65535 {
+    Bits::go(@mut main.bits);
+    let bits: @u32 = @main.value as @u32;
+    transition bits == 4294967294 && (@main.small as @u8) == 200 && main.k <= 4 && main.bits.y == 65535 {
         true -> region(main, main.k)
         _ -> fail(main)
     }
-    machine region(main: &mut Main, offset: u32) {
-        let pair: &i16 = &main.bytes[offset] as &i16;
+    machine region(main: @mut Main, offset: u32) {
+        let pair: @i16 = @main.bytes[offset] as @i16;
         transition pair == -2 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -4,13 +4,13 @@
 machine check(a:u8,b:u8,c:u8,d:u8,length:u64,scalar:u32,width:u64,valid:bool)->bool
 requires length <= 4 {
     let mut unit:SourceUnit;
-    source_unit_append(&mut unit,a);
-    source_unit_append(&mut unit,b);
-    source_unit_append(&mut unit,c);
-    source_unit_append(&mut unit,d);
+    source_unit_append(@mut unit,a);
+    source_unit_append(@mut unit,b);
+    source_unit_append(@mut unit,c);
+    source_unit_append(@mut unit,d);
     unit.length=length;
-    let value:DecodedScalar=decode_scalar(&unit,0 as +Trapping);
-    let absent:DecodedScalar=decode_scalar(&unit,4294967295 as +Trapping);
+    let value:DecodedScalar=decode_scalar(@unit,0 as +Trapping);
+    let absent:DecodedScalar=decode_scalar(@unit,4294967295 as +Trapping);
     value.valid==valid && value.scalar==scalar && value.width==width
         && !absent.valid && absent.scalar==0 && absent.width==0
 }

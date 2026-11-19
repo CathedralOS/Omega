@@ -3,7 +3,7 @@
 // the common fields and selected payload unless `..` opts out of drift
 // checking (wiki/spec/language/patterns.md#pattern-subjects-and-bindings).
 public machine validate_pattern_fields(
-    typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees,
+    typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees,
     arm: TransitionArm, expected: u64 in Trapping
 )
 crashes Trap
@@ -13,21 +13,21 @@ crashes Trap
         _ -> done()
     }
 
-    machine field(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping) {
+    machine field(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < arm.field_count {
             true -> prior(typer, sources, syntax, arm, expected, offset, 0)
             _ -> complete(typer, syntax, arm, expected)
         }
     }
 
-    machine prior(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
+    machine prior(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
         transition earlier < offset {
             true -> compare(typer, sources, syntax, arm, expected, offset, earlier)
             _ -> field(typer, sources, syntax, arm, expected, offset + 1)
         }
     }
 
-    machine compare(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
+    machine compare(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping, offset: u64 in Trapping, earlier: u64 in Trapping) {
         let written: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + offset);
         let before: PatternField = syntax_trees_pattern_field(syntax, arm.first_field + earlier);
         let repeated: bool = spans_equal(sources, before.name.source_span, written.name.source_span);
@@ -37,20 +37,20 @@ crashes Trap
         }
     }
 
-    machine complete(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping) {
+    machine complete(typer: @mut Typer, syntax: @SyntaxTrees, arm: TransitionArm, expected: u64 in Trapping) {
         transition !arm.has_rest && arm.field_count != expected {
             true -> missing(typer, syntax, arm)
             _ -> done()
         }
     }
 
-    machine duplicate(typer: &mut Typer, written: PatternField) {
-        typing_reject(&mut typer.output, TypeDiagnosticCode::DuplicatePatternField, written.source_span);
+    machine duplicate(typer: @mut Typer, written: PatternField) {
+        typing_reject(@mut typer.output, TypeDiagnosticCode::DuplicatePatternField, written.source_span);
     }
 
-    machine missing(typer: &mut Typer, syntax: &SyntaxTrees, arm: TransitionArm) {
+    machine missing(typer: @mut Typer, syntax: @SyntaxTrees, arm: TransitionArm) {
         let head: Expression = syntax_trees_expression(syntax, arm.pattern);
-        typing_reject(&mut typer.output, TypeDiagnosticCode::MissingPatternField, head.source_span);
+        typing_reject(@mut typer.output, TypeDiagnosticCode::MissingPatternField, head.source_span);
     }
 
     machine done() {}

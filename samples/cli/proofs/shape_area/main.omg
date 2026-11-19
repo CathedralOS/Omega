@@ -26,7 +26,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("shape_area: matches a Shape enum payload and computes that variant's area");
     main.shape = Shape::Rectangle { width: 6, height: 7 };
 
@@ -37,23 +37,23 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 
     // The payload arrives as a plain i32; a guard hop re-establishes its bound on
     // the direct edge into the compute state, whose contract admits it.
-    machine circle(main: &mut Main, radius: i32) {
+    machine circle(main: @mut Main, radius: i32) {
         transition radius >= 0 && radius < 101 {
             true -> block circle_area(main, radius)
             _ -> block emit(main)
         }
     }
-    machine circle_area(main: &mut Main, radius: i32) requires radius >= 0 requires radius < 101 {
+    machine circle_area(main: @mut Main, radius: i32) requires radius >= 0 requires radius < 101 {
         main.area = radius * radius * 3;
         transition { _ -> block emit(main) }
     }
-    machine rect(main: &mut Main, width: i32, height: i32) {
+    machine rect(main: @mut Main, width: i32, height: i32) {
         transition width >= 0 && width < 101 && height >= 0 && height < 101 {
             true -> block rect_area(main, width, height)
             _ -> block emit(main)
         }
     }
-    machine rect_area(main: &mut Main, width: i32, height: i32)
+    machine rect_area(main: @mut Main, width: i32, height: i32)
     requires width >= 0
     requires width < 101
     requires height >= 0
@@ -61,10 +61,10 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         main.area = width * height;
         transition { _ -> block emit(main) }
     }
-    machine emit(main: &mut Main) {
+    machine emit(main: @mut Main) {
         Console::write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(main.area);
     }
 }
@@ -72,5 +72,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

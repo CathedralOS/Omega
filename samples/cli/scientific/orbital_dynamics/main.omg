@@ -16,14 +16,14 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 
 data Main { protocol: Protocol; orbit: Orbit; step: i32 in Wrapping; steps: i32 in Wrapping; time: f64; }
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    let valid: bool = block read(&mut main.protocol);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    let valid: bool = block read(@mut main.protocol);
     transition valid { true -> validate(main) false -> syntax(main) }
-    machine syntax(main: &mut Main) {
+    machine syntax(main: @mut Main) {
         Console::write_line("ERROR syntax: seven finite decimal fields, maximum 512 bytes, EOF");
         ProcessExit::exit_process(64);
     }
-    machine validate(main: &mut Main) {
+    machine validate(main: @mut Main) {
         transition main.protocol.fields[0] > 0.0 && main.protocol.fields[0] <= 1000000.0
             && main.protocol.fields[1] >= -1000000.0 && main.protocol.fields[1] <= 1000000.0
             && main.protocol.fields[2] >= -1000000.0 && main.protocol.fields[2] <= 1000000.0
@@ -35,16 +35,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             true -> count(main, main.protocol.fields[6]) false -> range(main)
         }
     }
-    machine range(main: &mut Main) {
+    machine range(main: @mut Main) {
         Console::write_line("ERROR range: positive mu/dt, nonzero radius, bounded coordinates/velocity, integer steps 1..4096");
         ProcessExit::exit_process(65);
     }
-    machine count(main: &mut Main, count: f64)
+    machine count(main: @mut Main, count: f64)
     requires count == count && count >= 1.0 && count <= 4096.0 {
         let steps: i32 = I32::from_f64(count);
         transition F64::from_i32(steps) == count { true -> configure(main, steps) false -> range(main) }
     }
-    machine configure(main: &mut Main, steps: i32) {
+    machine configure(main: @mut Main, steps: i32) {
         main.steps = steps as i32 in Wrapping;
         main.step = 0; main.time = 0.0;
         main.orbit.parameter = main.protocol.fields[0];
@@ -55,75 +55,75 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             true -> coordinates(main, main.orbit.x, main.orbit.y) false -> range(main)
         }
     }
-    machine coordinates(main: &mut Main, x: f64, y: f64) {
+    machine coordinates(main: @mut Main, x: f64, y: f64) {
         transition x == x && x >= -1000000.0 && x <= 1000000.0
             && y == y && y >= -1000000.0 && y <= 1000000.0 {
             true -> bounded(main, x, y) false -> range(main)
         }
     }
-    machine bounded(main: &mut Main, x: f64, y: f64)
+    machine bounded(main: @mut Main, x: f64, y: f64)
     requires x == x && x >= -1000000.0 && x <= 1000000.0
         && y == y && y >= -1000000.0 && y <= 1000000.0 {
         main.orbit.x = coordinate(x); main.orbit.y = coordinate(y);
         transition { _ -> radius(main) }
     }
-    machine radius(main: &mut Main) {
+    machine radius(main: @mut Main) {
         transition main.orbit.x * main.orbit.x + main.orbit.y * main.orbit.y > 0.000000000001 {
             true -> initial(main) false -> collision(main)
         }
     }
-    machine initial(main: &mut Main) {
-        diagnostics(&mut main.orbit);
+    machine initial(main: @mut Main) {
+        diagnostics(@mut main.orbit);
         main.orbit.initial_energy = main.orbit.energy;
         main.orbit.initial_momentum = main.orbit.momentum;
         Console::write_line("checkpoint,step,time,x,y,vx,vy,energy,angular_momentum,energy_drift,angular_momentum_drift");
         transition { _ -> checkpoint(main) }
     }
-    machine checkpoint(main: &mut Main) {
+    machine checkpoint(main: @mut Main) {
         Console::write("checkpoint,");
-        integer(&mut main.protocol, main.step);
+        integer(@mut main.protocol, main.step);
         Console::write(",");
-        number(&mut main.protocol, main.time);
+        number(@mut main.protocol, main.time);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.x);
+        number(@mut main.protocol, main.orbit.x);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.y);
+        number(@mut main.protocol, main.orbit.y);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.vx);
+        number(@mut main.protocol, main.orbit.vx);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.vy);
+        number(@mut main.protocol, main.orbit.vy);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.energy);
+        number(@mut main.protocol, main.orbit.energy);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.momentum);
+        number(@mut main.protocol, main.orbit.momentum);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.energy - main.orbit.initial_energy);
+        number(@mut main.protocol, main.orbit.energy - main.orbit.initial_energy);
         Console::write(",");
-        number(&mut main.protocol, main.orbit.momentum - main.orbit.initial_momentum);
+        number(@mut main.protocol, main.orbit.momentum - main.orbit.initial_momentum);
         Console::write_line("");
         transition main.step < main.steps { true -> advance(main) false -> done(main) }
     }
-    machine advance(main: &mut Main) {
-        step(&mut main.orbit);
+    machine advance(main: @mut Main) {
+        step(@mut main.orbit);
         transition main.orbit.collision { true -> collision(main) false -> advanced(main) }
     }
-    machine advanced(main: &mut Main) {
+    machine advanced(main: @mut Main) {
         main.step = main.step + 1;
         main.time = main.time + main.orbit.timestep;
         transition main.orbit.periapsis { true -> event(main) false -> checkpoint(main) }
     }
-    machine event(main: &mut Main) {
+    machine event(main: @mut Main) {
         Console::write("periapsis,");
         let time: f64 = main.time - main.orbit.timestep + main.orbit.event_fraction * main.orbit.timestep;
-        number(&mut main.protocol, time);
+        number(@mut main.protocol, time);
         Console::write_line("");
         transition { _ -> checkpoint(main) }
     }
-    machine collision(main: &mut Main) {
+    machine collision(main: @mut Main) {
         Console::write_line("status,collision_threshold");
         ProcessExit::exit_process(2);
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         Console::write_line("status,complete");
         ProcessExit::exit_process(0);
     }
@@ -132,5 +132,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

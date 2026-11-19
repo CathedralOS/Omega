@@ -6,11 +6,11 @@ use alignment::local;
 // Scores and coordinates are nonnegative and at most 48. Emit decimal rather
 // than exposing an exit-code-only witness. Output preserves the traceback bytes.
 // The printed traces are the prefix whose length is the wrapping column count.
-machine trace_window<'row>(bytes: &'row [u8; 32], count: i32 in Wrapping) -> &'row [u8]
+machine trace_window<'row>(bytes: @'row [u8; 32], count: i32 in Wrapping) -> @'row [u8]
 requires count >= 0 && count <= 32
 ensures result.len == count as u64
 {
-    &bytes[0..count]
+    @bytes[0..count]
 }
 
 public machine number(value: i32 in Wrapping) reaches ProcessExit + Console
@@ -28,52 +28,52 @@ invokes Console
     machine bad() { Console::write_line("ERROR internal-number"); ProcessExit::exit_process(70); }
 }
 
-public machine report(result: &alignment::local::Alignment) reaches ProcessExit + Console
+public machine report(result: @alignment::local::Alignment) reaches ProcessExit + Console
 invokes Console
 {
     transition result.columns >= 0 && result.columns <= 32 {
         true -> windows(result)
         false -> bad()
     }
-    machine windows(result: &alignment::local::Alignment) {
-        let first_window: &[u8] = trace_window(&result.first_trace, result.columns);
-        let second_window: &[u8] = trace_window(&result.second_trace, result.columns);
+    machine windows(result: @alignment::local::Alignment) {
+        let first_window: @[u8] = trace_window(@result.first_trace, result.columns);
+        let second_window: @[u8] = trace_window(@result.second_trace, result.columns);
         transition first_window.len == second_window.len {
             true -> score(result)
             false -> bad()
         }
     }
-    machine score(result: &alignment::local::Alignment) {
+    machine score(result: @alignment::local::Alignment) {
         Console::write("score="); number(result.score); Console::write_line("");
         Console::write("first="); number(result.first_start); Console::write(":"); number(result.first_end); Console::write_line("");
         Console::write("second="); number(result.second_start); Console::write(":"); number(result.second_end); Console::write_line("");
         Console::write("alignment-first=");
         transition { _ -> first(result, result.columns) }
     }
-    machine first(result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
+    machine first(result: @alignment::local::Alignment, remaining: i32 in Wrapping) {
         transition remaining > 0 && remaining <= 32 { true -> first_index(result, remaining - 1) false -> second_begin(result) }
     }
-    machine first_index(result: &alignment::local::Alignment, position: i32 in Wrapping) {
+    machine first_index(result: @alignment::local::Alignment, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 { true -> first_byte(result, position) false -> bad() }
     }
-    machine first_byte(result: &alignment::local::Alignment, position: i32 in Wrapping)
+    machine first_byte(result: @alignment::local::Alignment, position: i32 in Wrapping)
     requires position >= 0 && position < 32
     {
         Console::write_byte(result.first_trace[position] as i32);
         transition { _ -> first(result, position) }
     }
-    machine second_begin(result: &alignment::local::Alignment) {
+    machine second_begin(result: @alignment::local::Alignment) {
         Console::write_line("");
         Console::write("alignment-second=");
         transition { _ -> second(result, result.columns) }
     }
-    machine second(result: &alignment::local::Alignment, remaining: i32 in Wrapping) {
+    machine second(result: @alignment::local::Alignment, remaining: i32 in Wrapping) {
         transition remaining > 0 && remaining <= 32 { true -> second_index(result, remaining - 1) false -> done() }
     }
-    machine second_index(result: &alignment::local::Alignment, position: i32 in Wrapping) {
+    machine second_index(result: @alignment::local::Alignment, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 { true -> second_byte(result, position) false -> bad() }
     }
-    machine second_byte(result: &alignment::local::Alignment, position: i32 in Wrapping)
+    machine second_byte(result: @alignment::local::Alignment, position: i32 in Wrapping)
     requires position >= 0 && position < 32
     {
         Console::write_byte(result.second_trace[position] as i32);

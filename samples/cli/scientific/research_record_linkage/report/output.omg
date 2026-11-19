@@ -35,7 +35,7 @@ invokes Console
     machine done() { }
 }
 
-public machine report(linkage: &Linkage) reaches Console
+public machine report(linkage: @Linkage) reaches Console
 invokes Console
 {
     Console::write("best=");

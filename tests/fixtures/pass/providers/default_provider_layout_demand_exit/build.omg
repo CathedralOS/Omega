@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "default_provider_layout_demand_exit");
     let kit: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/layout-default-kit" }));
     // Windows takes the valid provider; the other targets keep the kit's default.

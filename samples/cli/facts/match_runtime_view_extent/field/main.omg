@@ -4,7 +4,7 @@
 data Pair { chosen: [i64; 4]; other: [i64; 6]; }
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -14,9 +14,9 @@ requires counter == 0
 machine store(flag: bool) -> Outcome crashes Trap {
     let mut pair: Pair = Pair { chosen: [3, 17, 18, 19], other: [7, 23, 24, 25, 26, 27] };
     let mut visits: u64 = 0;
-    let selected: &mut [i64] = match choose(&mut visits, flag) {
-        true -> &mut pair.chosen
-        false -> &mut pair.other
+    let selected: @mut [i64] = match choose(@mut visits, flag) {
+        true -> @mut pair.chosen
+        false -> @mut pair.other
     };
     let last: u64 = selected.len - 1;
     selected[last] = 41;

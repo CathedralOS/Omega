@@ -10,7 +10,7 @@ machine identity(value: f32) -> f32 { value }
 machine fresh() -> i32 { 1065353216 }
 public machine read_bits(value: i32) -> f32
 {
-    let view: &f32 = &value as &f32;
+    let view: @f32 = @value as @f32;
     let viewed: f32 = view;
     let observed: f32 = identity(viewed);
     maybe_zero(observed)

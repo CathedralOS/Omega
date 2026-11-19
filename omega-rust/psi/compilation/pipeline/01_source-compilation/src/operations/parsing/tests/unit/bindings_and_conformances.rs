@@ -49,10 +49,10 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
 fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     let source = r#"
         trait Reads<'scope, Item> {
-            machine read(value: &'scope Item) -> &'scope Item;
+            machine read(value: @'scope Item) -> @'scope Item;
         }
 
-        machine read<'view, Item>(value: &'view Item) -> &'view Item
+        machine read<'view, Item>(value: @'view Item) -> @'view Item
             satisfies Reads<'view, Item>::read
         {
             value
@@ -90,7 +90,7 @@ fn exact_requirement_application_parses_lifetimes_before_type_arguments() {
     );
 
     let misplaced = Lexer::new(
-        "machine read<'view, Item>(value: &'view Item) satisfies Reads<Item, 'view>::read {}",
+        "machine read<'view, Item>(value: @'view Item) satisfies Reads<Item, 'view>::read {}",
     )
     .tokenize()
     .expect("tokenize misplaced lifetime");
@@ -292,7 +292,7 @@ fn rejects_unknown_or_duplicate_field_relevance_properties() {
 fn parses_binding_relevance_on_signature_parameters_and_locals() {
     let source = r#"
         data Main { v: i32; }
-        machine Main::main(main: &mut Main, n: i32, bound [erased]: i32) {
+        machine Main::main(main: @mut Main, n: i32, bound [erased]: i32) {
             let x [erased]: i32 = 0;
             let mut y: i32 = 1;
         }
@@ -343,7 +343,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
             "duplicate binding property `erased`",
         ),
         (
-            "data Main { v: i32; } machine Main::main(main: &mut Main) { let x [bogus]: i32 = 0; }",
+            "data Main { v: i32; } machine Main::main(main: @mut Main) { let x [bogus]: i32 = 0; }",
             "unknown local binding property `bogus`",
         ),
     ] {
@@ -357,7 +357,7 @@ fn parses_binding_relevance_on_signature_parameters_and_locals() {
 fn empty_binding_brackets_stay_relevant_on_signature_parameters_and_locals() {
     for source in [
         "machine m(x []: i32) {}",
-        "data Main { v: i32; } machine Main::main(main: &mut Main) { let x []: i32 = 0; }",
+        "data Main { v: i32; } machine Main::main(main: @mut Main) { let x []: i32 = 0; }",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -439,10 +439,10 @@ fn enforces_all_or_nothing_numbering_per_identity_scope() {
 fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
     let source = r#"
         data View<'buf, T> {
-            body: &'buf T;
+            body: @'buf T;
         }
 
-        machine borrow<'call>(value: &'call i32) -> &'call i32 {
+        machine borrow<'call>(value: @'call i32) -> @'call i32 {
             value
         }
     "#;
@@ -464,10 +464,10 @@ fn preserves_erased_lifetime_parameters_separately_from_runtime_generics() {
 fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments() {
     let source = r#"
         data View<'buf, T> {
-            body: &'buf T;
+            body: @'buf T;
         }
 
-        machine borrow<'call>(value: &'call i32) -> View<'call, i32> {}
+        machine borrow<'call>(value: @'call i32) -> View<'call, i32> {}
     "#;
 
     let parsed = crate::tests::parse_source(source, "parse should succeed");
@@ -501,7 +501,7 @@ fn preserves_erased_lifetime_arguments_separately_from_runtime_generic_arguments
 
 #[test]
 fn rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters() {
-    let source = "data View<'value, value> { body: &'value i32; }";
+    let source = "data View<'value, value> { body: @'value i32; }";
     let tokens = Lexer::new(source)
         .tokenize()
         .expect("tokenize should succeed");
@@ -516,8 +516,8 @@ fn rejects_duplicate_names_across_lifetime_and_runtime_generic_parameters() {
 #[test]
 fn rejects_lifetime_parameters_and_arguments_after_runtime_generics() {
     for source in [
-        "data Bad<T, 'buf> { body: &'buf T; }",
-        "data View<'buf, T> { body: &'buf T; } machine bad<'call>(value: &'call i32) -> View<i32, 'call> {}",
+        "data Bad<T, 'buf> { body: @'buf T; }",
+        "data View<'buf, T> { body: @'buf T; } machine bad<'call>(value: @'call i32) -> View<i32, 'call> {}",
     ] {
         let tokens = Lexer::new(source)
             .tokenize()
@@ -685,7 +685,7 @@ fn data_subject_satisfaction_is_rejected() {
 #[test]
 fn qualified_trait_requirement_names_are_rejected() {
     let error = crate::tests::parse_source_error(
-        "trait Ranked<Item> { machine Self::before(value: &Item, other: &Item) -> bool; }",
+        "trait Ranked<Item> { machine Self::before(value: @Item, other: @Item) -> bool; }",
         "tokenize should succeed",
         "a requirement has no subject qualifier",
     );
@@ -709,18 +709,18 @@ fn retired_conformance_alias_order_is_rejected() {
 fn parses_closed_conformance_block_members() {
     let source = r#"
         trait Ranked<Item> {
-            machine before(value: &Item, other: &Item) -> bool;
-            machine rank_value(value: &Item) -> u32;
+            machine before(value: @Item, other: @Item) -> bool;
+            machine rank_value(value: @Item) -> u32;
         }
 
         data Card { power: u32; }
 
-        machine Card::stable_rank_value(value: &Card) -> u32 { }
+        machine Card::stable_rank_value(value: @Card) -> u32 { }
 
         PowerOrder satisfies Ranked<Card> {
-            machine before(value: &Card, other: &Card) -> bool { }
+            machine before(value: @Card, other: @Card) -> bool { }
 
-            machine rank_value(value: &Card) -> u32 { Card::stable_rank_value(value) }
+            machine rank_value(value: @Card) -> u32 { Card::stable_rank_value(value) }
         }
     "#;
 
@@ -744,7 +744,7 @@ fn parses_closed_conformance_block_members() {
 #[test]
 fn selection_row_names_its_slot_and_the_existing_machine() {
     let source = r#"
-        trait Ranked<Item> { machine rank_value(value: &Item) -> u32; }
+        trait Ranked<Item> { machine rank_value(value: @Item) -> u32; }
         data Card { power: u32; }
         PowerOrder satisfies Ranked<Card> {
             Ranked::rank_value = ranking::stable_rank_value;
@@ -780,10 +780,10 @@ fn selection_row_names_its_slot_and_the_existing_machine() {
 #[test]
 fn closed_conformance_member_carries_one_exact_edge_for_its_own_requirement() {
     let source = r#"
-        trait Ranked<Item> { machine before(value: &Item, other: &Item) -> bool; }
+        trait Ranked<Item> { machine before(value: @Item, other: @Item) -> bool; }
         data Card { }
         PowerOrder satisfies Ranked<Card> {
-            machine before(value: &Card, other: &Card) -> bool
+            machine before(value: @Card, other: @Card) -> bool
                 satisfies Ranked<Card>::before
             { }
         }
@@ -808,7 +808,7 @@ fn rejects_retired_machine_where_clause() {
     let source = r#"
         trait Converter<Message> { }
 
-        machine inspect<T, Message>(value: &T)
+        machine inspect<T, Message>(value: @T)
         where
             T satisfies Converter<Message>
         { }
@@ -824,7 +824,7 @@ fn parses_evidence_binder_in_machine_telescope() {
         trait Ranked<Element> {}
 
         machine sort<Element, Order satisfies Ranked<Element>>(
-            values: &mut [Element]
+            values: @mut [Element]
         ) {}
     "#;
     let parsed =
@@ -848,7 +848,7 @@ fn rejects_subject_spelled_evidence_binder() {
         trait Ranked {}
 
         machine sort<Element, Order: Element satisfies Ranked>(
-            values: &mut [Element]
+            values: @mut [Element]
         ) {}
     "#;
     let error =
@@ -862,9 +862,9 @@ fn rejects_retired_dyn_type_forms() {
         "machine inspect(order: dyn Ranked<Card>) {}",
         "machine inspect(order: dyn Ranked) {}",
         "machine inspect(order: dyn Ranked<_>) {}",
-        "machine inspect(order: &dyn Ranked<Card>) {}",
-        "machine inspect(order: &mut dyn Ranked<Card>) {}",
-        "machine inspect(order: &dyn Card::PowerOrder) {}",
+        "machine inspect(order: @dyn Ranked<Card>) {}",
+        "machine inspect(order: @mut dyn Ranked<Card>) {}",
+        "machine inspect(order: @dyn Card::PowerOrder) {}",
         "data Choices { order: [dyn Ranked<Card>; 2]; }",
         "machine choose() { let order: u64 = PowerOrder as dyn Ranked<Card>; }",
     ] {
@@ -877,7 +877,7 @@ fn rejects_retired_dyn_type_forms() {
 #[test]
 fn distinguishes_shared_mutable_and_write_only_reference_access() {
     let source = r#"
-        machine borrow(shared: &u8, mutable: &mut u8, output: &write u8) {}
+        machine borrow(shared: @u8, mutable: @mut u8, output: @write u8) {}
     "#;
 
     let parsed = crate::tests::parse_source(source, "reference access modes should parse");
@@ -940,7 +940,7 @@ fn parses_attached_main_state_name_as_main() {
         data Main {
         }
 
-        machine Main::main(main: &mut Main) {}
+        machine Main::main(main: @mut Main) {}
         "#;
 
     let parsed = crate::tests::parse_source(source, "parse should succeed");

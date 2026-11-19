@@ -32,8 +32,8 @@ X86EvaluateWindow satisfies SelectedEvaluateWindow {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let bytes: &[u8] = "0123456789ABCD";
-        let window: &[u8] = bytes[2u64..12u64];
+        let bytes: @[u8] = "0123456789ABCD";
+        let window: @[u8] = bytes[2u64..12u64];
         let total: u64 = window.len * 10u64;
         total - 100u64
     }
@@ -44,8 +44,8 @@ ArmEvaluateWindow satisfies SelectedEvaluateWindow {
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let bytes: &[u8] = "0123456789ABCD";
-        let window: &[u8] = bytes[2u64..12u64];
+        let bytes: @[u8] = "0123456789ABCD";
+        let window: @[u8] = bytes[2u64..12u64];
         let total: u64 = window.len * 10u64;
         total - 100u64
     }

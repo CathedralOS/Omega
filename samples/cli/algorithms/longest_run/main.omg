@@ -16,21 +16,21 @@ use omega_language_std::Console;
 data Main {
 }
 
-machine main(context: &mut Main) reaches ProcessExit + Console {
+machine main(context: @mut Main) reaches ProcessExit + Console {
     Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
-    let maximum: i32 in Wrapping = longest_run(&text);
+    let maximum: i32 in Wrapping = longest_run(@text);
     Console::write_line("result: the longest run length, 4 (the bbbb) for this text (the exit code)");
     Console::write_line("[press Enter to close]");
     let mut pause: [u8; 256];
-    _ = block Console::read_line(&mut pause[..]);
+    _ = block Console::read_line(@mut pause[..]);
     ProcessExit::exit_process(maximum as i32);
 }
 
-machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
+machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
     transition { _ -> step(text, 0, 0, 0, 0) }
 
-    machine step(text: &[u8; 12] in Utf8, index: i32, previous: u8,
+    machine step(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < text.len {
@@ -39,7 +39,7 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    machine read(text: &[u8; 12] in Utf8, index: i32, previous: u8,
+    machine read(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         let byte: u8 = text[index];
@@ -49,7 +49,7 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    machine update(text: &[u8; 12] in Utf8, index: i32, previous: u8,
+    machine update(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                  current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition current > maximum {
@@ -59,7 +59,7 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
     }
 
     // Retain the capacity guard immediately before the Exact cursor increment.
-    machine advance(text: &[u8; 12] in Utf8, index: i32, previous: u8,
+    machine advance(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                   current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0 {
         transition index < 16 {
@@ -68,7 +68,7 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
         }
     }
 
-    machine bump(text: &[u8; 12] in Utf8, index: i32, previous: u8,
+    machine bump(text: @[u8; 12] in Utf8, index: i32, previous: u8,
                current: i32 in Wrapping, maximum: i32 in Wrapping) -> i32 in Wrapping
     requires index >= 0
     requires index < 16 {
@@ -79,5 +79,5 @@ machine longest_run(text: &[u8; 12] in Utf8) -> i32 in Wrapping {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

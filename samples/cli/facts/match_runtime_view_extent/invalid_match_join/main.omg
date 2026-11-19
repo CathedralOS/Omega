@@ -3,7 +3,7 @@
 // Invalid: the selected arm lends an empty view, so the recorded extent has no last element.
 data Outcome [copy] { chosen_last: i64; other_last: i64; }
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -21,9 +21,9 @@ machine store(flag: bool) -> Outcome crashes Trap {
     };
     let mut visits: u64 = 0;
     let mut empty: [i64; 0] = [];
-    let selected: &mut [i64] = match choose(&mut visits, flag) {
-        true -> &mut empty
-        false -> &mut other
+    let selected: @mut [i64] = match choose(@mut visits, flag) {
+        true -> @mut empty
+        false -> @mut other
     };
     let last: u64 = selected.len - 1;
     selected[last] = 41;

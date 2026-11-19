@@ -65,8 +65,8 @@ fn rejection(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8]::Text
 requires
-    byte_observation::{predicate}(&self[..]);
-data Rejection<'reason> {{ reason: &'reason [u8] in Text; }}
+    byte_observation::{predicate}(@self[..]);
+data Rejection<'reason> {{ reason: @'reason [u8] in Text; }}
 data Outcome<'reason> {{
     case Accepted(value: u64);
     case Rejected(reason: Rejection<'reason>);
@@ -157,10 +157,10 @@ fn a_case_literal_retains_other_cases_conditional_domains() {
     use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment};
 
     let source = r#"
-domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
-data Rejection<'reason> { reason: &'reason [u8] in Text; }
+domain [u8]::Text requires byte_observation::valid_utf8(@self[..]);
+data Rejection<'reason> { reason: @'reason [u8] in Text; }
 data Outcome<'reason> {
-    case Accepted(value: &'reason [u8]);
+    case Accepted(value: @'reason [u8]);
     case Rejected(reason: Rejection<'reason>);
 }
 machine accept() -> Outcome { Outcome::Accepted { value: "plan" } }
@@ -292,17 +292,17 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 #[test]
 fn a_callable_byte_result_keeps_only_its_public_predicates() {
     let source = r#"
-domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
+domain [u8]::Text requires byte_observation::valid_utf8(@self[..]);
 trait Window {
-    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text;
+    machine view<'input>(packet: @'input [u8] in Text) -> @'input [u8] in Text;
 }
 Direct satisfies Window {
-    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text { packet }
+    machine view<'input>(packet: @'input [u8] in Text) -> @'input [u8] in Text { packet }
 }
 machine build_entry() -> bool {
-    let packet: &[u8] in Text = "é" as +Text;
-    let selected: machine(packet: &[u8] in Text) -> &[u8] in Text reaches none crashes none = Direct::view;
-    let viewed: &[u8] in Text = selected(packet);
+    let packet: @[u8] in Text = "é" as +Text;
+    let selected: machine(packet: @[u8] in Text) -> @[u8] in Text reaches none crashes none = Direct::view;
+    let viewed: @[u8] in Text = selected(packet);
     (viewed as -Text) == "é"
 }
 "#;
@@ -421,18 +421,18 @@ machine build_entry() -> bool {
 #[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
     let source = r#"
-domain [u8]::Text requires byte_observation::no_nul(&self[..]);
+domain [u8]::Text requires byte_observation::no_nul(@self[..]);
 data Choice { case First; case Second; }
-machine same<'a>(text: &'a [u8] in Text, choice: Choice) -> &'a [u8] in Text {
+machine same<'a>(text: @'a [u8] in Text, choice: Choice) -> @'a [u8] in Text {
     match choice {
         Choice::First -> text
         Choice::Second -> text
     }
 }
-machine take(text: &[u8] in Text) { }
+machine take(text: @[u8] in Text) { }
 machine build_entry() {
-    let local: &[u8] in Text = "plain" as +Text;
-    let returned: &[u8] in Text = same(local, Choice::First {});
+    let local: @[u8] in Text = "plain" as +Text;
+    let returned: @[u8] in Text = same(local, Choice::First {});
     take(returned);
 }
 "#;
@@ -589,8 +589,8 @@ fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
 domain [u8]::Text
 requires
-    byte_observation::valid_utf8(&self[..]);
-data Rejection<'reason> { reason: &'reason [u8] in Text; }
+    byte_observation::valid_utf8(@self[..]);
+data Rejection<'reason> { reason: @'reason [u8] in Text; }
 "#;
     let uncast = format!(
         "{declarations}machine build_entry() {{ let r: Rejection = Rejection {{ reason: \"x\" }}; }}"
@@ -605,12 +605,12 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
         verdict(&uncast)
     );
     let formal = format!(
-        "{declarations}machine keep(text: &[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
+        "{declarations}machine keep(text: @[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
     );
     assert_eq!(verdict(&formal), "accepted");
     let copied = format!(
-        "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
-         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
+        "{declarations}machine copy(from: @Rejection, into: @mut Rejection) {{ into.reason = from.reason; }}\n\
+         machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(@a, @mut b); }}"
     );
     // Independent input regions cannot promise the stored view survives in
     // the other record. State their common referent lifetime for the copy.
@@ -619,8 +619,8 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
         "typing assigned value type while reading the body of `copy`"
     );
     let copied = copied.replacen(
-        "copy(from: &Rejection, into: &mut Rejection)",
-        "copy<'reason>(from: &Rejection<'reason>, into: &mut Rejection<'reason>)",
+        "copy(from: @Rejection, into: @mut Rejection)",
+        "copy<'reason>(from: @Rejection<'reason>, into: @mut Rejection<'reason>)",
         1,
     );
     assert_eq!(verdict(&copied), "accepted");
@@ -629,8 +629,8 @@ data Rejection<'reason> { reason: &'reason [u8] in Text; }
     let laundered = r#"
 domain [u8]::Text
 requires
-    byte_observation::valid_utf8(&self[..]);
-data Plain<'reason> { reason: &'reason [u8]; }
+    byte_observation::valid_utf8(@self[..]);
+data Plain<'reason> { reason: @'reason [u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
     let judged = judge_build(laundered);
@@ -641,8 +641,8 @@ machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Tex
     let non_empty = r#"
 domain [u8]::Filled
 requires
-    byte_observation::non_empty(&self[..]);
-data Named<'name> { name: &'name [u8] in Filled; }
+    byte_observation::non_empty(@self[..]);
+data Named<'name> { name: @'name [u8] in Filled; }
 machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
 "#;
     let refused = verdict(non_empty);
@@ -742,14 +742,14 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
         "domain [u8]::Text requires valid_utf8<u8>(self); machine build_entry() {}".to_owned(),
         "domain u64::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
         "domain [u16; 2]::Text requires valid_utf8(self); machine build_entry() {}".to_owned(),
-        "machine build_entry(bytes: &[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
+        "machine build_entry(bytes: @[u8]) { let valid: bool = valid_utf8(bytes); }".to_owned(),
     ] {
         let reason = verdict(&source);
         assert!(reason.starts_with(UNKNOWN), "{source}\n{reason}");
     }
 
     let shadowed = format!(
-        "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
+        "machine valid_utf8(value: @[u8]) -> bool {{ false }}\n{}",
         rejection("valid_utf8", "plain").replace("byte_observation::valid_utf8", "valid_utf8")
     );
     let source = format!("use omega::language::core::byte_observation;\n{shadowed}");
@@ -801,9 +801,9 @@ fn forwarded(bytes: &str) -> String {
         r#"
 domain [u8]::Name
 requires
-    byte_observation::no_nul(&self[..]);
-machine keep(name: &[u8] in Name) {{ }}
-machine forward(name: &[u8] in Name) {{ keep(name); }}
+    byte_observation::no_nul(@self[..]);
+machine keep(name: @[u8] in Name) {{ }}
+machine forward(name: @[u8] in Name) {{ keep(name); }}
 machine build_entry() {{ forward("{bytes}" as +Name); }}
 "#
     )
@@ -821,7 +821,7 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
         statements,
         [
             "cannot prove the value of this cast is in the domain it adds in machine `build_entry` \
-             state `entry`: domain `[u8]::Name` requires `byte_observation::no_nul(&self[..])` \
+             state `entry`: domain `[u8]::Name` requires `byte_observation::no_nul(@self[..])` \
              (needs that fact about the operand here; establish it before the cast via a guard, \
              a prior contract guarantee or a `requires` of this machine)"
         ]
@@ -831,11 +831,11 @@ fn a_formal_in_a_byte_domain_requires_its_predicate_of_the_bytes_passed() {
 fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
     format!(
         r#"
-domain [u8]::Text requires byte_observation::{predicate}(&self[..]);
-machine length(text: &[u8] in Text) -> u64 {{ text.len }}
-machine prefix_length(text: &[u8]{source_domain}, end: u64) -> u64
+domain [u8]::Text requires byte_observation::{predicate}(@self[..]);
+machine length(text: @[u8] in Text) -> u64 {{ text.len }}
+machine prefix_length(text: @[u8]{source_domain}, end: u64) -> u64
 requires end <= text.len {{
-    let prefix: &[u8] = &text[0..end];
+    let prefix: @[u8] = @text[0..end];
     length(prefix as +Text)
 }}
 machine build_entry() {{
@@ -873,11 +873,11 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
 #[test]
 fn a_slice_uses_the_byte_predicate_of_the_current_loop_parameter() {
     let source = r#"
-domain [u8]::Text requires byte_observation::no_nul(&self[..]);
-machine length(text: &[u8] in Text) -> u64 { text.len }
-machine prefix_length(text: &[u8] in Text, end: u64, remaining: u32) -> u64
+domain [u8]::Text requires byte_observation::no_nul(@self[..]);
+machine length(text: @[u8] in Text) -> u64 { text.len }
+machine prefix_length(text: @[u8] in Text, end: u64, remaining: u32) -> u64
 requires end <= text.len {
-    let prefix: &[u8] = &text[0..end];
+    let prefix: @[u8] = @text[0..end];
     let measured: u64 = length(prefix as +Text);
     transition remaining > 0 {
         true -> prefix_length(text, end, remaining - 1)
@@ -918,13 +918,13 @@ fn fixed_text(predicate: &str, bytes: &str) -> String {
         r#"
 domain [u8; 3]::Text
 requires
-    byte_observation::{predicate}(&self[..]);
+    byte_observation::{predicate}(@self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
-machine first(bytes: &[u8; 3] in Text) -> u8 {{ (bytes as -Text)[0] }}
+machine first(bytes: @[u8; 3] in Text) -> u8 {{ (bytes as -Text)[0] }}
 machine build_entry() {{
     let plain: [u8; 3] = [{bytes}];
     let holder: Holder = Holder {{ bytes: plain as +Text }};
-    let read: u8 = first(&holder.bytes);
+    let read: u8 = first(@holder.bytes);
 }}
 "#
     )
@@ -979,16 +979,16 @@ fn a_fixed_byte_array_of_unknown_bytes_is_not_cast_into_its_domain() {
     let unknown = r#"
 domain [u8; 3]::Text
 requires
-    byte_observation::valid_utf8(&self[..]);
+    byte_observation::valid_utf8(@self[..]);
 data Raw { bytes: [u8; 3]; }
 data Holder { bytes: [u8; 3] in Text; }
-machine relabel(raw: &Raw) -> u8 {
+machine relabel(raw: @Raw) -> u8 {
     let held: Holder = Holder { bytes: raw.bytes as +Text };
     held.bytes[0]
 }
 machine build_entry() {
     let raw: Raw = Raw { bytes: [65u8, 66u8, 67u8] };
-    let read: u8 = relabel(&raw);
+    let read: u8 = relabel(@raw);
 }
 "#;
     let verdict = judge_build(unknown);
@@ -1083,9 +1083,9 @@ fn a_shared_array_prefix_uses_its_own_backing_membership() {
 #[test]
 fn a_byte_read_keeps_ascii_facts_about_its_own_view() {
     let source = r#"
-domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+domain [u8]::Ascii requires byte_observation::ascii_only(@self[..]);
 
-machine ascii_byte(bytes: &[u8] in Ascii, other: &[u8], index: u64) -> u8
+machine ascii_byte(bytes: @[u8] in Ascii, other: @[u8], index: u64) -> u8
 requires index < bytes.len, index < other.len
 ensures result <= 127
 {
@@ -1145,7 +1145,7 @@ fn a_false_edge_retires_a_copyable_view_before_its_backing() {
 data Packet { before: u8; bytes: [u8; 3]; after: u8; }
 machine build_entry() crashes Trap {
     let packet: Packet = Packet { before: 11, bytes: [65u8, 66u8, 67u8], after: 37 };
-    let view: &[u8] = (&packet.bytes)[..];
+    let view: @[u8] = (@packet.bytes)[..];
     transition view.len == 3 && view[1] == 66 && packet.before == 11 && packet.after == 37 {
         true -> done()
         _ -> bad()
@@ -1169,11 +1169,11 @@ machine build_entry() crashes Trap {
 fn shared_byte_view_domains_check_lengths_and_keep_their_names() {
     let source = r#"
 domain [u8]::FourBytes requires self.len == 4;
-machine length(input: &[u8] in FourBytes) -> u64 {
+machine length(input: @[u8] in FourBytes) -> u64 {
     (input as -FourBytes).len
 }
 machine build_entry() {
-    let view: &[u8] in FourBytes = "room" as +FourBytes;
+    let view: @[u8] in FourBytes = "room" as +FourBytes;
     let count: u64 = length(view);
 }
 "#;

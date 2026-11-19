@@ -23,44 +23,44 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.value = -2;
     main.small = -56;
     main.bytes[3] = 254;
     main.bytes[4] = 255;
-    let bits: &u32 = &main.value as &u32;
-    transition bits == 4294967294 && (&main.small as &u8) == 200
-        && (&main.bytes[3] as &i16) == -2 {
+    let bits: @u32 = @main.value as @u32;
+    transition bits == 4294967294 && (@main.small as @u8) == 200
+        && (@main.bytes[3] as @i16) == -2 {
         true -> tail_view(main)
         _ -> fail(main)
     }
-    machine tail_view(main: &mut Main) {
-        let tail: &mut [u8] = &mut main.tail[3] as &mut [u8];
+    machine tail_view(main: @mut Main) {
+        let tail: @mut [u8] = @mut main.tail[3] as @mut [u8];
         transition tail.len > 4 {
             true -> write(main, tail)
             _ -> fail(main)
         }
     }
-    machine write(main: &mut Main, tail: &mut [u8]) {
+    machine write(main: @mut Main, tail: @mut [u8]) {
         tail[4] = 9;
         transition tail.len == 5 {
             true -> check(main)
             _ -> fail(main)
         }
     }
-    machine check(main: &mut Main) {
+    machine check(main: @mut Main) {
         transition main.tail[7] == 9 {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -6,8 +6,8 @@ public boundary trait ZeroLeafProvider {
  machine shift(packet: Packet) -> Packet reaches crashes none;
 }
 
-machine empty_row(row: &[u8; 0]) -> bool {
- let view: &[u8] = &row[..];
+machine empty_row(row: @[u8; 0]) -> bool {
+ let view: @[u8] = @row[..];
  view.len == 0
 }
 machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider {
@@ -15,7 +15,7 @@ machine consume(first: Packet, copied: Packet) -> bool reaches ZeroLeafProvider 
  first.before == 17 && first.after == 31
  && shifted.before == 28 && shifted.after == 60
  && shifted.empty.len == 512 && shifted.empty[511].len == 512
- && empty_row(&shifted.empty[511][511])
+ && empty_row(@shifted.empty[511][511])
  && size_of<Packet>() == 16
 }
 data Relay {}

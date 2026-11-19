@@ -27,7 +27,7 @@ public data Typer {
     work: [u64; 4096];
 }
 
-public machine type_check(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+public machine type_check(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
 {
     typer_clear(typer, syntax);
@@ -37,7 +37,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine constants(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine constants(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_constants(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> bodies(typer, sources, syntax, resolution)
@@ -45,7 +45,7 @@ crashes Trap
         }
     }
 
-    machine bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine bodies(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_bodies(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> facts(typer, sources, syntax, resolution)
@@ -53,7 +53,7 @@ crashes Trap
         }
     }
 
-    machine facts(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine facts(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_facts(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> clauses(typer, sources, syntax, resolution)
@@ -61,7 +61,7 @@ crashes Trap
         }
     }
 
-    machine clauses(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution) {
+    machine clauses(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
         type_clauses(typer, sources, syntax, resolution);
     }
 
@@ -70,7 +70,7 @@ crashes Trap
 
 // Empty annotations over `syntax`, with the absent row and the unit,
 // Boolean and anonymous-integer types interned first.
-machine typer_clear(typer: &mut Typer, syntax: &SyntaxTrees)
+machine typer_clear(typer: @mut Typer, syntax: @SyntaxTrees)
 crashes Trap
 {
     typer.output.accepted = true;
@@ -84,59 +84,59 @@ crashes Trap
     typer.output.construct_count = syntax.construct_field_count;
     typer.output.expression_count = syntax.expression_count;
     let unit_row: TypeRow = type_row_of(TypeKind::Unit);
-    let unit: u64 in Trapping = type_table_intern(&mut typer.output.types, unit_row);
+    let unit: u64 in Trapping = type_table_intern(@mut typer.output.types, unit_row);
     let mut boolean_row: TypeRow = type_row_of(TypeKind::Builtin);
     boolean_row.builtin = BuiltinType::Bool;
-    let boolean: u64 in Trapping = type_table_intern(&mut typer.output.types, boolean_row);
+    let boolean: u64 in Trapping = type_table_intern(@mut typer.output.types, boolean_row);
     let anonymous_row: TypeRow = type_row_of(TypeKind::AnonymousInteger);
-    let anonymous: u64 in Trapping = type_table_intern(&mut typer.output.types, anonymous_row);
+    let anonymous: u64 in Trapping = type_table_intern(@mut typer.output.types, anonymous_row);
     let anonymous_float_row: TypeRow = type_row_of(TypeKind::AnonymousFloat);
-    let anonymous_float: u64 in Trapping = type_table_intern(&mut typer.output.types, anonymous_float_row);
+    let anonymous_float: u64 in Trapping = type_table_intern(@mut typer.output.types, anonymous_float_row);
     typer.output.unit = unit;
     typer.output.boolean = boolean;
     typer.output.anonymous = anonymous;
     typer.output.anonymous_float = anonymous_float;
     transition { _ -> expression(typer, 0) }
 
-    machine expression(typer: &mut Typer, index: u64 in Trapping) {
+    machine expression(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.expression_count {
             true -> clear_expression(typer, index)
             _ -> binder(typer, 0)
         }
     }
 
-    machine clear_expression(typer: &mut Typer, index: u64 in Trapping) {
-        set_expression_type(&mut typer.output, index, 0);
-        set_selection(&mut typer.output, index, Selection::None);
-        set_adaptation(&mut typer.output, index, Adaptation::None);
-        typing_set_value(&mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
-        set_roster(&mut typer.output, index, 0);
+    machine clear_expression(typer: @mut Typer, index: u64 in Trapping) {
+        set_expression_type(@mut typer.output, index, 0);
+        set_selection(@mut typer.output, index, Selection::None);
+        set_adaptation(@mut typer.output, index, Adaptation::None);
+        typing_set_value(@mut typer.output, index, ExactInteger { negative: false, magnitude: 0 });
+        set_roster(@mut typer.output, index, 0);
         mark_typed(typer, index, false);
         transition { _ -> expression(typer, index + 1) }
     }
 
-    machine binder(typer: &mut Typer, index: u64 in Trapping) {
+    machine binder(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.binder_count {
             true -> clear_binder(typer, index)
             _ -> construct(typer, 0)
         }
     }
 
-    machine clear_binder(typer: &mut Typer, index: u64 in Trapping) {
-        set_binder_type(&mut typer.output, index, 0);
-        set_binder_member(&mut typer.output, index, MemberTarget::Unknown);
+    machine clear_binder(typer: @mut Typer, index: u64 in Trapping) {
+        set_binder_type(@mut typer.output, index, 0);
+        set_binder_member(@mut typer.output, index, MemberTarget::Unknown);
         transition { _ -> binder(typer, index + 1) }
     }
 
-    machine construct(typer: &mut Typer, index: u64 in Trapping) {
+    machine construct(typer: @mut Typer, index: u64 in Trapping) {
         transition index < typer.output.construct_count {
             true -> clear_construct(typer, index)
             _ -> done()
         }
     }
 
-    machine clear_construct(typer: &mut Typer, index: u64 in Trapping) {
-        set_construct_target(&mut typer.output, index, MemberTarget::Unknown);
+    machine clear_construct(typer: @mut Typer, index: u64 in Trapping) {
+        set_construct_target(@mut typer.output, index, MemberTarget::Unknown);
         transition { _ -> construct(typer, index + 1) }
     }
 
@@ -145,29 +145,29 @@ crashes Trap
 
 // Each constant's value, landed at its declared type like a `let`
 // initializer (wiki/spec/language/constants.md).
-machine type_constants(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+machine type_constants(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
 {
     transition { _ -> next(typer, sources, syntax, resolution, 0) }
 
-    machine next(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < syntax.constant_count && typer.output.accepted {
             true -> value(typer, sources, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    machine value(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine value(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         let item: ConstantItem = constant_item(syntax, index);
         type_tree(typer, sources, syntax, resolution, item.value);
-        let declared: u64 in Trapping = reference_type(&typer.output, item.type_reference);
+        let declared: u64 in Trapping = reference_type(@typer.output, item.type_reference);
         transition typer.output.accepted {
             true -> admit(typer, sources, syntax, resolution, index, declared, item.value)
             _ -> done()
         }
     }
 
-    machine admit(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping, declared: u64 in Trapping, value: u64 in Trapping) {
+    machine admit(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, declared: u64 in Trapping, value: u64 in Trapping) {
         let admitted: bool = typer_admit(typer, syntax, declared, value, false);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
@@ -177,19 +177,19 @@ crashes Trap
 
 // Every declaration checks its own executable body and result. An omitted
 // result is Unit, independent of lexical ancestry.
-machine type_bodies(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution)
+machine type_bodies(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
 crashes Trap
 {
     transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
 
-    machine next_machine(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine next_machine(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
             true -> entry(typer, sources, syntax, resolution, index)
             _ -> done()
         }
     }
 
-    machine entry(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, index: u64 in Trapping) {
+    machine entry(typer: @mut Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         let result: u64 in Trapping = declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         type_body(typer, sources, syntax, resolution, item.first_statement, item.statement_count, result);
@@ -201,7 +201,7 @@ crashes Trap
 }
 
 // The type a declared result reference names, or `otherwise`.
-public machine declared_result(typer: &Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
+public machine declared_result(typer: @Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition has_type {
@@ -209,8 +209,8 @@ crashes Trap
         _ -> fallback(otherwise)
     }
 
-    machine declared(typer: &Typer, reference: u64 in Trapping) -> u64 in Trapping {
-        reference_type(&typer.output, reference)
+    machine declared(typer: @Typer, reference: u64 in Trapping) -> u64 in Trapping {
+        reference_type(@typer.output, reference)
     }
 
     machine fallback(otherwise: u64 in Trapping) -> u64 in Trapping {
@@ -221,17 +221,17 @@ crashes Trap
 // `handle` with every reference layer removed: what `.field` and `[index]`
 // project from (wiki/spec/language/expressions.md, "Dot access remains
 // data-field projection").
-public machine typer_referent(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+public machine typer_referent(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let row: TypeRow = type_table_row(&typer.output.types, handle);
+    let row: TypeRow = type_table_row(@typer.output.types, handle);
     transition row.kind == TypeKind::Reference {
         true -> inner(typer, row.inner)
         _ -> result(handle)
     }
 
-    machine inner(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(&typer.output.types, handle);
+    machine inner(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition row.kind == TypeKind::Reference {
             true -> inner(typer, row.inner)
             _ -> result(handle)
@@ -249,20 +249,20 @@ crashes Trap
 // must permit observation: a write-only layer anywhere in the chain keeps
 // the original reference type, so no scalar read is admitted. Other types
 // likewise read as themselves.
-public machine typer_read_type(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+public machine typer_read_type(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> referenced(typer, handle, handle, typer.output.types.row_count) }
 
-    machine referenced(typer: &Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(&typer.output.types, handle);
+    machine referenced(typer: @Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
+        let row: TypeRow = type_table_row(@typer.output.types, handle);
         transition row.kind == TypeKind::Reference {
             true -> layer(typer, original, row, remaining)
             _ -> scalar(original, handle, row)
         }
     }
 
-    machine layer(typer: &Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
+    machine layer(typer: @Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
         transition row.access != ReferenceAccess::WriteOnly && remaining > 0 {
             true -> referenced(typer, original, row.inner, remaining - 1)
             _ -> result(original)
@@ -283,17 +283,17 @@ crashes Trap
 
 // Intern a row the typer builds; a full table rejects at `source_span` and
 // yields the absent type.
-public machine typer_intern(typer: &mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping
+public machine typer_intern(typer: @mut Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
-    let handle: u64 in Trapping = type_table_intern(&mut typer.output.types, row);
+    let handle: u64 in Trapping = type_table_intern(@mut typer.output.types, row);
     transition handle > 0 {
         true -> result(handle)
         _ -> full(typer, source_span)
     }
 
-    machine full(typer: &mut Typer, source_span: SourceSpan) -> u64 in Trapping {
-        typing_reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
+    machine full(typer: @mut Typer, source_span: SourceSpan) -> u64 in Trapping {
+        typing_reject(@mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
         transition { _ -> result(0) }
     }
 
@@ -304,7 +304,7 @@ crashes Trap
 
 // Guarded scratch access: the typed marks share the expression table's
 // bound, and the traversal stack its own.
-public machine is_typed(typer: &Typer, index: u64 in Trapping) -> bool
+public machine is_typed(typer: @Typer, index: u64 in Trapping) -> bool
 crashes Trap
 {
     transition index < 131072 {
@@ -312,7 +312,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(typer: &Typer, index: u64 in Trapping) -> bool {
+    machine read(typer: @Typer, index: u64 in Trapping) -> bool {
         typer.typed[index]
     }
 
@@ -321,7 +321,7 @@ crashes Trap
     }
 }
 
-public machine mark_typed(typer: &mut Typer, index: u64 in Trapping, typed: bool)
+public machine mark_typed(typer: @mut Typer, index: u64 in Trapping, typed: bool)
 crashes Trap
 {
     transition index < 131072 {
@@ -329,7 +329,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(typer: &mut Typer, index: u64 in Trapping, typed: bool) {
+    machine write(typer: @mut Typer, index: u64 in Trapping, typed: bool) {
         typer.typed[index] = typed;
     }
 

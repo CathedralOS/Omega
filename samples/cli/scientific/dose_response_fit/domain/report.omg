@@ -15,41 +15,41 @@ use domain::mathematics::exponential;
 machine number(value: f64) reaches Console {
     let mut bytes: [u8; 21] = "+0000000000000.000000";
     transition value < 0.0 {
-        true -> negative(&mut bytes, value)
-        _ -> positive(&mut bytes, value)
+        true -> negative(@mut bytes, value)
+        _ -> positive(@mut bytes, value)
     }
-    machine negative(bytes: &mut [u8; 21], value: f64) {
+    machine negative(bytes: @mut [u8; 21], value: f64) {
         bytes[0] = 45;
         let scaled: i64 in Saturating = I64::from_f64((0.0 - value) * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    machine positive(bytes: &mut [u8; 21], value: f64) {
+    machine positive(bytes: @mut [u8; 21], value: f64) {
         let scaled: i64 in Saturating = I64::from_f64(value * 1000000.0 + 0.5);
         transition { _ -> digits(bytes, scaled as i64 in Wrapping, 20) }
     }
-    machine digits(bytes: &mut [u8; 21],
+    machine digits(bytes: @mut [u8; 21],
                  remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position > 0 && position < 21 {
             true -> separator(bytes, remaining, position)
             _ -> emit(bytes)
         }
     }
-    machine separator(bytes: &mut [u8; 21],
+    machine separator(bytes: @mut [u8; 21],
                     remaining: i64 in Wrapping, position: i32 in Wrapping) {
         transition position == 14 {
             true -> digits(bytes, remaining, position - 1)
             _ -> store(bytes, remaining, position)
         }
     }
-    machine store(bytes: &mut [u8; 21],
+    machine store(bytes: @mut [u8; 21],
                 remaining: i64 in Wrapping, position: i32 in Wrapping) {
         let digit: i32 = narrow_i64_to_i32_trapping((remaining % 10 + 48) as i64);
         bytes[position] = narrow_i32_to_u8_trapping(digit);
         transition { _ -> digits(bytes, remaining / 10, position - 1) }
     }
-    machine emit(bytes: &[u8; 21]) { Console::write_line(bytes); }
+    machine emit(bytes: @[u8; 21]) { Console::write_line(bytes); }
 }
-public machine report(observations: &Observations, fit: &Fit) reaches Console
+public machine report(observations: @Observations, fit: @Fit) reaches Console
 invokes Console
 crashes Trap
 {
@@ -60,15 +60,15 @@ crashes Trap
         true -> activation(observations, fit)
         _ -> inhibition(observations, fit)
     }
-    machine activation(observations: &Observations, fit: &Fit) {
+    machine activation(observations: @Observations, fit: @Fit) {
         Console::write_line("half_dose_kind=EC50");
         transition { _ -> values(observations, fit) }
     }
-    machine inhibition(observations: &Observations, fit: &Fit) {
+    machine inhibition(observations: @Observations, fit: @Fit) {
         Console::write_line("half_dose_kind=IC50");
         transition { _ -> values(observations, fit) }
     }
-    machine values(observations: &Observations, fit: &Fit) {
+    machine values(observations: @Observations, fit: @Fit) {
         Console::write("half_dose="); number(exponential(fit.candidate.log_half));
         Console::write("lowdose_asymptote="); number(fit.candidate.low);
         Console::write("highdose_asymptote="); number(fit.candidate.high);
@@ -91,24 +91,24 @@ crashes Trap
         Console::write("half_dose_upper="); number(exponential(fit.upper[2]));
         transition { _ -> endpoints(observations, fit, 0) }
     }
-    machine endpoints(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    machine endpoints(observations: @Observations, fit: @Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 8 {
             true -> endpoint(observations, fit, position)
             _ -> samples(observations, fit, 0)
         }
     }
-    machine endpoint(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    machine endpoint(observations: @Observations, fit: @Fit, position: i32 in Wrapping) {
         Console::write("profile_endpoint_sse_"); Console::write_byte((position + 48) as i32); Console::write("=");
         number(fit.endpoint_sse[position]);
         transition { _ -> endpoints(observations, fit, position + 1) }
     }
-    machine samples(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    machine samples(observations: @Observations, fit: @Fit, position: i32 in Wrapping) {
         transition position >= 0 && position < 32 && position < observations.count {
             true -> sample(observations, fit, position)
             _ -> done()
         }
     }
-    machine sample(observations: &Observations, fit: &Fit, position: i32 in Wrapping) {
+    machine sample(observations: @Observations, fit: @Fit, position: i32 in Wrapping) {
         Console::write("prediction_"); Console::write_byte((position / 10 + 48) as i32);
         Console::write_byte((position % 10 + 48) as i32); Console::write("=");
         number(fit.reconstruction[position]);

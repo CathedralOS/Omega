@@ -14,11 +14,11 @@ use omega::language::core::ProcessExit;
 // (5 + 6) + live cells sum (1 + 2 + 3 + 5 + 7 + 20).
 use omega_language_std::Console;
 
-machine sorted(values: &[i32; 16]) -> bool {
+machine sorted(values: @[i32; 16]) -> bool {
     check_sorted(values, 15)
 }
 
-machine check_sorted(values: &[i32; 16], remaining: u64) -> bool
+machine check_sorted(values: @[i32; 16], remaining: u64) -> bool
 requires remaining <= 15
 terminates
 terminates by remaining in 0..=15
@@ -27,7 +27,7 @@ terminates by remaining in 0..=15
         true -> inspect(values, remaining)
         false -> (true)
     }
-    machine inspect(values: &[i32; 16], remaining: u64) -> bool
+    machine inspect(values: @[i32; 16], remaining: u64) -> bool
         requires remaining >= 1
         requires remaining <= 15
     {
@@ -47,7 +47,7 @@ data Main {
 // Upper bound over the sorted prefix: the first index in [lo, hi) whose
 // element exceeds `key`, or `hi` when none does. `width == hi - lo` is the
 // interval measure; each recursive call halves it.
-machine search(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+machine search(values: @[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
 requires lo <= hi
 requires hi <= 16
 requires width == hi - lo
@@ -60,7 +60,7 @@ terminates by width -> Nat::Descending in 0..=16
         true -> split(values, lo, hi, width, key)
         false -> lo
     }
-    machine split(values: &[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
+    machine split(values: @[i32; 16], lo: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo < hi
         requires hi <= 16
         requires width == hi - lo
@@ -73,7 +73,7 @@ terminates by width -> Nat::Descending in 0..=16
             false -> lo
         }
     }
-    machine probe(values: &[i32; 16], lo: u64, hi: u64, width: u64, half: u64, key: i32) -> u64
+    machine probe(values: @[i32; 16], lo: u64, hi: u64, width: u64, half: u64, key: i32) -> u64
         requires lo < hi
         requires hi <= 16
         requires width == hi - lo
@@ -88,7 +88,7 @@ terminates by width -> Nat::Descending in 0..=16
             false -> lo
         }
     }
-    machine compare(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine compare(values: @[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires mid < 16
@@ -100,7 +100,7 @@ terminates by width -> Nat::Descending in 0..=16
             false -> descend_left(values, lo, mid, hi, width, key)
         }
     }
-    machine descend_left(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine descend_left(values: @[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires hi <= 16
@@ -114,7 +114,7 @@ terminates by width -> Nat::Descending in 0..=16
             false -> lo
         }
     }
-    machine descend_right(values: &[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
+    machine descend_right(values: @[i32; 16], lo: u64, mid: u64, hi: u64, width: u64, key: i32) -> u64
         requires lo <= mid
         requires mid < hi
         requires hi <= 16
@@ -135,7 +135,7 @@ terminates by width -> Nat::Descending in 0..=16
 // live count. `sorted` is deliberately absent from the contracts: the
 // suffix copy cannot carry the entry fact across its own writes, so the
 // caller re-verifies the table at runtime after the call.
-machine insert(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64 crashes Trap
+machine insert(context: @mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64 crashes Trap
 requires pos <= cursor
 requires cursor <= live
 requires live <= 15
@@ -146,7 +146,7 @@ terminates by cursor -> Nat::Descending in 0..=15
         true -> shift(context, key, pos, live, cursor)
         false -> place(context, key, pos, live)
     }
-    machine shift(context: &mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
+    machine shift(context: @mut Main, key: i32, pos: u64, live: u64, cursor: u64) -> u64
         requires pos < cursor
         requires cursor <= live
         requires live <= 15
@@ -158,7 +158,7 @@ terminates by cursor -> Nat::Descending in 0..=15
             false -> trap()
         }
     }
-    machine place(context: &mut Main, key: i32, pos: u64, live: u64) -> u64
+    machine place(context: @mut Main, key: i32, pos: u64, live: u64) -> u64
         requires pos <= live
         requires live <= 15
     {
@@ -171,7 +171,7 @@ terminates by cursor -> Nat::Descending in 0..=15
 
 // Fill the table: four live cells ascending, the rest pinned at i32's
 // ceiling so the whole array reads sorted under `sorted`.
-machine seed(values: &mut [i32; 16])
+machine seed(values: @mut [i32; 16])
 ensures sorted(values) == true
 {
     values[15] = 2147483647;
@@ -192,20 +192,20 @@ ensures sorted(values) == true
     values[0] = 1;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
     main.live = 4;
-    seed(&mut main.values);
+    seed(@mut main.values);
     transition { _ -> probe(main) }
 
     // The seed's `ensures` guarantee discharges `search`'s sortedness
     // contract; the fact rides into `probe` on the state's own `requires`.
-    machine probe(main: &mut Main)
-        requires sorted(&main.values) == true
+    machine probe(main: @mut Main)
+        requires sorted(@main.values) == true
     {
-        let p5: u64 = search(&main.values, 0, 4, 4, 5);
-        let p2: u64 = search(&main.values, 0, 4, 4, 2);
-        let p20: u64 = search(&main.values, 0, 4, 4, 20);
-        let p1: u64 = search(&main.values, 0, 4, 4, 1);
+        let p5: u64 = search(@main.values, 0, 4, 4, 5);
+        let p2: u64 = search(@main.values, 0, 4, 4, 2);
+        let p20: u64 = search(@main.values, 0, 4, 4, 20);
+        let p1: u64 = search(@main.values, 0, 4, 4, 1);
         transition p5 == 3 && p2 == 1 && p20 == 4 && p1 == 1 {
             true -> insert_stage(main)
             false -> bad(main)
@@ -213,27 +213,27 @@ machine main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
     }
     // Positions were measured on the seed table, so insert the larger key
     // first: appending 20 keeps the prefix, then 2 shifts the tail right.
-    machine insert_stage(main: &mut Main) {
+    machine insert_stage(main: @mut Main) {
         let l1: u64 = insert(main, 20, 4, 4, 4);
         let l2: u64 = insert(main, 2, 1, 5, 5);
-        transition l1 == 5 && l2 == 6 && main.live == 6 && sorted(&main.values) == true {
+        transition l1 == 5 && l2 == 6 && main.live == 6 && sorted(@main.values) == true {
             true -> attest(main)
             false -> bad(main)
         }
     }
-    machine attest(main: &mut Main) {
+    machine attest(main: @mut Main) {
         transition main.values[0] == 1 && main.values[1] == 2 && main.values[2] == 3
             && main.values[3] == 5 && main.values[4] == 7 && main.values[5] == 20 {
             true -> good(main)
             false -> bad(main)
         }
     }
-    machine good(main: &mut Main) { ProcessExit::exit_process(58); }
-    machine bad(main: &mut Main)  { crash Trap; }
+    machine good(main: @mut Main) { ProcessExit::exit_process(58); }
+    machine bad(main: @mut Main)  { crash Trap; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

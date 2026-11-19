@@ -994,7 +994,7 @@ mod tests {
         let text = types.insert("TextView", view);
         let scalar = types.insert("u64", StructuralTypeShape::PrimitiveScalar(unsigned(64)));
         let scalar = types.insert(
-            "&u64",
+            "@u64",
             StructuralTypeShape::Reference {
                 referent: scalar,
                 access: StructuralAccess::SharedBorrow,

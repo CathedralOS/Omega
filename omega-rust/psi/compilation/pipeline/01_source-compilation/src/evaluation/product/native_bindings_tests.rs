@@ -11,10 +11,10 @@ use std::sync::Arc;
 const PRELUDE: &str = r#"
 public data Build { marker: u64; }
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64 reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build { builder }
+public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build { builder }
 public data BuildTarget [copy] { case LinuxX86_64; }
 public const linux_x86_64: BuildTarget = BuildTarget::LinuxX86_64;
 public machine build_selection_target(target: BuildTarget) -> u64 {
@@ -52,7 +52,7 @@ fn typed_requirement_at(
     dependency: bool,
 ) -> TypedTrees {
     let build = format!(
-        "machine build(builder: &mut Build) {{\n\
+        "machine build(builder: @mut Build) {{\n\
          let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall {{ number: 9u64 }};\n\
          Build::bind<{path}>(builder, linux_x86_64, locator);\n}}"
     );

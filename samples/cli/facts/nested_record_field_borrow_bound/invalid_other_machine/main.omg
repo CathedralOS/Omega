@@ -11,13 +11,13 @@ data Outer {
     header: u64;
 }
 
-machine target_machine(view: &Outer) -> u64 {
+machine target_machine(view: @Outer) -> u64 {
     let quota: u64 = view.inner.quota;
     let diff: u64 = 72u64 - quota;
     diff
 }
 
-machine forwarder(view: &Outer) -> u64 {
+machine forwarder(view: @Outer) -> u64 {
     target_machine(view)
 }
 
@@ -26,7 +26,7 @@ machine evaluate() -> u64 {
         inner: Inner { quota: 30, tag: 7 },
         header: 10,
     };
-    forwarder(&outer)
+    forwarder(@outer)
 }
 
 machine main() crashes Trap {

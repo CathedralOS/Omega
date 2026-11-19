@@ -4,7 +4,7 @@ use omega::language::core::Atomic;
 use omega::language::core::Atomic::fence;
 use omega::language::core::FenceOrdering;
 data Cell { value: AtomicBool; }
-machine publish(cell: &Cell, value: bool) { cell.value.store(value, Publish); }
+machine publish(cell: @Cell, value: bool) { cell.value.store(value, Publish); }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }
@@ -26,12 +26,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedObserve {
-    machine observe(cell: &Cell) -> bool
+    machine observe(cell: @Cell) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Observe satisfies SelectedObserve {
-    machine observe(cell: &Cell) -> bool
+    machine observe(cell: @Cell) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -40,7 +40,7 @@ X86Observe satisfies SelectedObserve {
 }
 
 ArmObserve satisfies SelectedObserve {
-    machine observe(cell: &Cell) -> bool
+    machine observe(cell: @Cell) -> bool
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -51,9 +51,9 @@ ArmObserve satisfies SelectedObserve {
 
 machine main() crashes Trap {
     let cell: Cell;
-    publish(&cell, true);
+    publish(@cell, true);
     Atomic::fence(FenceOrdering::Receive);
-    let observed: bool = SelectedObserve::observe(&cell);
+    let observed: bool = SelectedObserve::observe(@cell);
     transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

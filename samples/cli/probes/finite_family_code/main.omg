@@ -17,27 +17,27 @@
 // accepts when both rows return the item's 7. Compile-checked only: no
 // standard-library dependency, no ProcessExit provider.
 trait Shape<T> {
-    machine code<Width: u32>(subject: &T) -> i32 requires Width == 16 || Width == 32;
+    machine code<Width: u32>(subject: @T) -> i32 requires Width == 16 || Width == 32;
 }
 
 data Item {
     value: i32;
 }
 
-machine Item::code<Width: u32>(item: &Item) -> i32 satisfies Shape<Item>::code {
+machine Item::code<Width: u32>(item: @Item) -> i32 satisfies Shape<Item>::code {
     transition {
         _ -> item.value
     }
 }
 
 Primary satisfies Shape<Item> {
-    machine code<Width: u32>(subject: &Item) -> i32 requires Width == 16 || Width == 32 { Item::code<Width>(subject) }
+    machine code<Width: u32>(subject: @Item) -> i32 requires Width == 16 || Width == 32 { Item::code<Width>(subject) }
 }
 
 machine finite_family_code() {
     let mut item: Item = Item { value: 7 };
-    let half: i32 = Item::code<16>(&item);
-    let full: i32 = Item::code<32>(&item);
+    let half: i32 = Item::code<16>(@item);
+    let full: i32 = Item::code<32>(@item);
     transition half == 7 && full == 7 {
         true -> done(70)
         _ -> done(71)

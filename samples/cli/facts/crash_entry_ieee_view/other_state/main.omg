@@ -11,7 +11,7 @@ requires value == 1065353216
 {
     transition { _ -> step(value) }
     machine step(value: i32) -> f32 requires value == 1065353216 {
-    let view: &f32 = &value as &f32;
+    let view: @f32 = @value as @f32;
     let observed: f32 = view;
     maybe_zero(observed)
     }

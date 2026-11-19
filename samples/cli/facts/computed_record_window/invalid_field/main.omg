@@ -1,25 +1,25 @@
 // In the which == 0 arm, [0..which + 2] has length 2; hold preserves that
 // extent in its returned Held.values, through which write_pair writes the backing.
 
-data Held<'samples> { values: &'samples mut [f64]; }
+data Held<'samples> { values: @'samples mut [f64]; }
 // Reject: the computed matched window is length 1, against its length-2 promise.
 data Holder { which: i64; samples: [f64; 4]; }
-machine window<'row>(holder: &'row mut Holder) -> &'row mut [f64]
+machine window<'row>(holder: @'row mut Holder) -> @'row mut [f64]
 ensures result.len == 2
 {
     match holder.which {
-        0 -> &mut holder.samples[0..holder.which + 1]
-        _ -> &mut holder.samples[2..4]
+        0 -> @mut holder.samples[0..holder.which + 1]
+        _ -> @mut holder.samples[2..4]
     }
 }
-machine hold<'samples>(samples: &'samples mut [f64]) -> Held<'samples>
+machine hold<'samples>(samples: @'samples mut [f64]) -> Held<'samples>
 requires samples.len == 2
 ensures result.values.len == 2
 {
     Held { values: samples }
 }
 
-machine write_pair(window: &mut [f64])
+machine write_pair(window: @mut [f64])
 requires window.len >= 2 {
     window[0] = 0.0;
     window[1] = 1.0;
@@ -27,7 +27,7 @@ requires window.len >= 2 {
 
 machine exercise(which: i64) crashes Trap {
     let mut holder: Holder = Holder { which: which, samples: [9.0, 9.0, 9.0, 9.0] };
-    let view: &mut [f64] = window(&mut holder);
+    let view: @mut [f64] = window(@mut holder);
     let leading: Held = hold(view);
     write_pair(leading.values);
     let first: f64 = holder.samples[0];

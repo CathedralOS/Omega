@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "named_const_callable_family_target_body");
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);

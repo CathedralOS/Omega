@@ -4,7 +4,7 @@
 data Cell [copy] { before: i64; value: i64; after: i64; }
 data Outcome [copy] { chosen: i64; other: i64; }
 
-machine choose(counter: &mut u64, flag: bool) -> bool
+machine choose(counter: @mut u64, flag: bool) -> bool
 requires counter == 0
 {
     counter = 1;
@@ -14,13 +14,13 @@ requires counter == 0
 machine store(flag: bool) -> Outcome crashes Trap {
     let mut chosen: Cell = Cell { before: 3, value: 17, after: 5 };
     let mut other: Cell = Cell { before: 7, value: 23, after: 9 };
-    transition { _ -> pick(&mut chosen, &mut other, flag) }
+    transition { _ -> pick(@mut chosen, @mut other, flag) }
 
-    machine pick(chosen: &mut Cell, other: &mut Cell, flag: bool) -> Outcome crashes Trap {
+    machine pick(chosen: @mut Cell, other: @mut Cell, flag: bool) -> Outcome crashes Trap {
         let mut visits: u64 = 0;
-        let selected: &write i64 = match choose(&mut visits, flag) {
-            true -> &write chosen.value
-            false -> &write other.value
+        let selected: @write i64 = match choose(@mut visits, flag) {
+            true -> @write chosen.value
+            false -> @write other.value
         };
         let previous: i64 = selected;
         selected = 41;

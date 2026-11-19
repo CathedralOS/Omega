@@ -22,7 +22,7 @@ ensures result == value
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     let anonymous: i32 = identity((7 / 2 * 2) as i32);
     let typed: i32 = identity(7i32 / 2 * 2);
@@ -31,12 +31,12 @@ machine Main::main(main: &mut Main) {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

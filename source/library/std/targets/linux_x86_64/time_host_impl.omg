@@ -33,7 +33,7 @@ public data LinuxX64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 // Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
 // one-member clock-wait traits; this trait owns the time-host read and wait.
 boundary trait LinuxX64TimeRead {
-    machine clock_gettime(clock_id: u32, instant: &mut LinuxX64TimeHostInstant) -> i64
+    machine clock_gettime(clock_id: u32, instant: @mut LinuxX64TimeHostInstant) -> i64
     reaches TimeHost
     crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
@@ -64,7 +64,7 @@ public LinuxX8664TimeHost satisfies TimeHost {
     invokes LinuxX64TimeRead
     {
         let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(1, &mut instant);
+        let status: i64 = LinuxX64TimeRead::clock_gettime(1, @mut instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds)
             _ -> degraded()
@@ -87,7 +87,7 @@ public LinuxX8664TimeHost satisfies TimeHost {
     invokes LinuxX64TimeRead
     {
         let mut instant: LinuxX64TimeHostInstant = LinuxX64TimeHostInstant { seconds: 0, nanoseconds: 0 };
-        let status: i64 = LinuxX64TimeRead::clock_gettime(0, &mut instant);
+        let status: i64 = LinuxX64TimeRead::clock_gettime(0, @mut instant);
         transition status == 0 {
             true -> measured(instant.seconds, instant.nanoseconds)
             _ -> degraded()

@@ -19,11 +19,11 @@ ArmBodyCheck satisfies SelectedBodyCheck {
     }
 }
 boundary trait SelectedReadAt {
-    machine read_at<Index: u32>(items: &[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     requires Index < items.len;
 }
 X86ReadAt satisfies SelectedReadAt {
-    machine read_at<Index: u32>(items: &[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     requires Index < items.len
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -31,7 +31,7 @@ X86ReadAt satisfies SelectedReadAt {
     }
 }
 ArmReadAt satisfies SelectedReadAt {
-    machine read_at<Index: u32>(items: &[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    machine read_at<Index: u32>(items: @[u8]) -> u8 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     requires Index < items.len
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -42,7 +42,7 @@ ArmReadAt satisfies SelectedReadAt {
 machine main() crashes Trap {
     let bytes: [u8; 4] = [9, 8, 7, 6];
     let count: u32 = 4;
-    transition SelectedReadAt::read_at<count>(&bytes[..]) == 8 { true -> done() _ -> bad() }
+    transition SelectedReadAt::read_at<count>(@bytes[..]) == 8 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

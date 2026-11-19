@@ -10,28 +10,28 @@ generic code can ask for one by name.
 public data Card { power: u32; cost: u32; }
 
 public trait Ranked<T> {
-    machine before(card: &T, other: &T) -> bool;
-    machine rank_value(card: &T) -> u32;
+    machine before(card: @T, other: @T) -> bool;
+    machine rank_value(card: @T) -> u32;
 }
 
 public PowerOrder satisfies Ranked<Card>
 {
-    machine before(card: &Card, other: &Card) -> bool {
+    machine before(card: @Card, other: @Card) -> bool {
         card.power < other.power
     }
 
-    machine rank_value(card: &Card) -> u32 {
+    machine rank_value(card: @Card) -> u32 {
         card.power
     }
 }
 
 CostOrder satisfies Ranked<Card>
 {
-    machine before(card: &Card, other: &Card) -> bool {
+    machine before(card: @Card, other: @Card) -> bool {
         card.cost < other.cost
     }
 
-    machine rank_value(card: &Card) -> u32 {
+    machine rank_value(card: @Card) -> u32 {
         card.cost
     }
 }
@@ -45,12 +45,12 @@ trait parameter.
 ## Using an implementation
 
 ```omega
-machine comes_first<T, const Order: Ranked<T>>(left: &T, right: &T) -> bool {
+machine comes_first<T, const Order: Ranked<T>>(left: @T, right: @T) -> bool {
     Order::before(left, right)
 }
 
-let by_power: bool = comes_first<Card, PowerOrder>(&left, &right);
-let by_cost: bool = comes_first<Card, CostOrder>(&left, &right);
+let by_power: bool = comes_first<Card, PowerOrder>(@left, @right);
+let by_cost: bool = comes_first<Card, CostOrder>(@left, @right);
 ```
 
 The caller names the implementation. The call is compiled as a direct call to
@@ -60,8 +60,8 @@ The caller names the implementation. The call is compiled as a direct call to
 
 ```omega
 trait Codec<T> {
-    machine encode(value: &T, out: &mut [u8]) -> u64 reaches none crashes none;
-    machine decode(input: &[u8], out: &mut T) -> bool reaches none crashes none;
+    machine encode(value: @T, out: @mut [u8]) -> u64 reaches none crashes none;
+    machine decode(input: @[u8], out: @mut T) -> bool reaches none crashes none;
 }
 
 WireCodec satisfies Codec<Message> {
@@ -100,9 +100,9 @@ out gets the trait's version:
 
 ```omega
 trait ResettableCounter<T> {
-    machine set(counter: &mut T, value: i32);
+    machine set(counter: @mut T, value: i32);
 
-    machine reset(counter: &mut T) {
+    machine reset(counter: @mut T) {
         ResettableCounter::set(counter, 0);
     }
 }
@@ -112,12 +112,12 @@ trait ResettableCounter<T> {
 
 ```omega
 trait Resettable<T> {
-    machine reset(counter: &mut T);
+    machine reset(counter: @mut T);
 }
 
 trait ManagedCounter<T> {
     requires Resettable<T>;
-    machine increment(counter: &mut T);
+    machine increment(counter: @mut T);
 }
 
 boundary trait TimerInterrupt: InterruptService + Calling<X86InterruptPolicy> { }
@@ -137,12 +137,12 @@ trait parameter:
 
 ```omega
 trait WireEncodable<Value, Message> {
-    machine to_wire(value: &Value, out: &mut Message);
+    machine to_wire(value: @Value, out: @mut Message);
 }
 
 PlayerWireEncoding satisfies WireEncodable<Player, PlayerMessage>
 {
-    machine to_wire(player: &Player, out: &mut PlayerMessage) {
+    machine to_wire(player: @Player, out: @mut PlayerMessage) {
         out.name = player.name;
         out.health = player.health;
     }
@@ -181,7 +181,7 @@ not a code namespace:
 
 ```omega
 machine < card_less_by_power(left: Card, right: Card) -> bool {
-    PowerOrder::before(&left, &right)
+    PowerOrder::before(@left, @right)
 }
 ```
 
@@ -192,17 +192,17 @@ When the parameter's type is a trait requirement, the argument must be a
 machine bound to that requirement, and binding is always written out:
 
 ```omega
-trait Tidy<T> { machine clear(item: &mut T); }
+trait Tidy<T> { machine clear(item: @mut T); }
 
-machine tidy<T, const F: Tidy<T>::clear>(item: &mut T) { F(item); }
+machine tidy<T, const F: Tidy<T>::clear>(item: @mut T) { F(item); }
 
-machine zero(item: &mut u32) { item = 0; }                        // plain
-machine wipe(item: &mut u32) satisfies Tidy<u32>::clear { ... }   // bound where declared
+machine zero(item: @mut u32) { item = 0; }                        // plain
+machine wipe(item: @mut u32) satisfies Tidy<u32>::clear { ... }   // bound where declared
 const zero_tidy = (zero satisfies Tidy<u32>::clear);              // bound by expression
 
-tidy<u32, wipe>(&mut x);          // accepted
-tidy<u32, zero_tidy>(&mut x);     // accepted
-tidy<u32, zero>(&mut x);          // Rejected: zero is not bound.
+tidy<u32, wipe>(@mut x);          // accepted
+tidy<u32, zero_tidy>(@mut x);     // accepted
+tidy<u32, zero>(@mut x);          // Rejected: zero is not bound.
 ```
 
 Having the right signature is not enough. The three ways to bind are the
@@ -219,14 +219,14 @@ machines in a record:
 data Counter { value: u64; }
 
 data CounterOps {
-    clear: machine(counter: &mut Counter) reaches none crashes none terminates;
-    value: machine(counter: &Counter) -> u64 reaches none crashes none terminates;
+    clear: machine(counter: @mut Counter) reaches none crashes none terminates;
+    value: machine(counter: @Counter) -> u64 reaches none crashes none terminates;
 }
 
-machine clear(counter: &mut Counter) terminates { counter.value = 0; }
-machine value(counter: &Counter) -> u64 terminates { counter.value }
+machine clear(counter: @mut Counter) terminates { counter.value = 0; }
+machine value(counter: @Counter) -> u64 terminates { counter.value }
 
-machine inspect(operations: &CounterOps, counter: &Counter) -> u64 terminates {
+machine inspect(operations: @CounterOps, counter: @Counter) -> u64 terminates {
     (operations.value)(counter)
 }
 
@@ -245,11 +245,11 @@ so `save_dynamic` could not take its record at run time. See
 [open callable contracts](../spec/language/effects.md#open-callable-contracts).
 
 ```omega
-machine save_static<T, const Format: Codec<T>>(value: &T, out: &mut [u8]) -> u64 {
+machine save_static<T, const Format: Codec<T>>(value: @T, out: @mut [u8]) -> u64 {
     Format::encode(value, out)             // direct call
 }
 
-machine save_dynamic<T>(format: &Codec<T>, value: &T, out: &mut [u8]) -> u64 {
+machine save_dynamic<T>(format: @Codec<T>, value: @T, out: @mut [u8]) -> u64 {
     (format.encode)(value, out)            // call through a field
 }
 ```
@@ -261,22 +261,22 @@ hold readers over different things:
 
 ```omega
 data Reader<'a, some S> {
-    state: &'a mut S;
-    read: machine(state: &mut S, output: &mut [u8]) -> u64
+    state: @'a mut S;
+    read: machine(state: @mut S, output: @mut [u8]) -> u64
         requires output.len > 0
         reaches none
         crashes none;
 }
 
-machine read_one(reader: &mut Reader, output: &mut [u8]) -> u64
+machine read_one(reader: @mut Reader, output: @mut [u8]) -> u64
 requires output.len > 0
 {
     (reader.read)(reader.state, output)
 }
 
 let mut readers: [Reader; 2] = [
-    Reader { state: &mut constant, read: read_constant },
-    Reader { state: &mut toggle, read: read_toggle },
+    Reader { state: @mut constant, read: read_constant },
+    Reader { state: @mut toggle, read: read_toggle },
 ];
 ```
 
@@ -299,7 +299,7 @@ public trait LocalLogger<T> = Logger<T> {
         terminates;
 }
 
-machine record<L, const Logging: LocalLogger<L>>(logger: &L) {
+machine record<L, const Logging: LocalLogger<L>>(logger: @L) {
     Logging::write(logger, "record");
 }
 ```

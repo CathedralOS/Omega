@@ -14,7 +14,7 @@ machine acquire(identity: u64) -> Resource in Open requires identity != 0 {
 machine open(identity: u64) -> Acquisition requires identity != 0 {
     Acquisition::Ok { resource: acquire(identity) }
 }
-machine observe(resource: &Resource in Open) -> u64 { resource.identity }
+machine observe(resource: @Resource in Open) -> u64 { resource.identity }
 machine close(resource: Resource in Open) {}
 
 machine main() crashes Trap {
@@ -22,7 +22,7 @@ machine main() crashes Trap {
     transition { _ -> received(resource) }
 
     machine received(resource: Resource in Open) {
-        let identity: u64 = observe(&resource);
+        let identity: u64 = observe(@resource);
         close(resource);
         transition identity == 41 { true -> another() false -> wrong() }
     }
@@ -34,7 +34,7 @@ machine main() crashes Trap {
         }
     }
     machine received_payload(resource: Resource in Open) {
-        let identity: u64 = observe(&resource);
+        let identity: u64 = observe(@resource);
         close(resource);
         transition identity == 73 { true -> done() false -> wrong() }
     }

@@ -68,7 +68,7 @@ fn parse_type_reference_handle_inner<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     allow_trailing_domain: bool,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    if input.at_punctuation(PunctuationKind::Ampersand) {
+    if input.at_punctuation(PunctuationKind::At) {
         return parse_borrow_type_reference(syntax_trees, input, allow_trailing_domain);
     }
     if input.at_punctuation(PunctuationKind::LeftParen) {
@@ -450,21 +450,20 @@ fn parse_borrow_type_reference<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     allow_trailing_domain: bool,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    let (is_reference, lifetime, access, input) =
-        if input.at_punctuation(PunctuationKind::Ampersand) {
-            let input = input.take_punctuation(PunctuationKind::Ampersand, "&")?;
-            let (lifetime, input) = parse_optional_lifetime(input)?;
-            let (access, input) = input.take_reference_access()?;
-            if input.at_contextual("relaxed") {
-                return Err(input.error_here(
-                    "`&relaxed` is retired: invariant windows (ch11) supersede the \
+    let (is_reference, lifetime, access, input) = if input.at_punctuation(PunctuationKind::At) {
+        let input = input.take_punctuation(PunctuationKind::At, "@")?;
+        let (lifetime, input) = parse_optional_lifetime(input)?;
+        let (access, input) = input.take_reference_access()?;
+        if input.at_contextual("relaxed") {
+            return Err(input.error_here(
+                "`@relaxed` is retired: invariant windows (ch11) supersede the \
                      relax surface -- take the ordinary reference",
-                ));
-            }
-            (true, lifetime, access, input)
-        } else {
-            (false, None, language_core::ReferenceAccess::Shared, input)
-        };
+            ));
+        }
+        (true, lifetime, access, input)
+    } else {
+        (false, None, language_core::ReferenceAccess::Shared, input)
+    };
 
     let (type_reference, input) = parse_type_reference_handle_with_trailing_domain(
         syntax_trees,

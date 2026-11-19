@@ -54,7 +54,7 @@ machine WordPlacement::plan(schema: Schema) -> AccessPlan {
 }
 
 MemorySupply satisfies ResourceProfileSupply<TestMemory> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile {
+    machine profile(storage: @Extent in Granted) -> ResourceProfile {
         let services: [u64; 32];
         let mut regions: [ResourceRegion; 32];
         regions[0] = ResourceRegion {
@@ -79,8 +79,8 @@ TestVacant satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
         ensures result in Granted,
             core::Identity<IntervalSet<Nat>>(
-                Granted::content(old(&storage)),
-                Granted::content(&result)
+                Granted::content(old(@storage)),
+                Granted::content(@result)
             )
     { storage as Extent }
 }
@@ -127,11 +127,11 @@ crashes Trap
 {
     let length: u64 = storage.length;
     let mut held: Held = retain_record(Held { storage: storage, length: length });
-    restore_record(&mut held);
+    restore_record(@mut held);
     exercise(held.storage)
 }
 
-machine restore_record(held: &mut Held) {
+machine restore_record(held: @mut Held) {
     let length: u64 = held.length;
     let storage: Extent in Granted & Vacant = retain_storage(held.storage);
     held.storage = storage;
@@ -146,9 +146,9 @@ machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vaca
 
     machine extract(storage: Extent in Granted & Resident<WordPlacement, Word>) -> Extent in Granted & Vacant {
         let mut retained: Extent in Granted & Resident<WordPlacement, Word> = storage;
-        let view: &mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(&mut retained);
-        let before: u64 = read(&view.value);
-        write(&mut view.value, 29u64);
+        let view: @mut Access<WordPlacement, Word> = Access::view_resident_mut<WordPlacement, Word>(@mut retained);
+        let before: u64 = read(@view.value);
+        write(@mut view.value, 29u64);
         transition NativeAccess<WordPlacement, Word, TestMemory>::move_out(retained) {
             AccessExtraction::Moved { storage, value } -> finish(storage, value, before)
         }

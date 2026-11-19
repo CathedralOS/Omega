@@ -8,8 +8,8 @@ const END: u64 = 12u64;
 machine probe() -> u64
 ensures result == 0u64
 {
-    let bytes: &[u8] = "0123456789ABCD";
-    let window: &[u8] = bytes[START..END];
+    let bytes: @[u8] = "0123456789ABCD";
+    let window: @[u8] = bytes[START..END];
     let window_len: u64 = window.len;
     let total: u64 = window_len * 10u64;
     total - 100u64

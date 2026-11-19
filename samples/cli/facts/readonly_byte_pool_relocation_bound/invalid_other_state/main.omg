@@ -1,7 +1,7 @@
 // Fact: a read-only byte-pool slice literal ("omega") establishes a static 5-byte length bound (bytes.len >= 5u64 && bytes.len <= 5u64), proving safe indexed byte projection bytes[4u64] and exact length subtraction bytes.len - 5u64 across all nine places.
 // Place: another state (invalid twin).
 
-machine inspect_bytes(bytes: &[u8]) -> u64 crashes Trap
+machine inspect_bytes(bytes: @[u8]) -> u64 crashes Trap
 requires bytes.len >= 5u64 && bytes.len <= 5u64
 ensures result == 0u64
 {
@@ -20,11 +20,11 @@ ensures result == 0u64
 }
 
 machine main() crashes Trap {
-    let bytes: &[u8] = "omeg";
+    let bytes: @[u8] = "omeg";
     transition {
         _ -> step(bytes)
     }
-    machine step(forwarded: &[u8])
+    machine step(forwarded: @[u8])
     requires forwarded.len >= 5u64 && forwarded.len <= 5u64
     {
         transition inspect_bytes(forwarded) == 0 {

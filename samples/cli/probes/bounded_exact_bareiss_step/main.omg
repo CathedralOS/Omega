@@ -19,7 +19,7 @@ data Main {
     extra: [i64; 1];
 }
 
-machine store(cells: &mut [i64; 5])
+machine store(cells: @mut [i64; 5])
 ensures cells[0] == 6 && cells[1] == 4 && cells[2] == 2 && cells[3] == 3 && cells[4] == 3
 {
     cells[0] = 6;
@@ -29,7 +29,7 @@ ensures cells[0] == 6 && cells[1] == 4 && cells[2] == 2 && cells[3] == 3 && cell
     cells[4] = 3;
 }
 
-machine store_at(cells: &mut [i64; 1], index: i32, value: i64)
+machine store_at(cells: @mut [i64; 1], index: i32, value: i64)
 requires index == 0
 requires value >= 1 && value <= 12
 ensures cells[index] >= 1 && cells[index] <= 12
@@ -37,11 +37,11 @@ ensures cells[index] >= 1 && cells[index] <= 12
     cells[index] = value;
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
-    store(&mut main.cells);
-    store_at(&mut main.extra, 0, 6);
+machine Main::main(main: @mut Main) reaches ProcessExit + Console crashes Trap {
+    store(@mut main.cells);
+    store_at(@mut main.extra, 0, 6);
     transition { _ -> reduce(main) }
-    machine reduce(main: &mut Main) {
+    machine reduce(main: @mut Main) {
         let diagonal: i64 = main.cells[0];
         let value: i64 = main.cells[1];
         let left: i64 = main.cells[2];
@@ -68,5 +68,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

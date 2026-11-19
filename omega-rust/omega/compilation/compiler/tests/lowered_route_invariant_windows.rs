@@ -66,25 +66,25 @@ fn verdict(name: &str, machines: &str) -> RouteVerdict {
 #[test]
 fn a_store_into_one_field_keeps_a_clause_over_two_fields() {
     for (name, machines) in [
-        ("formal", "machine reset(p: &mut Pair) {\n    p.i = 0;\n}\n"),
+        ("formal", "machine reset(p: @mut Pair) {\n    p.i = 0;\n}\n"),
         (
             "joined_nested_machine",
-            "machine reset(p: &mut Pair, early: bool) {
+            "machine reset(p: @mut Pair, early: bool) {
     transition early {
         true -> block left(p)
         _ -> block right(p)
     }
-    machine left(p: &mut Pair) {
+    machine left(p: @mut Pair) {
         transition {
             _ -> block joined(p)
         }
     }
-    machine right(p: &mut Pair) {
+    machine right(p: @mut Pair) {
         transition {
             _ -> block joined(p)
         }
     }
-    machine joined(p: &mut Pair) {
+    machine joined(p: @mut Pair) {
         p.i = 0;
     }
 }
@@ -104,10 +104,10 @@ fn a_store_into_one_field_keeps_a_clause_over_two_fields() {
 #[test]
 fn a_store_that_breaks_a_clause_over_two_fields_is_refused() {
     for (name, machines) in [
-        ("broken", "machine reset(p: &mut Pair) {\n    p.i = 9;\n}\n"),
+        ("broken", "machine reset(p: @mut Pair) {\n    p.i = 9;\n}\n"),
         (
             "sibling_written",
-            "machine reset(p: &mut Pair) {\n    p.j = 7;\n    p.i = 0;\n}\n",
+            "machine reset(p: @mut Pair) {\n    p.j = 7;\n    p.i = 0;\n}\n",
         ),
     ] {
         let found = verdict(name, machines);

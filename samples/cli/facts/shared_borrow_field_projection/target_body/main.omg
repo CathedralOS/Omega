@@ -36,7 +36,7 @@ X86Evaluate satisfies SelectedEvaluate {
     {
         SelectedBodyCheck::require_tag(17u64);
         let window: Window = Window { used: 40 };
-        let view: &Window = &window;
+        let view: @Window = @window;
         let used: u64 = view.used;
         let diff: u64 = 90u64 - used;
         diff
@@ -49,7 +49,7 @@ ArmEvaluate satisfies SelectedEvaluate {
     {
         SelectedBodyCheck::require_tag(29u64);
         let window: Window = Window { used: 40 };
-        let view: &Window = &window;
+        let view: @Window = @window;
         let used: u64 = view.used;
         let diff: u64 = 90u64 - used;
         diff

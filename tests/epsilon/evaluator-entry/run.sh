@@ -198,14 +198,14 @@ EXIT_WRITE = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 data Main {
   console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.console.write_byte(65);
   self.console.exit_process(42);
 }
@@ -219,14 +219,14 @@ STDIN_ECHO = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 data Main {
   console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   let value: i32 = self.console.read_byte();
   self.console.write_byte(value);
   assert self.console.read_byte() == -1;
@@ -245,14 +245,14 @@ TRAP_WRITE = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 data Main {
   console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = 1 / 0;
 }
@@ -267,7 +267,7 @@ SPARSE_ARRAY = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 data Main {
@@ -275,7 +275,7 @@ data Main {
   values: [i32; 2147483647];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.values[1073741824] = 7;
   self.values[2147483646] = 9;
   assert self.values[1073741824] == 7;
@@ -330,14 +330,14 @@ NESTED_CALLS = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 data Main {
   console: Console;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   let total: i32 = nest(DEPTH);
   self.console.write_byte(65);
   self.console.exit_process(total);

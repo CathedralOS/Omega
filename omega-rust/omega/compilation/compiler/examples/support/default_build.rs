@@ -9,7 +9,7 @@ use compiler::{CheckedCompileRequest, CompilationSession};
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 
 const SOURCE: &str = "data Build { marker: u8; }\n\
-    machine build(value: &mut Build) crashes Trap { crash Trap; }\n\
+    machine build(value: @mut Build) crashes Trap { crash Trap; }\n\
     machine main() {}\n";
 
 fn binding(capture: &package_compilation::CapturedLocalSource, marker: u8) -> PackageSourceBinding {

@@ -179,17 +179,17 @@ def phase_rejected(program: str, name: str, source: bytes, status: int) -> None:
 
 
 def nested_machine_cases(program: str) -> None:
-    source = (b"machine outer(a: &[u8; 4], i: u64) -> u8 { transition i < 4 { true -> middle(a, i) false -> (0) } "
-              b"machine middle(a: &[u8; 4], i: u64) -> u8 { leaf(a, i) "
-              b"machine leaf(a: &[u8; 4], i: u64) -> u8 { a[i] } } }")
+    source = (b"machine outer(a: @[u8; 4], i: u64) -> u8 { transition i < 4 { true -> middle(a, i) false -> (0) } "
+              b"machine middle(a: @[u8; 4], i: u64) -> u8 { leaf(a, i) "
+              b"machine leaf(a: @[u8; 4], i: u64) -> u8 { a[i] } } }")
     accepted(program, "three-level-ordinary-and-terminal-arrival-facts", source)
     rejected(program, "three-level-arrival-bound-endpoint", source.replace(b"i < 4", b"i <= 4"), "IndexOutOfBounds", b"a[i]")
-    source = (b"machine outer(a: &[u8; 4], i: u64) requires i < 4 { _ = helper(a, i); _ = helper(a, 4); "
-              b"machine helper(a: &[u8; 4], i: u64) -> u8 { a[i] } }")
+    source = (b"machine outer(a: @[u8; 4], i: u64) requires i < 4 { _ = helper(a, i); _ = helper(a, 4); "
+              b"machine helper(a: @[u8; 4], i: u64) -> u8 { a[i] } }")
     rejected(program, "private-helper-never-inherits-parent-entry-facts", source, "IndexOutOfBounds", b"a[i]")
-    source = (b"data Cell { value: u64; } machine observe(cell: &Cell) -> u64 { cell.value } "
-              b"machine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before } "
-              b"machine forward(cell: &mut Cell) -> u64 { transition { _ -> update(cell, observe(cell)) } }")
+    source = (b"data Cell { value: u64; } machine observe(cell: @Cell) -> u64 { cell.value } "
+              b"machine update(cell: @mut Cell, before: u64) -> u64 { cell.value = 73; before } "
+              b"machine forward(cell: @mut Cell) -> u64 { transition { _ -> update(cell, observe(cell)) } }")
     accepted(program, "terminal-existing-reference-captures-completed-observation", source)
     ordinary = source.replace(b"transition { _ -> update(cell, observe(cell)) }", b"let before: u64 = update(cell, observe(cell)); before")
     rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
@@ -215,7 +215,7 @@ def callable_contract_cases(program: str) -> None:
                  "RefinementUnproven", selection)
     rejected(program, "callable-contract/eager-operand-stays-five",
              (root / "owned_reference/eager_operands/invalid/main.omg").read_bytes(),
-             "RequirementUnproven", b"pair(value, setter(Holder { pointer: &mut value }))")
+             "RequirementUnproven", b"pair(value, setter(Holder { pointer: @mut value }))")
     for path in ("returned_reference/invalid/main.omg",
                  "returned_reference/controls/stale_call/main.omg",
                  "returned_reference/controls/stale_store/main.omg"):
@@ -227,12 +227,12 @@ def invocation_component_cases(program: str) -> None:
     # Frozen own-contract controls: ancestry supplies neither a witness nor
     # input authority. Reordering the component preserves every obligation.
     cases = (
-        ('ordinary_continuation_contract/positive', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index < 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', None),
-        ('ordinary_continuation_contract/invalid', b'machine outer(items: &[u8; 4], index: u64) -> u8 {\n    transition index <= 4 { true -> read(items, index) false -> (0) }\n    machine read(items: &[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', 'RequirementUnproven'),
+        ('ordinary_continuation_contract/positive', b'machine outer(items: @[u8; 4], index: u64) -> u8 {\n    transition index < 4 { true -> read(items, index) false -> (0) }\n    machine read(items: @[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', None),
+        ('ordinary_continuation_contract/invalid', b'machine outer(items: @[u8; 4], index: u64) -> u8 {\n    transition index <= 4 { true -> read(items, index) false -> (0) }\n    machine read(items: @[u8; 4], index: u64) -> u8 requires index < 4 {\n        let slot: u64 = helper(index);\n        items[slot]\n        machine helper(value: u64) -> u64\n        requires value < 4\n        ensures result < 4\n        { value }\n    }\n}\n', 'RequirementUnproven'),
         ('own_crash_marker/positive', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Trap { crash Trap; }\n}\n', None),
         ('own_crash_marker/invalid', b'machine outer() -> u8\ncrashes Trap\ncrashes Abort\n{\n    child()\n    machine child() -> u8 crashes Abort { crash Trap; }\n}\n', 'CrashNotDeclared'),
-        ('own_loan_result/positive', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { &item.points }\n}\n', None),
-        ('own_loan_result/invalid', b'data Score { points: i32; }\nmachine outer(score: &Score) -> &i32 {\n    child(score)\n    machine child(item: &Score) -> &i32 { let local: Score = Score { points: 1 }; &local.points }\n}\n', 'LoanEscapes'),
+        ('own_loan_result/positive', b'data Score { points: i32; }\nmachine outer(score: @Score) -> @i32 {\n    child(score)\n    machine child(item: @Score) -> @i32 { @item.points }\n}\n', None),
+        ('own_loan_result/invalid', b'data Score { points: i32; }\nmachine outer(score: @Score) -> @i32 {\n    child(score)\n    machine child(item: @Score) -> @i32 { let local: Score = Score { points: 1 }; @local.points }\n}\n', 'LoanEscapes'),
         ('own_linear_custody/positive', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { finish(owned) }\n}\n', None),
         ('own_linear_custody/invalid', b'data Receipt [linear] { code: i32; }\nmachine finish(receipt: Receipt) -> i32;\nmachine outer(receipt: Receipt) -> i32 {\n    child(receipt)\n    machine child(owned: Receipt) -> i32 { let code: i32 = owned.code; code }\n}\n', 'LinearUnconsumed'),
         ('joint_terminal_component/positive', b'machine left(remaining: u64, canary: u64) -> u64\nterminates by remaining\n{\n    transition { _ -> right(canary, remaining) }\n}\nmachine right(stamp: u64, pending: u64) -> u64\nterminates by pending\n{\n    transition pending > 0 {\n        true -> left(pending - 1, stamp)\n        false -> stamp\n    }\n}\n', None),
@@ -253,27 +253,27 @@ def invocation_component_cases(program: str) -> None:
         ('numeric_completion/own_requirement', b'machine helper(value: u64) -> u64 requires value <= 10 { value } machine clamp(value: u64) -> u64 requires value <= 10 ensures result <= 10 { helper(value) }', None),
         ('numeric_completion/wider_requirement', b'machine helper(value: u64) -> u64 requires value <= 11 { value } machine clamp(value: u64) -> u64 requires value <= 11 ensures result <= 10 { helper(value) }', 'GuaranteeUnproven'),
         ('numeric_completion/false_own_guarantee', b'machine clamp() -> u64 ensures result <= 10 { helper() machine helper() -> u64 ensures result <= 10 { 11 } }', 'GuaranteeUnproven'),
-        ('numeric_completion/saved_result_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; saved }', None),
-        ('numeric_completion/reread_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: &mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; cell.value }', 'GuaranteeUnproven'),
-        ('terminal_match_position/positive', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    transition { _ -> match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) } }\n}\n', None),
-        ('terminal_match_position/ordinary', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: &mut Cell, flag: bool) -> u64 {\n    let saved: u64 = match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) };\n    saved\n}\n', 'OverlappingArguments'),
-        ('terminal_match_position/fresh_mutable', b'data Cell { value: u64; }\nmachine observe(cell: &Cell) -> u64 { cell.value }\nmachine update(cell: &mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(flag: bool) -> u64 {\n    let mut cell: Cell = Cell { value: 1 };\n    transition { _ -> match flag { true -> update(&mut cell, observe(&cell)), false -> 0 } }\n}\n', 'OverlappingArguments'),
-        ('shared_reborrow/local_escape_with_input', b'data Cell { value:u64; } machine leak(input:&Cell)->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared }', "LoanEscapes"),
-        ('shared_reborrow/transitive_escape_with_input', b'data Cell { value:u64; } machine leak(input:&Cell)->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let inner:&mut Cell=writer; let shared:&Cell=inner; shared }', "LoanEscapes"),
-        ('shared_reborrow/parameter_backing_return', b'data Cell { value:u64; } machine view(cell:&mut Cell)->&Cell { let writer:&mut Cell=cell; let shared:&Cell=writer; shared }', None),
-        ('shared_reborrow/transitive_local_invalid_escape', b'data Cell { value:u64; } machine leak()->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let inner:&mut Cell=writer; let shared:&Cell=inner; shared }', 'LoanEscapes'),
-        ('shared_reborrow/local_backing_after_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; let saved:u64=shared.value; cell.value=9; saved }', None),
-        ('shared_reborrow/local_backing_before_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; cell.value=9; let saved:u64=shared.value; saved }', 'LoanConflict'),
-        ('shared_reborrow/mutable_local_backing', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared.value }', None),
-        ('shared_reborrow/mutable_local_invalid_write', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; cell.value=7; shared.value }', 'LoanConflict'),
-        ('shared_reborrow/mutable_local_invalid_escape', b'data Cell { value:u64; } machine leak()->&Cell { let mut cell:Cell=Cell{value:1}; let writer:&mut Cell=&mut cell; let shared:&Cell=writer; shared }', 'LoanEscapes'),
-        ("shared_reborrow/write_only_same_access_view", b'machine length(bytes: &write [u8]) -> u64 { bytes.len } machine view(bytes: &write [u8;4]) -> u64 { length(&write bytes) }', None),
-        ('shared_reborrow/two_shared', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let first:&Cell=cell; let second:&Cell=cell; transition first.value == second.value { true->first.value false->second.value } }', None),
-        ('shared_reborrow/two_shared_invalid_write', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let first:&Cell=cell; let second:&Cell=cell; cell.value = 7; transition first.value == second.value { true->first.value false->second.value } }', 'LoanConflict'),
-        ('shared_reborrow/shared_local', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; shared.value }', None),
-        ('shared_reborrow/shared_local_invalid_write', b'data Cell { value:u64; } machine read(cell:&mut Cell)->u64 { let shared:&Cell=cell; cell.value=7; shared.value }', 'LoanConflict'),
-        ('signed_snapshot/positive', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 1\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', None),
-        ('signed_snapshot/invalid', b'machine shifted(value: &mut i64) -> u8\nrequires value == -7\nensures result == 2\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', 'GuaranteeUnproven'),
+        ('numeric_completion/saved_result_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: @mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; saved }', None),
+        ('numeric_completion/reread_after_write', b'data Cell { value: u64; } machine ten() -> u64 { 10 } machine clamp(cell: @mut Cell) -> u64 ensures result <= 10 { let saved: u64 = ten(); cell.value = 20; cell.value }', 'GuaranteeUnproven'),
+        ('terminal_match_position/positive', b'data Cell { value: u64; }\nmachine observe(cell: @Cell) -> u64 { cell.value }\nmachine update(cell: @mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: @mut Cell, flag: bool) -> u64 {\n    transition { _ -> match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) } }\n}\n', None),
+        ('terminal_match_position/ordinary', b'data Cell { value: u64; }\nmachine observe(cell: @Cell) -> u64 { cell.value }\nmachine update(cell: @mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(cell: @mut Cell, flag: bool) -> u64 {\n    let saved: u64 = match flag { true -> update(cell, observe(cell)), false -> update(cell, observe(cell)) };\n    saved\n}\n', 'OverlappingArguments'),
+        ('terminal_match_position/fresh_mutable', b'data Cell { value: u64; }\nmachine observe(cell: @Cell) -> u64 { cell.value }\nmachine update(cell: @mut Cell, before: u64) -> u64 { cell.value = 73; before }\nmachine forward(flag: bool) -> u64 {\n    let mut cell: Cell = Cell { value: 1 };\n    transition { _ -> match flag { true -> update(@mut cell, observe(@cell)), false -> 0 } }\n}\n', 'OverlappingArguments'),
+        ('shared_reborrow/local_escape_with_input', b'data Cell { value:u64; } machine leak(input:@Cell)->@Cell { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; shared }', "LoanEscapes"),
+        ('shared_reborrow/transitive_escape_with_input', b'data Cell { value:u64; } machine leak(input:@Cell)->@Cell { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let inner:@mut Cell=writer; let shared:@Cell=inner; shared }', "LoanEscapes"),
+        ('shared_reborrow/parameter_backing_return', b'data Cell { value:u64; } machine view(cell:@mut Cell)->@Cell { let writer:@mut Cell=cell; let shared:@Cell=writer; shared }', None),
+        ('shared_reborrow/transitive_local_invalid_escape', b'data Cell { value:u64; } machine leak()->@Cell { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let inner:@mut Cell=writer; let shared:@Cell=inner; shared }', 'LoanEscapes'),
+        ('shared_reborrow/local_backing_after_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; let saved:u64=shared.value; cell.value=9; saved }', None),
+        ('shared_reborrow/local_backing_before_last_use', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; cell.value=9; let saved:u64=shared.value; saved }', 'LoanConflict'),
+        ('shared_reborrow/mutable_local_backing', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; shared.value }', None),
+        ('shared_reborrow/mutable_local_invalid_write', b'data Cell { value:u64; } machine read()->u64 { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; cell.value=7; shared.value }', 'LoanConflict'),
+        ('shared_reborrow/mutable_local_invalid_escape', b'data Cell { value:u64; } machine leak()->@Cell { let mut cell:Cell=Cell{value:1}; let writer:@mut Cell=@mut cell; let shared:@Cell=writer; shared }', 'LoanEscapes'),
+        ("shared_reborrow/write_only_same_access_view", b'machine length(bytes: @write [u8]) -> u64 { bytes.len } machine view(bytes: @write [u8;4]) -> u64 { length(@write bytes) }', None),
+        ('shared_reborrow/two_shared', b'data Cell { value:u64; } machine read(cell:@mut Cell)->u64 { let first:@Cell=cell; let second:@Cell=cell; transition first.value == second.value { true->first.value false->second.value } }', None),
+        ('shared_reborrow/two_shared_invalid_write', b'data Cell { value:u64; } machine read(cell:@mut Cell)->u64 { let first:@Cell=cell; let second:@Cell=cell; cell.value = 7; transition first.value == second.value { true->first.value false->second.value } }', 'LoanConflict'),
+        ('shared_reborrow/shared_local', b'data Cell { value:u64; } machine read(cell:@mut Cell)->u64 { let shared:@Cell=cell; shared.value }', None),
+        ('shared_reborrow/shared_local_invalid_write', b'data Cell { value:u64; } machine read(cell:@mut Cell)->u64 { let shared:@Cell=cell; cell.value=7; shared.value }', 'LoanConflict'),
+        ('signed_snapshot/positive', b'machine shifted(value: @mut i64) -> u8\nrequires value == -7\nensures result == 1\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', None),
+        ('signed_snapshot/invalid', b'machine shifted(value: @mut i64) -> u8\nrequires value == -7\nensures result == 2\n{\n    transition ((value + 8) as u8) == 1 {\n        true -> 1\n        false -> 2\n    }\n}\n', 'GuaranteeUnproven'),
         ('assignment_entry_rank/positive-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next - 1;\n        transition { _ -> countdown(next) }\n    }\n}\n', None),
         ('assignment_entry_rank/invalid-local', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next;\n        transition { _ -> countdown(next) }\n    }\n}\n', 'RankUnproven'),
         ('assignment_entry_rank/invalid-formation', b'machine countdown(remaining: u64) -> u64\nrequires remaining <= 100\nterminates by remaining\n{\n    transition remaining > 0 {\n        true -> lower(remaining)\n        false -> 0\n    }\n    machine lower(value: u64) -> u64\n    requires value > 0 && value <= 100\n    terminates by value\n    {\n        let mut next: u64 = value;\n        next = next - (value + 1);\n        transition { _ -> countdown(next) }\n    }\n}\n', 'ArithmeticOverflow'),
@@ -296,13 +296,13 @@ def main() -> None:
     accepted(
         program,
         "guard-reaches-the-selected-state",
-        b"machine read(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"machine read(a: @[u8; 4], i: u64) -> u8 {\n"
         b"    transition i < 4 {\n"
         b"        true -> found(a, i)\n"
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    machine found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine found(a: @[u8; 4], i: u64) -> u8 { a[i] }\n"
         b"    machine missing() -> u8 { 0 }\n"
         b"}",
         {0: "?/"},
@@ -310,20 +310,20 @@ def main() -> None:
     rejected(
         program,
         "unguarded-index",
-        b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }",
+        b"machine read(a: @[u8; 4], i: u64) -> u8 { a[i] }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     rejected(
         program,
         "passed-over-guard-bounds-nothing",
-        b"machine read(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"machine read(a: @[u8; 4], i: u64) -> u8 {\n"
         b"    transition i < 4 {\n"
         b"        true -> missing()\n"
         b"        _ -> found(a, i)\n"
         b"    }\n"
         b"\n"
-        b"    machine found(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine found(a: @[u8; 4], i: u64) -> u8 { a[i] }\n"
         b"    machine missing() -> u8 { 0 }\n"
         b"}",
         "IndexOutOfBounds",
@@ -333,13 +333,13 @@ def main() -> None:
     accepted(
         program,
         "slice-length-bounds-an-index",
-        b"machine first(a: &[u8], i: u64) -> u8 {\n"
+        b"machine first(a: @[u8], i: u64) -> u8 {\n"
         b"    transition i < a.len {\n"
         b"        true -> found(a, i)\n"
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    machine found(a: &[u8], i: u64) -> u8 { a[i] }\n"
+        b"    machine found(a: @[u8], i: u64) -> u8 { a[i] }\n"
         b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
@@ -350,39 +350,39 @@ def main() -> None:
     accepted(
         program,
         "range-slices-within-a-guarded-length",
-        b"machine see(v: &[u8]) {}\n"
-        b"machine f(a: &[u8], i: u64) {\n"
+        b"machine see(v: @[u8]) {}\n"
+        b"machine f(a: @[u8], i: u64) {\n"
         b"    transition i < a.len {\n"
         b"        true -> sliced(a, i)\n"
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    machine sliced(a: &[u8], i: u64) { see(a[i..]); see(a[..i]); see(a[..=i]); see(a[0..i]); see(a[..]); }\n"
+        b"    machine sliced(a: @[u8], i: u64) { see(a[i..]); see(a[..i]); see(a[..=i]); see(a[0..i]); see(a[..]); }\n"
         b"}",
     )
     accepted(
         program,
         "range-slices-of-a-fixed-array",
-        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[1..4]); see(a[..=3]); see(a[4..]); see(a[2..=1]); }",
+        b"machine see(v: @[u8]) {}\nmachine f(a: @[u8; 4]) { see(a[1..4]); see(a[..=3]); see(a[4..]); see(a[2..=1]); }",
     )
     rejected(
         program,
         "range-end-past-the-length",
-        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[1..5]); }",
+        b"machine see(v: @[u8]) {}\nmachine f(a: @[u8; 4]) { see(a[1..5]); }",
         "IndexOutOfBounds",
         b"a[1..5]",
     )
     rejected(
         program,
         "inclusive-range-end-at-the-length",
-        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4]) { see(a[..=4]); }",
+        b"machine see(v: @[u8]) {}\nmachine f(a: @[u8; 4]) { see(a[..=4]); }",
         "IndexOutOfBounds",
         b"a[..=4]",
     )
     rejected(
         program,
         "range-start-past-its-end",
-        b"machine see(v: &[u8]) {}\nmachine f(a: &[u8; 4], i: u64) { see(a[i..2]); }",
+        b"machine see(v: @[u8]) {}\nmachine f(a: @[u8; 4], i: u64) { see(a[i..2]); }",
         "IndexOutOfBounds",
         b"a[i..2]",
     )
@@ -391,19 +391,19 @@ def main() -> None:
     accepted(
         program,
         "conjunction-guards-its-right-operand",
-        b"machine zero_at(a: &[u8; 4], i: u64) -> bool { i < 4 && a[i] == 0 }",
+        b"machine zero_at(a: @[u8; 4], i: u64) -> bool { i < 4 && a[i] == 0 }",
     )
     rejected(
         program,
         "disjunction-does-not-guard-on-success",
-        b"machine zero_at(a: &[u8; 4], i: u64) -> bool { i < 4 || a[i] == 0 }",
+        b"machine zero_at(a: @[u8; 4], i: u64) -> bool { i < 4 || a[i] == 0 }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     accepted(
         program,
         "disjunction-guards-on-failure",
-        b"machine zero_at(a: &[u8; 4], i: u64) -> bool { i >= 4 || a[i] == 0 }",
+        b"machine zero_at(a: @[u8; 4], i: u64) -> bool { i >= 4 || a[i] == 0 }",
     )
 
     # Exact arithmetic must fit its carrier.
@@ -527,13 +527,13 @@ def main() -> None:
     rejected(
         program,
         "self-increment-keeps-its-bound",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"machine f(a: @[u8; 4], i: u64) -> u8 {\n"
         b"    transition i < 3 {\n"
         b"        true -> g(a, i)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine g(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"    machine g(a: @[u8; 4], i: u64) -> u8 {\n"
         b"        let mut j: u64 = i;\n"
         b"        j = j + 1;\n"
         b"        a[j + 1]\n"
@@ -572,17 +572,17 @@ def main() -> None:
     accepted(
         program,
         "loop-index-stays-in-bounds",
-        b"machine sum(a: &[u8; 8]) -> u64 in Wrapping {\n"
+        b"machine sum(a: @[u8; 8]) -> u64 in Wrapping {\n"
         b"    transition { _ -> step(a, 0, 0) }\n"
         b"\n"
-        b"    machine step(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
+        b"    machine step(a: @[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
         b"        transition i < 8 {\n"
         b"            true -> add(a, i, total)\n"
         b"            _ -> done(total)\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    machine add(a: &[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
+        b"    machine add(a: @[u8; 8], i: u64, total: u64 in Wrapping) -> u64 in Wrapping {\n"
         b"        let element: u64 in Wrapping = a[i] as u64 in Wrapping;\n"
         b"        transition { _ -> step(a, i + 1, total + element) }\n"
         b"    }\n"
@@ -593,17 +593,17 @@ def main() -> None:
     rejected(
         program,
         "loop-counter-past-the-guard",
-        b"machine fill(a: &mut [u8; 8]) {\n"
+        b"machine fill(a: @mut [u8; 8]) {\n"
         b"    transition { _ -> step(a, 0) }\n"
         b"\n"
-        b"    machine step(a: &mut [u8; 8], i: u64) {\n"
+        b"    machine step(a: @mut [u8; 8], i: u64) {\n"
         b"        transition i <= 8 {\n"
         b"            true -> store(a, i)\n"
         b"            _ -> {}\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    machine store(a: &mut [u8; 8], i: u64) {\n"
+        b"    machine store(a: @mut [u8; 8], i: u64) {\n"
         b"        a[i] = 0;\n"
         b"        transition { _ -> step(a, i + 1) }\n"
         b"    }\n"
@@ -618,18 +618,18 @@ def main() -> None:
         "widened-field-keeps-its-carrier-range",
         b"data U { length: u64; }\n"
         b"data L { source: U; cursor: u64 in Trapping; index: u64 in Trapping; depth: u64 in Trapping; }\n"
-        b"machine m(l: &mut L) -> u64 in Trapping {\n"
+        b"machine m(l: @mut L) -> u64 in Trapping {\n"
         b"    l.depth = 1;\n"
         b"    transition { _ -> scan(l) }\n"
         b"\n"
-        b"    machine scan(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine scan(l: @mut L) -> u64 in Trapping {\n"
         b"        transition l.cursor < l.source.length {\n"
         b"            true -> pair(l)\n"
         b"            _ -> done(l)\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    machine pair(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine pair(l: @mut L) -> u64 in Trapping {\n"
         b"        l.index = l.cursor + 1;\n"
         b"        transition l.index < l.source.length {\n"
         b"            true -> open(l)\n"
@@ -637,18 +637,18 @@ def main() -> None:
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    machine open(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine open(l: @mut L) -> u64 in Trapping {\n"
         b"        l.depth = l.depth + 1;\n"
         b"        l.cursor = l.cursor + 2;\n"
         b"        transition { _ -> scan(l) }\n"
         b"    }\n"
         b"\n"
-        b"    machine advance(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine advance(l: @mut L) -> u64 in Trapping {\n"
         b"        l.cursor = l.cursor + 1;\n"
         b"        transition { _ -> scan(l) }\n"
         b"    }\n"
         b"\n"
-        b"    machine done(l: &mut L) -> u64 in Trapping {\n"
+        b"    machine done(l: @mut L) -> u64 in Trapping {\n"
         b"        l.source.length as u64 in Trapping\n"
         b"    }\n"
         b"}",
@@ -662,18 +662,18 @@ def main() -> None:
         "guard-survives-a-wide-arrival",
         b"data P { f0: u64; f1: u64; f2: u64; f3: u64; f4: u64; f5: u64; f6: u64; f7: u64; f8: u64; f9: u64; f10: u64; f11: u64; f12: u64; f13: u64; f14: u64; f15: u64; f16: u64; f17: u64; f18: u64; f19: u64; count: u64; items: [u8; 16] in Trapping; }\n"
         b"machine use20(a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64, a8: u64, a9: u64, a10: u64, a11: u64, a12: u64, a13: u64, a14: u64, a15: u64, a16: u64, a17: u64, a18: u64, a19: u64) {}\n"
-        b"machine m(p: &mut P) {\n"
+        b"machine m(p: @mut P) {\n"
         b"    use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
         b"    transition { _ -> root(p) }\n"
         b"\n"
-        b"    machine root(p: &mut P) {\n"
+        b"    machine root(p: @mut P) {\n"
         b"        transition p.count < 16 {\n"
         b"            true -> bounded(p)\n"
         b"            _ -> {}\n"
         b"        }\n"
         b"    }\n"
         b"\n"
-        b"    machine bounded(p: &mut P) {\n"
+        b"    machine bounded(p: @mut P) {\n"
         b"        p.items[p.count] = 1;\n"
         b"    }\n"
         b"}",
@@ -683,13 +683,13 @@ def main() -> None:
         "guard-survives-a-wide-state",
         b"data P { f0: u64; f1: u64; f2: u64; f3: u64; f4: u64; f5: u64; f6: u64; f7: u64; f8: u64; f9: u64; f10: u64; f11: u64; f12: u64; f13: u64; f14: u64; f15: u64; f16: u64; f17: u64; f18: u64; f19: u64; count: u64; items: [u8; 16] in Trapping; }\n"
         b"machine use20(a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64, a7: u64, a8: u64, a9: u64, a10: u64, a11: u64, a12: u64, a13: u64, a14: u64, a15: u64, a16: u64, a17: u64, a18: u64, a19: u64) {}\n"
-        b"machine m(p: &mut P) {\n"
+        b"machine m(p: @mut P) {\n"
         b"    transition p.count < 16 {\n"
         b"        true -> store(p)\n"
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    machine store(p: &mut P) {\n"
+        b"    machine store(p: @mut P) {\n"
         b"        use20(p.f0, p.f1, p.f2, p.f3, p.f4, p.f5, p.f6, p.f7, p.f8, p.f9, p.f10, p.f11, p.f12, p.f13, p.f14, p.f15, p.f16, p.f17, p.f18, p.f19);\n"
         b"        p.items[p.count] = 1;\n"
         b"    }\n"
@@ -699,15 +699,15 @@ def main() -> None:
         program,
         "callee-requirement-demands-a-lent-field",
         b"data T { count: u64; items: [u8; 16] in Trapping; }\n"
-        b"machine T::put(t: &mut T)\nrequires t.count < 16\n{ t.items[t.count] = 1; }\n"
-        b"machine m(t: &mut T) {\n"
+        b"machine T::put(t: @mut T)\nrequires t.count < 16\n{ t.items[t.count] = 1; }\n"
+        b"machine m(t: @mut T) {\n"
         b"    transition t.count < 16 {\n"
         b"        true -> later(t)\n"
         b"        _ -> {}\n"
         b"    }\n"
         b"\n"
-        b"    machine later(t: &mut T) { transition { _ -> put(t) } }\n"
-        b"    machine put(t: &mut T) { T::put(t); }\n"
+        b"    machine later(t: @mut T) { transition { _ -> put(t) } }\n"
+        b"    machine put(t: @mut T) { T::put(t); }\n"
         b"}",
     )
     # An established value's `requires` facts hold on every path, so a field
@@ -716,13 +716,13 @@ def main() -> None:
         program,
         "domain-fact-entered-in-a-right-operand",
         b"data Table requires args <= 16, { args: u64; }\n"
-        b"machine Table::rel(t: &mut Table, first: u64, count: u64) -> u64 {\n"
+        b"machine Table::rel(t: @mut Table, first: u64, count: u64) -> u64 {\n"
         b"    transition count > 0 && first <= t.args {\n"
         b"        true -> release(t, first)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine release(t: &mut Table, first: u64) -> u64\n"
+        b"    machine release(t: @mut Table, first: u64) -> u64\n"
         b"    requires first <= 16\n"
         b"    { (first) }\n"
         b"}",
@@ -735,22 +735,22 @@ def main() -> None:
         program,
         "call-keeps-a-field-its-callee-does-not-write",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"        L::set_b(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -760,22 +760,22 @@ def main() -> None:
         program,
         "call-forgets-a-field-its-callee-writes",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"        L::set_a(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -787,22 +787,22 @@ def main() -> None:
         program,
         "call-forgets-a-whole-referent-write",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"        L::reset(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -814,22 +814,22 @@ def main() -> None:
         program,
         "call-forgets-a-callees-callee-write",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"        L::outer(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -841,22 +841,22 @@ def main() -> None:
         program,
         "call-forgets-a-states-whole-write",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"        L::via(l);\n"
         b"        arr[l.a]\n"
         b"    }\n"
@@ -868,23 +868,23 @@ def main() -> None:
         program,
         "call-keeps-a-field-it-does-not-lend",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
-        b"        set(&mut l.b);\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
+        b"        set(@mut l.b);\n"
         b"        arr[l.a]\n"
         b"    }\n"
         b"}",
@@ -893,23 +893,23 @@ def main() -> None:
         program,
         "call-forgets-a-lent-field-written-whole",
         b"data L { a: u64; b: u64; }\n"
-        b"machine L::set_a(l: &mut L) { l.a = 99; }\n"
-        b"machine L::set_b(l: &mut L) { l.b = 99; }\n"
-        b"machine L::reset(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
-        b"machine L::outer(l: &mut L) { L::set_a(l); }\n"
-        b"machine L::via(l: &mut L) {\n"
+        b"machine L::set_a(l: @mut L) { l.a = 99; }\n"
+        b"machine L::set_b(l: @mut L) { l.b = 99; }\n"
+        b"machine L::reset(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"machine L::outer(l: @mut L) { L::set_a(l); }\n"
+        b"machine L::via(l: @mut L) {\n"
         b"    transition { _ -> put(l) }\n"
-        b"    machine put(l: &mut L) { l = L { a: 99, b: 0 }; }\n"
+        b"    machine put(l: @mut L) { l = L { a: 99, b: 0 }; }\n"
         b"}\n"
-        b"machine set(x: &mut u64) { x = 99; }\n"
-        b"machine read(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
+        b"machine set(x: @mut u64) { x = 99; }\n"
+        b"machine read(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
         b"    transition l.a < 16 {\n"
         b"        true -> ok(l, arr)\n"
         b"        _ -> (0)\n"
         b"    }\n"
         b"\n"
-        b"    machine ok(l: &mut L, arr: &[u8; 16]) -> u8 {\n"
-        b"        set(&mut l.a);\n"
+        b"    machine ok(l: @mut L, arr: @[u8; 16]) -> u8 {\n"
+        b"        set(@mut l.a);\n"
         b"        arr[l.a]\n"
         b"    }\n"
         b"}",
@@ -972,20 +972,20 @@ def main() -> None:
     accepted(
         program,
         "requirement-holds-in-its-body",
-        b"machine read(a: &[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }",
+        b"machine read(a: @[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }",
     )
     accepted(
         program,
         "callee-requirement-proved-at-the-call",
-        b"machine read(a: &[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }\n"
-        b"machine first(a: &[u8; 4]) -> u8 { read(a, 0) }\n"
-        b"machine guarded(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"machine read(a: @[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }\n"
+        b"machine first(a: @[u8; 4]) -> u8 { read(a, 0) }\n"
+        b"machine guarded(a: @[u8; 4], i: u64) -> u8 {\n"
         b"    transition i < 4 {\n"
         b"        true -> found(a, i)\n"
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    machine found(a: &[u8; 4], i: u64) -> u8 { read(a, i) }\n"
+        b"    machine found(a: @[u8; 4], i: u64) -> u8 { read(a, i) }\n"
         b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
@@ -1058,7 +1058,7 @@ def main() -> None:
         program,
         "caller-assumes-the-guarantee",
         b"machine small(x: u64) -> u64\nensures result < 4\n{ x % 4 }\n"
-        b"machine read(a: &[u8; 4], x: u64) -> u8 {\n"
+        b"machine read(a: @[u8; 4], x: u64) -> u8 {\n"
         b"    let i: u64 = small(x);\n"
         b"    a[i]\n"
         b"}",
@@ -1067,7 +1067,7 @@ def main() -> None:
         program,
         "guarantee-relates-result-and-arguments",
         b"machine below(x: u64) -> u64\nrequires x > 0\nensures result < x\n{ x - 1 }\n"
-        b"machine read(a: &[u8; 8], x: u64) -> u8\nrequires x > 0, x <= 8\n{ a[below(x)] }",
+        b"machine read(a: @[u8; 8], x: u64) -> u8\nrequires x > 0, x <= 8\n{ a[below(x)] }",
     )
     accepted(
         program,
@@ -1079,7 +1079,7 @@ def main() -> None:
         program,
         "unguaranteed-call-result-bounds-nothing",
         b"machine any(x: u64) -> u64 { x }\n"
-        b"machine read(a: &[u8; 4], x: u64) -> u8 { a[any(x)] }",
+        b"machine read(a: @[u8; 4], x: u64) -> u8 { a[any(x)] }",
         "IndexOutOfBounds",
         b"a[any(x)]",
     )
@@ -1136,8 +1136,8 @@ def main() -> None:
         program,
         "binder-call-releases-exclusive-arguments",
         b"data P { x: u64; }\n"
-        b"machine read(a: &[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }\n"
-        b"machine apply<machine F>(p: &mut P, a: &[u8; 4]) -> u8\nrequires machine F(target: &mut P);\n{\n"
+        b"machine read(a: @[u8; 4], i: u64) -> u8\nrequires i < 4\n{ a[i] }\n"
+        b"machine apply<machine F>(p: @mut P, a: @[u8; 4]) -> u8\nrequires machine F(target: @mut P);\n{\n"
         b"    p.x = 1;\n"
         b"    F(p);\n"
         b"    read(a, p.x)\n"
@@ -1221,7 +1221,7 @@ def main() -> None:
     accepted(
         program,
         "qualified-parameter-assumes-its-domain",
-        b"domain u64::Small(value)\nrequires value < 4;\nmachine at(items: &[u8; 4], index: u64 in Small) -> u8 { items[index] }",
+        b"domain u64::Small(value)\nrequires value < 4;\nmachine at(items: @[u8; 4], index: u64 in Small) -> u8 { items[index] }",
     )
     rejected(
         program,
@@ -1293,10 +1293,10 @@ def main() -> None:
         "DomainUnproven",
         b"1",
     )
-    text = b"domain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\nmachine show(text: &[u8] in Text) {}\n"
-    rejected(program, "byte-predicate-domain-needs-carried-evidence", text + b"machine f(raw: &[u8]) { show(raw); }",
+    text = b"domain [u8]::Text(bytes)\nrequires valid_utf8(bytes);\nmachine show(text: @[u8] in Text) {}\n"
+    rejected(program, "byte-predicate-domain-needs-carried-evidence", text + b"machine f(raw: @[u8]) { show(raw); }",
              "DomainUnproven", b"raw!2")
-    accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: &[u8] in Text) { show(view); }")
+    accepted(program, "byte-predicate-domain-carried", text + b"machine f(view: @[u8] in Text) { show(view); }")
 
     # A value-position match: each arm runs on the facts after its subject,
     # its own pattern selected and every earlier one passed over; the facts
@@ -1305,81 +1305,81 @@ def main() -> None:
     accepted(
         program,
         "match-arm-assumes-its-literal",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i { 3 -> a[i], _ -> 0 } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { match i { 3 -> a[i], _ -> 0 } }",
     )
     rejected(
         program,
         "match-passed-over-literal-bounds-nothing",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i { 9 -> 0, _ -> a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { match i { 9 -> 0, _ -> a[i] } }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     accepted(
         program,
         "match-boolean-arms-assume-their-subject",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, true -> a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, true -> a[i] } }",
     )
     accepted(
         program,
         "match-passed-over-boolean-holds-after",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, _ -> a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { match i < 4 { false -> 0, _ -> a[i] } }",
     )
     rejected(
         program,
         "match-arm-facts-stay-in-their-arm",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { match i < 4 { true -> 0, false -> a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { match i < 4 { true -> 0, false -> a[i] } }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     rejected(
         program,
         "match-join-keeps-only-shared-facts",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { let x: u8 = match i < 4 { true -> a[i], false -> 0 }; a[i] }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { let x: u8 = match i < 4 { true -> a[i], false -> 0 }; a[i] }",
         "IndexOutOfBounds",
         b"a[i]!2",
     )
     accepted(
         program,
         "match-value-is-its-arms-hull",
-        b"machine f(a: &[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 3, _ -> 2 }; a[i] }",
+        b"machine f(a: @[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 3, _ -> 2 }; a[i] }",
     )
     rejected(
         program,
         "match-hull-reaches-every-arm",
-        b"machine f(a: &[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 4, _ -> 2 }; a[i] }",
+        b"machine f(a: @[u8; 4], c: u8) -> u8 { let i: u64 = match c { 0 -> 1, 1 -> 4, _ -> 2 }; a[i] }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     accepted(
         program,
         "match-nested-arms-keep-their-facts",
-        b"machine f(a: &[u8; 4], i: u64, j: u64) -> u8 {\n"
+        b"machine f(a: @[u8; 4], i: u64, j: u64) -> u8 {\n"
         b"    match i { 2 -> match j { 1 -> a[i + j] _ -> a[i] } _ -> 0 }\n"
         b"}",
     )
     accepted(
         program,
         "match-constant-pattern-selects-equality",
-        b"const LAST: u64 = 3;\nmachine f(a: &[u8; 4], i: u64) -> u8 { match i { LAST -> a[i], _ -> 0 } }",
+        b"const LAST: u64 = 3;\nmachine f(a: @[u8; 4], i: u64) -> u8 { match i { LAST -> a[i], _ -> 0 } }",
     )
     accepted(
         program,
         "transition-constant-path-selects-equality",
         b"data Bounds { x: u8; }\nconst Bounds::LAST: u64 = 3;\n"
-        b"machine f(a: &[u8; 4], i: u64) -> u8 {\n"
+        b"machine f(a: @[u8; 4], i: u64) -> u8 {\n"
         b"    transition i {\n"
         b"        Bounds::LAST -> at(a, i)\n"
         b"        _ -> none()\n"
         b"    }\n"
         b"\n"
-        b"    machine at(a: &[u8; 4], i: u64) -> u8 { a[i] }\n"
+        b"    machine at(a: @[u8; 4], i: u64) -> u8 { a[i] }\n"
         b"    machine none() -> u8 { 0 }\n"
         b"}",
     )
     rejected(
         program,
         "match-constant-pattern-outside-the-array",
-        b"const PAST: u64 = 4;\nmachine f(a: &[u8; 4], i: u64) -> u8 { match i { PAST -> a[i], _ -> 0 } }",
+        b"const PAST: u64 = 4;\nmachine f(a: @[u8; 4], i: u64) -> u8 { match i { PAST -> a[i], _ -> 0 } }",
         "IndexOutOfBounds",
         b"a[i]",
     )
@@ -1391,7 +1391,7 @@ def main() -> None:
     accepted(
         program,
         "membership-requires-assumes-its-domain",
-        member + b"machine at(a: &[u8; 4], i: u64) -> u8\nrequires i in Small\n{ a[i] }",
+        member + b"machine at(a: @[u8; 4], i: u64) -> u8\nrequires i in Small\n{ a[i] }",
     )
     rejected(
         program,
@@ -1415,19 +1415,19 @@ def main() -> None:
     rejected(
         program,
         "unreached-state-is-checked",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: &[u8; 4], i: u64) -> u8 { a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: @[u8; 4], i: u64) -> u8 { a[i] } }",
         "IndexOutOfBounds",
         b"a[i]",
     )
     accepted(
         program,
         "unreached-state-assumes-its-requires",
-        b"machine f(a: &[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: &[u8; 4], i: u64) -> u8 requires i < 4 { a[i] } }",
+        b"machine f(a: @[u8; 4], i: u64) -> u8 { transition { _ -> 0 } machine g(a: @[u8; 4], i: u64) -> u8 requires i < 4 { a[i] } }",
     )
     rejected(
         program,
         "inclusive-slice-end-is-an-index",
-        b"machine prefix(values: &[u8]) -> u64 { let end: i64 = -1; let view: &[u8] = &values[0..=end]; view.len }",
+        b"machine prefix(values: @[u8]) -> u64 { let end: i64 = -1; let view: @[u8] = @values[0..=end]; view.len }",
         "IndexOutOfBounds",
         b"values[0..=end]",
     )
@@ -1446,11 +1446,11 @@ def main() -> None:
         "DomainUnproven",
         b"9",
     )
-    accepted(program, "literal-constant-is-its-value", b"const LAST: u64 = 3;\nmachine f(a: &[u8; 4]) -> u8 { a[LAST] }")
+    accepted(program, "literal-constant-is-its-value", b"const LAST: u64 = 3;\nmachine f(a: @[u8; 4]) -> u8 { a[LAST] }")
     rejected(
         program,
         "literal-constant-outside-the-array",
-        b"const PAST: u64 = 4;\nmachine f(a: &[u8; 4]) -> u8 { a[PAST] }",
+        b"const PAST: u64 = 4;\nmachine f(a: @[u8; 4]) -> u8 { a[PAST] }",
         "IndexOutOfBounds",
         b"a[PAST]",
     )
@@ -1468,7 +1468,7 @@ def main() -> None:
     rejected(
         program,
         "const-extent-proves-no-index",
-        b"machine at<const N: u64>(items: &[u8; N]) -> u8 { items[0] }",
+        b"machine at<const N: u64>(items: @[u8; N]) -> u8 { items[0] }",
         "IndexOutOfBounds",
         b"items[0]",
     )
@@ -1503,7 +1503,7 @@ def main() -> None:
     assert b"terminates" not in productive
     accepted(program, "productive-loop-owes-no-rank", productive)
     walk = (
-        b'machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance\n{\n    transition i < items.len {\n        true -> NEXT\n        _ -> (i)\n    }\n}'
+        b'machine walk(items: @[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance\n{\n    transition i < items.len {\n        true -> NEXT\n        _ -> (i)\n    }\n}'
     )
     accepted(program, "self-call-climbs-its-bounded-distance", walk.replace(b"NEXT", b"walk(items, i + 1)"))
     # Qualification keeps the exact fixed-array width. Literal predicates
@@ -1512,8 +1512,8 @@ def main() -> None:
         b"domain [u8; 2]::Utf8(bytes) requires valid_utf8(bytes);\n"
         b"data M { line: [u8; 2] in Utf8; }\n"
         b"machine two(n: u64) requires n == 2 {}\n"
-        b"machine text(bytes: &[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n"
-        b"machine f(m: &mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(&m.line);\n}"
+        b"machine text(bytes: @[u8; 2] in Utf8) requires valid_utf8(bytes) {}\n"
+        b"machine f(m: @mut M) {\n    m.line = LITERAL;\n    two(m.line.len);\n    text(@m.line);\n}"
     )
     accepted(program, "quoted-copy-retains-fixed-byte-length", fixed_bytes.replace(b"LITERAL", b"\"ok\""))
     rejected(
@@ -1533,11 +1533,11 @@ def main() -> None:
     geometry = (
         b"domain [u8; 8]::Utf8(bytes) requires valid_utf8(bytes);\n"
         b"machine eight(n: u64) requires n == 8 {}\n"
-        b"machine borrowed(bytes: &[u8; 8] in Utf8) { eight(bytes.len); }\n"
+        b"machine borrowed(bytes: @[u8; 8] in Utf8) { eight(bytes.len); }\n"
         b"machine owned(bytes: [u8; 8] in Utf8) {\n"
         b"    let plain: [u8; 8] = bytes;\n    eight(bytes.len);\n    eight(plain.len);\n}\n"
-        b"machine write_only(bytes: &write [u8; 8] in Utf8) { eight(bytes.len); }\n"
-        b"machine last(bytes: &[u8; 8] in Utf8) -> u8 { bytes[7] }"
+        b"machine write_only(bytes: @write [u8; 8] in Utf8) { eight(bytes.len); }\n"
+        b"machine last(bytes: @[u8; 8] in Utf8) -> u8 { bytes[7] }"
     )
     accepted(program, "fixed-qualified-owned-borrowed-erased-lengths-and-last-index", geometry)
     rejected(program, "fixed-qualified-index-at-extent", geometry.replace(b"bytes[7]", b"bytes[8]"),
@@ -1548,7 +1548,7 @@ def main() -> None:
         b"data Buffer { storage: [u8; 8]; used: u64; }\n"
         b"machine two(n: u64) requires n == 2 {}\n"
         b"machine eight(n: u64) requires n == 8 {}\n"
-        b"machine f(buffer: &mut Buffer) { buffer.storage = \"12345678\"; buffer.used = 2; two(buffer.used); eight(buffer.storage.len); }",
+        b"machine f(buffer: @mut Buffer) { buffer.storage = \"12345678\"; buffer.used = 2; two(buffer.used); eight(buffer.storage.len); }",
     )
     # A rank range (wiki/spec/language/termination.md#ranking) holds of the
     # entry rank under the entry's facts and of every cyclic arrival's rank,
@@ -1605,7 +1605,7 @@ def main() -> None:
     accepted(
         program,
         "a-bounded-distance-rank-lies-within-its-limit",
-        b'machine walk(items: &[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len\n{\n    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}',
+        b'machine walk(items: @[u8], i: u64) -> u64\nterminates by (i, items.len) -> Nat::BoundedDistance in 0..=items.len\n{\n    transition i < items.len {\n        true -> walk(items, i + 1)\n        _ -> (i)\n    }\n}',
     )
     # A layout query is known only by its `u64` type
     # (wiki/spec/language/counts_and_addresses.md).
@@ -1615,30 +1615,30 @@ def main() -> None:
     # (wiki/spec/language/ownership.md#borrows-and-aliases); a call lending
     # it `&mut` keeps them.
     holders = (
-        b"data Cell { value: i64; }\ndata Held { target: &Cell; stamp: i64; }\ndata Main { left: Cell; right: Cell; }\n"
-        b"machine replace(held: &write Held, incoming: Held) { held = incoming; }\n"
-        b"machine touch(held: &mut Held) {}\n"
-        b"machine f(main: &mut Main) {\n    let mut held: Held = Held { target: &main.left, stamp: 17 };\n"
-        b"    let incoming: Held = Held { target: &main.right, stamp: 23 };\n    REPLACE\n    main.left.value = 29;\n"
+        b"data Cell { value: i64; }\ndata Held { target: @Cell; stamp: i64; }\ndata Main { left: Cell; right: Cell; }\n"
+        b"machine replace(held: @write Held, incoming: Held) { held = incoming; }\n"
+        b"machine touch(held: @mut Held) {}\n"
+        b"machine f(main: @mut Main) {\n    let mut held: Held = Held { target: @main.left, stamp: 17 };\n"
+        b"    let incoming: Held = Held { target: @main.right, stamp: 23 };\n    REPLACE\n    main.left.value = 29;\n"
         b"    let observed: i64 = held.target.value;\n}"
     )
-    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans", holders.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
-    accepted(program, "a-write-only-call-replaces-a-holder's-loans", holders.replace(b"REPLACE", b"replace(&write held, incoming);"))
+    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans", holders.replace(b"REPLACE", b"let slot: @mut Held = @mut held;\n    slot = incoming;"))
+    accepted(program, "a-write-only-call-replaces-a-holder's-loans", holders.replace(b"REPLACE", b"replace(@write held, incoming);"))
     # The ownership walk reads the body's own places: a body followed by a
     # transition into states keeps the origins its reference locals captured.
     staged = holders.replace(b"    let observed: i64 = held.target.value;\n}", b"    let observed: i64 = held.target.value;\n    transition { _ -> done() }\n    machine done() {}\n}")
-    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans-before-a-transition", staged.replace(b"REPLACE", b"let slot: &mut Held = &mut held;\n    slot = incoming;"))
+    accepted(program, "a-holder-replaced-through-a-reference-retires-its-loans-before-a-transition", staged.replace(b"REPLACE", b"let slot: @mut Held = @mut held;\n    slot = incoming;"))
     rejected(
         program,
         "an-exclusive-call-keeps-a-holder's-loans-before-a-transition",
-        staged.replace(b"REPLACE", b"touch(&mut held);"),
+        staged.replace(b"REPLACE", b"touch(@mut held);"),
         "LoanConflict",
         b"main.left.value",
     )
     rejected(
         program,
         "an-exclusive-call-keeps-a-holder's-loans",
-        holders.replace(b"REPLACE", b"touch(&mut held);"),
+        holders.replace(b"REPLACE", b"touch(@mut held);"),
         "LoanConflict",
         b"main.left.value",
     )
@@ -1651,23 +1651,23 @@ def main() -> None:
         program,
         "a-returned-reference-is-written-through",
         b"data Cell { value: u64; }\nmachine nine(x: u64) requires x == 9 {}\n"
-        b"machine pick(cell: &mut Cell) -> &mut u64 { &mut cell.value }\n"
-        b"machine f(cell: &mut Cell) { let held: &mut u64 = pick(cell); held = 9; nine(held); }",
+        b"machine pick(cell: @mut Cell) -> @mut u64 { @mut cell.value }\n"
+        b"machine f(cell: @mut Cell) { let held: @mut u64 = pick(cell); held = 9; nine(held); }",
     )
     rejected(
         program,
         "a-lent-fact-does-not-survive-the-call",
         b"data Cell { value: u64; }\nmachine one(x: u64) requires x == 1 {}\n"
-        b"machine pick(cell: &mut Cell) -> &mut u64 { &mut cell.value }\n"
-        b"machine f(cell: &mut Cell) requires cell.value == 1 { let held: &mut u64 = pick(cell); held = 9; one(cell.value); }",
+        b"machine pick(cell: @mut Cell) -> @mut u64 { @mut cell.value }\n"
+        b"machine f(cell: @mut Cell) requires cell.value == 1 { let held: @mut u64 = pick(cell); held = 9; one(cell.value); }",
         "RequirementUnproven",
         b"one(cell.value)",
     )
     accepted(
         program,
         "a-reference-field-is-written-through",
-        b"data Cell { value: i64; }\ndata Held { target: &mut Cell; }\nmachine same(x: i64) requires x == 89 {}\n"
-        b"machine f(held: &mut Held) { held.target.value = 89; same(held.target.value); }",
+        b"data Cell { value: i64; }\ndata Held { target: @mut Cell; }\nmachine same(x: i64) requires x == 89 {}\n"
+        b"machine f(held: @mut Held) { held.target.value = 89; same(held.target.value); }",
     )
     # A range slice of a placed collection is a view with the range's extent
     # as its live length (wiki/spec/terminal-psi/byte_views.md); a write
@@ -1676,13 +1676,13 @@ def main() -> None:
         program,
         "a-range-view-knows-its-length",
         b"machine two(n: u64) requires n == 2 {}\nmachine four(n: u64) requires n == 4 {}\n"
-        b"machine f(items: &[u8; 4]) -> u8 {\n    let view: &[u8] = &items[..];\n    let middle: &[u8] = view[1..3];\n"
+        b"machine f(items: @[u8; 4]) -> u8 {\n    let view: @[u8] = @items[..];\n    let middle: @[u8] = view[1..3];\n"
         b"    four(view.len);\n    two(middle.len);\n    view[3]\n}",
     )
     rejected(
         program,
         "a-range-view-bounds-its-elements",
-        b"machine f(items: &[u8; 4]) -> u8 {\n    let middle: &[u8] = items[1..3];\n    middle[2]\n}",
+        b"machine f(items: @[u8; 4]) -> u8 {\n    let middle: @[u8] = items[1..3];\n    middle[2]\n}",
         "IndexOutOfBounds",
         b"middle[2]",
     )
@@ -1690,7 +1690,7 @@ def main() -> None:
         program,
         "a-write-through-a-view-forgets-the-collection",
         b"machine three(x: u8) requires x == 3 {}\n"
-        b"machine f(items: &mut [u8; 4]) requires items[0] == 3 {\n    let head: &mut [u8] = &mut items[0..2];\n    head[0] = 9;\n    three(items[0]);\n}",
+        b"machine f(items: @mut [u8; 4]) requires items[0] == 3 {\n    let head: @mut [u8] = @mut items[0..2];\n    head[0] = 9;\n    three(items[0]);\n}",
         "RequirementUnproven",
         b"three(items[0])",
     )
@@ -1723,7 +1723,7 @@ def main() -> None:
     # below the view it was written from, so the view's shorter length
     # arrives in the child's own formal.
     rebuilt = (
-        b'data Bag { items: &[u32]; }\nmachine walk(bag: Bag, capacity: u64) -> u64\nrequires bag.items.len <= capacity\nterminates by bag.items -> Slice::Length in 0..=capacity {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
+        b'data Bag { items: @[u32]; }\nmachine walk(bag: Bag, capacity: u64) -> u64\nrequires bag.items.len <= capacity\nterminates by bag.items -> Slice::Length in 0..=capacity {\n    transition { _ -> step(bag, capacity) }\n    machine step(current: Bag, bound: u64) -> u64\n    requires current.items.len <= bound\n    terminates by current.items -> Slice::Length in 0..=bound\n    {\n        transition current.items.len > 0 {\n            true -> step(Bag { items: current.items[RANGE] }, bound)\n            false -> 0\n        }\n    }\n}'
     )
     accepted(program, "a-rebuilt-record-field-ranks-by-its-view-length", rebuilt.replace(b"RANGE", b"1.."))
     rejected(
@@ -1736,14 +1736,14 @@ def main() -> None:
     accepted(
         program,
         "a-nested-rebuilt-record-field-ranks-by-its-view-length",
-        b'data Inner { items: &[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer) -> u64\nterminates by outer.inner.items -> Slice::Length {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
+        b'data Inner { items: @[u32]; }\ndata Outer { inner: Inner; }\nmachine walk(outer: Outer) -> u64\nterminates by outer.inner.items -> Slice::Length {\n    transition { _ -> step(outer) }\n    machine step(current: Outer) -> u64\n    terminates by current.inner.items -> Slice::Length\n    {\n        transition current.inner.items.len > 0 {\n            true -> step(Outer { inner: Inner { items: current.inner.items[1..] } })\n            false -> 0\n        }\n    }\n}',
     )
     # A recast borrows its operand's storage under another shape
     # (wiki/spec/layouts/recasts.md): a write through the view reaches the
     # storage, whose facts under its own carrier it forgets.
     recast = (
         b"machine three(x: u64) requires x == 3 {}\n"
-        b"machine f() {\n    let local: u64 = 3;\n    let view: &mut i64 = &mut local as &mut i64;\n"
+        b"machine f() {\n    let local: u64 = 3;\n    let view: @mut i64 = @mut local as @mut i64;\n"
         b"    view = WRITTEN;\n    three(local);\n}"
     )
     accepted(program, "a-write-through-a-recast-view-reaches-its-storage", recast.replace(b"WRITTEN;\n    three(local);", b"0 - 11;"))
@@ -1752,7 +1752,7 @@ def main() -> None:
         program,
         "a-write-through-a-same-carrier-view-keeps-its-value",
         b"machine three(x: u64) requires x == 3 {}\n"
-        b"machine f() {\n    let local: u64 = 0;\n    let view: &mut u64 = &mut local;\n    view = 3;\n    three(local);\n}",
+        b"machine f() {\n    let local: u64 = 0;\n    let view: @mut u64 = @mut local;\n    view = 3;\n    three(local);\n}",
     )
     # A store into a field or element slot of an untracked element writes
     # within its collection, whatever the slot's type; a reference local
@@ -1762,15 +1762,15 @@ def main() -> None:
     accepted(
         program,
         "a-reference-slot-of-an-untracked-element-writes-within-its-collection",
-        b"data Cell { value: u32; }\ndata Held { target: &Cell; }\n"
+        b"data Cell { value: u32; }\ndata Held { target: @Cell; }\n"
         b"machine two(n: u64) requires n == 2 {}\n"
-        b"machine replace(slots: &mut [Held], first: &Cell) requires slots.len == 2 {\n    slots[0].target = first;\n    two(slots.len);\n}",
+        b"machine replace(slots: @mut [Held], first: @Cell) requires slots.len == 2 {\n    slots[0].target = first;\n    two(slots.len);\n}",
     )
     footprint = (
         b"data Cell { value: u32; }\n"
         b"machine two(n: u64) requires n == 2 {}\nmachine seven(n: u32) requires n == 7 {}\n"
-        b"machine f(cells: &mut [Cell]) requires cells.len == 2 && cells[1].value == 7 {\n"
-        b"    let first: &mut Cell = &mut cells[0];\n    first = Cell { value: 13 };\n    two(cells.len);\n    CHECK\n}"
+        b"machine f(cells: @mut [Cell]) requires cells.len == 2 && cells[1].value == 7 {\n"
+        b"    let first: @mut Cell = @mut cells[0];\n    first = Cell { value: 13 };\n    two(cells.len);\n    CHECK\n}"
     )
     accepted(program, "a-reference-to-an-untracked-element-writes-within-its-collection", footprint.replace(b"    CHECK\n", b""))
     rejected(
@@ -1784,17 +1784,17 @@ def main() -> None:
         program,
         "a-reference-to-a-field-of-an-untracked-element-writes-within-its-collection",
         b"data Cell { value: u32; }\n"
-        b"machine f(cells: &mut [Cell]) requires cells.len == 2 {\n"
-        b"    let second: &mut Cell = &mut cells[1];\n    let nested: &mut u32 = &mut second.value;\n    nested = 17;\n}",
+        b"machine f(cells: @mut [Cell]) requires cells.len == 2 {\n"
+        b"    let second: @mut Cell = @mut cells[1];\n    let nested: @mut u32 = @mut second.value;\n    nested = 17;\n}",
     )
     # A transition subject that calls a writing machine cannot be replayed,
     # but its parts evaluated after the call read storage as the call left
     # it: a Boolean literal arm assumes those, never the parts read before.
     guarded = (
         b"data Context { count: u64; }\n"
-        b"machine set(context: &mut Context) -> bool { context.count = 5; true }\n"
-        b"machine check(context: &Context) requires context.count < 6 {}\n"
-        b"machine main(context: &mut Context) {\n    transition SUBJECT { true -> check(context) false -> {} }\n}"
+        b"machine set(context: @mut Context) -> bool { context.count = 5; true }\n"
+        b"machine check(context: @Context) requires context.count < 6 {}\n"
+        b"machine main(context: @mut Context) {\n    transition SUBJECT { true -> check(context) false -> {} }\n}"
     )
     accepted(program, "a-fact-read-after-a-writing-subject-call-holds", guarded.replace(b"SUBJECT", b"set(context) && context.count < 6"))
     rejected(
@@ -1808,10 +1808,10 @@ def main() -> None:
         program,
         "a-writing-subject-call-keeps-a-state-arrival's-fact",
         b"data Context { count: u64; }\n"
-        b"machine set(context: &mut Context) -> bool { context.count = 5; true }\n"
-        b"machine main(context: &mut Context) {\n"
+        b"machine set(context: @mut Context) -> bool { context.count = 5; true }\n"
+        b"machine main(context: @mut Context) {\n"
         b"    transition set(context) && context.count < 6 { true -> bounded(context) false -> done() }\n"
-        b"    machine bounded(context: &mut Context) requires context.count < 6 { context.count = context.count + 1; }\n"
+        b"    machine bounded(context: @mut Context) requires context.count < 6 { context.count = context.count + 1; }\n"
         b"    machine done() {}\n}",
     )
     # A source-order cutoff cannot decide whether a captured read is stale:
@@ -1821,17 +1821,17 @@ def main() -> None:
         program,
         "a-writing-subject-keeps-a-disjoint-earlier-field-fact",
         b"data Context { left: u64; right: u64; }\n"
-        b"machine set_right(context: &mut Context) -> bool { context.right = 5; true }\n"
-        b"machine bounded(context: &Context) requires context.left < 6 {}\n"
-        b"machine main(context: &mut Context) { transition context.left < 6 && set_right(context) { true -> bounded(context) false -> {} } }",
+        b"machine set_right(context: @mut Context) -> bool { context.right = 5; true }\n"
+        b"machine bounded(context: @Context) requires context.left < 6 {}\n"
+        b"machine main(context: @mut Context) { transition context.left < 6 && set_right(context) { true -> bounded(context) false -> {} } }",
     )
     rejected(
         program,
         "a-comparison-keeps-its-read-before-a-later-writing-operand",
         b"data Context { count: u64; }\n"
-        b"machine set(context: &mut Context) -> u64 { context.count = 9; 5 }\n"
-        b"machine bounded(context: &Context) requires context.count < 5 {}\n"
-        b"machine main(context: &mut Context) { transition context.count < set(context) { true -> bounded(context) false -> {} } }",
+        b"machine set(context: @mut Context) -> u64 { context.count = 9; 5 }\n"
+        b"machine bounded(context: @Context) requires context.count < 5 {}\n"
+        b"machine main(context: @mut Context) { transition context.count < set(context) { true -> bounded(context) false -> {} } }",
         "RequirementUnproven",
         b"bounded(context)",
     )
@@ -1839,9 +1839,9 @@ def main() -> None:
         program,
         "a-failed-writing-guard-cannot-replay-a-pure-subject",
         b"data Context { count: u64; }\n"
-        b"machine clear_false(context: &mut Context) -> bool { context.count = 0; false }\n"
-        b"machine one(context: &Context) requires context.count == 1 {}\n"
-        b"machine main(context: &mut Context) { transition context.count { _ if clear_false(context) -> {} 1 -> one(context) _ -> {} } }",
+        b"machine clear_false(context: @mut Context) -> bool { context.count = 0; false }\n"
+        b"machine one(context: @Context) requires context.count == 1 {}\n"
+        b"machine main(context: @mut Context) { transition context.count { _ if clear_false(context) -> {} 1 -> one(context) _ -> {} } }",
         "RequirementUnproven",
         b"one(context)",
     )
@@ -1849,24 +1849,24 @@ def main() -> None:
         program,
         "a-retained-Boolean-subject-keeps-its-live-alias-condition",
         b"data Context { count: u64; }\n"
-        b"machine bounded(context: &Context) requires context.count < 6 {}\n"
-        b"machine main(context: &Context) { let valid: bool = context.count < 6; transition valid { true -> bounded(context) false -> {} } }",
+        b"machine bounded(context: @Context) requires context.count < 6 {}\n"
+        b"machine main(context: @Context) { let valid: bool = context.count < 6; transition valid { true -> bounded(context) false -> {} } }",
     )
     accepted(
         program,
         "a-writing-chosen-target-does-not-erase-an-alternative's-alias-fact",
         b"data Context { count: u64; }\n"
-        b"machine mutate(context: &mut Context) { context.count = 9; }\n"
-        b"machine at_least_six(context: &Context) requires context.count >= 6 {}\n"
-        b"machine main(context: &mut Context) { let valid: bool = context.count < 6; transition valid { true -> mutate(context) false -> at_least_six(context) } }",
+        b"machine mutate(context: @mut Context) { context.count = 9; }\n"
+        b"machine at_least_six(context: @Context) requires context.count >= 6 {}\n"
+        b"machine main(context: @mut Context) { let valid: bool = context.count < 6; transition valid { true -> mutate(context) false -> at_least_six(context) } }",
     )
     rejected(
         program,
         "an-alias-invalidated-on-a-reachable-short-circuit-path-does-not-survive-the-join",
         b"data Context { count: u64; }\n"
-        b"machine mutate(context: &mut Context) -> bool { context.count = 9; true }\n"
-        b"machine bounded(context: &Context) requires context.count < 6 {}\n"
-        b"machine main(context: &mut Context, flag: bool) { let valid: bool = context.count < 6; let effect: bool = flag && mutate(context); transition valid { true -> bounded(context) false -> {} } }",
+        b"machine mutate(context: @mut Context) -> bool { context.count = 9; true }\n"
+        b"machine bounded(context: @Context) requires context.count < 6 {}\n"
+        b"machine main(context: @mut Context, flag: bool) { let valid: bool = context.count < 6; let effect: bool = flag && mutate(context); transition valid { true -> bounded(context) false -> {} } }",
         "RequirementUnproven",
         b"bounded(context)",
     )
@@ -1906,19 +1906,19 @@ def main() -> None:
         b"walk(items, i)",
     )
     shrink = (
-        b'machine total(bytes: &[u8]) -> u64\nterminates by bytes -> Slice::Length\n{\n    transition bytes.len > 0 {\n        true -> emit(bytes[1..])\n        _ -> done()\n    }\n\n    machine emit(bytes: &[u8]) -> u64\n    terminates by bytes -> Slice::Length\n    {\n        transition bytes.len > 0 {\n            true -> TAIL\n            _ -> done()\n        }\n    }\n\n    machine done() -> u64 { 0 }\n}'
+        b'machine total(bytes: @[u8]) -> u64\nterminates by bytes -> Slice::Length\n{\n    transition bytes.len > 0 {\n        true -> emit(bytes[1..])\n        _ -> done()\n    }\n\n    machine emit(bytes: @[u8]) -> u64\n    terminates by bytes -> Slice::Length\n    {\n        transition bytes.len > 0 {\n            true -> TAIL\n            _ -> done()\n        }\n    }\n\n    machine done() -> u64 { 0 }\n}'
     )
     # Ranking creates the synthetic length before the guard. Its captured
     # value retains the admitted scalar type and equality to that live length.
     accepted(
         program,
         "a-ranked-slice-keeps-its-captured-length",
-        b'machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length { transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }',
+        b'machine f(bytes: @[u8]) -> @[u8] terminates by bytes -> Slice::Length { transition bytes.len > 0 { true -> bytes[1..] false -> bytes } }',
     )
     rejected(
         program,
         "a-ranked-slice-still-needs-a-bound",
-        b'machine f(bytes: &[u8]) -> &[u8] terminates by bytes -> Slice::Length { bytes[1..] }',
+        b'machine f(bytes: @[u8]) -> @[u8] terminates by bytes -> Slice::Length { bytes[1..] }',
         "IndexOutOfBounds",
         b"bytes[1..]",
     )
@@ -1977,13 +1977,13 @@ def main() -> None:
         program,
         "field-guard-and-domain-bound-an-index",
         table
-        + b"machine read(t: &Table, i: u64) -> u8 {\n"
+        + b"machine read(t: @Table, i: u64) -> u8 {\n"
         b"    transition i < t.count {\n"
         b"        true -> found(t, i)\n"
         b"        _ -> missing()\n"
         b"    }\n"
         b"\n"
-        b"    machine found(t: &Table, i: u64) -> u8 { t.items[i] }\n"
+        b"    machine found(t: @Table, i: u64) -> u8 { t.items[i] }\n"
         b"    machine missing() -> u8 { 0 }\n"
         b"}",
     )
@@ -1991,13 +1991,13 @@ def main() -> None:
         program,
         "field-guard-crosses-a-jump-and-closes-the-window",
         table
-        + b"machine push(t: &mut Table, value: u8) -> bool {\n"
+        + b"machine push(t: @mut Table, value: u8) -> bool {\n"
         b"    transition t.count < 4 {\n"
         b"        true -> store(t, value)\n"
         b"        _ -> full()\n"
         b"    }\n"
         b"\n"
-        b"    machine store(t: &mut Table, value: u8) -> bool {\n"
+        b"    machine store(t: @mut Table, value: u8) -> bool {\n"
         b"        t.items[t.count] = value;\n"
         b"        t.count = t.count + 1;\n"
         b"        true\n"
@@ -2009,7 +2009,7 @@ def main() -> None:
     rejected(
         program,
         "unclosed-window",
-        table + b"machine grow(t: &mut Table) { t.count = t.count + 1; }",
+        table + b"machine grow(t: @mut Table) { t.count = t.count + 1; }",
         "DomainUnproven",
         b"t.count = t.count + 1;",
     )
@@ -2063,7 +2063,7 @@ def main() -> None:
     rejected(
         program,
         "proposition-requirement-establishes-nothing",
-        small + b"machine read(a: &[u8; 4], x: u64) -> u8\nrequires Small(x)\n{ a[x] }",
+        small + b"machine read(a: @[u8; 4], x: u64) -> u8\nrequires Small(x)\n{ a[x] }",
         "IndexOutOfBounds",
         b"a[x]",
     )
@@ -2102,7 +2102,7 @@ def main() -> None:
     # Machines check independently: each pass (bodies, then crash routes)
     # records the first rejection of every machine it rejects, in order.
     every = (
-        b'machine first(a: &[u8; 4], i: u64) -> u8 { a[i] }\nmachine fine(a: &[u8; 4]) -> u8 { a[0] }\npublic machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine second(x: u64, y: u64) -> u64 { x / y }\nmachine twice(a: &[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }'
+        b'machine first(a: @[u8; 4], i: u64) -> u8 { a[i] }\nmachine fine(a: @[u8; 4]) -> u8 { a[0] }\npublic machine leaks(x: u64 in Trapping) -> u64 in Trapping { x + 1 }\nmachine second(x: u64, y: u64) -> u64 { x / y }\nmachine twice(a: @[u8; 4], i: u64, x: u64) -> u64 { let b: u8 = a[i]; x / i }'
     )
     status, payload = run(program, every)
     observation = decode(payload)
@@ -2219,11 +2219,11 @@ def main() -> None:
         program,
         "shared-lend-keeps-the-owner",
         b"data Item { value: u64; }\n"
-        b"machine look(item: &Item) -> u64 { item.value }\n"
+        b"machine look(item: @Item) -> u64 { item.value }\n"
         b"machine run() -> u64 {\n"
         b"    let item: Item = Item { value: 1 };\n"
-        b"    let first: u64 = look(&item);\n"
-        b"    look(&item)\n"
+        b"    let first: u64 = look(@item);\n"
+        b"    look(@item)\n"
         b"}",
     )
     pair = token + b"data Pair { left: Token; right: Token; }\nmachine whole(pair: Pair) -> u64 { 0 }\n"
@@ -2252,7 +2252,7 @@ def main() -> None:
         "borrowed-binder-cannot-move",
         b"data Token { value: i32; }\n"
         b"data Choice { case Present(value: Token); case Empty; }\n"
-        b"machine inspect(choice: &Choice) -> bool {\n"
+        b"machine inspect(choice: @Choice) -> bool {\n"
         b"    transition choice {\n"
         b"        Choice::Present { value } -> observe(value)\n"
         b"        _ -> (false)\n"
@@ -2266,7 +2266,7 @@ def main() -> None:
         program,
         "field-behind-reference-cannot-move",
         token + b"data Holder { token: Token; }\n"
-        b"machine run(holder: &Holder) -> u64 { consume(holder.token) }",
+        b"machine run(holder: @Holder) -> u64 { consume(holder.token) }",
         "MoveOutOfBorrow",
         b"holder.token",
     )
@@ -2362,82 +2362,82 @@ def main() -> None:
     )
 
     # Holds (holds.omg): a call's arguments against earlier arguments' loans.
-    put = b"data Main { value: i32; other: i32; }\nmachine put(target: &mut i32, value: i32) -> i32 { value }\n"
+    put = b"data Main { value: i32; other: i32; }\nmachine put(target: @mut i32, value: i32) -> i32 { value }\n"
     rejected(
         program,
         "exclusive-loan-then-read",
-        put + b"machine run(main: &mut Main) -> i32 { put(&mut main.value, main.value) }",
+        put + b"machine run(main: @mut Main) -> i32 { put(@mut main.value, main.value) }",
         "OverlappingArguments",
         b"main.value!2",
     )
     accepted(
         program,
         "read-completes-before-a-loan",
-        b"data Main { value: i32; }\nmachine put(value: i32, target: &mut i32) -> i32 { value }\n"
-        b"machine run(main: &mut Main) -> i32 { put(main.value, &mut main.value) }",
+        b"data Main { value: i32; }\nmachine put(value: i32, target: @mut i32) -> i32 { value }\n"
+        b"machine run(main: @mut Main) -> i32 { put(main.value, @mut main.value) }",
     )
     accepted(
         program,
         "disjoint-fields-lend-apart",
-        put + b"machine run(main: &mut Main) -> i32 { put(&mut main.value, main.other) }",
+        put + b"machine run(main: @mut Main) -> i32 { put(@mut main.value, main.other) }",
     )
     accepted(
         program,
         "distinct-literal-indexes-lend-apart",
-        b"machine put(target: &mut u64, value: u64) -> u64 { value }\n"
-        b"machine run(items: &mut [u64; 4]) -> u64 { put(&mut items[0], items[1]) }",
+        b"machine put(target: @mut u64, value: u64) -> u64 { value }\n"
+        b"machine run(items: @mut [u64; 4]) -> u64 { put(@mut items[0], items[1]) }",
     )
     rejected(
         program,
         "local-lent-exclusively-twice",
         b"data Score { points: i32; }\n"
-        b"machine join(left: &mut Score, right: &mut Score) {}\n"
+        b"machine join(left: @mut Score, right: @mut Score) {}\n"
         b"machine run() {\n"
         b"    let mut score: Score = Score { points: 1 };\n"
-        b"    join(&mut score, &mut score);\n"
+        b"    join(@mut score, @mut score);\n"
         b"}",
         "OverlappingArguments",
         b"score!3",
     )
-    hits = b"data Main { count: u64; }\nmachine peek(main: &Main) -> u64 { main.count }\n"
+    hits = b"data Main { count: u64; }\nmachine peek(main: @Main) -> u64 { main.count }\n"
     rejected(
         program,
         "exclusive-reference-passed-twice",
-        hits + b"machine take(first: &mut Main, second: &mut Main) -> u64 { 0 }\n"
-        b"machine run(main: &mut Main) -> u64 { take(main, main) }",
+        hits + b"machine take(first: @mut Main, second: @mut Main) -> u64 { 0 }\n"
+        b"machine run(main: @mut Main) -> u64 { take(main, main) }",
         "OverlappingArguments",
         b"main!5",
     )
     rejected(
         program,
         "nested-call-reads-a-held-place",
-        hits + b"machine take(main: &mut Main, value: u64) -> u64 { value }\n"
-        b"machine run(main: &mut Main) -> u64 { take(main, peek(main)) }",
+        hits + b"machine take(main: @mut Main, value: u64) -> u64 { value }\n"
+        b"machine run(main: @mut Main) -> u64 { take(main, peek(main)) }",
         "OverlappingArguments",
         b"main!6",
     )
     accepted(
         program,
         "shared-references-share",
-        hits + b"machine both(first: &Main, second: &Main) -> u64 { first.count }\n"
-        b"machine run(main: &Main) -> u64 { both(main, main) }",
+        hits + b"machine both(first: @Main, second: @Main) -> u64 { first.count }\n"
+        b"machine run(main: @Main) -> u64 { both(main, main) }",
     )
     accepted(
         program,
         "jump-forwards-its-data-parent",
         b"data Main { count: u64; }\n"
-        b"machine Main::run(main: &mut Main) -> u64 {\n"
+        b"machine Main::run(main: @mut Main) -> u64 {\n"
         b"    transition { _ -> next(main, main.count) }\n"
-        b"    machine next(held: &mut Main, value: u64) -> u64 { value }\n"
+        b"    machine next(held: @mut Main, value: u64) -> u64 { value }\n"
         b"}",
     )
     rejected(
         program,
         "jump-forwards-its-data-parent-twice",
         b"data Main { count: u64; }\n"
-        b"machine Main::run(main: &mut Main) -> u64 {\n"
+        b"machine Main::run(main: @mut Main) -> u64 {\n"
         b"    transition { _ -> next(main, main) }\n"
-        b"    machine next(first: &mut Main, second: &mut Main) -> u64 { first.count }\n"
+        b"    machine next(first: @mut Main, second: @mut Main) -> u64 { first.count }\n"
         b"}",
         "OverlappingArguments",
         b"main!3",
@@ -2446,9 +2446,9 @@ def main() -> None:
         program,
         "jump-fresh-loan-then-read",
         b"data Inner { value: u64; }\ndata Main { inner: Inner; }\n"
-        b"machine Main::run(main: &mut Main) -> u64 {\n"
-        b"    transition { _ -> next(&mut main.inner, main.inner.value) }\n"
-        b"    machine next(held: &mut Inner, value: u64) -> u64 { value }\n"
+        b"machine Main::run(main: @mut Main) -> u64 {\n"
+        b"    transition { _ -> next(@mut main.inner, main.inner.value) }\n"
+        b"    machine next(held: @mut Inner, value: u64) -> u64 { value }\n"
         b"}",
         "OverlappingArguments",
         b"main.inner.value",
@@ -2459,20 +2459,20 @@ def main() -> None:
     rejected(
         program,
         "nested-result-keeps-its-operand-loan",
-        b"data Held { value: &mut u64; }\n"
-        b"machine hold(target: &mut u64) -> Held { Held { value: target } }\n"
-        b"machine bump(target: &mut u64) -> u64 { 0 }\n"
+        b"data Held { value: @mut u64; }\n"
+        b"machine hold(target: @mut u64) -> Held { Held { value: target } }\n"
+        b"machine bump(target: @mut u64) -> u64 { 0 }\n"
         b"machine observe(held: Held, changed: u64) -> u64 { changed }\n"
-        b"machine run(count: &mut u64) -> u64 { observe(hold(count), bump(count)) }",
+        b"machine run(count: @mut u64) -> u64 { observe(hold(count), bump(count)) }",
         "OverlappingArguments",
         b"count!3",
     )
     accepted(
         program,
         "completed-nested-call-releases-its-operand",
-        b"machine bump(target: &mut u64) -> u64 { 0 }\n"
+        b"machine bump(target: @mut u64) -> u64 { 0 }\n"
         b"machine observe(first: u64, second: u64) -> u64 { first }\n"
-        b"machine run(count: &mut u64) -> u64 { observe(bump(count), bump(count)) }",
+        b"machine run(count: @mut u64) -> u64 { observe(bump(count), bump(count)) }",
     )
 
     # Remainders and policy results of constants (evaluation.omg, arithmetic.omg).
@@ -2513,19 +2513,19 @@ def main() -> None:
     accepted(
         program,
         "reference-read-wraps-its-referent",
-        b"machine bump(count: &mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }",
+        b"machine bump(count: @mut u64) { count = ((count as u64 in Wrapping) + 1) as u64; }",
     )
     accepted(
         program,
         "read-before-an-exclusive-loan",
-        b"machine take(a: u64, b: &mut u64) -> u64 { a }\n"
-        b"machine run(count: &mut u64) -> u64 { take(count, count) }",
+        b"machine take(a: u64, b: @mut u64) -> u64 { a }\n"
+        b"machine run(count: @mut u64) -> u64 { take(count, count) }",
     )
     rejected(
         program,
         "read-after-an-exclusive-loan",
-        b"machine take(b: &mut u64, a: u64) -> u64 { a }\n"
-        b"machine run(count: &mut u64) -> u64 { take(count, count) }",
+        b"machine take(b: @mut u64, a: u64) -> u64 { a }\n"
+        b"machine run(count: @mut u64) -> u64 { take(count, count) }",
         "OverlappingArguments",
         b"count!3",
     )
@@ -2533,16 +2533,16 @@ def main() -> None:
     # Loans held by locals (loans.omg): a loan lasts until its holder's last
     # use, and an exit may not return a loan of the body's own storage.
     storage = (b"data Storage { value: i32; }\n"
-               b"machine use_value(value: &mut i32) { value = 1; }\n"
-               b"machine write_alias(value: &mut i32) { value = 2; }\n")
+               b"machine use_value(value: @mut i32) { value = 1; }\n"
+               b"machine write_alias(value: @mut i32) { value = 2; }\n")
     rejected(
         program,
         "exclusive-loan-live-until-its-last-use",
         storage + b"machine run() {\n"
         b"    let mut storage: Storage = Storage { value: 0 };\n"
-        b"    let alias: &mut i32 = &mut storage.value;\n"
+        b"    let alias: @mut i32 = @mut storage.value;\n"
         b"    alias = 3;\n"
-        b"    use_value(&mut storage.value);\n"
+        b"    use_value(@mut storage.value);\n"
         b"    write_alias(alias);\n"
         b"}",
         "LoanConflict",
@@ -2553,20 +2553,20 @@ def main() -> None:
         "loan-ends-at-its-last-use",
         storage + b"machine run() {\n"
         b"    let mut storage: Storage = Storage { value: 0 };\n"
-        b"    let alias: &mut i32 = &mut storage.value;\n"
+        b"    let alias: @mut i32 = @mut storage.value;\n"
         b"    alias = 3;\n"
-        b"    use_value(&mut storage.value);\n"
+        b"    use_value(@mut storage.value);\n"
         b"}",
     )
     score = (b"data Score { points: i32; }\n"
              b"machine take(score: Score) {}\n"
-             b"machine read(score: &Score) -> i32 { score.points }\n")
+             b"machine read(score: @Score) -> i32 { score.points }\n")
     rejected(
         program,
         "move-under-a-shared-loan",
         score + b"machine run() -> i32 {\n"
         b"    let score: Score = Score { points: 1 };\n"
-        b"    let alias: &Score = &score;\n"
+        b"    let alias: @Score = @score;\n"
         b"    take(score);\n"
         b"    read(alias)\n"
         b"}",
@@ -2578,7 +2578,7 @@ def main() -> None:
         "shared-loan-admits-reads",
         score + b"machine run() -> i32 {\n"
         b"    let score: Score = Score { points: 1 };\n"
-        b"    let alias: &Score = &score;\n"
+        b"    let alias: @Score = @score;\n"
         b"    let direct: i32 = score.points;\n"
         b"    let seen: i32 = read(alias);\n"
         b"    direct\n"
@@ -2589,10 +2589,10 @@ def main() -> None:
         "call-result-holds-its-argument-loan",
         b"data Cell { value: i32; }\n"
         b"data Tally { first: Cell; hits: i32; }\n"
-        b"machine pick(tally: &mut Tally) -> &mut Cell { &mut tally.first }\n"
+        b"machine pick(tally: @mut Tally) -> @mut Cell { @mut tally.first }\n"
         b"machine run() {\n"
         b"    let mut tally: Tally = Tally { first: Cell { value: 0 }, hits: 0 };\n"
-        b"    let cell: &mut Cell = pick(&mut tally);\n"
+        b"    let cell: @mut Cell = pick(@mut tally);\n"
         b"    tally.hits = 5;\n"
         b"    let observed: i32 = cell.value;\n"
         b"}",
@@ -2603,9 +2603,9 @@ def main() -> None:
         program,
         "stored-reference-holds-its-loan",
         b"data Cell { value: i32; }\n"
-        b"data Message { body: &Cell; }\n"
-        b"machine read_cell(cell: &Cell) -> i32 { cell.value }\n"
-        b"machine exercise(cell: &mut Cell) -> i32 {\n"
+        b"data Message { body: @Cell; }\n"
+        b"machine read_cell(cell: @Cell) -> i32 { cell.value }\n"
+        b"machine exercise(cell: @mut Cell) -> i32 {\n"
         b"    let message: Message = Message { body: cell };\n"
         b"    cell.value = 71;\n"
         b"    read_cell(message.body)\n"
@@ -2617,18 +2617,18 @@ def main() -> None:
         program,
         "local-loan-escapes-its-body",
         b"data Score { points: i32; }\n"
-        b"machine leak() -> &Score {\n"
+        b"machine leak() -> @Score {\n"
         b"    let score: Score = Score { points: 1 };\n"
-        b"    &score\n"
+        b"    @score\n"
         b"}",
         "LoanEscapes",
-        b"&score",
+        b"@score",
     )
     accepted(
         program,
         "borrowed-view-returns",
         b"data Score { points: i32; }\n"
-        b"machine view(score: &Score) -> &i32 { &score.points }",
+        b"machine view(score: @Score) -> @i32 { @score.points }",
     )
 
     # Boolean aliases (aliases.omg): a Boolean bound from a condition stands
@@ -2717,42 +2717,42 @@ def main() -> None:
 
     # An operand evaluated before a later call writes what it read keeps
     # the value it captured (snapshots.omg).
-    rewrite = b"machine set(x: &mut u64) -> bool { x = 5; true }\n"
+    rewrite = b"machine set(x: @mut u64) -> bool { x = 5; true }\n"
     rejected(
         program,
         "later-write-leaves-the-earlier-read",
         rewrite + b"machine compare(before: u64, done: bool, after: u64)\nrequires before == after\n{}\n"
-        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(&mut x), x);\n}",
+        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(@mut x), x);\n}",
         "RequirementUnproven",
-        b"compare(x, set(&mut x), x)",
+        b"compare(x, set(@mut x), x)",
     )
     accepted(
         program,
         "earlier-read-keeps-its-value",
         rewrite + b"machine compare(before: u64, done: bool)\nrequires before == 1\n{}\n"
-        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(&mut x));\n}",
+        b"machine run() {\n    let mut x: u64 = 1;\n    compare(x, set(@mut x));\n}",
     )
-    bump = b"machine bump(x: &mut u64) -> u64\nensures result == 0\n{ x = 7; 0 }\n"
+    bump = b"machine bump(x: @mut u64) -> u64\nensures result == 0\n{ x = 7; 0 }\n"
     accepted(
         program,
         "left-operand-keeps-its-value",
-        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    x + bump(&mut x)\n}",
+        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    x + bump(@mut x)\n}",
     )
     rejected(
         program,
         "right-operand-reads-the-write",
-        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    bump(&mut x) + x\n}",
+        bump + b"machine run() -> u64\nensures result == 1\n{\n    let mut x: u64 = 1;\n    bump(@mut x) + x\n}",
         "GuaranteeUnproven",
-        b"bump(&mut x) + x",
+        b"bump(@mut x) + x",
     )
     accepted(
         program,
         "record-operand-keeps-its-fields",
         b"data Pair [copy] { first: u64; second: u64; }\n"
-        b"machine reset(pair: &mut Pair) -> bool { pair.first = 9; true }\n"
+        b"machine reset(pair: @mut Pair) -> bool { pair.first = 9; true }\n"
         b"machine same(left: Pair, done: bool)\nrequires left.first == 1\n{}\n"
         b"machine run() {\n    let mut pair: Pair = Pair { first: 0, second: 0 };\n    pair.first = 1;\n"
-        b"    same(pair, reset(&mut pair));\n}",
+        b"    same(pair, reset(@mut pair));\n}",
     )
 
     # The write need not have a represented field yet. A constructed or
@@ -2760,14 +2760,14 @@ def main() -> None:
     # must never turn an earlier value into a read of the changed storage.
     context = (
         b"data Context [copy] { left: u64; right: u64; }\n"
-        b"machine set_left(context: &mut Context) -> bool\n"
+        b"machine set_left(context: @mut Context) -> bool\n"
         b"ensures context.left == 9\n{ context.left = 9; true }\n"
     )
-    call = b"compare(context, set_left(&mut context))"
+    call = b"compare(context, set_left(@mut context))"
     record_paths = (
         ("constructed", b"machine run() { let mut context: Context = Context { left: 1, right: 2 }; " + call + b"; }", call),
         ("copied", b"machine run() { let original: Context = Context { left: 1, right: 2 }; let mut context: Context = original; " + call + b"; }", call),
-        ("field", b"data Holder { context: Context; }\nmachine run() { let mut holder: Holder = Holder { context: Context { left: 1, right: 2 } }; compare(holder.context, set_left(&mut holder.context)); }", b"compare(holder.context, set_left(&mut holder.context))"),
+        ("field", b"data Holder { context: Context; }\nmachine run() { let mut holder: Holder = Holder { context: Context { left: 1, right: 2 } }; compare(holder.context, set_left(@mut holder.context)); }", b"compare(holder.context, set_left(@mut holder.context))"),
         ("state", b"machine run() { transition { _ -> next(Context { left: 1, right: 2 }) } machine next(context: Context) { " + call + b"; } }", call),
         ("parameter", b"machine run(context: Context)\nrequires context.left == 1\n{ " + call + b"; }", call),
     )
@@ -2798,7 +2798,7 @@ def main() -> None:
     pair = (b"data Pair [copy] { first: u64; second: u64; replaced: bool; }\n"
             b"machine same(pair: Pair)\nrequires pair.first == pair.second\n{}\n")
     holder = (b"data Holder { amount: u64; }\n"
-              b"machine replace(holder: &mut Holder) -> bool { holder.amount = 9; true }\n")
+              b"machine replace(holder: @mut Holder) -> bool { holder.amount = 9; true }\n")
     accepted(
         program,
         "constructed-argument-keeps-its-fields",
@@ -2821,22 +2821,22 @@ def main() -> None:
         program,
         "construction-captures-before-a-later-field",
         pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
-        b"    same(Pair { first: holder.amount, second: holder.amount, replaced: replace(&mut holder) });\n}",
+        b"    same(Pair { first: holder.amount, second: holder.amount, replaced: replace(@mut holder) });\n}",
     )
     rejected(
         program,
         "field-after-a-write-reads-the-write",
         pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
-        b"    same(Pair { first: holder.amount, replaced: replace(&mut holder), second: holder.amount });\n}",
+        b"    same(Pair { first: holder.amount, replaced: replace(@mut holder), second: holder.amount });\n}",
         "RequirementUnproven",
-        b"same(Pair { first: holder.amount, replaced: replace(&mut holder), second: holder.amount })",
+        b"same(Pair { first: holder.amount, replaced: replace(@mut holder), second: holder.amount })",
     )
     accepted(
         program,
         "stored-construction-outlives-a-later-write",
         pair + holder + b"machine run(start: u64) {\n    let mut holder: Holder = Holder { amount: start };\n"
         b"    let saved: Pair = Pair { first: holder.amount, second: holder.amount, replaced: false };\n"
-        b"    _ = replace(&mut holder);\n    same(saved);\n}",
+        b"    _ = replace(@mut holder);\n    same(saved);\n}",
     )
     accepted(
         program,
@@ -2851,7 +2851,7 @@ def main() -> None:
     accepted(
         program,
         "stored-true-proves-its-field",
-        b"data Token { value: u64; ready: bool; }\nmachine prepare(token: &mut Token)\n"
+        b"data Token { value: u64; ready: bool; }\nmachine prepare(token: @mut Token)\n"
         b"ensures token.value == 9 && token.ready\n{\n    token.value = 9;\n    token.ready = true;\n}",
     )
     accepted(
@@ -2888,22 +2888,22 @@ def main() -> None:
         program,
         'composite-guard-keeps-captured-comparison',
         b'data Token [copy] { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine mutate(token: @mut Token) -> bool { token.value = 9; true }\n'
         b'machine run() -> u64 ensures result == 1 {\n'
         b'let mut token: Token = Token { value: 1 };\n'
-        b'transition { token.value == 1 && mutate(&mut token) -> token.value _ -> 1 }\n'
+        b'transition { token.value == 1 && mutate(@mut token) -> token.value _ -> 1 }\n'
         b'}',
         'GuaranteeUnproven',
-        b'token.value == 1 && mutate(&mut token) -> token.value',
+        b'token.value == 1 && mutate(@mut token) -> token.value',
     )
     rejected(
         program,
         'stored-condition-must-not-replay-mutated-read',
         b'data Token [copy] { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine mutate(token: @mut Token) -> bool { token.value = 9; true }\n'
         b'machine run() -> u64 ensures result == 1 {\n'
         b'let mut token: Token = Token { value: 1 };\n'
-        b'let valid: bool = token.value == 1 && mutate(&mut token);\n'
+        b'let valid: bool = token.value == 1 && mutate(@mut token);\n'
         b'transition valid { true -> token.value false -> 1 }\n'
         b'}',
         'GuaranteeUnproven',
@@ -2917,7 +2917,7 @@ def main() -> None:
         b'machine run() -> u64 ensures result == 1 {\n'
         b'let mut outer: Outer = Outer { inner: Token { value: 0 } };\n'
         b'outer.inner.value = 1;\n'
-        b'let alias: &mut Token = &mut outer.inner;\n'
+        b'let alias: @mut Token = @mut outer.inner;\n'
         b'alias.value = 9;\n'
         b'outer.inner.value\n'
         b'}',
@@ -2943,10 +2943,10 @@ def main() -> None:
         program,
         'composite-transition-subject-keeps-captured-comparison',
         b'data Token [copy] { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> bool { token.value = 9; true }\n'
+        b'machine mutate(token: @mut Token) -> bool { token.value = 9; true }\n'
         b'machine run() -> u64 ensures result == 1 {\n'
         b'let mut token: Token = Token { value: 1 };\n'
-        b'transition token.value == 1 && mutate(&mut token) { true -> token.value false -> 1 }\n'
+        b'transition token.value == 1 && mutate(@mut token) { true -> token.value false -> 1 }\n'
         b'}',
         'GuaranteeUnproven',
         b'true -> token.value',
@@ -2974,17 +2974,17 @@ def main() -> None:
         program,
         'boolean-argument-capture',
         b'data Token [copy] { ready: bool; value: u64; }\n'
-        b'machine reset(token: &mut Token) -> bool { token.ready = false; true }\n'
+        b'machine reset(token: @mut Token) -> bool { token.ready = false; true }\n'
         b'machine consume(before: bool, done: bool) requires before {}\n'
-        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; consume(token.ready, reset(&mut token)); }',
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; consume(token.ready, reset(@mut token)); }',
     )
     rejected(
         program,
         'boolean-live-write-invalidates',
         b'data Token [copy] { ready: bool; value: u64; }\n'
-        b'machine reset(token: &mut Token) -> bool { token.ready = false; true }\n'
+        b'machine reset(token: @mut Token) -> bool { token.ready = false; true }\n'
         b'machine consume(now: bool) requires now {}\n'
-        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; _ = reset(&mut token); consume(token.ready); }',
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; _ = reset(@mut token); consume(token.ready); }',
         'RequirementUnproven',
         b'consume(token.ready)',
     )
@@ -2992,17 +2992,17 @@ def main() -> None:
         program,
         'boolean-unwritten-field-survives',
         b'data Token [copy] { ready: bool; value: u64; }\n'
-        b'machine write(token: &mut Token) { token.value = 9; }\n'
+        b'machine write(token: @mut Token) { token.value = 9; }\n'
         b'machine consume(now: bool) requires now {}\n'
-        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(&mut token); consume(token.ready); }',
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(@mut token); consume(token.ready); }',
     )
     rejected(
         program,
         'pending-written-field-loses-old-value',
         b'data Token [copy] { ready: bool; value: u64; }\n'
-        b'machine write(token: &mut Token) { token.value = 9; }\n'
+        b'machine write(token: @mut Token) { token.value = 9; }\n'
         b'machine consume(value: u64) requires value == 0 {}\n'
-        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(&mut token); consume(token.value); }',
+        b'machine run() { let mut token: Token = Token { ready: true, value: 0 }; write(@mut token); consume(token.value); }',
         'RequirementUnproven',
         b'consume(token.value)',
     )
@@ -3018,27 +3018,27 @@ def main() -> None:
     accepted(
         program,
         "scalar-reference-store-proves-referent",
-        b"machine set(value: &mut u64) ensures value == 9 { value = 9; }",
+        b"machine set(value: @mut u64) ensures value == 9 { value = 9; }",
     )
 
     accepted(
         program,
         'scalar-reference-argument-capture',
-        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine mutate(value: @mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
         b'machine consume(before: u64, done: u64) requires before == 1 {}\n'
-        b'machine run() { let mut value: u64 = 1; let alias: &mut u64 = &mut value; consume(alias, mutate(alias)); }',
+        b'machine run() { let mut value: u64 = 1; let alias: @mut u64 = @mut value; consume(alias, mutate(alias)); }',
     )
     accepted(
         program,
         'scalar-reference-operator-capture',
-        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
-        b'machine run() -> u64 ensures result == 1 { let mut value: u64 = 1; let alias: &mut u64 = &mut value; alias + mutate(alias) }',
+        b'machine mutate(value: @mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine run() -> u64 ensures result == 1 { let mut value: u64 = 1; let alias: @mut u64 = @mut value; alias + mutate(alias) }',
     )
     rejected(
         program,
         'scalar-reference-cannot-read-the-later-write',
-        b'machine mutate(value: &mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
-        b'machine run() -> u64 ensures result == 9 { let mut value: u64 = 1; let alias: &mut u64 = &mut value; alias + mutate(alias) }',
+        b'machine mutate(value: @mut u64) -> u64 ensures result == 0 && value == 9 { value = 9; 0 }\n'
+        b'machine run() -> u64 ensures result == 9 { let mut value: u64 = 1; let alias: @mut u64 = @mut value; alias + mutate(alias) }',
         "GuaranteeUnproven",
         b"alias + mutate(alias)",
     )
@@ -3050,19 +3050,19 @@ def main() -> None:
         program,
         'selector-writes-before-the-value-reads',
         b'data Token { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
+        b'machine mutate(token: @mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
         b'domain u64::One(value) requires value == 1;\n'
-        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'machine run() { let mut items: [u64 in One; 1] = [1]; let mut token: Token = Token { value: 1 }; items[mutate(@mut token)] = token.value; }',
         "DomainUnproven",
-        b"items[mutate(&mut token)] = token.value;",
+        b"items[mutate(@mut token)] = token.value;",
     )
     accepted(
         program,
         'value-reads-the-selector-write',
         b'data Token { value: u64; }\n'
-        b'machine mutate(token: &mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
+        b'machine mutate(token: @mut Token) -> u64 ensures result == 0 && token.value == 9 { token.value = 9; 0 }\n'
         b'domain u64::Nine(value) requires value == 9;\n'
-        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(&mut token)] = token.value; }',
+        b'machine run() { let mut items: [u64 in Nine; 1] = [9]; let mut token: Token = Token { value: 1 }; items[mutate(@mut token)] = token.value; }',
     )
 
     # Borrowed locals keep the captured storage identity through reborrows
@@ -3070,8 +3070,8 @@ def main() -> None:
     borrowed = (b"data Token { value: u64; }\n"
                 b"machine run() -> u64 ensures result == ")
     body = (b" { let mut token: Token = Token { value: 1 }; "
-            b"let first: &mut Token = &mut token; "
-            b"let second: &mut Token = &mut first; second.value = 9; token.value }")
+            b"let first: @mut Token = @mut token; "
+            b"let second: @mut Token = @mut first; second.value = 9; token.value }")
     accepted(program, "transitive-reference-write", borrowed + b"9" + body)
     rejected(program, "transitive-reference-old-guarantee", borrowed + b"1" + body,
              "GuaranteeUnproven", b"token.value")
@@ -3081,38 +3081,38 @@ def main() -> None:
         program,
         "a-reference-returned-from-a-placed-argument-is-written-through",
         b"data Token { value: u64; }\n"
-        b"machine relay(token: &mut Token) -> &mut Token { token }\n"
+        b"machine relay(token: @mut Token) -> @mut Token { token }\n"
         b"machine run() -> u64 { let mut token: Token = Token { value: 1 }; "
-        b"let alias: &mut Token = relay(&mut token); alias.value = 9; token.value }",
+        b"let alias: @mut Token = relay(@mut token); alias.value = 9; token.value }",
     )
     # A reference field stands for its referent (references.omg).
     accepted(
         program,
         "a-reference-field-write-reaches-its-referent",
         b"data Token { value: u64; }\n"
-        b"data Holder { token: &mut Token; }\n"
-        b"machine change(holder: &mut Holder) { holder.token.value = 9; }",
+        b"data Holder { token: @mut Token; }\n"
+        b"machine change(holder: @mut Holder) { holder.token.value = 9; }",
     )
     accepted(
         program,
         "shared-reference-rebinding-keeps-earlier-alias",
         b"machine run() -> u64 ensures result == 1 { "
-        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
-        b"let captured: &u64 = current; current = &second; captured }",
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: @u64 = @first; "
+        b"let captured: @u64 = current; current = @second; captured }",
     )
     accepted(
         program,
         "reference-rebinding-releases-old-loan",
         b"machine run() -> u64 ensures result == 9 { "
-        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
-        b"current = &second; first = 2; current }",
+        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: @u64 = @first; "
+        b"current = @second; first = 2; current }",
     )
     rejected(
         program,
         "reference-rebinding-retains-captured-old-loan",
         b"machine run() -> u64 { "
-        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
-        b"let captured: &u64 = current; current = &second; first = 2; captured }",
+        b"let mut first: u64 = 1; let second: u64 = 9; let mut current: @u64 = @first; "
+        b"let captured: @u64 = current; current = @second; first = 2; captured }",
         "LoanConflict",
         b"first!3",
     )
@@ -3120,8 +3120,8 @@ def main() -> None:
         program,
         "reference-rebinding-holds-new-loan",
         b"machine run() -> u64 { "
-        b"let first: u64 = 1; let mut second: u64 = 9; let mut current: &u64 = &first; "
-        b"current = &second; second = 10; current }",
+        b"let first: u64 = 1; let mut second: u64 = 9; let mut current: @u64 = @first; "
+        b"current = @second; second = 10; current }",
         "LoanConflict",
         b"second!3",
     )
@@ -3129,7 +3129,7 @@ def main() -> None:
         program,
         "reference-self-assignment-retains-loan",
         b"machine run() -> u64 { "
-        b"let mut first: u64 = 1; let mut current: &u64 = &first; "
+        b"let mut first: u64 = 1; let mut current: @u64 = @first; "
         b"current = current; first = 2; current }",
         "LoanConflict",
         b"first!3",
@@ -3137,18 +3137,18 @@ def main() -> None:
     rejected(
         program,
         "copied-reference-retains-owned-escape",
-        b"machine run() -> &u64 { let first: u64 = 1; let second: u64 = 9; "
-        b"let mut current: &u64 = &first; let captured: &u64 = current; "
-        b"current = &second; captured }",
+        b"machine run() -> @u64 { let first: u64 = 1; let second: u64 = 9; "
+        b"let mut current: @u64 = @first; let captured: @u64 = current; "
+        b"current = @second; captured }",
         "LoanEscapes",
         b"captured!2",
     )
     rejected(
         program,
         "reference-carrier-self-assignment-retains-loan",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run() -> u64 { let mut first: u64 = 1; "
-        b"let mut holder: Holder = Holder { value: &first }; "
+        b"let mut holder: Holder = Holder { value: @first }; "
         b"holder = holder; first = 2; holder.value }",
         "LoanConflict",
         b"first!3",
@@ -3156,10 +3156,10 @@ def main() -> None:
     rejected(
         program,
         "reference-carrier-assignment-captures-source-loans",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
-        b"let source: Holder = Holder { value: &first }; "
-        b"let mut holder: Holder = Holder { value: &second }; "
+        b"let source: Holder = Holder { value: @first }; "
+        b"let mut holder: Holder = Holder { value: @second }; "
         b"holder = source; first = 2; holder.value }",
         "LoanConflict",
         b"first!3",
@@ -3167,19 +3167,19 @@ def main() -> None:
     accepted(
         program,
         "reference-carrier-loan-ends-after-copied-value-use",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
-        b"let mut holder: Holder = Holder { value: &first }; "
-        b"let captured: Holder = holder; holder = Holder { value: &second }; "
+        b"let mut holder: Holder = Holder { value: @first }; "
+        b"let captured: Holder = holder; holder = Holder { value: @second }; "
         b"let observed: u64 = captured.value; first = 2; holder.value }",
     )
     rejected(
         program,
         "conditional-reference-carrier-retains-either-source-loan",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run(choice: bool) -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
-        b"let source: Holder = Holder { value: &first }; "
-        b"let mut holder: Holder = Holder { value: &second }; "
+        b"let source: Holder = Holder { value: @first }; "
+        b"let mut holder: Holder = Holder { value: @second }; "
         b"holder = match choice { true -> source, false -> holder }; first = 2; holder.value }",
         "LoanConflict",
         b"first!3",
@@ -3187,38 +3187,38 @@ def main() -> None:
     rejected(
         program,
         "reference-carrier-cannot-escape-owned-backing",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run() -> Holder { let first: u64 = 1; "
-        b"let holder: Holder = Holder { value: &first }; holder }",
+        b"let holder: Holder = Holder { value: @first }; holder }",
         "LoanEscapes",
         b"holder!2",
     )
     rejected(
         program,
         "copied-reference-carrier-cannot-escape-owned-backing",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"machine run() -> Holder { let first: u64 = 1; "
-        b"let holder: Holder = Holder { value: &first }; let copied: Holder = holder; copied }",
+        b"let holder: Holder = Holder { value: @first }; let copied: Holder = holder; copied }",
         "LoanEscapes",
         b"copied!2",
     )
     accepted(
         program,
         "projected-and-copied-reference-carrier-can-return-parameter-loan",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"data Outer { inner: Holder; }\n"
-        b"machine run(value: &u64) -> Holder { "
+        b"machine run(value: @u64) -> Holder { "
         b"let outer: Outer = Outer { inner: Holder { value: value } }; "
         b"let holder: Holder = outer.inner; let copied: Holder = holder; copied }",
     )
     rejected(
         program,
         "projected-reference-carrier-retains-backing-loan",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"data Outer { inner: Holder; }\n"
         b"machine run() -> u64 { let mut first: u64 = 1; let second: u64 = 9; "
-        b"let source: Outer = Outer { inner: Holder { value: &first } }; "
-        b"let mut holder: Holder = Holder { value: &second }; "
+        b"let source: Outer = Outer { inner: Holder { value: @first } }; "
+        b"let mut holder: Holder = Holder { value: @second }; "
         b"holder = source.inner; first = 2; holder.value }",
         "LoanConflict",
         b"first!3",
@@ -3226,10 +3226,10 @@ def main() -> None:
     rejected(
         program,
         "projected-reference-carrier-cannot-escape-owned-backing",
-        b"data Holder [copy] { value: &u64; }\n"
+        b"data Holder [copy] { value: @u64; }\n"
         b"data Outer { inner: Holder; }\n"
         b"machine run() -> Holder { let first: u64 = 1; "
-        b"let outer: Outer = Outer { inner: Holder { value: &first } }; outer.inner }",
+        b"let outer: Outer = Outer { inner: Holder { value: @first } }; outer.inner }",
         "LoanEscapes",
         b"outer.inner",
     )
@@ -3238,16 +3238,16 @@ def main() -> None:
         program,
         "reference-rebinding-preserves-new-referent-facts",
         b"machine run() -> u64 ensures result == 9 { "
-        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
-        b"let valid: bool = current == 1; current = &second; "
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: @u64 = @first; "
+        b"let valid: bool = current == 1; current = @second; "
         b"transition valid { true -> current false -> 9 } }",
     )
     rejected(
         program,
         "reference-rebinding-retires-boolean-replay",
         b"machine run() -> u64 ensures result == 1 { "
-        b"let first: u64 = 1; let second: u64 = 9; let mut current: &u64 = &first; "
-        b"let valid: bool = current == 1; current = &second; "
+        b"let first: u64 = 1; let second: u64 = 9; let mut current: @u64 = @first; "
+        b"let valid: bool = current == 1; current = @second; "
         b"transition valid { true -> second false -> 1 } }",
         "GuaranteeUnproven",
         b"true -> second",
@@ -3258,14 +3258,14 @@ def main() -> None:
     accepted(
         program,
         "slice-content-stores-preserve-length-bounds",
-        b"machine put(items: &mut [u64], i: u64, j: u64) "
+        b"machine put(items: @mut [u64], i: u64, j: u64) "
         b"requires i < items.len && j < items.len "
         b"{ items[i] = 1; items[j] = 2; }",
     )
     rejected(
         program,
         "slice-content-store-keeps-invalid-second-index",
-        b"machine put(items: &mut [u64], i: u64, j: u64) "
+        b"machine put(items: @mut [u64], i: u64, j: u64) "
         b"requires i < items.len && j == items.len "
         b"{ items[i] = 1; items[j] = 2; }",
         "IndexOutOfBounds",
@@ -3278,31 +3278,31 @@ def main() -> None:
     # selector the value changes neither redirects the store nor keeps its
     # old fact, and a value that invalidates the captured backing rejects.
     token = (b"data Token { value: u64; }\n"
-             b"machine Token::drop(token: &mut Token) { token.value = 0; }\n")
+             b"machine Token::drop(token: @mut Token) { token.value = 0; }\n")
     accepted(
         program,
         "store-captures-its-selector-before-the-value",
-        token + b"machine replacement_value(index: &mut u64) -> u64 { index = 3; 19 }\n"
+        token + b"machine replacement_value(index: @mut u64) -> u64 { index = 3; 19 }\n"
         b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
-        b"    let mut index: u64 = 0;\n    tokens[index] = Token { value: replacement_value(&mut index) };\n}",
+        b"    let mut index: u64 = 0;\n    tokens[index] = Token { value: replacement_value(@mut index) };\n}",
     )
     rejected(
         program,
         "store-proves-its-bounds-before-the-value",
-        token + b"machine fix(index: &mut u64) -> Token { index = 0; Token { value: 19 } }\n"
+        token + b"machine fix(index: @mut u64) -> Token { index = 0; Token { value: 19 } }\n"
         b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
-        b"    let mut index: u64 = 5;\n    tokens[index] = fix(&mut index);\n}",
+        b"    let mut index: u64 = 5;\n    tokens[index] = fix(@mut index);\n}",
         "IndexOutOfBounds",
         b"tokens[index]",
     )
-    replacing = (token + b"machine replacement(index: &mut u64) -> Token\nensures index == 1\n"
+    replacing = (token + b"machine replacement(index: @mut u64) -> Token\nensures index == 1\n"
                  b"{ index = 1; Token { value: 19 } }\n")
     rejected(
         program,
         "store-keeps-no-stale-selector-fact",
         replacing + b"machine zero(index: u64)\nrequires index == 0\n{}\n"
         b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
-        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(&mut index);\n    zero(index);\n}",
+        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(@mut index);\n    zero(index);\n}",
         "RequirementUnproven",
         b"zero(index)",
     )
@@ -3311,7 +3311,7 @@ def main() -> None:
         "store-keeps-the-value's-selector-fact",
         replacing + b"machine one(index: u64)\nrequires index == 1\n{}\n"
         b"machine run() {\n    let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];\n"
-        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(&mut index);\n    one(index);\n}",
+        b"    let mut index: u64 = 0;\n    tokens[index] = replacement(@mut index);\n    one(index);\n}",
     )
     rejected(
         program,
@@ -3325,17 +3325,17 @@ def main() -> None:
     accepted(
         program,
         "value-may-write-through-the-captured-place",
-        b"machine bump(x: &mut u64) -> u64 ensures result == 3 { x = 2; 3 }\nmachine three(x: u64)\nrequires x == 3\n{}\n"
-        b"machine run() {\n    let mut x: u64 = 1;\n    x = bump(&mut x);\n    three(x);\n}",
+        b"machine bump(x: @mut u64) -> u64 ensures result == 3 { x = 2; 3 }\nmachine three(x: u64)\nrequires x == 3\n{}\n"
+        b"machine run() {\n    let mut x: u64 = 1;\n    x = bump(@mut x);\n    three(x);\n}",
     )
     accepted(
         program,
         "field-store-survives-a-write-to-its-owner",
         b"data Holder { count: u64; flag: u64; }\n"
-        b"machine touch(holder: &mut Holder) -> u64 ensures result == 4 { holder.flag = 9; 4 }\n"
+        b"machine touch(holder: @mut Holder) -> u64 ensures result == 4 { holder.flag = 9; 4 }\n"
         b"machine four(x: u64)\nrequires x == 4\n{}\n"
         b"machine run() {\n    let mut holder: Holder = Holder { count: 0, flag: 0 };\n"
-        b"    holder.count = touch(&mut holder);\n    four(holder.count);\n}",
+        b"    holder.count = touch(@mut holder);\n    four(holder.count);\n}",
     )
 
     # A recast's representations (recasts.omg): same-width integers and
@@ -3347,57 +3347,57 @@ def main() -> None:
         program,
         "scalar-recasts-share-every-bit-pattern",
         b"data M { rate: f32; half: i16; flag: bool; }\n"
-        b"machine f(m: &mut M) -> bool {\n"
-        b"    let bits: &mut u32 = &mut m.rate as &mut u32;\n    let wide: &u16 = &m.half as &u16;\n"
-        b"    let byte: &u8 = &m.flag as &u8;\n    true\n}",
+        b"machine f(m: @mut M) -> bool {\n"
+        b"    let bits: @mut u32 = @mut m.rate as @mut u32;\n    let wide: @u16 = @m.half as @u16;\n"
+        b"    let byte: @u8 = @m.flag as @u8;\n    true\n}",
     )
     accepted(
         program,
         "a-bounded-byte-field-views-as-a-boolean",
         b"data Byte requires value >= 0 && value <= 1 { value: u8; }\n"
-        b"machine read(byte: &mut Byte) -> bool {\n"
-        b"    let flag: &bool = &byte.value as &bool;\n    let writable: &mut bool = &mut byte.value as &mut bool;\n    true\n}",
+        b"machine read(byte: @mut Byte) -> bool {\n"
+        b"    let flag: @bool = @byte.value as @bool;\n    let writable: @mut bool = @mut byte.value as @mut bool;\n    true\n}",
     )
     rejected(
         program,
         "a-local-byte-never-views-as-a-boolean",
-        b"machine f() -> bool { let x: u8 = 1; let flag: &bool = &x as &bool; true }",
+        b"machine f() -> bool { let x: u8 = 1; let flag: @bool = @x as @bool; true }",
         "RepresentationUnproven",
-        b"&x as &bool",
+        b"@x as @bool",
     )
     rejected(
         program,
         "an-unbounded-byte-field-never-views-as-a-boolean",
-        b"data Byte { value: u8; }\nmachine read(byte: &Byte) -> bool { let flag: &bool = &byte.value as &bool; true }",
+        b"data Byte { value: u8; }\nmachine read(byte: @Byte) -> bool { let flag: @bool = @byte.value as @bool; true }",
         "RepresentationUnproven",
-        b"&byte.value as &bool",
+        b"@byte.value as @bool",
     )
     rejected(
         program,
         "a-boolean-never-views-as-a-mutable-byte",
-        b"data M { flag: bool; }\nmachine f(m: &mut M) { let bits: &mut u8 = &mut m.flag as &mut u8; }",
+        b"data M { flag: bool; }\nmachine f(m: @mut M) { let bits: @mut u8 = @mut m.flag as @mut u8; }",
         "RepresentationUnproven",
-        b"&mut m.flag as &mut u8",
+        b"@mut m.flag as @mut u8",
     )
     accepted(
         program,
         "a-qualified-source-views-shared",
         b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &P) { let signed: &i8 = &p.v as &i8; }",
+        b"machine f(p: @P) { let signed: @i8 = @p.v as @i8; }",
     )
     rejected(
         program,
         "a-qualified-source-never-views-mutably",
         b"domain u8::Small(value) requires value < 8;\ndata P { v: u8 in Small; }\n"
-        b"machine f(p: &mut P) { let signed: &mut i8 = &mut p.v as &mut i8; }",
+        b"machine f(p: @mut P) { let signed: @mut i8 = @mut p.v as @mut i8; }",
         "RepresentationUnproven",
-        b"&mut p.v as &mut i8",
+        b"@mut p.v as @mut i8",
     )
     rejected(
         program,
         "a-recast-argument-holds-its-operand",
-        b"data M { raw: i32; }\nmachine take(a: &mut u32, b: i32) {}\n"
-        b"machine f(m: &mut M) { take(&mut m.raw as &mut u32, m.raw); }",
+        b"data M { raw: i32; }\nmachine take(a: @mut u32, b: i32) {}\n"
+        b"machine f(m: @mut M) { take(@mut m.raw as @mut u32, m.raw); }",
         "OverlappingArguments",
         b"m.raw!2",
     )
@@ -3425,30 +3425,30 @@ def main() -> None:
         program,
         "write-only-references-replace-without-observation",
         b"data Cell { value: i64; }\n"
-        b"machine replace(cell: &write Cell, value: i64) { cell.value = value; }\n"
-        b"machine fill(cells: &write [Cell; 2], value: i64) -> u64 {\n"
-        b"    replace(&write cells[0], value);\n    cells[1] = Cell { value: value };\n    cells.len\n}\n"
+        b"machine replace(cell: @write Cell, value: i64) { cell.value = value; }\n"
+        b"machine fill(cells: @write [Cell; 2], value: i64) -> u64 {\n"
+        b"    replace(@write cells[0], value);\n    cells[1] = Cell { value: value };\n    cells.len\n}\n"
         b"machine main() -> u64 {\n    let mut cells: [Cell; 2] = [Cell { value: 0 }, Cell { value: 0 }];\n"
-        b"    fill(&write cells, 7)\n}",
+        b"    fill(@write cells, 7)\n}",
     )
     rejected(
         program,
         "a-write-only-referent-is-not-read",
-        b"data Cell { value: i64; }\nmachine observe(cell: &write Cell) -> i64 { cell.value }",
+        b"data Cell { value: i64; }\nmachine observe(cell: @write Cell) -> i64 { cell.value }",
         "WriteOnlyObservation",
         b"cell.value",
     )
     rejected(
         program,
         "a-write-only-reference-is-not-widened",
-        b"machine take(value: &mut i32) { value = 1; }\nmachine widen(value: &write i32) { take(&mut value); }",
+        b"machine take(value: @mut i32) { value = 1; }\nmachine widen(value: @write i32) { take(@mut value); }",
         "WriteOnlyObservation",
         b"value!4",
     )
     rejected(
         program,
         "a-write-only-reference-is-not-lent-shared",
-        b"machine peek(value: &i32) {}\nmachine f(sink: &write i32) { peek(&sink); }",
+        b"machine peek(value: @i32) {}\nmachine f(sink: @write i32) { peek(@sink); }",
         "WriteOnlyObservation",
         b"sink!2",
     )
@@ -3463,7 +3463,7 @@ def main() -> None:
         "public-slot-records-qualified-return",
         b"domain [u8]::Utf8(bytes);\n"
         b"public trait Window {\n"
-        b"    machine view(packet: &[u8] in Utf8) -> &[u8] in Utf8;\n"
+        b"    machine view(packet: @[u8] in Utf8) -> @[u8] in Utf8;\n"
         b"}\n",
     )
     assert slot.slot_review_admits, "package review rejected the public slot records"
@@ -3471,7 +3471,7 @@ def main() -> None:
     assert len(slot.slot_qualifications) == 1, slot.slot_qualifications
     assert slot.slot_qualifications[0][0] == 0, slot.slot_qualifications
 
-    determinism = b"machine read(a: &[u8; 4], i: u64) -> u8 { a[i] }"
+    determinism = b"machine read(a: @[u8; 4], i: u64) -> u8 { a[i] }"
     first = run(program, determinism)
     second = run(program, determinism)
     assert first == second, "determinism"

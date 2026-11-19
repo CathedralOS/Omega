@@ -12,18 +12,18 @@ use model::kriging;
 use model::kriging::Problem;
 use model::kriging::solve;
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut raw: Raw;
-    let accepted: bool = block read(&mut raw);
-    transition accepted { true -> validate(&raw) false -> invalid() }
-    machine validate(raw: &Raw) {
+    let accepted: bool = block read(@mut raw);
+    transition accepted { true -> validate(@raw) false -> invalid() }
+    machine validate(raw: @Raw) {
         let mut problem: Problem;
-        transition decode(raw, &mut problem) { true -> calculate(&mut problem) false -> invalid() }
+        transition decode(raw, @mut problem) { true -> calculate(@mut problem) false -> invalid() }
     }
-    machine calculate(problem: &mut Problem) {
+    machine calculate(problem: @mut Problem) {
         transition solve(problem) { true -> report(problem) false -> singular() }
     }
-    machine report(problem: &Problem) { emit(problem); ProcessExit::exit_process(0); }
+    machine report(problem: @Problem) { emit(problem); ProcessExit::exit_process(0); }
     machine singular() { Console::write_line("status singular-system"); ProcessExit::exit_process(2); }
     machine invalid() { Console::write_line("error invalid input"); ProcessExit::exit_process(64); }
 }
@@ -31,5 +31,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -23,10 +23,10 @@ public data Seq<T> {
 // comments or land the sorted form before
 // any rung relies on Bag inequality.
 public data BagView<'items> {
-    items: &'items [u64];
+    items: @'items [u64];
 }
 
-public machine Bag(items: &[u64]) -> BagView
+public machine Bag(items: @[u64]) -> BagView
 {
     transition { _ -> BagView { items: items } }
 }
@@ -49,7 +49,7 @@ terminates by items
 }
 
 machine filter<T, machine Predicate>(items: Seq<T>) -> Seq<T>
-requires machine Predicate(value: &T) -> bool;
+requires machine Predicate(value: @T) -> bool;
 terminates by items
 {
     transition items {

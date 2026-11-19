@@ -3,11 +3,11 @@
 // Expected exit: 0
 data Main requires count <= 11 { count: u32; j: u32; out: i32; }
 
-machine used_amount(main: &Main) -> u32
+machine used_amount(main: @Main) -> u32
 requires main.j <= main.count
 ensures result <= main.count
 { main.j }
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
     requires main.j <= main.count
 {
     let remaining: u32 = main.count - used_amount(main);
@@ -16,9 +16,9 @@ machine Main::main(main: &mut Main)
 
 machine entry() crashes Trap {
     let mut a: Main = Main { count: 11, j: 4, out: 0 };
-    Main::main(&mut a);
+    Main::main(@mut a);
     let mut b: Main = Main { count: 11, j: 11, out: 0 };
-    Main::main(&mut b);
+    Main::main(@mut b);
     transition a.out == 7 && b.out == 0 {
         true -> done()
         _ -> bad()

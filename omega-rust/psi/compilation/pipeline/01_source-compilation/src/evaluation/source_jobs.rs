@@ -3443,17 +3443,17 @@ pub(crate) mod tests {
         let source = typed(
             "data Store { items: [u64; 2]; }
             data Report { first: u64; second: u64; index: u64; calls: u64; }
-            machine select(index: u64, calls: &mut u64) -> u64
+            machine select(index: u64, calls: @mut u64) -> u64
             requires calls < 2
             ensures result == index
             { calls = calls + 1; index }
-            machine replace(index: &mut u64) -> u64
+            machine replace(index: @mut u64) -> u64
             { index = 1; 9u64 }
             machine answer() -> Report {
                 let mut index: u64 = 0;
                 let mut calls: u64 = 0;
                 let mut store: Store = Store { items: [3u64, 4u64] };
-                store.items[select(index, &mut calls)] = replace(&mut index);
+                store.items[select(index, @mut calls)] = replace(@mut index);
                 Report { first: store.items[0], second: store.items[1], index: index, calls: calls }
             }",
         );
@@ -4148,7 +4148,7 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_preserve_immutable_byte_backing_and_refuse_mutable_fabrication() {
         let bytes = BuildTimeValue::Text(vec![0, 255, b'x']);
-        let shared = program("machine answer(bytes: &[u8]) -> &[u8] { bytes }");
+        let shared = program("machine answer(bytes: @[u8]) -> @[u8] { bytes }");
         assert_eq!(
             run(
                 &shared,
@@ -4167,7 +4167,7 @@ pub(crate) mod tests {
             .expect("empty real backing"),
             BuildTimeValue::Text(Vec::new())
         );
-        let mutable = program("machine answer(bytes: &mut [u8]) -> &mut [u8] { bytes }");
+        let mutable = program("machine answer(bytes: @mut [u8]) -> @mut [u8] { bytes }");
         assert!(
             run(
                 &mutable,
@@ -4181,7 +4181,7 @@ pub(crate) mod tests {
     #[test]
     fn source_jobs_construct_copy_and_return_byte_fields_with_their_real_contents() {
         let entry = program(
-            "data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
+            "data Packet<'bytes> [copy] { bytes: @'bytes [u8]; }
             machine answer(input: Packet) -> Packet { input }",
         );
         let value = BuildTimeValue::Struct {
@@ -4237,7 +4237,7 @@ pub(crate) mod tests {
         // Numbered members keep their schema identity when materialized.
         // An authored name and its returned number select the same member.
         let entry = program(
-            "data Choice<'bytes> [copy] { #7 case Ready(#9 bytes: &'bytes [u8]); #8 case Empty; }
+            "data Choice<'bytes> [copy] { #7 case Ready(#9 bytes: @'bytes [u8]); #8 case Empty; }
              machine answer(value: Choice) -> Choice { value }",
         );
         let value = BuildTimeValue::Case {
@@ -4286,7 +4286,7 @@ pub(crate) mod tests {
 
     #[test]
     fn source_jobs_record_actual_bytes_and_charges_without_exporting_local_code() {
-        let source_program = program("machine answer(bytes: &[u8]) -> &[u8] { bytes }");
+        let source_program = program("machine answer(bytes: @[u8]) -> @[u8] { bytes }");
         let bytes = BuildTimeValue::Text(vec![0, 255, b'x']);
         let entry =
             bind(&source_program, std::slice::from_ref(&bytes)).expect("checked actual bytes");
@@ -4342,7 +4342,7 @@ pub(crate) mod tests {
 
     #[test]
     fn sharing_invocation_code_keeps_execution_and_receipts_separate() {
-        let source = program("machine answer(bytes: &[u8]) -> &[u8] { bytes }");
+        let source = program("machine answer(bytes: @[u8]) -> @[u8] { bytes }");
         let entry = bind(&source, &[BuildTimeValue::Text(vec![0, 255, b'x'])]).unwrap();
         let code = entry.produce_invocation().unwrap();
         let first_account =
@@ -4481,7 +4481,7 @@ pub(crate) mod tests {
             let mut sources = crate::source_inputs::SourceMap::default();
             let policy = "machine answer() -> u64 { 17u64 } machine request() -> u64 { 0u64 }";
             // A declaration the full check of a subject does not read yet.
-            let unused = "data NotReady<'held, T> { value: &'held T; }";
+            let unused = "data NotReady<'held, T> { value: @'held T; }";
             let policy_id = sources
                 .add_with_metadata(
                     "/policy-package/policy.omg".into(),

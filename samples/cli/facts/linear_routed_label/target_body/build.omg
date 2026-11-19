@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "linear_qualification");
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);

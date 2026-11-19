@@ -31,7 +31,7 @@ invokes Console
     machine done() { }
 }
 
-public machine emit(pedigree: &Pedigree, result: &Inference) reaches Console
+public machine emit(pedigree: @Pedigree, result: @Inference) reaches Console
 invokes Console
 {
     Console::write("SOLUTIONS "); number(result.solutions); Console::write_line("");
@@ -41,14 +41,14 @@ invokes Console
         true -> marginal(pedigree, result, 0)
         _ -> witness(pedigree, result, 0)
     }
-    machine marginal(pedigree: &Pedigree, result: &Inference,
+    machine marginal(pedigree: @Pedigree, result: @Inference,
                    position: i32 in Wrapping) {
         transition position >= 0 && position < pedigree.count * 3 && position < 18 {
             true -> probability(pedigree, result, position)
             _ -> done()
         }
     }
-    machine probability(pedigree: &Pedigree, result: &Inference,
+    machine probability(pedigree: @Pedigree, result: @Inference,
                       position: i32 in Wrapping) {
         let weight: i32 in Wrapping = result.marginals[position] as i32 in Wrapping;
         transition weight > 0 {
@@ -56,7 +56,7 @@ invokes Console
             _ -> marginal(pedigree, result, position + 1)
         }
     }
-    machine possible(pedigree: &Pedigree, result: &Inference,
+    machine possible(pedigree: @Pedigree, result: @Inference,
                    position: i32 in Wrapping, weight: i32 in Wrapping) {
         Console::write("POSSIBLE "); number(position / 3 + 1); Console::write(" ");
         let genotype: i32 in Wrapping = position % 3;
@@ -65,14 +65,14 @@ invokes Console
         number(result.mass); Console::write_line("");
         transition { _ -> marginal(pedigree, result, position + 1) }
     }
-    machine witness(pedigree: &Pedigree, result: &Inference,
+    machine witness(pedigree: @Pedigree, result: @Inference,
                   person: i32 in Wrapping) {
         transition person >= 0 && person < pedigree.count && person < 6 {
             true -> constraint(pedigree, result, person)
             _ -> done()
         }
     }
-    machine constraint(pedigree: &Pedigree, result: &Inference,
+    machine constraint(pedigree: @Pedigree, result: @Inference,
                      person: i32 in Wrapping) {
         let active: i32 = result.active[person];
         transition active == 1 {
@@ -80,7 +80,7 @@ invokes Console
             _ -> witness(pedigree, result, person + 1)
         }
     }
-    machine retained(pedigree: &Pedigree, result: &Inference,
+    machine retained(pedigree: @Pedigree, result: @Inference,
                    person: i32 in Wrapping) {
         Console::write("CORE "); number(person + 1); Console::write_line("");
         transition { _ -> witness(pedigree, result, person + 1) }

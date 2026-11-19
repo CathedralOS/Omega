@@ -18,13 +18,13 @@ use super::*;
 
 const CELLS: &str = r#"
 data Cell { before: u64; value: u64; after: u64; }
-data Carrier<'storage> { cell: &'storage mut Cell; }
-data View<'storage> { cell: &'storage Cell; }
+data Carrier<'storage> { cell: @'storage mut Cell; }
+data View<'storage> { cell: @'storage Cell; }
 "#;
 
 /// The sample's chooser: a carrier of whichever cell `first` selects.
 const SELECTED: &str = r#"
-machine selected<'storage>(left: &'storage mut Cell, right: &'storage mut Cell, first: bool) -> Carrier<'storage> {
+machine selected<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) -> Carrier<'storage> {
     transition first {
         true -> Carrier { cell: left }
         false -> Carrier { cell: right }
@@ -41,10 +41,10 @@ const ENTRY: &str = r#"
 machine entry() crashes Trap {
     let mut left: Cell = Cell { before: 11, value: 5, after: 17 };
     let mut right: Cell = Cell { before: 23, value: 9, after: 29 };
-    journey(&mut left, &mut right, true);
+    journey(@mut left, @mut right, true);
     let first_correct: bool = left.value == 73 && right.value == 9
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29;
-    journey(&mut left, &mut right, false);
+    journey(@mut left, @mut right, false);
     transition first_correct && left.value == 73 && right.value == 73
         && left.before == 11 && left.after == 17 && right.before == 23 && right.after == 29 {
         true -> done()
@@ -119,14 +119,14 @@ fn verdict(build: &str) -> String {
 fn a_call_gives_one_lifetime_the_loans_of_two_places() {
     completes(
         r#"
-machine both<'storage>(left: &'storage mut Cell, right: &'storage mut Cell, first: bool) {
+machine both<'storage>(left: @'storage mut Cell, right: @'storage mut Cell, first: bool) {
     transition first {
         true -> write(left)
         false -> write(right)
     }
-    machine write(cell: &mut Cell) { cell.value = 73; }
+    machine write(cell: @mut Cell) { cell.value = 73; }
 }
-machine journey(left: &mut Cell, right: &mut Cell, first: bool) {
+machine journey(left: @mut Cell, right: @mut Cell, first: bool) {
     both(left, right, first);
 }
 "#,
@@ -143,7 +143,7 @@ fn a_loan_is_stored_only_where_its_place_region_is_the_holders() {
     let stashed = |binders: &str, holder: &str, cell: &str| {
         format!(
             r#"{CELLS}
-machine build_entry{binders}(holder: &mut View{holder}, cell: &{cell}Cell) {{
+machine build_entry{binders}(holder: @mut View{holder}, cell: @{cell}Cell) {{
     holder.cell = cell;
 }}
 "#
@@ -171,12 +171,12 @@ fn a_shared_loan_region_is_no_named_lifetime_of_the_machine() {
     assert_eq!(
         verdict(&format!(
             r#"{CELLS}
-machine pick<'a, 'b>(left: &'a Cell, right: &'b Cell) -> View<'a> {{
+machine pick<'a, 'b>(left: @'a Cell, right: @'b Cell) -> View<'a> {{
     let mut view: View = View {{ cell: left }};
     view.cell = right;
     view
 }}
-machine build_entry(left: &Cell, right: &Cell) {{
+machine build_entry(left: @Cell, right: @Cell) {{
     let view: View = pick(left, right);
 }}
 "#
@@ -191,11 +191,11 @@ machine build_entry(left: &Cell, right: &Cell) {{
 fn a_loan_of_a_local_is_not_returned_for_a_lifetime_of_the_machine() {
     let source = format!(
         r#"{CELLS}
-machine leak<'a>(cell: &'a Cell) -> View<'a> {{
+machine leak<'a>(cell: @'a Cell) -> View<'a> {{
     let local: Cell = Cell {{ before: 1, value: 2, after: 3 }};
-    View {{ cell: &local }}
+    View {{ cell: @local }}
 }}
-machine build_entry(cell: &Cell) {{
+machine build_entry(cell: @Cell) {{
     let view: View = leak(cell);
     let observed: bool = view.cell.value == 2;
 }}
@@ -208,7 +208,7 @@ machine build_entry(cell: &Cell) {{
     let [violation] = violations.as_slice() else {
         panic!("expected one lifetime violation: {violations:?}");
     };
-    let borrow = source.find("&local").unwrap();
+    let borrow = source.find("@local").unwrap();
     assert_eq!(
         violation.site,
         Some(source_text::SourceSpan::new(
@@ -222,7 +222,7 @@ machine build_entry(cell: &Cell) {{
          requires one of the machine's declared lifetimes: local storage cannot establish that \
          promise, even for an empty view while reading the body of `leak`"
     );
-    assert_eq!(verdict(&source.replacen("&local", "cell", 1)), "accepted");
+    assert_eq!(verdict(&source.replacen("@local", "cell", 1)), "accepted");
 }
 
 /// A return still needs a result contract naming its possible input
@@ -231,7 +231,7 @@ machine build_entry(cell: &Cell) {{
 fn a_reference_backed_by_either_of_two_inputs_is_refused_by_name_when_returned() {
     let returned = run(&format!(
         r#"{CELLS}{SELECTED}
-machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
+machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
     let mut carrier: Carrier = selected(left, right, first);
     carrier.cell.value = 73;
 }}
@@ -243,7 +243,7 @@ machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
     );
     let joined = run(&format!(
         r#"{CELLS}
-machine journey(left: &mut Cell, right: &mut Cell, first: bool) {{
+machine journey(left: @mut Cell, right: @mut Cell, first: bool) {{
     let mut carrier: Carrier = match first {{
         true -> Carrier {{ cell: left }}
         false -> Carrier {{ cell: right }}

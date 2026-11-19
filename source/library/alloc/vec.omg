@@ -53,8 +53,8 @@ public VecCellLayout satisfies FixedLayout<VecCell> {
 
 public VecCellPolicy satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        let mut plan: AccessPlan = access::new_plan(&schema, Issuance::Unrestricted);
-        access::observe(&mut plan, field(VecCell::value),
+        let mut plan: AccessPlan = access::new_plan(@schema, Issuance::Unrestricted);
+        access::observe(@mut plan, field(VecCell::value),
             FieldAccess::Stable { read: true, write: true, exposure: Exposure::Exported });
         plan
     }
@@ -62,15 +62,15 @@ public VecCellPolicy satisfies AccessPolicy {
 
 data Observed { storage: Extent in Granted & Vacant; value: u32; }
 
-machine store_cell<Role>(storage: &mut Extent in Granted & Vacant, value: u32)
+machine store_cell<Role>(storage: @mut Extent in Granted & Vacant, value: u32)
 crashes Trap
 {
-    transition access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as &mut Extent in Granted) {
+    transition access::view_extent_mut<VecCellStorage in VecCell::Controlled, Role>(storage as @mut Extent in Granted) {
         AccessOutcome::Ready { view } -> change(view, value)
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
-    machine change(view: &mut VecCellStorage in VecCell::Controlled, value: u32) {
-        write(&mut view.value, value);
+    machine change(view: @mut VecCellStorage in VecCell::Controlled, value: u32) {
+        write(@mut view.value, value);
     }
     machine bad() { crash Trap; }
 }
@@ -83,7 +83,7 @@ crashes Trap
     let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
     let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
     let mut cell: Extent in Granted & Vacant = element.taken;
-    store_cell<Role>(&mut cell, value);
+    store_cell<Role>(@mut cell, value);
     let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
     let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
     whole
@@ -120,9 +120,9 @@ crashes Trap
     Vec { storage: changed, len: length + 1, capacity: capacity }
 }
 
-machine inspect_cell<Role>(storage: &Extent in Granted & Vacant) -> u32 crashes Trap {
-    transition access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as &Extent in Granted) {
-        AccessOutcome::Ready { view } -> read(&view.value)
+machine inspect_cell<Role>(storage: @Extent in Granted & Vacant) -> u32 crashes Trap {
+    transition access::view_extent<VecCellStorage in VecCell::Controlled, Role>(storage as @Extent in Granted) {
+        AccessOutcome::Ready { view } -> read(@view.value)
         AccessOutcome::Rejected { returned, reason } -> bad()
     }
     machine bad() -> u32 { crash Trap; }
@@ -136,7 +136,7 @@ crashes Trap
     let prefix: VacantExtentParts = split_vacant_extent(storage, offset);
     let element: VacantExtentParts = split_vacant_extent(prefix.rest, 4);
     let cell: Extent in Granted & Vacant = element.taken;
-    let value: u32 = inspect_cell<Role>(&cell);
+    let value: u32 = inspect_cell<Role>(@cell);
     let suffix: Extent in Granted & Vacant = merge_vacant_extents(cell, element.rest);
     let whole: Extent in Granted & Vacant = merge_vacant_extents(prefix.taken, suffix);
     Observed { storage: whole, value: value }
@@ -191,7 +191,7 @@ crashes Trap
 }
 
 public data Growth { vec: Vec; retired_storage: Extent in Granted & Vacant; }
-machine verify_vector(storage: &Extent in Granted & Vacant, length: u64, capacity: u64)
+machine verify_vector(storage: @Extent in Granted & Vacant, length: u64, capacity: u64)
 requires length <= capacity, capacity <= 4611686018427387903, storage.length == capacity * 4 {}
 public machine Vec::grow<Role>(vec: Vec, replacement: Extent in Granted & Vacant, capacity: u64)
     -> Growth
@@ -207,7 +207,7 @@ crashes Trap
     let length: u64 = vec.len;
     let original: Extent in Granted & Vacant = vec.storage;
     let copied: Copied = copy_prefix<Role>(original, replacement, length, length);
-    verify_vector(&copied.replacement, length, capacity);
+    verify_vector(@copied.replacement, length, capacity);
     let grown: Vec = Vec { storage: copied.replacement, len: length, capacity: capacity };
     Growth { vec: grown, retired_storage: copied.original }
 }

@@ -16,21 +16,21 @@ data Main {
 }
 
 data Centered<'row> {
-    window: &'row mut [f64];
+    window: @'row mut [f64];
     value: f64;
 }
 
 data Held<'row> {
-    window: &'row mut [f64];
+    window: @'row mut [f64];
 }
 
-machine low_pair<'row>(items: &'row mut [f64], mean: f64) -> Centered<'row>
+machine low_pair<'row>(items: @'row mut [f64], mean: f64) -> Centered<'row>
 requires items.len == 2
 {
     Centered { window: items, value: mean }
 }
 
-machine high_pair<'row>(items: &'row mut [f64], mean: f64) -> Centered<'row>
+machine high_pair<'row>(items: @'row mut [f64], mean: f64) -> Centered<'row>
 requires items.len == 2
 {
     Centered { window: items, value: mean }
@@ -38,13 +38,13 @@ requires items.len == 2
 
 machine echo(value: f64) -> f64 { value }
 
-machine length_of(window: &mut [f64]) -> u64 { window.len }
+machine length_of(window: @mut [f64]) -> u64 { window.len }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     main.measurements = [3.0, 5.0, 1.0, 9.0];
     transition { _ -> low(main) }
-    machine low(main: &mut Main) {
-        let produced: Centered = low_pair(&mut main.measurements[0..2], 2.0);
+    machine low(main: @mut Main) {
+        let produced: Centered = low_pair(@mut main.measurements[0..2], 2.0);
         let local_length: u64 = produced.window.len;
         main.centered = echo(produced.value);
         let held: Held = Held { window: produced.window };
@@ -54,40 +54,40 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         main.parameter_length = length_of(held.window);
         transition { _ -> lengths(main) }
     }
-    machine lengths(main: &mut Main) {
+    machine lengths(main: @mut Main) {
         transition main.local_length == 2 {
             true -> field(main)
             false -> bad(main)
         }
     }
-    machine field(main: &mut Main) {
+    machine field(main: @mut Main) {
         transition main.field_length == 2 {
             true -> parameter(main)
             false -> bad(main)
         }
     }
-    machine parameter(main: &mut Main) {
+    machine parameter(main: @mut Main) {
         transition main.parameter_length == 2 {
             true -> high(main)
             false -> bad(main)
         }
     }
-    machine high(main: &mut Main) {
-        main.centered = echo(high_pair(&mut main.measurements[2..4], 2.0).value);
-        main.call_length = length_of(low_pair(&mut main.measurements[0..2], 0.0).window);
+    machine high(main: @mut Main) {
+        main.centered = echo(high_pair(@mut main.measurements[2..4], 2.0).value);
+        main.call_length = length_of(low_pair(@mut main.measurements[0..2], 0.0).window);
         transition { _ -> call(main) }
     }
-    machine call(main: &mut Main) {
+    machine call(main: @mut Main) {
         transition main.call_length == 2 {
             true -> emit(main)
             false -> bad(main)
         }
     }
-    machine emit(main: &mut Main) {
+    machine emit(main: @mut Main) {
         Console::write_line("row score");
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("row mismatch");
         ProcessExit::exit_process(2);
     }
@@ -96,5 +96,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

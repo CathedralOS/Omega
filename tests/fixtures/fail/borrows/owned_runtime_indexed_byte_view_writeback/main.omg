@@ -1,4 +1,4 @@
-data Settings<'storage> { identifier: &'storage [u8]; }
+data Settings<'storage> { identifier: @'storage [u8]; }
 
 machine main() crashes Trap {
     let mut settings: [Settings; 2] = [

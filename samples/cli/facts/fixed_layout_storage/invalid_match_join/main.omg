@@ -25,14 +25,14 @@ machine make() -> LayoutStorage<Pair, PairLayout> {
     value.hi = 9u64;
     value
 }
-machine first(marker: &mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 17u64; make() }
-machine second(marker: &mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 29u64; make() }
-machine choose(flag: bool, marker: &mut u64) -> LayoutStorage<Pair, PairLayout> { match flag { true -> first(marker), false -> second(marker) } }
+machine first(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 17u64; make() }
+machine second(marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { marker = 29u64; make() }
+machine choose(flag: bool, marker: @mut u64) -> LayoutStorage<Pair, PairLayout> { match flag { true -> first(marker), false -> second(marker) } }
 machine exercise(flag: bool, expected_marker: u64) crashes Trap {
     let mut marker: u64 = 0u64;
-    let value: LayoutStorage<Pair, PairLayout> = choose(flag, &mut marker);
+    let value: LayoutStorage<Pair, PairLayout> = choose(flag, @mut marker);
     let difference: u64 = (value.lo as -Delivered) - 42u64;
-    let bytes: &[u8; 16] = &value as &[u8; 16];
+    let bytes: @[u8; 16] = @value as @[u8; 16];
     transition marker == expected_marker && difference == 0u64 && value.hi == 9u64 && bytes[8] == 42u8 && bytes[0] == 9u8 {
         true -> done()
         _ -> bad()

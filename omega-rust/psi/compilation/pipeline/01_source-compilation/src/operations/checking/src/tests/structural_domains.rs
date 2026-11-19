@@ -61,10 +61,10 @@ fn a_persistent_reference_carries_the_exact_referent_domain() {
 data Ticket { number: u32; }
 domain Ticket::Stamped established by stamp;
 machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
-machine number(ticket: &Ticket in Stamped) -> u32 { ticket.number }
+machine number(ticket: @Ticket in Stamped) -> u32 { ticket.number }
 machine entry() -> u32 {
     let stamped: Ticket in Stamped = stamp(Ticket { number: 7u32 });
-    let saved: &Ticket in Stamped = &stamped;
+    let saved: @Ticket in Stamped = @stamped;
     number(saved)
 }
 "#;
@@ -133,15 +133,15 @@ fn array_element_domains_are_checked_at_establishment_and_at_runtime_index() {
 data Ticket { number: u32; }
 domain Ticket::Stamped established by stamp;
 machine stamp(ticket: Ticket) -> Ticket in Stamped { ticket as +Stamped }
-machine number(ticket: &Ticket in Stamped) -> u32 { ticket.number }
-machine select(tickets: &[Ticket in Stamped; 2], index: u64) -> u32
+machine number(ticket: @Ticket in Stamped) -> u32 { ticket.number }
+machine select(tickets: @[Ticket in Stamped; 2], index: u64) -> u32
 requires index < 2u64
 {
-    number(&tickets[index])
+    number(@tickets[index])
 }
 machine entry() -> u32 {
     let tickets: [Ticket in Stamped; 2] = [stamp(Ticket { number: 3u32 }), stamp(Ticket { number: 5u32 })];
-    select(&tickets, 1u64)
+    select(@tickets, 1u64)
 }
 "#;
     let mut elaboration = invocation(source).unwrap();
@@ -214,22 +214,22 @@ fn a_direct_indexed_store_supplies_its_post_store_domain_goal() {
     let source = r#"
 data Cell requires count <= 16u64 { count: u64; location: u64; }
 data Plan { cells: [Cell; 2]; convention: u64; }
-machine reg(word: u64, convention: &u64) -> u64 {
+machine reg(word: u64, convention: @u64) -> u64 {
     let observed: u64 = convention;
     transition observed == 9u64 {
         true -> (word)
         false -> (0u64)
     }
 }
-machine single(plan: &mut Plan, ordinal: u64, word: u64)
+machine single(plan: @mut Plan, ordinal: u64, word: u64)
 requires ordinal < 2u64 {
     plan.cells[ordinal].count = 1u64;
-    plan.cells[ordinal].location = reg(word, &plan.convention);
+    plan.cells[ordinal].location = reg(word, @plan.convention);
 }
 machine entry() -> u64 {
     let mut plan: Plan;
     plan.convention = 9u64;
-    single(&mut plan, 1u64, 7u64);
+    single(@mut plan, 1u64, 7u64);
     transition plan.cells[1u64].count == 1u64
         && plan.cells[0u64].count == 0u64 && plan.cells[0u64].location == 0u64 {
         true -> (plan.cells[1u64].location)
@@ -735,9 +735,9 @@ machine entry()"#,
 
 #[test]
 fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
-    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: &mut Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
+    let alias_write = NORMAL_MEMBERSHIP.replace("machine other(ticket: Ticket)", "machine change(ticket: @mut Ticket) { ticket.number = 9u32; }\nmachine other(ticket: Ticket)")
         .replace("let plain: Ticket = stamp", "let mut plain: Ticket = stamp")
-        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(&mut plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
+        .replace("let tagged: Ticket in Stamped = plain as +Stamped;", "change(@mut plain);\n    let tagged: Ticket in Stamped = plain as +Stamped;");
     let changed_value = NORMAL_MEMBERSHIP.replace(
         "let tagged: u32 in WordStamped = plain as +WordStamped;",
         "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",

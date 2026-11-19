@@ -13,8 +13,8 @@ OtherPolicy satisfies FixedLayout<Record> {
         CAbiPolicy<Record>::plan(schema, target)
     }
 }
-machine observe(value: LayoutStorage<Record, OtherPolicy>, words: &[u64; 3]) -> bool {
-    let mapped: &CLayout<Record> = words as &CLayout<Record>;
+machine observe(value: LayoutStorage<Record, OtherPolicy>, words: @[u64; 3]) -> bool {
+    let mapped: @CLayout<Record> = words as @CLayout<Record>;
     value.first == 17u8 && value.second == 42u64 && value.last == 9u16 && mapped.first == 17u8 && mapped.second == 42u64 && mapped.last == 9u16 && size_of<CLayout<Record>>() == 24u64 && align_of<CLayout<Record>>() == 8u64
 }
 machine main() crashes Trap {
@@ -26,7 +26,7 @@ machine main() crashes Trap {
     words[0] = 17u64;
     words[1] = 42u64;
     words[2] = 9u64;
-    let observed: bool = observe(record, &words);
+    let observed: bool = observe(record, @words);
     transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

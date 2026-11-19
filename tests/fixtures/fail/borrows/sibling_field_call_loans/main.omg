@@ -4,19 +4,19 @@
 data Status { size: u64; mode: u64; }
 data Handle { fd: u64; status: Status; }
 
-machine fill(fd: u64, status: &mut Status) -> u64 {
+machine fill(fd: u64, status: @mut Status) -> u64 {
     status.size = 40;
     fd
 }
 
-machine inspect(handle: &mut Handle) -> bool {
-    let fd: u64 = fill(handle.status.mode, &mut handle.status);
+machine inspect(handle: @mut Handle) -> bool {
+    let fd: u64 = fill(handle.status.mode, @mut handle.status);
     fd == 5 && handle.status.size == 40
 }
 
 machine main() crashes Trap {
     let mut handle: Handle = Handle { fd: 3, status: Status { size: 0, mode: 5 } };
-    let filled: bool = inspect(&mut handle);
+    let filled: bool = inspect(@mut handle);
     transition filled {
         true -> good()
         false -> bad()

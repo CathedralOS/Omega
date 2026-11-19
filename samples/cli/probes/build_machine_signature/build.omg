@@ -1,5 +1,5 @@
 // The explicit mutable Build borrow receives the activation’s project requests.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "build_machine_signature");
 }

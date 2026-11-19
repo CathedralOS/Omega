@@ -13,7 +13,7 @@ use report::render;
 use report::render::report;
 use omega_language_std::Console;
 
-machine main(application: &mut Application) reaches ProcessExit + Console {
+machine main(application: @mut Application) reaches ProcessExit + Console {
     let count: Parsed = block read_number();
     let budget: Parsed = block read_number();
     let deadline: Parsed = block read_number();
@@ -23,20 +23,20 @@ machine main(application: &mut Application) reaches ProcessExit + Console {
         true -> block configure(application, count.value, budget.value, deadline.value, risk_limit.value)
         false -> invalid(application)
     }
-    machine configure(application: &mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
+    machine configure(application: @mut Application, count: u64, budget: u64, deadline: u64, risk_limit: u64) {
         application.count = count;
         application.budget = budget;
         application.deadline = deadline;
         application.risk_limit = risk_limit;
         transition { _ -> block load(application, 0) }
     }
-    machine load(application: &mut Application, index: u64) {
+    machine load(application: @mut Application, index: u64) {
         transition index < application.count && index < 12 {
             true -> block read_row(application, index)
             false -> block trailing(application)
         }
     }
-    machine read_row(application: &mut Application, index: u64)
+    machine read_row(application: @mut Application, index: u64)
     requires index < 12 {
         let identifier: Parsed = block read_number();
         let provenance: Parsed = block read_number();
@@ -51,21 +51,21 @@ machine main(application: &mut Application) reaches ProcessExit + Console {
             false -> invalid(application)
         }
     }
-    machine store(application: &mut Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
+    machine store(application: @mut Application, index: u64, identifier: u64, provenance: u64, cost: u64, days: u64, gain: u64, risk: u64)
     requires index < 12 {
         application.rows[index] = Experiment { identifier: identifier, provenance: provenance, position: index + 1,
             cost: cost, days: days, gain: gain, risk: risk };
         transition { _ -> block load(application, index + 1) }
     }
-    machine trailing(application: &mut Application) {
+    machine trailing(application: @mut Application) {
         let clean: bool = block only_whitespace();
         transition clean { true -> accepted(application) false -> invalid(application) }
     }
-    machine accepted(application: &mut Application) {
+    machine accepted(application: @mut Application) {
         report(application);
         ProcessExit::exit_process(0);
     }
-    machine invalid(application: &mut Application) {
+    machine invalid(application: @mut Application) {
         Console::write_line("ERROR|invalid-input");
         ProcessExit::exit_process(2);
     }
@@ -74,5 +74,5 @@ machine main(application: &mut Application) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Application;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

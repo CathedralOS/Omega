@@ -8,7 +8,7 @@ requires self.values[0] >= 0 && self.values[0] <= 16,
     self.values[3] >= 0 && self.values[3] <= 16
 { values: [i32; 4]; }
 
-public machine observe(tallies: &Tallies, index: u64) -> i32
+public machine observe(tallies: @Tallies, index: u64) -> i32
 requires index < 4
 ensures result >= 0 && result <= 16
 { tallies.values[index] }
@@ -20,7 +20,7 @@ requires value >= 0 && value <= 16
     mapping[value as u64]
 }
 
-machine verify(tallies: &Tallies, reversed: bool) crashes Trap {
+machine verify(tallies: @Tallies, reversed: bool) crashes Trap {
     let first: i32 = lookup(observe(tallies, 0));
     let second: i32 = lookup(observe(tallies, 1));
     let third: i32 = lookup(observe(tallies, 2));
@@ -37,5 +37,5 @@ machine verify(tallies: &Tallies, reversed: bool) crashes Trap {
 machine main() crashes Trap {
     let tallies: Tallies = Tallies { values: [0, 15, 16, 8] };
     transition { _ -> accept(tallies) }
-    machine accept(tallies: Tallies) crashes Trap { verify(&tallies, false); }
+    machine accept(tallies: Tallies) crashes Trap { verify(@tallies, false); }
 }

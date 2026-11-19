@@ -3,14 +3,14 @@
 // as the other arm, and the returned window publishes length 2.
 // Invalid control: the other arm hands `open_end` the coordinate 3 while that machine
 // requires its `end` to be 2, so the handed coordinate is structurally false.
-machine open_end<'row>(items: &'row mut [u8; 4], end: i64) -> &'row mut [u8]
+machine open_end<'row>(items: @'row mut [u8; 4], end: i64) -> @'row mut [u8]
     requires end == 2
     ensures result.len == 2
 {
-    &mut items[0..end]
+    @mut items[0..end]
 }
 
-machine from_machine<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u8]
+machine from_machine<'row>(items: @'row mut [u8; 4], which: i64) -> @'row mut [u8]
     ensures result.len == 2
 {
     match which {
@@ -20,7 +20,7 @@ machine from_machine<'row>(items: &'row mut [u8; 4], which: i64) -> &'row mut [u
 }
 machine main() crashes Trap {
     let mut bytes: [u8; 4] = [1, 2, 3, 4];
-    let window: &mut [u8] = from_machine(&mut bytes, 0);
+    let window: @mut [u8] = from_machine(@mut bytes, 0);
     transition window.len == 2 { true -> done() false -> bad() }
     machine done() {}
     machine bad() { crash Trap; }

@@ -15,39 +15,39 @@ use io::render;
 use io::render::report;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("IND07 finite horizon controller: select 0..7");
     let mut input: [u8; 8];
-    let observed: LineReadResult = block Console::read_line(&mut input[..]);
+    let observed: LineReadResult = block Console::read_line(@mut input[..]);
     transition observed {
-        LineReadResult::LineComplete { count } -> parse(main, &input, count)
+        LineReadResult::LineComplete { count } -> parse(main, @input, count)
         _ -> bad_input(main)
     }
-    machine parse(main: &mut Main, input: &[u8; 8], count: u64) {
+    machine parse(main: @mut Main, input: @[u8; 8], count: u64) {
         transition count == 2 && input[0] >= 48 && input[0] <= 55 && input[1] == 10 {
             true -> selected(main, (input[0] as i32) - 48)
             _ -> bad_input(main)
         }
     }
-    machine selected(main: &mut Main, selector: i32) {
+    machine selected(main: @mut Main, selector: i32) {
         let mut problem: Problem;
-        load_case(&mut problem, selector);
-        let valid: bool = valid_problem(&problem);
+        load_case(@mut problem, selector);
+        let valid: bool = valid_problem(@problem);
         transition valid {
-            true -> solve(main, &problem)
+            true -> solve(main, @problem)
             _ -> bad_problem(main)
         }
     }
-    machine solve(main: &mut Main, problem: &Problem) {
+    machine solve(main: @mut Main, problem: @Problem) {
         let mut plan: Plan;
-        optimize(problem, &mut plan);
-        report(problem, &plan);
+        optimize(problem, @mut plan);
+        report(problem, @plan);
     }
-    machine bad_input(main: &mut Main) {
+    machine bad_input(main: @mut Main) {
         Console::write_line("INVALID: expected one selector digit and LF");
         ProcessExit::exit_process(2);
     }
-    machine bad_problem(main: &mut Main) {
+    machine bad_problem(main: @mut Main) {
         Console::write_line("INVALID: problem outside supported bounds");
         ProcessExit::exit_process(2);
     }
@@ -56,5 +56,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

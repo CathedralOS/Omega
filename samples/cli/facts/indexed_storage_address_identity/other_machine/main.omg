@@ -2,10 +2,10 @@
 // Expected exit: 0.
 machine observe(index: u64) -> bool requires index < 2 {
     let mut items: [u64; 2] = [7, 11];
-    let selected: addr = address_of(&items[index]);
-    let again: addr = address_of(&items[index]);
-    let first: addr = address_of(&items[0]);
-    let second: addr = address_of(&items[1]);
+    let selected: addr = address_of(@items[index]);
+    let again: addr = address_of(@items[index]);
+    let first: addr = address_of(@items[0]);
+    let second: addr = address_of(@items[1]);
     transition index == 0 {
         true -> (selected == again && selected != 0 && selected == first && selected != second)
         false -> (selected == again && selected != 0 && selected == second && selected != first)

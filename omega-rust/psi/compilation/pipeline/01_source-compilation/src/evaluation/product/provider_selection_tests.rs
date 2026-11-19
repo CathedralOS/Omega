@@ -20,11 +20,11 @@ use symbols::SymbolHandle;
 const PRELUDE: &str = r#"
 public data Build { marker: u64; }
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64 reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine select(activation: u64) reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
 }
-public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
     builder
 }
 public data BuildTarget [copy] { case LinuxX86_64; case MacosArm64; }
@@ -54,14 +54,14 @@ data RuntimeDescriptor {}
 "#;
 
 const TWO_CHOICES: &str = r#"
-machine build(builder: &mut Build) { first(builder); second(builder); }
-machine first(builder: &mut Build) {
+machine build(builder: @mut Build) { first(builder); second(builder); }
+machine first(builder: @mut Build) {
     Build::select_provider<Service, First>(builder, linux_x86_64);
 }
-machine second(builder: &mut Build) {
+machine second(builder: @mut Build) {
     Build::select_provider<Service, Second>(builder, macos_arm64, CompositionMode::Independent);
 }
-machine unrelated(builder: &mut Build) {}
+machine unrelated(builder: @mut Build) {}
 "#;
 
 fn package(byte: u8) -> PackageKeyIdentity {
@@ -266,7 +266,7 @@ fn a_runnable_product_batch_requires_a_named_implementation() {
         // The harness supplies completed Build events. The kept Build files
         // bind the same declarations for all four hosted targets in CLI runs.
         let build = format!(
-            "machine build(builder: &mut Build) {{ Build::select_provider<LookupService, {provider}>(builder, linux_x86_64); }}"
+            "machine build(builder: @mut Build) {{ Build::select_provider<LookupService, {provider}>(builder, linux_x86_64); }}"
         );
         let fixture = Fixture::new(&build, program, None);
         let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
@@ -290,7 +290,7 @@ fn a_provider_batch_keeps_the_source_of_applied_type_arguments() {
         public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
     for actual in ["Tag", "Other"] {
         let build = format!(
-            "machine build(builder: &mut Build) {{ Build::select_provider<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
+            "machine build(builder: @mut Build) {{ Build::select_provider<Service<Tag>, First<{actual}>>(builder, linux_x86_64); }}"
         );
         let mut fixture = Fixture::new(&build, product, None);
         let source = fixture.typed.clone();
@@ -327,9 +327,9 @@ fn a_provider_batch_keeps_the_source_of_applied_type_arguments() {
 fn a_service_audit_needs_an_event_from_its_exact_author() {
     let fixture = Fixture::for_operation(
         r#"
-machine build(builder: &mut Build) { configure(builder); }
-machine configure(builder: &mut Build) { Build::audit_service<Unused>(builder); }
-machine unselected(builder: &mut Build) { Build::audit_service<Untaken>(builder); }
+machine build(builder: @mut Build) { configure(builder); }
+machine configure(builder: @mut Build) { Build::audit_service<Unused>(builder); }
+machine unselected(builder: @mut Build) { Build::audit_service<Untaken>(builder); }
 "#,
         "public boundary trait Unused {} public boundary trait Untaken {}",
         None,
@@ -433,7 +433,7 @@ fn unexecuted_provider_formations_still_validate_both_operands() {
         ("Service", "MissingProvider", "MissingProvider"),
     ] {
         let build = format!(
-            "machine build(builder: &mut Build) {{ Build::select_provider<{slot}, {provider}>(builder, linux_x86_64); }}"
+            "machine build(builder: @mut Build) {{ Build::select_provider<{slot}, {provider}>(builder, linux_x86_64); }}"
         );
         let fixture = Fixture::new(&build, PRODUCT, None);
         assert_eq!(fixture.declared.len(), 1);
@@ -450,7 +450,7 @@ fn unexecuted_provider_formations_still_validate_both_operands() {
 #[test]
 fn a_runtime_data_declaration_is_not_a_static_provider_record() {
     let fixture = Fixture::new(
-        "machine build(builder: &mut Build) { Build::select_provider<Service, RuntimeDescriptor>(builder, linux_x86_64); }",
+        "machine build(builder: @mut Build) { Build::select_provider<Service, RuntimeDescriptor>(builder, linux_x86_64); }",
         PRODUCT,
         None,
     );
@@ -465,7 +465,7 @@ fn a_runtime_data_declaration_is_not_a_static_provider_record() {
 #[test]
 fn a_product_dependency_does_not_expose_its_private_provider() {
     let fixture = Fixture::new(
-        "machine build(builder: &mut Build) { Build::select_provider<dep::ForeignService, dep::Hidden>(builder, linux_x86_64); }",
+        "machine build(builder: @mut Build) { Build::select_provider<dep::ForeignService, dep::Hidden>(builder, linux_x86_64); }",
         PRODUCT,
         Some(
             "public boundary trait ForeignService { machine tick() reaches none crashes none; }\nHidden satisfies ForeignService { machine tick() reaches none crashes none {} }",
@@ -597,9 +597,9 @@ fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
 fn root_grants_require_the_exact_executed_request_and_author() {
     use super::product_policy::collect_product_root_grants;
     let fixture = Fixture::for_operation(
-        "machine build(builder: &mut Build) { configure(builder); }\n\
-         machine configure(builder: &mut Build) { Build::accept_boundary<First>(builder); }\n\
-         machine untaken(builder: &mut Build) { Build::accept_boundary<Second>(builder); }",
+        "machine build(builder: @mut Build) { configure(builder); }\n\
+         machine configure(builder: @mut Build) { Build::accept_boundary<First>(builder); }\n\
+         machine untaken(builder: @mut Build) { Build::accept_boundary<Second>(builder); }",
         PRODUCT,
         None,
         BuildOperation::BoundaryAcceptance,
@@ -684,7 +684,7 @@ fn root_grants_keep_the_actual_provider_application() {
         public boundary trait Service<T> { machine tick() reaches none crashes none; }\n\
         public First<T> satisfies Service<T> { machine tick() reaches none crashes none {} }";
     let mut fixture = Fixture::for_operation(
-        "machine build(builder: &mut Build) { Build::accept_boundary<First<Tag>>(builder); Build::accept_boundary<First<Other>>(builder); }",
+        "machine build(builder: @mut Build) { Build::accept_boundary<First<Tag>>(builder); Build::accept_boundary<First<Other>>(builder); }",
         product,
         None,
         BuildOperation::BoundaryAcceptance,
@@ -747,7 +747,7 @@ fn accepted_machine_grants_distinguish_the_local_subject_from_a_dependency() {
     use declaration_contracts::selection::RootGrantSubject;
     let source = "public boundary machine Claim() ensures true;";
     let fixture = Fixture::for_operation(
-        "machine build(builder: &mut Build) { Build::accept_boundary<Claim>(builder); Build::accept_boundary<dep::Claim>(builder); }",
+        "machine build(builder: @mut Build) { Build::accept_boundary<Claim>(builder); Build::accept_boundary<dep::Claim>(builder); }",
         source,
         Some(source),
         BuildOperation::BoundaryAcceptance,
@@ -787,7 +787,7 @@ fn accepted_machine_grants_distinguish_the_local_subject_from_a_dependency() {
     assert_ne!(local.subject, dependency.subject);
     for hidden in ["Missing", "dep::Private"] {
         let build = format!(
-            "machine build(builder: &mut Build) {{ Build::accept_boundary<{hidden}>(builder); }}"
+            "machine build(builder: @mut Build) {{ Build::accept_boundary<{hidden}>(builder); }}"
         );
         let fixture = Fixture::for_operation(
             &build,
@@ -818,7 +818,7 @@ fn trust_census_keeps_unrequested_claims_and_missing_receipts() {
     use declaration_contracts::selection::RootGrantSubject;
     use declaration_contracts::trust_declarations::TrustDeclarationCardinality;
     let fixture = Fixture::for_operation(
-        "machine build(builder: &mut Build) { Build::accept_boundary<First>(builder); }",
+        "machine build(builder: @mut Build) { Build::accept_boundary<First>(builder); }",
         "public boundary machine First() ensures true; public boundary machine Second() ensures true;",
         None,
         BuildOperation::BoundaryAcceptance,

@@ -28,7 +28,7 @@ pub fn build_prelude() -> BuildPrelude {
 }
 
 pub fn default_build_source() -> &'static str {
-    "machine build(builder: &mut Build) {}\n"
+    "machine build(builder: @mut Build) {}\n"
 }
 
 const BUILD_PRELUDE: &str = r#"
@@ -115,11 +115,11 @@ public data ProductEntryRef [copy] {
 // The source producer retains each query's lexical occurrence beside its call;
 // the activation mints descriptions only after that exact query is answered.
 public boundary trait BuildProductOperations {
-    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches none crashes none;
-    machine schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches none crashes none;
-    machine provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches none crashes none;
-    machine schema_path(schema: &ProductTypeSchema) -> &[u8] reaches none crashes none;
-    machine provider_path(provider: &ProductProviderRef) -> &[u8] reaches none crashes none;
+    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
+    machine schema(product: @BuildProduct, path: @[u8]) -> ProductTypeSchema reaches none crashes none;
+    machine provider(product: @BuildProduct, path: @[u8]) -> ProductProviderRef reaches none crashes none;
+    machine schema_path(schema: @ProductTypeSchema) -> @[u8] reaches none crashes none;
+    machine provider_path(provider: @ProductProviderRef) -> @[u8] reaches none crashes none;
 }
 // Execution protocol for the designated Build::bind syntax. Typing supplies
 // the exact product-selection occurrence beside the ordinary boundary call.
@@ -131,8 +131,8 @@ public boundary trait BuildProductOperations {
 public boundary trait BuildBindingOperations {
     machine describe_parameter() -> omega::language::core::reflect::ParameterInfo reaches none crashes none;
     machine describe_field() -> omega::language::core::reflect::FieldInfo reaches none crashes none;
-    machine prepare(builder: &Build) -> u64 reaches none crashes none;
-    machine prepare_tests(tests: &BuildTests) -> u64 reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
+    machine prepare_tests(tests: @BuildTests) -> u64 reaches none crashes none;
     machine await_provider(activation: u64) reaches none crashes none suspends;
     machine bind(activation: u64) reaches none crashes none;
     machine bind_description(activation: u64, description: ProductEntryRef) reaches none crashes none;
@@ -143,7 +143,7 @@ public boundary trait BuildBindingOperations {
 }
 // The ordinary call establishes exclusive activation access and retains that
 // loan through the returned original view, without granting an opaque host writes.
-public machine build_selection_receiver<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> &'activation mut Build<'storage> {
+public machine build_selection_receiver<'activation, 'storage>(builder: @'activation mut Build<'storage>) -> @'activation mut Build<'storage> {
     builder
 }
 public machine build_exclusion_crash_code(cause: CrashCause) -> u64 {
@@ -221,8 +221,8 @@ public data OutputCompletion {
 // keeps the selected target environment's declared default. A selection never
 // requests dynamic linking; static output emits no `PT_INTERP`.
 public data ElfInterpreterSelection<'storage> {
-    linux_arm64: &'storage [u8];
-    linux_x86_64: &'storage [u8];
+    linux_arm64: @'storage [u8];
+    linux_x86_64: @'storage [u8];
 }
 // Compiler-owned test registration facet (wiki/spec/build/testing.md).
 // `builder.tests.group<Requirement>()` registers one exact ordinary trait
@@ -244,7 +244,7 @@ public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
     machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
-        access::new_plan(&schema, Issuance::Only { routes: [] })
+        access::new_plan(@schema, Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued
@@ -261,7 +261,7 @@ public data Build<'storage> {
     // Empty means no authored identifier; console output falls back to the
     // validated executable leaf. It is validated separately from the
     // application name and is never inferred from the PE subsystem word.
-    identifier: &'storage [u8];
+    identifier: @'storage [u8];
     elf_interpreter: ElfInterpreterSelection<'storage>;
     optimizations: Optimizations;
     source: BuildSource;
@@ -273,23 +273,23 @@ public data Build<'storage> {
 }
 public data PackageSelection<'storage> {
     case Root;
-    case Named(package: &'storage [u8]);
+    case Named(package: @'storage [u8]);
 }
 public data Source<'storage> {
-    case Path(location: &'storage [u8]);
-    case Git(repository: &'storage [u8], revision: &'storage [u8], selection: PackageSelection<'storage>);
+    case Path(location: @'storage [u8]);
+    case Git(repository: @'storage [u8], revision: @'storage [u8], selection: PackageSelection<'storage>);
 }
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.
 public boundary trait BuildRequestOperations {
-    machine package(builder: &Build, name: &[u8]) reaches none crashes none;
-    machine application(builder: &Build, name: &[u8]) reaches none crashes none;
-    machine member(builder: &Build, path: &[u8]) reaches none crashes none;
-    machine artifact_only(builder: &Build) reaches none crashes none;
-    machine register_path_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) -> DependencyRegistration reaches none crashes none;
-    machine register_git_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) -> DependencyRegistration reaches none crashes none;
-    machine prepare_dependency(builder: &Build, registered: DependencyRegistration) reaches none crashes none suspends;
-    machine write_log(log: &BuildLog, text: &[u8]) reaches none crashes none;
+    machine package(builder: @Build, name: @[u8]) reaches none crashes none;
+    machine application(builder: @Build, name: @[u8]) reaches none crashes none;
+    machine member(builder: @Build, path: @[u8]) reaches none crashes none;
+    machine artifact_only(builder: @Build) reaches none crashes none;
+    machine register_path_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8]) -> DependencyRegistration reaches none crashes none;
+    machine register_git_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches none crashes none;
+    machine prepare_dependency(builder: @Build, registered: DependencyRegistration) reaches none crashes none suspends;
+    machine write_log(log: @BuildLog, text: @[u8]) reaches none crashes none;
 }
 // Configured dependency description
 // (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
@@ -299,7 +299,7 @@ public boundary trait BuildRequestOperations {
 public data DependencyDescription<'storage> {
     source: Source<'storage>;
     explicit_alias: bool;
-    alias: &'storage [u8];
+    alias: @'storage [u8];
 }
 // The exact registration one executed request fixed
 // (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
@@ -313,21 +313,21 @@ public data DependencyRegistration [copy] {
 // Ordinary boundary calls carry evaluated operands. Installation requires exact
 // toolchain provenance and the activation's original facets or issued markers.
 public boundary trait BuildFilesystemOperations {
-    machine resolve_source(source: &BuildSource, relative: &[u8]) -> BuildPath reaches none crashes none;
-    machine resolve_output(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches none crashes none;
-    machine named_input(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches none crashes none;
-    machine open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches none crashes none;
-    machine read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches none crashes none;
-    machine close_source(source: &BuildSource, descriptor: i32) -> i32 reaches none crashes none;
-    machine create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches none crashes none;
-    machine write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches none crashes none;
-    machine close_output(output: &mut BuildOutput, descriptor: i32) -> i32 reaches none crashes none;
-    machine include_source(output: &mut BuildOutput, generated: BuildPath) reaches none crashes none;
-    machine require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches none crashes none;
-    machine can_complete(output: &BuildOutput, obligation: &RequiredOutput, file: BuildPath) -> bool reaches none crashes none;
-    machine complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches none crashes none;
-    machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches none crashes none;
-    machine required_path(output: &RequiredOutput) -> &[u8] reaches none crashes none;
+    machine resolve_source(source: @BuildSource, relative: @[u8]) -> BuildPath reaches none crashes none;
+    machine resolve_output(output: @BuildOutput, relative: @[u8]) -> BuildPath reaches none crashes none;
+    machine named_input(inputs: @BuildInputs, name: @[u8]) -> BuildSource reaches none crashes none;
+    machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 reaches none crashes none;
+    machine read(source: @BuildSource, descriptor: i32, buffer: @mut [u8], count: u64) -> i64 reaches none crashes none;
+    machine close_source(source: @BuildSource, descriptor: i32) -> i32 reaches none crashes none;
+    machine create(output: @mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches none crashes none;
+    machine write(output: @mut BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches none crashes none;
+    machine close_output(output: @mut BuildOutput, descriptor: i32) -> i32 reaches none crashes none;
+    machine include_source(output: @mut BuildOutput, generated: BuildPath) reaches none crashes none;
+    machine require(output: @mut BuildOutput, name: @[u8]) -> RequiredOutput reaches none crashes none;
+    machine can_complete(output: @BuildOutput, obligation: @RequiredOutput, file: BuildPath) -> bool reaches none crashes none;
+    machine complete(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches none crashes none;
+    machine fail(output: @mut BuildOutput, obligation: RequiredOutput, diagnostic: @[u8]) reaches none crashes none;
+    machine required_path(output: @RequiredOutput) -> @[u8] reaches none crashes none;
 }
 
 "#;
@@ -340,7 +340,7 @@ public machine from_source<'storage>(source: Source<'storage>) -> DependencyDesc
     DependencyDescription { source: source, explicit_alias: false, alias: "" }
 }
 
-public machine with_alias<'storage>(description: &mut DependencyDescription<'storage>, alias: &'storage [u8]) {
+public machine with_alias<'storage>(description: @mut DependencyDescription<'storage>, alias: @'storage [u8]) {
     description.explicit_alias = true;
     description.alias = alias;
 }
@@ -350,57 +350,57 @@ public machine with_alias<'storage>(description: &mut DependencyDescription<'sto
     (
         "Build",
         r#"
-public machine dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine dependency(builder: @mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source)
 }
 
-public machine build_dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine build_dependency(builder: @mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
     Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source)
 }
 
 // The readiness boundary for one exact registration: the Build parks here
 // until the evaluator has acquired that dependency, run its Build and
 // prepared it, then resumes. Earlier statements never run again.
-public machine prepare_dependency(builder: &mut Build, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
+public machine prepare_dependency(builder: @mut Build, registered: DependencyRegistration) reaches BuildRequestOperations invokes BuildRequestOperations suspends {
     suspend BuildRequestOperations::prepare_dependency(builder, registered);
 }
 
-machine request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_dependency(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], source: Source) -> DependencyRegistration reaches BuildRequestOperations {
     transition source {
         Source::Path { location } -> Build::request_path(builder, build_scope, explicit_alias, alias, location)
         Source::Git { repository, revision, selection } -> Build::request_git(builder, build_scope, explicit_alias, alias, repository, revision, selection)
     }
 }
 
-machine request_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_path(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], location: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location)
 }
 
-machine request_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], selection: PackageSelection) -> DependencyRegistration reaches BuildRequestOperations {
     transition selection {
         PackageSelection::Root -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, false, "")
         PackageSelection::Named { package } -> Build::request_selected_git(builder, build_scope, explicit_alias, alias, repository, revision, true, package)
     }
 }
 
-machine request_selected_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) -> DependencyRegistration reaches BuildRequestOperations {
+machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias: bool, alias: @[u8], repository: @[u8], revision: @[u8], named_package: bool, package: @[u8]) -> DependencyRegistration reaches BuildRequestOperations {
     BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package)
 }
 
-public machine package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine package(builder: @mut Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::package(builder, name);
 }
 
-public machine application(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine application(builder: @mut Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::application(builder, name);
 }
 
-public machine member(builder: &mut Build, path: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine member(builder: @mut Build, path: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::member(builder, path);
 }
 
 // The executed request is joined with the application role and required outputs.
-public machine artifact_only(builder: &mut Build) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine artifact_only(builder: @mut Build) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::artifact_only(builder);
 }
 
@@ -410,12 +410,12 @@ public machine artifact_only(builder: &mut Build) reaches BuildRequestOperations
 // recorded when this call executes against the original Build value;
 // typing normalizes the declaration to the authenticated selection protocol. A
 // declaration that permits Trap cannot override it.
-public machine exclude_crash(builder: &mut Build, cause: CrashCause) {
+public machine exclude_crash(builder: @mut Build, cause: CrashCause) {
 }
 
 // Native realization checks this executed selection using the shared
 // physical mechanism classifier, independently of receiver permissions.
-public machine exclude_physical_authority(builder: &mut Build, authority: PhysicalAuthorityClass) {
+public machine exclude_physical_authority(builder: @mut Build, authority: PhysicalAuthorityClass) {
 }
 
 "#,
@@ -423,19 +423,19 @@ public machine exclude_physical_authority(builder: &mut Build, authority: Physic
     (
         "BuildSource",
         r#"
-public machine resolve(source: &BuildSource, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine resolve(source: @BuildSource, relative: @[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::resolve_source(source, relative)
 }
 
-public machine open(source: &BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine open(source: @BuildSource, path: BuildPath, flags: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::open(source, path, flags)
 }
 
-public machine read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine read(source: @BuildSource, descriptor: i32, buffer: @mut [u8], count: u64) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::read(source, descriptor, buffer, count)
 }
 
-public machine close(source: &BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine close(source: @BuildSource, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::close_source(source, descriptor)
 }
 
@@ -444,45 +444,45 @@ public machine close(source: &BuildSource, descriptor: i32) -> i32 reaches Build
     (
         "BuildOutput",
         r#"
-public machine resolve(output: &BuildOutput, relative: &[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine resolve(output: @BuildOutput, relative: @[u8]) -> BuildPath reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::resolve_output(output, relative)
 }
 
-public machine create(output: &mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine create(output: @mut BuildOutput, path: BuildPath, mode: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::create(output, path, mode)
 }
 
-public machine write(output: &mut BuildOutput, descriptor: i32, bytes: &[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine write(output: @mut BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::write(output, descriptor, bytes)
 }
 
-public machine close(output: &mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine close(output: @mut BuildOutput, descriptor: i32) -> i32 reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::close_output(output, descriptor)
 }
 
-public machine include_source(output: &mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine include_source(output: @mut BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::include_source(output, generated);
 }
 
-public machine require(output: &mut BuildOutput, name: &[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine require(output: @mut BuildOutput, name: @[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::require(output, name)
 }
 
-public machine fail(output: &mut BuildOutput, obligation: RequiredOutput, diagnostic: &[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine fail(output: @mut BuildOutput, obligation: RequiredOutput, diagnostic: @[u8]) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::fail(output, obligation, diagnostic);
 }
 
 // The ordinary Omega branch retains both owned inputs on Retry. The host
 // rechecks the same sealed file and pending obligation when issuing a receipt.
-public machine complete(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
-    let ready: bool = BuildFilesystemOperations::can_complete(output, &obligation, file);
+public machine complete(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+    let ready: bool = BuildFilesystemOperations::can_complete(output, @obligation, file);
     transition ready {
         true -> BuildOutput::seal(output, obligation, file)
         false -> BuildOutput::retry(obligation, file)
     }
 }
 
-machine seal(output: &mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations {
+machine seal(output: @mut BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputCompletion reaches BuildFilesystemOperations {
     let receipt: OutputReceipt = BuildFilesystemOperations::complete(output, obligation, file);
     OutputCompletion::Sealed { receipt: receipt }
 }
@@ -496,7 +496,7 @@ machine retry(obligation: RequiredOutput, file: BuildPath) -> OutputCompletion {
     (
         "BuildInputs",
         r#"
-public machine get(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine get(inputs: @BuildInputs, name: @[u8]) -> BuildSource reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::named_input(inputs, name)
 }
 
@@ -505,7 +505,7 @@ public machine get(inputs: &BuildInputs, name: &[u8]) -> BuildSource reaches Bui
     (
         "RequiredOutput",
         r#"
-public machine path(output: &RequiredOutput) -> &[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
+public machine path(output: @RequiredOutput) -> @[u8] reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::required_path(output)
 }
 
@@ -516,7 +516,7 @@ public machine path(output: &RequiredOutput) -> &[u8] reaches BuildFilesystemOpe
         r#"
 // Inspection authenticates the issued schema and returns a stable read-only
 // snapshot of its canonical path, without reopening Product source.
-public machine path(schema: &ProductTypeSchema) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations {
+public machine path(schema: @ProductTypeSchema) -> @[u8] reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::schema_path(schema)
 }
 
@@ -526,7 +526,7 @@ public machine path(schema: &ProductTypeSchema) -> &[u8] reaches BuildProductOpe
         "ProductProviderRef",
         r#"
 // Provider inspection has its own role check over the same activation table.
-public machine path(provider: &ProductProviderRef) -> &[u8] reaches BuildProductOperations invokes BuildProductOperations {
+public machine path(provider: @ProductProviderRef) -> @[u8] reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::provider_path(provider)
 }
 
@@ -535,7 +535,7 @@ public machine path(provider: &ProductProviderRef) -> &[u8] reaches BuildProduct
     (
         "BuildLog",
         r#"
-public machine write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+public machine write_line(log: @mut BuildLog, text: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::write_log(log, text);
 }
 
@@ -548,21 +548,21 @@ public machine write_line(log: &mut BuildLog, text: &[u8]) reaches BuildRequestO
 // this call occurrence's own package for root slot `slot`. The evaluator
 // normalizer preserves the authored lexical occurrence on the host operation.
 // The wrapper also carries the real effect; no pure stand-in can erase a query.
-public machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
+public machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
 
 // Fallible logical query: select the exact product data declaration `path`
 // names in this call occurrence's own package. The same query protocol retains
 // the authored occurrence and issues a description after source resolution.
-public machine schema(product: &BuildProduct, path: &[u8]) -> ProductTypeSchema reaches BuildProductOperations invokes BuildProductOperations {
+public machine schema(product: @BuildProduct, path: @[u8]) -> ProductTypeSchema reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::schema(product, path)
 }
 
 // Fallible logical query: select the exact product provider declaration `path`
 // names in this call occurrence's own package. A provider declaration is a
 // named implementation, never a data type with attached code.
-public machine provider(product: &BuildProduct, path: &[u8]) -> ProductProviderRef reaches BuildProductOperations invokes BuildProductOperations {
+public machine provider(product: @BuildProduct, path: @[u8]) -> ProductProviderRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::provider(product, path)
 }
 

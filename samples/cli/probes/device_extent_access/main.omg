@@ -64,7 +64,7 @@ public DeviceOrderingEventRepresentation satisfies OpaqueRepresentation<
 // writes back, and restores `Granted` custody, and release returns the range.
 public data LoopbackDeviceLoanProvider {}
 
-macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: &mut LoopbackDeviceLoanProvider) {
+macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: @mut LoopbackDeviceLoanProvider) {
     LoopbackDeviceLoanProvider::select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>(defaults);
 }
 
@@ -80,10 +80,10 @@ macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_read(range: Extent in G
 macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_write(range: Extent in Granted) -> DeviceLoan
     satisfies DeviceLoanProvider::lend_for_write
     via ForeignBinding::CompilerIntrinsic;
-macos_arm64 machine LoopbackDeviceLoanProvider::publish(loan: &DeviceLoan) -> DeviceOrderingEvent
+macos_arm64 machine LoopbackDeviceLoanProvider::publish(loan: @DeviceLoan) -> DeviceOrderingEvent
     satisfies DeviceLoanProvider::publish
     via ForeignBinding::CompilerIntrinsic;
-macos_arm64 machine LoopbackDeviceLoanProvider::maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
+macos_arm64 machine LoopbackDeviceLoanProvider::maintain_cache(loan: @DeviceLoan) -> DeviceOrderingEvent
     satisfies DeviceLoanProvider::maintain_cache
     via ForeignBinding::CompilerIntrinsic;
 macos_arm64 machine LoopbackDeviceLoanProvider::notify(publication: DeviceOrderingEvent in DeviceOrderingEvent::Publication) -> DeviceOrderingEvent
@@ -106,15 +106,15 @@ data DmaHarness {
 // reads, run publication -> notification -> settlement and cache
 // maintenance -> settlement, then complete -> acquire with Pending-retry
 // custody, and release the restored range.
-machine DmaHarness::stage_dma_read(dma_harness: &DmaHarness)
+machine DmaHarness::stage_dma_read(dma_harness: @DmaHarness)
 reaches DeviceLoanProvider
 {
     let range: Extent = DeviceLoanProvider::reserve(4096);
     let loan: DeviceLoan = DeviceLoanProvider::lend_for_read(range);
-    let publication: DeviceOrderingEvent = DeviceLoanProvider::publish(&loan);
+    let publication: DeviceOrderingEvent = DeviceLoanProvider::publish(@loan);
     let notification: DeviceOrderingEvent = DeviceLoanProvider::notify(publication);
     DeviceLoanProvider::settle(notification);
-    let maintenance: DeviceOrderingEvent = DeviceLoanProvider::maintain_cache(&loan);
+    let maintenance: DeviceOrderingEvent = DeviceLoanProvider::maintain_cache(@loan);
     DeviceLoanProvider::settle(maintenance);
     let consumed: DeviceLoan = loan as DeviceLoan;
     let attempt: DeviceCompletionAttempt = DeviceLoanProvider::complete(consumed);
@@ -123,36 +123,36 @@ reaches DeviceLoanProvider
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
-    machine retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
+    machine retry(dma_harness: @DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
             DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
-    machine acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
+    machine acquire(dma_harness: @DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
             DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }
-    machine release(dma_harness: &DmaHarness, restored: Extent in Granted) {
+    machine release(dma_harness: @DmaHarness, restored: Extent in Granted) {
         DeviceLoanProvider::release(restored);
     }
 }
 
 // The exclusive-borrow direction: the same ordering chain, minted under the
 // `DeviceWrites` qualification.
-machine DmaHarness::stage_dma_write(dma_harness: &DmaHarness)
+machine DmaHarness::stage_dma_write(dma_harness: @DmaHarness)
 reaches DeviceLoanProvider
 {
     let range: Extent = DeviceLoanProvider::reserve(4096);
     let loan: DeviceLoan = DeviceLoanProvider::lend_for_write(range);
-    let publication: DeviceOrderingEvent = DeviceLoanProvider::publish(&loan);
+    let publication: DeviceOrderingEvent = DeviceLoanProvider::publish(@loan);
     let notification: DeviceOrderingEvent = DeviceLoanProvider::notify(publication);
     DeviceLoanProvider::settle(notification);
-    let maintenance: DeviceOrderingEvent = DeviceLoanProvider::maintain_cache(&loan);
+    let maintenance: DeviceOrderingEvent = DeviceLoanProvider::maintain_cache(@loan);
     DeviceLoanProvider::settle(maintenance);
     let consumed: DeviceLoan = loan as DeviceLoan;
     let attempt: DeviceCompletionAttempt = DeviceLoanProvider::complete(consumed);
@@ -161,21 +161,21 @@ reaches DeviceLoanProvider
         DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
     }
 
-    machine retry(dma_harness: &DmaHarness, pending: DeviceLoan) {
+    machine retry(dma_harness: @DmaHarness, pending: DeviceLoan) {
         let retry: DeviceCompletionAttempt = DeviceLoanProvider::complete(pending);
         transition retry {
             DeviceCompletionAttempt::Completed { completion } -> acquire(dma_harness, completion)
             DeviceCompletionAttempt::Pending { loan } -> retry(dma_harness, loan)
         }
     }
-    machine acquire(dma_harness: &DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
+    machine acquire(dma_harness: @DmaHarness, completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) {
         let acquired: DeviceAcquisitionAttempt = DeviceLoanProvider::acquire(completion);
         transition acquired {
             DeviceAcquisitionAttempt::Acquired { extent } -> release(dma_harness, extent)
             DeviceAcquisitionAttempt::Pending { completion } -> acquire(dma_harness, completion)
         }
     }
-    machine release(dma_harness: &DmaHarness, restored: Extent in Granted) {
+    machine release(dma_harness: @DmaHarness, restored: Extent in Granted) {
         DeviceLoanProvider::release(restored);
     }
 }

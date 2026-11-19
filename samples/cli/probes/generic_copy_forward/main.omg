@@ -14,13 +14,13 @@ data Light [copy] {
     weight: i32;
 }
 
-machine copy_free<T [copy]>(x: &T) {
+machine copy_free<T [copy]>(x: @T) {
 }
 
-machine copy_it<T [copy]>(x: &T) {
+machine copy_it<T [copy]>(x: @T) {
 }
 
-machine wrap<U [copy]>(y: &U) {
+machine wrap<U [copy]>(y: @U) {
     copy_it(y);
 }
 
@@ -30,24 +30,24 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.l = Light { weight: 4 };
     main.n = 9;
-    copy_it(&main.l);
-    copy_it(&main.n);
-    wrap(&main.l);
-    copy_free(&main.l);
+    copy_it(@main.l);
+    copy_it(@main.n);
+    wrap(@main.l);
+    copy_free(@main.l);
     transition main.n == 9 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

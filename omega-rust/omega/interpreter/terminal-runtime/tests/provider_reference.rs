@@ -67,8 +67,8 @@ fn execute_provider_fixture(
         root.join("main.omg"),
         if forward {
             r#"
-boundary trait Source { machine cell() -> &i32 reaches none crashes none; }
-boundary trait Sink { machine read(cell: &i32) -> i32 reaches none crashes none; }
+boundary trait Source { machine cell() -> @i32 reaches none crashes none; }
+boundary trait Sink { machine read(cell: @i32) -> i32 reaches none crashes none; }
 machine main() reaches Source + Sink invokes Source invokes Sink crashes Trap {
     let observed: i32 = Sink::read(Source::cell());
     transition observed == 37i32 { true -> done() _ -> bad() }
@@ -78,8 +78,8 @@ machine main() reaches Source + Sink invokes Source invokes Sink crashes Trap {
 "#
         } else {
             r#"
-boundary trait Source { machine cell() -> &i32 reaches none crashes none; }
-machine read(cell: &i32) -> i32 { cell }
+boundary trait Source { machine cell() -> @i32 reaches none crashes none; }
+machine read(cell: @i32) -> i32 { cell }
 machine main() reaches Source invokes Source crashes Trap {
     let observed: i32 = read(Source::cell());
     transition observed == 37i32 { true -> done() _ -> bad() }
@@ -109,7 +109,7 @@ machine main() reaches Source invokes Source crashes Trap {
             r#"
 use omega::language::core::DllImport;
 use omega::language::core::ForeignBinding;
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, "provider_reference");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);

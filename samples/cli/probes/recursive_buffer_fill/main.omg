@@ -3,7 +3,7 @@
 // Writing elements changes their contents, never either buffer's extent.
 data Cells { bytes: [u8; 8]; }
 
-machine fill_field(cells: &mut Cells, position: u64) -> u64
+machine fill_field(cells: @mut Cells, position: u64) -> u64
 terminates by (position, cells.bytes.len) -> Nat::BoundedDistance
 requires position < cells.bytes.len
 {
@@ -14,7 +14,7 @@ requires position < cells.bytes.len
     }
 }
 
-machine fill_array(bytes: &mut [u8; 4], position: u64) -> u64
+machine fill_array(bytes: @mut [u8; 4], position: u64) -> u64
 terminates by (position, bytes.len) -> Nat::BoundedDistance
 requires position < bytes.len
 {
@@ -28,10 +28,10 @@ requires position < bytes.len
 machine main() crashes Trap {
     let mut cells: Cells;
     let mut bytes: [u8; 4];
-    let field_count: u64 = fill_field(&mut cells, 0);
-    let array_count: u64 = fill_array(&mut bytes, 0);
+    let field_count: u64 = fill_field(@mut cells, 0);
+    let array_count: u64 = fill_array(@mut bytes, 0);
     let array_filled: bool = bytes[0] == 5 && bytes[3] == 5;
-    let slice_count: u64 = fill_slice(&mut bytes[..], 0);
+    let slice_count: u64 = fill_slice(@mut bytes[..], 0);
     transition field_count == 8 && cells.bytes[0] == 7 && cells.bytes[7] == 7
         && array_count == 4 && array_filled && slice_count == 4 && bytes[0] == 3 && bytes[3] == 3 {
         true -> done()
@@ -41,7 +41,7 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine fill_slice(bytes: &mut [u8], position: u64) -> u64
+machine fill_slice(bytes: @mut [u8], position: u64) -> u64
 terminates by (position, bytes.len) -> Nat::BoundedDistance in 0..=bytes.len
 requires position < bytes.len
 {

@@ -44,10 +44,10 @@ machine accumulate(total: i32 in Wrapping, previous: i32 in Wrapping,
     }
 }
 
-machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
+machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
     transition { _ -> step(text, 0, 0, 0) }
 
-    machine step(text: &[u8; 7] in Utf8, index: i32,
+    machine step(text: @[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -57,7 +57,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    machine read(text: &[u8; 7] in Utf8, index: i32,
+    machine read(text: @[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -69,7 +69,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    machine advance(text: &[u8; 7] in Utf8, index: i32,
+    machine advance(text: @[u8; 7] in Utf8, index: i32,
                   previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0
     {
@@ -80,7 +80,7 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
         }
     }
 
-    machine bump(text: &[u8; 7] in Utf8, index: i32,
+    machine bump(text: @[u8; 7] in Utf8, index: i32,
                previous: i32 in Wrapping, total: i32 in Wrapping) -> RomanParse
     requires index >= 0 && index < 16
     {
@@ -90,10 +90,10 @@ machine parse_roman(text: &[u8; 7] in Utf8) -> RomanParse {
 }
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 7] in Utf8 = "MCMXCIV";
-    transition parse_roman(&text) {
+    transition parse_roman(@text) {
         RomanParse::Parsed { total } -> block check(total)
         RomanParse::Invalid -> block bad()
     }
@@ -116,7 +116,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine finish(code: i32) {
         Console::write_line("[press Enter to close]");
         let mut pause: [u8; 256];
-        _ = block Console::read_line(&mut pause[..]);
+        _ = block Console::read_line(@mut pause[..]);
         ProcessExit::exit_process(code);
     }
 }
@@ -124,5 +124,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

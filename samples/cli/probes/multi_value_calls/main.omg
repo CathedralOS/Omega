@@ -50,7 +50,7 @@ machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Sa
     }
 }
 
-machine Main::main(main: &mut Main) reaches ProcessExit + Console {
+machine Main::main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
     main.offset = 38;
@@ -68,59 +68,59 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
         _ -> bad_total(main)
     }
 
-    machine bad_total(main: &mut Main) {
+    machine bad_total(main: @mut Main) {
         Console::write_line("FAIL: wrong combined total (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(71);
     }
 
-    machine check_r1(main: &mut Main, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
+    machine check_r1(main: @mut Main, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r1 == 30 {
             true -> check_r2(main, r2, r3)
             _ -> bad_r1(main)
         }
     }
 
-    machine bad_r1(main: &mut Main) {
+    machine bad_r1(main: @mut Main) {
         Console::write_line("FAIL: double_val(15) != 30 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(72);
     }
 
-    machine check_r2(main: &mut Main, r2: i32 in Saturating, r3: i32 in Saturating) {
+    machine check_r2(main: @mut Main, r2: i32 in Saturating, r3: i32 in Saturating) {
         transition r2 == 22 {
             true -> check_r3(main, r3)
             _ -> bad_r2(main)
         }
     }
 
-    machine bad_r2(main: &mut Main) {
+    machine bad_r2(main: @mut Main) {
         Console::write_line("FAIL: add3(5,10,7) != 22 (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(73);
     }
 
-    machine check_r3(main: &mut Main, r3: i32 in Saturating) {
+    machine check_r3(main: @mut Main, r3: i32 in Saturating) {
         transition r3 == 20 {
             true -> good(main)
             _ -> bad_r3(main)
         }
     }
 
-    machine bad_r3(main: &mut Main) {
+    machine bad_r3(main: @mut Main) {
         Console::write_line("FAIL: clamp_low(18,20) != 20 (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(74);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: 30 + 22 - 20 + 38 = 70, all results intact (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause);
+        _ = block Console::read_line(@mut main.pause);
         ProcessExit::exit_process(70);
     }
 }
@@ -128,5 +128,5 @@ machine Main::main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block Main::main(&mut entry_storage);
+    block Main::main(@mut entry_storage);
 }

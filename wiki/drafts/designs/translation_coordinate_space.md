@@ -89,7 +89,7 @@ data Shift<Delta: u64> { }
 data Mapping<Delta: u64> [linear] dropped by drop_mapping<Delta> { virt: u64; length: u64; }
 domain<T> T::Installed established by install;
 
-machine Installed::content<Delta: u64>(mapping: &Mapping<Delta>) -> IntervalSet<Shift<Delta>>
+machine Installed::content<Delta: u64>(mapping: @Mapping<Delta>) -> IntervalSet<Shift<Delta>>
 satisfies Content<Mapping<Delta>, IntervalSet<Shift<Delta>>>::project {
     IntervalSet { start: embed(mapping.virt) as Nat,
         end: (embed(mapping.virt) + embed(mapping.length)) as Nat }
@@ -99,7 +99,7 @@ machine install<Delta: u64>() -> Mapping<Delta> in Installed
 ensures result.virt == 0, result.length == 32
 { Mapping { virt: 0, length: 32 } }
 
-machine drop_mapping<Delta: u64>(mapping: &mut Mapping<Delta>) {}
+machine drop_mapping<Delta: u64>(mapping: @mut Mapping<Delta>) {}
 
 data Parts<Delta: u64> { left: Mapping<Delta> in Installed; right: Mapping<Delta> in Installed; }
 
@@ -111,8 +111,8 @@ ensures
     result.right.virt == whole.virt + at,
     result.right.length == whole.length - at,
     core::Identity<IntervalSet<Shift<Delta>>>(
-        Installed::content(old(&whole)),
-        separate(Installed::content(&result.left), Installed::content(&result.right))
+        Installed::content(old(@whole)),
+        separate(Installed::content(@result.left), Installed::content(@result.right))
     )
 {
     let { virt, length } = whole;
@@ -122,7 +122,7 @@ ensures
 }
 
 data Main { marker: u64; }
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.marker = 0;
 }
 ```

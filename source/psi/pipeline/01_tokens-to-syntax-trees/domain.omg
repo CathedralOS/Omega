@@ -8,8 +8,8 @@
 // The item and its root are
 // retained at its last token.
 public machine parse_domain(
-    parser: &mut Parser,
-    input: &TokenStream,
+    parser: @mut Parser,
+    input: @TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -22,7 +22,7 @@ crashes Trap
         _ -> reject(parser, input, ParseDiagnosticCode::DomainCapacityExceeded)
     }
 
-    machine keyword(parser: &mut Parser, input: &TokenStream) {
+    machine keyword(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as u64 in Trapping;
         parser.declaration_first_argument = parser.output.type_argument_count as u64 in Trapping;
@@ -37,7 +37,7 @@ crashes Trap
         }
     }
 
-    machine generics(parser: &mut Parser, input: &TokenStream) {
+    machine generics(parser: @mut Parser, input: @TokenStream) {
         parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> carrier_form(parser, input)
@@ -47,7 +47,7 @@ crashes Trap
 
     // A bracketed carrier is a whole type; a named one is its name alone,
     // since the `::` after it begins the domain's own name.
-    machine carrier_form(parser: &mut Parser, input: &TokenStream) {
+    machine carrier_form(parser: @mut Parser, input: @TokenStream) {
         let bracketed: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
         transition bracketed {
             true -> bracketed_carrier(parser, input)
@@ -55,7 +55,7 @@ crashes Trap
         }
     }
 
-    machine bracketed_carrier(parser: &mut Parser, input: &TokenStream) {
+    machine bracketed_carrier(parser: @mut Parser, input: @TokenStream) {
         parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDomainCarrier);
         transition parser.output.accepted {
             true -> separator(parser, input, parser.type_result)
@@ -63,7 +63,7 @@ crashes Trap
         }
     }
 
-    machine named_carrier(parser: &mut Parser, input: &TokenStream) {
+    machine named_carrier(parser: @mut Parser, input: @TokenStream) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDomainCarrier);
         transition parser.output.accepted {
             true -> carrier_capacity(parser, input)
@@ -71,14 +71,14 @@ crashes Trap
         }
     }
 
-    machine carrier_capacity(parser: &mut Parser, input: &TokenStream) {
+    machine carrier_capacity(parser: @mut Parser, input: @TokenStream) {
         transition parser.output.type_reference_count < 65536 {
             true -> carrier_row(parser, input)
             _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
     }
 
-    machine carrier_row(parser: &mut Parser, input: &TokenStream) {
+    machine carrier_row(parser: @mut Parser, input: @TokenStream) {
         let carrier: u64 in Trapping = parser.output.type_reference_count as u64 in Trapping;
         let row: TypeReference = type_row(parser,
             TypeReferenceKind::Named, parser.name_start, parser.name_end, parser.name_start, parser.name_end);
@@ -87,7 +87,7 @@ crashes Trap
         transition { _ -> separator(parser, input, carrier) }
     }
 
-    machine separator(parser: &mut Parser, input: &TokenStream, carrier: u64 in Trapping) {
+    machine separator(parser: @mut Parser, input: @TokenStream, carrier: u64 in Trapping) {
         parser.declaration_type = carrier;
         expect_punctuation(parser, input, PunctuationKind::ColonColon, ParseDiagnosticCode::ExpectedDomainSeparator);
         transition parser.output.accepted {
@@ -96,7 +96,7 @@ crashes Trap
         }
     }
 
-    machine domain_name(parser: &mut Parser, input: &TokenStream) {
+    machine domain_name(parser: @mut Parser, input: @TokenStream) {
         expect_name(parser, input, ParseDiagnosticCode::ExpectedDomainName);
         transition parser.output.accepted {
             true -> named(parser, input)
@@ -104,7 +104,7 @@ crashes Trap
         }
     }
 
-    machine named(parser: &mut Parser, input: &TokenStream) {
+    machine named(parser: @mut Parser, input: @TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
         let indexed: bool = at_punctuation(parser, input, PunctuationKind::Less);
@@ -114,7 +114,7 @@ crashes Trap
         }
     }
 
-    machine indices(parser: &mut Parser, input: &TokenStream) {
+    machine indices(parser: @mut Parser, input: @TokenStream) {
         parse_static_arguments(parser, input);
         parser.declaration_first_argument = parser.committed_type_first;
         parser.declaration_argument_count = parser.committed_type_count;
@@ -126,7 +126,7 @@ crashes Trap
 
     // Authored `(subject)` binders are retired. Predicates name the fixed
     // logical subject `self`.
-    machine subject(parser: &mut Parser, input: &TokenStream) {
+    machine subject(parser: @mut Parser, input: @TokenStream) {
         let bound: bool = at_punctuation(parser, input, PunctuationKind::LeftParen);
         transition bound {
             true -> reject(parser, input, ParseDiagnosticCode::RetiredDomainSubject)
@@ -134,7 +134,7 @@ crashes Trap
         }
     }
 
-    machine tail(parser: &mut Parser, input: &TokenStream) {
+    machine tail(parser: @mut Parser, input: @TokenStream) {
         parser.declaration_first_path = parser.output.name_path_count as u64 in Trapping;
         let alias: bool = at_punctuation(parser, input, PunctuationKind::Equal);
         transition alias {
@@ -143,14 +143,14 @@ crashes Trap
         }
     }
 
-    machine alias_open(parser: &mut Parser, input: &TokenStream) {
+    machine alias_open(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         parser.declaration_first_clause = parser.output.clause_count as u64 in Trapping;
         parser.declaration_clause_count = 0;
         transition { _ -> constituent(parser, input) }
     }
 
-    machine constituent(parser: &mut Parser, input: &TokenStream) {
+    machine constituent(parser: @mut Parser, input: @TokenStream) {
         parse_name_path(parser, input, ParseDiagnosticCode::ExpectedDomainConstituent);
         transition parser.output.accepted {
             true -> conjunction(parser, input)
@@ -158,7 +158,7 @@ crashes Trap
         }
     }
 
-    machine conjunction(parser: &mut Parser, input: &TokenStream) {
+    machine conjunction(parser: @mut Parser, input: @TokenStream) {
         let more: bool = at_punctuation(parser, input, PunctuationKind::Ampersand);
         transition more {
             true -> next_constituent(parser, input)
@@ -166,12 +166,12 @@ crashes Trap
         }
     }
 
-    machine next_constituent(parser: &mut Parser, input: &TokenStream) {
+    machine next_constituent(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         transition { _ -> constituent(parser, input) }
     }
 
-    machine alias_end(parser: &mut Parser, input: &TokenStream) {
+    machine alias_end(parser: @mut Parser, input: @TokenStream) {
         expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDomainEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, true)
@@ -179,7 +179,7 @@ crashes Trap
         }
     }
 
-    machine predicates(parser: &mut Parser, input: &TokenStream) {
+    machine predicates(parser: @mut Parser, input: @TokenStream) {
         parse_clauses(parser, input, ClauseOwner::Domain);
         parser.declaration_first_clause = parser.clause_first;
         parser.declaration_clause_count = (parser.output.clause_count as u64 in Trapping) - parser.clause_first;
@@ -189,7 +189,7 @@ crashes Trap
         }
     }
 
-    machine establishment(parser: &mut Parser, input: &TokenStream) {
+    machine establishment(parser: @mut Parser, input: @TokenStream) {
         parser.declaration_first_path = parser.output.name_path_count as u64 in Trapping;
         let routed: bool = at_word(parser, input, "established");
         transition routed {
@@ -198,7 +198,7 @@ crashes Trap
         }
     }
 
-    machine established(parser: &mut Parser, input: &TokenStream) {
+    machine established(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         let by: bool = at_word(parser, input, "by");
         transition by {
@@ -207,12 +207,12 @@ crashes Trap
         }
     }
 
-    machine routes(parser: &mut Parser, input: &TokenStream) {
+    machine routes(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         transition { _ -> route(parser, input) }
     }
 
-    machine route(parser: &mut Parser, input: &TokenStream) {
+    machine route(parser: @mut Parser, input: @TokenStream) {
         parse_name_path(parser, input, ParseDiagnosticCode::ExpectedDomainRoute);
         transition parser.output.accepted {
             true -> route_separator(parser, input)
@@ -220,7 +220,7 @@ crashes Trap
         }
     }
 
-    machine route_separator(parser: &mut Parser, input: &TokenStream) {
+    machine route_separator(parser: @mut Parser, input: @TokenStream) {
         let more: bool = at_punctuation(parser, input, PunctuationKind::Comma);
         transition more {
             true -> routes(parser, input)
@@ -228,7 +228,7 @@ crashes Trap
         }
     }
 
-    machine ending(parser: &mut Parser, input: &TokenStream) {
+    machine ending(parser: @mut Parser, input: @TokenStream) {
         let semicolon: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
         transition semicolon {
             true -> closed(parser, input)
@@ -236,19 +236,19 @@ crashes Trap
         }
     }
 
-    machine closed(parser: &mut Parser, input: &TokenStream) {
+    machine closed(parser: @mut Parser, input: @TokenStream) {
         take_current(parser, input);
         transition { _ -> retain_capacity(parser, input, false) }
     }
 
-    machine retain_capacity(parser: &mut Parser, input: &TokenStream, is_alias: bool) {
+    machine retain_capacity(parser: @mut Parser, input: @TokenStream, is_alias: bool) {
         transition parser.output.domain_count < 256 {
             true -> root_capacity(parser, input, is_alias)
             _ -> reject(parser, input, ParseDiagnosticCode::DomainCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: &mut Parser, input: &TokenStream, is_alias: bool) {
+    machine root_capacity(parser: @mut Parser, input: @TokenStream, is_alias: bool) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, is_alias)
             _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
@@ -257,7 +257,7 @@ crashes Trap
 
     // An alias's paths are its constituents and a predicate domain's its
     // routes; the other range is empty at the table's end.
-    machine retain(parser: &mut Parser, is_alias: bool) {
+    machine retain(parser: @mut Parser, is_alias: bool) {
         let path_end: u64 in Trapping = parser.output.name_path_count as u64 in Trapping;
         let path_count: u64 in Trapping = path_end - parser.declaration_first_path;
         transition is_alias {
@@ -267,7 +267,7 @@ crashes Trap
     }
 
     machine retained(
-        parser: &mut Parser,
+        parser: @mut Parser,
         is_alias: bool,
         first_route: u64 in Trapping,
         route_count: u64 in Trapping,
@@ -304,7 +304,7 @@ crashes Trap
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
+    machine reject(parser: @mut Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         reject_current(parser, input, code);
     }
 

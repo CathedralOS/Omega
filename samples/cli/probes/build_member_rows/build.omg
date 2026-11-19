@@ -2,6 +2,6 @@
 // declares a workspace, and a workspace cannot mix with an application
 // or package kind — both directions are pinned under controls/.
 
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "build_member_rows");
 }

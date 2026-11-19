@@ -4,10 +4,10 @@
 data Pair { first: u8; second: u8; }
 machine probe() -> bool {
     let mut bytes: [u8; 4] = [11, 23, 37, 41];
-    let original: addr = address_of(&bytes[1]);
-    let view: &Pair = &bytes[1] as &Pair;
+    let original: addr = address_of(@bytes[1]);
+    let view: @Pair = @bytes[1] as @Pair;
     bytes[2] = 99;
-    address_of(&view.first) == original && view.second == 37
+    address_of(@view.first) == original && view.second == 37
 }
 machine main() crashes Trap {
     let accepted: bool = probe();

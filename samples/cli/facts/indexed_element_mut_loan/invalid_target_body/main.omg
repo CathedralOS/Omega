@@ -2,7 +2,7 @@
 // Invalid: the selected element already has a live exclusive loan at bump.
 // Place: target_body.
 data Room { exit_count: u32 in Wrapping; }
-machine bump(room: &mut Room) {
+machine bump(room: @mut Room) {
     room.exit_count = room.exit_count + 1;
 }
 boundary trait SelectedBodyCheck {
@@ -26,28 +26,28 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedApply {
-    machine apply(rooms: &mut [Room; 2], selected: u64)
+    machine apply(rooms: @mut [Room; 2], selected: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2;
 }
 
 X86Apply satisfies SelectedApply {
-    machine apply(rooms: &mut [Room; 2], selected: u64)
+    machine apply(rooms: @mut [Room; 2], selected: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2
     {
         SelectedBodyCheck::require_tag(17u64);
-        let held: &mut Room = &mut rooms[selected];
-        bump(&mut rooms[selected]);
+        let held: @mut Room = @mut rooms[selected];
+        bump(@mut rooms[selected]);
         held.exit_count = held.exit_count + 1;
     }
 }
 
 ArmApply satisfies SelectedApply {
-    machine apply(rooms: &mut [Room; 2], selected: u64)
+    machine apply(rooms: @mut [Room; 2], selected: u64)
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires selected < 2
     {
         SelectedBodyCheck::require_tag(29u64);
-        let held: &mut Room = &mut rooms[selected];
-        bump(&mut rooms[selected]);
+        let held: @mut Room = @mut rooms[selected];
+        bump(@mut rooms[selected]);
         held.exit_count = held.exit_count + 1;
     }
 }
@@ -57,7 +57,7 @@ machine exercise(from_index: u64) -> bool
 requires from_index < 2
 {
     let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
-    SelectedApply::apply(&mut rooms, from_index);
+    SelectedApply::apply(@mut rooms, from_index);
     (from_index == 0 && rooms[0].exit_count == 1 && rooms[1].exit_count == 10)
         || (from_index == 1 && rooms[0].exit_count == 0 && rooms[1].exit_count == 11)
 }

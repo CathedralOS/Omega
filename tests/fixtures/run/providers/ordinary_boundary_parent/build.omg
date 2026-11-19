@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "boundary_ordinary_parent");
     Build::select_provider<Leaf, LocalLeaf>(builder, windows_x86_64);
     Build::select_provider<Leaf, LocalLeaf>(builder, linux_x86_64);

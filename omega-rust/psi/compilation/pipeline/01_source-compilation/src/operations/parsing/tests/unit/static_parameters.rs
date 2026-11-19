@@ -3,7 +3,7 @@ use crate::parse_syntax_trees;
 
 #[test]
 fn retired_receiver_parameters_reject_in_every_signature_owner() {
-    for parameter in ["self", "mut self", "&self", "&mut self", "&write self"] {
+    for parameter in ["self", "mut self", "@self", "@mut self", "@write self"] {
         for source in [
             format!("data Counter {{ value: u32; }} machine Counter::step({parameter}) {{}}"),
             format!("trait Operation {{ machine step({parameter}); }}"),
@@ -38,13 +38,13 @@ fn implicit_self_expressions_and_transition_targets_reject() {
 fn explicit_owned_shared_mutable_and_write_only_parameters_parse() {
     let source = r#"
         data Counter { value: u32; }
-        trait Readable<Readout> { machine read(counter: &Readout) -> u32; }
+        trait Readable<Readout> { machine read(counter: @Readout) -> u32; }
         machine consume(counter: Counter) {}
-        machine read(counter: &Counter) -> u32 { counter.value }
-        machine write(counter: &write Counter) { counter.value = 1; }
-        machine Counter::clear(counter: &mut Counter) {
+        machine read(counter: @Counter) -> u32 { counter.value }
+        machine write(counter: @write Counter) { counter.value = 1; }
+        machine Counter::clear(counter: @mut Counter) {
             transition { _ -> finish(counter) }
-            machine finish(counter: &mut Counter) { counter.value = 0; }
+            machine finish(counter: @mut Counter) { counter.value = 0; }
         }
     "#;
     let tokens = Lexer::new(source).tokenize().unwrap();

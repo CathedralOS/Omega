@@ -7,19 +7,19 @@ data Main {
     grid: [i32; 200] in Wrapping;
 }
 // Preserve the original setup before code checked for unrestricted Main.
-machine run_main(main: &mut Main) crashes Trap {
+machine run_main(main: @mut Main) crashes Trap {
     main.hits = 0;
     main.a = 15;
     main.b = 3;
     guarded_store(main);
 }
 
-machine guarded_store(main: &mut Main) crashes Trap {
+machine guarded_store(main: @mut Main) crashes Trap {
     transition main.b * 20 + main.a >= 0 {
         true -> put(main)
         _ -> done(main)
     }
-    machine put(main: &mut Main) {
+    machine put(main: @mut Main) {
         main.grid[main.b * 20 + main.a] = 7;
         main.hits = 1;
         transition main.hits == 1 && main.grid[75] == 7 {
@@ -27,15 +27,15 @@ machine guarded_store(main: &mut Main) crashes Trap {
             _ -> fail(main)
         }
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         main.hits = -1;
         transition false {
             true -> pass(main)
             _ -> fail(main)
         }
     }
-    machine pass(main: &mut Main) {}
-    machine fail(main: &mut Main) { crash Trap; }
+    machine pass(main: @mut Main) {}
+    machine fail(main: @mut Main) { crash Trap; }
 }
 
 // Caller-owned initialized storage makes original-address writeback observable.
@@ -55,7 +55,7 @@ machine entry_start() crashes Trap {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
         ]
     };
-    run_main(&mut entry_storage);
+    run_main(@mut entry_storage);
     transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
         && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
         true -> observed()

@@ -19,11 +19,11 @@ def _run(work, vm, producer, realize, seconds, composition, compiler):
  machine exit_process(return_code: i32) -> never;
  machine write_byte(value: i32);
  machine read_byte() -> i32;
- machine write_line(text: &[u8]);
+ machine write_line(text: @[u8]);
 }
 data Main { console: Console; }
 '''
-    empty_main = b'machine Main::main(&mut self) {}\n'
+    empty_main = b'machine Main::main(@mut self) {}\n'
 
     def identity(data):
         return {'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest()}

@@ -159,7 +159,7 @@ public boundary trait TimerCallback: Callback + Calling<DescriptorCalling> {}
 public boundary trait UnusedTimerCallback: Callback + Calling<UnusedDescriptorCalling> {}
 
 public boundary trait Registrar: Calling<DescriptorCalling> {
-    machine register<machine Handler>(gate: &LayoutStorage<TimerGate, TimerGateLayout>) -> u64
+    machine register<machine Handler>(gate: @LayoutStorage<TimerGate, TimerGateLayout>) -> u64
     requires machine Handler satisfies TimerCallback::call;
     reaches invokes Callback crashes none;
 }
@@ -196,7 +196,7 @@ machine start() reaches Registrar crashes Trap {
     gate.ist = 5u8;
     gate.attributes = 142u8;
     gate.reserved = 2309737967u32;
-    let result: u64 = Registrar::register<TimerHandler::call>(&gate);
+    let result: u64 = Registrar::register<TimerHandler::call>(@gate);
     transition result == 0u64 && gate.selector == 4660u16 && gate.ist == 5u8
         && gate.attributes == 142u8 && gate.reserved == 2309737967u32 {
         true -> done()

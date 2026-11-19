@@ -52,11 +52,11 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
-        transition hosted_entry_integer_shape(&argc, 4)
-            && hosted_entry_integer_shape(&argv, 8)
-            && hosted_entry_integer_shape(&envp, 8)
-            && hosted_entry_integer_shape(&apple, 8)
-            && hosted_entry_integer_shape(&result, 4)
+        transition hosted_entry_integer_shape(@argc, 4)
+            && hosted_entry_integer_shape(@argv, 8)
+            && hosted_entry_integer_shape(@envp, 8)
+            && hosted_entry_integer_shape(@apple, 8)
+            && hosted_entry_integer_shape(@result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -95,7 +95,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
     }
 
     machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
-        transition hosted_entry_extent_shape(image, &signature) && hosted_entry_extent_shape(storage, &signature) {
+        transition hosted_entry_extent_shape(image, @signature) && hosted_entry_extent_shape(storage, @signature) {
             true -> build_semantic()
             _ -> reject()
         }

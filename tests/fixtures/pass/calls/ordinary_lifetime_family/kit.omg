@@ -1,6 +1,6 @@
 module kit;
 
-public data Message<'text> [copy] { text: &'text [u8]; }
+public data Message<'text> [copy] { text: @'text [u8]; }
 
 machine make<'text>() -> Message<'text> { Message { text: "bound" } }
 machine roundtrip<'text>(value: Message<'text>) -> Message<'text> { value }

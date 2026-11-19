@@ -2,7 +2,7 @@
 //! may run.
 //!
 //! A Build script runs against one compiler-owned `Build` value: the host
-//! builds it, hands the script `&mut Build`, and decodes what the script left
+//! builds it, hands the script `@mut Build`, and decodes what the script left
 //! in it by field. Two things must hold before that is sound.
 //!
 //! The first is the vocabulary the host decodes: the program declares the
@@ -146,7 +146,7 @@ public domain BuildSeal::Issued access BuildSealAccess;
 public data Build<'storage> {
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
-    identifier: &'storage [u8];
+    identifier: @'storage [u8];
 }
 "#;
 

@@ -15,7 +15,7 @@ ensures result.right <= 75u64
     }
 }
 
-machine touch_left(left: &mut u64) {
+machine touch_left(left: @mut u64) {
     left = 999u64;
 }
 
@@ -23,7 +23,7 @@ machine exercise(flag: bool) -> u64
 ensures result <= 75u64
 {
     let mut pair: Pair = choose(flag);
-    touch_left(&mut pair.left);
+    touch_left(@mut pair.left);
     let diff: u64 = 75u64 - pair.right;
     diff
 }

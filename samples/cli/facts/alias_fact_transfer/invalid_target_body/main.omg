@@ -53,7 +53,7 @@ ArmInspectTarget satisfies SelectedInspectTarget {
     }
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 requires
     main.player in Player::Alive
 {
@@ -65,7 +65,7 @@ requires
 machine entry_start()
 {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }
 machine x86_entry() crashes Trap {
     SelectedBodyCheck::require_tag(17u64);

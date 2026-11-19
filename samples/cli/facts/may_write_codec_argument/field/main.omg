@@ -3,10 +3,10 @@
 // Place: field.
 
 data Blob<'view> {
-    #0 bytes: &'view [u8];
+    #0 bytes: @'view [u8];
 }
 
-machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
         true -> chosen
         _ -> other
@@ -21,7 +21,7 @@ machine main() crashes Trap {
     let source: [u8; 4] = [72, 105, 0, 0];
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let sample: Blob = Blob { bytes: source[0..2] };
-    Blob::encode(&sample, &mut buffer, choose(&mut bounds.chosen, &mut bounds.other, true));
+    Blob::encode(@sample, @mut buffer, choose(@mut bounds.chosen, @mut bounds.other, true));
     transition bounds.chosen == 5 && items[bounds.other] == 7 {
         true -> done()
         _ -> bad()

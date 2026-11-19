@@ -5,13 +5,13 @@ data Nodes<const N: u64> requires N >= 1 && N <= 8 {
     x: [i64 in Wrapping; N];
 }
 
-machine read(nodes: &Nodes<6>, index: u64) -> i64 in Wrapping {
+machine read(nodes: @Nodes<6>, index: u64) -> i64 in Wrapping {
     nodes.x[index]
 }
 
 data Main { }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let nodes: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
-    let _value: i64 in Wrapping = read(&nodes, 1);
+    let _value: i64 in Wrapping = read(@nodes, 1);
 }

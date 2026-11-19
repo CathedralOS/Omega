@@ -12,14 +12,14 @@ public data Resolver {
     overload_heads: [OverloadLinks; 10240];
 }
 
-public machine resolver_initialize(resolver: &mut Resolver) {
-    name_resolution_clear(&mut resolver.output, SourceId { value: 0 });
+public machine resolver_initialize(resolver: @mut Resolver) {
+    name_resolution_clear(@mut resolver.output, SourceId { value: 0 });
 }
 
-public machine resolve(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees)
+public machine resolve(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
-    name_resolution_clear(&mut resolver.output, SourceId { value: 0 });
+    name_resolution_clear(@mut resolver.output, SourceId { value: 0 });
     place_machines(resolver, syntax);
     check_declaration_forms(resolver, syntax);
     transition resolver.output.accepted {
@@ -27,7 +27,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine imports(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine imports(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_imports(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declarations(resolver, sources, syntax)
@@ -35,7 +35,7 @@ crashes Trap
         }
     }
 
-    machine declarations(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declarations(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         declare_roots(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> members(resolver, sources, syntax)
@@ -43,7 +43,7 @@ crashes Trap
         }
     }
 
-    machine members(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine members(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_members(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> measures(resolver, sources, syntax)
@@ -51,7 +51,7 @@ crashes Trap
         }
     }
 
-    machine measures(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine measures(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_measures(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_generics(resolver, sources, syntax)
@@ -59,7 +59,7 @@ crashes Trap
         }
     }
 
-    machine declaration_generics(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declaration_generics(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_declaration_namespaces(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> contracts(resolver, sources, syntax)
@@ -67,7 +67,7 @@ crashes Trap
         }
     }
 
-    machine contracts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine contracts(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_machine_contracts(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> identities(resolver, sources, syntax)
@@ -75,7 +75,7 @@ crashes Trap
         }
     }
 
-    machine identities(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine identities(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_stable_identities(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_carriers(resolver, sources, syntax)
@@ -83,7 +83,7 @@ crashes Trap
         }
     }
 
-    machine domain_carriers(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domain_carriers(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_domain_carriers(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domains(resolver, sources, syntax)
@@ -91,7 +91,7 @@ crashes Trap
         }
     }
 
-    machine domains(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domains(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_domains(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> references(resolver, sources, syntax)
@@ -99,7 +99,7 @@ crashes Trap
         }
     }
 
-    machine references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine references(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> declaration_references(resolver, sources, syntax)
@@ -107,7 +107,7 @@ crashes Trap
         }
     }
 
-    machine declaration_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine declaration_references(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_declaration_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machine_references(resolver, sources, syntax)
@@ -115,7 +115,7 @@ crashes Trap
         }
     }
 
-    machine machine_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine machine_references(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_machine_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> body_references(resolver, sources, syntax)
@@ -123,7 +123,7 @@ crashes Trap
         }
     }
 
-    machine body_references(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine body_references(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_body_references(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> machines(resolver, sources, syntax)
@@ -131,7 +131,7 @@ crashes Trap
         }
     }
 
-    machine machines(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine machines(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         check_machines(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> operators(resolver, sources, syntax)
@@ -139,7 +139,7 @@ crashes Trap
         }
     }
 
-    machine operators(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine operators(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_operator_homes(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> domain_paths(resolver, sources, syntax)
@@ -147,7 +147,7 @@ crashes Trap
         }
     }
 
-    machine domain_paths(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine domain_paths(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_domain_paths(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> names(resolver, sources, syntax)
@@ -155,7 +155,7 @@ crashes Trap
         }
     }
 
-    machine names(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine names(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_body_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> facts(resolver, sources, syntax)
@@ -163,7 +163,7 @@ crashes Trap
         }
     }
 
-    machine facts(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine facts(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_fact_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> clauses(resolver, sources, syntax)
@@ -171,7 +171,7 @@ crashes Trap
         }
     }
 
-    machine clauses(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine clauses(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_clause_names(resolver, sources, syntax);
         transition resolver.output.accepted {
             true -> publish(resolver, sources, syntax)
@@ -179,7 +179,7 @@ crashes Trap
         }
     }
 
-    machine publish(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees) {
+    machine publish(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees) {
         bind_visible_overloads(resolver, sources, syntax);
         resolver.output.binding_count = syntax.type_reference_count;
         resolver.output.value_binding_count = syntax.expression_count;

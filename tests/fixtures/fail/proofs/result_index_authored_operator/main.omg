@@ -1,6 +1,6 @@
 data Value [copy] { code: u64; }
 data Pair [copy] { items: [Value; 2]; }
-machine [] replacement(items: &[Value], index: u64) -> Value
+machine [] replacement(items: @[Value], index: u64) -> Value
 ensures result.code == 8
 {
     Value { code: 8 }

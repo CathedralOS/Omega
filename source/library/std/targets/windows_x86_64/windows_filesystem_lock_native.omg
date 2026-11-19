@@ -17,7 +17,7 @@ data WindowsNativeLockRequest {
 }
 
 boundary trait WindowsFilesystemLockIo {
-    machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: &mut WindowsNativeLockRequest) -> i32
+    machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: @mut WindowsNativeLockRequest) -> i32
     reaches none
     requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && flags <= 3 && reserved == 0
         && length_low == 4294967295 && length_high == 4294967295

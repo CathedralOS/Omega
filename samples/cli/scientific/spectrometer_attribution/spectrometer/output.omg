@@ -6,23 +6,23 @@ use omega::language::core::I32::from_f64;
 
 // Fixed-width decimal fields are emitted from computed values, with no string
 // carrier or UTF-8 assertion. Accepted coordinates times 1000 fit signed i32.
-machine print_integer(application: &mut Spectrometer, value: i32 in Wrapping) reaches Console {
+machine print_integer(application: @mut Spectrometer, value: i32 in Wrapping) reaches Console {
     transition value < 0 {
         true -> negative(application, value)
         false -> digits(application, value, 100000000)
     }
-    machine negative(application: &mut Spectrometer, value: i32 in Wrapping) {
+    machine negative(application: @mut Spectrometer, value: i32 in Wrapping) {
         Console::write_byte(45);
         transition { _ -> digits(application, 0 - value, 100000000) }
     }
-    machine digits(application: &mut Spectrometer, value: i32 in Wrapping,
+    machine digits(application: @mut Spectrometer, value: i32 in Wrapping,
                  divisor: i32 in Wrapping) {
         transition divisor > 0 {
             true -> emit(application, value, divisor)
             false -> finished()
         }
     }
-    machine emit(application: &mut Spectrometer, value: i32 in Wrapping,
+    machine emit(application: @mut Spectrometer, value: i32 in Wrapping,
                divisor: i32 in Wrapping) {
         let digit: i32 in Wrapping = value / divisor;
         Console::write_byte((digit + 48) as i32);
@@ -48,7 +48,7 @@ machine rounded_ratio_thousandths(numerator: f64, denominator: f64) -> i32 in Wr
         converted as i32 in Wrapping
     }
 }
-public machine print_report(application: &mut Spectrometer) reaches Console
+public machine print_report(application: @mut Spectrometer) reaches Console
 invokes Console
 {
     let count: i32 in Wrapping = application.regions.count;
@@ -56,13 +56,13 @@ invokes Console
     print_integer(application, count);
     Console::write_line("");
     transition { _ -> region(application, 0) }
-    machine region(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine region(application: @mut Spectrometer, index: i32 in Wrapping) {
         transition index >= 0 && index < application.regions.count && index < 8 {
             true -> row(application, index)
             false -> finished()
         }
     }
-    machine row(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine row(application: @mut Spectrometer, index: i32 in Wrapping) {
         // Finish scalar reads before borrowing the whole receiver for output.
         let start: i32 in Wrapping = application.regions.starts[index];
         let end: i32 in Wrapping = application.regions.ends[index];
@@ -90,26 +90,26 @@ invokes Console
             _ -> ambiguous(application, index)
         }
     }
-    machine missing(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine missing(application: @mut Spectrometer, index: i32 in Wrapping) {
         Console::write(" status=missing ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine unique(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine unique(application: @mut Spectrometer, index: i32 in Wrapping) {
         Console::write(" status=unique ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine ambiguous(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine ambiguous(application: @mut Spectrometer, index: i32 in Wrapping) {
         Console::write(" status=ambiguous ids=");
         transition { _ -> identifiers(application, index, 0) }
     }
-    machine identifiers(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine identifiers(application: @mut Spectrometer, index: i32 in Wrapping,
                       reference: i32 in Wrapping) {
         transition reference >= 0 && reference < 4 {
             true -> candidate(application, index, reference)
             false -> next(application, index)
         }
     }
-    machine candidate(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine candidate(application: @mut Spectrometer, index: i32 in Wrapping,
                     reference: i32 in Wrapping) {
         let distance: f64 = abs_f64(application.regions.centroids[index] - application.spectrum.lines[reference]);
         transition distance <= application.spectrum.tolerance {
@@ -117,13 +117,13 @@ invokes Console
             false -> identifiers(application, index, reference + 1)
         }
     }
-    machine emit_id(application: &mut Spectrometer, index: i32 in Wrapping,
+    machine emit_id(application: @mut Spectrometer, index: i32 in Wrapping,
                   reference: i32 in Wrapping) {
         print_integer(application, reference + 1);
         Console::write(",");
         transition { _ -> identifiers(application, index, reference + 1) }
     }
-    machine next(application: &mut Spectrometer, index: i32 in Wrapping) {
+    machine next(application: @mut Spectrometer, index: i32 in Wrapping) {
         Console::write_line("");
         transition { _ -> region(application, index + 1) }
     }

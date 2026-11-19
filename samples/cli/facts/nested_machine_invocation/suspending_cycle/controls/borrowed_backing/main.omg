@@ -7,12 +7,12 @@ public boundary trait Scheduler {
 InlineScheduler satisfies Scheduler {
     machine advance(value: u64) -> u64 { (value as u64 in Wrapping * 3) as u64 }
 }
-machine sum(counter: &mut u64, total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
+machine sum(counter: @mut u64, total: u64, remaining: u64) -> u64 reaches Scheduler suspends terminates by remaining {
     transition remaining == 0 {
         true -> total
         false -> suspend step(counter, total, remaining)
     }
-    machine step(counter: &mut u64, total: u64, remaining: u64) -> u64 reaches Scheduler suspends
+    machine step(counter: @mut u64, total: u64, remaining: u64) -> u64 reaches Scheduler suspends
     requires remaining > 0
     {
         let seen: u64 = suspend Scheduler::advance(remaining);
@@ -24,8 +24,8 @@ machine sum(counter: &mut u64, total: u64, remaining: u64) -> u64 reaches Schedu
 data Counters { before: u64; steps: u64; after: u64; }
 machine main() reaches Scheduler crashes Trap {
     let mut counters: Counters = Counters { before: 0x1111, steps: 0, after: 0x2222 };
-    let full: u64 = suspend sum(&mut counters.steps, 0, 100000);
-    let empty: u64 = suspend sum(&mut counters.steps, 7, 0);
+    let full: u64 = suspend sum(@mut counters.steps, 0, 100000);
+    let empty: u64 = suspend sum(@mut counters.steps, 7, 0);
     transition full == 15000150000 && empty == 7 && counters.steps == 100000
         && counters.before == 0x1111 && counters.after == 0x2222 {
         true -> done()

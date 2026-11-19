@@ -1,5 +1,5 @@
 data Item { value: u32; }
-machine exchange(owner: &mut Item, next: Item) -> Item {
+machine exchange(owner: @mut Item, next: Item) -> Item {
     let old: Item = move owner;
     old
 }
@@ -7,7 +7,7 @@ machine consume(first: Item, second: Item) { }
 machine main() crashes Trap {
     let mut owner: Item = Item { value: 3u32 };
     let next: Item = Item { value: 7u32 };
-    let old: Item = exchange(&mut owner, next);
+    let old: Item = exchange(@mut owner, next);
     transition old.value == 3u32 && owner.value == 7u32 {
         true -> consume(old, owner)
         false -> bad()

@@ -11,21 +11,21 @@ data Main requires 0 <= k, k <= 4 {
     hits: i32 in Wrapping;
 }
 
-machine read_at(main: &Main, index: u64) -> i32 in Wrapping
+machine read_at(main: @Main, index: u64) -> i32 in Wrapping
 requires 0 <= index && index <= 4
 {
     main.arr[index + 1]
 }
 
-machine use(main: &Main) -> i32 in Wrapping {
+machine use(main: @Main) -> i32 in Wrapping {
     read_at(main, main.k)
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.k = 2;
     main.r = use(main);
     transition { _ -> successor(main) }
-    machine successor(main: &mut Main) {
+    machine successor(main: @mut Main) {
         main.r = use(main);
         main.hits = main.r;
     }
@@ -34,5 +34,5 @@ machine Main::main(main: &mut Main) {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

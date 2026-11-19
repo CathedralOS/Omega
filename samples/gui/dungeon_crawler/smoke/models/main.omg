@@ -61,7 +61,7 @@ machine check_misses() -> bool {
     miss_matches(attacker, friendly) && miss_matches(attacker, behind) && miss_matches(attacker, distant) && miss_matches(attacker, other_room)
 }
 
-machine Smoke::main(smoke: &mut Smoke) reaches ProcessExit + Console {
+machine Smoke::main(smoke: @mut Smoke) reaches ProcessExit + Console {
     let knockback: bool = check_knockback();
     let misses: bool = check_misses();
     smoke.actors.items[0].vitality = Vitality { current: 12, maximum: 12 };
@@ -70,13 +70,13 @@ machine Smoke::main(smoke: &mut Smoke) reaches ProcessExit + Console {
     smoke.actors.items[0].speed = 2;
     smoke.actors.items[0].active = true;
     let moving: Actor<4> = Actor { position: Position { x: 128, y: 112 }, vitality: Vitality { current: 12, maximum: 12 }, room: 0, speed: 2, active: true };
-    let moved: Actor<4> = move_actor<4>(moving, &smoke.dungeon, 1, false);
+    let moved: Actor<4> = move_actor<4>(moving, @smoke.dungeon, 1, false);
     smoke.controllers.bindings[0].actor = 0;
     smoke.controllers.bindings[1].actor = 1;
     smoke.controllers.count = 2;
     smoke.timer.remaining = ATTACK_FRAMES;
     smoke.timer = elapse(smoke.timer);
-    route_input(&smoke.controllers, &mut smoke.intents, 0, Command { direction: 1, attack: true });
+    route_input(@smoke.controllers, @mut smoke.intents, 0, Command { direction: 1, attack: true });
     transition knockback && misses && smoke.actors.items[0].vitality.current == 11
         && moved.position.x == 130 && moved.position.y == 112
         && smoke.timer.remaining == ATTACK_FRAMES - 1
@@ -90,5 +90,5 @@ machine Smoke::main(smoke: &mut Smoke) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Smoke;
-    Smoke::main(&mut entry_storage);
+    Smoke::main(@mut entry_storage);
 }

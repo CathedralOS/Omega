@@ -23,7 +23,7 @@ public data Plan {
     code: i32 in Wrapping;
     cost: i32 in Wrapping;
 }
-public machine valid_problem(problem: &Problem) -> bool {
+public machine valid_problem(problem: @Problem) -> bool {
     problem.horizon >= 1 && problem.horizon <= 5
         && problem.lower >= 0 - 4 && problem.upper <= 4 && problem.lower <= problem.upper
         && problem.initial >= problem.lower && problem.initial <= problem.upper

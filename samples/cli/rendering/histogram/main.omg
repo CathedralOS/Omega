@@ -29,7 +29,7 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("histogram: counting value frequencies into a fixed-bucket array");
     main.histogram[0] = 0 as +Wrapping;
     main.histogram[1] = 0 as +Wrapping;
@@ -52,14 +52,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     // Walk the samples; the loop counter `k` is bounded by the array length.
-    machine tally_loop(main: &mut Main) {
+    machine tally_loop(main: @mut Main) {
         transition main.k < 8 {
             true -> block load_sample(main)
             _ -> block done(main)
         }
     }
 
-    machine load_sample(main: &mut Main) {
+    machine load_sample(main: @mut Main) {
         main.v = main.samples[main.k];
         transition {
             _ -> block bounded_tally(main)
@@ -67,32 +67,32 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     // Admit the histogram index only where it is provably in range.
-    machine bounded_tally(main: &mut Main) {
+    machine bounded_tally(main: @mut Main) {
         transition main.v < 4 {
             true -> block bump(main)
             _ -> block advance(main)
         }
     }
 
-    machine bump(main: &mut Main) {
+    machine bump(main: @mut Main) {
         main.histogram[main.v] = main.histogram[main.v] + 1;
         transition {
             _ -> block advance(main)
         }
     }
 
-    machine advance(main: &mut Main) {
+    machine advance(main: @mut Main) {
         main.k = main.k + 1;
         transition {
             _ -> block tally_loop(main)
         }
     }
 
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         main.result = main.histogram[2];
         Console::write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(main.result as i32);
     }
 }
@@ -100,5 +100,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

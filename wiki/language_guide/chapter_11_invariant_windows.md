@@ -11,7 +11,7 @@ requires start <= end
     end: u32;
 }
 
-machine shift(span: &mut Span, delta: u32)
+machine shift(span: @mut Span, delta: u32)
 requires span.end <= 1000
 requires delta <= 1000
 {
@@ -28,11 +28,11 @@ anyone else relies on the span.
 ## Close the window before handing the value on
 
 ```omega
-machine width(span: &Span) -> u32 {
+machine width(span: @Span) -> u32 {
     span.end - span.start
 }
 
-machine unfinished_shift(span: &mut Span, delta: u32)
+machine unfinished_shift(span: @mut Span, delta: u32)
 requires span.end <= 1000
 requires delta <= 1000
 {
@@ -52,7 +52,7 @@ to be a valid write: no overflow, no out-of-bounds index.
 ## Or build a new value
 
 ```omega
-machine shifted(span: &Span, delta: u32) -> Span
+machine shifted(span: @Span, delta: u32) -> Span
 requires span.end <= 1000
 requires delta <= 1000
 {
@@ -85,7 +85,7 @@ data Pair {
 
 domain Pair::Ordered requires self.low <= self.high;
 
-machine reset(pair: &mut Pair, value: u32)
+machine reset(pair: @mut Pair, value: u32)
 ensures pair in Pair::Ordered
 {
     pair.low = value;
@@ -93,7 +93,7 @@ ensures pair in Pair::Ordered
         _ -> finish(pair, value)
     }
 
-    machine finish(pair: &mut Pair, value: u32)
+    machine finish(pair: @mut Pair, value: u32)
     requires pair.low == value
     ensures pair in Pair::Ordered
     {

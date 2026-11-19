@@ -6,21 +6,21 @@ module main;
 
 
 public boundary trait Sink {
-    machine emit(text: &[u8]) reaches crashes none;
+    machine emit(text: @[u8]) reaches crashes none;
 }
 
 public data QuietSink { }
 
 public QuietSinkProvider satisfies Sink {
-    machine emit(text: &[u8]) { QuietSink::emit(text) }
+    machine emit(text: @[u8]) { QuietSink::emit(text) }
 }
 
-machine QuietSink::emit(text: &[u8])
+machine QuietSink::emit(text: @[u8])
 satisfies Sink::emit
 {
 }
 
-public machine log_quiet(text: &[u8])
+public machine log_quiet(text: @[u8])
 reaches Sink
 {
     let marker: u8 = 0;

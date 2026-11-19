@@ -59,18 +59,18 @@ machine failed() crashes Trap { crash Trap; }
 machine consume(value: u32) requires value == 37 crashes Trap {
     transition value == 37 { true -> finished() false -> failed() }
 }
-machine marked_ordered(path: &write u32) -> u32 ensures result == 37 {
+machine marked_ordered(path: @write u32) -> u32 ensures result == 37 {
     path = 1;
     SelectedOrdered::ordered(37)
 }
-machine joined(branch: bool, path: &write u32) -> u32 ensures result == 37 {
+machine joined(branch: bool, path: @write u32) -> u32 ensures result == 37 {
     match branch { true -> marked_ordered(path), false -> SelectedOrdered::ordered(37) }
 }
 machine main() crashes Trap {
     let mut first_path: u32 = 0;
     let mut second_path: u32 = 0;
-    consume(joined(true, &write first_path));
-    consume(joined(false, &write second_path));
+    consume(joined(true, @write first_path));
+    consume(joined(false, @write second_path));
     transition first_path == 1 && second_path == 0 { true -> finished() false -> failed() }
 }
 machine x86_entry() crashes Trap {

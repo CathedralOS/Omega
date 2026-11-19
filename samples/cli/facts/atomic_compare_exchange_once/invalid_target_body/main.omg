@@ -24,12 +24,12 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
+    machine attempt(cells: @Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Attempt satisfies SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
+    machine attempt(cells: @Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
@@ -39,7 +39,7 @@ X86Attempt satisfies SelectedAttempt {
 }
 
 ArmAttempt satisfies SelectedAttempt {
-    machine attempt(cells: &Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
+    machine attempt(cells: @Cells, expected: u32) -> AtomicCompareExchangeOnceOutcome<u32>
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
@@ -50,7 +50,7 @@ ArmAttempt satisfies SelectedAttempt {
 
 
 machine carry(outcome: AtomicCompareExchangeOnceOutcome<u32>) -> AtomicCompareExchangeOnceOutcome<u32> { outcome }
-machine probe(cells: &Cells, expected: u32, want_success: bool, branch: bool) -> bool {
+machine probe(cells: @Cells, expected: u32, want_success: bool, branch: bool) -> bool {
     cells.selected.store(10, NoOrdering);
     cells.untouched.store(17, NoOrdering);
     let raw: AtomicCompareExchangeOnceOutcome<u32> = SelectedAttempt::attempt(cells, expected);
@@ -60,7 +60,7 @@ machine probe(cells: &Cells, expected: u32, want_success: bool, branch: bool) ->
         false -> carry(held.outcome),
     };
     transition { _ -> inspect(joined, cells, want_success) }
-    machine inspect(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: &Cells, want_success: bool) -> bool {
+    machine inspect(outcome: AtomicCompareExchangeOnceOutcome<u32>, cells: @Cells, want_success: bool) -> bool {
         let after: u32 = cells.selected.load(NoOrdering);
         let sibling: u32 = cells.untouched.load(NoOrdering);
         transition outcome {
@@ -72,7 +72,7 @@ machine probe(cells: &Cells, expected: u32, want_success: bool, branch: bool) ->
 }
 machine main() crashes Trap {
     let cells: Cells;
-    transition probe(&cells, 10, true, true) && probe(&cells, 9, false, false) { true -> done() _ -> bad() }
+    transition probe(@cells, 10, true, true) && probe(@cells, 9, false, false) { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }

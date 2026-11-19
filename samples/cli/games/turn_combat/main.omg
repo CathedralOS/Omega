@@ -23,7 +23,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     main.hero.hp = 30;
     main.hero.attack = 7;
@@ -32,7 +32,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 
     transition { _ -> block hero_attacks(main) }
 
-    machine hero_attacks(main: &mut Main) {
+    machine hero_attacks(main: @mut Main) {
         main.monster.hp = (main.monster.hp - main.hero.attack) % 101;
         transition main.monster.hp <= 0 {
             true -> block hero_wins(main)
@@ -40,7 +40,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine monster_attacks(main: &mut Main) {
+    machine monster_attacks(main: @mut Main) {
         main.hero.hp = (main.hero.hp - main.monster.attack) % 101;
         transition main.hero.hp <= 0 {
             true -> block monster_wins(main)
@@ -48,16 +48,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         }
     }
 
-    machine hero_wins(main: &mut Main) {
+    machine hero_wins(main: @mut Main) {
         Console::write_line("PASS: the hero out-damaged the monster and won (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
-    machine monster_wins(main: &mut Main) {
+    machine monster_wins(main: @mut Main) {
         Console::write_line("result: the monster won this fight (exit 2)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(2);
     }
 }
@@ -65,5 +65,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

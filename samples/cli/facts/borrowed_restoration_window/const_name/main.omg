@@ -8,13 +8,13 @@ data Cell {
     value: u64;
 }
 
-machine write_cell(cell: &mut Cell) {
+machine write_cell(cell: @mut Cell) {
     cell.value = TARGET;
 }
 
 machine main() crashes Trap {
     let mut cell: Cell = Cell { value: 0u64 };
-    write_cell(&mut cell);
+    write_cell(@mut cell);
     let val: u64 = cell.value;
     transition val >= TARGET && val <= TARGET {
         true -> done(val)

@@ -15,9 +15,9 @@ machine main() crashes Trap {
     let mut large_norm: f64 = -99.0;
     let mut small_norm: f64 = -99.0;
     let mut zero_norm: f64 = -99.0;
-    let large_ok: bool = try_scaled_norm_f64(&large[..], &mut large_norm);
-    let small_ok: bool = try_scaled_norm_f64(&small[..], &mut small_norm);
-    let zero_ok: bool = try_scaled_norm_f64(&zero[..], &mut zero_norm);
+    let large_ok: bool = try_scaled_norm_f64(@large[..], @mut large_norm);
+    let small_ok: bool = try_scaled_norm_f64(@small[..], @mut small_norm);
+    let zero_ok: bool = try_scaled_norm_f64(@zero[..], @mut zero_norm);
     let large_difference: f64 = large_norm / 5.0e200 - 1.0;
     let small_difference: f64 = small_norm / 5.0e-200 - 1.0;
     let large_error: f64 = F64::maximum(large_difference, F64::negate(large_difference));
@@ -26,9 +26,9 @@ machine main() crashes Trap {
     let naive_small: f64 = F64::square_root(small[0] * small[0] + small[1] * small[1]);
     let mut untouched: [f64; 2] = [8.0, 9.0];
     let late_overflow: [f64; 2] = [1.0, 4.0e200];
-    let overflow: bool = try_axpy_f64(1.0e200, &late_overflow[..], &mut untouched[..]);
+    let overflow: bool = try_axpy_f64(1.0e200, @late_overflow[..], @mut untouched[..]);
     let mut sentinel: f64 = 77.0;
-    let dot_overflow: bool = try_dot_f64(&large[..], &large[..], &mut sentinel);
+    let dot_overflow: bool = try_dot_f64(@large[..], @large[..], @mut sentinel);
     transition large_ok && small_ok && zero_ok && zero_norm == 0.0
         && large_error <= 1.0e-14 && small_error <= 1.0e-14
         && naive_large > 1.0e300 && naive_small == 0.0

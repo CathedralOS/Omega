@@ -45,10 +45,10 @@ machine width(span: Interval<32>) -> u64 {
     let mut current: Interval<32> = span;
     match current {
         Interval::Empty -> 77
-        Interval::Range { .. } -> both_widths(&mut current)
+        Interval::Range { .. } -> both_widths(@mut current)
     }
 }
-machine both_widths(span: &mut Interval<32>) -> u64
+machine both_widths(span: @mut Interval<32>) -> u64
     requires span in Interval::Range
 {
     let saved: u64 = restored_width(span);
@@ -58,7 +58,7 @@ machine both_widths(span: &mut Interval<32>) -> u64
         false -> 79
     }
 }
-machine upper_width(span: &mut Interval<32>) -> u64
+machine upper_width(span: @mut Interval<32>) -> u64
     requires span in Interval::Range
 {
     let saved_hi: u64 = span.hi;
@@ -66,7 +66,7 @@ machine upper_width(span: &mut Interval<32>) -> u64
     span.hi = saved_hi;
     width_range(span.lo, span.hi)
 }
-machine restored_width(span: &mut Interval<32>) -> u64
+machine restored_width(span: @mut Interval<32>) -> u64
     requires span in Interval::Range
 {
     let previous_lo: u64 = span.lo;

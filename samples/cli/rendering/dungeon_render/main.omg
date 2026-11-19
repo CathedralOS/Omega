@@ -34,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     main.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
@@ -45,25 +45,25 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.r = 0u32 as +Wrapping;
     transition { _ -> block row_loop(main) }
 
-    machine row_loop(main: &mut Main) {
+    machine row_loop(main: @mut Main) {
         transition main.r < 4 { true -> block col_start(main) _ -> block done(main) }
     }
-    machine col_start(main: &mut Main) {
+    machine col_start(main: @mut Main) {
         main.c = 0u32 as +Wrapping;
         main.line = "      ";
         transition { _ -> block col_loop(main) }
     }
-    machine col_loop(main: &mut Main) {
+    machine col_loop(main: @mut Main) {
         transition main.c < 6 { true -> block cell(main) _ -> block emit_row(main) }
     }
-    machine cell(main: &mut Main) {
+    machine cell(main: @mut Main) {
         // The DIRECT row-major index (R0 sweep 2026-07-11): one dominating guard on the
         // compound bound, then `grid[r * 6 + c]` as the MATCH SUBJECT -- the free-running
         // `k` counter and its re-guard state are gone (the match-subject position now
         // hoists computed indexes like every other position).
         transition main.r * 6 + main.c < 24 { true -> block match_cell(main) _ -> block emit_row(main) }
     }
-    machine match_cell(main: &mut Main) {
+    machine match_cell(main: @mut Main) {
         // Direct runtime-indexed enum-match subject -- the tilemap classification.
         transition main.grid[main.r * 6 + main.c] {
             Cell::Wall  -> block put(main, 35)   // '#'
@@ -72,24 +72,24 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             Cell::Water -> block put(main, 126)  // '~'
         }
     }
-    machine put(main: &mut Main, ch: u8) {
+    machine put(main: @mut Main, ch: u8) {
         main.lab = ch;
         transition { _ -> block write_cell(main) }
     }
-    machine write_cell(main: &mut Main) {
+    machine write_cell(main: @mut Main) {
         main.line[main.c] = main.lab;
         main.c = main.c + 1;
         transition { _ -> block col_loop(main) }
     }
-    machine emit_row(main: &mut Main) {
-        Console::write_line(&main.line[..]);
+    machine emit_row(main: @mut Main) {
+        Console::write_line(@main.line[..]);
         main.r = main.r + 1;
         transition { _ -> block row_loop(main) }
     }
-    machine done(main: &mut Main) {
+    machine done(main: @mut Main) {
         Console::write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -97,5 +97,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

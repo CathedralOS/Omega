@@ -101,11 +101,11 @@ fn call_results_retain_match_capture_around_selected_payload_calls() {
     compare(
         r#"
         data Cell { value: i32; }
-        data Envelope { case Active(cell: &mut Cell); case Empty; }
-        machine store(cell: &mut Cell) -> bool { cell.value == 41 }
+        data Envelope { case Active(cell: @mut Cell); case Empty; }
+        machine store(cell: @mut Cell) -> bool { cell.value == 41 }
         machine caller(envelope: Envelope) -> bool {
             match envelope {
-                Envelope::Active { cell } -> store(&mut cell)
+                Envelope::Active { cell } -> store(@mut cell)
                 Envelope::Empty -> false
             }
         }
@@ -148,9 +148,9 @@ fn call_results_keep_owned_and_inherited_conformance_routing() {
 fn structural_equation_calls_keep_their_callee_occurrence() {
     let text = r#"
         data Buffer<Element, const N: u64> { items: [Element; N]; }
-        machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+        machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64
         requires Kind == Buffer<Element, N> { 1u64 }
-        machine caller(value: &Buffer<u8, 2>) -> u64 {
+        machine caller(value: @Buffer<u8, 2>) -> u64 {
             inspect<Buffer<u8, 2>, u8, 2>(value);
             inspect<Buffer<u8, 2>, u8, 2>(value)
         }
@@ -162,7 +162,7 @@ fn structural_equation_calls_keep_their_callee_occurrence() {
 fn a_structural_equation_machine_still_cannot_escape_as_a_plain_name() {
     let text = r#"
         data Buffer<Element, const N: u64> { items: [Element; N]; }
-        machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64
+        machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64
         requires Kind == Buffer<Element, N> { 1u64 }
         machine caller() { let selected = inspect; }
     "#;
@@ -197,7 +197,7 @@ fn conjunctions_keep_only_structural_definitions() {
         let text = format!(
             "const N: u64 = 9u64;\n\
              data Buffer<Element, const N: u64> {{ items: [Element; N]; }}\n\
-             machine inspect<Kind, Element, const N: u64>(value: &Buffer<Element, N>) -> u64\n\
+             machine inspect<Kind, Element, const N: u64>(value: @Buffer<Element, N>) -> u64\n\
              requires {requirement} {{ 1u64 }}"
         );
         let tokens = Lexer::new(&text).tokenize().unwrap();

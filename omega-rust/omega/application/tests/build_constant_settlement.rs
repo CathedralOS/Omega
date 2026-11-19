@@ -31,7 +31,7 @@ fn check(name: &str, build_body: &str) -> (bool, String) {
         root.join("build.omg"),
         format!(
             "machine observe(target: BuildTarget) {{ }}
-machine build(builder: &mut Build) {{
+machine build(builder: @mut Build) {{
     Build::application(builder, \"settled\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {build_body}}}

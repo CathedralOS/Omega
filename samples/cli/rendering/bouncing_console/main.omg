@@ -25,7 +25,7 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
     main.line = "                                        ";
     main.cr = "X";
@@ -35,22 +35,22 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     main.frame = 0;
     transition { _ -> block frame_loop(main) }
 
-    machine frame_loop(main: &mut Main) {
+    machine frame_loop(main: @mut Main) {
         transition main.frame < 50 { true -> block clear_init(main) _ -> block finish(main) }
     }
-    machine clear_init(main: &mut Main) { main.x = 0; transition { _ -> block clear_loop(main) } }
-    machine clear_loop(main: &mut Main) {
+    machine clear_init(main: @mut Main) { main.x = 0; transition { _ -> block clear_loop(main) } }
+    machine clear_loop(main: @mut Main) {
         transition main.x >= 0 && main.x < 40 { true -> block clear_cell(main) _ -> block place(main) }
     }
-    machine clear_cell(main: &mut Main) {
+    machine clear_cell(main: @mut Main) {
         main.line[main.x] = 32;
         main.x = main.x + 1;
         transition { _ -> block clear_loop(main) }
     }
-    machine place(main: &mut Main) {
+    machine place(main: @mut Main) {
         transition main.p >= 0 && main.p < 40 { true -> block set_ball(main) _ -> block bad(main) }
     }
-    machine set_ball(main: &mut Main) {
+    machine set_ball(main: @mut Main) {
         main.line[main.p] = 79;
         transition { _ -> block emit(main) }
     }
@@ -58,49 +58,49 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     // re-guards: `frame < 50` proves the frame increment, and the movement step
     // branches on `dir` so each direction's re-guard proves its own +1 / -1 --
     // fully Exact, no domain.
-    machine emit(main: &mut Main) {
-        Console::write(&main.cr[..]);
-        Console::write(&main.line[..]);
+    machine emit(main: @mut Main) {
+        Console::write(@main.cr[..]);
+        Console::write(@main.line[..]);
         block Clock::sleep(25);
         transition main.frame < 50 { true -> block frame_bump(main) _ -> block finish(main) }
     }
-    machine frame_bump(main: &mut Main) {
+    machine frame_bump(main: @mut Main) {
         main.frame = main.frame + 1;
         transition main.dir == 1 { true -> block move_right_guard(main) _ -> block move_left_guard(main) }
     }
-    machine move_right_guard(main: &mut Main) {
+    machine move_right_guard(main: @mut Main) {
         transition main.p >= 0 && main.p < 40 { true -> block move_right(main) _ -> block bad(main) }
     }
-    machine move_right(main: &mut Main) {
+    machine move_right(main: @mut Main) {
         main.p = main.p + 1;
         transition { _ -> block bounce_hi(main) }
     }
-    machine move_left_guard(main: &mut Main) {
+    machine move_left_guard(main: @mut Main) {
         transition main.p >= 1 && main.p < 41 { true -> block move_left(main) _ -> block bad(main) }
     }
-    machine move_left(main: &mut Main) {
+    machine move_left(main: @mut Main) {
         main.p = main.p - 1;
         transition { _ -> block bounce_hi(main) }
     }
-    machine bounce_hi(main: &mut Main) {
+    machine bounce_hi(main: @mut Main) {
         transition main.p >= 39 { true -> block flip_down(main) _ -> block bounce_lo(main) }
     }
-    machine flip_down(main: &mut Main) { main.dir = 0 - 1; transition { _ -> block frame_loop(main) } }
-    machine bounce_lo(main: &mut Main) {
+    machine flip_down(main: @mut Main) { main.dir = 0 - 1; transition { _ -> block frame_loop(main) } }
+    machine bounce_lo(main: @mut Main) {
         transition main.p <= 0 { true -> block flip_up(main) _ -> block frame_loop(main) }
     }
-    machine flip_up(main: &mut Main) { main.dir = 1; transition { _ -> block frame_loop(main) } }
+    machine flip_up(main: @mut Main) { main.dir = 1; transition { _ -> block frame_loop(main) } }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("done: 50 frames of line-bounce animation complete (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -108,5 +108,5 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

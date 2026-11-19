@@ -98,7 +98,7 @@ KEYWORDS = {
 PUNCT = [b"->", b"..", b"::", b"==", b"!=", b"<=", b">=", b"<<", b">>",
          b"&&", b"||", b"(", b")", b"{", b"}", b"[", b"]", b";", b",",
          b":", b".", b"=", b"<", b">", b"+", b"-", b"*", b"/", b"%",
-         b"&", b"^", b"|"]
+         b"&", b"^", b"|", b"@"]
 
 ESCAPES = {0x6E: 10, 0x72: 13, 0x74: 9}  # n r t
 
@@ -474,7 +474,7 @@ class Parser:
             self.expect(b"]")
             return TypeExpr("array", token.start, element=element,
                             length=count.value, length_start=count.start)
-        if self.is_punct(b"&"):
+        if self.is_punct(b"@"):
             self.take()
             self.expect(b"[")
             element = self.parse_type()
@@ -489,7 +489,7 @@ class Parser:
             self.take()
             name = self.expect_ident()
             self.expect(b"(")
-            self.expect(b"&")
+            self.expect(b"@")
             self.expect(b"mut")
             if not self.is_kw(b"self"):
                 token = self.peek()

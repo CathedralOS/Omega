@@ -31,13 +31,13 @@ requires
     level: i32;
 }
 
-machine wound(player: &mut Player) {
+machine wound(player: @mut Player) {
     transition player.health > 30 {
         true -> subtracted(player)
         _ -> done()
     }
 
-    machine subtracted(player: &mut Player) {
+    machine subtracted(player: @mut Player) {
         player.health = player.health - 30;
     }
 
@@ -47,7 +47,7 @@ machine wound(player: &mut Player) {
 machine gated_data_bounds() {
     let mut champion: Player = Player { health: 50 };
     let gauge: Gauge = Gauge { level: 3 };
-    wound(&mut champion);
+    wound(@mut champion);
     let strength: i32 = champion.health;
     transition strength == 20 && gauge.level == 3 {
         true -> done(70)

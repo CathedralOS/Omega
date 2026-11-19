@@ -12,7 +12,7 @@
 
 
 public data Receipt [linear] dropped by drop_receipt { code: i32; }
-machine drop_receipt(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: @mut Receipt) {}
 
 public boundary trait Settlement {
     machine settle(prefix: i32, receipt: Receipt, suffix: i32) -> i32 reaches crashes none;
@@ -36,12 +36,12 @@ machine direct(receipt: Receipt) -> i32 reaches Settlement {
 
 data Main { hits: i32 in Wrapping; }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 1;
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

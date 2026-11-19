@@ -15,17 +15,17 @@
 
 // The declared domain qualifying a type, directly or as a reference's
 // referent, plus one; zero for none.
-public machine qualifying_domain(typing: &Typing, type_handle: u64 in Trapping) -> u64 in Trapping
+public machine qualifying_domain(typing: @Typing, type_handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let row: TypeRow = type_table_row(&typing.types, type_handle);
+    let row: TypeRow = type_table_row(@typing.types, type_handle);
     transition row.kind == TypeKind::Reference {
         true -> referent(typing, row.inner)
         _ -> own(row)
     }
 
-    machine referent(typing: &Typing, inner: u64 in Trapping) -> u64 in Trapping {
-        let inner_row: TypeRow = type_table_row(&typing.types, inner);
+    machine referent(typing: @Typing, inner: u64 in Trapping) -> u64 in Trapping {
+        let inner_row: TypeRow = type_table_row(@typing.types, inner);
         transition { _ -> own(inner_row) }
     }
 
@@ -48,10 +48,10 @@ crashes Trap
 // Decide domain `domain`'s predicates of `subject`: assume them, or, when
 // `proving`, whether every one holds. A routed domain is never proved here.
 public machine decide_domain(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     domain: u64 in Trapping,
     subject: Value,
     proving: bool
@@ -68,7 +68,7 @@ crashes Trap
     // establishes its own result, which still meets the predicates
     // (wiki/spec/language/domains.md: each `established by` entry is an
     // authorized origin).
-    machine routed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+    machine routed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let origin: bool = routes_to(resolution, item, checker.machine);
         transition checker.minting && origin {
             true -> predicates(checker, syntax, resolution, typing, item, subject, proving)
@@ -76,7 +76,7 @@ crashes Trap
         }
     }
 
-    machine predicates(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
+    machine predicates(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: DomainItem, subject: Value, proving: bool) -> bool {
         let subjecting: bool = checker.subjecting;
         let previous: Value = checker.subject;
         checker.subjecting = true;
@@ -93,7 +93,7 @@ crashes Trap
 }
 
 // Whether a fact's operand is `result`.
-public machine names_result(resolution: &NameResolution, node: u64 in Trapping) -> bool
+public machine names_result(resolution: @NameResolution, node: u64 in Trapping) -> bool
 crashes Trap
 {
     let binding: ValueBinding = value_binding(resolution, node);
@@ -110,19 +110,19 @@ crashes Trap
 
 // Whether one of a domain's `established by` routes names machine
 // `machine`.
-public machine routes_to(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
+public machine routes_to(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(resolution, item, machine, 0) }
 
-    machine next(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < item.route_count {
             true -> route(resolution, item, machine, offset)
             _ -> answer(false)
         }
     }
 
-    machine route(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine route(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let binding: PathBinding = path_binding_at(resolution, item.first_route + offset);
         transition binding {
             PathBinding::Machine { handle } -> named(resolution, item, machine, offset, handle)
@@ -130,7 +130,7 @@ crashes Trap
         }
     }
 
-    machine named(resolution: &NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine named(resolution: @NameResolution, item: DomainItem, machine: u64 in Trapping, offset: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle == machine {
             true -> answer(true)
             _ -> next(resolution, item, machine, offset + 1)
@@ -151,10 +151,10 @@ crashes Trap
 // knowledge checking does not keep, rejects as unsupported where it must
 // hold.
 public machine decide_membership(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     root: u64 in Trapping,
     proving: bool
 ) -> bool
@@ -168,10 +168,10 @@ crashes Trap
     }
 
     machine declared(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
         root: u64 in Trapping,
         tree: Expression,
         item: u64 in Trapping,
@@ -187,10 +187,10 @@ crashes Trap
     }
 
     machine valued(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
         root: u64 in Trapping,
         tree: Expression,
         item: u64 in Trapping,
@@ -205,15 +205,15 @@ crashes Trap
         decided
     }
 
-    machine undecided(checker: &mut Checker, tree: Expression, proving: bool) -> bool {
+    machine undecided(checker: @mut Checker, tree: Expression, proving: bool) -> bool {
         transition proving {
             true -> unsupported(checker, tree)
             _ -> held()
         }
     }
 
-    machine unsupported(checker: &mut Checker, tree: Expression) -> bool {
-        checks_reject(&mut checker.output, CheckDiagnosticCode::UnsupportedFact, tree.source_span);
+    machine unsupported(checker: @mut Checker, tree: Expression) -> bool {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedFact, tree.source_span);
         transition { _ -> refused() }
     }
 
@@ -228,10 +228,10 @@ crashes Trap
 
 // A value, `expression`'s, meeting a destination of type `destination`.
 public machine require_qualification(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     destination: u64 in Trapping,
     expression: u64 in Trapping,
     value: Value,
@@ -246,10 +246,10 @@ crashes Trap
     }
 
     machine qualified(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
         domain: u64 in Trapping,
         expression: u64 in Trapping,
         value: Value,
@@ -268,7 +268,7 @@ crashes Trap
 
     // A quoted literal's byte predicates are decided from its octets'
     // roster (wiki/spec/terminal-psi/structural_access.md).
-    machine decided(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan, literal: bool, roster: u64 in Trapping) {
+    machine decided(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, domain: u64 in Trapping, value: Value, source_span: SourceSpan, literal: bool, roster: u64 in Trapping) {
         let previous_literal: bool = checker.subject_literal;
         let previous_roster: u64 in Trapping = checker.subject_roster;
         checker.subject_literal = literal;
@@ -282,8 +282,8 @@ crashes Trap
         }
     }
 
-    machine unproven(checker: &mut Checker, source_span: SourceSpan) {
-        checks_reject(&mut checker.output, CheckDiagnosticCode::DomainUnproven, source_span);
+    machine unproven(checker: @mut Checker, source_span: SourceSpan) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::DomainUnproven, source_span);
     }
 
     machine done() {}
@@ -291,7 +291,7 @@ crashes Trap
 
 // A value of type `type_handle` satisfies the predicates of the declared
 // domain qualifying it.
-public machine assume_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, type_handle: u64 in Trapping, value: Value)
+public machine assume_qualification(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, type_handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     let wanted: u64 in Trapping = qualifying_domain(typing, type_handle);
@@ -300,7 +300,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine assumed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, domain: u64 in Trapping, value: Value) {
+    machine assumed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, domain: u64 in Trapping, value: Value) {
         let held: bool = decide_domain(checker, syntax, resolution, typing, domain, value, false);
     }
 
@@ -310,10 +310,10 @@ crashes Trap
 // Each argument of a call or jump meets its formal's qualification, the
 // formals `first_parameter .. first_parameter + parameter_count`.
 public machine require_argument_qualifications(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     call: Expression,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping
@@ -324,10 +324,10 @@ crashes Trap
     transition { _ -> next(checker, syntax, resolution, typing, call, first_parameter, parameter_count, count, 0) }
 
     machine next(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
         call: Expression,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
@@ -341,10 +341,10 @@ crashes Trap
     }
 
     machine argument(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        resolution: &NameResolution,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        resolution: @NameResolution,
+        typing: @Typing,
         call: Expression,
         first_parameter: u64 in Trapping,
         parameter_count: u64 in Trapping,
@@ -365,7 +365,7 @@ crashes Trap
 
 // A call's arguments meet its callee's formals: a machine's, or a machine
 // binder's contract's.
-public machine require_call_qualifications(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, selection: Selection, call: Expression)
+public machine require_call_qualifications(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, selection: Selection, call: Expression)
 crashes Trap
 {
     let clauses: CallClauses = call_clauses(syntax, resolution, selection);
@@ -374,10 +374,10 @@ crashes Trap
 
 // Each formal of a body that opens satisfies its qualification.
 public machine assume_parameter_qualifications(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     first_parameter: u64 in Trapping,
     parameter_count: u64 in Trapping
 )
@@ -385,14 +385,14 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, first_parameter, parameter_count, 0) }
 
-    machine next(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+    machine next(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < parameter_count {
             true -> formal(checker, syntax, resolution, typing, first_parameter, parameter_count, offset)
             _ -> done()
         }
     }
 
-    machine formal(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
+    machine formal(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, offset: u64 in Trapping) {
         let parameter: Parameter = syntax_trees_parameter(syntax, first_parameter + offset);
         let type_handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
         let place: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + offset, 0);
@@ -405,7 +405,7 @@ crashes Trap
 }
 
 // A returned value meets the machine's declared result type.
-public machine require_result_qualification(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: u64 in Trapping, value: Value, source_span: SourceSpan)
+public machine require_result_qualification(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: u64 in Trapping, value: Value, source_span: SourceSpan)
 crashes Trap
 {
     let item: MachineItem = machine_item(syntax, checker.machine);
@@ -415,7 +415,7 @@ crashes Trap
     }
 
     // The machine's own result: its routes may mint it.
-    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+    machine declared(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
         let destination: u64 in Trapping = reference_type(typing, item.return_type);
         let minting: bool = checker.minting;
         checker.minting = true;
@@ -428,10 +428,10 @@ crashes Trap
 
 // A store meets its target's qualification in the checking walk.
 public machine require_stored_qualification(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     destination: u64 in Trapping,
     expression: u64 in Trapping,
     value: Value,
@@ -445,7 +445,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine stored(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
+    machine stored(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, destination: u64 in Trapping, expression: u64 in Trapping, value: Value, source_span: SourceSpan) {
         require_qualification(checker, syntax, resolution, typing, destination, expression, value, source_span);
     }
 

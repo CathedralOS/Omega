@@ -8,14 +8,14 @@ above it (the first two are excerpts from `std/filesystem.omg`):
 
 ```omega
 // before: the portable contract names two platforms
-machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead
     invokes PosixFilesystemHost
     invokes WindowsFilesystemHost;
 
 // after: it says what a caller can observe
-machine read(file: File, buffer: &mut [u8], count: u64) -> IoResult
+machine read(file: File, buffer: @mut [u8], count: u64) -> IoResult
     blocks
     reaches FilesystemContentRead;
 

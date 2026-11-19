@@ -31,7 +31,7 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{
+            "machine build(builder: @mut Build) {{
     Build::application(builder, \"configured\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {assignments}}}

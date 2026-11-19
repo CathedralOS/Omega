@@ -1,7 +1,7 @@
 // Expected error: an address offset must fit the result address carrier.
 // Address offsets keep the count carrier and exact-fit requirement in both orders.
 data Main { marker: u64; }
-machine exercise(state: &mut Main) {
+machine exercise(state: @mut Main) {
     let a: addr = 4096;
     let b: addr = 4000;
     let back: addr = a - 16;
@@ -16,7 +16,7 @@ requires embed(base) + embed(count) < addr::Bound
 { count + base }
 machine main() crashes Trap {
     let mut state: Main = Main { marker: 7 };
-    exercise(&mut state);
+    exercise(@mut state);
     let base: addr = 4096;
     let count: u64 = 18446744073709547520;
     let forward: addr = advance(base, count);

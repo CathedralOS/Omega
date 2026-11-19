@@ -36,15 +36,15 @@ invokes Console
 // window of that word: the matched subject proves the head length, and the
 // other arm is the remaining three events. The report observes that window
 // through a local, a field, a parameter, and a call result before printing.
-data RouteSpan<'row> { events: &'row [u64]; }
+data RouteSpan<'row> { events: @'row [u64]; }
 data Shelf<'row> { span: RouteSpan<'row>; }
 
-machine chosen_span<'row>(route: &'row [u64; 4], which: u64) -> RouteSpan<'row>
+machine chosen_span<'row>(route: @'row [u64; 4], which: u64) -> RouteSpan<'row>
 ensures result.events.len >= 1
 {
     match which {
-        0 -> RouteSpan { events: &route[0..which + 1] }
-        _ -> RouteSpan { events: &route[1..4] }
+        0 -> RouteSpan { events: @route[0..which + 1] }
+        _ -> RouteSpan { events: @route[1..4] }
     }
 }
 
@@ -54,7 +54,7 @@ requires span.events.len >= 1
     span.events[0] == expected
 }
 
-public machine report(certificate: &Certificate) reaches ProcessExit + Console
+public machine report(certificate: @Certificate) reaches ProcessExit + Console
 invokes Console
 {
     Console::write_line("sample_collection_routing: synthetic integer-minute model");
@@ -69,14 +69,14 @@ invokes Console
         Console::write_line("INFEASIBLE");
         ProcessExit::exit_process(2);
     }
-    machine optimal(certificate: &Certificate) {
-        let head: RouteSpan = chosen_span(&certificate.best.route, 0);
+    machine optimal(certificate: @Certificate) {
+        let head: RouteSpan = chosen_span(@certificate.best.route, 0);
         let head_length: u64 = head.events.len;
-        let nested: Shelf = Shelf { span: chosen_span(&certificate.best.route, 1) };
+        let nested: Shelf = Shelf { span: chosen_span(@certificate.best.route, 1) };
         let field_length: u64 = nested.span.events.len;
         let parameter_ok: bool = span_starts(head, certificate.best.route[0]);
         let call_ok: bool = span_starts(
-            chosen_span(&certificate.best.route, 0),
+            chosen_span(@certificate.best.route, 0),
             certificate.best.route[0],
         );
         transition head_length == 1 && field_length == 3 && parameter_ok && call_ok {
@@ -88,7 +88,7 @@ invokes Console
         Console::write_line("INTERNAL: route window");
         ProcessExit::exit_process(70);
     }
-    machine emit_optimal(certificate: &Certificate) {
+    machine emit_optimal(certificate: @Certificate) {
         Console::write_line("OPTIMAL distance_then_completion lexicographic_route");
         Console::write_line("distance"); number(certificate.best.distance);
         Console::write_line("completion"); number(certificate.best.time);

@@ -34,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart");
     main.counts = [0, 0, 0, 0, 0, 0];
     main.line = "                        ";
@@ -43,10 +43,10 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     transition { _ -> block roll_loop(main) }
 
     // --- roll 60 dice, tally each face ---
-    machine roll_loop(main: &mut Main) {
+    machine roll_loop(main: @mut Main) {
         transition main.n >= 0 && main.n < 60 { true -> block roll(main) _ -> block draw_init(main) }
     }
-    machine roll(main: &mut Main) {
+    machine roll(main: @mut Main) {
         main.sc = main.st << 13;
         main.st = main.st ^ main.sc;
         main.sc = main.st >> 17;
@@ -56,7 +56,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         main.v = (main.st % 6) as i32 in Wrapping;
         transition main.v >= 0 && main.v < 6 { true -> block tally(main) _ -> block bad(main) }
     }
-    machine tally(main: &mut Main) {
+    machine tally(main: @mut Main) {
         // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
         // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
         main.counts[main.v] = main.counts[main.v] + 1;
@@ -65,14 +65,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     }
 
     // --- render the bar chart, one row per face ---
-    machine draw_init(main: &mut Main) {
+    machine draw_init(main: @mut Main) {
         main.val = 0;
         transition { _ -> block draw_loop(main) }
     }
-    machine draw_loop(main: &mut Main) {
+    machine draw_loop(main: @mut Main) {
         transition main.val >= 0 && main.val < 6 { true -> block draw_row(main) _ -> block finish(main) }
     }
-    machine draw_row(main: &mut Main) {
+    machine draw_row(main: @mut Main) {
         // clear, then label "v: " at the start
         main.lab = narrow_i32_to_u8_trapping((main.val + 49) as i32); // '1'..'6'
         main.line = "                        ";
@@ -82,34 +82,34 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         main.k = 0;
         transition { _ -> block bar_loop(main) }
     }
-    machine bar_loop(main: &mut Main) {
+    machine bar_loop(main: @mut Main) {
         transition main.k >= 0 && main.k < main.cnt { true -> block bar_cell(main) _ -> block emit_row(main) }
     }
-    machine bar_cell(main: &mut Main) {
+    machine bar_cell(main: @mut Main) {
         main.bo = main.k + 3;
         transition main.bo >= 0 && main.bo < 24 { true -> block bar_write(main) _ -> block emit_row(main) }
     }
-    machine bar_write(main: &mut Main) {
+    machine bar_write(main: @mut Main) {
         main.line[main.bo] = 35; // '#'
         main.k = main.k + 1;
         transition { _ -> block bar_loop(main) }
     }
-    machine emit_row(main: &mut Main) {
+    machine emit_row(main: @mut Main) {
         Console::write_line(main.line);
         main.val = main.val + 1;
         transition { _ -> block draw_loop(main) }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("done: all 6 face frequencies charted (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
-    machine bad(main: &mut Main) {
+    machine bad(main: @mut Main) {
         Console::write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(1);
     }
 }
@@ -117,5 +117,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

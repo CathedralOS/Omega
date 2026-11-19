@@ -5,10 +5,10 @@ data Cell [copy] { prefix: u32; word: u32; suffix: u32; }
 data Envelope [copy] { cell: Cell; }
 data ChosenCell [copy] { cell: Cell; branch: bool; }
 public boundary trait Words {
-    machine write(descriptor: i32, word: &u32, count: u64) -> i64 reaches crashes none;
+    machine write(descriptor: i32, word: @u32, count: u64) -> i64 reaches crashes none;
 }
 public boundary trait WindowsWords {
-    machine write(descriptor: i32, word: &u32, count: u32) -> i32 reaches crashes none;
+    machine write(descriptor: i32, word: @u32, count: u32) -> i32 reaches crashes none;
 }
 // This witness exports exact bytes; MSVCRT stdout must not translate LF.
 public boundary trait WindowsDescriptorMode {
@@ -27,7 +27,7 @@ machine posix_through(choice: bool) crashes Trap {
     };
     demand(joined.branch == choice);
     let mut backing: Cell = joined.cell;
-    let selected: &u32 = &backing.word;
+    let selected: @u32 = @backing.word;
     backing.word = 0;
     let written: i64 = Words::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);
@@ -42,7 +42,7 @@ machine windows_through(choice: bool) crashes Trap {
     };
     demand(joined.branch == choice);
     let mut backing: Cell = joined.cell;
-    let selected: &u32 = &backing.word;
+    let selected: @u32 = @backing.word;
     backing.word = 0;
     let written: i32 = WindowsWords::write(1, selected, 4);
     demand(written == 4 && backing.prefix == 1650614882 && backing.word == WORD && backing.suffix == 1684300900);

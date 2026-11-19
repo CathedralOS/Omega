@@ -9,11 +9,11 @@ machine describe_cell() -> reflect::TypeSchema {
 }
 
 machine construct_restricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
-    access::new_plan(&schema, Issuance::Only { routes: [] })
+    access::new_plan(@schema, Issuance::Only { routes: [] })
 }
 
 machine construct_unrestricted_plan(schema: reflect::TypeSchema) -> AccessPlan {
-    access::new_plan(&schema, Issuance::Unrestricted)
+    access::new_plan(@schema, Issuance::Unrestricted)
 }
 
 machine return_plan(plan: AccessPlan) -> AccessPlan { plan }
@@ -45,19 +45,19 @@ machine construct_observed_plan<'text>(
     required_route: reflect::CallableInfo<'text>
 ) -> AccessPlan<'text> {
     let mut plan: AccessPlan<'text> = access::new_plan(
-        &schema, Issuance::Only { routes: [machine_route, required_route] }
+        @schema, Issuance::Only { routes: [machine_route, required_route] }
     );
-    access::allow_readers(&mut plan,
+    access::allow_readers(@mut plan,
         AccessRegion::Subject { schema: schema }, [machine_route, required_route]);
-    access::allow_readers(&mut plan,
+    access::allow_readers(@mut plan,
         AccessRegion::Field { field: reflect::field(RuleCell::value) }, [machine_route]);
-    access::allow_readers(&mut plan,
+    access::allow_readers(@mut plan,
         AccessRegion::Field { field: reflect::field(RuleCell::value) }, []);
-    access::allow_writers(&mut plan,
+    access::allow_writers(@mut plan,
         AccessRegion::Field { field: reflect::field(RuleCell::value) }, []);
-    access::observe(&mut plan, reflect::field(RuleCell::value),
+    access::observe(@mut plan, reflect::field(RuleCell::value),
         FieldAccess::Stable { read: true, write: false, exposure: Exposure::Exported });
-    access::observe(&mut plan, reflect::field(RuleCell::value), FieldAccess::Inaccessible);
+    access::observe(@mut plan, reflect::field(RuleCell::value), FieldAccess::Inaccessible);
     plan
 }
 

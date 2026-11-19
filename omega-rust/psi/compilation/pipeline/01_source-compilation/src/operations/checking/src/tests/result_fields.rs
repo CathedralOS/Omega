@@ -97,7 +97,7 @@ fn borrowed_completion_observations_cannot_reuse_input_snapshots() {
     // fact. The separate shared view still holds its original extent.
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
-machine build_entry(INPUT, bytes: &[u8]) -> Pair
+machine build_entry(INPUT, bytes: @[u8]) -> Pair
 requires p.first == 0, bytes.len > 0
 ensures result.first == 0
 {
@@ -116,8 +116,8 @@ ensures result.first == 0
 
     for (input, extent, owned_pair) in [
         ("mut p: Pair", false, true),
-        ("p: &mut Pair", false, false),
-        ("p: &mut Pair", true, false),
+        ("p: @mut Pair", false, false),
+        ("p: @mut Pair", true, false),
     ] {
         let typed = frontier_of(
             "machine product_entry() { }",
@@ -216,7 +216,7 @@ fn borrowed_field_guarantees_connect_entry_and_completion_at_each_call() {
     // the preceding call's actual completion, rather than reusing entry zero.
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
-machine step(p: &mut Pair)
+machine step(p: @mut Pair)
 requires p.first < 32
 ensures embed(p.first) == embed(old(p.first)) + 1
 { p.first = p.first + 1; }
@@ -224,8 +224,8 @@ machine build_entry() -> u32
 ensures result == 2
 {
     let mut value: Pair = Pair { first: 0, second: 9 };
-    step(&mut value);
-    step(&mut value);
+    step(@mut value);
+    step(@mut value);
     value.first
 }
 "#;

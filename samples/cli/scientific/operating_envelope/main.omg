@@ -9,33 +9,33 @@ use geometry;
 use output;
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut bytes: [u8; 256];
-    _ = block Console::read_line(&mut bytes[..]);
+    _ = block Console::read_line(@mut bytes[..]);
     let mut packet: input::Packet;
-    input::parse(&mut packet, &bytes);
+    input::parse(@mut packet, @bytes);
     let mut envelope: geometry::Envelope;
-    let admitted: bool = geometry::load(&mut envelope, &packet);
+    let admitted: bool = geometry::load(@mut envelope, @packet);
     transition admitted {
-        true -> calculate(main, &mut envelope)
+        true -> calculate(main, @mut envelope)
         _ -> invalid(main)
     }
-    machine calculate(main: &mut Main, envelope: &mut geometry::Envelope) {
+    machine calculate(main: @mut Main, envelope: @mut geometry::Envelope) {
         geometry::solve(envelope);
         transition envelope.valid {
             true -> emit(main, envelope)
             _ -> failure(main)
         }
     }
-    machine emit(main: &mut Main, envelope: &geometry::Envelope) {
+    machine emit(main: @mut Main, envelope: @geometry::Envelope) {
         output::report(envelope);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("invalid input");
         ProcessExit::exit_process(2);
     }
-    machine failure(main: &mut Main) {
+    machine failure(main: @mut Main) {
         Console::write_line("internal capacity failure");
         ProcessExit::exit_process(3);
     }
@@ -44,5 +44,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

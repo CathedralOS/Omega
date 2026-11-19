@@ -2,7 +2,7 @@
 // The operation is that pair of read-modify-writes through borrowed caller storage.
 // Expected exit: 0
 data Row { tag: i32 in Wrapping; data: [i32 in Wrapping; 2]; }
-machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
+machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2
@@ -23,5 +23,5 @@ machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j
 machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3];
     let mut rows: [Row; 3];
-    rmw(&mut grid, &mut rows, 1, 2, 2, 1)
+    rmw(@mut grid, @mut rows, 1, 2, 2, 1)
 }

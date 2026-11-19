@@ -53,50 +53,50 @@ crashes Trap
 blocks
 {
     let mut harness: CheckingHarness;
-    block checking_harness_main(&mut harness);
+    block checking_harness_main(@mut harness);
 }
 
-public machine checking_harness_main(checking_harness: &mut CheckingHarness)
+public machine checking_harness_main(checking_harness: @mut CheckingHarness)
 reaches ProcessExit + Console
 invokes Console
 crashes Trap
 blocks
 {
     let mut sources: SourceSet;
-    psi::source_set_clear(&mut sources);
+    psi::source_set_clear(@mut sources);
     let mut parser: Parser;
-    psi::parser_initialize(&mut parser);
+    psi::parser_initialize(@mut parser);
     let count: HarnessWord = block read_u32(checking_harness);
     transition count.complete {
-        true -> block packages(checking_harness, &mut sources, &mut parser, count.value)
+        true -> block packages(checking_harness, @mut sources, @mut parser, count.value)
         _ -> malformed(checking_harness)
     }
 
-    machine packages(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine packages(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> block package_row(checking_harness, sources, parser, remaining)
             _ -> block dependencies(checking_harness, sources, parser)
         }
     }
 
-    machine package_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine package_row(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         let toolchain: HarnessWord = block read_u32(checking_harness);
         let mut name: ModulePath;
-        psi::module_path_clear(&mut name);
-        let read: bool = block read_path(checking_harness, &mut name);
+        psi::module_path_clear(@mut name);
+        let read: bool = block read_path(checking_harness, @mut name);
         transition toolchain.complete && toolchain.value < 2 && read {
-            true -> block add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, &name)
+            true -> block add_package(checking_harness, sources, parser, remaining, toolchain.value == 1, @name)
             _ -> malformed(checking_harness)
         }
     }
 
     machine add_package(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         toolchain: bool,
-        name: &ModulePath
+        name: @ModulePath
     ) {
         let added: bool = psi::add_package(sources, name, toolchain);
         transition added {
@@ -105,7 +105,7 @@ blocks
         }
     }
 
-    machine dependencies(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine dependencies(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(checking_harness);
         transition count.complete {
             true -> block dependency(checking_harness, sources, parser, count.value)
@@ -113,36 +113,36 @@ blocks
         }
     }
 
-    machine dependency(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> block dependency_row(checking_harness, sources, parser, remaining)
             _ -> block units(checking_harness, sources, parser)
         }
     }
 
-    machine dependency_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine dependency_row(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         let requester: HarnessWord = block read_u32(checking_harness);
         let scope: HarnessWord = block read_u32(checking_harness);
         let mut alias: ModulePath;
-        psi::module_path_clear(&mut alias);
-        let read: bool = block read_path(checking_harness, &mut alias);
+        psi::module_path_clear(@mut alias);
+        let read: bool = block read_path(checking_harness, @mut alias);
         let target: HarnessWord = block read_u32(checking_harness);
         transition requester.complete && scope.complete && read && target.complete
             && (scope.value == 1 || scope.value == 2)
             && requester.value < sources.package_count && target.value < sources.package_count {
-            true -> block dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, &alias, target.value)
+            true -> block dependency_scope(checking_harness, sources, parser, remaining, requester.value, scope.value == 2, @alias, target.value)
             _ -> malformed(checking_harness)
         }
     }
 
     machine dependency_scope(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         requester: u64 in Trapping,
         build: bool,
-        alias: &ModulePath,
+        alias: @ModulePath,
         target: u64 in Trapping
     ) {
         transition build {
@@ -152,13 +152,13 @@ blocks
     }
 
     machine add_dependency(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         requester: u64 in Trapping,
         scope: DependencyScope,
-        alias: &ModulePath,
+        alias: @ModulePath,
         target: u64 in Trapping
     ) {
         let added: bool = psi::add_dependency(sources, requester, scope, alias, target);
@@ -168,7 +168,7 @@ blocks
         }
     }
 
-    machine units(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser) {
+    machine units(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser) {
         let count: HarnessWord = block read_u32(checking_harness);
         transition count.complete {
             true -> block unit(checking_harness, sources, parser, count.value)
@@ -176,49 +176,49 @@ blocks
         }
     }
 
-    machine unit(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         transition remaining > 0 {
             true -> block unit_row(checking_harness, sources, parser, remaining)
             _ -> prepare_resolve(checking_harness, sources, parser)
         }
     }
 
-    machine unit_row(checking_harness: &mut CheckingHarness, sources: &mut SourceSet, parser: &mut Parser, remaining: u64 in Trapping) {
+    machine unit_row(checking_harness: @mut CheckingHarness, sources: @mut SourceSet, parser: @mut Parser, remaining: u64 in Trapping) {
         let unit_package: HarnessWord = block read_u32(checking_harness);
         let mut module_path: ModulePath;
-        psi::module_path_clear(&mut module_path);
-        let read: bool = block read_path(checking_harness, &mut module_path);
+        psi::module_path_clear(@mut module_path);
+        let read: bool = block read_path(checking_harness, @mut module_path);
         transition unit_package.complete && read && unit_package.value < sources.package_count {
-            true -> block source(checking_harness, sources, parser, remaining, unit_package.value, &module_path)
+            true -> block source(checking_harness, sources, parser, remaining, unit_package.value, @module_path)
             _ -> malformed(checking_harness)
         }
     }
 
     machine source(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath
+        module_path: @ModulePath
     ) {
         let length: HarnessWord = block read_u32(checking_harness);
         let mut lexer: Lexer;
-        psi::lexer_initialize(&mut lexer, sources.unit_count as u32 in Trapping);
+        psi::lexer_initialize(@mut lexer, sources.unit_count as u32 in Trapping);
         transition length.complete {
-            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, &mut lexer, length.value)
+            true -> block source_byte(checking_harness, sources, parser, remaining, unit_package, module_path, @mut lexer, length.value)
             _ -> malformed(checking_harness)
         }
     }
 
     machine source_byte(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &mut Lexer,
+        module_path: @ModulePath,
+        lexer: @mut Lexer,
         left: u64 in Trapping
     ) {
         transition left > 0 {
@@ -228,13 +228,13 @@ blocks
     }
 
     machine source_read(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &mut Lexer,
+        module_path: @ModulePath,
+        lexer: @mut Lexer,
         left: u64 in Trapping
     ) {
         let input: ByteRead = block Console::read_byte();
@@ -245,13 +245,13 @@ blocks
     }
 
     machine source_store(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &mut Lexer,
+        module_path: @ModulePath,
+        lexer: @mut Lexer,
         left: u64 in Trapping,
         value: i32
     ) {
@@ -263,13 +263,13 @@ blocks
     }
 
     machine tokenize(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &mut Lexer
+        module_path: @ModulePath,
+        lexer: @mut Lexer
     ) {
         psi::tokenize(lexer);
         transition lexer.output.accepted {
@@ -279,15 +279,15 @@ blocks
     }
 
     machine parse(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &Lexer
+        module_path: @ModulePath,
+        lexer: @Lexer
     ) {
-        psi::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, &lexer.output);
+        psi::parse(parser, lexer.source.id, lexer.source.length as u64 in Trapping, @lexer.output);
         transition parser.output.accepted {
             true -> block add(checking_harness, sources, parser, remaining, unit_package, module_path, lexer)
             _ -> parse_rejected(checking_harness)
@@ -295,121 +295,121 @@ blocks
     }
 
     machine add(
-        checking_harness: &mut CheckingHarness,
-        sources: &mut SourceSet,
-        parser: &mut Parser,
+        checking_harness: @mut CheckingHarness,
+        sources: @mut SourceSet,
+        parser: @mut Parser,
         remaining: u64 in Trapping,
         unit_package: u64 in Trapping,
-        module_path: &ModulePath,
-        lexer: &Lexer
+        module_path: @ModulePath,
+        lexer: @Lexer
     ) {
-        let added: bool = psi::source_set_add(sources, &lexer.source, unit_package, module_path);
+        let added: bool = psi::source_set_add(sources, @lexer.source, unit_package, module_path);
         transition added {
             true -> block unit(checking_harness, sources, parser, remaining - 1)
             _ -> source_full(checking_harness)
         }
     }
 
-    machine prepare_resolve(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser) {
+    machine prepare_resolve(checking_harness: @mut CheckingHarness, sources: @SourceSet, parser: @Parser) {
         let mut resolver: Resolver;
-        psi::resolver_initialize(&mut resolver);
-        transition { _ -> resolve(checking_harness, sources, parser, &mut resolver) }
+        psi::resolver_initialize(@mut resolver);
+        transition { _ -> resolve(checking_harness, sources, parser, @mut resolver) }
     }
 
     machine resolve(
-        checking_harness: &mut CheckingHarness,
-        sources: &SourceSet,
-        parser: &Parser,
-        resolver: &mut Resolver
+        checking_harness: @mut CheckingHarness,
+        sources: @SourceSet,
+        parser: @Parser,
+        resolver: @mut Resolver
     ) {
-        psi::resolve(resolver, sources, &parser.output);
+        psi::resolve(resolver, sources, @parser.output);
         transition resolver.output.accepted {
             true -> prepare_type(checking_harness, sources, parser, resolver)
             _ -> resolve_rejected(checking_harness)
         }
     }
 
-    machine prepare_type(checking_harness: &mut CheckingHarness, sources: &SourceSet, parser: &Parser, resolver: &mut Resolver) {
+    machine prepare_type(checking_harness: @mut CheckingHarness, sources: @SourceSet, parser: @Parser, resolver: @mut Resolver) {
         let mut typer: Typer;
-        transition { _ -> type_check(checking_harness, sources, parser, resolver, &mut typer) }
+        transition { _ -> type_check(checking_harness, sources, parser, resolver, @mut typer) }
     }
 
     machine type_check(
-        checking_harness: &mut CheckingHarness,
-        sources: &SourceSet,
-        parser: &Parser,
-        resolver: &mut Resolver,
-        typer: &mut Typer
+        checking_harness: @mut CheckingHarness,
+        sources: @SourceSet,
+        parser: @Parser,
+        resolver: @mut Resolver,
+        typer: @mut Typer
     ) {
-        psi::type_check(typer, sources, &parser.output, &resolver.output);
+        psi::type_check(typer, sources, @parser.output, @resolver.output);
         transition typer.output.accepted {
             true -> prepare_check(checking_harness, parser, resolver, typer)
             _ -> type_rejected(checking_harness)
         }
     }
 
-    machine prepare_check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer) {
+    machine prepare_check(checking_harness: @mut CheckingHarness, parser: @Parser, resolver: @Resolver, typer: @Typer) {
         let mut checker: Checker;
-        transition { _ -> check(checking_harness, parser, resolver, typer, &mut checker) }
+        transition { _ -> check(checking_harness, parser, resolver, typer, @mut checker) }
     }
 
-    machine check(checking_harness: &mut CheckingHarness, parser: &Parser, resolver: &Resolver, typer: &Typer, checker: &mut Checker) {
-        psi::checker_check(checker, &parser.output, &resolver.output, &typer.output);
-        write_checking_observation(checking_harness, &checker.output);
+    machine check(checking_harness: @mut CheckingHarness, parser: @Parser, resolver: @Resolver, typer: @Typer, checker: @mut Checker) {
+        psi::checker_check(checker, @parser.output, @resolver.output, @typer.output);
+        write_checking_observation(checking_harness, @checker.output);
         transition checker.output.accepted {
             true -> accepted(checking_harness)
             _ -> check_rejected(checking_harness)
         }
     }
 
-    machine accepted(checking_harness: &mut CheckingHarness) {
+    machine accepted(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(0);
     }
 
-    machine check_rejected(checking_harness: &mut CheckingHarness) {
+    machine check_rejected(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(247);
     }
 
-    machine type_rejected(checking_harness: &mut CheckingHarness) {
+    machine type_rejected(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(249);
     }
 
-    machine resolve_rejected(checking_harness: &mut CheckingHarness) {
+    machine resolve_rejected(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(248);
     }
 
-    machine parse_rejected(checking_harness: &mut CheckingHarness) {
+    machine parse_rejected(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(250);
     }
 
-    machine lex_rejected(checking_harness: &mut CheckingHarness) {
+    machine lex_rejected(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(251);
     }
 
-    machine source_full(checking_harness: &mut CheckingHarness) {
+    machine source_full(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(252);
     }
 
-    machine malformed(checking_harness: &mut CheckingHarness) {
+    machine malformed(checking_harness: @mut CheckingHarness) {
         ProcessExit::exit_process(253);
     }
 }
 
-machine read_u32(checking_harness: &mut CheckingHarness) -> HarnessWord
+machine read_u32(checking_harness: @mut CheckingHarness) -> HarnessWord
 reaches Console
 crashes Trap
 blocks
 {
     transition { _ -> block next(checking_harness, 0, 0, 1) }
 
-    machine next(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine next(checking_harness: @mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         transition read < 4 {
             true -> block byte(checking_harness, read, value, scale)
             _ -> word(value)
         }
     }
 
-    machine byte(checking_harness: &mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
+    machine byte(checking_harness: @mut CheckingHarness, read: u64 in Trapping, value: u64 in Trapping, scale: u64 in Trapping) -> HarnessWord {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value as byte } -> block next(checking_harness, read + 1, value + (byte as u64 in Trapping) * scale, scale * 256)
@@ -428,7 +428,7 @@ blocks
 
 // A `u32`-framed name read into `path`, or false when the input ends inside
 // it or it exceeds the path's provision.
-machine read_path(checking_harness: &mut CheckingHarness, path: &mut ModulePath) -> bool
+machine read_path(checking_harness: @mut CheckingHarness, path: @mut ModulePath) -> bool
 reaches Console
 crashes Trap
 blocks
@@ -439,14 +439,14 @@ blocks
         _ -> failed()
     }
 
-    machine byte(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine byte(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         transition left > 0 {
             true -> block read(checking_harness, path, left)
             _ -> complete()
         }
     }
 
-    machine read(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping) -> bool {
+    machine read(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping) -> bool {
         let input: ByteRead = block Console::read_byte();
         transition input {
             ByteRead::Byte { value } -> block store(checking_harness, path, left, value)
@@ -454,7 +454,7 @@ blocks
         }
     }
 
-    machine store(checking_harness: &mut CheckingHarness, path: &mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
+    machine store(checking_harness: @mut CheckingHarness, path: @mut ModulePath, left: u64 in Trapping, value: i32) -> bool {
         let kept: bool = psi::module_path_append(path, value as u8);
         transition kept {
             true -> block byte(checking_harness, path, left - 1)
@@ -479,7 +479,7 @@ blocks
 // count and each machine's crash routes as five bytes: declares Trap,
 // declares Abort, infers, derives Trap, derives Abort. Tags are declaration
 // ordinals. This is hosted development tooling, not an Omega ABI.
-machine write_checking_observation(checking_harness: &mut CheckingHarness, output: &Checks)
+machine write_checking_observation(checking_harness: @mut CheckingHarness, output: @Checks)
 reaches Console
 crashes Trap
 {
@@ -497,14 +497,14 @@ crashes Trap
     write_u64(checking_harness, output.diagnostic_count as u64 in Trapping);
     transition { _ -> rejection(checking_harness, output, 0) }
 
-    machine rejection(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine rejection(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         transition index < output.diagnostic_count {
             true -> diagnostic(checking_harness, output, index)
             _ -> machines(checking_harness, output)
         }
     }
 
-    machine diagnostic(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine diagnostic(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         let rejected: CheckDiagnostic = psi::diagnostic(output, index);
         let tag: u8 = diagnostic_tag(rejected.code);
         write_byte(checking_harness, tag);
@@ -512,34 +512,34 @@ crashes Trap
         transition { _ -> rejection(checking_harness, output, index + 1) }
     }
 
-    machine machines(checking_harness: &mut CheckingHarness, output: &Checks) {
+    machine machines(checking_harness: @mut CheckingHarness, output: @Checks) {
         write_u64(checking_harness, output.machine_count as u64 in Trapping);
         transition { _ -> machine(checking_harness, output, 0) }
     }
 
-    machine machine(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine machine(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         transition index < output.machine_count {
             true -> routes(checking_harness, output, index)
             _ -> slots(checking_harness, output)
         }
     }
 
-    machine slots(checking_harness: &mut CheckingHarness, output: &Checks) {
+    machine slots(checking_harness: @mut CheckingHarness, output: @Checks) {
         let mut review: SlotReview;
-        psi::prepare(&mut review);
-        let admits: bool = psi::admits(&review, output);
+        psi::prepare(@mut review);
+        let admits: bool = psi::admits(@review, output);
         write_u64(checking_harness, output.slot_origin_count as u64 in Trapping);
         transition { _ -> origin(checking_harness, output, admits, 0) }
     }
 
-    machine origin(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+    machine origin(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         transition index < output.slot_origin_count {
             true -> one_origin(checking_harness, output, admits, index)
             _ -> qualifications(checking_harness, output, admits)
         }
     }
 
-    machine one_origin(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+    machine one_origin(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         let row: SlotReturnedBorrowOrigin = psi::slot_origin(output, index);
         let tag: u8 = origin_tag(row.kind);
         write_byte(checking_harness, tag);
@@ -547,31 +547,31 @@ crashes Trap
         transition { _ -> origin(checking_harness, output, admits, index + 1) }
     }
 
-    machine qualifications(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool) {
+    machine qualifications(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool) {
         write_u64(checking_harness, output.slot_qualification_count as u64 in Trapping);
         transition { _ -> qualification(checking_harness, output, admits, 0) }
     }
 
-    machine qualification(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+    machine qualification(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         transition index < output.slot_qualification_count {
             true -> one_qualification(checking_harness, output, admits, index)
             _ -> review(checking_harness, admits)
         }
     }
 
-    machine one_qualification(checking_harness: &mut CheckingHarness, output: &Checks, admits: bool, index: u64 in Trapping) {
+    machine one_qualification(checking_harness: @mut CheckingHarness, output: @Checks, admits: bool, index: u64 in Trapping) {
         let row: SlotParameterQualification = psi::slot_qualification(output, index);
         write_u64(checking_harness, row.parameter_index as u64 in Trapping);
         write_u64(checking_harness, row.domain_item as u64 in Trapping);
         transition { _ -> qualification(checking_harness, output, admits, index + 1) }
     }
 
-    machine review(checking_harness: &mut CheckingHarness, admits: bool) {
+    machine review(checking_harness: @mut CheckingHarness, admits: bool) {
         let tag: u8 = boolean_tag(admits);
         write_byte(checking_harness, tag);
     }
 
-    machine routes(checking_harness: &mut CheckingHarness, output: &Checks, index: u64 in Trapping) {
+    machine routes(checking_harness: @mut CheckingHarness, output: @Checks, index: u64 in Trapping) {
         let routes: CrashRoutes = psi::checks_routes(output, index);
         let declares_trap: u8 = boolean_tag(routes.declares_trap);
         let declares_abort: u8 = boolean_tag(routes.declares_abort);
@@ -646,13 +646,13 @@ machine diagnostic_tag(value: CheckDiagnosticCode) -> u8 {
     }
 }
 
-machine write_source_span(checking_harness: &mut CheckingHarness, source_span: SourceSpan) reaches Console {
+machine write_source_span(checking_harness: @mut CheckingHarness, source_span: SourceSpan) reaches Console {
     write_u64(checking_harness, source_span.source.value as u64 in Trapping);
     write_u64(checking_harness, source_span.span.start);
     write_u64(checking_harness, source_span.span.end);
 }
 
-machine write_u64(checking_harness: &mut CheckingHarness, value: u64 in Trapping) reaches Console {
+machine write_u64(checking_harness: @mut CheckingHarness, value: u64 in Trapping) reaches Console {
     write_byte(checking_harness, (value % 256) as u8);
     write_byte(checking_harness, (value / 256 % 256) as u8);
     write_byte(checking_harness, (value / 65536 % 256) as u8);
@@ -663,7 +663,7 @@ machine write_u64(checking_harness: &mut CheckingHarness, value: u64 in Trapping
     write_byte(checking_harness, (value / 72057594037927936 % 256) as u8);
 }
 
-machine write_byte(checking_harness: &mut CheckingHarness, value: u8) reaches Console {
+machine write_byte(checking_harness: @mut CheckingHarness, value: u8) reaches Console {
     let mut output: u8 = value;
     Console::write_byte(output as i32);
 }

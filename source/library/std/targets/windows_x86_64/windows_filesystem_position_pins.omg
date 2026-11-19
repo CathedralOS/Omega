@@ -27,7 +27,7 @@ machine windows_positioned_pin(handle: u64) -> WindowsPinnedAccessResult {
         let mut information: WindowsNativeObjectBasicInfo;
         let mut returned: u32 = 0;
         let raw: i64 = narrow_u64_to_i64_wrapping(duplicate);
-        let status: i32 = block WindowsFilesystemPositionIo::object_access(raw, 0, &mut information, 56, &mut returned);
+        let status: i32 = block WindowsFilesystemPositionIo::object_access(raw, 0, @mut information, 56, @mut returned);
         transition status == 0 {
             true -> block complete(duplicate, information.granted_access, returned)
             false -> block query_failed(duplicate, status)

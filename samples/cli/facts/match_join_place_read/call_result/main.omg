@@ -10,7 +10,7 @@ ensures result == true
     true
 }
 
-machine read_field(place: &Pair) -> i64
+machine read_field(place: @Pair) -> i64
 requires place.kept == 17
 {
     place.kept
@@ -23,9 +23,9 @@ machine make_pair(kept: i64, other: i64) -> Pair {
 machine main() crashes Trap {
     let chosen: Pair = make_pair(17, 5);
     let spare: Pair = make_pair(0, 8);
-    let joined: &Pair = match choose() {
-        true -> &chosen
-        false -> &spare
+    let joined: @Pair = match choose() {
+        true -> @chosen
+        false -> @spare
     };
     let observed: i64 = read_field(joined);
     transition observed == 17 {

@@ -45,32 +45,32 @@ invokes Console
     let converted: i32 in Saturating = I32::from_f64(value * 1000000.0);
     integer(converted as i32);
 }
-public machine report(envelope: &geometry::Envelope) reaches Console
+public machine report(envelope: @geometry::Envelope) reaches Console
 invokes Console
 {
     transition envelope.count == 0 {
         true -> empty(envelope)
         _ -> window(envelope)
     }
-    machine empty(envelope: &geometry::Envelope) {
+    machine empty(envelope: @geometry::Envelope) {
         Console::write_line("status empty-in-window");
         transition { _ -> summary(envelope) }
     }
-    machine window(envelope: &geometry::Envelope) {
+    machine window(envelope: @geometry::Envelope) {
         transition envelope.window_active {
             true -> limited(envelope)
             _ -> bounded(envelope)
         }
     }
-    machine limited(envelope: &geometry::Envelope) {
+    machine limited(envelope: @geometry::Envelope) {
         Console::write_line("status window-limited-unboundedness-undetermined");
         transition { _ -> summary(envelope) }
     }
-    machine bounded(envelope: &geometry::Envelope) {
+    machine bounded(envelope: @geometry::Envelope) {
         Console::write_line("status bounded");
         transition { _ -> summary(envelope) }
     }
-    machine summary(envelope: &geometry::Envelope) {
+    machine summary(envelope: @geometry::Envelope) {
         Console::write("vertices "); integer(envelope.count as i32); Console::write_byte(10);
         // Split area at its integral part: the maximum 40000 square units
         // cannot fit in i32 micro-units as a single number.
@@ -80,19 +80,19 @@ invokes Console
         micro(envelope.area - F64::from_i32(whole as i32)); Console::write_byte(10);
         transition { _ -> vertex(envelope, 0) }
     }
-    machine vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
+    machine vertex(envelope: @geometry::Envelope, index: i32 in Wrapping) {
         transition index >= 0 && index < envelope.count && index < 32 {
             true -> emit_vertex(envelope, index)
             _ -> done()
         }
     }
-    machine emit_vertex(envelope: &geometry::Envelope, index: i32 in Wrapping) {
+    machine emit_vertex(envelope: @geometry::Envelope, index: i32 in Wrapping) {
         Console::write("vertex "); integer(index as i32); Console::write_byte(32);
         micro(envelope.x[index]); Console::write_byte(32); micro(envelope.y[index]); Console::write_byte(10);
         transition { _ -> certificate(envelope, index, 0) }
     }
     machine certificate(
-        envelope: &geometry::Envelope,
+        envelope: @geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
@@ -102,7 +102,7 @@ invokes Console
         }
     }
     machine residual(
-        envelope: &geometry::Envelope,
+        envelope: @geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
@@ -116,7 +116,7 @@ invokes Console
         }
     }
     machine active(
-        envelope: &geometry::Envelope,
+        envelope: @geometry::Envelope,
         vertex: i32 in Wrapping,
         constraint: i32 in Wrapping
     ) {
@@ -124,7 +124,7 @@ invokes Console
         integer(constraint as i32); Console::write_byte(10);
         transition { _ -> certificate(envelope, vertex, constraint + 1) }
     }
-    machine next_vertex(envelope: &geometry::Envelope, vertex: i32 in Wrapping) {
+    machine next_vertex(envelope: @geometry::Envelope, vertex: i32 in Wrapping) {
         transition { _ -> vertex(envelope, vertex + 1) }
     }
     machine done() { }

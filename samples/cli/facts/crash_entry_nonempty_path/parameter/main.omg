@@ -12,14 +12,14 @@ public data Packet { leaf: Leaf; tag: u64; }
 machine take(value: u64) -> u64 {
     maybe_zero(value)
 }
-public machine read_bits(packet: &Packet) -> u64
+public machine read_bits(packet: @Packet) -> u64
 requires packet.leaf.bits == 7
 {
     take(packet.leaf.bits)
 }
 machine main() crashes Trap {
     let packet: Packet = Packet { leaf: Leaf { bits: 7, marker: 3 }, tag: 11 };
-    let observed: u64 = read_bits(&packet);
+    let observed: u64 = read_bits(@packet);
     transition observed == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

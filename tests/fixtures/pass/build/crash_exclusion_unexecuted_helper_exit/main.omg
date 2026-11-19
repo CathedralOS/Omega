@@ -7,7 +7,7 @@ use assert_kit::main::Assert;
 data Main {
 }
 
-machine Main::main(main: &mut Main)
+machine Main::main(main: @mut Main)
 reaches Assert
 crashes Trap
 {
@@ -20,5 +20,5 @@ reaches Assert
 crashes Trap
 {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

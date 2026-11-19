@@ -629,7 +629,7 @@ fn a_ranked_tail_transfer_creates_its_element_index_obligation_at_the_jump() {
             r#"
 data Shape {{ size: u64; }}
 data Signature {{ count: u64; shapes: [Shape; 4]; }}
-machine walk(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+machine walk(sig: @Signature, ordinal: u64, remaining: u64) -> bool
 terminates by remaining -> Nat::Descending
 crashes none
 {{
@@ -638,14 +638,14 @@ crashes none
         ordinal < sig.count && remaining > 0 -> root(sig, ordinal, remaining)
         _ -> false
     }}
-    machine root(sig: &Signature, ordinal: u64, remaining: u64) -> bool
+    machine root(sig: @Signature, ordinal: u64, remaining: u64) -> bool
     requires remaining > 0 {{
         transition {guard} {{
-            true -> shape(sig, ordinal, remaining, &sig.shapes[ordinal])
+            true -> shape(sig, ordinal, remaining, @sig.shapes[ordinal])
             _ -> false
         }}
     }}
-    machine shape(sig: &Signature, ordinal: u64, remaining: u64, item: &Shape) -> bool
+    machine shape(sig: @Signature, ordinal: u64, remaining: u64, item: @Shape) -> bool
     requires remaining > 0, ordinal < 5 {{
         transition remaining > 1 {{
             true -> walk(sig, ordinal + 1, remaining - 1)
@@ -653,7 +653,7 @@ crashes none
         }}
     }}
 }}
-machine entry(sig: &Signature) -> bool terminates crashes none {{ walk(sig, 0, 4) }}
+machine entry(sig: @Signature) -> bool terminates crashes none {{ walk(sig, 0, 4) }}
 "#
         )
     };

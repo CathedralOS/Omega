@@ -7,8 +7,8 @@ data Window requires used <= 90, {
 
 machine evaluate() -> u64 {
     let window: Window = Window { used: 40 };
-    let view: &Window = &window;
-    let child_view: &Window = view;
+    let view: @Window = @window;
+    let child_view: @Window = view;
     let used: u64 = child_view.used;
     let diff: u64 = 90u64 - used;
     diff

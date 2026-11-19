@@ -3,19 +3,19 @@
 use omega::language::core::Optional;
 
 data PatternByte [copy] { expected: u8; mask: u8; }
-data Found<'input> { position: u64; bytes: &'input [u8]; }
+data Found<'input> { position: u64; bytes: @'input [u8]; }
 
-machine matches(bytes: &[u8], pattern: &[PatternByte]) -> bool
+machine matches(bytes: @[u8], pattern: @[PatternByte]) -> bool
 requires bytes.len == pattern.len {
     transition { _ -> next(bytes, pattern, 0) }
-    machine next(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
+    machine next(bytes: @[u8], pattern: @[PatternByte], cursor: u64) -> bool
     requires bytes.len == pattern.len && cursor <= pattern.len {
         transition cursor < pattern.len {
             true -> compare(bytes, pattern, cursor)
             false -> true
         }
     }
-    machine compare(bytes: &[u8], pattern: &[PatternByte], cursor: u64) -> bool
+    machine compare(bytes: @[u8], pattern: @[PatternByte], cursor: u64) -> bool
     requires bytes.len == pattern.len && cursor < pattern.len {
         let actual: u8 = bytes[cursor] & pattern[cursor].mask;
         let expected: u8 = pattern[cursor].expected & pattern[cursor].mask;
@@ -26,13 +26,13 @@ requires bytes.len == pattern.len {
     }
 }
 
-machine find<'input>(bytes: &'input [u8], pattern: &[PatternByte], start: u64)
+machine find<'input>(bytes: @'input [u8], pattern: @[PatternByte], start: u64)
     -> Optional<Found<'input>> {
     transition start <= bytes.len && pattern.len > 0 {
         true -> next(bytes, pattern, start)
         false -> Optional::None
     }
-    machine next(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
+    machine next(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
         -> Optional<Found<'input>>
     requires cursor <= bytes.len && pattern.len > 0 {
         transition pattern.len <= bytes.len - cursor {
@@ -40,10 +40,10 @@ machine find<'input>(bytes: &'input [u8], pattern: &[PatternByte], start: u64)
             false -> Optional::None
         }
     }
-    machine compare(bytes: &'input [u8], pattern: &[PatternByte], cursor: u64)
+    machine compare(bytes: @'input [u8], pattern: @[PatternByte], cursor: u64)
         -> Optional<Found<'input>>
     requires cursor <= bytes.len && pattern.len > 0 && pattern.len <= bytes.len - cursor {
-        let window: &[u8] = &bytes[cursor..cursor + pattern.len];
+        let window: @[u8] = @bytes[cursor..cursor + pattern.len];
         transition matches(window, pattern) {
             true -> Optional::Some { value: Found { position: cursor, bytes: window } }
             false -> next(bytes, pattern, cursor + 1)
@@ -85,16 +85,16 @@ machine main() crashes Trap {
         PatternByte { expected: 191, mask: 240 },
         PatternByte { expected: 170, mask: 255 }
     ];
-    let input: &[u8] = &bytes[1..8];
-    let first: bool = observed(find(input, &wildcard[..], 0), 0, 187);
-    let overlapping: bool = observed(find(input, &wildcard[..], 1), 2, 188);
-    let last: bool = observed(find(input, &wildcard[..], 3), 4, 31);
-    let masked: bool = observed(find(input, &nibble[..], 1), 2, 188);
-    let rejected: bool = absent(find(input, &nibble[..], 3));
-    let exhausted: bool = absent(find(input, &wildcard[..], 5));
-    let empty: bool = absent(find(&input[..0], &wildcard[..], 0));
-    let empty_pattern: bool = absent(find(input, &wildcard[..0], 0));
-    let past_end: bool = absent(find(input, &wildcard[..], 8));
+    let input: @[u8] = @bytes[1..8];
+    let first: bool = observed(find(input, @wildcard[..], 0), 0, 187);
+    let overlapping: bool = observed(find(input, @wildcard[..], 1), 2, 188);
+    let last: bool = observed(find(input, @wildcard[..], 3), 4, 31);
+    let masked: bool = observed(find(input, @nibble[..], 1), 2, 188);
+    let rejected: bool = absent(find(input, @nibble[..], 3));
+    let exhausted: bool = absent(find(input, @wildcard[..], 5));
+    let empty: bool = absent(find(@input[..0], @wildcard[..], 0));
+    let empty_pattern: bool = absent(find(input, @wildcard[..0], 0));
+    let past_end: bool = absent(find(input, @wildcard[..], 8));
     transition first && overlapping && last && masked && rejected && exhausted
         && empty && empty_pattern && past_end && bytes[0] == 91 && bytes[8] == 92 {
         true -> done()

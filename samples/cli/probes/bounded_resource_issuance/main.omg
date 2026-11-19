@@ -29,7 +29,7 @@ machine acquire(input: i32) -> Acquisition {
         Acquisition::Ok { resource: issue(input) }
     }
 }
-machine inspect(resource: &Resource in Open) -> u64 { resource.identity }
+machine inspect(resource: @Resource in Open) -> u64 { resource.identity }
 machine release(resource: Resource in Open) {}
 machine main() crashes Trap {
     let acquired: Acquisition = acquire(0);
@@ -38,7 +38,7 @@ machine main() crashes Trap {
         _ -> wrong()
     }
     machine owned(resource: Resource in Open) {
-        let observed: u64 = inspect(&resource);
+        let observed: u64 = inspect(@resource);
         release(resource);
         transition observed == 1 { true -> done() false -> wrong() }
     }

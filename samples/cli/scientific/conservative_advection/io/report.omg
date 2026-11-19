@@ -38,7 +38,7 @@ use model::courant;
 use omega::language::core::narrow_i64_to_u64_saturating;
 use omega::language::core::narrow_u64_to_i64_saturating;
 public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches ProcessExit + Console invokes Console {
- let mut parts:model::scale::Scale; model::scale::normalize(value,&mut parts);
+ let mut parts:model::scale::Scale; model::scale::normalize(value,@mut parts);
  let scaled:f64=parts.mantissa*1000000000000000.0;
  transition scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 { true -> bounded(scaled,power+parts.exponent-15,lower,lower_power,upper,upper_power,lower_value,lower_value_power,upper_value,upper_value_power) false -> failure() }
  machine bounded(scaled:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) requires scaled == scaled && scaled >= 0.0 && scaled <= 10000000000000000.0 {

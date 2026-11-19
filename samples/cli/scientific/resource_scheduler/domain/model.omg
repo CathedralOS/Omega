@@ -16,7 +16,7 @@ public data Schedule {
     makespan: i32 in Wrapping;
     feasible: bool;
 }
-public machine reset_schedule(schedule: &mut Schedule) {
+public machine reset_schedule(schedule: @mut Schedule) {
     schedule.starts = [0 - 1, 0 - 1, 0 - 1, 0 - 1];
     schedule.ends = [0, 0, 0, 0];
     schedule.makespan = 0;

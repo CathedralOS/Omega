@@ -40,19 +40,19 @@ ensures result >= value - tolerance && result <= value + tolerance
     grid(value, tolerance)
 }
 
-machine from_field(reading: &Reading) -> i32
+machine from_field(reading: @Reading) -> i32
 ensures result >= reading.value - 2 && result <= reading.value + 2
 {
     ((reading.value + 2) / 5) * 5
 }
 
-machine Main::main(main: &mut Main) crashes Trap {
+machine Main::main(main: @mut Main) crashes Trap {
     let reading: Reading = Reading { value: 7 };
     let rounded: i32 = grid(7, 2);
     let other: i32 = swapped(4, 2);
     let near: i32 = nearest(7);
     let called: i32 = through_call(0, 7);
-    let field: i32 = from_field(&reading);
+    let field: i32 = from_field(@reading);
     transition rounded == 5 && other == 5 && near == 5 && called == 0 && field == 5 {
         true -> done()
         _ -> bad()
@@ -64,5 +64,5 @@ machine Main::main(main: &mut Main) crashes Trap {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

@@ -2,14 +2,14 @@
 // Expected exit: 0
 // Place: match_join.
 
-machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine choose<'storage>(chosen: @'storage mut u64, other: @'storage mut u64, pick_chosen: bool) -> @'storage mut u64 {
     transition pick_chosen {
         true -> chosen
         _ -> other
     }
 }
 
-machine overwrite(slot: &mut u64) -> u64 in Wrapping {
+machine overwrite(slot: @mut u64) -> u64 in Wrapping {
     slot = 9;
     (1 as u64 in Wrapping)
 }
@@ -31,7 +31,7 @@ machine main() crashes Trap {
     let flag: bool = true;
     let items: [u8; 4] = [4, 7, 8, 9];
     let zero: u64 in Wrapping = 0;
-    let marker: u64 in Wrapping = add(overwrite(choose(&mut chosen, &mut other, true)), zero);
+    let marker: u64 in Wrapping = add(overwrite(choose(@mut chosen, @mut other, true)), zero);
     let index: u64 = joined_index(other, flag);
     transition (marker as u64) == 1 && chosen == 9 && items[index] == 7 {
         true -> done()

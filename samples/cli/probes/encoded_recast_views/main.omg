@@ -37,7 +37,7 @@ data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 
 data ForeignByte { value: i8; }
 
-machine update(value: &mut RawView) -> i64 {
+machine update(value: @mut RawView) -> i64 {
     let previous: i64 = value.value.value;
     value.value.value = 127;
     previous
@@ -48,22 +48,22 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.bytes[0] = 128;
     main.bytes[1] = 85;
-    let view: &mut RawView = &mut main.bytes[0] as &mut RawView;
+    let view: @mut RawView = @mut main.bytes[0] as @mut RawView;
     let previous: i64 = update(view);
     transition previous == -128 && view.value.value == 127 && main.bytes[0] == 127 && main.bytes[1] == 85 {
         true -> pass(main)
         _ -> fail(main)
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine fail(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine fail(main: @mut Main) { main.hits = -1; }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

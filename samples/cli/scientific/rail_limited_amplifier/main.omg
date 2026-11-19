@@ -33,33 +33,33 @@ data Main {
     overload_count: i32 in Wrapping;
     first_recovered: i32;
 }
-machine main(main: &mut Main) reaches ProcessExit + Console {
-    let read: LineReadResult = block Console::read_line(&mut main.bytes[..]);
+machine main(main: @mut Main) reaches ProcessExit + Console {
+    let read: LineReadResult = block Console::read_line(@mut main.bytes[..]);
     transition read {
         LineReadResult::LineComplete { count } -> received(main, count)
         LineReadResult::EndOfInput { count } -> received(main, count)
         _ -> syntax(main)
     }
-    machine received(main: &mut Main, count: u64) {
+    machine received(main: @mut Main, count: u64) {
         transition count <= 192 {
             true -> parse_line(main, count)
             false -> syntax(main)
         }
     }
-    machine parse_line(main: &mut Main, count: u64) {
+    machine parse_line(main: @mut Main, count: u64) {
         main.input = parse(main.bytes[..count]);
         transition main.input.valid {
             true -> rails(main)
             false -> syntax(main)
         }
     }
-    machine rails(main: &mut Main) {
+    machine rails(main: @mut Main) {
         transition main.input.values[3] < main.input.values[4] {
             true -> parameters(main)
             false -> bad_rails(main)
         }
     }
-    machine parameters(main: &mut Main) {
+    machine parameters(main: @mut Main) {
         transition main.input.values[0] >= 1 && main.input.values[0] <= 100
             && main.input.values[1] >= -1000 && main.input.values[1] <= 1000
             && main.input.values[2] >= 1 && main.input.values[2] <= 1000
@@ -70,7 +70,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> bad_parameters(main)
         }
     }
-    machine initialize(main: &mut Main) {
+    machine initialize(main: @mut Main) {
         main.circuit.gain = main.input.values[0] as f64;
         main.circuit.feedback = (main.input.values[1] as f64) / 1000.0;
         main.circuit.relaxation = (main.input.values[2] as f64) / 1000.0;
@@ -99,13 +99,13 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         measure(main);
         transition { _ -> loop(main) }
     }
-    machine loop(main: &mut Main) {
+    machine loop(main: @mut Main) {
         transition main.step < main.steps {
             true -> tick(main)
             false -> finish(main)
         }
     }
-    machine tick(main: &mut Main) {
+    machine tick(main: @mut Main) {
         main.step = main.step + 1;
         main.drive = match main.step <= main.switch_step {
             true -> (main.first_drive)
@@ -117,7 +117,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         measure(main);
         transition { _ -> loop(main) }
     }
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         let settled: i32 in Wrapping = match main.equilibrium.unique && main.equilibrium.stable && main.last_bad < main.steps {
             true -> (main.last_bad + 1)
             false -> (-1)
@@ -131,20 +131,20 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         ProcessExit::exit_process(0);
     }
-    machine syntax(main: &mut Main) {
+    machine syntax(main: @mut Main) {
         Console::write_line("ERROR syntax: expected ten bounded signed integers");
         ProcessExit::exit_process(64);
     }
-    machine bad_rails(main: &mut Main) {
+    machine bad_rails(main: @mut Main) {
         Console::write_line("ERROR rails: lower must be less than upper");
         ProcessExit::exit_process(64);
     }
-    machine bad_parameters(main: &mut Main) {
+    machine bad_parameters(main: @mut Main) {
         Console::write_line("ERROR parameters: gain, feedback, relaxation, steps or initial output outside bounds");
         ProcessExit::exit_process(64);
     }
 }
-machine equilibrium_row(main: &mut Main, phase: i32) reaches Console {
+machine equilibrium_row(main: @mut Main, phase: i32) reaches Console {
     Console::write("E,");
     integer(phase);
     Console::write(",");
@@ -163,11 +163,11 @@ machine equilibrium_row(main: &mut Main, phase: i32) reaches Console {
     integer(match main.equilibrium.stable { true -> (1) false -> (0) });
     Console::write_line("");
 }
-machine flag(main: &mut Main, flag: bool) reaches Console {
+machine flag(main: @mut Main, flag: bool) reaches Console {
     integer(match flag { true -> (1) false -> (0) });
     Console::write(",");
 }
-machine trace_row(main: &mut Main) reaches Console {
+machine trace_row(main: @mut Main) reaches Console {
     Console::write("T,");
     integer(main.step as i32);
     Console::write(",");
@@ -182,45 +182,45 @@ machine trace_row(main: &mut Main) reaches Console {
     integer(main.observed.overload);
     Console::write_line("");
 }
-machine measure(main: &mut Main) {
+machine measure(main: @mut Main) {
     transition main.observed.overload != 0 {
         true -> overload(main)
         false -> recovery(main)
     }
-    machine overload(main: &mut Main) {
+    machine overload(main: @mut Main) {
         main.overload_count = main.overload_count + 1;
         transition { _ -> settling(main) }
     }
-    machine recovery(main: &mut Main) {
+    machine recovery(main: @mut Main) {
         transition main.step > main.switch_step && main.first_recovered == -1 {
             true -> recovered(main)
             false -> settling(main)
         }
     }
-    machine recovered(main: &mut Main) {
+    machine recovered(main: @mut Main) {
         main.first_recovered = main.step as i32;
         transition { _ -> settling(main) }
     }
-    machine settling(main: &mut Main) {
+    machine settling(main: @mut Main) {
         transition main.step >= main.switch_step {
             true -> error(main)
             false -> before(main)
         }
     }
-    machine before(main: &mut Main) { main.last_bad = main.step; }
-    machine error(main: &mut Main) {
+    machine before(main: @mut Main) { main.last_bad = main.step; }
+    machine error(main: @mut Main) {
         let difference: f64 = main.observed.output - main.equilibrium.selected;
         transition difference < -0.001 || difference > 0.001 {
             true -> outside(main)
             false -> done()
         }
     }
-    machine outside(main: &mut Main) { main.last_bad = main.step; }
+    machine outside(main: @mut Main) { main.last_bad = main.step; }
     machine done() { }
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

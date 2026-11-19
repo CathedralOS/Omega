@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "fixed_layout_bit_observation_target_body_invalid");
     Build::select_provider<Delivery, SecondDelivery>(builder, windows_x86_64);
     Build::select_provider<Delivery, SecondDelivery>(builder, linux_x86_64);

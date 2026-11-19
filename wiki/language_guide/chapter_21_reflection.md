@@ -13,9 +13,9 @@ data Player {
 }
 
 machine show_player_field<Value>(
-    output: &mut InspectorOutput,
+    output: @mut InspectorOutput,
     field: FieldInfo,
-    value: &Value
+    value: @Value
 )
 requires Value == u32 || Value == f32
 {
@@ -25,7 +25,7 @@ requires Value == u32 || Value == f32
     }
 }
 
-machine inspect_player(player: &Player, output: &mut InspectorOutput) {
+machine inspect_player(player: @Player, output: @mut InspectorOutput) {
     reflect::visit_runtime_fields<Player, show_player_field>(player, output);
 }
 ```

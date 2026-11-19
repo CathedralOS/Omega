@@ -129,11 +129,11 @@ machine pick(first: bool, when: Bound, otherwise: Bound) -> Bound {
 }
 
 // The interval of `subject + offset` in the current zone.
-public machine term_value(checker: &Checker, place: u64 in Trapping, subject: u64 in Trapping, offset: ExactInteger) -> Value
+public machine term_value(checker: @Checker, place: u64 in Trapping, subject: u64 in Trapping, offset: ExactInteger) -> Value
 crashes Trap
 {
-    let upper: Bound = zone_bound(&checker.zone, 0, subject);
-    let lower: Bound = zone_bound(&checker.zone, subject, 0);
+    let upper: Bound = zone_bound(@checker.zone, 0, subject);
+    let lower: Bound = zone_bound(@checker.zone, subject, 0);
     let shift: Bound = exactly(offset);
     let negated: ExactInteger = exact_integer_negate(offset);
     let unshift: Bound = exactly(negated);
@@ -146,7 +146,7 @@ crashes Trap
 // A linear term's interval is read from the zone again: facts installed
 // after the node was evaluated (a field's `requires` facts, an assumption)
 // hold of it too.
-public machine value_at(checker: &Checker, handle: u64 in Trapping) -> Value
+public machine value_at(checker: @Checker, handle: u64 in Trapping) -> Value
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -154,7 +154,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine offset(checker: &Checker, offset: u64 in Trapping) -> Value {
+    machine offset(checker: @Checker, offset: u64 in Trapping) -> Value {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
             true -> read(checker, index)
@@ -162,7 +162,7 @@ crashes Trap
         }
     }
 
-    machine read(checker: &Checker, index: u64 in Trapping) -> Value
+    machine read(checker: @Checker, index: u64 in Trapping) -> Value
     requires index < 4096
     {
         let stored: Value = checker.values[index];
@@ -172,7 +172,7 @@ crashes Trap
         }
     }
 
-    machine current(checker: &Checker, stored: Value) -> Value {
+    machine current(checker: @Checker, stored: Value) -> Value {
         let value: Value = term_value(checker, stored.place, stored.subject, stored.offset);
         value
     }
@@ -189,12 +189,12 @@ crashes Trap
 // A name of a reference to a builtin integer reads as its referent where the
 // integer is needed (typing's `typer_read_type`): unbounded, its value lies
 // in the referent's carrier.
-public machine read_interval(typing: &Typing, type_handle: u64 in Trapping, value: Value) -> Value
+public machine read_interval(typing: @Typing, type_handle: u64 in Trapping, value: Value) -> Value
 crashes Trap
 {
     let read: u64 in Trapping = checker_read_type(typing, type_handle);
-    let row: TypeRow = type_table_row(&typing.types, read);
-    let referenced: TypeRow = type_table_row(&typing.types, type_handle);
+    let row: TypeRow = type_table_row(@typing.types, read);
+    let referenced: TypeRow = type_table_row(@typing.types, type_handle);
     let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
     transition referenced.kind == TypeKind::Reference && integer && !value.ceiling.finite && !value.floor.finite {
         true -> carried(value, row)
@@ -213,13 +213,13 @@ crashes Trap
 
 // The type a value reads as: a reference to a builtin scalar, through every
 // layer, reads as the scalar; any other type as itself.
-public machine checker_read_type(typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+public machine checker_read_type(typing: @Typing, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> layer(typing, handle, handle, 0) }
 
-    machine layer(typing: &Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(&typing.types, current);
+    machine layer(typing: @Typing, written: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> u64 in Trapping {
+        let row: TypeRow = type_table_row(@typing.types, current);
         let builtin: bool = row.kind == TypeKind::Builtin;
         transition row.kind == TypeKind::Reference && depth < 8 {
             true -> layer(typing, written, row.inner, depth + 1)
@@ -239,7 +239,7 @@ crashes Trap
     }
 }
 
-public machine checker_set_value(checker: &mut Checker, handle: u64 in Trapping, value: Value)
+public machine checker_set_value(checker: @mut Checker, handle: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition handle >= checker.tree_low {
@@ -247,7 +247,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine offset(checker: &mut Checker, offset: u64 in Trapping, value: Value) {
+    machine offset(checker: @mut Checker, offset: u64 in Trapping, value: Value) {
         let index: u64 in Trapping = checker.tree_base + offset;
         transition offset < checker.tree_size && index < 4096 {
             true -> write(checker, index, value)
@@ -255,7 +255,7 @@ crashes Trap
         }
     }
 
-    machine write(checker: &mut Checker, index: u64 in Trapping, value: Value)
+    machine write(checker: @mut Checker, index: u64 in Trapping, value: Value)
     requires index < 4096
     {
         checker.values[index] = value;
@@ -571,7 +571,7 @@ public machine offset_difference(left: Value, right: Value, interval: Value) -> 
 
 // The tightest bound the zone gives on `right - left` for two linear terms;
 // unbounded when either is not one.
-public machine difference_bound(checker: &Checker, left: Value, right: Value) -> Bound
+public machine difference_bound(checker: @Checker, left: Value, right: Value) -> Bound
 crashes Trap
 {
     transition left.known && right.known {
@@ -579,8 +579,8 @@ crashes Trap
         _ -> unbounded()
     }
 
-    machine related(checker: &Checker, left: Value, right: Value) -> Bound {
-        let between: Bound = zone_bound(&checker.zone, left.subject, right.subject);
+    machine related(checker: @Checker, left: Value, right: Value) -> Bound {
+        let between: Bound = zone_bound(@checker.zone, left.subject, right.subject);
         let offsets: ExactResult = exact_integer_subtract(right.offset, left.offset);
         let shift: Bound = Bound { finite: offsets.valid, value: offsets.value };
         let bound: Bound = bound_add(between, shift);
@@ -594,7 +594,7 @@ crashes Trap
 
 // Whether `left < right` holds wherever the zone does: through the zone's
 // relation between their terms, or through their intervals.
-public machine proves_less(checker: &Checker, left: Value, right: Value) -> bool
+public machine proves_less(checker: @Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
     let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
@@ -607,7 +607,7 @@ crashes Trap
 }
 
 // Whether `left <= right` holds wherever the zone does.
-public machine proves_at_most(checker: &Checker, left: Value, right: Value) -> bool
+public machine proves_at_most(checker: @Checker, left: Value, right: Value) -> bool
 crashes Trap
 {
     let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
@@ -620,7 +620,7 @@ crashes Trap
 }
 
 // Whether the value is never zero.
-public machine proves_nonzero(checker: &Checker, value: Value) -> bool {
+public machine proves_nonzero(checker: @Checker, value: Value) -> bool {
     let zero: ExactInteger = ExactInteger { negative: false, magnitude: 0 };
     let below: ExactInteger = ExactInteger { negative: true, magnitude: 1 };
     let positive_wanted: Bound = exactly(below);

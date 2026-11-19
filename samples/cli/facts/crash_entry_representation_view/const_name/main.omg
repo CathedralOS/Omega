@@ -10,7 +10,7 @@ public const SEVEN: u64 = 7;
 public machine read_bits(value: u64) -> i64
 requires value == SEVEN
 {
-    let view: &i64 = &value as &i64;
+    let view: @i64 = @value as @i64;
     let observed: i64 = view;
     maybe_zero(observed)
 }

@@ -25,19 +25,19 @@ public data Build {
 public data BuildProduct {}
 public data ProductEntryRef [copy] {}
 public boundary trait BuildProductOperations {
-    machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches none crashes none;
+    machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches none crashes none;
 }
 public boundary trait BuildBindingOperations {
-    machine prepare(builder: &Build) -> u64 reaches none crashes none;
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
     machine bind(activation: u64) reaches none crashes none;
 }
 // Selection first lends the Build to this checked helper, as the
 // prelude's does, so the host only observes the original Build's identity.
-public machine build_selection_receiver<'activation>(builder: &'activation mut Build) -> &'activation mut Build {
+public machine build_selection_receiver<'activation>(builder: @'activation mut Build) -> @'activation mut Build {
     builder
 }
 public boundary trait BuildRequestOperations {
-    machine artifact_only(builder: &Build) reaches none crashes none;
+    machine artifact_only(builder: @Build) reaches none crashes none;
 }
 public boundary trait Probe {
     machine poke(value: u64) reaches none crashes none;
@@ -47,7 +47,7 @@ public const LIMIT: u64 = 4;
 
 const BUILD_PRODUCT_MODULE: &str = r#"
 module BuildProduct;
-public machine entry(product: &BuildProduct, path: &[u8], slot: &[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
+public machine entry(product: @BuildProduct, path: @[u8], slot: @[u8]) -> ProductEntryRef reaches BuildProductOperations invokes BuildProductOperations {
     BuildProductOperations::entry(product, path, slot)
 }
 "#;
@@ -265,7 +265,7 @@ fn published_boundary_calls(program: &ProducedTerminalProgram) -> Vec<BuildCallS
 }
 
 const ONE_BINDING: &str = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 }
@@ -325,7 +325,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
 fn each_binding_of_one_machine_keeps_its_own_entry() {
     let program = produced(
         r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, first);
     Build::bind(builder, windows_x86_64::ProgramEntry, second);
 }
@@ -369,7 +369,7 @@ machine build(builder: &mut Build) {
 fn a_build_with_no_selection_publishes_no_binding_row() {
     let program = produced(
         r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
 }
 "#,
@@ -381,14 +381,14 @@ machine build(builder: &mut Build) {
 }
 
 const TWO_HELPERS: &str = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     first(builder);
     second(builder);
 }
-machine first(builder: &mut Build) {
+machine first(builder: @mut Build) {
     Build::bind(builder, linux_x86_64::ProgramEntry, one);
 }
-machine second(builder: &mut Build) {
+machine second(builder: @mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, two);
 }
 "#;
@@ -449,14 +449,14 @@ fn a_row_does_not_answer_for_the_same_operation_of_another_machine() {
 fn two_machines_that_make_the_same_request_each_publish_its_row() {
     let program = produced(
         r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     first(builder);
     second(builder);
 }
-machine first(builder: &mut Build) {
+machine first(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
 }
-machine second(builder: &mut Build) {
+machine second(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
 }
 "#,
@@ -481,11 +481,11 @@ fn a_helper_the_entry_never_calls_asks_nothing_of_the_host() {
     let program = |request_body: &str| {
         accepted(&format!(
             r#"
-machine build(builder: &Build) {{
+machine build(builder: @Build) {{
     BuildRequestOperations::artifact_only(builder);
     request(builder);
 }}
-machine request(builder: &Build) {{
+machine request(builder: @Build) {{
     BuildRequestOperations::artifact_only(builder);
     {request_body}
 }}
@@ -540,7 +540,7 @@ fn a_boundary_outside_the_build_protocols_is_reported_and_given_no_row() {
 
     let outside = accepted(
         r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     BuildRequestOperations::artifact_only(builder);
     Probe::poke(7);
 }
@@ -629,7 +629,7 @@ fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
 #[test]
 fn a_portable_artifact_without_build_companions_still_round_trips() {
     let program = accepted_for(
-        "machine build(builder: &mut Build) {}",
+        "machine build(builder: @mut Build) {}",
         terminal_codec::TerminalPublication::Portable,
     )
     .unwrap()
@@ -681,14 +681,14 @@ fn an_accepted_build_that_names_no_constant_reads_none() {
 #[test]
 fn an_accepted_build_states_each_constant_its_declarations_name() {
     for build in [
-        "machine build(builder: &mut Build) { Probe::poke(LIMIT); }
+        "machine build(builder: @mut Build) { Probe::poke(LIMIT); }
 ",
         "machine helper(value: u64) requires value < LIMIT { }
-         machine build(builder: &mut Build) { helper(1); }
+         machine build(builder: @mut Build) { helper(1); }
 ",
         "data Table { cells: [u64; LIMIT]; }
-         machine helper(table: &Table) { }
-         machine build(builder: &mut Build) { }
+         machine helper(table: @Table) { }
+         machine build(builder: @mut Build) { }
 ",
     ] {
         let accepted = accepted(build).unwrap_or_else(|refused| panic!("{build}: {refused:?}"));
@@ -773,7 +773,7 @@ fn published_native_locator(
 fn a_native_binding_publishes_its_closed_locator_shape() {
     let prelude = native_binding_prelude();
     let build = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
 }
 "#;
@@ -799,7 +799,7 @@ machine build(builder: &mut Build) {
     // Explicit widths keep this control focused on publication custody;
     // inactive-width inference itself belongs only to the real core type.
     let lookalike_build = r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall { number: 9u64 };
     Build::bind<Probe::poke>(builder, linux_x86_64, locator);
 }
@@ -833,7 +833,7 @@ machine build(builder: &mut Build) {
 fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
     use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
     use source_compiler::source_state::expression::ExpressionNode;
-    let build = "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
+    let build = "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }";
     let typed = || {
         typed_with_external_binding(
             build,
@@ -934,7 +934,7 @@ fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
     use source_compiler::production::TerminalBuildValueShape;
     let program = native_binding_program(
         r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::bind<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     });
@@ -979,7 +979,7 @@ machine locator() -> ForeignBinding<9, 10, 0> {
         import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
     }
 }
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::bind<Probe::poke>(builder, windows_x86_64, locator());
 }
 "#,
@@ -993,7 +993,7 @@ fn a_closed_generic_boundary_call_keeps_its_type_argument() {
     let accepted = accepted_frontier(
         typed_with_prelude(
             r#"
-machine build(builder: &mut Build) { Probe::send<u64>(9u64); Probe::send(11u64); }
+machine build(builder: @mut Build) { Probe::send<u64>(9u64); Probe::send(11u64); }
 "#,
             &prelude,
         ),
@@ -1046,7 +1046,7 @@ fn distinct_closed_boundary_arguments_keep_distinct_source_declarations() {
     let accepted = accepted_frontier(
         typed_with_prelude(
             r#"
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Probe::send<u64>(9u64);
     Probe::send(11u64);
     Probe::send<u32>(9u32);
@@ -1133,7 +1133,7 @@ fn inferred_const_arguments_still_have_to_fit_their_declared_carriers() {
         format!(
             r#"
 data Bytes<const N: u8> {{ bytes: [u8; N]; }}
-machine build(builder: &mut Build) {{ Probe::send(Bytes {{ bytes: "{bytes}" }}); }}
+machine build(builder: @mut Build) {{ Probe::send(Bytes {{ bytes: "{bytes}" }}); }}
 "#
         )
     };
@@ -1162,7 +1162,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
     use source_compiler::source_state::expression::{ExpressionNode, MatchPattern};
     use source_compiler::source_state::types::TypeReferenceNode;
     let mut typed = typed_with_external_binding(
-        "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
+        "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
             "../../../../../../../../../source/library/core/external_binding.omg"
@@ -1248,7 +1248,7 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
         "machine bind(activation: u64) reaches none crashes none;\n    machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;",
     );
     let typed = typed_with_prelude(
-        "machine build(builder: &mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
+        "machine build(builder: @mut Build) { Build::select_provider<Probe, Candidate>(builder, linux_x86_64); }",
         &prelude,
     );
     let probe = typed
@@ -1344,9 +1344,9 @@ fn a_provider_selection_keeps_its_exact_generated_protocol_call() {
 #[test]
 fn product_queries_keep_their_selected_operation_in_value_positions() {
     let build = r#"
-machine build(builder: &mut Build, slot: &[u8]) -> ProductEntryRef {
-    let selected: ProductEntryRef = BuildProduct::entry(&builder.product, "first", slot);
-    BuildProduct::entry(&builder.product, "second", slot)
+machine build(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
+    let selected: ProductEntryRef = BuildProduct::entry(@builder.product, "first", slot);
+    BuildProduct::entry(@builder.product, "second", slot)
 }
 "#;
     let accepted = accepted(build).unwrap_or_else(|refused| {
@@ -1389,7 +1389,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
     ];
     for (build, reason, external_completion) in [
         (
-            "machine build(builder: &Build) { BuildRequestOperations::artifact_only(builder); }",
+            "machine build(builder: @Build) { BuildRequestOperations::artifact_only(builder); }",
             "compiler evaluation needs admitted boundary execution",
             false,
         ),

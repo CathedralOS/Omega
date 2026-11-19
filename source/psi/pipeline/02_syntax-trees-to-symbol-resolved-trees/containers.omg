@@ -10,19 +10,19 @@
 // Every machine's `MachineOwner`, in machine order: a root machine keeps its
 // authored owner; a member takes its container's name. Containers cover
 // contiguous machine ranges, so one pass per container table places them.
-public machine place_machines(resolver: &mut Resolver, syntax: &SyntaxTrees)
+public machine place_machines(resolver: @mut Resolver, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
 
-    machine root(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> root_owner(resolver, syntax, index)
             _ -> traits(resolver, syntax, 0)
         }
     }
 
-    machine root_owner(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine root_owner(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         set_machine_owner(resolver, index, MachineOwner {
             container: item.container,
@@ -33,14 +33,14 @@ crashes Trap
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine traits(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count {
             true -> trait_members(resolver, syntax, index)
             _ -> conformances(resolver, syntax, 0)
         }
     }
 
-    machine trait_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine trait_members(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = trait_item(syntax, index);
         let container: MachineContainer = resolver_trait_container(item.is_refinement);
         let owner: MachineOwner = MachineOwner {
@@ -53,14 +53,14 @@ crashes Trap
         transition { _ -> traits(resolver, syntax, index + 1) }
     }
 
-    machine conformances(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count {
             true -> conformance_members(resolver, syntax, index)
             _ -> done(resolver, syntax)
         }
     }
 
-    machine conformance_members(resolver: &mut Resolver, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine conformance_members(resolver: @mut Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = conformance_item(syntax, index);
         let owner: MachineOwner = MachineOwner {
             container: MachineContainer::Conformance,
@@ -72,7 +72,7 @@ crashes Trap
         transition { _ -> conformances(resolver, syntax, index + 1) }
     }
 
-    machine done(resolver: &mut Resolver, syntax: &SyntaxTrees) {
+    machine done(resolver: @mut Resolver, syntax: @SyntaxTrees) {
         resolver.output.machine_owner_count = syntax.machine_count;
     }
 }
@@ -90,19 +90,19 @@ machine resolver_trait_container(is_refinement: bool) -> MachineContainer {
     }
 }
 
-machine place_members(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
+machine place_members(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
     transition { _ -> next(resolver, syntax, first, count, owner, 0) }
 
-    machine next(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine next(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         transition offset < count {
             true -> place(resolver, syntax, first, count, owner, offset)
             _ -> done()
         }
     }
 
-    machine place(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, first + offset);
         transition item.parent == 0 {
             true -> place_direct(resolver, syntax, first, count, owner, offset)
@@ -110,7 +110,7 @@ crashes Trap
         }
     }
 
-    machine place_direct(resolver: &mut Resolver, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place_direct(resolver: @mut Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         set_machine_owner(resolver, first + offset, owner);
         transition { _ -> next(resolver, syntax, first, count, owner, offset + 1) }
     }
@@ -118,7 +118,7 @@ crashes Trap
     machine done() {}
 }
 
-machine set_machine_owner(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
+machine set_machine_owner(resolver: @mut Resolver, handle: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
     transition handle < 10240 {
@@ -126,7 +126,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine store(resolver: &mut Resolver, handle: u64 in Trapping, owner: MachineOwner) {
+    machine store(resolver: @mut Resolver, handle: u64 in Trapping, owner: MachineOwner) {
         resolver.output.machine_owners[handle] = owner;
     }
 
@@ -136,7 +136,7 @@ crashes Trap
 }
 
 // A machine's type scope: its own generic parameters, then its container's.
-public machine resolver_machine_scope(resolution: &NameResolution, syntax: &SyntaxTrees, handle: u64 in Trapping) -> TypeScope
+public machine resolver_machine_scope(resolution: @NameResolution, syntax: @SyntaxTrees, handle: u64 in Trapping) -> TypeScope
 crashes Trap
 {
     let item: MachineItem = machine_item(syntax, handle);
@@ -153,7 +153,7 @@ crashes Trap
 }
 
 // A container's own generic parameters as a scope; a root machine has none.
-public machine container_scope(syntax: &SyntaxTrees, owner: MachineOwner) -> TypeScope
+public machine container_scope(syntax: @SyntaxTrees, owner: MachineOwner) -> TypeScope
 crashes Trap
 {
     transition owner.container {
@@ -168,12 +168,12 @@ crashes Trap
         empty_scope()
     }
 
-    machine trait_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
+    machine trait_scope(syntax: @SyntaxTrees, index: u64 in Trapping) -> TypeScope {
         let item: TraitItem = trait_item(syntax, index);
         resolver_scope(item.first_generic_parameter, item.generic_parameter_count)
     }
 
-    machine conformance_scope(syntax: &SyntaxTrees, index: u64 in Trapping) -> TypeScope {
+    machine conformance_scope(syntax: @SyntaxTrees, index: u64 in Trapping) -> TypeScope {
         let item: ConformanceItem = conformance_item(syntax, index);
         resolver_scope(item.first_generic_parameter, item.generic_parameter_count)
     }
@@ -181,34 +181,34 @@ crashes Trap
 
 // Bind name path `path` to the machine it names as a callee would, or
 // reject it as unknown or ambiguous at its span.
-public machine bind_machine_path(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, path: u64 in Trapping)
+public machine bind_machine_path(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, path: u64 in Trapping)
 crashes Trap
 {
     let name_path: NamePath = syntax_trees_name_path(syntax, path);
-    let lookup: Lookup = machine_path_lookup(&resolver.output, sources, syntax, name_path);
+    let lookup: Lookup = machine_path_lookup(@resolver.output, sources, syntax, name_path);
     transition lookup {
         Lookup::Found { handle } -> bound(resolver, path, handle)
         Lookup::Ambiguous -> ambiguous(resolver, name_path)
         Lookup::Absent -> unknown(resolver, name_path)
     }
 
-    machine bound(resolver: &mut Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
+    machine bound(resolver: @mut Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
         set_path_binding(resolver, path, PathBinding::Machine { handle: handle });
     }
 
-    machine ambiguous(resolver: &mut Resolver, name_path: NamePath) {
-        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::AmbiguousName, name_path.source_span);
+    machine ambiguous(resolver: @mut Resolver, name_path: NamePath) {
+        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::AmbiguousName, name_path.source_span);
     }
 
-    machine unknown(resolver: &mut Resolver, name_path: NamePath) {
-        name_resolution_reject(&mut resolver.output, ResolveDiagnosticCode::UnknownName, name_path.source_span);
+    machine unknown(resolver: @mut Resolver, name_path: NamePath) {
+        name_resolution_reject(@mut resolver.output, ResolveDiagnosticCode::UnknownName, name_path.source_span);
     }
 }
 
 // The machine a name path names: a free machine for one member, an owned
 // machine (a trait requirement or conformance member included) for two. A
 // longer path crosses a package, which this source set cannot bind.
-public machine machine_path_lookup(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup
+public machine machine_path_lookup(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup
 crashes Trap
 {
     transition name_path.member_count {
@@ -217,12 +217,12 @@ crashes Trap
         _ -> absent()
     }
 
-    machine free(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine free(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup {
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         machine_named(resolution, sources, syntax, false, name.source_span, name.source_span)
     }
 
-    machine owned(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine owned(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup {
         let owner: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member + 1);
         machine_named(resolution, sources, syntax, true, owner.source_span, name.source_span)
@@ -235,20 +235,20 @@ crashes Trap
 
 // The first member of trait `trait_index` named `name`: its overload
 // family's representative.
-public machine trait_member_named(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> Lookup
+public machine trait_member_named(sources: @SourceSet, syntax: @SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> Lookup
 crashes Trap
 {
     let item: TraitItem = trait_item(syntax, trait_index);
     transition { _ -> next(sources, syntax, item, name, 0) }
 
-    machine next(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         transition offset < item.machine_count {
             true -> candidate(sources, syntax, item, name, offset)
             _ -> absent()
         }
     }
 
-    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
         let member: MachineItem = machine_item(syntax, item.first_machine + offset);
         let named: bool = spans_equal(sources, member.name.source_span, name);
         transition named && member.parent == 0 {
@@ -271,9 +271,9 @@ crashes Trap
 // conformance's row for the requirement
 // (wiki/spec/language/conformances.md#complete-row-identity).
 public machine conformance_requirement_named(
-    resolution: &NameResolution,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolution: @NameResolution,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     owner: SourceSpan,
     name: SourceSpan
 ) -> ValueBinding
@@ -286,7 +286,7 @@ crashes Trap
         Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
-    machine trait_requirement(resolution: &NameResolution, sources: &SourceSet, syntax: &SyntaxTrees, declared: ConformanceItem, name: SourceSpan) -> ValueBinding {
+    machine trait_requirement(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: ConformanceItem, name: SourceSpan) -> ValueBinding {
         let binding: TypeBinding = type_binding_at(resolution, declared.trait_type);
         transition binding {
             TypeBinding::Trait { item } -> requirement(sources, syntax, item, name)
@@ -294,7 +294,7 @@ crashes Trap
         }
     }
 
-    machine requirement(sources: &SourceSet, syntax: &SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> ValueBinding {
+    machine requirement(sources: @SourceSet, syntax: @SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> ValueBinding {
         let member: Lookup = trait_member_named(sources, syntax, trait_index, name);
         transition member {
             Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle })
@@ -307,7 +307,7 @@ crashes Trap
     }
 }
 
-public machine set_path_binding(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding)
+public machine set_path_binding(resolver: @mut Resolver, path: u64 in Trapping, binding: PathBinding)
 crashes Trap
 {
     transition path < 2048 {
@@ -315,7 +315,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine store(resolver: &mut Resolver, path: u64 in Trapping, binding: PathBinding) {
+    machine store(resolver: @mut Resolver, path: u64 in Trapping, binding: PathBinding) {
         resolver.output.path_bindings[path] = binding;
     }
 
@@ -325,11 +325,11 @@ crashes Trap
 }
 
 // Ancestry supplies static declaration context, never invocation values.
-public machine lexical_root(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
+public machine lexical_root(syntax: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> parent(syntax, handle) }
-    machine parent(syntax: &SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
+    machine parent(syntax: @SyntaxTrees, handle: u64 in Trapping) -> u64 in Trapping {
         let item: MachineItem = machine_item(syntax, handle);
         transition item.parent > 0 {
             true -> parent(syntax, item.parent - 1)
@@ -340,11 +340,11 @@ crashes Trap
 
 // Qualification can name a lexically visible nested declaration; it cannot
 // open a sibling's private scope or borrow a missing same-spelled owner's member.
-public machine qualified_lexical_machine(sources: &SourceSet, syntax: &SyntaxTrees, machine: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding
+public machine qualified_lexical_machine(sources: @SourceSet, syntax: @SyntaxTrees, machine: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
     transition { _ -> scope(sources, syntax, machine, owner, name) }
-    machine scope(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+    machine scope(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
         let item: MachineItem = machine_item(syntax, parent);
         let named: bool = spans_equal(sources, item.name.source_span, owner);
         transition named {
@@ -352,24 +352,24 @@ crashes Trap
             false -> outer(sources, syntax, item.parent, owner, name)
         }
     }
-    machine child(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+    machine child(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
         transition index < syntax.machine_count {
             true -> candidate(sources, syntax, parent, name, index)
             false -> ValueBinding::Unresolved
         }
     }
-    machine candidate(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
+    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> ValueBinding {
         let item: MachineItem = machine_item(syntax, index);
         transition { _ -> named(sources, syntax, parent, name, index, item) }
     }
-    machine named(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping, item: MachineItem) -> ValueBinding {
+    machine named(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan, index: u64 in Trapping, item: MachineItem) -> ValueBinding {
         let same: bool = spans_equal(sources, item.name.source_span, name);
         transition item.parent == parent + 1 && same {
             true -> ValueBinding::Machine { handle: index }
             false -> child(sources, syntax, parent, name, index + 1)
         }
     }
-    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
+    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, owner: SourceSpan, name: SourceSpan) -> ValueBinding {
         transition parent > 0 {
             true -> scope(sources, syntax, parent - 1, owner, name)
             false -> ValueBinding::Unresolved
@@ -377,7 +377,7 @@ crashes Trap
     }
 }
 
-public machine lexical_owner_visible(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool
+public machine lexical_owner_visible(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool
 crashes Trap
 {
     let item: MachineItem = machine_item(syntax, parent);
@@ -386,7 +386,7 @@ crashes Trap
         true -> true
         false -> outer(sources, syntax, item.parent, name)
     }
-    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool {
+    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, parent: u64 in Trapping, name: SourceSpan) -> bool {
         transition parent > 0 {
             true -> lexical_owner_visible(sources, syntax, parent - 1, name)
             false -> false

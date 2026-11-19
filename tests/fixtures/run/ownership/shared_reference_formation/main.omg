@@ -1,15 +1,15 @@
 data Item { value: u32; }
-machine replace(owner: &mut Item) {
+machine replace(owner: @mut Item) {
     let replacement: Item = Item { value: 7 };
-    let held: &u32 = &owner.value;
+    let held: @u32 = @owner.value;
     observe(held);
     owner = replacement;
 }
 machine consume(item: Item) { }
-machine observe(value: &u32) { }
+machine observe(value: @u32) { }
 machine main() crashes Trap {
     let mut item: Item = Item { value: 3 };
-    replace(&mut item);
+    replace(@mut item);
     transition item.value == 7 {
         true -> consume(item)
         false -> bad()

@@ -172,7 +172,7 @@ fn every_machine_lowering_cannot_plan_is_its_own_verdict() {
         format!(
             "machine {name}(value: Inner in Stamped, next: Inner in Stamped) -> Inner in Stamped {{\n\
              let mut owner: Inner in Stamped = value;\n\
-             let local: &mut Inner in Stamped = &mut owner;\n\
+             let local: @mut Inner in Stamped = @mut owner;\n\
              let taken: Inner in Stamped = move local;\n\
              local = next;\n\
              taken\n}}\n"

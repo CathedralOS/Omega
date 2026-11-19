@@ -5,7 +5,7 @@ data Window requires used <= 90, {
     used: u64;
 }
 
-machine compute(view: &Window) -> u64 {
+machine compute(view: @Window) -> u64 {
     let used: u64 = view.used;
     let diff: u64 = 90u64 - used;
     diff
@@ -13,7 +13,7 @@ machine compute(view: &Window) -> u64 {
 
 machine evaluate() -> u64 {
     let window: Window = Window { used: 40 };
-    compute(&window)
+    compute(@window)
 }
 
 machine main() crashes Trap {

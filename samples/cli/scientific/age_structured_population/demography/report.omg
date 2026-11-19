@@ -32,7 +32,7 @@ invokes Console
     }
     machine done() {}
 }
-public machine row(year: i64 in Wrapping, census: &Census, balance: &Balance) reaches Console
+public machine row(year: i64 in Wrapping, census: @Census, balance: @Balance) reaches Console
 invokes Console
 {
     number(year); Console::write(","); number(census.newborn); Console::write(",");

@@ -2,10 +2,10 @@
 // Intended invalid: the source carrier no longer establishes the receiving upper bound.
 data Bound [copy] requires self.value >= 0 && self.value <= 255 { value: i32; }
 data Source { left: u64; value: u16; right: u64; }
-machine from_field(source: &Source) -> Bound { Bound { value: source.value as i32 } }
+machine from_field(source: @Source) -> Bound { Bound { value: source.value as i32 } }
 machine probe(value: u16) -> Bound {
     let source: Source = Source { left: 17, value: value, right: 29 };
-    from_field(&source)
+    from_field(@source)
 }
 machine main() crashes Trap {
     let low: Bound = probe(0);

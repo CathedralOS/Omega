@@ -5,7 +5,7 @@
 // https://uefi.org/specs/UEFI/2.11/04_EFI_System_Table.html
 
 public machine validate_table(
-    bytes: &[u8],
+    bytes: @[u8],
     signature: u64,
     minimum_revision: u32,
     minimum_size: u32
@@ -17,7 +17,7 @@ terminates
         _ -> (false)
     }
 
-    machine header(bytes: &[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
+    machine header(bytes: @[u8], signature: u64, minimum_revision: u32, minimum_size: u32) -> bool
     requires bytes.len >= 24
     {
         let signature_low: u32 = read_u32(bytes);
@@ -35,7 +35,7 @@ terminates
         }
     }
 
-    machine checksum(bytes: &[u8], header_size: u64, expected_crc: u32) -> bool
+    machine checksum(bytes: @[u8], header_size: u64, expected_crc: u32) -> bool
     requires header_size <= bytes.len
     {
         let computed: u32 = table_crc(bytes[..header_size], 0, 0xFFFFFFFF, header_size);
@@ -43,7 +43,7 @@ terminates
     }
 }
 
-machine read_u32(bytes: &[u8]) -> u32
+machine read_u32(bytes: @[u8]) -> u32
 requires bytes.len >= 4
 {
     (bytes[0] as u32) | ((bytes[1] as u32) << 8)
@@ -54,7 +54,7 @@ requires bytes.len >= 4
 // borrow is enough. The checksum covers HeaderSize, not backing capacity.
 // `remaining` counts the steps left (the distance the cursor may still move);
 // the loop descends it, which is the ranking the checker reads.
-machine table_crc(bytes: &[u8], position: u64, checksum: u32, remaining: u64) -> u32
+machine table_crc(bytes: @[u8], position: u64, checksum: u32, remaining: u64) -> u32
 terminates by remaining
 {
     transition position < bytes.len && remaining > 0 {
@@ -64,7 +64,7 @@ terminates by remaining
 }
 
 // A byte update is acyclic; the outer loop advances once per complete byte.
-machine table_byte(bytes: &[u8], position: u64, checksum: u32) -> u32
+machine table_byte(bytes: @[u8], position: u64, checksum: u32) -> u32
 requires position < bytes.len
 {
     transition position >= 16 && position < 20 {

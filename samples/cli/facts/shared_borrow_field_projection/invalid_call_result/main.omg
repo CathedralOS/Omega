@@ -5,7 +5,7 @@ data Window requires used <= 91, {
     used: u64;
 }
 
-machine borrow_window(w: &Window) -> &Window {
+machine borrow_window(w: @Window) -> @Window {
     w
 }
 
@@ -13,7 +13,7 @@ machine evaluate(seed: u64) -> u64
 requires seed <= 91
 {
     let window: Window = Window { used: seed };
-    let view: &Window = borrow_window(&window);
+    let view: @Window = borrow_window(@window);
     let used: u64 = view.used;
     let diff: u64 = 90u64 - used;
     diff

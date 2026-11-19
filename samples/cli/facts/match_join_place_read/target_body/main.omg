@@ -10,7 +10,7 @@ ensures result == true
     true
 }
 
-machine read_field(place: &Pair) -> i64
+machine read_field(place: @Pair) -> i64
 requires place.kept == 17
 {
     place.kept
@@ -37,16 +37,16 @@ ArmBodyCheck satisfies SelectedBodyCheck {
 }
 
 boundary trait SelectedApply {
-    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    machine apply(chosen: @Pair, spare: @Pair) -> i64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
 
 X86Apply satisfies SelectedApply {
-    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    machine apply(chosen: @Pair, spare: @Pair) -> i64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(17u64);
-        let joined: &Pair = match choose() {
+        let joined: @Pair = match choose() {
             true -> chosen
             false -> spare
         };
@@ -55,11 +55,11 @@ X86Apply satisfies SelectedApply {
 }
 
 ArmApply satisfies SelectedApply {
-    machine apply(chosen: &Pair, spare: &Pair) -> i64
+    machine apply(chosen: @Pair, spare: @Pair) -> i64
         reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
     {
         SelectedBodyCheck::require_tag(29u64);
-        let joined: &Pair = match choose() {
+        let joined: @Pair = match choose() {
             true -> chosen
             false -> spare
         };
@@ -70,7 +70,7 @@ ArmApply satisfies SelectedApply {
 machine main() crashes Trap {
     let chosen: Pair = Pair { kept: 17, other: 5 };
     let spare: Pair = Pair { kept: 0, other: 8 };
-    let observed: i64 = SelectedApply::apply(&chosen, &spare);
+    let observed: i64 = SelectedApply::apply(@chosen, @spare);
     transition observed == 17 {
         true -> done()
         false -> wrong()

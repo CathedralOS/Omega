@@ -11,13 +11,13 @@ public data ByteUnit {}
 public data Buffer [linear] { pointer: addr; }
 public domain Buffer::Owned
 established by InitialSupply::acquire, Writer::complete;
-public machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
+public machine Owned::content(buffer: @Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
 public data PendingWrite [linear] { pointer: addr; }
 public domain PendingWrite::Retained established by Writer::submit;
-public machine Retained::content(pending: &PendingWrite) -> CountedQuantity<ByteUnit>
+public machine Retained::content(pending: @PendingWrite) -> CountedQuantity<ByteUnit>
 satisfies Content<PendingWrite, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
@@ -30,15 +30,15 @@ public boundary trait Writer {
     ensures result in PendingWrite::Retained,
         result.pointer == buffer.pointer,
         core::Identity<CountedQuantity<ByteUnit>>(
-            Owned::content(old(&buffer)),
-            Retained::content(&result)
+            Owned::content(old(@buffer)),
+            Retained::content(@result)
         ) crashes none;
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result in Buffer::Owned,
         result.pointer == pending.pointer,
         core::Identity<CountedQuantity<ByteUnit>>(
-            Retained::content(old(&pending)),
-            Owned::content(&result)
+            Retained::content(old(@pending)),
+            Owned::content(@result)
         ) crashes none;
 }
 // This is the actual native supply/custody leaf. The raw allocation result
@@ -63,8 +63,8 @@ WriterProvider satisfies Writer {
     machine submit(buffer: Buffer in Buffer::Owned) -> PendingWrite reaches
     ensures result.pointer == buffer.pointer,
         core::Identity<CountedQuantity<ByteUnit>>(
-            Owned::content(old(&buffer)),
-            Retained::content(&result)
+            Owned::content(old(@buffer)),
+            Retained::content(@result)
         ) {
         let { pointer } = buffer;
         PendingWrite { pointer: pointer }
@@ -72,8 +72,8 @@ WriterProvider satisfies Writer {
     machine complete(pending: PendingWrite in PendingWrite::Retained) -> Buffer reaches
     ensures result.pointer == pending.pointer,
         core::Identity<CountedQuantity<ByteUnit>>(
-            Retained::content(old(&pending)),
-            Owned::content(&result)
+            Retained::content(old(@pending)),
+            Owned::content(@result)
         ) {
         let { pointer } = pending;
         Buffer { pointer: pointer }
@@ -86,7 +86,7 @@ ensures result in Buffer::Owned, result.pointer == buffer.pointer {
     Writer::complete(pending)
 }
 data Main {}
-machine Main::main(context: &mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
+machine Main::main(context: @mut Main) reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let buffer: Buffer in Buffer::Owned = InitialSupplyProvider::acquire();
     let original_pointer: addr = buffer.pointer;
     let restored: Buffer in Buffer::Owned = round_trip(buffer);
@@ -100,5 +100,5 @@ machine Main::main(context: &mut Main) reaches InitialSupply + Writer + NativeBy
 // The hosted entry owns its ordinary application storage.
 machine entry_start() reaches InitialSupply + Writer + NativeBytes crashes Trap {
     let mut application: Main = Main {};
-    Main::main(&mut application);
+    Main::main(@mut application);
 }

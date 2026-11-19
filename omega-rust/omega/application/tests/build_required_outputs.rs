@@ -31,18 +31,18 @@ fn check(name: &str, body: &str) -> (bool, String) {
     std::fs::write(
         root.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{
+            "machine build(builder: @mut Build) {{
     Build::application(builder, \"promised\");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
 {body}}}
-machine settle(builder: &mut Build, settled: OutputCompletion) {{
+machine settle(builder: @mut Build, settled: OutputCompletion) {{
     transition settled {{
         OutputCompletion::Sealed {{ receipt }} -> done()
         OutputCompletion::Retry {{ obligation, file }} -> failed(builder, obligation)
     }}
     machine done() {{}}
-    machine failed(builder: &mut Build, obligation: RequiredOutput) {{
-        BuildOutput::fail(&mut builder.output, obligation, \"output was not sealed\");
+    machine failed(builder: @mut Build, obligation: RequiredOutput) {{
+        BuildOutput::fail(@mut builder.output, obligation, \"output was not sealed\");
     }}
 }}
 "
@@ -67,12 +67,12 @@ machine settle(builder: &mut Build, settled: OutputCompletion) {{
 fn a_build_lends_the_host_the_required_output_it_was_issued() {
     let (compiled, stderr) = check(
         "issued",
-        "    let obligation: RequiredOutput = BuildOutput::require(&mut builder.output, \"answer.dat\");
-    let file: BuildPath = BuildOutput::resolve(&builder.output, RequiredOutput::path(&obligation));
-    let writer: i32 = BuildOutput::create(&mut builder.output, file, 0);
-    _ = BuildOutput::write(&mut builder.output, writer, \"forty-two\");
-    _ = BuildOutput::close(&mut builder.output, writer);
-    let settled: OutputCompletion = BuildOutput::complete(&mut builder.output, obligation, file);
+        "    let obligation: RequiredOutput = BuildOutput::require(@mut builder.output, \"answer.dat\");
+    let file: BuildPath = BuildOutput::resolve(@builder.output, RequiredOutput::path(@obligation));
+    let writer: i32 = BuildOutput::create(@mut builder.output, file, 0);
+    _ = BuildOutput::write(@mut builder.output, writer, \"forty-two\");
+    _ = BuildOutput::close(@mut builder.output, writer);
+    let settled: OutputCompletion = BuildOutput::complete(@mut builder.output, obligation, file);
     settle(builder, settled);
 ",
     );
@@ -84,7 +84,7 @@ fn a_required_output_the_host_never_issued_is_refused_on_loan() {
     let (compiled, stderr) = check(
         "forged",
         "    let forged: RequiredOutput = RequiredOutput {};
-    let file: BuildPath = BuildOutput::resolve(&builder.output, RequiredOutput::path(&forged));
+    let file: BuildPath = BuildOutput::resolve(@builder.output, RequiredOutput::path(@forged));
 ",
     );
     assert!(!compiled);

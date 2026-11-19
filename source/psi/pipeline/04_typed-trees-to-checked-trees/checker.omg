@@ -168,7 +168,7 @@ public data Checker {
     pending_count: u64;
 }
 
-public machine checker_check(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing)
+public machine checker_check(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing)
 crashes Trap
 {
     checker_clear(checker, syntax);
@@ -177,14 +177,14 @@ crashes Trap
     derive_completions(checker, syntax, resolution, typing);
     transition { _ -> next_machine(checker, syntax, resolution, typing, 0) }
 
-    machine next_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine next_machine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, resolution, typing, index)
             _ -> settle(checker, syntax, resolution, typing)
         }
     }
 
-    machine machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine machine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition item.has_body && item.parent == 0 {
             true -> body(checker, syntax, resolution, typing, index)
@@ -192,7 +192,7 @@ crashes Trap
         }
     }
 
-    machine body(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+    machine body(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
         check_machine(checker, syntax, resolution, typing, index);
         transition { _ -> next_machine(checker, syntax, resolution, typing, index + 1) }
     }
@@ -200,7 +200,7 @@ crashes Trap
     // A body that rejected may have stopped before some of its crash sites;
     // its routes are then a subset of what it derives, so settling them
     // finds no cause that a whole walk would not.
-    machine settle(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
+    machine settle(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
         settle_routes(checker, syntax);
         settle_termination(checker, syntax, resolution);
         check_supply(checker, syntax, resolution, typing);
@@ -209,30 +209,30 @@ crashes Trap
 }
 
 // An accepted, empty result, with every machine's declared crash causes.
-machine checker_clear(checker: &mut Checker, syntax: &SyntaxTrees)
+machine checker_clear(checker: @mut Checker, syntax: @SyntaxTrees)
 crashes Trap
 {
     checker.output.accepted = true;
     checker.output.machine_accepted = true;
     checker.output.diagnostic_count = 0;
     checker.output.obligation_count = 0;
-    clear_slot_records(&mut checker.output);
+    clear_slot_records(@mut checker.output);
     checker.output.machine_count = syntax.machine_count;
     checker.call_count = 0;
     checker.supplied_count = 0;
     transition { _ -> next(checker, syntax, 0) }
 
-    machine next(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine next(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> declared(checker, syntax, index)
             _ -> done()
         }
     }
 
-    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine declared(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         let routes: CrashRoutes = declared_routes(syntax, item);
-        set_routes(&mut checker.output, index, routes);
+        set_routes(@mut checker.output, index, routes);
         reset_termination(checker, index);
         transition { _ -> next(checker, syntax, index + 1) }
     }
@@ -242,7 +242,7 @@ crashes Trap
 
 // A machine's declared crash causes. A private machine with a body and no
 // crash clause asks for inference.
-machine declared_routes(syntax: &SyntaxTrees, item: MachineItem) -> CrashRoutes
+machine declared_routes(syntax: @SyntaxTrees, item: MachineItem) -> CrashRoutes
 crashes Trap
 {
     let causes: CrashRoutes = declared_causes(syntax, item.first_clause, item.clause_count);
@@ -256,19 +256,19 @@ crashes Trap
 }
 
 // The causes a clause run's `crashes` clauses declare.
-public machine declared_causes(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
+public machine declared_causes(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> CrashRoutes
 crashes Trap
 {
     transition { _ -> next(syntax, first, first + count, false, false) }
 
-    machine next(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+    machine next(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
         transition index < end {
             true -> clause(syntax, index, end, trap, abort)
             _ -> finished(trap, abort)
         }
     }
 
-    machine clause(syntax: &SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
+    machine clause(syntax: @SyntaxTrees, index: u64 in Trapping, end: u64 in Trapping, trap: bool, abort: bool) -> CrashRoutes {
         let clause: Clause = syntax_trees_clause(syntax, index);
         let crashes: bool = clause.kind == ClauseKind::Crashes;
         let traps: bool = crashes && clause.cause == CrashCause::Trap;
@@ -283,11 +283,11 @@ crashes Trap
 
 // One machine: gather facts to a fixed point, then check every body,
 // then publish its local crash routes.
-public machine check_machine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping)
+public machine check_machine(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping)
 crashes Trap
 {
     let item: MachineItem = machine_item(syntax, index);
-    open_machine(&mut checker.output);
+    open_machine(@mut checker.output);
     prepare_body(checker, item, index);
     collect_bodies(checker, syntax, index);
     checker.trap_route = false;
@@ -300,30 +300,30 @@ crashes Trap
         _ -> too_many(checker, item)
     }
 
-    machine cleared(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine cleared(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         transition { _ -> arrivals(checker, syntax, resolution, typing, index, item, 0) }
     }
 
-    machine arrivals(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine arrivals(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < checker.body_count {
             true -> unreached(checker, syntax, resolution, typing, index, item, offset)
             _ -> explore(checker, syntax, resolution, typing, index, item)
         }
     }
 
-    machine unreached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine unreached(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         reset_arrival(checker, offset);
         transition { _ -> arrivals(checker, syntax, resolution, typing, index, item, offset + 1) }
     }
 
-    machine explore(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine explore(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         derive_demand(checker, syntax, resolution, typing, item);
         open_entry(checker, syntax, resolution, typing, item);
         walk_body(checker, syntax, resolution, typing, item.first_statement, item.statement_count, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
     }
 
-    machine drain(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine drain(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         transition checker.queue_count > 0 && checker.output.machine_accepted {
             true -> revisit(checker, syntax, resolution, typing, index, item)
             _ -> closed(checker, syntax, resolution, typing, index, item)
@@ -331,12 +331,12 @@ crashes Trap
     }
 
     // The fact-gathering walks took every edge the checking walk can.
-    machine closed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine closed(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         checker.machine = index;
         transition { _ -> check_entry(checker, syntax, resolution, typing, index, item) }
     }
 
-    machine revisit(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine revisit(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         let offset: u64 in Trapping = checker_dequeue(checker);
         walk_machine(checker, syntax, resolution, typing, offset, true, false);
         transition { _ -> drain(checker, syntax, resolution, typing, index, item) }
@@ -344,7 +344,7 @@ crashes Trap
 
     // Crash routes come from the checking walk alone: a fact-gathering walk
     // may see a site its settled facts disprove.
-    machine check_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+    machine check_entry(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem) {
         checker.machine = index;
         checker.trap_route = false;
         checker.abort_route = false;
@@ -366,7 +366,7 @@ crashes Trap
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, 0) }
     }
 
-    machine check_state(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine check_state(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < checker.body_count && checker.output.machine_accepted {
             true -> reached(checker, syntax, resolution, typing, index, item, offset)
             _ -> publish(checker, index, item)
@@ -375,32 +375,32 @@ crashes Trap
 
     // A declaration no walk reached is still checked, from its parameters'
     // carrier ranges and its own `requires` facts alone.
-    machine reached(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine reached(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let arrived: bool = was_reached(checker, offset);
         walk_machine(checker, syntax, resolution, typing, offset, arrived, true);
         transition { _ -> check_state(checker, syntax, resolution, typing, index, item, offset + 1) }
     }
 
-    machine publish(checker: &mut Checker, index: u64 in Trapping, item: MachineItem) {
+    machine publish(checker: @mut Checker, index: u64 in Trapping, item: MachineItem) {
         transition checker.overflowed {
             true -> overflowed(checker, item)
             _ -> done()
         }
     }
 
-    machine overflowed(checker: &mut Checker, item: MachineItem) {
-        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
+    machine overflowed(checker: @mut Checker, item: MachineItem) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
     }
 
-    machine too_many(checker: &mut Checker, item: MachineItem) {
-        checks_reject(&mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
+    machine too_many(checker: @mut Checker, item: MachineItem) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::CheckCapacityExceeded, item.source_span);
     }
 
     machine done() {}
 }
 
 // Every independent abstract walk starts with the same body-local scratch.
-public machine prepare_body(checker: &mut Checker, item: MachineItem, index: u64 in Trapping) {
+public machine prepare_body(checker: @mut Checker, item: MachineItem, index: u64 in Trapping) {
     // A previous machine's rejection may have stopped its walk inside a
     // context, frame or substitution.
     checker.saved_count = 0;
@@ -428,7 +428,7 @@ public machine prepare_body(checker: &mut Checker, item: MachineItem, index: u64
 
 // The entry body's places: its parameters, each integer one in its
 // carrier's range, under the machine's `requires` facts.
-public machine open_entry(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem)
+public machine open_entry(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, item: MachineItem)
 crashes Trap
 {
     checker.walking = 0;
@@ -443,10 +443,10 @@ crashes Trap
 // parameters are subjects 1, 2, ... as its arrival zone numbers them, then its arrival when
 // a walk reached it (`arrival`).
 machine walk_machine(
-    checker: &mut Checker,
-    syntax: &SyntaxTrees,
-    resolution: &NameResolution,
-    typing: &Typing,
+    checker: @mut Checker,
+    syntax: @SyntaxTrees,
+    resolution: @NameResolution,
+    typing: @Typing,
     offset: u64 in Trapping,
     arrival: bool,
     checking: bool
@@ -468,7 +468,7 @@ crashes Trap
         _ -> opened(checker, syntax, resolution, typing, declaration, checking)
     }
 
-    machine arrived(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, offset: u64 in Trapping, declaration: MachineItem, checking: bool) {
+    machine arrived(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, offset: u64 in Trapping, declaration: MachineItem, checking: bool) {
         arrive(checker, offset);
         restore_ranges(checker, typing);
         transition { _ -> opened(checker, syntax, resolution, typing, declaration, checking) }
@@ -476,7 +476,7 @@ crashes Trap
 
     // A body whose paths did not take their arrival's numbering keeps only
     // its places' carrier ranges.
-    machine opened(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, declaration: MachineItem, checking: bool) {
+    machine opened(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, declaration: MachineItem, checking: bool) {
         assume_parameter_qualifications(checker, syntax, resolution, typing, declaration.first_parameter, declaration.parameter_count);
         assume_requirements(checker, syntax, resolution, typing, declaration.first_clause, declaration.clause_count);
         install_domains(checker, syntax, resolution, typing);
@@ -491,7 +491,7 @@ crashes Trap
     // The checking walk owns the body while its places are open: the
     // ownership walk (ownership.omg) reads the storage origins its
     // reference locals captured.
-    machine owned(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, declaration: MachineItem) {
+    machine owned(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, declaration: MachineItem) {
         own_body(
             checker,
             syntax,
@@ -510,19 +510,19 @@ crashes Trap
     machine done() {}
 }
 
-machine enter_parameters(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, first: u64 in Trapping, count: u64 in Trapping)
+machine enter_parameters(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, first: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
     transition { _ -> next(checker, syntax, typing, first, first + count) }
 
-    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine next(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping) {
         transition index < end {
             true -> enter(checker, syntax, typing, index, end)
             _ -> done()
         }
     }
 
-    machine enter(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, index: u64 in Trapping, end: u64 in Trapping) {
+    machine enter(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping) {
         let place: u64 in Trapping = parameter_place(checker, syntax, typing, index);
         transition { _ -> next(checker, syntax, typing, index + 1, end) }
     }
@@ -532,7 +532,7 @@ crashes Trap
 
 // Authenticate a parameter coordinate through its actual declared type. This
 // is also the root of arbitrary formal values in universal contract checking.
-public machine parameter_place(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, parameter: u64 in Trapping) -> u64 in Trapping
+public machine parameter_place(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, parameter: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let written: Parameter = syntax_trees_parameter(syntax, parameter);
@@ -541,7 +541,7 @@ crashes Trap
 }
 
 // Machine-local declaration tables, guarded by the declaration's offset.
-machine reset_arrival(checker: &mut Checker, offset: u64 in Trapping)
+machine reset_arrival(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -549,7 +549,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine reset(checker: &mut Checker, offset: u64 in Trapping)
+    machine reset(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.reached[offset] = false;
@@ -564,7 +564,7 @@ crashes Trap
     }
 }
 
-machine was_reached(checker: &Checker, offset: u64 in Trapping) -> bool
+machine was_reached(checker: @Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     transition offset < 128 {
@@ -572,7 +572,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: &Checker, offset: u64 in Trapping) -> bool
+    machine read(checker: @Checker, offset: u64 in Trapping) -> bool
     requires offset < 128
     {
         checker.reached[offset]
@@ -583,7 +583,7 @@ crashes Trap
     }
 }
 
-machine arrive(checker: &mut Checker, offset: u64 in Trapping)
+machine arrive(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -591,7 +591,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine copy(checker: &mut Checker, offset: u64 in Trapping)
+    machine copy(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.zone = checker.arrivals[offset];
@@ -602,7 +602,7 @@ crashes Trap
     }
 }
 
-machine checker_dequeue(checker: &mut Checker) -> u64 in Trapping
+machine checker_dequeue(checker: @mut Checker) -> u64 in Trapping
 crashes Trap
 {
     transition checker.queue_count > 0 {
@@ -610,14 +610,14 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine pop(checker: &mut Checker, index: u64) -> u64 in Trapping {
+    machine pop(checker: @mut Checker, index: u64) -> u64 in Trapping {
         transition index < 128 {
             true -> read(checker, index)
             _ -> invalid()
         }
     }
 
-    machine read(checker: &mut Checker, index: u64) -> u64 in Trapping
+    machine read(checker: @mut Checker, index: u64) -> u64 in Trapping
     requires index < 128
     {
         let offset: u64 = checker.queue[index];
@@ -628,7 +628,7 @@ crashes Trap
         }
     }
 
-    machine unqueued(checker: &mut Checker, offset: u64) -> u64 in Trapping
+    machine unqueued(checker: @mut Checker, offset: u64) -> u64 in Trapping
     requires offset < 128
     {
         checker.queued[offset] = false;
@@ -640,7 +640,7 @@ crashes Trap
     }
 }
 
-machine checker_enqueue(checker: &mut Checker, offset: u64 in Trapping)
+machine checker_enqueue(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -648,7 +648,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine candidate(checker: &mut Checker, offset: u64 in Trapping)
+    machine candidate(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let queued: bool = checker.queued[offset];
@@ -658,7 +658,7 @@ crashes Trap
         }
     }
 
-    machine push(checker: &mut Checker, offset: u64 in Trapping, index: u64)
+    machine push(checker: @mut Checker, offset: u64 in Trapping, index: u64)
     requires offset < 128
     {
         transition index < 128 {
@@ -667,7 +667,7 @@ crashes Trap
         }
     }
 
-    machine write(checker: &mut Checker, offset: u64 in Trapping, index: u64)
+    machine write(checker: @mut Checker, offset: u64 in Trapping, index: u64)
     requires offset < 128, index < 128
     {
         checker.queue[index] = offset as u64;
@@ -689,7 +689,7 @@ crashes Trap
 // zero subject for each one's own range. The arrival keeps what every
 // contribution so far implies; after three loosenings, bounds that keep
 // loosening are dropped.
-public machine contribute(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, call: u64 in Trapping, declaration: u64 in Trapping)
+public machine contribute(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, call: u64 in Trapping, declaration: u64 in Trapping)
 crashes Trap
 {
     let expression: Expression = syntax_trees_expression(syntax, call);
@@ -705,9 +705,9 @@ crashes Trap
     // Project each integer parameter's argument, numbering them as the
     // declaration's body will.
     machine parameter(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        typing: @Typing,
         expression: Expression,
         item: MachineItem,
         offset: u64 in Trapping,
@@ -721,9 +721,9 @@ crashes Trap
     }
 
     machine argument(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        typing: @Typing,
         expression: Expression,
         item: MachineItem,
         offset: u64 in Trapping,
@@ -743,9 +743,9 @@ crashes Trap
     }
 
     machine projected(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        typing: @Typing,
         expression: Expression,
         item: MachineItem,
         offset: u64 in Trapping,
@@ -758,31 +758,31 @@ crashes Trap
     }
 
     // Then the field paths below its other arguments.
-    machine paths(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, item: MachineItem, offset: u64 in Trapping, first_subject: u64 in Trapping) {
+    machine paths(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, item: MachineItem, offset: u64 in Trapping, first_subject: u64 in Trapping) {
         let count: u64 in Trapping = project_paths(checker, syntax, typing, expression, item, offset, first_subject);
         transition { _ -> project(checker, offset, count) }
     }
 
-    machine project(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping) {
-        zone_open(&mut checker.contribution, 64);
+    machine project(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping) {
+        zone_open(@mut checker.contribution, 64);
         transition { _ -> row(checker, offset, count, 0) }
     }
 
-    machine row(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping) {
+    machine row(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping) {
         transition from < count {
             true -> column(checker, offset, count, from, 0)
             _ -> joined(checker, offset)
         }
     }
 
-    machine column(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+    machine column(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
         transition to < count {
             true -> pair(checker, offset, count, from, to)
             _ -> row(checker, offset, count, from + 1)
         }
     }
 
-    machine pair(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
+    machine pair(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping) {
         let first: Value = projection_at(checker, from);
         let second: Value = projection_at(checker, to);
         let bound: Bound = projected_bound(checker, first, second);
@@ -792,12 +792,12 @@ crashes Trap
         }
     }
 
-    machine stored(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, bound: Bound) {
-        zone_set(&mut checker.contribution, from, to, bound);
+    machine stored(checker: @mut Checker, offset: u64 in Trapping, count: u64 in Trapping, from: u64 in Trapping, to: u64 in Trapping, bound: Bound) {
+        zone_set(@mut checker.contribution, from, to, bound);
         transition { _ -> column(checker, offset, count, from, to + 1) }
     }
 
-    machine joined(checker: &mut Checker, offset: u64 in Trapping) {
+    machine joined(checker: @mut Checker, offset: u64 in Trapping) {
         join_arrival(checker, offset);
     }
 
@@ -805,7 +805,7 @@ crashes Trap
 }
 
 // The bound on `second - first` for two projected argument values.
-machine projected_bound(checker: &Checker, first: Value, second: Value) -> Bound
+machine projected_bound(checker: @Checker, first: Value, second: Value) -> Bound
 crashes Trap
 {
     transition first.known && second.known {
@@ -813,7 +813,7 @@ crashes Trap
         _ -> intervals(first, second)
     }
 
-    machine related(checker: &Checker, first: Value, second: Value) -> Bound {
+    machine related(checker: @Checker, first: Value, second: Value) -> Bound {
         let bound: Bound = difference_bound(checker, first, second);
         bound
     }
@@ -824,7 +824,7 @@ crashes Trap
     }
 }
 
-machine join_arrival(checker: &mut Checker, offset: u64 in Trapping)
+machine join_arrival(checker: @mut Checker, offset: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -832,7 +832,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine arrival(checker: &mut Checker, offset: u64 in Trapping)
+    machine arrival(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let reached: bool = checker.reached[offset];
@@ -842,7 +842,7 @@ crashes Trap
         }
     }
 
-    machine first(checker: &mut Checker, offset: u64 in Trapping)
+    machine first(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let order: u64 in Trapping = checker.discovered as u64 in Trapping;
@@ -854,19 +854,19 @@ crashes Trap
         checker_enqueue(checker, offset);
     }
 
-    machine loosen(checker: &mut Checker, offset: u64 in Trapping)
+    machine loosen(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.previous = checker.arrivals[offset];
         checker.merged = checker.arrivals[offset];
-        let changed: bool = zone_join(&mut checker.merged, &checker.contribution);
+        let changed: bool = zone_join(@mut checker.merged, @checker.contribution);
         transition changed {
             true -> loosened(checker, offset)
             _ -> done()
         }
     }
 
-    machine loosened(checker: &mut Checker, offset: u64 in Trapping)
+    machine loosened(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         let count: u64 in Trapping = checker.loosenings[offset] as u64 in Trapping;
@@ -879,14 +879,14 @@ crashes Trap
         }
     }
 
-    machine widen(checker: &mut Checker, offset: u64 in Trapping)
+    machine widen(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
-        zone_widen(&mut checker.merged, &checker.previous);
+        zone_widen(@mut checker.merged, @checker.previous);
         transition { _ -> store(checker, offset) }
     }
 
-    machine store(checker: &mut Checker, offset: u64 in Trapping)
+    machine store(checker: @mut Checker, offset: u64 in Trapping)
     requires offset < 128
     {
         checker.arrivals[offset] = checker.merged;
@@ -900,7 +900,7 @@ crashes Trap
     }
 }
 
-machine set_projection(checker: &mut Checker, subject: u64 in Trapping, value: Value)
+machine set_projection(checker: @mut Checker, subject: u64 in Trapping, value: Value)
 crashes Trap
 {
     transition subject < 64 {
@@ -908,7 +908,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(checker: &mut Checker, subject: u64 in Trapping, value: Value)
+    machine write(checker: @mut Checker, subject: u64 in Trapping, value: Value)
     requires subject < 64
     {
         checker.projection[subject] = value;
@@ -919,7 +919,7 @@ crashes Trap
     }
 }
 
-machine projection_at(checker: &Checker, subject: u64 in Trapping) -> Value
+machine projection_at(checker: @Checker, subject: u64 in Trapping) -> Value
 crashes Trap
 {
     transition subject < 64 {
@@ -927,7 +927,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: &Checker, subject: u64 in Trapping) -> Value
+    machine read(checker: @Checker, subject: u64 in Trapping) -> Value
     requires subject < 64
     {
         checker.projection[subject]
@@ -940,7 +940,7 @@ crashes Trap
 
 // Record a call to a machine for crash-route settlement. A machine binder's
 // call derives the causes its `requires machine` contract declares.
-public machine record_call(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection)
+public machine record_call(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, selection: Selection)
 crashes Trap
 {
     transition selection {
@@ -949,7 +949,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine binder(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, selection: Selection) {
+    machine binder(checker: @mut Checker, syntax: @SyntaxTrees, resolution: @NameResolution, selection: Selection) {
         let clauses: CallClauses = call_clauses(syntax, resolution, selection);
         let causes: CrashRoutes = declared_causes(syntax, clauses.first_clause, clauses.clause_count);
         checker.trap_route = checker.trap_route || causes.declares_trap;
@@ -957,14 +957,14 @@ crashes Trap
         record_binder_call(checker);
     }
 
-    machine machine(checker: &mut Checker, callee: u64 in Trapping) {
+    machine machine(checker: @mut Checker, callee: u64 in Trapping) {
         transition checker.call_count < 32768 {
             true -> write(checker, checker.call_count, callee)
             _ -> full(checker)
         }
     }
 
-    machine write(checker: &mut Checker, index: u64, callee: u64 in Trapping)
+    machine write(checker: @mut Checker, index: u64, callee: u64 in Trapping)
     requires index < 32768
     {
         checker.callers[index] = checker.machine as u64;
@@ -972,7 +972,7 @@ crashes Trap
         checker.call_count = index + 1;
     }
 
-    machine full(checker: &mut Checker) {
+    machine full(checker: @mut Checker) {
         checker.overflowed = true;
     }
 
@@ -990,7 +990,7 @@ public data SuppliedCall [copy] {
 // Record a call whose selected machine has machine binders: its static
 // arguments must refine their contracts, which supply.omg decides once
 // crash routes settle.
-public machine record_supply(checker: &mut Checker, syntax: &SyntaxTrees, selection: Selection, call: u64 in Trapping)
+public machine record_supply(checker: @mut Checker, syntax: @SyntaxTrees, selection: Selection, call: u64 in Trapping)
 crashes Trap
 {
     transition selection {
@@ -998,7 +998,7 @@ crashes Trap
         _ -> done()
     }
 
-    machine selected(checker: &mut Checker, syntax: &SyntaxTrees, call: u64 in Trapping, callee: u64 in Trapping) {
+    machine selected(checker: @mut Checker, syntax: @SyntaxTrees, call: u64 in Trapping, callee: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, callee);
         let binds: bool = binds_machines(syntax, item.first_generic_parameter, item.generic_parameter_count);
         transition binds {
@@ -1007,21 +1007,21 @@ crashes Trap
         }
     }
 
-    machine supplying(checker: &mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
+    machine supplying(checker: @mut Checker, call: u64 in Trapping, callee: u64 in Trapping) {
         transition checker.supplied_count < 1024 {
             true -> write(checker, checker.supplied_count, call, callee)
             _ -> full(checker)
         }
     }
 
-    machine write(checker: &mut Checker, index: u64, call: u64 in Trapping, callee: u64 in Trapping)
+    machine write(checker: @mut Checker, index: u64, call: u64 in Trapping, callee: u64 in Trapping)
     requires index < 1024
     {
         checker.supplied[index] = SuppliedCall { caller: checker.machine as u64, call: call as u64, callee: callee as u64 };
         checker.supplied_count = index + 1;
     }
 
-    machine full(checker: &mut Checker) {
+    machine full(checker: @mut Checker) {
         checker.overflowed = true;
     }
 
@@ -1030,19 +1030,19 @@ crashes Trap
 
 // Whether any generic parameter in `first .. first + count` is a machine
 // binder.
-public machine binds_machines(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+public machine binds_machines(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, first, count, 0) }
 
-    machine next(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine next(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         transition offset < count {
             true -> parameter(syntax, first, count, offset)
             _ -> none()
         }
     }
 
-    machine parameter(syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
+    machine parameter(syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
         let generic: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         transition generic.kind == GenericParameterKind::Machine {
             true -> found()
@@ -1064,7 +1064,7 @@ crashes Trap
 // may replace its parameter's whole referent or its writes are unknown (a
 // machine binder's always are), else each field place below it whose field
 // the callee may write.
-public machine release_exclusive_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, selection: Selection)
+public machine release_exclusive_arguments(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, selection: Selection)
 crashes Trap
 {
     transition selection {
@@ -1072,7 +1072,7 @@ crashes Trap
         _ -> unframed(checker, syntax, typing, expression)
     }
 
-    machine framed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping) {
+    machine framed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, callee);
         let unknown: bool = writes_unknown(checker, callee);
         transition { _ -> next(checker, syntax, typing, expression, callee, item.first_parameter, item.parameter_count, unknown, 0) }
@@ -1080,11 +1080,11 @@ crashes Trap
 
     // Unknown writes release every exclusive argument whole, so no callee
     // frame is read.
-    machine unframed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression) {
+    machine unframed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression) {
         transition { _ -> next(checker, syntax, typing, expression, 0, 0, 0, true, 0) }
     }
 
-    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
+    machine next(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let count: u64 in Trapping = operand_count(expression);
         transition offset < count {
             true -> argument(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset)
@@ -1092,7 +1092,7 @@ crashes Trap
         }
     }
 
-    machine argument(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
+    machine argument(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping) {
         let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
         let value: Value = value_at(checker, handle);
         let exclusive: bool = exclusive_value(typing, handle);
@@ -1103,13 +1103,13 @@ crashes Trap
         }
     }
 
-    machine embedded(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping) {
+    machine embedded(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping) {
         let release: ReferenceRelease = ReferenceRelease::Invocation { expression: expression, lender: lender };
         forget_exclusive_referents(checker, syntax, typing, place, release);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
-    machine origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
+    machine origin(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, handle: u64 in Trapping, whole: bool) {
         let place: u64 in Trapping = storage_origin(checker, syntax, typing, handle);
         transition place > 0 {
             true -> lent(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset, handle, place, whole)
@@ -1120,7 +1120,7 @@ crashes Trap
     // A complete empty frame cannot mutate even an unknown referent. Any
     // nonempty frame needs an origin; a returned reference is not evidence
     // of a disjoint new place.
-    machine unknown_origin(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
+    machine unknown_origin(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, whole: bool) {
         let changes: bool = frame_changes(checker, syntax, callee, whole);
         transition changes {
             true -> unrepresented(checker, expression)
@@ -1128,15 +1128,15 @@ crashes Trap
         }
     }
 
-    machine unrepresented(checker: &mut Checker, expression: Expression) {
-        checks_reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
+    machine unrepresented(checker: @mut Checker, expression: Expression) {
+        checks_reject(@mut checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
     // The operands evaluated before the call keep what they read there.
     machine lent(
-        checker: &mut Checker,
-        syntax: &SyntaxTrees,
-        typing: &Typing,
+        checker: @mut Checker,
+        syntax: @SyntaxTrees,
+        typing: @Typing,
         expression: Expression,
         callee: u64 in Trapping,
         first_parameter: u64 in Trapping,
@@ -1154,7 +1154,7 @@ crashes Trap
         }
     }
 
-    machine changed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
+    machine changed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, lender: u64 in Trapping, place: u64 in Trapping, whole: bool) {
         checker.write_epoch = checker.write_epoch + 1;
         let write: WriteFootprint = WriteFootprint { place: place, callee: callee, whole: whole };
         snapshot_operands(checker, syntax, typing, expression, lender, write);
@@ -1166,13 +1166,13 @@ crashes Trap
         }
     }
 
-    machine released(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    machine released(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         forget_reference_origins(checker, typing, place);
         forget_place(checker, typing, place);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
 
-    machine narrowed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
+    machine narrowed(checker: @mut Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, callee: u64 in Trapping, first_parameter: u64 in Trapping, parameter_count: u64 in Trapping, unknown: bool, offset: u64 in Trapping, place: u64 in Trapping) {
         forget_written_fields(checker, typing, place, callee);
         transition { _ -> next(checker, syntax, typing, expression, callee, first_parameter, parameter_count, unknown, offset + 1) }
     }
@@ -1183,7 +1183,7 @@ crashes Trap
 // An empty complete write frame changes no storage and must not prevent
 // replay. Unknown/whole writes always count; named field writes may be
 // pending and therefore need not have a place yet.
-machine frame_changes(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, whole: bool) -> bool
+machine frame_changes(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Trapping, whole: bool) -> bool
 crashes Trap
 {
     transition whole {
@@ -1191,14 +1191,14 @@ crashes Trap
         _ -> field(checker, syntax, callee, 0)
     }
 
-    machine field(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine field(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition index < syntax.field_count {
             true -> inspected(checker, syntax, callee, index)
             _ -> answer(false)
         }
     }
 
-    machine inspected(checker: &Checker, syntax: &SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
+    machine inspected(checker: @Checker, syntax: @SyntaxTrees, callee: u64 in Trapping, index: u64 in Trapping) -> bool {
         let writes: bool = writes_field(checker, callee, index);
         transition writes {
             true -> answer(true)
@@ -1213,21 +1213,21 @@ crashes Trap
 
 // Forget each field place strictly below `place` (one-based) whose field
 // `callee` may write, with everything inside it.
-public machine forget_written_fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping)
+public machine forget_written_fields(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, callee: u64 in Trapping)
 crashes Trap
 {
     settle_written_pending(checker, typing, place, callee);
     forget_aliases(checker, place);
     transition { _ -> next(checker, typing, place, callee, 0) }
 
-    machine next(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, typing, place, callee, index)
             _ -> done()
         }
     }
 
-    machine visit(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine visit(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         let candidate: Place = place_at(checker, index);
         let inside: bool = checker_within(checker, index + 1, place);
         let written: bool = writes_field(checker, callee, candidate.handle);
@@ -1237,9 +1237,9 @@ crashes Trap
         }
     }
 
-    machine forgotten(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
+    machine forgotten(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, callee: u64 in Trapping, index: u64 in Trapping) {
         let entry: Place = place_at(checker, index);
-        let row: TypeRow = type_table_row(&typing.types, entry.type_handle);
+        let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
         // A reference-typed target writes its referent. Replacing owned
         // storage can instead replace the descriptors contained in it.
         replace_origins(checker, typing, index + 1, row.kind != TypeKind::Reference);
@@ -1247,10 +1247,10 @@ crashes Trap
         transition { _ -> next(checker, typing, place, callee, index + 1) }
     }
 
-    machine replace_origins(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, replace: bool) {
+    machine replace_origins(checker: @mut Checker, typing: @Typing, place: u64 in Trapping, replace: bool) {
         transition replace { true -> replaced(checker, typing, place) false -> {} }
     }
-    machine replaced(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+    machine replaced(checker: @mut Checker, typing: @Typing, place: u64 in Trapping) {
         forget_reference_origins(checker, typing, place);
     }
 
@@ -1261,24 +1261,24 @@ crashes Trap
 // callees publish, a callee inferring its causes publishes what it derives
 // and any other publishes what it declares, until nothing changes. Then a
 // machine that does not infer must declare every cause it derives.
-machine settle_routes(checker: &mut Checker, syntax: &SyntaxTrees)
+machine settle_routes(checker: @mut Checker, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> sweep(checker, syntax, 0, false) }
 
-    machine sweep(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
+    machine sweep(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, changed: bool) {
         transition index < checker.call_count {
             true -> edge(checker, syntax, index, changed)
             _ -> swept(checker, syntax, changed)
         }
     }
 
-    machine edge(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, changed: bool) {
+    machine edge(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, changed: bool) {
         let call: u64 in Trapping = index;
         let caller: u64 in Trapping = caller_at(checker, call);
         let callee: u64 in Trapping = callee_at(checker, call);
-        let from: CrashRoutes = checks_routes(&checker.output, callee);
-        let into: CrashRoutes = checks_routes(&checker.output, caller);
+        let from: CrashRoutes = checks_routes(@checker.output, callee);
+        let into: CrashRoutes = checks_routes(@checker.output, caller);
         let trap: bool = checker_published(from.inferred, from.trap, from.declares_trap);
         let abort: bool = checker_published(from.inferred, from.abort, from.declares_abort);
         let gained: bool = (trap && !into.trap) || (abort && !into.abort);
@@ -1288,7 +1288,7 @@ crashes Trap
         }
     }
 
-    machine gain(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping, caller: u64 in Trapping, into: CrashRoutes, trap: bool, abort: bool) {
+    machine gain(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping, caller: u64 in Trapping, into: CrashRoutes, trap: bool, abort: bool) {
         let routes: CrashRoutes = CrashRoutes {
             declares_trap: into.declares_trap,
             declares_abort: into.declares_abort,
@@ -1296,27 +1296,27 @@ crashes Trap
             trap: into.trap || trap,
             abort: into.abort || abort
         };
-        set_routes(&mut checker.output, caller, routes);
+        set_routes(@mut checker.output, caller, routes);
         transition { _ -> sweep(checker, syntax, index + 1, true) }
     }
 
-    machine swept(checker: &mut Checker, syntax: &SyntaxTrees, changed: bool) {
+    machine swept(checker: @mut Checker, syntax: @SyntaxTrees, changed: bool) {
         transition changed {
             true -> sweep(checker, syntax, 0, false)
             _ -> fit(checker, syntax, 0)
         }
     }
 
-    machine fit(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine fit(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && checker.output.diagnostic_count < 64 {
             true -> machine(checker, syntax, index)
             _ -> done()
         }
     }
 
-    machine machine(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
-        open_machine(&mut checker.output);
-        let routes: CrashRoutes = checks_routes(&checker.output, index);
+    machine machine(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
+        open_machine(@mut checker.output);
+        let routes: CrashRoutes = checks_routes(@checker.output, index);
         let undeclared: bool = !routes.inferred
             && ((routes.trap && !routes.declares_trap) || (routes.abort && !routes.declares_abort));
         transition undeclared {
@@ -1325,9 +1325,9 @@ crashes Trap
         }
     }
 
-    machine rejected(checker: &mut Checker, syntax: &SyntaxTrees, index: u64 in Trapping) {
+    machine rejected(checker: @mut Checker, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
-        checks_reject(&mut checker.output, CheckDiagnosticCode::CrashNotDeclared, item.source_span);
+        checks_reject(@mut checker.output, CheckDiagnosticCode::CrashNotDeclared, item.source_span);
         transition { _ -> fit(checker, syntax, index + 1) }
     }
 
@@ -1346,7 +1346,7 @@ public machine checker_published(inferred: bool, derived: bool, declared: bool) 
     }
 }
 
-machine caller_at(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+machine caller_at(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < checker.call_count && index < 32768 {
@@ -1354,7 +1354,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
         checker.callers[index] as u64 in Trapping
@@ -1365,7 +1365,7 @@ crashes Trap
     }
 }
 
-machine callee_at(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+machine callee_at(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < checker.call_count && index < 32768 {
@@ -1373,7 +1373,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: @Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 32768
     {
         checker.callees[index] as u64 in Trapping
@@ -1386,7 +1386,7 @@ crashes Trap
 
 // Whether the body being walked jumps back to declaration `offset`: a declaration reached
 // no later than its own, itself included.
-machine back_edge(checker: &Checker, offset: u64 in Trapping) -> bool
+machine back_edge(checker: @Checker, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     let walking: u64 in Trapping = checker.walking as u64 in Trapping;
@@ -1395,7 +1395,7 @@ crashes Trap
         _ -> forward()
     }
 
-    machine compared(checker: &Checker, offset: u64 in Trapping, source: u64 in Trapping) -> bool
+    machine compared(checker: @Checker, offset: u64 in Trapping, source: u64 in Trapping) -> bool
     requires offset < 128, source < 128
     {
         let target_order: u64 = checker.discovery[offset];
@@ -1411,48 +1411,48 @@ crashes Trap
 // The declaration group closes private uses; graph edges still come only from
 // selected calls with explicit evaluated actuals. Slot zero is the public/root
 // invocation, whose arbitrary entry inputs prevent importing a recursive caller's facts.
-public machine collect_bodies(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping)
+public machine collect_bodies(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping)
 crashes Trap
 {
     checker.body_count = 0;
     transition { _ -> candidate(checker, syntax, root, 0) }
-    machine candidate(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
+    machine candidate(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> ancestry(checker, syntax, root, index, index)
             false -> done()
         }
     }
-    machine ancestry(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
+    machine ancestry(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, ancestor);
         transition item.parent > 0 {
             true -> parent(checker, syntax, root, index, item.parent - 1)
             false -> candidate(checker, syntax, root, index + 1)
         }
     }
-    machine parent(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
+    machine parent(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, ancestor: u64 in Trapping) {
         transition ancestor == root {
             true -> retain(checker, syntax, root, index)
             false -> ancestry(checker, syntax, root, index, ancestor)
         }
     }
-    machine retain(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
+    machine retain(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping) {
         transition checker.body_count < 128 {
             true -> bounded(checker, syntax, root, index, checker.body_count)
             false -> full(checker)
         }
     }
-    machine bounded(checker: &mut Checker, syntax: &SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, slot: u64 in Trapping)
+    machine bounded(checker: @mut Checker, syntax: @SyntaxTrees, root: u64 in Trapping, index: u64 in Trapping, slot: u64 in Trapping)
     requires slot < 128
     {
         checker.bodies[slot] = index as u64;
         checker.body_count = slot + 1;
         transition { _ -> candidate(checker, syntax, root, index + 1) }
     }
-    machine full(checker: &mut Checker) { checker.overflowed = true; }
+    machine full(checker: @mut Checker) { checker.overflowed = true; }
     machine done() {}
 }
 
-public machine body_handle(checker: &Checker, slot: u64 in Trapping) -> u64 in Trapping
+public machine body_handle(checker: @Checker, slot: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition slot < checker.body_count && slot < 128 {
@@ -1463,17 +1463,17 @@ crashes Trap
 }
 
 // Slot+1; zero means either the root entry or a call outside this graph.
-public machine body_slot(checker: &Checker, handle: u64 in Trapping) -> u64 in Trapping
+public machine body_slot(checker: @Checker, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> candidate(checker, handle, 0) }
-    machine candidate(checker: &Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping {
+    machine candidate(checker: @Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping {
         transition slot < checker.body_count && slot < 128 {
             true -> compare(checker, handle, slot)
             false -> 0
         }
     }
-    machine compare(checker: &Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping
+    machine compare(checker: @Checker, handle: u64 in Trapping, slot: u64 in Trapping) -> u64 in Trapping
     requires slot < 128
     {
         transition checker.bodies[slot] == handle {
@@ -1484,10 +1484,10 @@ crashes Trap
 }
 
 // Each declaration publishes its own body routes; call-graph settlement composes them.
-machine publish_body_routes(checker: &mut Checker, index: u64 in Trapping)
+machine publish_body_routes(checker: @mut Checker, index: u64 in Trapping)
 crashes Trap
 {
-        let routes: CrashRoutes = checks_routes(&checker.output, index);
+        let routes: CrashRoutes = checks_routes(@checker.output, index);
         let local: CrashRoutes = CrashRoutes {
             declares_trap: routes.declares_trap,
             declares_abort: routes.declares_abort,
@@ -1495,5 +1495,5 @@ crashes Trap
             trap: checker.trap_route,
             abort: checker.abort_route
         };
-        set_routes(&mut checker.output, index, local);
+        set_routes(@mut checker.output, index, local);
 }

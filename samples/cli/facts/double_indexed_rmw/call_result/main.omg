@@ -15,8 +15,8 @@ machine new_rows() -> [Row; 3] {
 machine main() crashes Trap {
     let mut grid: [[i32 in Wrapping; 4]; 3] = new_grid();
     let mut rows: [Row; 3] = new_rows();
-    transition { _ -> rmw(&mut grid, &mut rows, 1, 2, 2, 1) }
-    machine rmw(grid: &mut [[i32 in Wrapping; 4]; 3], rows: &mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
+    transition { _ -> rmw(@mut grid, @mut rows, 1, 2, 2, 1) }
+    machine rmw(grid: @mut [[i32 in Wrapping; 4]; 3], rows: @mut [Row; 3], i: u64, j: u64, ri: u64, rj: u64)
     requires i <= 2
     requires j <= 3
     requires ri <= 2

@@ -34,63 +34,63 @@ data Application {
 }
 
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut application: Application;
-    block next(&mut application.reader);
+    block next(@mut application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
-        true -> block header(&mut application)
+        true -> block header(@mut application)
         false -> invalid()
     }
-    machine header(application: &mut Application) {
+    machine header(application: @mut Application) {
         application.profile.count = application.reader.value as u64 in Wrapping;
-        block next(&mut application.reader);
+        block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 8 {
             true -> block gamma(application)
             false -> invalid()
         }
     }
-    machine gamma(application: &mut Application) {
+    machine gamma(application: @mut Application) {
         application.level_count = application.reader.value as u64 in Wrapping;
-        block next(&mut application.reader);
+        block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value >= 1 && application.reader.value <= 20000 {
             true -> block hinge(application)
             false -> invalid()
         }
     }
-    machine hinge(application: &mut Application) {
+    machine hinge(application: @mut Application) {
         application.gamma = F64::from_i64(application.reader.value as i64);
-        block next(&mut application.reader);
+        block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block begin_nodes(application)
             false -> invalid()
         }
     }
-    machine begin_nodes(application: &mut Application) {
+    machine begin_nodes(application: @mut Application) {
         application.hinge = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> block node(application, 0) }
     }
-    machine node(application: &mut Application, index: u64 in Wrapping) {
+    machine node(application: @mut Application, index: u64 in Wrapping) {
         transition index < application.profile.count && index < 8 {
             true -> block elevation(application, index)
             false -> block level(application, 0)
         }
     }
-    machine elevation(application: &mut Application, index: u64 in Wrapping) {
-        block next(&mut application.reader);
+    machine elevation(application: @mut Application, index: u64 in Wrapping) {
+        block next(@mut application.reader);
         let node_elevation: f64 = F64::from_i64(application.reader.value as i64) / 1000.0;
         transition application.reader.status == 1 && application.reader.value <= 100000 {
             true -> block width(application, index, node_elevation)
             false -> invalid()
         }
     }
-    machine width(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
-        block next(&mut application.reader);
+    machine width(application: @mut Application, index: u64 in Wrapping, elevation: f64) {
+        block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_node(application, index, elevation)
             false -> invalid()
         }
     }
-    machine store_node(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
+    machine store_node(application: @mut Application, index: u64 in Wrapping, elevation: f64) {
         application.profile.nodes[index].elevation = elevation;
         application.profile.nodes[index].width = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition index > 0 {
@@ -98,48 +98,48 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> block node(application, index + 1)
         }
     }
-    machine validate_order(application: &mut Application, index: u64 in Wrapping, elevation: f64) {
+    machine validate_order(application: @mut Application, index: u64 in Wrapping, elevation: f64) {
         let previous: u64 in Wrapping = index - 1;
         transition previous < 8 && elevation > application.profile.nodes[previous].elevation {
             true -> block node(application, index + 1)
             false -> invalid()
         }
     }
-    machine level(application: &mut Application, index: u64 in Wrapping) {
+    machine level(application: @mut Application, index: u64 in Wrapping) {
         transition index < application.level_count && index < 8 {
             true -> block read_level(application, index)
             false -> block trailing(application)
         }
     }
-    machine read_level(application: &mut Application, index: u64 in Wrapping) {
-        block next(&mut application.reader);
+    machine read_level(application: @mut Application, index: u64 in Wrapping) {
+        block next(@mut application.reader);
         transition application.reader.status == 1 && application.reader.value <= 100000 && index < 8 {
             true -> block store_level(application, index)
             false -> invalid()
         }
     }
-    machine store_level(application: &mut Application, index: u64 in Wrapping) {
+    machine store_level(application: @mut Application, index: u64 in Wrapping) {
         application.levels[index] = (F64::from_i64(application.reader.value as i64)) / 1000.0;
         transition { _ -> block level(application, index + 1) }
     }
-    machine trailing(application: &mut Application) {
-        block next(&mut application.reader);
+    machine trailing(application: @mut Application) {
+        block next(@mut application.reader);
         transition application.reader.status == 0 {
             true -> begin(application)
             false -> invalid()
         }
     }
-    machine begin(application: &mut Application) {
+    machine begin(application: @mut Application) {
         Console::write_line("HYDROSTATIC_GATE_V1 micro_units");
         transition { _ -> water(application, 0) }
     }
-    machine water(application: &mut Application, index: u64 in Wrapping) {
+    machine water(application: @mut Application, index: u64 in Wrapping) {
         transition index < application.level_count && index < 8 {
             true -> reset(application, index)
             false -> done()
         }
     }
-    machine reset(application: &mut Application, index: u64 in Wrapping) {
+    machine reset(application: @mut Application, index: u64 in Wrapping) {
         application.area = 0.0;
         application.force = 0.0;
         application.first_moment = 0.0;
@@ -150,14 +150,14 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         transition { _ -> segment(application, index, 0) }
     }
-    machine segment(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
+    machine segment(application: @mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping) {
         let next: u64 in Wrapping = segment_index + 1;
         transition next < application.profile.count && next < 8 && segment_index < 8 && water_index < 8 {
             true -> calculate(application, water_index, segment_index, next)
             false -> summary(application, water_index)
         }
     }
-    machine calculate(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
+    machine calculate(application: @mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, next: u64 in Wrapping) {
         let water: f64 = application.levels[water_index];
         let wet: WetSegment = clip(application.profile.nodes[segment_index], application.profile.nodes[next], water);
         transition wet.upper > wet.lower {
@@ -165,7 +165,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> segment(application, water_index, next)
         }
     }
-    machine accumulate(application: &mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: WetSegment, water: f64) {
+    machine accumulate(application: @mut Application, water_index: u64 in Wrapping, segment_index: u64 in Wrapping, wet: WetSegment, water: f64) {
         let load: SegmentLoad = integrate(wet, water, application.gamma, application.hinge);
         application.area = application.area + load.area;
         application.force = application.force + load.force;
@@ -183,7 +183,7 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         Console::write_line("");
         transition { _ -> segment(application, water_index, segment_index + 1) }
     }
-    machine summary(application: &mut Application, water_index: u64 in Wrapping) {
+    machine summary(application: @mut Application, water_index: u64 in Wrapping) {
         Console::write("TOTAL wetted="); write_integer(application.wetted_count);
         Console::write(" area_micro_m2="); write_scaled(application.area);
         Console::write(" force_uN="); write_scaled(application.force);
@@ -193,12 +193,12 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
             false -> dry_summary(application, water_index)
         }
     }
-    machine center(application: &mut Application, water_index: u64 in Wrapping) {
+    machine center(application: @mut Application, water_index: u64 in Wrapping) {
         Console::write(" center_um="); write_scaled(application.first_moment / application.force);
         Console::write_line("");
         transition { _ -> water(application, water_index + 1) }
     }
-    machine dry_summary(application: &mut Application, water_index: u64 in Wrapping) {
+    machine dry_summary(application: @mut Application, water_index: u64 in Wrapping) {
         Console::write_line(" center_um=undefined");
         transition { _ -> water(application, water_index + 1) }
     }
@@ -209,5 +209,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

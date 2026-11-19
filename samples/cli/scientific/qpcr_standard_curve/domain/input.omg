@@ -10,52 +10,52 @@ use omega::language::core::F64::is_finite;
 public data Reader { consumed: i32; }
 public data Number [copy] { valid: bool; value: f64; }
 
-machine character(reader: &mut Reader) -> i32 reaches Console {
+machine character(reader: @mut Reader) -> i32 reaches Console {
     transition reader.consumed >= 0 && reader.consumed <= 4096 {
         true -> block read(reader)
         _ -> -2
     }
-    machine read(reader: &mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed <= 4096 {
+    machine read(reader: @mut Reader) -> i32 requires reader.consumed >= 0 && reader.consumed <= 4096 {
         let byte: ByteRead = block Console::read_byte();
         transition byte { ByteRead::Eof -> -1 ByteRead::Byte { value } -> budget(reader, value) }
     }
-    machine budget(reader: &mut Reader, value: i32) -> i32 {
+    machine budget(reader: @mut Reader, value: i32) -> i32 {
         transition reader.consumed >= 0 && reader.consumed < 4096 { true -> counted(reader, value) _ -> -2 }
     }
-    machine counted(reader: &mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
+    machine counted(reader: @mut Reader, value: i32) -> i32 requires reader.consumed >= 0 && reader.consumed < 4096 {
         reader.consumed = reader.consumed + 1;
         transition { _ -> value }
     }
 }
 machine whitespace(value: i32) -> bool { transition { _ -> (value == 32 || value == 10 || value == 13 || value == 9) } }
-public machine number(reader: &mut Reader) -> Number
+public machine number(reader: @mut Reader) -> Number
 reaches Console
 invokes Console
 blocks
 crashes Trap
 {
     transition { _ -> block start(reader) }
-    machine start(reader: &mut Reader) -> Number {
+    machine start(reader: @mut Reader) -> Number {
         let value: i32 = block character(reader);
         transition whitespace(value) { true -> block start(reader) _ -> block sign(reader, value) }
     }
-    machine sign(reader: &mut Reader, value: i32) -> Number {
+    machine sign(reader: @mut Reader, value: i32) -> Number {
         transition value == 45 {
             true -> block negative(reader)
             _ -> block digit(reader, value, 1.0, 0.0, 0, 0, false, 1.0)
         }
     }
-    machine negative(reader: &mut Reader) -> Number {
+    machine negative(reader: @mut Reader) -> Number {
         let value: i32 = block character(reader);
         transition { _ -> block digit(reader, value, -1.0, 0.0, 0, 0, false, 1.0) }
     }
-    machine digit(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number {
+    machine digit(reader: @mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number {
         transition value >= 48 && value <= 57 && digits >= 0 && digits < 320 && fraction >= 0 && fraction < 17 {
             true -> block append(reader, value, sign, accumulated, digits, fraction, decimal, divisor)
             _ -> block punctuation(reader, value, sign, accumulated, digits, fraction, decimal, divisor)
         }
     }
-    machine append(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number
+    machine append(reader: @mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number
     requires value >= 48 && value <= 57 && digits >= 0 && digits < 320 && fraction >= 0 && fraction < 17
     {
         let numeric: f64 = F64::from_i32(value - 48);
@@ -65,13 +65,13 @@ crashes Trap
         let observed: i32 = block character(reader);
         transition { _ -> block digit(reader, observed, sign, next, digits + 1, next_fraction, decimal, next_divisor) }
     }
-    machine punctuation(reader: &mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number {
+    machine punctuation(reader: @mut Reader, value: i32, sign: f64, accumulated: f64, digits: i32, fraction: i32, decimal: bool, divisor: f64) -> Number {
         transition value == 46 && !decimal && digits > 0 {
             true -> block point(reader, sign, accumulated, digits)
             _ -> finish(value, sign, accumulated, digits, fraction, decimal)
         }
     }
-    machine point(reader: &mut Reader, sign: f64, accumulated: f64, digits: i32) -> Number {
+    machine point(reader: @mut Reader, sign: f64, accumulated: f64, digits: i32) -> Number {
         let observed: i32 = block character(reader);
         transition { _ -> block digit(reader, observed, sign, accumulated, digits, 0, true, 1.0) }
     }
@@ -82,18 +82,18 @@ crashes Trap
         }
     }
 }
-public machine ended(reader: &mut Reader) -> bool
+public machine ended(reader: @mut Reader) -> bool
 reaches Console
 invokes Console
 blocks
 crashes Trap
 {
     transition { _ -> block scan(reader) }
-    machine scan(reader: &mut Reader) -> bool {
+    machine scan(reader: @mut Reader) -> bool {
         let value: i32 = block character(reader);
         transition value == -1 { true -> true _ -> block space(reader, value) }
     }
-    machine space(reader: &mut Reader, value: i32) -> bool {
+    machine space(reader: @mut Reader, value: i32) -> bool {
         transition whitespace(value) { true -> block scan(reader) _ -> false }
     }
 }

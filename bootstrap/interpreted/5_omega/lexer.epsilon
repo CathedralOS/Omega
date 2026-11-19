@@ -1308,6 +1308,7 @@ machine OmegaLexScan::scan_punctuation(
     state classify(first: i32, second: i32, third: i32) {
         transition first {
             38 -> ampersand(second)
+            64 -> self.set_punctuation(OmegaPunctuationKind::At, 1)
             39 -> self.set_punctuation(OmegaPunctuationKind::Apostrophe, 1)
             42 -> asterisk(second)
             94 -> self.set_punctuation(OmegaPunctuationKind::Caret, 1)

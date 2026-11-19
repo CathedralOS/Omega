@@ -1,4 +1,4 @@
-machine build(builder: &mut Build) {
+machine build(builder: @mut Build) {
     Build::application(builder, "runtime_static_service_exclusion_exit");
     let logger_kit_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/logger-kit" }));
     configure(builder);
@@ -8,7 +8,7 @@ machine build(builder: &mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, main);
 }
 
-machine configure(builder: &mut Build) {
+machine configure(builder: @mut Build) {
     let selected: u32 = exclude_service<u32>(7);
     Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_arm64);
     Build::select_provider<logger_kit::main::Sink, logger_kit::main::QuietSinkProvider>(builder, linux_x86_64);

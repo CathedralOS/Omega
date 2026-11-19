@@ -76,7 +76,7 @@ Names illustrate the planned core library.
 ```omega
 data Announcement { first: u32; second: u32; }
 
-machine announce(out: &mut Emitter<u32>, job: Announcement) suspends {
+machine announce(out: @mut Emitter<u32>, job: Announcement) suspends {
     suspend Emitter::emit(out, job.first);
     suspend Emitter::emit(out, job.second);
 }

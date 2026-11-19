@@ -25,7 +25,7 @@ data Main {
     hits: i32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = 0;
     main.a = 3;
     main.b = 9;
@@ -33,7 +33,7 @@ machine Main::main(main: &mut Main) {
         true -> go(main)
         _ -> bad(main)
     }
-    machine go(main: &mut Main) {
+    machine go(main: @mut Main) {
         let a_value: u32 = main.a;
         Main::helper(main, a_value);
         let diff: u32 = main.b - main.a;
@@ -42,11 +42,11 @@ machine Main::main(main: &mut Main) {
             _ -> bad(main)
         }
     }
-    machine pass(main: &mut Main) { main.hits = 1; }
-    machine bad(main: &mut Main) { main.hits = -1; }
+    machine pass(main: @mut Main) { main.hits = 1; }
+    machine bad(main: @mut Main) { main.hits = -1; }
 }
 
-machine Main::helper(main: &mut Main, scalar: u32)
+machine Main::helper(main: @mut Main, scalar: u32)
 requires
     main.a <= main.b,
 {
@@ -56,5 +56,5 @@ requires
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

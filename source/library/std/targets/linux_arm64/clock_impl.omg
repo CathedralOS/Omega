@@ -10,7 +10,7 @@ public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 // The raw nanosleep wait is its own boundary trait. Selecting `Clock` does not
 // grant this seam; the requirement names `Clock` as its explicit reach.
 boundary trait LinuxArmClockWait {
-    machine nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
+    machine nanosleep(request: @LinuxArmClockSleepRequest, remainder: u64)
     reaches
         Clock
     blocks
@@ -31,6 +31,6 @@ public LinuxArm64Clock satisfies Clock {
             seconds: widen_u32_to_i64(milliseconds / 1000),
             nanoseconds: widen_u32_to_i64(milliseconds % 1000) * 1000000
         };
-        block LinuxArmClockWait::nanosleep(&request, 0);
+        block LinuxArmClockWait::nanosleep(@request, 0);
     }
 }

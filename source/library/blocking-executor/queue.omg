@@ -27,14 +27,14 @@ public data BoundedQueue<T, const N: u64> [linear] {
 boundary trait BoundedQueueAccess {
     // Live element count. O(1) measure for `requires`/`ensures`.
     machine Length<T, const N: u64>(
-        queue: &BoundedQueue<T, N>
+        queue: @BoundedQueue<T, N>
     ) -> u64 reaches none
         crashes none;
 
     // Append `value` at the tail. Custody of `value` moves into the queue;
     // requires provable spare room.
     machine push<T, const N: u64>(
-        queue: &mut BoundedQueue<T, N>,
+        queue: @mut BoundedQueue<T, N>,
         value: T
     )
     reaches none
@@ -46,7 +46,7 @@ boundary trait BoundedQueueAccess {
     // Custody moves to the caller — the moved-custody edge on the consume
     // side.
     machine pop<T, const N: u64>(
-        queue: &mut BoundedQueue<T, N>
+        queue: @mut BoundedQueue<T, N>
     ) -> T
     reaches none
     requires

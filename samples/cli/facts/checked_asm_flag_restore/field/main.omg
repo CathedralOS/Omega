@@ -5,7 +5,7 @@ data Flags { saved: u64; }
 
 machine main() reaches MachineControl crashes Trap {
     let mut holder: Flags = Flags { saved: 0 };
-    restore(&mut holder);
+    restore(@mut holder);
     transition (holder.saved & 64u64) == 64u64 {
         true -> done()
         false -> bad()
@@ -14,7 +14,7 @@ machine main() reaches MachineControl crashes Trap {
     machine bad() { crash Trap; }
 }
 
-machine restore(holder: &mut Flags) reaches MachineControl crashes Trap {
+machine restore(holder: @mut Flags) reaches MachineControl crashes Trap {
     asm clobbers rax, rflags, r10, r15 {
         entry:
             mov eax, 1;

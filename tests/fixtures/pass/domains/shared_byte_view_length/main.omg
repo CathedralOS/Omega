@@ -4,11 +4,11 @@
 domain [u8]::FourBytes requires self.len == 4;
 
 boundary trait ByteCount {
-    machine length(input: &[u8] in FourBytes) -> u64 reaches none crashes none;
+    machine length(input: @[u8] in FourBytes) -> u64 reaches none crashes none;
 }
 
 CountBytes satisfies ByteCount {
-    machine length(input: &[u8] in FourBytes) -> u64 reaches none crashes none {
+    machine length(input: @[u8] in FourBytes) -> u64 reaches none crashes none {
         (input as -FourBytes).len
     }
 }

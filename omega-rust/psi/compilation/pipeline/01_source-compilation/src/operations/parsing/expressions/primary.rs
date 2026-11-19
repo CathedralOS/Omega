@@ -207,8 +207,8 @@ pub(crate) fn starts_fixed_array_type(input: Input<'_, '_>) -> bool {
 }
 
 pub(crate) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {
-    input.at_punctuation(PunctuationKind::Ampersand)
+    input.at_punctuation(PunctuationKind::At)
         && input
-            .take_punctuation(PunctuationKind::Ampersand, "&")
+            .take_punctuation(PunctuationKind::At, "@")
             .is_ok_and(|rest| rest.at_punctuation(PunctuationKind::Apostrophe))
 }

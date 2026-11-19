@@ -17,7 +17,7 @@ CONSOLE = b"""boundary trait Console {
   machine exit_process(return_code: i32) -> never;
   machine write_byte(value: i32);
   machine read_byte() -> i32;
-  machine write_line(text: &[u8]);
+  machine write_line(text: @[u8]);
 }
 
 """
@@ -59,14 +59,14 @@ def append(data):
 
 # --- Programs -----------------------------------------------------------------
 
-ECHO = MAIN_ONLY + b"""machine Main::main(&mut self) {
+ECHO = MAIN_ONLY + b"""machine Main::main(@mut self) {
   let value: i32 = self.console.read_byte();
   self.console.write_byte(value);
   self.console.exit_process(value);
 }
 """
 
-SCALARS = MAIN_ONLY + b"""machine Main::main(&mut self) {
+SCALARS = MAIN_ONLY + b"""machine Main::main(@mut self) {
   let a: i32 = 6 * 7;
   let b: i32 = a - 10 / 3;
   let c: i32 = (b % 5) << 2;
@@ -79,7 +79,7 @@ SCALARS = MAIN_ONLY + b"""machine Main::main(&mut self) {
 }
 """
 
-RECURSION = MAIN_ONLY + b"""machine Main::main(&mut self) {
+RECURSION = MAIN_ONLY + b"""machine Main::main(@mut self) {
   let total: i32 = nest(6);
   self.console.write_byte(total);
   self.console.exit_process(total);
@@ -103,7 +103,7 @@ STATES_FIELDS = CONSOLE + b"""data Main {
   values: [u8; 2];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   transition 0 { 0 -> increment() }
   state increment() {
     self.count = self.count + 1;
@@ -130,7 +130,7 @@ machine Main::main(&mut self) {
 SUM_BINDERS = CONSOLE + b"""data Choice { case Full(value: i32); case Empty; }
 data Main { console: Console; choice: Choice; }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.choice = Choice::Full(66);
   transition self.choice {
     Choice::Full{value} -> self.done(value)
@@ -138,7 +138,7 @@ machine Main::main(&mut self) {
   }
 }
 
-machine Main::done(&mut self, value: i32) {
+machine Main::done(@mut self, value: i32) {
   self.console.write_byte(value);
   self.console.exit_process(value - 66);
 }
@@ -148,7 +148,7 @@ RECORDS_NESTED = CONSOLE + b"""data Cell { value: i32; }
 data Group { cell: Cell; cells: [Cell; 2]; }
 data Main { console: Console; first: Cell; group: Group; }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.first.value = 65;
   self.group.cell.value = 66;
   self.group.cells[0].value = 67;
@@ -160,28 +160,28 @@ machine Main::main(&mut self) {
 }
 """
 
-DIV_ZERO = MAIN_ONLY + b"""machine Main::main(&mut self) {
+DIV_ZERO = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = 1 / 0;
   self.console.write_byte(67);
 }
 """
 
-OVERFLOW = MAIN_ONLY + b"""machine Main::main(&mut self) {
+OVERFLOW = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = 2147483647 + 1;
   self.console.write_byte(67);
 }
 """
 
-SHIFT_COUNT = MAIN_ONLY + b"""machine Main::main(&mut self) {
+SHIFT_COUNT = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = 1 << 32;
   self.console.write_byte(67);
 }
 """
 
-BYTE_RANGE = MAIN_ONLY + b"""machine Main::main(&mut self) {
+BYTE_RANGE = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   self.console.write_byte(256);
   self.console.write_byte(67);
@@ -193,28 +193,28 @@ BOUNDS_READ = CONSOLE + b"""data Main {
   values: [i32; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = self.values[9];
   self.console.write_byte(67);
 }
 """
 
-NONBOOLEAN = MAIN_ONLY + b"""machine Main::main(&mut self) {
+NONBOOLEAN = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   assert 2;
   self.console.write_byte(67);
 }
 """
 
-ASSERTION = MAIN_ONLY + b"""machine Main::main(&mut self) {
+ASSERTION = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   assert 1 == 2;
   self.console.write_byte(67);
 }
 """
 
-NONEXHAUSTIVE = MAIN_ONLY + b"""machine Main::main(&mut self) {
+NONEXHAUSTIVE = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   transition 7 {
     1 -> return
@@ -222,32 +222,32 @@ NONEXHAUSTIVE = MAIN_ONLY + b"""machine Main::main(&mut self) {
 }
 """
 
-DIV_OVERFLOW = MAIN_ONLY + b"""machine Main::main(&mut self) {
+DIV_OVERFLOW = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = -2147483648 / -1;
   self.console.write_byte(67);
 }
 """
 
-REM_ZERO = MAIN_ONLY + b"""machine Main::main(&mut self) {
+REM_ZERO = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(66);
   let value: i32 = 5 % 0;
   self.console.write_byte(67);
 }
 """
 
-STRINGS_LINES = MAIN_ONLY + b"""machine Main::main(&mut self) {
+STRINGS_LINES = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_line("hi");
   self.console.write_byte('!');
   self.console.exit_process(5);
 }
 """
 
-ECHO_LOOP = MAIN_ONLY + b"""machine Main::main(&mut self) {
+ECHO_LOOP = MAIN_ONLY + b"""machine Main::main(@mut self) {
   transition 0 { 0 -> self.drain() }
 }
 
-machine Main::drain(&mut self) {
+machine Main::drain(@mut self) {
   let next: i32 = self.console.read_byte();
   transition next < 0 {
     1 -> return
@@ -260,13 +260,13 @@ machine Main::drain(&mut self) {
 }
 """
 
-PARAM_STATES = MAIN_ONLY + b"""machine Main::main(&mut self) {
+PARAM_STATES = MAIN_ONLY + b"""machine Main::main(@mut self) {
   let result: i32 = self.advance(60);
   self.console.write_byte(result);
   self.console.exit_process(result - 61);
 }
 
-machine Main::advance(&mut self, value: i32) -> i32 {
+machine Main::advance(@mut self, value: i32) -> i32 {
   value = value + 1;
   transition 0 { 0 -> first(4) }
   state first(offset: i32) {
@@ -282,12 +282,12 @@ VIEWS = CONSOLE + b"""data Main {
   bytes: [u8; 4];
 }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   self.bytes[0] = 104;
   self.bytes[1] = 105;
   self.bytes[2] = 33;
   self.bytes[3] = 0;
-  let view: &[u8] = self.bytes[0..3];
+  let view: @[u8] = self.bytes[0..3];
   self.console.write_line(view);
   self.console.write_line(self.bytes.as_slice);
   self.console.exit_process(view.len);
@@ -300,7 +300,7 @@ CONSTRUCTOR_ORDER = CONSOLE + b"""data Token {
 }
 data Main { console: Console; }
 
-machine Main::main(&mut self) {
+machine Main::main(@mut self) {
   let token: Token = Token::Item(self.mark(), self.byte(), self.pos());
   transition token {
     Token::Item{m, b, p} -> self.report(m + b + p)
@@ -308,27 +308,27 @@ machine Main::main(&mut self) {
   }
 }
 
-machine Main::report(&mut self, total: i32) {
+machine Main::report(@mut self, total: i32) {
   self.console.write_byte(total);
 }
 
-machine Main::mark(&mut self) -> i32 {
+machine Main::mark(@mut self) -> i32 {
   self.console.write_byte(65);
   return 5;
 }
 
-machine Main::byte(&mut self) -> i32 {
+machine Main::byte(@mut self) -> i32 {
   self.console.write_byte(66);
   return 256;
 }
 
-machine Main::pos(&mut self) -> i32 {
+machine Main::pos(@mut self) -> i32 {
   self.console.write_byte(67);
   return 9;
 }
 """
 
-NEGATIVE_EXIT = MAIN_ONLY + b"""machine Main::main(&mut self) {
+NEGATIVE_EXIT = MAIN_ONLY + b"""machine Main::main(@mut self) {
   self.console.write_byte(65);
   self.console.exit_process(-1);
 }
@@ -533,5 +533,5 @@ REJECTIONS = [
     ("zero array length", STATES_FIELDS,
      swap(b"values: [u8; 2]", b"values: [u8; 0]")),
     ("view field escapes", VIEWS,
-     swap(b"bytes: [u8; 4];", b"bytes: &[u8];")),
+     swap(b"bytes: [u8; 4];", b"bytes: @[u8];")),
 ]

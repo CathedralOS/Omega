@@ -18,32 +18,32 @@ use domain::report::emit;
 
 data Main { }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let mut pedigree: Pedigree;
-    let accepted: bool = block read(&mut pedigree);
+    let accepted: bool = block read(@mut pedigree);
     transition accepted {
-        true -> infer(main, &pedigree)
+        true -> infer(main, @pedigree)
         _ -> invalid(main)
     }
-    machine infer(main: &mut Main, pedigree: &Pedigree) {
+    machine infer(main: @mut Main, pedigree: @Pedigree) {
         let mut result: Inference;
-        initialize(pedigree, &mut result);
-        enumerate(pedigree, &mut result);
+        initialize(pedigree, @mut result);
+        enumerate(pedigree, @mut result);
         transition result.mass == 0 {
-            true -> impossible(main, pedigree, &mut result)
-            _ -> complete(main, pedigree, &result)
+            true -> impossible(main, pedigree, @mut result)
+            _ -> complete(main, pedigree, @result)
         }
     }
-    machine impossible(main: &mut Main, pedigree: &Pedigree, result: &mut Inference) {
+    machine impossible(main: @mut Main, pedigree: @Pedigree, result: @mut Inference) {
         contradiction(pedigree, result);
         emit(pedigree, result);
         ProcessExit::exit_process(2);
     }
-    machine complete(main: &mut Main, pedigree: &Pedigree, result: &Inference) {
+    machine complete(main: @mut Main, pedigree: @Pedigree, result: @Inference) {
         emit(pedigree, result);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("INVALID INPUT");
         ProcessExit::exit_process(64);
     }
@@ -52,5 +52,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

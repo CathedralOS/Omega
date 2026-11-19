@@ -23,9 +23,9 @@ data BoundKind [copy] {
 // or integer row binds by its form. Nested rows need no recursion. `role` is
 // what the root's position admits.
 public machine bind_type_reference(
-    resolver: &mut Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @mut Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     scope: TypeScope,
     root: u64 in Trapping,
     role: TypeRole
@@ -36,9 +36,9 @@ crashes Trap
     transition { _ -> next(resolver, sources, syntax, scope, root, role, root_row.first_row) }
 
     machine next(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         root: u64 in Trapping,
         role: TypeRole,
@@ -51,9 +51,9 @@ crashes Trap
     }
 
     machine bind(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         root: u64 in Trapping,
         role: TypeRole,
@@ -71,9 +71,9 @@ crashes Trap
 // root or as an applied name's argument, never under a reference, array or
 // slice, which bind only types.
 machine bind_type_row(
-    resolver: &mut Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @mut Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     scope: TypeScope,
     row: u64 in Trapping,
     is_root: bool,
@@ -90,9 +90,9 @@ crashes Trap
     }
 
     machine kinds(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -112,9 +112,9 @@ crashes Trap
     // An applied data name supplies as many lifetime arguments as the data
     // declares lifetime binders, or elides them all; other names take none.
     machine arity(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -130,9 +130,9 @@ crashes Trap
     }
 
     machine named(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -155,9 +155,9 @@ crashes Trap
     // callee's machine binder (wiki/spec/language/generics.md, Static
     // machine binder categories); anything else is unknown.
     machine unnamed(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -170,8 +170,8 @@ crashes Trap
         }
     }
 
-    machine machine_argument(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
-        let binding: ValueBinding = declaration_callee(&resolver.output, sources, syntax, scope.lexical_machine, type_reference.name.source_span);
+    machine machine_argument(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+        let binding: ValueBinding = declaration_callee(@resolver.output, sources, syntax, scope.lexical_machine, type_reference.name.source_span);
         transition binding {
             ValueBinding::Machine { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle })
             ValueBinding::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, type_reference.name)
@@ -181,9 +181,9 @@ crashes Trap
 
     // A reference, array or slice holds a type, never a conformance.
     machine holder(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -192,7 +192,7 @@ crashes Trap
         whole: IdentifierSpan,
         binding: TypeBinding
     ) {
-        let held: TypeBinding = type_binding_at(&resolver.output, type_reference.inner);
+        let held: TypeBinding = type_binding_at(@resolver.output, type_reference.inner);
         let held_row: TypeReference = syntax_trees_type_reference(syntax, type_reference.inner);
         transition held {
             TypeBinding::Conformance { item } -> reject(resolver, ResolveDiagnosticCode::NotAType, held_row.name)
@@ -201,9 +201,9 @@ crashes Trap
     }
 
     machine placed(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         is_root: bool,
@@ -223,9 +223,9 @@ crashes Trap
     }
 
     machine admitted(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
@@ -241,9 +241,9 @@ crashes Trap
     }
 
     machine bounded(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
@@ -256,9 +256,9 @@ crashes Trap
     }
 
     machine store(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference,
@@ -274,9 +274,9 @@ crashes Trap
     }
 
     machine qualified(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         row: u64 in Trapping,
         type_reference: TypeReference
@@ -284,8 +284,8 @@ crashes Trap
         bind_domain(resolver, sources, syntax, scope, row, type_reference);
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
-        name_resolution_reject(&mut resolver.output, code, name.source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+        name_resolution_reject(@mut resolver.output, code, name.source_span);
     }
 
     machine invalid() {
@@ -300,8 +300,8 @@ crashes Trap
 // own before its container's, then a builtin type, then the one data, trait
 // or conformance declaration the name's unit can see.
 public machine type_binding(
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     scope: TypeScope,
     name: SourceSpan
 ) -> TypeBinding
@@ -313,7 +313,7 @@ crashes Trap
         _ -> outer(sources, syntax, scope, name)
     }
 
-    machine outer(sources: &SourceSet, syntax: &SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
+    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
         let container: Lookup = scoped_generic_named(sources, syntax, scope, name);
         transition container {
             Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle })
@@ -321,7 +321,7 @@ crashes Trap
         }
     }
 
-    machine builtin(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine builtin(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let binding: TypeBinding = builtin_type(sources, name);
         transition binding {
             TypeBinding::Unresolved -> declared(sources, syntax, name)
@@ -331,7 +331,7 @@ crashes Trap
 
     // A visible data declaration, trait or conformance of the spelling; two
     // of them, of any kinds, make the name ambiguous.
-    machine declared(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine declared(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let data: Lookup = data_named(sources, syntax, name);
         transition data {
             Lookup::Found { handle } -> data_found(sources, syntax, name, handle)
@@ -340,7 +340,7 @@ crashes Trap
         }
     }
 
-    machine data_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
+    machine data_found(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
         let rivals: bool = trait_or_conformance_named(sources, syntax, name);
         transition rivals {
             true -> found(TypeBinding::Ambiguous)
@@ -348,7 +348,7 @@ crashes Trap
         }
     }
 
-    machine traits(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine traits(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let traits: Lookup = declared_named(sources, syntax, DeclarationKind::Trait, false, name, name);
         transition traits {
             Lookup::Found { handle } -> trait_found(sources, syntax, name, handle)
@@ -357,7 +357,7 @@ crashes Trap
         }
     }
 
-    machine trait_found(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
+    machine trait_found(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
         let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Absent -> found(TypeBinding::Trait { item: item })
@@ -365,7 +365,7 @@ crashes Trap
         }
     }
 
-    machine conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> TypeBinding {
+    machine conformances(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
         let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Found { handle } -> found(TypeBinding::Conformance { item: handle })
@@ -380,7 +380,7 @@ crashes Trap
 }
 
 // Whether a trait or a conformance of the spelling is visible.
-machine trait_or_conformance_named(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> bool
+machine trait_or_conformance_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> bool
 crashes Trap
 {
     let traits: Lookup = declared_named(sources, syntax, DeclarationKind::Trait, false, name, name);
@@ -389,7 +389,7 @@ crashes Trap
         _ -> yes()
     }
 
-    machine conformances(sources: &SourceSet, syntax: &SyntaxTrees, name: SourceSpan) -> bool {
+    machine conformances(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> bool {
         let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
         transition conformances {
             Lookup::Absent -> no()
@@ -416,9 +416,9 @@ crashes Trap
 // A longer path crosses a package, which this source set cannot bind.
 // Generic parameters do not bind domains.
 machine bind_domain(
-    resolver: &mut Resolver,
-    sources: &SourceSet,
-    syntax: &SyntaxTrees,
+    resolver: @mut Resolver,
+    sources: @SourceSet,
+    syntax: @SyntaxTrees,
     scope: TypeScope,
     reference: u64 in Trapping,
     type_reference: TypeReference
@@ -433,7 +433,7 @@ crashes Trap
         _ -> bare(resolver, sources, syntax, reference, type_reference.domain)
     }
 
-    machine bare(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine bare(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let known: DomainBinding = known_domain(sources, domain.source_span);
         transition known {
             DomainBinding::Unqualified -> declared(resolver, sources, syntax, reference, domain)
@@ -441,7 +441,7 @@ crashes Trap
         }
     }
 
-    machine declared(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine declared(resolver: @mut Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let lookup: Lookup = resolver_declared_domain(resolver, sources, syntax, reference, domain.source_span);
         transition lookup {
             Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle)
@@ -451,9 +451,9 @@ crashes Trap
     }
 
     machine owned(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         scope: TypeScope,
         reference: u64 in Trapping,
         type_reference: TypeReference,
@@ -470,15 +470,15 @@ crashes Trap
         }
     }
 
-    machine case_domain(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
-        let qualified: TypeBinding = type_binding_at(&resolver.output, reference);
+    machine case_domain(resolver: @mut Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
+        let qualified: TypeBinding = type_binding_at(@resolver.output, reference);
         transition qualified {
             TypeBinding::Data { item } -> case_carrier(resolver, reference, whole, item == owner, data_case)
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
         }
     }
 
-    machine case_carrier(resolver: &mut Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
+    machine case_carrier(resolver: @mut Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
         transition own {
             true -> bind(resolver, reference, DomainBinding::Case, data_case)
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
@@ -486,9 +486,9 @@ crashes Trap
     }
 
     machine declared_carrier(
-        resolver: &mut Resolver,
-        sources: &SourceSet,
-        syntax: &SyntaxTrees,
+        resolver: @mut Resolver,
+        sources: @SourceSet,
+        syntax: @SyntaxTrees,
         reference: u64 in Trapping,
         type_reference: TypeReference,
         whole: SourceSpan,
@@ -501,13 +501,13 @@ crashes Trap
         }
     }
 
-    machine bind(resolver: &mut Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
+    machine bind(resolver: @mut Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
         resolver.output.domain_bindings[reference] = binding;
         resolver.output.domain_items[reference] = item as u64;
     }
 
-    machine reject(resolver: &mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
-        name_resolution_reject(&mut resolver.output, code, source_span);
+    machine reject(resolver: @mut Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+        name_resolution_reject(@mut resolver.output, code, source_span);
     }
 }
 
@@ -517,7 +517,7 @@ crashes Trap
 // decimal digits, whether or not the digits form a valid width. `u7` and
 // `u128` install no type, yet no declaration may introduce a type with
 // those spellings, so this test is wider than `builtin_type`.
-public machine builtin_type_spelling(sources: &SourceSet, name: SourceSpan) -> bool
+public machine builtin_type_spelling(sources: @SourceSet, name: SourceSpan) -> bool
 crashes Trap
 {
     let installed: TypeBinding = builtin_type(sources, name);
@@ -526,7 +526,7 @@ crashes Trap
         _ -> yes()
     }
 
-    machine family(sources: &SourceSet, name: SourceSpan) -> bool {
+    machine family(sources: @SourceSet, name: SourceSpan) -> bool {
         let first: u8 = source_set_byte_or_nul(sources, name.source, name.span.start);
         transition name.span.end > name.span.start && (first == 105 || first == 117) {
             true -> digits(sources, name, name.span.start + 1)
@@ -534,14 +534,14 @@ crashes Trap
         }
     }
 
-    machine digits(sources: &SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
+    machine digits(sources: @SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
         transition index < name.span.end {
             true -> digit(sources, name, index)
             _ -> yes()
         }
     }
 
-    machine digit(sources: &SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
+    machine digit(sources: @SourceSet, name: SourceSpan, index: u64 in Trapping) -> bool {
         let byte: u8 = source_set_byte_or_nul(sources, name.source, index);
         transition byte >= 48 && byte <= 57 {
             true -> digits(sources, name, index + 1)
@@ -560,108 +560,108 @@ crashes Trap
 
 // The compiler-installed type a name spells, or `Unresolved`. Builtin names
 // are not source declarations, so they match by spelling, not by span.
-public machine builtin_type(sources: &SourceSet, name: SourceSpan) -> TypeBinding
+public machine builtin_type(sources: @SourceSet, name: SourceSpan) -> TypeBinding
 crashes Trap
 {
     let matched: bool = span_spells(sources, name, "bool");
     transition matched { true -> found(BuiltinType::Bool) _ -> spells_i8(sources, name) }
 
-    machine spells_i8(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_i8(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "i8");
         transition matched { true -> found(BuiltinType::I8) _ -> spells_i16(sources, name) }
     }
 
-    machine spells_i16(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_i16(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "i16");
         transition matched { true -> found(BuiltinType::I16) _ -> spells_i32(sources, name) }
     }
 
-    machine spells_i32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_i32(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "i32");
         transition matched { true -> found(BuiltinType::I32) _ -> spells_i64(sources, name) }
     }
 
-    machine spells_i64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_i64(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "i64");
         transition matched { true -> found(BuiltinType::I64) _ -> spells_u8(sources, name) }
     }
 
-    machine spells_u8(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_u8(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "u8");
         transition matched { true -> found(BuiltinType::U8) _ -> spells_u16(sources, name) }
     }
 
-    machine spells_u16(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_u16(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "u16");
         transition matched { true -> found(BuiltinType::U16) _ -> spells_u32(sources, name) }
     }
 
-    machine spells_u32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_u32(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "u32");
         transition matched { true -> found(BuiltinType::U32) _ -> spells_u64(sources, name) }
     }
 
-    machine spells_u64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_u64(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "u64");
         transition matched { true -> found(BuiltinType::U64) _ -> spells_addr(sources, name) }
     }
 
-    machine spells_addr(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_addr(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "addr");
         transition matched { true -> found(BuiltinType::Address) _ -> spells_f32(sources, name) }
     }
 
-    machine spells_f32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_f32(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "f32");
         transition matched { true -> found(BuiltinType::F32) _ -> spells_f64(sources, name) }
     }
 
-    machine spells_f64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_f64(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "f64");
         transition matched { true -> found(BuiltinType::F64) _ -> spells_slice(sources, name) }
     }
 
-    machine spells_slice(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_slice(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "Slice");
         transition matched { true -> found(BuiltinType::Slice) _ -> spells_syscallresult(sources, name) }
     }
 
-    machine spells_syscallresult(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_syscallresult(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "SyscallResult");
         transition matched { true -> found(BuiltinType::SyscallResult) _ -> spells_terminal(sources, name) }
     }
 
-    machine spells_terminal(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_terminal(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "Terminal");
         transition matched { true -> found(BuiltinType::Terminal) _ -> spells_never(sources, name) }
     }
 
-    machine spells_never(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_never(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "Never");
         transition matched { true -> found(BuiltinType::Never) _ -> spells_uint(sources, name) }
     }
 
-    machine spells_uint(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_uint(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "UInt");
         transition matched { true -> found(BuiltinType::UInt) _ -> spells_int(sources, name) }
     }
 
-    machine spells_int(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_int(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "Int");
         transition matched { true -> found(BuiltinType::Int) _ -> spells_atomicbool(sources, name) }
     }
 
-    machine spells_atomicbool(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_atomicbool(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "AtomicBool");
         transition matched { true -> found(BuiltinType::AtomicBool) _ -> spells_atomicu32(sources, name) }
     }
 
-    machine spells_atomicu32(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_atomicu32(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "AtomicU32");
         transition matched { true -> found(BuiltinType::AtomicU32) _ -> spells_atomicu64(sources, name) }
     }
 
-    machine spells_atomicu64(sources: &SourceSet, name: SourceSpan) -> TypeBinding {
+    machine spells_atomicu64(sources: @SourceSet, name: SourceSpan) -> TypeBinding {
         let matched: bool = span_spells(sources, name, "AtomicU64");
         transition matched { true -> found(BuiltinType::AtomicU64) _ -> absent() }
     }

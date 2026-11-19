@@ -21,7 +21,7 @@ data Adder {
 }
 
 machine fletcher(
-    s: &[i32 in Wrapping],
+    s: @[i32 in Wrapping],
     sum1: i32 in Wrapping,
     sum2: i32 in Wrapping
 ) -> i32 {
@@ -36,7 +36,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
     main.adder.bytes[0] = 1 as +Wrapping;
     main.adder.bytes[1] = 2 as +Wrapping;
@@ -45,16 +45,16 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     main.adder.bytes[4] = 5 as +Wrapping;
     main.adder.bytes[5] = 6 as +Wrapping;
 
-    let s: &[i32 in Wrapping] = &main.adder.bytes[..];
+    let s: @[i32 in Wrapping] = @main.adder.bytes[..];
     let checksum: i32 = fletcher(s, 0, 0);
     Console::write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
     Console::write_line("[press Enter to close]");
-    _ = block Console::read_line(&mut main.pause[..]);
+    _ = block Console::read_line(@mut main.pause[..]);
     ProcessExit::exit_process(checksum);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

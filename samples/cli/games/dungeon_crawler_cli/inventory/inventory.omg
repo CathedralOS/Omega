@@ -2,14 +2,14 @@
 data InventorySystem {
 }
 
-machine clear(inventory: &mut Inventory) {
+machine clear(inventory: @mut Inventory) {
     inventory.item_count = 0;
     inventory.gold = 0;
 }
 
 machine add_reward(
-    inventory_system: &mut InventorySystem,
-    inventory: &mut Inventory,
+    inventory_system: @mut InventorySystem,
+    inventory: @mut Inventory,
     reward: Reward
 ) {
     transition reward.kind {
@@ -21,24 +21,24 @@ machine add_reward(
 
 
     machine add_gold(
-        inventory_system: &mut InventorySystem,
-        inventory: &mut Inventory,
+        inventory_system: @mut InventorySystem,
+        inventory: @mut Inventory,
         amount: u32 in Wrapping
     ) {
         inventory_system_add_gold(inventory, amount);
     }
 
     machine add_item(
-        inventory_system: &mut InventorySystem,
-        inventory: &mut Inventory,
+        inventory_system: @mut InventorySystem,
+        inventory: @mut Inventory,
         kind: ItemKind
     ) {
         inventory_system_add_item(inventory_system, inventory, kind);
     }
 
     machine add_gold_and_item(
-        inventory_system: &mut InventorySystem,
-        inventory: &mut Inventory,
+        inventory_system: @mut InventorySystem,
+        inventory: @mut Inventory,
         reward: Reward
     ) {
         inventory_system_add_gold(inventory, reward.gold);
@@ -46,14 +46,14 @@ machine add_reward(
     }
 }
 
-machine inventory_system_add_gold(inventory: &mut Inventory,
+machine inventory_system_add_gold(inventory: @mut Inventory,
     amount: u32 in Wrapping) {
     inventory.gold = inventory.gold + amount;
 }
 
 machine inventory_system_add_item(
-    inventory_system: &mut InventorySystem,
-    inventory: &mut Inventory,
+    inventory_system: @mut InventorySystem,
+    inventory: @mut Inventory,
     kind: ItemKind
 ) {
     // Sentinel search: an index past the 32-slot capacity means "not found".
@@ -69,35 +69,35 @@ machine inventory_system_add_item(
 
 
     machine increment_existing(
-        inventory_system: &mut InventorySystem,
-        inventory: &mut Inventory,
+        inventory_system: @mut InventorySystem,
+        inventory: @mut Inventory,
         kind: ItemKind,
         index: u64 in Wrapping
     ) {
         transition index < 32 {
-            true -> increment_item(inventory_system, &mut inventory.items[index], 1)
+            true -> increment_item(inventory_system, @mut inventory.items[index], 1)
             false -> append_item(inventory_system, inventory, kind)
         }
     }
 
     machine append_item(
-        inventory_system: &mut InventorySystem,
-        inventory: &mut Inventory,
+        inventory_system: @mut InventorySystem,
+        inventory: @mut Inventory,
         kind: ItemKind
     ) {
         inventory_system_append_item(inventory, kind);
     }
 
     machine increment_item(
-        inventory_system: &mut InventorySystem,
-        item: &mut InventoryItem,
+        inventory_system: @mut InventorySystem,
+        item: @mut InventoryItem,
         amount: u32 in Wrapping
     ) {
         inventory_system_increment_item(item, amount);
     }
 }
 
-machine inventory_system_append_item(inventory: &mut Inventory,
+machine inventory_system_append_item(inventory: @mut Inventory,
     kind: ItemKind) {
     let index: u64 in Wrapping = inventory.item_count;
 
@@ -107,7 +107,7 @@ machine inventory_system_append_item(inventory: &mut Inventory,
     }
 
 
-    machine append_item_at(inventory: &mut Inventory,
+    machine append_item_at(inventory: @mut Inventory,
         kind: ItemKind,
         index: u64 in Wrapping) {
         inventory.items[index] = InventoryItem { kind: kind, count: 1 };
@@ -116,11 +116,11 @@ machine inventory_system_append_item(inventory: &mut Inventory,
 }
 
 machine find_item(
-    inventory_system: &mut InventorySystem,
-    inventory: &Inventory,
+    inventory_system: @mut InventorySystem,
+    inventory: @Inventory,
     kind: ItemKind
     ) -> u64 {
-    let items: &[InventoryItem] = &inventory.items[..];
+    let items: @[InventoryItem] = @inventory.items[..];
 
     match inventory.item_count > 0 {
         true -> find_item_at(items, kind, 0)
@@ -128,7 +128,7 @@ machine find_item(
     }
 }
 
-machine find_item_at(items: &[InventoryItem],
+machine find_item_at(items: @[InventoryItem],
     kind: ItemKind,
     index: u64 in Wrapping) -> u64 {
     transition index < items.len {
@@ -137,7 +137,7 @@ machine find_item_at(items: &[InventoryItem],
     }
 
 
-    machine inspect_item(items: &[InventoryItem],
+    machine inspect_item(items: @[InventoryItem],
         kind: ItemKind,
         index: u64 in Wrapping) -> u64
     requires index < items.len {
@@ -152,7 +152,7 @@ machine find_item_at(items: &[InventoryItem],
 
     // Both nested invocations forward completion. The explicit index contract
     // admits each read; terminal cycle lowering preserves constant stack use.
-    machine scan_next(items: &[InventoryItem],
+    machine scan_next(items: @[InventoryItem],
         kind: ItemKind,
         next_index: u64 in Wrapping) -> u64 {
         transition next_index < items.len {
@@ -162,7 +162,7 @@ machine find_item_at(items: &[InventoryItem],
     }
 }
 
-machine inventory_system_increment_item(item: &mut InventoryItem,
+machine inventory_system_increment_item(item: @mut InventoryItem,
     amount: u32 in Wrapping) {
     item.count = item.count + amount;
 }

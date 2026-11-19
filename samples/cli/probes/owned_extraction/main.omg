@@ -2,17 +2,17 @@
 // payload types through a generic wrapper and ordinary case extraction.
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: &mut Token) {}
+machine drop_token(token: @mut Token) {}
 data OwnedExtraction<Value> { case Moved(value: Value); }
 machine retire<Value>(result: OwnedExtraction<Value>) -> Value {
     transition result { OwnedExtraction::Moved { value } -> value }
 }
-machine borrowed<'backing>(backing: &'backing u64, moved: bool) -> bool {
-    let result: Extraction<&'backing u64, u32> = match moved {
+machine borrowed<'backing>(backing: @'backing u64, moved: bool) -> bool {
+    let result: Extraction<@'backing u64, u32> = match moved {
         true -> Extraction::Moved { storage: backing, value: 67 }
         false -> Extraction::Held { storage: backing, value: 67 }
     };
-    let view: Returned<&'backing u64, u32> = unpack<&'backing u64, u32>(result);
+    let view: Returned<@'backing u64, u32> = unpack<@'backing u64, u32>(result);
     view.storage as u64 == 61 && view.value == 67 && view.moved == moved
 }
 
@@ -61,7 +61,7 @@ machine main() reaches ExtractionProvider crashes Trap {
     drop(returned.storage);
     transition direct.storage == 17 && direct.value == 29
         && forwarded.storage == 31 && forwarded.value == 43 && direct.moved && !forwarded.moved
-        && borrowed(&backing, true) && borrowed(&backing, false) && owned_correct && alternative_correct {
+        && borrowed(@backing, true) && borrowed(@backing, false) && owned_correct && alternative_correct {
         true -> good()
         false -> bad()
     }

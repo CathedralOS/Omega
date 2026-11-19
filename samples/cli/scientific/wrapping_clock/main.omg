@@ -15,18 +15,18 @@ use report::output::report;
 
 machine main() reaches ProcessExit + Console {
     let mut acquisition: Acquisition;
-    block read_acquisition(&mut acquisition);
-    transition acquisition.error == 0 { true -> decode(&mut acquisition) false -> reject(&acquisition) }
-    machine decode(acquisition: &mut Acquisition) {
+    block read_acquisition(@mut acquisition);
+    transition acquisition.error == 0 { true -> decode(@mut acquisition) false -> reject(@acquisition) }
+    machine decode(acquisition: @mut Acquisition) {
         reconstruct(acquisition);
         transition acquisition.error == 0 { true -> fitted(acquisition) false -> reject(acquisition) }
     }
-    machine fitted(acquisition: &mut Acquisition) {
+    machine fitted(acquisition: @mut Acquisition) {
         fit_clock(acquisition);
         report(acquisition);
         ProcessExit::exit_process(0);
     }
-    machine reject(acquisition: &Acquisition) {
+    machine reject(acquisition: @Acquisition) {
         Console::write("ERROR "); number(acquisition.error); Console::write_line("");
         ProcessExit::exit_process(2);
     }

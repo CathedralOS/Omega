@@ -2,7 +2,7 @@
 // A plain byte view preserves Utf8 and the storage beside its changed byte.
 use omega::language::core::byte_observation;
 
-domain [u8; 28]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+domain [u8; 28]::Utf8 requires byte_observation::valid_utf8(@self[..]);
 data Packet {
     before: u8;
     line: [u8; 28] in Utf8;
@@ -16,8 +16,8 @@ machine main() crashes Trap {
         index: 13 as +Wrapping,
         after: 37
     };
-    (&mut packet.line as -Utf8)[packet.index as -Wrapping] = 48;
-    let view: &[u8] = (&packet.line as -Utf8)[..];
+    (@mut packet.line as -Utf8)[packet.index as -Wrapping] = 48;
+    let view: @[u8] = (@packet.line as -Utf8)[..];
     transition view.len == 28 && view[12] == 77 && view[13] == 48 && view[14] == 79
         && packet.before == 11 && packet.after == 37 {
         true -> done()

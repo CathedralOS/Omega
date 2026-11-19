@@ -5,11 +5,11 @@ machine admit(value: f64) -> f64
 requires value >= 0.0 && value <= 0.5
 { value }
 data Holder [copy] { reading: Reading; }
-machine probe(holder: &Holder) -> f64 { admit(holder.reading.value) }
+machine probe(holder: @Holder) -> f64 { admit(holder.reading.value) }
 machine main() crashes Trap {
     let low: Holder = Holder { reading: Reading { value: 0.125 } };
     let high: Holder = Holder { reading: Reading { value: 0.25 } };
-    transition probe(&low) == 0.125 && probe(&high) == 0.25 { true -> done() _ -> bad() }
+    transition probe(@low) == 0.125 && probe(@high) == 0.25 { true -> done() _ -> bad() }
     machine done() { }
     machine bad() { crash Trap; }
 }

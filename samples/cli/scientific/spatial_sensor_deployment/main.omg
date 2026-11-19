@@ -8,49 +8,49 @@ use domain::search::solve;
 use data::fixtures;
 use data::fixtures::load;
 data Main { }
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Eof -> execute(main, 0)
         ByteRead::Byte { value } -> command(main, value)
     }
-    machine command(main: &mut Main, value: i32) {
+    machine command(main: @mut Main, value: i32) {
         transition value >= 48 && value <= 55 {
             true -> execute(main, (value - 48) as u64 in Wrapping)
             false -> invalid(main)
         }
     }
-    machine execute(main: &mut Main, variant: u64 in Wrapping) {
+    machine execute(main: @mut Main, variant: u64 in Wrapping) {
         let mut problem: Problem;
-        load(&mut problem, variant);
+        load(@mut problem, variant);
         let mut search: Search;
-        solve(&mut search, &problem);
+        solve(@mut search, @problem);
         Console::write_line("spatial_sensor_deployment v1");
         Console::write("case="); number(main, variant); Console::write_byte(10);
-        report(main, &search, &problem);
+        report(main, @search, @problem);
         ProcessExit::exit_process(0);
     }
-    machine invalid(main: &mut Main) {
+    machine invalid(main: @mut Main) {
         Console::write_line("invalid command: expected one byte 0..7 or EOF");
         ProcessExit::exit_process(64);
     }
 }
 // Four decimal digits keep the certificate format bounded and inspectable.
-machine number(main: &mut Main, value: u64 in Wrapping) reaches Console {
+machine number(main: @mut Main, value: u64 in Wrapping) reaches Console {
     Console::write_byte((((value / 1000) % 10) as i32) + 48);
     Console::write_byte((((value / 100) % 10) as i32) + 48);
     Console::write_byte((((value / 10) % 10) as i32) + 48);
     Console::write_byte(((value % 10) as i32) + 48);
 }
-machine report(main: &mut Main, search: &Search, problem: &Problem) reaches Console {
+machine report(main: @mut Main, search: @Search, problem: @Problem) reaches Console {
     transition { _ -> row(main, search, problem, 0) }
-    machine row(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine row(main: @mut Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
             true -> emit(main, search, problem, mask)
             false -> placement(main, search, problem)
         }
     }
-    machine emit(main: &mut Main, search: &Search, problem: &Problem, mask: u64 in Wrapping) {
+    machine emit(main: @mut Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
         Console::write("certificate mask="); number(main, mask);
         Console::write(" cost="); number(main, search.rows[mask].cost);
         Console::write(" score="); number(main, search.rows[mask].score);
@@ -59,7 +59,7 @@ machine report(main: &mut Main, search: &Search, problem: &Problem) reaches Cons
         Console::write_byte(10);
         transition { _ -> row(main, search, problem, mask + 1) }
     }
-    machine placement(main: &mut Main, search: &Search, problem: &Problem) {
+    machine placement(main: @mut Main, search: @Search, problem: @Problem) {
         Console::write("placement mask="); number(main, search.mask);
         Console::write(" cost="); number(main, search.cost);
         Console::write(" score="); number(main, search.score);
@@ -71,17 +71,17 @@ machine report(main: &mut Main, search: &Search, problem: &Problem) reaches Cons
             false -> status(main, search, 0)
         }
     }
-    machine status(main: &mut Main, search: &Search, accepted: u64 in Wrapping) {
+    machine status(main: @mut Main, search: @Search, accepted: u64 in Wrapping) {
         number(main, accepted); Console::write_byte(10);
         transition { _ -> demand(main, search.code, 0) }
     }
-    machine demand(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
+    machine demand(main: @mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
         transition position < 4 {
             true -> coverage(main, remaining, position)
             false -> done()
         }
     }
-    machine coverage(main: &mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
+    machine coverage(main: @mut Main, remaining: u64 in Wrapping, position: u64 in Wrapping) {
         Console::write("demand="); number(main, position);
         Console::write(" site="); number(main, remaining % 4); Console::write_byte(10);
         transition { _ -> demand(main, remaining / 4, position + 1) }
@@ -92,5 +92,5 @@ machine report(main: &mut Main, search: &Search, problem: &Problem) reaches Cons
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

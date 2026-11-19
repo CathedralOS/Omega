@@ -498,7 +498,7 @@ def main() -> None:
     accepted(
         program,
         "nested-lifetime-context-constrains-explicit-reference",
-        b"machine outer<'a>() { machine child(value: &'a u8) {} }",
+        b"machine outer<'a>() { machine child(value: @'a u8) {} }",
         (builtin("u8"), REFERENCE_ROW),
     )
     accepted(program, "nested-static-machine-context-uses-exact-ancestor-binder",
@@ -787,13 +787,13 @@ def main() -> None:
     accepted(
         program,
         "machine-signature-types",
-        b'machine f(a: u8, b: &mut D) -> u64 { machine s(x: D) -> u64 {} }\ndata D { y: u8; }',
+        b'machine f(a: u8, b: @mut D) -> u64 { machine s(x: D) -> u64 {} }\ndata D { y: u8; }',
         (builtin("u8"), data(0), REFERENCE_ROW, builtin("u64"), data(0), builtin("u64"), builtin("u8")),
     )
     accepted(
         program,
         "data-field-reference",
-        b"data View { target: &Record; }\ndata Record { x: u8; }",
+        b"data View { target: @Record; }\ndata Record { x: u8; }",
         (data(1), REFERENCE_ROW, builtin("u8")),
     )
     accepted(
@@ -805,7 +805,7 @@ def main() -> None:
     accepted(
         program,
         "overloads-by-access-and-domain",
-        b"machine f(a: &u8) {} machine f(a: &mut u8) {} machine g(a: u8 in Wrapping) {} machine g(a: u8) {}",
+        b"machine f(a: @u8) {} machine f(a: @mut u8) {} machine g(a: u8 in Wrapping) {} machine g(a: u8) {}",
         (builtin("u8"), REFERENCE_ROW, builtin("u8"), REFERENCE_ROW, builtin("u8", WRAPPING), builtin("u8")),
     )
     accepted(
@@ -823,7 +823,7 @@ def main() -> None:
     rejected(program, "unknown-parameter-type", b"machine f(a: Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-return-type", b"machine f() -> Q {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(program, "unknown-nested-machine-parameter-type", b"machine f() { machine s(x: Q) {} }", UNKNOWN_DATA_TYPE, b"Q")
-    rejected(program, "unknown-referee", b"machine f(a: &Q) {}", UNKNOWN_DATA_TYPE, b"Q")
+    rejected(program, "unknown-referee", b"machine f(a: @Q) {}", UNKNOWN_DATA_TYPE, b"Q")
     rejected(
         program,
         "duplicate-parameter",
@@ -881,7 +881,7 @@ def main() -> None:
     accepted(
         program,
         "local-and-cast-types",
-        b"machine f() { let x: u8 = 1 as u16 in Wrapping; let r: &D = g(); }\ndata D { y: u8; }\nmachine g() {}",
+        b"machine f() { let x: u8 = 1 as u16 in Wrapping; let r: @D = g(); }\ndata D { y: u8; }\nmachine g() {}",
         (builtin("u8"), builtin("u16", WRAPPING), data(0), REFERENCE_ROW, builtin("u8")),
     )
     rejected(program, "unknown-local-type", b"machine f() { let x: Q; }", UNKNOWN_DATA_TYPE, b"Q")
@@ -899,7 +899,7 @@ def main() -> None:
     accepted(
         program,
         "array-slice-and-application-rows",
-        b"data A<T, const N: u64> { b: Box<T>; c: [u8; N] in Trapping; d: &mut [A<u8, 4>]; }\n"
+        b"data A<T, const N: u64> { b: Box<T>; c: [u8; N] in Trapping; d: @mut [A<u8, 4>]; }\n"
         b"data Box<T> { v: T; }",
         (
             builtin("u64"),
@@ -920,8 +920,8 @@ def main() -> None:
     accepted(
         program,
         "overloads-differ-inside-types",
-        b"machine f(a: [u8; 4]) {} machine f(a: [u8; 5]) {} machine f(a: &[u8]) {} "
-        b"machine f(a: &mut [u8]) {} machine f(a: Box<u8>) {} machine f(a: Box<u16>) {}\n"
+        b"machine f(a: [u8; 4]) {} machine f(a: [u8; 5]) {} machine f(a: @[u8]) {} "
+        b"machine f(a: @mut [u8]) {} machine f(a: Box<u8>) {} machine f(a: Box<u16>) {}\n"
         b"data Box<T> { v: T; }",
         (
             builtin("u8"), LITERAL_ROW, array(),
@@ -936,7 +936,7 @@ def main() -> None:
     rejected(
         program,
         "duplicate-overload-with-nested-types",
-        b"machine f(a: &[Box<u8>; 4]) {} machine f(b: &[Box<u8>; 4]) {}\ndata Box<T> { v: T; }",
+        b"machine f(a: @[Box<u8>; 4]) {} machine f(b: @[Box<u8>; 4]) {}\ndata Box<T> { v: T; }",
         DUPLICATE_MACHINE,
         b"f(",
         2,
@@ -1220,7 +1220,7 @@ def main() -> None:
     accepted(
         program,
         "generic-machine-signature",
-        b'machine Vec::as_slice<T>(items: &Vec<T>) -> &[T] { machine s(x: T) -> &[T] {} }\ndata Vec<T> { v: T; }',
+        b'machine Vec::as_slice<T>(items: @Vec<T>) -> @[T] { machine s(x: T) -> @[T] {} }\ndata Vec<T> { v: T; }',
         (generic(0), data(0), REFERENCE_ROW, generic(0), SLICE_ROW, REFERENCE_ROW, generic(0), generic(0), SLICE_ROW, REFERENCE_ROW, generic(1)),
     )
     accepted(
@@ -1871,13 +1871,13 @@ def main() -> None:
     # and members bind like machines in the conformance's scope.
     # `Conformance::member` names the member, else the machine its trait
     # supplies.
-    counter = b"data Counter<T> { value: T; }\ntrait Increment<C> { machine increment(counter: &mut C); machine reset(counter: &mut C); }\n"
+    counter = b"data Counter<T> { value: T; }\ntrait Increment<C> { machine increment(counter: @mut C); machine reset(counter: @mut C); }\n"
     accepted(
         program,
         "conformance-members-and-requirements",
         counter
-        + b"Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: &mut Counter<T>) {} }\n"
-        b"machine use_it(c: &mut Counter<u8>) { Saturating::increment(c); Saturating::reset(c); }",
+        + b"Saturating<T> satisfies Increment<Counter<T>> { machine increment(counter: @mut Counter<T>) {} }\n"
+        b"machine use_it(c: @mut Counter<u8>) { Saturating::increment(c); Saturating::reset(c); }",
         (
             generic(0),
             generic(1), REFERENCE_ROW, generic(1), REFERENCE_ROW,
@@ -1918,7 +1918,7 @@ def main() -> None:
     rejected(
         program,
         "conformance-is-not-a-referent",
-        order + b"Ascending satisfies Order<u8> { }\nmachine f(x: &Ascending) {}",
+        order + b"Ascending satisfies Order<u8> { }\nmachine f(x: @Ascending) {}",
         NOT_A_TYPE,
         b"Ascending",
         2,
@@ -2008,7 +2008,7 @@ def main() -> None:
     accepted(
         program,
         "slice-carrier-domain",
-        b"domain [u8]::Path;\nmachine open(path: &[u8] in Path) {}",
+        b"domain [u8]::Path;\nmachine open(path: @[u8] in Path) {}",
         (builtin("u8"), SLICE_ROW, builtin("u8"), in_domain(SLICE_ROW, 0), REFERENCE_ROW),
     )
     accepted(
@@ -2158,21 +2158,21 @@ def main() -> None:
     accepted(
         program,
         "declared-lifetimes-bind",
-        b"data Message<'buffer> { body: &'buffer [u8]; }\n"
-        b"machine f<'s>(m: &Message<'s>, bare: &Message) -> u64 { m.body.len }",
+        b"data Message<'buffer> { body: @'buffer [u8]; }\n"
+        b"machine f<'s>(m: @Message<'s>, bare: @Message) -> u64 { m.body.len }",
         (builtin("u8"), SLICE_ROW, REFERENCE_ROW, data(0), REFERENCE_ROW, data(0), REFERENCE_ROW, builtin("u64")),
     )
     rejected(
         program,
         "undeclared-lifetime",
-        b"data D { v: &'a u8; }",
+        b"data D { v: @'a u8; }",
         UNDECLARED_LIFETIME,
-        b"&'a u8",
+        b"@'a u8",
     )
     rejected(
         program,
         "lifetime-argument-count",
-        b"data P { v: u8; }\nmachine f<'a>(p: &P<'a>) {}",
+        b"data P { v: u8; }\nmachine f<'a>(p: @P<'a>) {}",
         LIFETIME_ARGUMENT_COUNT,
         b"P",
         2,
@@ -2180,7 +2180,7 @@ def main() -> None:
     rejected(
         program,
         "fewer-lifetime-arguments",
-        b"data Pair<'a, 'b> { x: &'a u8; y: &'b u8; }\nmachine f<'s>(p: &Pair<'s>) {}",
+        b"data Pair<'a, 'b> { x: @'a u8; y: @'b u8; }\nmachine f<'s>(p: @Pair<'s>) {}",
         LIFETIME_ARGUMENT_COUNT,
         b"Pair",
         2,
@@ -2462,7 +2462,7 @@ def main() -> None:
     assert len(decode(payload).bindings) == 32768, "parameter-capacity"
     phase_rejected_units(program, "parameter-capacity-plus-one",
                          exact_parameters + ((b"p4", b"machine g(q: u8) {}"),), 250)
-    exact_type_references = parameter_units(b"&u8")
+    exact_type_references = parameter_units(b"@u8")
     status, payload = run_units(program, exact_type_references)
     assert status == 0, f"type-reference-capacity: status {status}"
     assert len(decode(payload).bindings) == 65536, "type-reference-capacity"

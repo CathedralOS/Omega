@@ -38,12 +38,12 @@ machine build_entry() { }",
 machine build_entry(value: f64) { use(same(value)); }
 machine use(value: f64) { }",
         "data Calibration { magnitude: f32; count: u32; }
-machine magnitude(calibration: &Calibration) -> f32 { calibration.magnitude }
-machine build_entry(calibration: &Calibration) { use(magnitude(calibration)); }
+machine magnitude(calibration: @Calibration) -> f32 { calibration.magnitude }
+machine build_entry(calibration: @Calibration) { use(magnitude(calibration)); }
 machine use(value: f32) { }",
         "data Calibration { magnitude: f32; count: u32; }
-machine set(calibration: &mut Calibration, value: f32) { calibration.magnitude = value; }
-machine build_entry(calibration: &mut Calibration, value: f32) { set(calibration, value); }",
+machine set(calibration: @mut Calibration, value: f32) { calibration.magnitude = value; }
+machine build_entry(calibration: @mut Calibration, value: f32) { set(calibration, value); }",
         "data Calibration { magnitude: f32; count: u32; }
 machine build_entry(value: f32) {
     let calibration: Calibration = Calibration { magnitude: value, count: 1 };
@@ -51,7 +51,7 @@ machine build_entry(value: f32) {
     use(kept);
 }
 machine use(value: f32) { }",
-        "machine build_entry(flag: bool, left: f32, right: f32, values: &[f32; 2]) {
+        "machine build_entry(flag: bool, left: f32, right: f32, values: @[f32; 2]) {
     use(match flag { true -> left false -> right }, values[0]);
 }
 machine use(chosen: f32, first: f32) { }",

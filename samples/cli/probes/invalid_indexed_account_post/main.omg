@@ -17,7 +17,7 @@ data Main {
     accounts: [Account; 4];
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     let post: Post = Post::Deposit { index: 4, amount: 1 };
     main.accounts[0].balance = 0;
 }

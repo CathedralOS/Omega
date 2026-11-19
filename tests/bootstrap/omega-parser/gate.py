@@ -57,11 +57,11 @@ def main():
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 838497,
-                     "5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2")
+    require_identity("D", compiler, 838494,
+                     "5047ce234bcf690ca4bbaee1163940d7ad394e1a1d1adac7d739896ddaf16d01")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 59962,
-                     "857fa18ffc214176022d57c2c5d6d5a506b86a4a25c9540460e4a70e73f603c2")
+                     "c8f76fd58ff8a5f0bceac25848b57217d0f9942146243b51bd6893b79db18544")
     customer = compiler + entry
     expected = bytes.fromhex((gate / "expected.hex").read_text(encoding="ascii"))
     print(f"Complete D customer: {len(customer)} bytes, "

@@ -6,15 +6,15 @@
 
 use depkit;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
     Build::application(builder, "app_declared");
     let mut depkit_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
-    dependency::with_alias(&mut depkit_dependency, "depkit");
+    dependency::with_alias(@mut depkit_dependency, "depkit");
     let depkit_registration: DependencyRegistration = Build::build_dependency(builder, depkit_dependency);
     let mut depkit_dependency_2: DependencyDescription = dependency::from_source(Source::Path { location: "depdir" });
-    dependency::with_alias(&mut depkit_dependency_2, "depkit");
+    dependency::with_alias(@mut depkit_dependency_2, "depkit");
     let depkit_registration_2: DependencyRegistration = Build::dependency(builder, depkit_dependency_2);
     suspend Build::prepare_dependency(builder, depkit_registration);
     let observed: i32 = depkit::value();

@@ -54,11 +54,11 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
         apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
     {
-        transition hosted_entry_integer_shape(&argc, 4)
-            && hosted_entry_integer_shape(&argv, 8)
-            && hosted_entry_integer_shape(&envp, 8)
-            && hosted_entry_integer_shape(&apple, 8)
-            && hosted_entry_integer_shape(&result, 4)
+        transition hosted_entry_integer_shape(@argc, 4)
+            && hosted_entry_integer_shape(@argv, 8)
+            && hosted_entry_integer_shape(@envp, 8)
+            && hosted_entry_integer_shape(@apple, 8)
+            && hosted_entry_integer_shape(@result, 4)
         {
             true -> build_physical()
             _ -> reject()
@@ -101,7 +101,7 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 
     machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
-        transition macos_x86_64_entry_extent_shape(image, &signature) && macos_x86_64_entry_extent_shape(storage, &signature) {
+        transition macos_x86_64_entry_extent_shape(image, @signature) && macos_x86_64_entry_extent_shape(storage, @signature) {
             true -> build_semantic()
             _ -> reject()
         }
@@ -211,12 +211,12 @@ machine macos_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
     }
 }
 
-machine macos_x86_64_entry_extent_shape(shape: ValueShape, signature: &BoundarySignature) -> bool {
+machine macos_x86_64_entry_extent_shape(shape: ValueShape, signature: @BoundarySignature) -> bool {
     transition shape.class {
         ValueClass::Record { first_field, field_count } -> record(shape, first_field, field_count, signature)
         _ -> no()
     }
-    machine record(shape: ValueShape, first_field: u64, field_count: u64, signature: &BoundarySignature) -> bool {
+    machine record(shape: ValueShape, first_field: u64, field_count: u64, signature: @BoundarySignature) -> bool {
         transition shape.byte_size == 16 && shape.alignment == 8
             && field_count == 2 && first_field < 255
         {
@@ -224,25 +224,25 @@ machine macos_x86_64_entry_extent_shape(shape: ValueShape, signature: &BoundaryS
             _ -> no()
         }
     }
-    machine field_range(signature: &BoundarySignature, first_field: u64) -> bool
+    machine field_range(signature: @BoundarySignature, first_field: u64) -> bool
     requires first_field <= 254
     {
         let second_field: u64 = first_field + 1;
         transition second_field < signature.field_count {
-            true -> fields(signature, &signature.fields[first_field], &signature.fields[second_field])
+            true -> fields(signature, @signature.fields[first_field], @signature.fields[second_field])
             _ -> no()
         }
     }
-    machine fields(signature: &BoundarySignature, base: &ValueField, length: &ValueField) -> bool {
+    machine fields(signature: @BoundarySignature, base: @ValueField, length: @ValueField) -> bool {
         transition base.byte_offset == 0 && length.byte_offset == 8
             && base.shape < 256 && length.shape < 256
             && base.shape < signature.shape_count && length.shape < signature.shape_count
         {
-            true -> words(&signature.shapes[base.shape], &signature.shapes[length.shape])
+            true -> words(@signature.shapes[base.shape], @signature.shapes[length.shape])
             _ -> no()
         }
     }
-    machine words(base: &ValueShape, length: &ValueShape) -> bool {
+    machine words(base: @ValueShape, length: @ValueShape) -> bool {
         hosted_entry_integer_shape(base, 8) && hosted_entry_integer_shape(length, 8)
     }
     machine no() -> bool { false }

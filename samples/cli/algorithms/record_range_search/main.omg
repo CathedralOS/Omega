@@ -3,9 +3,9 @@
 // Expected exit: 0.
 data Record { key: u64; address: u64; }
 
-machine bound(records: &[Record], key: u64, after_equal: bool) -> u64 {
+machine bound(records: @[Record], key: u64, after_equal: bool) -> u64 {
     transition { _ -> search(records, key, after_equal, 0, records.len) }
-    machine search(records: &[Record], key: u64, after_equal: bool,
+    machine search(records: @[Record], key: u64, after_equal: bool,
                  lower: u64, upper: u64) -> u64
     requires lower <= upper && upper <= records.len
     {
@@ -14,7 +14,7 @@ machine bound(records: &[Record], key: u64, after_equal: bool) -> u64 {
             false -> (lower)
         }
     }
-    machine probe(records: &[Record], key: u64, after_equal: bool,
+    machine probe(records: @[Record], key: u64, after_equal: bool,
                 lower: u64, upper: u64) -> u64
     requires lower < upper && upper <= records.len
     {
@@ -36,14 +36,14 @@ machine main() crashes Trap {
         Record { key: 12, address: 500 },
         Record { key: 18446744073709551615, address: 600 }
     ];
-    let first: u64 = bound(&records[..], 7, false);
-    let past: u64 = bound(&records[..], 7, true);
-    let absent: u64 = bound(&records[..], 8, false);
-    let maximum: u64 = bound(&records[..], 18446744073709551615, false);
-    let maximum_end: u64 = bound(&records[..], 18446744073709551615, true);
+    let first: u64 = bound(@records[..], 7, false);
+    let past: u64 = bound(@records[..], 7, true);
+    let absent: u64 = bound(@records[..], 8, false);
+    let maximum: u64 = bound(@records[..], 18446744073709551615, false);
+    let maximum_end: u64 = bound(@records[..], 18446744073709551615, true);
     let empty: u64 = bound(records[..0], 7, false);
     let suffix: u64 = bound(records[2..], 7, true);
-    let first_key: u64 = bound(&records[..], 0, false);
+    let first_key: u64 = bound(@records[..], 0, false);
     transition first == 1 && past == 4 && absent == 4 && maximum == 5
         && maximum_end == 6 && empty == 0 && suffix == 2 && first_key == 0 {
         true -> done()

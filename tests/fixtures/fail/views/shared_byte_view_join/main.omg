@@ -1,17 +1,17 @@
 use omega::language::core::byte_observation;
 // Expected exit: 0
 
-domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+domain [u8]::Ascii requires byte_observation::ascii_only(@self[..]);
 
-machine read_prefix<'a>(bytes: &'a [u8] in Ascii, other: &'a [u8] in Ascii, use_first: bool) -> u8
+machine read_prefix<'a>(bytes: @'a [u8] in Ascii, other: @'a [u8] in Ascii, use_first: bool) -> u8
 requires 1 <= bytes.len, 1 <= other.len
 {
-    let raw: &'a [u8] = match use_first {
+    let raw: @'a [u8] = match use_first {
         true -> (bytes as -Ascii)
         false -> "\xff2"
     };
-    let prefix: &[u8] = raw[..1];
-    let qualified: &[u8] in Ascii = prefix as +Ascii;
+    let prefix: @[u8] = raw[..1];
+    let qualified: @[u8] in Ascii = prefix as +Ascii;
     (qualified as -Ascii)[0]
 }
 

@@ -6,7 +6,7 @@ use omega_language_std::Console;
 // supplies Console and its private byte provider for the selected target.
 // ProcessExit is separate and requires its own admitted authority.
 data Main { }
-machine main(root: &mut Main) reaches ProcessExit + Console {
+machine main(root: @mut Main) reaches ProcessExit + Console {
     Console::write_byte(75);
     Console::write_byte(10);
     ProcessExit::exit_process(0);
@@ -15,5 +15,5 @@ machine main(root: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    main(&mut entry_storage);
+    main(@mut entry_storage);
 }

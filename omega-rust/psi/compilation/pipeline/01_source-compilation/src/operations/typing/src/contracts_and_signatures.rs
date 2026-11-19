@@ -484,8 +484,8 @@ pub(crate) mod contracts {
                         r#"
                             domain [u8; 4]::Ascii;
                             domain [u8; 16]::Ascii;
-                            machine short(value: &[u8; 4]) ensures value in Ascii {}
-                            machine long(value: &mut [u8; 16]) ensures value in Ascii {}
+                            machine short(value: @[u8; 4]) ensures value in Ascii {}
+                            machine long(value: @mut [u8; 16]) ensures value in Ascii {}
                         "#,
                     )])
                     .expect("reference membership retains its actual carrier family");
@@ -537,7 +537,7 @@ pub(crate) mod contracts {
                         "indexed-membership.omg",
                         r#"
                             domain<Index> i64::Tagged<Index>;
-                            machine retains(value: &i64) ensures value in Tagged<u32> {}
+                            machine retains(value: @i64) ensures value in Tagged<u32> {}
                         "#,
                     )])
                     .expect("the indexed membership retains its complete application");
@@ -585,7 +585,7 @@ pub(crate) mod contracts {
                         r#"
                             domain [u8; 4]::Ascii;
                             domain [u8; 16]::Ascii;
-                            machine wrong(value: &[u8; 32]) ensures value in Ascii {}
+                            machine wrong(value: @[u8; 32]) ensures value in Ascii {}
                         "#,
                     )])
                     .expect("unserved carrier selection stays on its actual declaration");
@@ -614,7 +614,7 @@ pub(crate) mod contracts {
                     let text = r#"
                         domain u32::First;
                         domain u32::Second;
-                        machine keep(value: &u32) ensures value in First {}
+                        machine keep(value: @u32) ensures value in First {}
                     "#;
                     let mut sources = crate::source_inputs::SourceMap::default();
                     let id = sources

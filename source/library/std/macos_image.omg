@@ -5,7 +5,7 @@
 // The admitted foreign promise copies those bytes before returning. The result
 // is a Create-rule owned CFData handle, or zero; it retains no input reference.
 public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
-    machine copy(allocator: u64, bytes: &[u8]) -> u64
+    machine copy(allocator: u64, bytes: @[u8]) -> u64
     requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
     reaches none
     crashes none;
@@ -42,14 +42,14 @@ public boundary trait MacosImageObjects: Calling<DarwinArm64ScalarCalling> {
 // result is a Create-rule owned CGImage: its caller must release it. Zero is
 // allocation/image-creation failure, with every created temporary released.
 public machine macos_image_snapshot(width: u32, height: u32,
-    pixels: &[i32], space: u64) -> u64
+    pixels: @[i32], space: u64) -> u64
 requires width > 0 && width <= 8192
 requires height > 0 && height <= 8192
 requires pixels.len == (width as u64) * (height as u64)
 reaches none
 invokes MacosImageData invokes MacosImageObjects
 {
-    let bytes: &[u8] = pixels as &[u8];
+    let bytes: @[u8] = pixels as @[u8];
     // CFIndex is signed even though Omega view lengths are unsigned counts.
     // Validate the native scalar lane independently of the borrowed extent.
     transition bytes.len <= 0x7fff_ffff_ffff_ffffu64 {
@@ -57,7 +57,7 @@ invokes MacosImageData invokes MacosImageObjects
         _ -> (0)
     }
 
-    machine copy(width: u32, height: u32, space: u64, bytes: &[u8]) -> u64
+    machine copy(width: u32, height: u32, space: u64, bytes: @[u8]) -> u64
     requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
     invokes MacosImageData invokes MacosImageObjects
     {

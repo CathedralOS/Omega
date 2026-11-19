@@ -27,7 +27,7 @@ A `Player in Alive` has the same fields and the same bytes as a plain
 ## Domains in contracts
 
 ```omega
-machine respawn(player: &mut Player)
+machine respawn(player: @mut Player)
 requires player in Player::Dead
 ensures player in Player::Alive
 {
@@ -98,10 +98,10 @@ A cast followed by arithmetic needs parentheses: `(distance as -Km) + 1`.
 A helper that knows nothing about your domains can still work on your value:
 
 ```omega
-machine reset(n: &mut i32) ensures n == 1 { n = 1; }
+machine reset(n: @mut i32) ensures n == 1 { n = 1; }
 
 let mut trip: i32 in Km & Positive = 5 as +Km +Positive;
-reset(&mut trip as -Km -Positive);
+reset(@mut trip as -Km -Positive);
 // trip is i32 in Km & Positive again
 ```
 
@@ -165,7 +165,7 @@ let ready: Config = Config { rank: 1 as +Rank, .. };
 ## Matching on a domain
 
 ```omega
-machine status(player: &Player) -> u32 {
+machine status(player: @Player) -> u32 {
     transition player {
         Player::Dead -> 0
         Player::Alive -> 1
@@ -191,7 +191,7 @@ public domain Socket::Usable = Socket::Connected & Socket::Authenticated;   // a
 ## Text is bytes in a domain
 
 ```omega
-&[u8] in Utf8             // borrowed
+@[u8] in Utf8             // borrowed
 Vec<u8> in Utf8           // owned, growable
 [u8; 64] in Utf8          // exactly 64 bytes
 ```
@@ -201,8 +201,8 @@ them in the domain; callers then use the text without rescanning:
 
 ```omega
 data Decoded {
-    case Ascii(text: &[u8]::Ascii);
-    case Utf8(text: &[u8]::Utf8);
+    case Ascii(text: @[u8]::Ascii);
+    case Utf8(text: @[u8]::Utf8);
     case Invalid(error: DecodeError);
 }
 ```
@@ -225,14 +225,14 @@ public domain Cell::Controlled
 CellAccess satisfies AccessPolicy {
     machine plan(schema: reflect::TypeSchema) -> AccessPlan {
         let mut plan: AccessPlan = access::new_plan(
-            &schema,
+            @schema,
             Issuance::Only { routes: [reflect::callable(create_cell)] }
         );
         access::allow_readers(
-            &mut plan, TypeSchema::root(&schema), [reflect::callable(read_cell)]
+            @mut plan, TypeSchema::root(@schema), [reflect::callable(read_cell)]
         );
         access::allow_writers(
-            &mut plan, TypeSchema::root(&schema), [reflect::callable(set_cell)]
+            @mut plan, TypeSchema::root(@schema), [reflect::callable(set_cell)]
         );
         plan
     }
@@ -242,19 +242,19 @@ public machine create_cell(value: u32) -> Cell in Controlled {
     Cell { value: value } as +Controlled
 }
 
-public machine read_cell(cell: &Cell in Controlled) -> u32 {
+public machine read_cell(cell: @Cell in Controlled) -> u32 {
     cell.value
 }
 
-public machine set_cell(cell: &write Cell in Controlled, value: u32) {
+public machine set_cell(cell: @write Cell in Controlled, value: u32) {
     cell.value = value;
 }
 ```
 
 ```omega
 let mut cell: Cell in Controlled = create_cell(0);
-set_cell(&write cell, 7);
-let seen: u32 = read_cell(&cell);
+set_cell(@write cell, 7);
+let seen: u32 = read_cell(@cell);
 
 let leaked: u32 = cell.value;                           // Rejected: not a listed reader.
 let forged: Cell in Controlled = Cell { value: 1 } as +Controlled;   // Rejected: not the issuer.

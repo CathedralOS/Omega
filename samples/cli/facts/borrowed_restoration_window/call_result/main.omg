@@ -6,13 +6,13 @@ data Cell {
     value: u64;
 }
 
-machine write_cell(cell: &mut Cell) {
+machine write_cell(cell: @mut Cell) {
     cell.value = 100u64;
 }
 
 machine make_cell() -> Cell {
     let mut c: Cell = Cell { value: 0u64 };
-    write_cell(&mut c);
+    write_cell(@mut c);
     c
 }
 

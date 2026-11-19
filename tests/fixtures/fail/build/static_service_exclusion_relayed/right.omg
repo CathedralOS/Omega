@@ -1,12 +1,12 @@
 module right;
 
 public boundary trait Sink {
-    machine emit(text: &[u8]) reaches crashes none;
+    machine emit(text: @[u8]) reaches crashes none;
 }
 
 public data QuietSink { }
 
-machine QuietSink::emit(text: &[u8])
+machine QuietSink::emit(text: @[u8])
 satisfies Sink::emit
 {
 }

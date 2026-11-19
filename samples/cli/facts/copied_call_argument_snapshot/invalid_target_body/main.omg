@@ -1,7 +1,7 @@
 // A copied first argument equal to 7 stays 7 when the second argument overwrites its former home with 9.
 // Place: target_body.
 // The first copied operand is 9 and cannot establish the required 7.
-machine overwrite(slot: &mut u64) -> u64
+machine overwrite(slot: @mut u64) -> u64
 ensures slot == 9
 {
     slot = 9;
@@ -59,7 +59,7 @@ ArmReceive satisfies SelectedReceive {
 
 machine main() crashes Trap {
     let mut source: u64 = 9;
-    let observed: u64 = SelectedReceive::receive(source, overwrite(&mut source));
+    let observed: u64 = SelectedReceive::receive(source, overwrite(@mut source));
     let difference: u64 = observed - 7;
     transition difference == 0 && source == 9 {
         true -> done()

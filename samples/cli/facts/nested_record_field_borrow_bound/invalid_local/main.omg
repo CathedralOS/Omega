@@ -18,8 +18,8 @@ requires seed <= 73
         inner: Inner { quota: seed, tag: 7 },
         header: 10,
     };
-    let view: &Outer = &outer;
-    let child_view: &Outer = view;
+    let view: @Outer = @outer;
+    let child_view: @Outer = view;
     let quota: u64 = child_view.inner.quota;
     let diff: u64 = 72u64 - quota;
     diff

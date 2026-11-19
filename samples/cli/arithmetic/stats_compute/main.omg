@@ -40,37 +40,37 @@ data Main {
 }
 
 // Add one value to the running sum.
-machine add(main: &mut Main, x: f64) {
+machine add(main: @mut Main, x: f64) {
     main.s.sum = main.s.sum + x;
     main.s.count = (main.s.count + 1) % 101;
 }
 
 // Finalize mean = sum / count.
-machine finalize_mean(main: &mut Main) {
+machine finalize_mean(main: @mut Main) {
     // count is 8; divide by storing quotient manually to avoid float/int division.
     // sum = 40.0; mean = 5.0
     main.s.mean = main.s.sum * 0.125;  // multiply by 1/8
 }
 
 // Add the squared deviation (xi - mean)^2 to sum_sq_dev.
-machine add_dev(main: &mut Main, xi: f64) {
+machine add_dev(main: @mut Main, xi: f64) {
     let dev: f64 = xi - main.s.mean;
     let sq: f64 = dev * dev;
     main.s.sum_sq_dev = main.s.sum_sq_dev + sq;
 }
 
 // Finalize variance = sum_sq_dev / count.
-machine finalize_variance(main: &mut Main) {
+machine finalize_variance(main: @mut Main) {
     // sum_sq_dev = 32.0; variance = 32.0 / 8 = 4.0
     main.s.variance = main.s.sum_sq_dev * 0.125;
 }
 
 // Add one weighted value to weighted_sum.
-machine add_weighted(main: &mut Main, x: f64, w: f64) {
+machine add_weighted(main: @mut Main, x: f64, w: f64) {
     main.s.weighted_sum = main.s.weighted_sum + x * w;
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     add(main, 2.0);
@@ -116,89 +116,89 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
         _ -> block bad_mean_low(main)
     }
 
-    machine bad_mean_low(main: &mut Main) {
+    machine bad_mean_low(main: @mut Main) {
         Console::write_line("FAIL: mean fell below 4.9, expected 5.0 (exit 71)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(71);
     }
 
-    machine check_mean_upper(main: &mut Main) {
+    machine check_mean_upper(main: @mut Main) {
         transition main.s.mean < 5.1 {
             true -> block check_var_low(main)
             _ -> block bad_mean_high(main)
         }
     }
 
-    machine bad_mean_high(main: &mut Main) {
+    machine bad_mean_high(main: @mut Main) {
         Console::write_line("FAIL: mean rose above 5.1, expected 5.0 (exit 72)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(72);
     }
 
     // Verify variance: should be 4.0.
-    machine check_var_low(main: &mut Main) {
+    machine check_var_low(main: @mut Main) {
         transition main.s.variance > 3.9 {
             true -> block check_var_high(main)
             _ -> block bad_var_low(main)
         }
     }
 
-    machine bad_var_low(main: &mut Main) {
+    machine bad_var_low(main: @mut Main) {
         Console::write_line("FAIL: variance fell below 3.9, expected 4.0 (exit 73)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(73);
     }
 
-    machine check_var_high(main: &mut Main) {
+    machine check_var_high(main: @mut Main) {
         transition main.s.variance < 4.1 {
             true -> block check_weighted(main)
             _ -> block bad_var_high(main)
         }
     }
 
-    machine bad_var_high(main: &mut Main) {
+    machine bad_var_high(main: @mut Main) {
         Console::write_line("FAIL: variance rose above 4.1, expected 4.0 (exit 74)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(74);
     }
 
     // Verify weighted sum: should be 82.5.
-    machine check_weighted(main: &mut Main) {
+    machine check_weighted(main: @mut Main) {
         transition main.s.weighted_sum > 82.0 {
             true -> block check_weighted_high(main)
             _ -> block bad_weighted_low(main)
         }
     }
 
-    machine bad_weighted_low(main: &mut Main) {
+    machine bad_weighted_low(main: @mut Main) {
         Console::write_line("FAIL: weighted sum fell below 82.0, expected 82.5 (exit 75)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(75);
     }
 
-    machine check_weighted_high(main: &mut Main) {
+    machine check_weighted_high(main: @mut Main) {
         transition main.s.weighted_sum < 83.0 {
             true -> block good(main)
             _ -> block bad_weighted_high(main)
         }
     }
 
-    machine bad_weighted_high(main: &mut Main) {
+    machine bad_weighted_high(main: @mut Main) {
         Console::write_line("FAIL: weighted sum rose above 83.0, expected 82.5 (exit 76)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(76);
     }
 
-    machine good(main: &mut Main) {
+    machine good(main: @mut Main) {
         Console::write_line("PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(70);
     }
 }
@@ -206,5 +206,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

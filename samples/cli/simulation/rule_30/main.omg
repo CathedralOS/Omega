@@ -22,64 +22,64 @@ requires self.g >= 0 && self.g <= 16,
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Console {
+machine main(main: @mut Main) reaches ProcessExit + Console {
     Console::write_line("rule_30: 16 generations of a 31-cell elementary automaton packed in one word");
     main.cells = 0x8000 as +Wrapping; // single live cell in the centre (bit 15)
     main.g = 0;
     transition { _ -> block gen_loop(main) }
 
-    machine gen_loop(main: &mut Main) {
+    machine gen_loop(main: @mut Main) {
         transition main.g < 16 { true -> block render_init(main) _ -> block finish(main) }
     }
 
     // --- render the current generation as one row of '#'/' ' bytes ---
-    machine render_init(main: &mut Main) {
+    machine render_init(main: @mut Main) {
         main.i = 0;
         transition { _ -> block render_loop(main) }
     }
-    machine render_loop(main: &mut Main) {
+    machine render_loop(main: @mut Main) {
         transition main.i >= 0 && main.i < 31 { true -> block render_cell(main) _ -> block emit(main) }
     }
-    machine render_cell(main: &mut Main) {
+    machine render_cell(main: @mut Main) {
         main.b = (main.cells >> main.i) as u64;
         transition main.b % 2 == 1 { true -> block mark(main) _ -> block blank(main) }
     }
     // Refine the standing owner bound to leave headroom for the increment.
-    machine mark(main: &mut Main) {
+    machine mark(main: @mut Main) {
         Console::write_byte(0x23);
         transition main.i >= 0 && main.i < 31 { true -> block render_bump(main) _ -> block render_loop(main) }
     }
-    machine blank(main: &mut Main) {
+    machine blank(main: @mut Main) {
         Console::write_byte(0x20);
         transition main.i >= 0 && main.i < 31 { true -> block render_bump(main) _ -> block render_loop(main) }
     }
-    machine render_bump(main: &mut Main) {
+    machine render_bump(main: @mut Main) {
         main.i = main.i + 1;
         transition { _ -> block render_loop(main) }
     }
-    machine emit(main: &mut Main) {
+    machine emit(main: @mut Main) {
         Console::write_line("");
         transition { _ -> block evolve(main) }
     }
 
     // --- one bit-parallel generation step, clipped back into the row ---
-    machine evolve(main: &mut Main) {
+    machine evolve(main: @mut Main) {
         main.cells =
             ((main.cells << 1) ^ (main.cells | (main.cells >> 1))) % 0x8000_0000;
         transition { _ -> block gen_next(main) }
     }
     // Re-guard `g < 16` so the increment proves into [1..=16].
-    machine gen_next(main: &mut Main) {
+    machine gen_next(main: @mut Main) {
         transition main.g < 16 { true -> block g_bump(main) _ -> block gen_loop(main) }
     }
-    machine g_bump(main: &mut Main) {
+    machine g_bump(main: @mut Main) {
         main.g = main.g + 1;
         transition { _ -> block gen_loop(main) }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -87,5 +87,5 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

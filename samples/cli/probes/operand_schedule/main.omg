@@ -18,19 +18,19 @@
 
 data Main { flag: bool; }
 
-machine clear(flag: &mut bool) -> bool { flag = false; true }
+machine clear(flag: @mut bool) -> bool { flag = false; true }
 
-machine Main::skip_and(main: &mut Main) -> bool
+machine Main::skip_and(main: @mut Main) -> bool
 requires main.flag
 ensures main.flag
 {
-    transition { _ -> (false && clear(&mut main.flag)) }
+    transition { _ -> (false && clear(@mut main.flag)) }
 }
 
 machine checked_transfer() {
     let mut flag: bool = false;
     flag = true;
-    transition { _ -> done(false && clear(&mut flag), flag) }
+    transition { _ -> done(false && clear(@mut flag), flag) }
     machine done(ignored: bool, current: bool) requires current {}
 }
 
@@ -40,7 +40,7 @@ machine selected_operand(flag: bool) -> bool {
     transition { _ -> (flag && demand(flag)) }
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.flag = true;
     let kept: bool = Main::skip_and(main);
     let picked: bool = selected_operand(true);
@@ -49,11 +49,11 @@ machine Main::main(main: &mut Main) {
         true -> done(main)
         _ -> done(main)
     }
-    machine done(main: &mut Main) {}
+    machine done(main: @mut Main) {}
 }
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    Main::main(@mut entry_storage);
 }

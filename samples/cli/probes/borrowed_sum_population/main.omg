@@ -1,10 +1,10 @@
 
 data Token [linear] dropped by drop_token { value: u64; }
-machine drop_token(token: &mut Token) {}
+machine drop_token(token: @mut Token) {}
 data Choice { case Empty; case Value(token: Token); }
 data Holder { marker: u64; choice: Choice; sibling: Token; }
 
-machine populate(choice: &mut Choice) -> u64 {
+machine populate(choice: @mut Choice) -> u64 {
     choice = Choice::Value { token: Token { value: 42 } };
     5
 }
@@ -18,7 +18,7 @@ machine discard(choice: Choice) {
     machine remove(token: Token) { drop(token); }
 }
 
-machine erase(choice: &mut Choice) {
+machine erase(choice: @mut Choice) {
     let detached: Choice = choice;
     discard(detached);
     choice = Choice::Empty {};
@@ -48,8 +48,8 @@ machine main() crashes Trap {
         choice: Choice::Value { token: Token { value: 7 } },
         sibling: Token { value: 22 },
     };
-    let populated: u64 = populate(&mut empty.choice);
-    erase(&mut full.choice);
+    let populated: u64 = populate(@mut empty.choice);
+    erase(@mut full.choice);
     let first: u64 = consume(empty.choice);
     let second: u64 = consume(full.choice);
     let first_sibling: u64 = read_and_drop(empty.sibling);

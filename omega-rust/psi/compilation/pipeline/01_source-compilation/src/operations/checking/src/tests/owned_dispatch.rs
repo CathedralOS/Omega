@@ -19,13 +19,13 @@ use terminal_semantics::plain_affine;
 const DATA: &str = r#"
 data Selection<'storage> {
     case Root;
-    case Named(package: &'storage [u8]);
+    case Named(package: @'storage [u8]);
 }
 data Source<'storage> {
-    case Path(location: &'storage [u8]);
-    case Git(repository: &'storage [u8], selection: Selection<'storage>);
+    case Path(location: @'storage [u8]);
+    case Git(repository: @'storage [u8], selection: Selection<'storage>);
 }
-machine take(view: &[u8]) { }
+machine take(view: @[u8]) { }
 machine pair(first: Selection, second: Selection) { }
 "#;
 
@@ -50,8 +50,8 @@ fn verdict(build: &str) -> String {
 fn selecting(root: &str) -> String {
     format!(
         r#"{DATA}
-machine build_entry(selection: Selection, view: &[u8]) {{ select(view, selection); }}
-machine select(view: &[u8], selection: Selection) {{
+machine build_entry(selection: Selection, view: @[u8]) {{ select(view, selection); }}
+machine select(view: @[u8], selection: Selection) {{
     transition selection {{
         Selection::Root -> {root}
         Selection::Named {{ package }} -> take(package)
@@ -84,7 +84,7 @@ machine route(source: Source) {{
         Source::Git {{ repository, selection }} -> {git}
     }}
 }}
-machine select(view: &[u8], selection: Selection) {{
+machine select(view: @[u8], selection: Selection) {{
     transition selection {{
         Selection::Root -> take(view)
         Selection::Named {{ package }} -> take(package)

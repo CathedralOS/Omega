@@ -27,6 +27,6 @@ machine work() -> i32 {
     0
 }
 
-machine Main::main(main: &mut Main) {
+machine Main::main(main: @mut Main) {
     main.hits = work() as i32 in Wrapping;
 }

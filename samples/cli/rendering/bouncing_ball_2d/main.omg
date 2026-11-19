@@ -35,7 +35,7 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mut Main) reaches ProcessExit + Clock + Console {
     Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     main.line = "                        ";
     main.home = "XXX";
@@ -51,99 +51,99 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
     main.frame = 0;
     transition { _ -> block frame_loop(main) }
 
-    machine frame_loop(main: &mut Main) {
+    machine frame_loop(main: @mut Main) {
         transition main.frame < 70 { true -> block frame_start(main) _ -> block finish(main) }
     }
-    machine frame_start(main: &mut Main) {
-        Console::write(&main.home[..]);
+    machine frame_start(main: @mut Main) {
+        Console::write(@main.home[..]);
         main.y = 0;
         transition { _ -> block row_loop(main) }
     }
 
     // --- render a 24x12 grid, one CELL at a time (a single write per cell whose
     // value a guard decides), one row per write_line ---
-    machine row_loop(main: &mut Main) {
+    machine row_loop(main: @mut Main) {
         transition main.y >= 0 && main.y < 12 { true -> block col_init(main) _ -> block after_frame(main) }
     }
-    machine col_init(main: &mut Main) {
+    machine col_init(main: @mut Main) {
         main.x = 0;
         transition { _ -> block col_loop(main) }
     }
-    machine col_loop(main: &mut Main) {
+    machine col_loop(main: @mut Main) {
         transition main.x >= 0 && main.x < 24 { true -> block cell(main) _ -> block emit_row(main) }
     }
-    machine cell(main: &mut Main) {
+    machine cell(main: @mut Main) {
         transition main.x == main.ball_x && main.y == main.ball_y {
             true -> block ball_cell(main)
             _ -> block space_cell(main)
         }
     }
-    machine ball_cell(main: &mut Main) {
+    machine ball_cell(main: @mut Main) {
         main.line[main.x] = 79;
         transition { _ -> block x_step(main) }
     }
-    machine space_cell(main: &mut Main) {
+    machine space_cell(main: @mut Main) {
         main.line[main.x] = 32;
         transition { _ -> block x_step(main) }
     }
     // Re-guard before each counter increment (the ball/space branch and the
     // write_line call don't carry the loop bound), so the `+ 1`s prove Exact.
-    machine x_step(main: &mut Main) {
+    machine x_step(main: @mut Main) {
         transition main.x >= 0 && main.x < 24 { true -> block x_bump(main) _ -> block emit_row(main) }
     }
-    machine x_bump(main: &mut Main) {
+    machine x_bump(main: @mut Main) {
         main.x = main.x + 1;
         transition { _ -> block col_loop(main) }
     }
-    machine emit_row(main: &mut Main) {
-        Console::write_line(&main.line[..]);
+    machine emit_row(main: @mut Main) {
+        Console::write_line(@main.line[..]);
         transition main.y >= 0 && main.y < 12 { true -> block y_bump(main) _ -> block row_loop(main) }
     }
-    machine y_bump(main: &mut Main) {
+    machine y_bump(main: @mut Main) {
         main.y = main.y + 1;
         transition { _ -> block row_loop(main) }
     }
 
     // --- integrate the physics, then bounce off the four walls ---
-    machine after_frame(main: &mut Main) {
+    machine after_frame(main: @mut Main) {
         main.vy = main.vy + 0.45;
         main.bx = main.bx + main.vx;
         main.by = main.by + main.vy;
         transition { _ -> block bounce_floor(main) }
     }
-    machine bounce_floor(main: &mut Main) {
+    machine bounce_floor(main: @mut Main) {
         transition main.by >= 11.0 { true -> block floor_hit(main) _ -> block bounce_ceil(main) }
     }
-    machine floor_hit(main: &mut Main) {
+    machine floor_hit(main: @mut Main) {
         main.by = 11.0;
         main.vy = 0.0 - main.vy * 0.72;
         transition { _ -> block bounce_ceil(main) }
     }
-    machine bounce_ceil(main: &mut Main) {
+    machine bounce_ceil(main: @mut Main) {
         transition main.by <= 0.0 { true -> block ceil_hit(main) _ -> block bounce_walls(main) }
     }
-    machine ceil_hit(main: &mut Main) {
+    machine ceil_hit(main: @mut Main) {
         main.by = 0.0;
         main.vy = 0.0 - main.vy;
         transition { _ -> block bounce_walls(main) }
     }
-    machine bounce_walls(main: &mut Main) {
+    machine bounce_walls(main: @mut Main) {
         transition main.bx >= 23.0 { true -> block wall_right(main) _ -> block bounce_wall_left(main) }
     }
-    machine wall_right(main: &mut Main) {
+    machine wall_right(main: @mut Main) {
         main.bx = 23.0;
         main.vx = 0.0 - main.vx;
         transition { _ -> block recompute(main) }
     }
-    machine bounce_wall_left(main: &mut Main) {
+    machine bounce_wall_left(main: @mut Main) {
         transition main.bx <= 0.0 { true -> block wall_left(main) _ -> block recompute(main) }
     }
-    machine wall_left(main: &mut Main) {
+    machine wall_left(main: @mut Main) {
         main.bx = 0.0;
         main.vx = 0.0 - main.vx;
         transition { _ -> block recompute(main) }
     }
-    machine recompute(main: &mut Main) {
+    machine recompute(main: @mut Main) {
         // Named saturating conversions truncate the float positions; the policy
         // then erases.
         let column: i32 in Saturating = I32::from_f64(main.bx);
@@ -153,15 +153,15 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
         block Clock::sleep(40);
         transition main.frame < 70 { true -> block frame_bump(main) _ -> block frame_loop(main) }
     }
-    machine frame_bump(main: &mut Main) {
+    machine frame_bump(main: @mut Main) {
         main.frame = main.frame + 1;
         transition { _ -> block frame_loop(main) }
     }
 
-    machine finish(main: &mut Main) {
+    machine finish(main: @mut Main) {
         Console::write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
         Console::write_line("[press Enter to close]");
-        _ = block Console::read_line(&mut main.pause[..]);
+        _ = block Console::read_line(@mut main.pause[..]);
         ProcessExit::exit_process(0);
     }
 }
@@ -169,5 +169,5 @@ machine main(main: &mut Main) reaches ProcessExit + Clock + Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches ProcessExit + Clock + Console {
     let mut entry_storage: Main;
-    block main(&mut entry_storage);
+    block main(@mut entry_storage);
 }

@@ -3,7 +3,7 @@
 WindowsX64ScalarCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
         let mut plan: BoundaryEntryPlan = windows_x64_call_entry();
-        let accepted: bool = windows_x64_scalar_signature(&signature, &mut plan);
+        let accepted: bool = windows_x64_scalar_signature(@signature, @mut plan);
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
@@ -13,15 +13,15 @@ WindowsX64ScalarCalling satisfies CallingPolicy {
     }
 }
 
-machine windows_x64_scalar_signature(signature: &BoundarySignature,
-    plan: &mut BoundaryEntryPlan) -> bool {
+machine windows_x64_scalar_signature(signature: @BoundarySignature,
+    plan: @mut BoundaryEntryPlan) -> bool {
     transition signature.parameter_count == signature.native_parameter_count
         && signature.parameter_count <= 4 && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
         true -> completion(signature, plan)
         _ -> false
     }
-    machine completion(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool
+    machine completion(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool
     requires signature.parameter_count <= 4 {
         plan.call.parameter_count = signature.parameter_count;
         transition signature.has_result {
@@ -29,36 +29,36 @@ machine windows_x64_scalar_signature(signature: &BoundarySignature,
             _ -> windows_x64_scalar_parameters(signature, plan, 0, 4)
         }
     }
-    machine result_index(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan) -> bool {
+    machine result_index(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
-            true -> result_shape(signature, plan, &signature.shapes[signature.result])
+            true -> result_shape(signature, plan, @signature.shapes[signature.result])
             _ -> false
         }
     }
-    machine result_shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        shape: &ValueShape) -> bool {
+    machine result_shape(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        shape: @ValueShape) -> bool {
         transition shape.class {
             ValueClass::Integer -> result_integer(signature, plan, shape)
             _ -> false
         }
     }
-    machine result_integer(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        shape: &ValueShape) -> bool {
+    machine result_integer(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        shape: @ValueShape) -> bool {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
             true -> result_place(signature, plan, shape)
             _ -> false
         }
     }
-    machine result_place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        shape: &ValueShape) -> bool {
+    machine result_place(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        shape: @ValueShape) -> bool {
         plan.call.has_result = true;
         plan.call.result = windows_x64_register_place(shape.byte_size, MachineRegister::X86Rax);
         windows_x64_scalar_parameters(signature, plan, 0, 4)
     }
 }
 
-machine windows_x64_scalar_parameters(signature: &BoundarySignature,
-    plan: &mut BoundaryEntryPlan, ordinal: u64, remaining: u64) -> bool
+machine windows_x64_scalar_parameters(signature: @BoundarySignature,
+    plan: @mut BoundaryEntryPlan, ordinal: u64, remaining: u64) -> bool
 terminates by remaining {
     transition {
         ordinal == signature.parameter_count -> true
@@ -66,16 +66,16 @@ terminates by remaining {
             root(signature, plan, ordinal, remaining, signature.parameters[ordinal])
         _ -> false
     }
-    machine root(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+    machine root(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         ordinal: u64, remaining: u64, root: u64) -> bool
     requires ordinal < 4, remaining > 0 {
         transition root < signature.shape_count && root < 256 {
-            true -> shape(signature, plan, ordinal, remaining, &signature.shapes[root])
+            true -> shape(signature, plan, ordinal, remaining, @signature.shapes[root])
             _ -> false
         }
     }
-    machine shape(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    machine shape(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition shape.class {
             ValueClass::Integer -> integer(signature, plan, ordinal, remaining, shape)
@@ -83,23 +83,23 @@ terminates by remaining {
             _ -> false
         }
     }
-    machine integer(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    machine integer(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition (shape.byte_size == 4 || shape.byte_size == 8) && shape.alignment == shape.byte_size {
             true -> place(signature, plan, ordinal, remaining, shape.byte_size)
             _ -> false
         }
     }
-    machine reference(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
-        ordinal: u64, remaining: u64, shape: &ValueShape) -> bool
+    machine reference(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
+        ordinal: u64, remaining: u64, shape: @ValueShape) -> bool
     requires ordinal < 4, remaining > 0 {
         transition shape.byte_size == 8 && shape.alignment == 8 {
             true -> place(signature, plan, ordinal, remaining, 8)
             _ -> false
         }
     }
-    machine place(signature: &BoundarySignature, plan: &mut BoundaryEntryPlan,
+    machine place(signature: @BoundarySignature, plan: @mut BoundaryEntryPlan,
         ordinal: u64, remaining: u64, bytes: u64) -> bool
     requires ordinal < 4, remaining > 0 {
         plan.call.parameters[ordinal] = windows_x64_register_place(bytes,

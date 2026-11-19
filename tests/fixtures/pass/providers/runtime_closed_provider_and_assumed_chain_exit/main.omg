@@ -13,8 +13,8 @@ Actual satisfies Supplied { machine get() -> u32 { 7 } }
 machine main() reaches Required crashes Trap {
     let narrow: [Narrow; 2] = [Narrow { value: 1 }, Narrow { value: 2 }];
     let wide: [Wide; 3] = [Wide { value: 3 }, Wide { value: 4 }, Wide { value: 5 }];
-    let narrow_view: &[Narrow] = &narrow[..];
-    let wide_view: &[Wide] = &wide[..];
+    let narrow_view: @[Narrow] = @narrow[..];
+    let wide_view: @[Wide] = @wide[..];
     let supplied: u32 = Required::get();
     transition narrow_view.len == 2 && wide_view.len == 3 && supplied == 7 {
         true -> done()

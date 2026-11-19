@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Measured loops pass both scalar values and the remaining borrowed bytes.
-machine checksum(bytes: &[u8], accumulated: u8) -> u8
+machine checksum(bytes: @[u8], accumulated: u8) -> u8
 terminates by bytes -> Slice::Length {
     transition bytes.len > 0 {
         true -> checksum(bytes[1..], accumulated ^ bytes[0])
@@ -17,7 +17,7 @@ terminates by remaining -> Nat::Descending {
 data Packet { before: u8; bytes: [u8; 3]; after: u8; }
 machine main() crashes Trap {
     let packet: Packet = Packet { before: 11, bytes: [17, 42, 99], after: 97 };
-    let bytes: &[u8] = &packet.bytes[..];
+    let bytes: @[u8] = @packet.bytes[..];
     transition checksum(bytes, 0) == 88 && checksum(bytes[0..0], 73) == 73
         && parity(3, false) && !parity(2, false) && parity(0, true)
         && packet.before == 11 && packet.after == 97

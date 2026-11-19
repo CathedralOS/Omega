@@ -16,7 +16,7 @@ public machine magnitude(value: f64) -> f64 {
 public machine maximum(left: f64, right: f64) -> f64 { match left > right { true -> left false -> right } }
 machine power(value: f64, order: u64) -> f64 { match order { 0 -> 1.0 1 -> value _ -> value * value } }
 machine derivative(value: f64, order: u64) -> f64 { match order { 0 -> 0.0 1 -> 1.0 _ -> 2.0 * value } }
-machine accumulate(reaction: &Reaction, value: &Vector, field: &mut Field) {
+machine accumulate(reaction: @Reaction, value: @Vector, field: @mut Field) {
     let a: f64 = power(value.a, reaction.a);
     let b: f64 = power(value.b, reaction.b);
     let c: f64 = power(value.c, reaction.c);
@@ -40,17 +40,17 @@ machine accumulate(reaction: &Reaction, value: &Vector, field: &mut Field) {
     field.cb = field.cb + third * db;
     field.cc = field.cc + third * dc;
 }
-public machine evaluate(problem: &Problem, value: &Vector) -> Field {
+public machine evaluate(problem: @Problem, value: @Vector) -> Field {
     let mut field: Field;
-    accumulate(&problem.first, value, &mut field);
-    accumulate(&problem.second, value, &mut field);
-    accumulate(&problem.third, value, &mut field);
+    accumulate(@problem.first, value, @mut field);
+    accumulate(@problem.second, value, @mut field);
+    accumulate(@problem.third, value, @mut field);
     field
 }
-public machine physical(value: &Vector) -> bool {
+public machine physical(value: @Vector) -> bool {
     value.a >= 0.0 && value.b >= 0.0 && value.c >= 0.0 && value.a < 1e100 && value.b < 1e100 && value.c < 1e100
 }
-public machine norm(value: &Vector, baseline: &Vector, problem: &Problem) -> f64 {
+public machine norm(value: @Vector, baseline: @Vector, problem: @Problem) -> f64 {
     let a: f64 = magnitude(value.a) / (problem.absolute + problem.relative * magnitude(baseline.a));
     let b: f64 = magnitude(value.b) / (problem.absolute + problem.relative * magnitude(baseline.b));
     let c: f64 = magnitude(value.c) / (problem.absolute + problem.relative * magnitude(baseline.c));
