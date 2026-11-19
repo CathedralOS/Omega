@@ -47,6 +47,40 @@ pub enum AcceptedSemanticBindingRole {
     WindowsX64ProgramEntry, // Exact package-owned Windows x86-64 application schema.
 }
 
+impl AcceptedSemanticBindingRole {
+    /// Stable role tag in accepted package locks and compiled review records.
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::ConsoleIo => 10,
+            Self::ProcessExitExitProcessI32 => 1,
+            Self::FilesystemHostService => 2,
+            Self::TimeHostService => 3,
+            Self::UefiX64ProgramEntry => 4,
+            Self::MacosArm64ProgramEntry => 5,
+            Self::MacosX64ProgramEntry => 6,
+            Self::LinuxX86_64ProgramEntry => 7,
+            Self::LinuxArm64ProgramEntry => 8,
+            Self::WindowsX64ProgramEntry => 9,
+        }
+    }
+
+    pub const fn from_canonical_tag(tag: u8) -> Option<Self> {
+        Some(match tag {
+            10 => Self::ConsoleIo,
+            1 => Self::ProcessExitExitProcessI32,
+            2 => Self::FilesystemHostService,
+            3 => Self::TimeHostService,
+            4 => Self::UefiX64ProgramEntry,
+            5 => Self::MacosArm64ProgramEntry,
+            6 => Self::MacosX64ProgramEntry,
+            7 => Self::LinuxX86_64ProgramEntry,
+            8 => Self::LinuxArm64ProgramEntry,
+            9 => Self::WindowsX64ProgramEntry,
+            _ => return None,
+        })
+    }
+}
+
 /// Exact schema accepted by the receiver for this compiler-recognized role.
 /// Entry slots identify the declared service independently of its selected calling plan.
 pub fn accepted_service_schema_digest(
@@ -245,6 +279,35 @@ impl AcceptedSemanticBinding {
 mod tests {
     use super::*;
     use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+
+    #[test]
+    fn reviewed_binding_roles_keep_their_persisted_tags() {
+        use AcceptedSemanticBindingRole::*;
+        let roles = [
+            ProcessExitExitProcessI32,
+            FilesystemHostService,
+            TimeHostService,
+            UefiX64ProgramEntry,
+            MacosArm64ProgramEntry,
+            MacosX64ProgramEntry,
+            LinuxX86_64ProgramEntry,
+            LinuxArm64ProgramEntry,
+            WindowsX64ProgramEntry,
+            ConsoleIo,
+        ];
+        assert_eq!(AcceptedSemanticBindingRole::from_canonical_tag(0), None);
+        for (tag, role) in (1u8..).zip(roles) {
+            assert_eq!(role.canonical_tag(), tag);
+            assert_eq!(
+                AcceptedSemanticBindingRole::from_canonical_tag(tag),
+                Some(role)
+            );
+        }
+        assert!(
+            (11..=u8::MAX)
+                .all(|tag| AcceptedSemanticBindingRole::from_canonical_tag(tag).is_none())
+        );
+    }
 
     #[test]
     fn entry_acceptance_compares_the_declaration_and_host_services_compare_the_full_schema() {
