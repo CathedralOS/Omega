@@ -317,10 +317,10 @@ fn the_lowered_record_type_retains_its_domains_and_casts() {
     let decoded =
         terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
     let decoded = decoded.module();
-    assert_eq!(decoded.structural_domains, lowered.structural_domains);
+    assert_eq!(decoded.types.structural_domains, lowered.types.structural_domains);
     assert_eq!(
-        decoded.structural_qualification_changes,
-        lowered.structural_qualification_changes
+        decoded.types.structural_qualification_changes,
+        lowered.types.structural_qualification_changes
     );
     for (decoded, lowered) in decoded.machines.iter().zip(&lowered.machines) {
         assert_eq!(decoded.structural_parameters, lowered.structural_parameters);
@@ -650,9 +650,9 @@ machine entry() -> u32 crashes none {
     missing.membership_ensures.clear();
     let mut changed = module.clone();
     let mut identities = changed.identities.clone().into_builder();
-    changed.structural_domains[0].identity = identities.intern("another-exact-domain-application");
+    changed.types.structural_domains[0].identity = identities.intern("another-exact-domain-application");
     changed.identities = identities.build();
-    let mut changed_commitment = changed.boundary_machines[0].clone();
+    let mut changed_commitment = changed.interfaces.boundary_machines[0].clone();
     changed_commitment
         .declaration
         .as_mut()
@@ -668,7 +668,7 @@ machine entry() -> u32 crashes none {
             "changed domain",
             terminal_semantics::validate_boundary_normal_memberships(
                 &changed,
-                &changed.boundary_machines[0],
+                &changed.interfaces.boundary_machines[0],
                 method,
             ),
         ),

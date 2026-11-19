@@ -970,7 +970,7 @@ mod tests {
             let mut selected = selected.clone();
             let mut changed = module.clone();
             let header = changed
-                .scalar_applications
+                .scalars.scalar_applications
                 .proof_scope
                 .callable_headers
                 .iter()
@@ -984,7 +984,7 @@ mod tests {
                 }
                 "package" => {
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get_mut(header)
@@ -992,7 +992,7 @@ mod tests {
                 }
                 "target" => {
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get_mut(header)
@@ -1000,7 +1000,7 @@ mod tests {
                 }
                 "callable" => {
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get_mut(header)
@@ -1008,7 +1008,7 @@ mod tests {
                 }
                 "product" => {
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get_mut(header)
@@ -1016,35 +1016,35 @@ mod tests {
                 }
                 "body" => {
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get_mut(header)
                         .supplies_checked_body = false
                 }
                 "header" => {
-                    changed.scalar_applications.proof_scope.callable_headers = Default::default()
+                    changed.scalars.scalar_applications.proof_scope.callable_headers = Default::default()
                 }
                 "association" => {
-                    changed.scalar_applications.proof_scope.callables = Default::default()
+                    changed.scalars.scalar_applications.proof_scope.callables = Default::default()
                 }
                 "instance" => {
                     let mut identities = changed.identities.clone().into_builder();
                     let other_application = identities.intern("Parent<bool>");
-                    for candidate in &mut changed.provider_candidates {
+                    for candidate in &mut changed.interfaces.provider_candidates {
                         candidate.receiving_application = other_application;
                     }
                     changed.identities = identities.build();
                 }
                 _ => {
                     let duplicate = changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .get(header)
                         .clone();
                     changed
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_headers
                         .insert(duplicate);
@@ -1202,34 +1202,34 @@ mod tests {
         ] {
             let mut changed = module.clone();
             match mismatch {
-                "owner" => changed.provider_candidates.retain(|row| {
+                "owner" => changed.interfaces.provider_candidates.retain(|row| {
                     module.identities.text(row.provider_declaration.identity()) != Some("FirstMap")
                 }),
-                "requirement" => changed.provider_candidates.iter_mut().for_each(|row| {
+                "requirement" => changed.interfaces.provider_candidates.iter_mut().for_each(|row| {
                     row.source_requirement_identity = TerminalIdentityIndex::ABSENT
                 }),
                 "body" => changed
-                    .provider_candidates
+                    .interfaces.provider_candidates
                     .iter_mut()
                     .for_each(|row| row.source_candidate_identity = TerminalIdentityIndex::ABSENT),
                 "receiver" => {
                     let mut identities = changed.identities.clone().into_builder();
                     let substituted = identities.intern("Parent<bool>");
-                    for row in &mut changed.provider_candidates {
+                    for row in &mut changed.interfaces.provider_candidates {
                         row.declaration_application = substituted;
                         row.receiving_application = substituted;
                     }
                     changed.identities = identities.build();
                 }
                 "package" => {
-                    for row in &mut changed.provider_candidates {
+                    for row in &mut changed.interfaces.provider_candidates {
                         row.source_candidate_package_identity =
                             semantic_vocabulary::PackageKeyIdentity::from_digest([9; 32]);
                     }
                 }
                 _ => changed
-                    .provider_candidates
-                    .push(changed.provider_candidates[0].clone()),
+                    .interfaces.provider_candidates
+                    .push(changed.interfaces.provider_candidates[0].clone()),
             }
             let error = checked_candidate_roster(std::slice::from_ref(&declaration), &changed)
                 .expect_err(mismatch);

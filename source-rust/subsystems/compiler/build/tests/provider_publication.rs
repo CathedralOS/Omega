@@ -311,7 +311,7 @@ fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::C
     let artifact = folded.artifact().unwrap();
     assert_ne!(artifact.view().identity(), source.view().identity());
     let mut without_fold = artifact.semantic_module().clone();
-    without_fold.folded_constants = Default::default();
+    without_fold.scalars.folded_constants = Default::default();
     assert_eq!(&without_fold, source.semantic_module());
     assert_eq!(artifact.debug_bytes(), source.debug_bytes());
     assert_eq!(source.to_bytes(), original_bytes);

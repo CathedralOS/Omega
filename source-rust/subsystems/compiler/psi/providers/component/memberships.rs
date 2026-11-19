@@ -491,8 +491,8 @@ mod tests {
             let source = policy_module(1, false, with_cases);
             let target = policy_module(9, true, with_cases);
             let compatible = |target: &TerminalModule| {
-                let source_domain = &source.structural_domains[0];
-                let target_domain = &target.structural_domains[0];
+                let source_domain = &source.types.structural_domains[0];
+                let target_domain = &target.types.structural_domains[0];
                 admit_memberships(
                     &source,
                     source_domain.carrier,
@@ -508,7 +508,7 @@ mod tests {
                 "resolve each module's own case, field and identity numbers"
             );
             let change_schema = |target: &mut TerminalModule, edit: fn(&mut Vec<SchemaNode>)| {
-                let plan = target.structural_domains[0].access_policy.as_mut().unwrap();
+                let plan = target.types.structural_domains[0].access_policy.as_mut().unwrap();
                 let mut nodes = plan.schema.nodes().to_vec();
                 edit(&mut nodes);
                 plan.schema = SemanticSchemaGraph::from_nodes(
@@ -541,7 +541,7 @@ mod tests {
                 "the nominal root cannot replace its selected application"
             );
             let mut widened = target.clone();
-            widened.structural_domains[0]
+            widened.types.structural_domains[0]
                 .access_policy
                 .as_mut()
                 .unwrap()
@@ -572,7 +572,7 @@ mod tests {
                     "an existing field cannot borrow another case's source owner"
                 );
                 let mut synthetic = target.clone();
-                synthetic.structural_types[0]
+                synthetic.types.structural_types[0]
                     .shape
                     .fields_mut()
                     .next()
@@ -593,8 +593,8 @@ mod tests {
         for deny in [false, true] {
             let receiver = module(1, 1, false, deny);
             let provider = module(7, 9, true, deny);
-            let source = &receiver.structural_domains[0];
-            let target = &provider.structural_domains[0];
+            let source = &receiver.types.structural_domains[0];
+            let target = &provider.types.structural_domains[0];
             assert_ne!(source.identity, target.identity);
             assert_eq!(
                 admit_memberships(
@@ -610,7 +610,7 @@ mod tests {
             );
 
             let mismatched = module(7, 9, true, !deny);
-            let target = &mismatched.structural_domains[0];
+            let target = &mismatched.types.structural_domains[0];
             let reason = admit_memberships(&receiver, source.carrier, &[source.id], &mismatched, target.carrier, &[target.id])
                 .expect_err("an empty issuer denial cannot substitute for unrestricted issuance in either direction");
             assert!(reason.contains("membership theories differ"), "{reason}");

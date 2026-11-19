@@ -250,7 +250,7 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
     // result. Receiving reconstructs the type proof rather than trusting it.
     let mut inhabited = module.clone();
     inhabited
-        .structural_types
+        .types.structural_types
         .iter_mut()
         .find(|ty| ty.id == result.structural_type)
         .unwrap()
@@ -458,7 +458,7 @@ fn receiving_rejects_the_same_structural_return_when_its_type_is_inhabited() {
     };
     let parameter = machine.structural_parameters[0].structural_type;
     let declaration = forged
-        .structural_types
+        .types.structural_types
         .iter_mut()
         .find(|declaration| declaration.id == parameter)
         .unwrap();
