@@ -87,9 +87,15 @@ impl DeclarationCatalog<'_> {
                 steps.push(Step::Visit(field.clone()));
             }
             active.push(carrier.clone());
-            stage
-                .static_data_shapes
-                .insert(carrier, StaticDataShape { fields, cases });
+            let requires_establishment = self.predicates.contains(owner);
+            stage.static_data_shapes.insert(
+                carrier,
+                StaticDataShape {
+                    fields,
+                    cases,
+                    requires_establishment,
+                },
+            );
         }
     }
 }

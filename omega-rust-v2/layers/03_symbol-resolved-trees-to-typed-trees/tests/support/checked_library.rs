@@ -309,7 +309,13 @@ fn imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands() {
         assert_eq!(invocation.site.package, "geometry");
         assert_eq!(invocation.caller.as_ref().unwrap().path, "relay");
         assert_eq!(invocation.site.span.slice(CHECKED_PRODUCER.as_bytes()), Some(b"F(v)".as_slice()));
-        assert_eq!(invocation.operands[0].span.slice(CHECKED_PRODUCER.as_bytes()), Some(b"v".as_slice()));
+        assert_eq!(
+            invocation.operands[0]
+                .site
+                .span
+                .slice(CHECKED_PRODUCER.as_bytes()),
+            Some(b"v".as_slice())
+        );
         let supplies = &stage.calls[indirect.2];
         assert_eq!(supplies.site.package, "client");
         assert_eq!(supplies.caller.as_ref().unwrap().path, "indirect");

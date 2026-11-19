@@ -77,7 +77,9 @@ impl ValueType {
             _ => false,
         })
     }
-    pub(crate) fn depends_on_call_input(&self) -> bool {
+    /// Whether this type or index still depends on a generic parameter or a
+    /// runtime argument subject.
+    pub fn depends_on_call_input(&self) -> bool {
         self.components().any(|ty| {
             matches!(
                 ty,
@@ -279,7 +281,8 @@ impl ValueType {
             other => other,
         })
     }
-    pub(crate) fn substitute(
+    /// Apply the ordered generic arguments of one exact declaration.
+    pub fn substitute(
         &self,
         owner: &DeclarationId,
         args: &[ValueType],

@@ -239,6 +239,19 @@ impl BodyTyper<'_, '_> {
             self.record_obligation(node, ObligationKind::CallPrecondition(target.machine.clone()));
         }
         let use_site = self.record_call_use(node);
+        let layout_query = (target.machine.package == omega_toolchain::TOOLCHAIN_PACKAGE)
+            .then(|| omega_toolchain::core_interface().layout_query(target.machine))
+            .flatten()
+            .map(|projection| crate::TypedLayoutQuery {
+                projection,
+                specialization_scopes: self
+                    .unit
+                    .specialization_owner(node)
+                    .into_iter()
+                    .flat_map(|owner| self.catalog.types.specialization_scopes(owner))
+                    .map(|owner| (owner.clone(), self.catalog.types.arity(owner)))
+                    .collect(),
+            });
         self.output.calls.push(crate::TypedCall {
             node: source.node_id(node),
             use_site,
@@ -251,6 +264,7 @@ impl BodyTyper<'_, '_> {
             caller: self.caller.clone(),
             evidence: target.evidence,
             acknowledgements: crate::contracts::effect_clauses::markers(self.unit, node)?,
+            layout_query,
         });
         Ok(result)
     }

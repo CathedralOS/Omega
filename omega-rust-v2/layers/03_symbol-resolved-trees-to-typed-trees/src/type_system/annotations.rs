@@ -197,6 +197,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     closed_runtime: closed == [true, true],
                     pause: crate::DeclaredPauseBounds::read(self, node_index)?.declared(),
                     has_guarantee: source.child(node_index, Ensures).is_some(),
+                    requires: source.child(node_index, Requires).is_some(),
                     reach: effect_clauses::reach(self, types, node_index)?,
                     terminates: source.child(node_index, Terminates).is_some(),
                     crash_ceiling: effect_clauses::crashes(self, node_index)?,

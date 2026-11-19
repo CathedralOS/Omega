@@ -79,3 +79,9 @@ public data AccessPlan<'t>
 public trait AccessPolicy {
     machine plan<'t>(schema: TypeSchema<'t>) -> AccessPlan<'t>;
 }
+
+public machine size_of<T>() -> u64
+    reaches none crashes none terminates;
+
+public machine align_of<T>() -> u64
+    reaches none crashes none terminates;

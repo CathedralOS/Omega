@@ -3,6 +3,13 @@ use super::TOOLCHAIN_PACKAGE;
 use omega_resolver::{CompiledInterface, DeclarationId, ParsedSource, StageSource, SymbolResolvedTrees};
 use std::sync::OnceLock;
 
+/// Projection from the selected data layout, identified by its core declaration.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum LayoutQuery {
+    Size,
+    Alignment,
+}
+
 pub struct CoreInterface {
     pub declarations: SymbolResolvedTrees<'static>,
     exports: CompiledInterface,
@@ -29,7 +36,22 @@ impl CoreInterface {
         &self,
         machine: &DeclarationId,
     ) -> bool {
-        machine == self.id("access::new_plan") || self.ranking_views().iter().any(|(view, _)| machine == *view) || self.collection_primitive(machine).is_some()
+        machine == self.id("access::new_plan")
+            || self.ranking_views().iter().any(|(view, _)| machine == *view)
+            || self.collection_primitive(machine).is_some()
+            || self.layout_query(machine).is_some()
+    }
+    pub fn layout_query(
+        &self,
+        machine: &DeclarationId,
+    ) -> Option<LayoutQuery> {
+        if machine == self.id("size_of") {
+            Some(LayoutQuery::Size)
+        } else if machine == self.id("align_of") {
+            Some(LayoutQuery::Alignment)
+        } else {
+            None
+        }
     }
     pub fn collection_primitive(
         &self,
