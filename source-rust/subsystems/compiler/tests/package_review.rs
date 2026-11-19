@@ -135,7 +135,7 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     );
     let mut fixed = decoded.clone();
     let required = fixed
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter_mut()
         .find(|boundary| boundary.identity == dependency.requirement_identity)
         .expect("exact root requirement");
@@ -308,7 +308,7 @@ fn check_reopened_installation_reach(
     };
     check(&reopened, &calls).expect("reopened narrower child fits its parent");
     let parent = reopened
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .position(|boundary| {
             reopened
@@ -319,7 +319,7 @@ fn check_reopened_installation_reach(
         })
         .unwrap();
     let child = reopened
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|boundary| {
             reopened
@@ -340,7 +340,7 @@ fn check_reopened_installation_reach(
             .unwrap_err()
             .contains("no checked selected provider")
     );
-    reopened.boundary_machines[parent]
+    reopened.interfaces.boundary_machines[parent]
         .published_service_ceiling
         .clear();
     assert!(

@@ -150,14 +150,14 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
     let mut relocated = module.clone();
     let moved_id = semantic_vocabulary::BoundaryMachineId::new(99).unwrap();
     relocated
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter_mut()
         .find(|row| row.id == requirement)
         .unwrap()
         .id = moved_id;
-    relocated.boundary_machines.sort_by_key(|row| row.id);
+    relocated.interfaces.boundary_machines.sort_by_key(|row| row.id);
     let moved = relocated
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter_mut()
         .find(|row| row.id == primitive.id)
         .unwrap();
@@ -176,7 +176,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
     assert!(actual.same_identity_as(module, moved, &relocated));
     let mut unrelated = relocated.clone();
     unrelated
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter_mut()
         .find(|row| row.id == moved_id)
         .unwrap()
@@ -193,7 +193,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
         .unwrap();
     assert!(!actual.same_identity_as(module, moved, &unrelated));
     let mut absent = relocated.clone();
-    absent.boundary_machines.retain(|row| row.id != moved_id);
+    absent.interfaces.boundary_machines.retain(|row| row.id != moved_id);
     let moved = absent
         .boundary_machine(primitive.id)
         .unwrap()
@@ -206,7 +206,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
         let mut changed = module.clone();
         if mutation == 5 {
             changed
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter_mut()
                 .find(|row| row.id == requirement)
                 .unwrap()
@@ -214,7 +214,7 @@ fn hosted_primitive_retains_distinct_source_and_public_completion() {
                 .push(Proposition::Falsehood);
         }
         let boundary = changed
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter_mut()
             .find(|row| row.id == primitive.id)
             .unwrap();

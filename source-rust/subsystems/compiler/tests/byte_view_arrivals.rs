@@ -34,7 +34,7 @@ fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
         .expect("native publication must retain the checked count-fit seal");
     let mut changed = accepted.elaboration().module.clone();
     let source_element = changed
-        .structural_types
+        .types.structural_types
         .iter()
         .find_map(|row| match row.shape {
             StructuralTypeShape::ElementView { element, .. } => Some(element),
@@ -42,7 +42,7 @@ fn representation_views_keep_backing_bytes_and_prove_the_converted_count() {
         })
         .expect("the original view retains its declared source element");
     changed
-        .structural_types
+        .types.structural_types
         .iter_mut()
         .find(|row| row.id == source_element)
         .unwrap()

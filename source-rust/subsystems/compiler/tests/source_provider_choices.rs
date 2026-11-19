@@ -341,7 +341,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         .unwrap();
     assert_eq!(closed.selection().program(), artifact.view().identity());
     let mut changed = accepted.module().clone();
-    changed.provider_selections.clear();
+    changed.interfaces.provider_selections.clear();
     use provider_realization::{NativeProgramPlanningError, plan_target_execution};
     let Err(NativeProgramPlanningError::Supply(foreign_program)) = plan_target_execution(
         &changed,
