@@ -50,7 +50,7 @@ pub fn retain_provider_defaults(
 /// mode or an applied slot or provider at its authored occurrence.
 mod defaults {
     use super::{CompositionMode, ProviderPlanningContext, ProviderSelection};
-    use crate::evaluation::provider_declarations::{form, identity};
+    use crate::product::provider_declarations::{form, identity};
     use crate::source_state::expression::{ExpressionNode, StaticMachineArgument};
     use crate::source_state::machine::Machine;
     use crate::source_state::product_operand::{ProductOperandKind, resolve_product_operand};

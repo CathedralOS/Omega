@@ -2551,7 +2551,7 @@ fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
             .receipts()
             .iter()
             .filter_map(|record| match record {
-                source_compiler::evaluation::PureEvaluationRecord::Invocation(receipt)
+                source_compiler::compile_time::PureEvaluationRecord::Invocation(receipt)
                     if receipt.request_source().symbols.name(receipt.requester()) == "VALUE" =>
                 {
                     Some(receipt.request_source().identity.get())

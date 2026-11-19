@@ -13,7 +13,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
-use crate::evaluation::{
+use crate::compile_time::{
     BuildTimeSelectionAuthority, BuildTimeValue, InvocationTarget, SourceCompletionAccounting,
 };
 
@@ -72,7 +72,7 @@ pub(crate) fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     scopes: &[FixedLayoutTargetScope],
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-    consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     purpose: source_provenance::DependencyScope,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {

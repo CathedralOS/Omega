@@ -6,7 +6,7 @@ use super::PackageBuildHandoff;
 use semantic_vocabulary::PackageKeyIdentity;
 pub use semantic_vocabulary::source_selections::NativeBindingProducer;
 use source_compiler::declaration_selection::CapturedNativeIntent;
-use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
+use source_compiler::product::native_binding_declarations::CapturedNativeDeclaration;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -106,13 +106,13 @@ impl super::PackageCompilationInputs {
     pub fn product_native_bindings(
         &self,
     ) -> Result<
-        Vec<source_compiler::product_source::PackageNativeBindings<'_>>,
+        Vec<source_compiler::product::PackageNativeBindings<'_>>,
         Vec<diagnostics::Diagnostic>,
     > {
         self.dependency_build_handoff_instances()
             .filter(|(scope, _)| *scope == build_declarations::DependencyPurpose::Product)
             .map(|(_, handoff)| {
-                Ok(source_compiler::product_source::PackageNativeBindings {
+                Ok(source_compiler::product::PackageNativeBindings {
                     declarations: self.admit_package_native_declarations(handoff)?,
                     intents: handoff.native_intents(),
                     evaluation: handoff.native_evaluation(),

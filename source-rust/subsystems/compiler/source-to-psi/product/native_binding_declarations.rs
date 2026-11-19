@@ -31,7 +31,7 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 
-use super::retained_product_application::RetainedProductApplication;
+use super::retained_application::RetainedProductApplication;
 pub use crate::provider_choice_inputs::NativeBindingSelection;
 
 pub use crate::provider_choice_inputs::require_canonical_requirement;

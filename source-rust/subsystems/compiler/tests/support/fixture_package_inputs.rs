@@ -307,7 +307,7 @@ fn observe_failed_scalar_accounting(
             .filter(|receipt| {
                 matches!(
                     receipt,
-                    source_compiler::evaluation::PureEvaluationRecord::CanonicalScalar(_)
+                    source_compiler::compile_time::PureEvaluationRecord::CanonicalScalar(_)
                 )
             })
             .count();
@@ -641,7 +641,7 @@ fn review_fixture_recording(
                 .inventory()
                 .services_for(program.as_ref())
                 .map_err(|diagnostic| vec![diagnostic])?;
-            let declaration = source_compiler::entry_contracts::selected_program_entry_boundary(
+            let declaration = source_compiler::product::entry_contracts::selected_program_entry_boundary(
                 catalog,
                 &package_compilation::source_imports::source_target(slot.owner, Some(&inputs)),
             )?;

@@ -1,6 +1,6 @@
 //! Compile the Build source selected for one planning stage. The host may
 //! inspect the checked program to admit filesystem access before publishing it.
-use crate::evaluation::{
+use crate::compile_time::{
     BuildTimeSelectionAuthority, InvocationSourceConsent, SourceCompletionAccounting,
 };
 use crate::source_inputs::SourceMap;

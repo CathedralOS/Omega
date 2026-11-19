@@ -5,23 +5,21 @@
 use diagnostics::Diagnostic;
 use source_files::{LoadedSource, LoadedSources};
 
-#[path = "pipeline/build_invocation.rs"]
-mod authored_build;
-pub use authored_build::{BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation};
-#[path = "pipeline/package_handoff.rs"]
+mod build_invocation;
+pub mod compile_time;
+pub mod product;
+pub use build_invocation::{BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation};
 mod package_handoff;
 pub use package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 
-#[path = "pipeline/modules.rs"]
 mod stages;
 pub use stages::*;
 
-#[path = "pipeline/registered_tests.rs"]
 pub mod registered_tests;
 
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
-use product_source::{ProductSourceInputs, prepare_lower_and_check};
+use product::{ProductSourceInputs, prepare_lower_and_check};
 use source_text::SourceId;
 use std::sync::Arc;
 
@@ -35,7 +33,7 @@ pub struct StageSource<'a> {
     pub imports: Vec<SourceScopedTopLevelBinding>,
     pub selections: ProductSourceInputs<'a>,
     /// Costs of the Build that opened this Product, when it belongs to a project.
-    pub build_accounting: Option<&'a evaluation::SourceCompletionAccounting>,
+    pub build_accounting: Option<&'a compile_time::SourceCompletionAccounting>,
     pub declaration_authority: Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
 }
@@ -163,7 +161,7 @@ pub fn compile_for_target_reporting(
 
 fn published_target(
     artifact: PublishedPsi,
-    checked: product_source::CompletedProductSource,
+    checked: product::CompletedProductSource,
     target: &str,
     subject: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
@@ -194,7 +192,7 @@ fn publish_stage(
     source: StageSource<'_>,
     inspection: Option<&str>,
     advisories: Option<&mut Vec<Diagnostic>>,
-) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
+) -> Result<(PublishedPsi, product::CompletedProductSource), Vec<Diagnostic>> {
     let continuation = source.resolve()?;
     let checked = source.judge(continuation, inspection, None)?;
     let psi = source.publish(&checked)?;
@@ -218,7 +216,7 @@ impl StageSource<'_> {
         continuation: SourceContinuation,
         inspection: Option<&str>,
         test: Option<(&registered_tests::TestRoot, &str)>,
-    ) -> Result<product_source::CompletedProductSource, Vec<Diagnostic>> {
+    ) -> Result<product::CompletedProductSource, Vec<Diagnostic>> {
         prepare_lower_and_check(
             continuation,
             self.selections.clone(),
@@ -232,7 +230,7 @@ impl StageSource<'_> {
 
     fn publish(
         &self,
-        checked: &product_source::CompletedProductSource,
+        checked: &product::CompletedProductSource,
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
         let psi = checked.terminal_publication.publish(
             &self.selections.optimizations,

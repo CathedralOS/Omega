@@ -35,7 +35,7 @@ pub fn admit(
     executed: &[ExecutedProductSelection],
     formations: &[(Arc<ProductDeclarationRequest>, SymbolHandle)],
 ) -> Result<AdmittedProductDeclarations, Vec<Diagnostic>> {
-    if super::build_requests_any(
+    if build_requests_any(
         declared,
         executed,
         &[
@@ -433,4 +433,17 @@ fn occurrence(typed: &TypedTrees, request: &ProductDeclarationRequest) -> (usize
 
 fn refuse(request: &ProductDeclarationRequest, reason: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(reason).with_source_span(request.source_span)]
+}
+
+fn build_requests_any(
+    declared: &[std::sync::Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    operations: &[BuildOperation],
+) -> bool {
+    declared
+        .iter()
+        .any(|request| operations.contains(&request.operation))
+        || executed
+            .iter()
+            .any(|event| operations.contains(&event.request.operation))
 }

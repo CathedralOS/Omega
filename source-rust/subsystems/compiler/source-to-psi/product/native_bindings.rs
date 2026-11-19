@@ -2,7 +2,7 @@
 
 use crate::SourceContinuation;
 use crate::declaration_selection::CapturedNativeIntent;
-use crate::evaluation::native_bindings::CapturedNativeDeclaration;
+use crate::product::native_binding_declarations::CapturedNativeDeclaration;
 use crate::provider_choice_inputs::{NativeBindingSelection, NativeBuildSupply};
 use diagnostics::Diagnostic;
 use evaluation_receipts::NativeBuildEvaluation;

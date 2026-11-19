@@ -2,7 +2,7 @@
 mod layout_demand_tests {
     #[test]
     fn an_entryless_product_does_not_demand_every_library_layout() {
-        let scopes = source_compiler::product_source::layout_target_scopes(
+        let scopes = source_compiler::product::layout_target_scopes(
             &source_compiler::source_state::TypedTrees::default(),
             &[],
             &[],
@@ -30,7 +30,7 @@ mod layout_demand_tests {
         let package = semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]).unwrap();
         let subject = symbols::SymbolHandle::from_parts(1, 0);
         let requirement = symbols::SymbolHandle::from_parts(2, 0);
-        let selection = source_compiler::evaluation::native_bindings::NativeBindingSelection {
+        let selection = source_compiler::product::native_binding_declarations::NativeBindingSelection {
             application: None,
             subject,
             requirement,
@@ -47,7 +47,7 @@ mod layout_demand_tests {
             supplier_package: package,
             source_span: Default::default(),
         };
-        let scopes = source_compiler::product_source::layout_target_scopes(
+        let scopes = source_compiler::product::layout_target_scopes(
             &source_compiler::source_state::TypedTrees::default(),
             &[],
             &[],

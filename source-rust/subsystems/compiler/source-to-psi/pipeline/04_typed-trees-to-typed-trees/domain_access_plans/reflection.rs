@@ -1,6 +1,6 @@
 //! Bind the policy's argument and returned issuers to the domain's actual typed source.
 
-use crate::evaluation::BuildTimeValue;
+use crate::compile_time::BuildTimeValue;
 use crate::source_state::TypedTrees;
 use crate::source_state::expression::ExpressionNode;
 use crate::source_state::references::StaticArgumentCall;

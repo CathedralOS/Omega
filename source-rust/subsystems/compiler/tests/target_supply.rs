@@ -13,7 +13,7 @@ mod unbuilt_frontier;
 
 use source_compiler::AcceptedTerminalSource;
 use source_compiler::provider_choice_inputs::{NativeBindingSelection, NativeBuildSupply};
-use source_compiler::evaluation::provider_declarations::{
+use source_compiler::product::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
 };
 use source_compiler::provider_supply::{
@@ -265,7 +265,7 @@ fn supplied_product(
     {
         let profile = target::TargetProfile::from_canonical_target_name(target)
             .map_err(|diagnostic| diagnostic.message)?;
-        let choices = source_compiler::source_provider_choices::prepare_with_source_defaults(
+        let choices = source_compiler::product::provider_choices::prepare_with_source_defaults(
             &source,
             &[profile.target_name()],
             &chosen,

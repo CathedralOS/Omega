@@ -11,7 +11,7 @@ use crate::source_state::expression::ExpressionHandle;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-use crate::evaluation::{
+use crate::compile_time::{
     FixedLayoutTargetScope, PreparedBuildMachineProgram, SourceCompletionAccounting,
     demanded_declarations, invocation_error,
 };
@@ -130,8 +130,8 @@ pub fn evaluate_with_source_consent(
     program: &mut TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,
     scopes: &[FixedLayoutTargetScope],
-    authority: Option<std::sync::Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    source_consent: Option<std::sync::Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    authority: Option<std::sync::Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
+    source_consent: Option<std::sync::Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let demanded =

@@ -53,16 +53,16 @@ use diagnostics::Diagnostic;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::SymbolHandle;
 
-use crate::evaluation::PreparedBuildMachineProgram;
-use crate::evaluation::{InvocationTarget, SourceCompletionAccounting};
+use crate::compile_time::PreparedBuildMachineProgram;
+use crate::compile_time::{InvocationTarget, SourceCompletionAccounting};
 
 /// Evaluates the access plan of every policy-governed domain `request`
 /// demands and records each checked result on that domain.
 pub(super) fn evaluate(
     program: &mut TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,
-    authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    source_consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
+    source_consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut pending = program
@@ -81,7 +81,7 @@ pub(super) fn evaluate(
     if pending.is_empty() {
         return Ok(());
     }
-    let demanded = crate::evaluation::demanded_declarations(program, request)
+    let demanded = crate::compile_time::demanded_declarations(program, request)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     pending.retain(|(_, domain)| demanded.contains(*domain));
     if pending.is_empty() {
@@ -185,7 +185,7 @@ fn evaluate_domain(
         },
         accounting,
     )?;
-    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] =
+    let [crate::compile_time::PureEvaluationRecord::Invocation(receipt)] =
         &accounting.receipts()[first_receipt..]
     else {
         return Err("the plan evaluation lost its own invocation receipt".into());

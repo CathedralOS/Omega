@@ -8,12 +8,12 @@ use installation_conditions::InstallationEnvironmentAssumption;
 use optimization_requests::{OptimizationRollback, OptimizationRollbackReceipt};
 use package_compilation::PackageDependencyClosure;
 use semantic_vocabulary::source_selections::ProductTarget;
-use source_compiler::evaluation::BuildTimeSelectionAuthority;
-use source_compiler::evaluation::provider_declarations::RetainedProviderSelection;
-use source_compiler::product_source::{
+use source_compiler::compile_time::BuildTimeSelectionAuthority;
+use source_compiler::product::provider_declarations::RetainedProviderSelection;
+use source_compiler::product::{
     NativeBindingInputs, PackageNativeBindings, ProductPolicyInputs, ProductSourceInputs,
 };
-use source_compiler::source_targets::SourceTarget;
+use source_compiler::product::source_targets::SourceTarget;
 use std::sync::Arc;
 use target::TargetProfile;
 

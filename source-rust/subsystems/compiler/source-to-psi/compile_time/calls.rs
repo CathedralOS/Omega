@@ -1,6 +1,6 @@
 //! Prepare the actual source call, with its complete arguments and selected body,
 //! through ordinary typed preparation and the checked program publisher.
-use crate::evaluation::BuildTimeSelectionAuthority;
+use crate::compile_time::BuildTimeSelectionAuthority;
 use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -52,7 +52,7 @@ pub struct PreparedBuildMachineProgram {
     exact_toolchain_sources: Box<[(source_text::SourceId, [u8; 32])]>,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source_provenance::DependencyScope,
-    source_consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    source_consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
 }
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
@@ -63,10 +63,10 @@ pub struct PreparedBuildMachineEntry {
     call_source: crate::source_state::expression::ExpressionHandle,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     purpose: source_provenance::DependencyScope,
-    source_consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    source_consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     accepted: Arc<crate::production::AcceptedTerminalSource>,
-    arguments: Arc<[crate::evaluation::BuildTimeValue]>,
-    input_values: Arc<[crate::evaluation::BuildTimeValue]>,
+    arguments: Arc<[crate::compile_time::BuildTimeValue]>,
+    input_values: Arc<[crate::compile_time::BuildTimeValue]>,
 }
 impl PreparedBuildMachineEntry {
     /// The physical callee in the accepted invocation’s source.
@@ -92,7 +92,7 @@ impl PreparedBuildMachineEntry {
         &self.call
     }
 
-    pub fn arguments(&self) -> &[crate::evaluation::BuildTimeValue] {
+    pub fn arguments(&self) -> &[crate::compile_time::BuildTimeValue] {
         &self.arguments
     }
 
@@ -134,7 +134,7 @@ impl PreparedBuildMachineProgram {
         typed: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         purpose: source_provenance::DependencyScope,
-        source_consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+        source_consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
@@ -157,7 +157,7 @@ impl PreparedBuildMachineProgram {
         typed: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         purpose: source_provenance::DependencyScope,
-        source_consent: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+        source_consent: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut program = Self::prepare_for(typed, authority, purpose, source_consent)?;
         program.publication = terminal_codec::TerminalPublication::LayoutPolicyInvocation;
@@ -174,7 +174,7 @@ impl PreparedBuildMachineProgram {
         declaration: crate::source_state::callable_signature_shapes::CallableDeclaration<'_>,
         request: &crate::source_state::expression::TableCallExpression,
         request_expression: crate::source_state::expression::ExpressionHandle,
-        arguments: &[crate::evaluation::BuildTimeValue],
+        arguments: &[crate::compile_time::BuildTimeValue],
         selected: Option<(
             &crate::source_state::expression::StaticMachineArgument,
             SymbolHandle,
@@ -390,7 +390,7 @@ impl PreparedBuildMachineProgram {
         &self,
         requester: SymbolHandle,
         expression: crate::source_state::expression::ExpressionHandle,
-        arguments: &[crate::evaluation::BuildTimeValue],
+        arguments: &[crate::compile_time::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester) {
             return Err("source job requires its actual requesting declaration".into());
@@ -463,7 +463,7 @@ impl PreparedBuildMachineProgram {
         &self,
         requester: SymbolHandle,
         symbol: SymbolHandle,
-        arguments: &[crate::evaluation::BuildTimeValue],
+        arguments: &[crate::compile_time::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
         self.prepare_entry(requester, symbol, arguments)
             .map_err(|errors| diagnostics::join_messages(&errors))
@@ -473,7 +473,7 @@ impl PreparedBuildMachineProgram {
         &self,
         requester: SymbolHandle,
         symbol: SymbolHandle,
-        arguments: &[crate::evaluation::BuildTimeValue],
+        arguments: &[crate::compile_time::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, Vec<Diagnostic>> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
@@ -514,7 +514,7 @@ impl PreparedBuildMachineProgram {
         selection_owner: SymbolHandle,
         selection: &crate::source_state::expression::StaticMachineArgument,
         requirement: SymbolHandle,
-        arguments: &[crate::evaluation::BuildTimeValue],
+        arguments: &[crate::compile_time::BuildTimeValue],
     ) -> Result<PreparedBuildMachineEntry, String> {
         use crate::source_state::type_identity::{
             DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,

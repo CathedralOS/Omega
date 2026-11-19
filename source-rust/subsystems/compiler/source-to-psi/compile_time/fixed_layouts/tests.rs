@@ -44,7 +44,7 @@ fn an_empty_layout_scope_preserves_the_unrequested_application() {
     };
     let mut foreign = scope.clone();
     foreign.facts.as_mut().unwrap().profile = "windows_x86_64".into();
-    let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
+    let mut accounting = crate::compile_time::SourceCompletionAccounting::default();
     let errors = evaluate_fixed_layout_applications(
         &mut source,
         &[foreign],
@@ -99,7 +99,7 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
             case_tag_alignment: 4,
             little_endian: true,
         };
-        let mut accounting = crate::evaluation::SourceCompletionAccounting::default();
+        let mut accounting = crate::compile_time::SourceCompletionAccounting::default();
         let result = evaluate_fixed_layout_applications(
             &mut source,
             &[FixedLayoutTargetScope {
@@ -148,7 +148,7 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
     assert_eq!(layout.geometry.validated_layout.align, 8);
     assert!(!source.deferred_refusals_of(root).any(|row| row.request
         == crate::source_state::deferred_refusals::DeferredRequest::LayoutPolicyStorage));
-    let [crate::evaluation::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
+    let [crate::compile_time::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts()
     else {
         panic!("one physical policy invocation");
     };

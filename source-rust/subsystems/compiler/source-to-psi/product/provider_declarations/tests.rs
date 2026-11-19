@@ -642,7 +642,7 @@ fn a_provider_for_an_operator_must_include_the_exact_overload_in_its_record() {
     );
     assert_eq!(missing.len(), 1);
     let program = Arc::new(crate::source_state::FrozenTypedTrees::from(fixture.typed));
-    let error = crate::source_provider_choices::prepare_with_source_defaults(
+    let error = crate::product::provider_choices::prepare_with_source_defaults(
         &program,
         &["linux_x86_64"],
         &selected[..1],

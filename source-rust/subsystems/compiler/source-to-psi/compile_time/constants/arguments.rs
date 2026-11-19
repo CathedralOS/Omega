@@ -26,7 +26,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use super::{decoded, insert, key};
-use crate::evaluation::{InvocationTarget, SourceCompletionAccounting};
+use crate::compile_time::{InvocationTarget, SourceCompletionAccounting};
 
 /// One value required by a type and still written as an expression.
 struct Job {
@@ -278,8 +278,8 @@ fn entry(probe: &mut TypedTrees, job: &Job) -> SymbolHandle {
 pub fn evaluate(
     program: &mut TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,
-    authority: Option<std::sync::Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    source_consent: Option<std::sync::Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    authority: Option<std::sync::Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
+    source_consent: Option<std::sync::Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
     let found = pending(program);
@@ -287,7 +287,7 @@ pub fn evaluate(
         return Ok(());
     }
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let demanded = crate::evaluation::demanded_declarations(program, request).map_err(refuse)?;
+    let demanded = crate::compile_time::demanded_declarations(program, request).map_err(refuse)?;
     let owners = crate::source_state::references::collect_program_operand_owners(program);
     let jobs = found
         .into_iter()
@@ -337,7 +337,7 @@ pub fn evaluate(
         let result = (|| -> Result<(), String> {
             let mut probe = program.clone();
             let entry = entry(&mut probe, job);
-            let prepared = crate::evaluation::PreparedBuildMachineProgram::prepare_for(
+            let prepared = crate::compile_time::PreparedBuildMachineProgram::prepare_for(
                 &probe,
                 authority.clone(),
                 request.purpose,
@@ -451,7 +451,7 @@ fn withdraw_served_requests(program: &mut TypedTrees) -> Result<(), Vec<Diagnost
             DeferredRequest::TypeExpressionEvaluation | DeferredRequest::ArrayExtentEvaluation
         )
     };
-    let current = crate::evaluation::frontier::declared_jobs(program)?
+    let current = crate::compile_time::frontier::declared_jobs(program)?
         .into_iter()
         .filter(|(_, request)| evaluated(*request))
         .map(|(declaration, request)| (program.refusal_declaration(declaration), request))

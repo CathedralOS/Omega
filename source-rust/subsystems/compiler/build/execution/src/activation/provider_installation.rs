@@ -21,7 +21,7 @@ use psi_target_layouts::{
 };
 use source_compiler::ProducedBuildProvider;
 use build_scalar_evaluation::{ScalarScopeEvaluation, prepare_scalar_applications};
-use source_compiler::evaluation::SourceCompletionAccounting;
+use source_compiler::compile_time::SourceCompletionAccounting;
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};

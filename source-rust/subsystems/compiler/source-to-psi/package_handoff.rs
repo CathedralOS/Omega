@@ -1,8 +1,8 @@
 //! Bind the returned Build's selections to the dependency's own Product declarations.
 use super::*;
 use declaration_selection::{CapturedNativeIntent, NativeBindingFormation};
-use evaluation::native_bindings::CapturedNativeDeclaration;
-use evaluation::provider_declarations::RetainedProviderSelection;
+use product::native_binding_declarations::CapturedNativeDeclaration;
+use product::provider_declarations::RetainedProviderSelection;
 
 pub struct PackageHandoffDeclarations {
     pub providers: Vec<RetainedProviderSelection>,

@@ -7,19 +7,19 @@ use diagnostics::Diagnostic;
 pub struct UnbuiltSourceInputs<'a> {
     pub root_bindings: &'a [crate::RootBinding],
     pub provider_selections: &'a [crate::provider_choice_inputs::ProviderSelection],
-    pub targets: &'a [crate::source_targets::SourceTarget],
+    pub targets: &'a [crate::product::source_targets::SourceTarget],
     pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
 }
 
 pub fn prepare_unbuilt_frontier(
     typed: crate::source_state::TypedTrees,
-    accounting: crate::evaluation::SourceCompletionAccounting,
+    accounting: crate::compile_time::SourceCompletionAccounting,
     input: UnbuiltSourceInputs<'_>,
 ) -> Result<TypedFrontier, SourcePreparationFailure> {
     let (layout_scopes, entries, bindings, subject) = (|| -> Result<_, Vec<Diagnostic>> {
         // Like the product check's first preparation: no target has chosen a
         // dependency default yet, so none is a layout root.
-        let layout_scopes = crate::product_source::layout_target_scopes(
+        let layout_scopes = crate::product::layout_target_scopes(
             &typed,
             input.root_bindings,
             input.provider_selections,
@@ -27,8 +27,8 @@ pub fn prepare_unbuilt_frontier(
             &[],
             input.targets,
         )?;
-        let entries = crate::product_source::program_roots(input.root_bindings);
-        let bindings = crate::entry_shapes::bound_program_entry_shapes(
+        let entries = crate::product::program_roots(input.root_bindings);
+        let bindings = crate::product::entry_shapes::bound_program_entry_shapes(
             &typed,
             input.root_bindings,
             input.targets,

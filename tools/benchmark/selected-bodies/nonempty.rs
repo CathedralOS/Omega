@@ -87,7 +87,7 @@ fn main() {
         let completion_started = std::time::Instant::now();
         let complete = || {
             let mut next = typing.complete_bodies(source).unwrap();
-            source_compiler::evaluation::PreCheckEvaluation::defer_declared_requests(next.typed_mut())
+            source_compiler::compile_time::PreCheckEvaluation::defer_declared_requests(next.typed_mut())
                 .unwrap();
             next
         };
@@ -128,7 +128,7 @@ fn main() {
         );
         basic_oracle_ns += basic_oracle_started.elapsed().as_nanos();
         let recorded_oracle_started = std::time::Instant::now();
-        source_compiler::evaluation::PreCheckEvaluation::require_recorded_requests(typing.typed())
+        source_compiler::compile_time::PreCheckEvaluation::require_recorded_requests(typing.typed())
             .unwrap();
         recorded_oracle_ns += recorded_oracle_started.elapsed().as_nanos();
         let pointer_oracle_started = std::time::Instant::now();

@@ -315,7 +315,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
         .inventory()
         .services_for(accepted.source().as_ref())
         .expect("the accepted source's retained Product service catalog");
-    let boundary = source_compiler::entry_contracts::selected_program_entry_boundary(
+    let boundary = source_compiler::product::entry_contracts::selected_program_entry_boundary(
         catalog,
         &package_compilation::source_imports::source_target(signature.target_slot().owner, None),
     )

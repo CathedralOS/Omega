@@ -44,11 +44,11 @@ mod constant_entries {
 }
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
-    pub invocation_sources: Option<Arc<dyn crate::evaluation::InvocationSourceConsent>>,
+    pub invocation_sources: Option<Arc<dyn crate::compile_time::InvocationSourceConsent>>,
     pub external_roots: &'request [symbols::SymbolHandle],
     pub representations: ProductRepresentationInput<'request>,
-    pub layout_scopes: &'request [crate::evaluation::FixedLayoutTargetScope],
-    pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
+    pub layout_scopes: &'request [crate::compile_time::FixedLayoutTargetScope],
+    pub layout_selection_authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
     pub wire_demands: &'request [crate::preparation::WireCompatibilityDemand],
     pub declarations: Option<
         &'request dyn declaration_scope::DeclarationSelectionAuthority,
@@ -90,12 +90,12 @@ pub struct SourcePreparationRequest<'request> {
     pub admission: SourceAdmission<'request>,
     /// The exact entries, subjects, bindings and supplies later judged.
     pub compilation: crate::TerminalSourceCompilation<'request>,
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
+    pub accounting: crate::compile_time::SourceCompletionAccounting,
 }
 
 pub struct FrozenSource {
     pub program: Arc<crate::source_state::FrozenTypedTrees>,
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
+    pub accounting: crate::compile_time::SourceCompletionAccounting,
     /// Actual demand before named uses became literals. This is result
     /// correspondence data, not declaration-selection or execution authority.
     pub constants: Vec<crate::ConstantRead>,
@@ -103,7 +103,7 @@ pub struct FrozenSource {
 
 pub struct JudgedSource {
     pub accepted: crate::AcceptedTerminalSource,
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
+    pub accounting: crate::compile_time::SourceCompletionAccounting,
     pub constants: Vec<crate::ConstantRead>,
 }
 
@@ -148,7 +148,7 @@ impl SourcePreparationRequest<'_> {
             let mut program = self.program;
             program.opaque_representation_selections =
                 self.admission.representations.rederive(&program)?;
-            crate::evaluation::evaluate_fixed_layout_applications(
+            crate::compile_time::evaluate_fixed_layout_applications(
                 &mut program,
                 self.admission.layout_scopes,
                 self.admission.layout_selection_authority.clone(),
@@ -169,7 +169,7 @@ impl SourcePreparationRequest<'_> {
             // `Buffer<capacity()>`: a const argument written as a call gets
             // its value first, because a constant below may be computed
             // through a type that is applied at one.
-            crate::evaluation::evaluate_const_arguments(
+            crate::compile_time::evaluate_const_arguments(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),
@@ -177,7 +177,7 @@ impl SourcePreparationRequest<'_> {
                 &mut accounting,
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
-            let constants = crate::evaluation::evaluate_constant_initializers_with_source_consent(
+            let constants = crate::compile_time::evaluate_constant_initializers_with_source_consent(
                 &mut program,
                 self.compilation,
                 self.admission.layout_scopes,
@@ -185,7 +185,7 @@ impl SourcePreparationRequest<'_> {
                 self.admission.invocation_sources,
                 &mut accounting,
             )?;
-            crate::evaluation::validate_constant_evaluations(&program, &accounting).map_err(
+            crate::compile_time::validate_constant_evaluations(&program, &accounting).map_err(
                 |reason| {
                     vec![Diagnostic::error(format!(
                         "constant materialization receipt join: {reason}"

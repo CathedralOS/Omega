@@ -64,7 +64,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
             .is_some(),
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
-    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
+    let mut accounting = source_compiler::compile_time::SourceCompletionAccounting::default();
     let completed = native_scalar_inputs::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),

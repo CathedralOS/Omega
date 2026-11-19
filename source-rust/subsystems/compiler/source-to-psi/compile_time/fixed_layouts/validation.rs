@@ -1,7 +1,7 @@
 //! A policy returns ordinary data. Check every active entry against the exact
 //! supplied field roster before any consumer can trust its offsets or extent.
 
-use crate::evaluation::BuildTimeValue as Value;
+use crate::compile_time::BuildTimeValue as Value;
 use crate::source_state::data::DataDefinition;
 use crate::source_state::{PlanLaidSchemaField, TypedTrees};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};

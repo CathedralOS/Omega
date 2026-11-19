@@ -2,7 +2,7 @@
 //! Inactive array tails are valid records with alignment one; they do not name
 //! a field that a returned layout may place.
 
-use crate::evaluation::BuildTimeValue as Value;
+use crate::compile_time::BuildTimeValue as Value;
 use crate::source_state::{
     PlanLaidFieldLayoutSource, PlanLaidSchemaField, PlanLaidSchemaFieldKind,
 };

@@ -11,7 +11,7 @@ use default_build_workflow::build_sequence;
 
 use artifacts::compile_timings::counters;
 use compiler::{CheckedCompileRequest, CompilationSession};
-use source_compiler::evaluation::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+use source_compiler::compile_time::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
 
 /// Resolve one project's sources with the host-profile execution defaults that
 /// every single-root case shares.
@@ -566,9 +566,9 @@ fn source_discovery_root_resources() {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
         let filesystem =
-            source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+            source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
                 workspace.join("caller"),
-                source_compiler::evaluation::BuildMachineFilesystemSponsorLimits {
+                source_compiler::compile_time::BuildMachineFilesystemSponsorLimits {
                     maximum_entries: 32,
                     maximum_total_logical_bytes: bytes,
                     maximum_object_extent: 1024,
@@ -1049,9 +1049,9 @@ fn terminal_build_filesystem() {
     );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
-    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::compile_time::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");

@@ -110,7 +110,7 @@ pub struct ReturnedPlanningStage {
 impl ReturnedPlanningStage {
     pub fn source_completion_accounting(
         &self,
-    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
         self.evaluation.source_completion_accounting()
     }
 

@@ -15,7 +15,7 @@ use diagnostics::Diagnostic;
 pub fn bound_program_entry_shapes(
     typed: &TypedTrees,
     bindings: &[RootBinding],
-    targets: &[crate::source_targets::SourceTarget],
+    targets: &[crate::product::source_targets::SourceTarget],
 ) -> Result<Vec<BoundCallableShape>, Vec<Diagnostic>> {
     let mut shapes = Vec::with_capacity(bindings.len());
     for binding in bindings {
@@ -24,7 +24,7 @@ pub fn bound_program_entry_shapes(
                 .slot
                 .rsplit_once("::")
                 .ok_or_else(|| Diagnostic::error("root binding has no target-qualified slot"))?;
-            let profile = crate::source_targets::target_owner(targets, owner)
+            let profile = crate::product::source_targets::target_owner(targets, owner)
                 .map_err(|_| Diagnostic::error(format!("unknown root slot owner `{owner}`")))?;
             let slot = &profile.entry;
             if slot.slot_name != name {

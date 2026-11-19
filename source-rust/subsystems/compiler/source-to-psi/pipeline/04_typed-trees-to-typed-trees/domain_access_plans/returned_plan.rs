@@ -21,7 +21,7 @@ use schema_reflection::SchemaNodeHandle;
 use schema_reflection::SchemaQueryAuthority;
 use schema_reflection::SemanticSchemaGraph;
 
-use crate::evaluation::{
+use crate::compile_time::{
     BuildTimeValue, PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt,
 };
 

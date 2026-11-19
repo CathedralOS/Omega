@@ -3,7 +3,7 @@
 
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationEnvironment};
 use crate::source_state::{FrozenTypedTrees, ProductSourceIdentity};
-use crate::source_targets::{SourceEntryContractOwner as EntryContractSource, SourceTarget};
+use crate::product::source_targets::{SourceEntryContractOwner as EntryContractSource, SourceTarget};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;

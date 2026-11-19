@@ -78,7 +78,7 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: build_evaluation_result::BuildConstants,
-    source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    source_completion_accounting: source_compiler::compile_time::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
 }
@@ -180,7 +180,7 @@ impl PreparedBuildEvaluation {
 
     pub fn source_completion_accounting(
         &self,
-    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 

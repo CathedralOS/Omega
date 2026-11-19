@@ -47,9 +47,9 @@ machine build(builder: @mut Build) crashes Trap {
     )
     .unwrap();
     let host = target::TargetProfile::host_if_supported().unwrap();
-    let staging = source_compiler::evaluation::BuildMachineFilesystemSponsor::create_private(
+    let staging = source_compiler::compile_time::BuildMachineFilesystemSponsor::create_private(
         temporary.path().join("staging"),
-        source_compiler::evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
+        source_compiler::compile_time::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
     let output = staging.session_root().unwrap().join("output");

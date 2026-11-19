@@ -2,7 +2,7 @@
 //! existing lowered checker can establish its argument domains and callee
 //! requirements; this constructor supplies no acceptance or source authority.
 
-use crate::evaluation::BuildTimeValue;
+use crate::compile_time::BuildTimeValue;
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataField, DataMember, DataMemberIdentity};
 use crate::source_state::expression::{
@@ -478,7 +478,7 @@ pub(crate) fn prepare_value_invocation(
     requester: SymbolHandle,
     declaration: crate::source_state::callable_signature_shapes::CallableDeclaration<'_>,
     request: &TableCallExpression,
-    arguments: &[crate::evaluation::BuildTimeValue],
+    arguments: &[crate::compile_time::BuildTimeValue],
     request_expression: ExpressionHandle,
     selected: Option<(
         &crate::source_state::expression::StaticMachineArgument,

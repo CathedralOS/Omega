@@ -2,7 +2,7 @@ use super::{
     evaluate_const_arguments, evaluate_constant_initializers_with_source_consent,
     validate_constant_evaluations,
 };
-use crate::evaluation::{PreCheckEvaluation, SourceCompletionAccounting};
+use crate::compile_time::{PreCheckEvaluation, SourceCompletionAccounting};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};

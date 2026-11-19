@@ -1,7 +1,7 @@
 //! Execute a source-authenticated call using the common Build interpreter and its actual sponsor.
 use super::target::{InvocationTarget, complete_invocation_scalar_applications};
 use super::{MeasuredEvaluation, PreparedBuildMachineEntry, source_selection};
-use crate::evaluation::{BuildTimeValue, SourceCompletionAccounting};
+use crate::compile_time::{BuildTimeValue, SourceCompletionAccounting};
 use source_completion_accounting::SourceInvocationSite;
 use std::sync::Arc;
 
@@ -71,8 +71,8 @@ impl PreparedBuildMachineEntry {
     pub fn invoke_recorded_in_targets(
         &self,
         targets: &[(&str, Option<&layout_plans::LayoutTargetFacts>)],
-        accounting: &mut crate::evaluation::SourceCompletionAccounting,
-    ) -> Result<Vec<crate::evaluation::BuildTimeValue>, String> {
+        accounting: &mut crate::compile_time::SourceCompletionAccounting,
+    ) -> Result<Vec<crate::compile_time::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
         if module.target_layout_applications.is_empty()
@@ -133,7 +133,7 @@ impl PreparedBuildMachineEntry {
             return Err("target-independent evaluation cannot carry target observations".into());
         }
         for value in self.input_values.iter() {
-            if let crate::evaluation::BuildTimeValue::LayoutTarget(facts) = value
+            if let crate::compile_time::BuildTimeValue::LayoutTarget(facts) = value
                 && (target.name != Some(facts.profile.as_str())
                     || target.layout_target != Some(facts))
             {

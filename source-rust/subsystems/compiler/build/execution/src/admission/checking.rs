@@ -30,7 +30,7 @@ pub fn settle_rejoined_build_slice(
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     subject_validation: BuildSubjectValidation,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<source_compiler::evaluation::SourceCompletionAccounting, CompileFailure> {
+) -> Result<source_compiler::compile_time::SourceCompletionAccounting, CompileFailure> {
     if constants.folded_under_providers {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
@@ -146,7 +146,7 @@ pub(crate) fn prepare_admitted_build(
         source_compiler::CheckedBuildInvocation,
         super::provider_execution::BuildProviderPlans,
         BuildConstants,
-        source_compiler::evaluation::SourceCompletionAccounting,
+        source_compiler::compile_time::SourceCompletionAccounting,
     ),
     CompileFailure,
 > {

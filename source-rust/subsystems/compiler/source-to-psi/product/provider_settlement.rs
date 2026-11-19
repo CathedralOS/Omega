@@ -16,9 +16,9 @@ pub struct SourceSupplyTarget {
 /// The slot and provider one selection names, as the roster states a supply.
 /// A selection of an operator family names each coordinate as its own slot.
 fn selected_supplies(
-    selection: &crate::evaluation::provider_declarations::ProviderSelection,
+    selection: &crate::product::provider_declarations::ProviderSelection,
 ) -> Vec<crate::TerminalSourceSupply> {
-    use crate::evaluation::provider_declarations::ProviderSelectionSubject;
+    use crate::product::provider_declarations::ProviderSelectionSubject;
     let provider = selection.provider_type.symbol;
     match &selection.subject {
         ProviderSelectionSubject::BoundaryTrait(identity)
@@ -48,12 +48,12 @@ pub struct ProductSupplySource<'a> {
     pub publication: std::sync::Arc<crate::SourcePublication>,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
-    pub build: &'a [crate::evaluation::provider_declarations::ProviderSelection],
+    pub build: &'a [crate::product::provider_declarations::ProviderSelection],
     pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
-    pub defaults: &'a [crate::evaluation::provider_declarations::TargetProviderDefaults],
+    pub defaults: &'a [crate::product::provider_declarations::TargetProviderDefaults],
     /// Defaults whose layouts the source lays out only for a target that
     /// chooses them: the provider selections of the Build's dependencies.
-    pub layout_deferred: &'a [crate::evaluation::provider_declarations::ProviderSelection],
+    pub layout_deferred: &'a [crate::product::provider_declarations::ProviderSelection],
     /// The deferred defaults the source was laid out for, by target.
     pub layout_prepared: &'a [ChosenDefaultLayout],
 }
@@ -67,7 +67,7 @@ pub type SuppliedProduct = std::sync::Arc<crate::SourcePublication>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChosenDefaultLayout {
     pub target: String,
-    pub selection: crate::evaluation::provider_declarations::ProviderSelection,
+    pub selection: crate::product::provider_declarations::ProviderSelection,
 }
 
 /// What judging the chosen supplies concluded.
@@ -139,9 +139,9 @@ impl ModuleDemand {
     fn prepare(
         &self,
         accepted: &crate::AcceptedTerminalSource,
-        build: &[crate::evaluation::provider_declarations::ProviderSelection],
+        build: &[crate::product::provider_declarations::ProviderSelection],
         native_bindings: &[crate::provider_choice_inputs::NativeBuildSupply],
-        defaults: &[crate::evaluation::provider_declarations::TargetProviderDefaults],
+        defaults: &[crate::product::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,
         numeric_support: Option<&language_core::float_operations::NumericTargetCapabilities>,
     ) -> Result<PreparedTargetSupply, Vec<Diagnostic>> {
@@ -260,9 +260,9 @@ pub struct TargetSupplySource<'a> {
     pub publication: &'a crate::SourcePublication,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
-    pub build: &'a [crate::evaluation::provider_declarations::ProviderSelection],
+    pub build: &'a [crate::product::provider_declarations::ProviderSelection],
     pub native_bindings: &'a [crate::provider_choice_inputs::NativeBuildSupply],
-    pub defaults: &'a [crate::evaluation::provider_declarations::TargetProviderDefaults],
+    pub defaults: &'a [crate::product::provider_declarations::TargetProviderDefaults],
     /// The selected deployment, or no deployment for targetless checking.
     pub target: Option<&'a str>,
 }

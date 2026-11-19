@@ -8,7 +8,7 @@
     provider requests, root grants, declarations, and behavior exclusions.
 */
 
-use crate::evaluation::{BuildTimeSelectionAuthority, PreCheckEvaluation};
+use crate::compile_time::{BuildTimeSelectionAuthority, PreCheckEvaluation};
 use crate::{PsiCompilationObserver, PsiCompilationStage};
 use diagnostics::Diagnostic;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use symbol_resolved_trees_to_typed_trees::product_declarations;
 
 mod activation {
     use super::{PreCheckEvaluation, ResolveAndTypeRequest};
-    use crate::evaluation::BuildTimeSelectionAuthority;
+    use crate::compile_time::BuildTimeSelectionAuthority;
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::SourceScopedTopLevelBinding;
     use crate::typing::SeededTypingBase;
@@ -349,7 +349,7 @@ mod authored_completion {
     impl AuthoredCompletions {
         pub(super) fn rejoin_current_authority(
             &self,
-            authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
+            authority: Option<Arc<dyn crate::compile_time::BuildTimeSelectionAuthority>>,
         ) -> Result<Self, String> {
             let stored = self
                 .entries
@@ -384,9 +384,9 @@ mod product_policy {
     use crate::declaration_selection::ExecutedNativeBinding;
     use crate::declaration_selection::ExecutedProductSelection;
     use crate::declaration_selection::ProductDeclarationRequest;
-    use crate::evaluation::native_bindings::{CapturedNativeDeclaration, NativeBindingSelection};
-    use crate::evaluation::product_declarations::AdmittedProductDeclarations;
-    use crate::evaluation::provider_declarations::ProviderSelection;
+    use crate::product::native_binding_declarations::{CapturedNativeDeclaration, NativeBindingSelection};
+    use crate::product::declarations::AdmittedProductDeclarations;
+    use crate::product::provider_declarations::ProviderSelection;
     use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
     use behavior_exclusion_requests::AuthoredBehaviorExclusion;
     use diagnostics::Diagnostic;
@@ -444,7 +444,7 @@ mod product_policy {
                     None,
                 )?;
             }
-            crate::evaluation::native_bindings::capture_package_intents(
+            crate::product::native_binding_declarations::capture_package_intents(
                 self.typed(),
                 package,
                 formations,
@@ -515,7 +515,7 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
-            let native_bindings = crate::evaluation::native_bindings::collect(
+            let native_bindings = crate::product::native_binding_declarations::collect(
                 typed,
                 request.activation,
                 request.declared,
@@ -528,14 +528,14 @@ mod product_policy {
                 request.declared,
                 request.executed,
             )?;
-            let declarations = crate::evaluation::product_declarations::admit(
+            let declarations = crate::product::declarations::admit(
                 typed,
                 request.activation,
                 request.declared,
                 request.executed,
                 &declaration_formations,
             )?;
-            crate::evaluation::product_declarations::require_supported_exclusions(
+            crate::product::declarations::require_supported_exclusions(
                 request.declared,
                 request.executed,
                 request.exclusions,
@@ -555,7 +555,7 @@ mod product_policy {
             declarations: &[CapturedNativeDeclaration],
             intents: &[CapturedNativeIntent],
         ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-            crate::evaluation::native_bindings::collect_captured(
+            crate::product::native_binding_declarations::collect_captured(
                 Arc::make_mut(&mut self.input).typing.typed_mut(),
                 declarations,
                 intents,
@@ -569,7 +569,7 @@ mod provider_requests {
     use crate::declaration_selection::ExecutedProductSelection;
     use crate::declaration_selection::ProductDeclarationRequest;
     use crate::declaration_selection::product_operands::ProductStaticEnvironment;
-    use crate::evaluation::provider_declarations::{
+    use crate::product::provider_declarations::{
         ProviderPlanningContext, ProviderSelection, collect_product_provider_selections,
     };
     use crate::source_state::product_operand::ProductApplicationDemand;
@@ -820,7 +820,7 @@ mod provider_requests {
 pub use product_policy::{AdmittedProductPolicy, ProductPolicyRequest};
 mod storage {
     use super::{SourceCompletionInput, SourceContext, SourceContinuation};
-    use crate::evaluation::BuildTimeSelectionAuthority;
+    use crate::compile_time::BuildTimeSelectionAuthority;
     use record_storage::{Record, RecordError, RecordReader, RecordWriter};
     use std::sync::Arc;
 
@@ -927,7 +927,7 @@ struct SourceCompletionInput {
 #[derive(Clone, record_storage::Record)]
 pub struct CompletedSource {
     declaration_syntax: Arc<syntax_trees::SyntaxTrees>,
-    accounting: crate::evaluation::SourceCompletionAccounting,
+    accounting: crate::compile_time::SourceCompletionAccounting,
     typing: crate::typing::SeededTypingBase,
     pending_pre_checks: Vec<PreCheckEvaluation>,
 }
@@ -941,7 +941,7 @@ pub struct SourceExtensionRequest {
 }
 
 pub struct PreparedSource {
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
+    pub accounting: crate::compile_time::SourceCompletionAccounting,
     pub typed: crate::source_state::TypedTrees,
 }
 

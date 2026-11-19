@@ -9,7 +9,7 @@ pub(crate) use retained::rejoin_provider_defaults;
 #[path = "provider_declarations/tests.rs"]
 mod tests;
 
-pub use super::retained_product_application::RetainedProductApplication;
+pub use super::retained_application::RetainedProductApplication;
 use crate::declaration_selection::BuildSelectionOrigin;
 use crate::provider_choice_inputs::application_id;
 pub use crate::provider_choice_inputs::{
@@ -17,7 +17,7 @@ pub use crate::provider_choice_inputs::{
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject, TargetProviderDefaults,
     source_application,
 };
-pub use crate::source_provider_choices::retain_provider_defaults;
+pub use crate::product::provider_choices::retain_provider_defaults;
 pub use crate::source_state::provider_declarations::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 pub use requests::collect_product_provider_selections;

@@ -1,7 +1,7 @@
 //! A plan must retain its schema bytes after construction and transport every
 //! initialized array element. These checks supply no normalized access rights.
 
-use crate::evaluation::{
+use crate::compile_time::{
     BuildTimeValue, InvocationTarget, PreparedBuildMachineProgram, SourceCompletionAccounting,
 };
 use crate::source_state::expression::ExpressionNode;
@@ -131,7 +131,7 @@ fn reflected_schema(
     requester_name: &str,
     invocation_target: InvocationTarget<'_>,
     accounting: &mut SourceCompletionAccounting,
-) -> crate::evaluation::MeasuredEvaluation<BuildTimeValue> {
+) -> crate::compile_time::MeasuredEvaluation<BuildTimeValue> {
     let (requester, expression) = query_call(typed, requester_name);
     let call = typed
         .expression_table
@@ -784,8 +784,8 @@ fn ordinary_lifetime_invocation_keeps_schema_images_and_refuses_local_escape() {
 
 fn last_receipt(
     accounting: &SourceCompletionAccounting,
-) -> std::sync::Arc<crate::evaluation::PureTerminalEvaluationReceipt> {
-    let Some(crate::evaluation::PureEvaluationRecord::Invocation(receipt)) =
+) -> std::sync::Arc<crate::compile_time::PureTerminalEvaluationReceipt> {
+    let Some(crate::compile_time::PureEvaluationRecord::Invocation(receipt)) =
         accounting.receipts().last()
     else {
         panic!("the actual checked invocation has its own receipt")

@@ -2,7 +2,7 @@
 //! placement calls record the actual second argument and the exact slot selected
 //! at that call. Only executed calls contribute a private field.
 use super::PrivateLayoutPlacementReceipt;
-use crate::evaluation::BuildTimeValue;
+use crate::compile_time::BuildTimeValue;
 use crate::source_state::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::source_state::{PlanLaidGeometry, PlanLaidSchemaField, PrivateCallbackSlotApplication};
 use language_core::sealed_intrinsics::SealedIntrinsic;

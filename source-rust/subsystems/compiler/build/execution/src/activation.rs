@@ -85,7 +85,7 @@ fn require_source_acquisition(
 }
 
 pub struct ReturnedBuild {
-    pub(crate) helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    pub(crate) helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
     account: EvaluationInvocationAccount,
     unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
@@ -514,7 +514,7 @@ pub(crate) struct CarriedStage {
     output_issued: bool,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
     request_host: crate::host::requests::CarriedRequests,
     binding_host: crate::host::bindings::CarriedBindings,
     pub(crate) filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
@@ -533,7 +533,7 @@ pub struct TerminalBuildActivation {
     state: ActivationState,
     requests: Vec<IssuedBuildRequest>,
     demanded_sources: Vec<BuildDependencySelection>,
-    helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    helper_accounting: source_compiler::compile_time::SourceCompletionAccounting,
 }
 
 pub struct TerminalBuildStep<'step> {
@@ -555,7 +555,7 @@ impl TerminalBuildActivation {
 
     pub fn helper_evaluation_accounting(
         &self,
-    ) -> &source_compiler::evaluation::SourceCompletionAccounting {
+    ) -> &source_compiler::compile_time::SourceCompletionAccounting {
         &self.helper_accounting
     }
 
