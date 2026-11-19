@@ -1,5 +1,9 @@
 # Bounded process execution
 
+The CLI, interpreter host, Git resolver and repository tools share this crate
+for operating-system process control. Each caller chooses the executable,
+streams and resource limits. The crate owns child lifetime and output capture.
+
 Start at [bounded_process.rs](src/bounded_process.rs). `run_bounded_process`
 checks the capture limits, launches a prepared child, starts threads that write
 its input and read its output, collects them under one deadline, and closes
@@ -27,7 +31,7 @@ Windows queries the primary process handle before closing it. Each
 `ProcessResourceUsage` names its source and scope; an unavailable metric is
 `None`, including cycles on Unix. Windows peak working set is resident memory,
 and its fault total does not separate minor from major faults. See the
-[benchmark guide](../../../../tools/benchmark/README.md#cpu-resident-memory-and-faults) for units and uses.
+[benchmark guide](../../../tools/benchmark/README.md#cpu-resident-memory-and-faults) for units and uses.
 
 Windows uses a kill-on-close Job Object that caps processes, memory and CPU.
 Unix applies the tighter of each inherited and requested limit, launches a

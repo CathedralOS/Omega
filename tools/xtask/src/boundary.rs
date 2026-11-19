@@ -1107,7 +1107,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let mut runtime_owners = vec![
             RUNTIME_ROOT,
             NATIVE_PROVIDER_RUNTIME_ROOT,
-            "omega-rust/omega/host-support/bounded-process",
+            "source-rust/foundation/bounded-process",
             "omega-rust/psi/interpreter",
         ];
         runtime_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
@@ -1129,7 +1129,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         )?);
         let mut native_provider_owners = vec![
             NATIVE_PROVIDER_RUNTIME_ROOT,
-            "omega-rust/omega/host-support/bounded-process",
+            "source-rust/foundation/bounded-process",
         ];
         native_provider_owners.extend_from_slice(&PERMITTED_OWNERS[1..]);
         violations.extend(dependency_violations(

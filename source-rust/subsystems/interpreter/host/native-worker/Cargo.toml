@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 wire = { path = "../../../../foundation/wire" }
-bounded-process = { path = "../../host-support/bounded-process" }
+bounded-process = { path = "../../../../foundation/bounded-process" }
 target = { path = "../../compilation/target-description/target" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
 runtime-abi = { path = "../../compilation/target-description/runtime-abi" }

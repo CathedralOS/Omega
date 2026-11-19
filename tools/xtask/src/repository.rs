@@ -98,11 +98,7 @@ fn enclosing(directory: &Path) -> Result<PathBuf, String> {
     // a .git directory nor the binary's installation location is required.
     for candidate in directory.ancestors() {
         let mut workspace = true;
-        for marker in [
-            "Cargo.toml",
-            "tools/xtask/Cargo.toml",
-            "omega-rust/pipeline.md",
-        ] {
+        for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
             let marker = candidate.join(marker);
             match std::fs::metadata(&marker) {
                 Ok(metadata) if metadata.is_file() => {}
@@ -164,12 +160,7 @@ mod tests {
         fn checkout(&self, relative: &str) -> PathBuf {
             let root = self.0.join(relative);
             fs::create_dir_all(root.join("tools/xtask/src")).unwrap();
-            fs::create_dir_all(root.join("omega-rust")).unwrap();
-            for marker in [
-                "Cargo.toml",
-                "tools/xtask/Cargo.toml",
-                "omega-rust/pipeline.md",
-            ] {
+            for marker in ["Cargo.toml", "tools/xtask/Cargo.toml", "build.omg"] {
                 fs::write(root.join(marker), "").unwrap();
             }
             root
@@ -196,7 +187,7 @@ mod tests {
         let checkouts = Checkouts::new();
         checkouts.checkout("primary");
         let worker = checkouts.checkout("primary/.agents/worktree/worker-1");
-        assert_eq!(enclosing(&worker.join("omega-rust")).unwrap(), worker);
+        assert_eq!(enclosing(&worker.join("tools/xtask/src")).unwrap(), worker);
     }
 
     #[test]
