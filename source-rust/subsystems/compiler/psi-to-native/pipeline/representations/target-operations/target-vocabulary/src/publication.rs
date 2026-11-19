@@ -4,6 +4,9 @@
 //! it owns the current source function; later forms share the sealed roster
 //! rather than reopening that function to recover an ordinal or quoted bytes.
 
+mod execution_scope;
+pub use execution_scope::{EmittedCallbackOccurrence, EmittedExecutionScope};
+
 use std::sync::Arc;
 
 use ::wire::digest_encoder::DomainDigestEncoder;
@@ -29,8 +32,7 @@ pub struct NativeEntryFacts {
     pub deployment: Option<DeploymentEntryFacts>,
     pub identities: terminal_psi::TerminalIdentityTable,
     pub entry_declaration: Option<terminal_psi::CheckedMachineDeclaration>,
-    pub native_execution_scope:
-        Option<std::sync::Arc<native_vocabulary::emission::EmittedExecutionScope>>,
+    pub native_execution_scope: Option<std::sync::Arc<EmittedExecutionScope>>,
     pub selected_provider_closure: Option<[u8; 32]>,
 }
 
@@ -101,7 +103,7 @@ impl NativeEntryFacts {
         target: target::NativeTarget,
         entry: MachineId,
         selected_provider_closure: [u8; 32],
-    ) -> Result<Option<&native_vocabulary::emission::EmittedExecutionScope>, &'static str> {
+    ) -> Result<Option<&EmittedExecutionScope>, &'static str> {
         let Some(scope) = self.native_execution_scope.as_deref() else {
             return Ok(None);
         };

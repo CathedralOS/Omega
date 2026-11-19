@@ -1,5 +1,9 @@
 //! Closed semantic records and their issuance-time admission.
-pub use native_vocabulary::emission::*;
+pub use native_vocabulary::emission::{
+    DescriptorProducer, DescriptorProducerFact, EmissionFunctionFacts, EmissionOperationProvenance,
+    EmissionProgramFacts, OptimizedProgramProjection, PrimitiveLocalFact, RamObligation, RamSource,
+    ScalarCallOrigin, ScalarCallResultFact,
+};
 
 use std::sync::Arc;
 

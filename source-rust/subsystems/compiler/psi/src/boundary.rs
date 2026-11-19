@@ -177,6 +177,51 @@ pub(crate) mod applications {
             &self.application
         }
     }
+
+    impl crate::TerminalModule {
+        /// Select the demands of the given machines. An operation in dormant code
+        /// still counts when checking that each demand has exactly one owner.
+        pub fn boundary_application_demands_for_machines(
+            &self,
+            machines: &[semantic_vocabulary::MachineId],
+        ) -> Result<Vec<TerminalBoundaryApplicationDemand>, &'static str> {
+            if !machines.is_sorted() {
+                return Err("boundary demand machine roster is not ordered");
+            }
+            if self.boundary_application_demands.windows(2).any(|rows| {
+                rows[0].terminal_operation().get() >= rows[1].terminal_operation().get()
+            }) {
+                return Err("Terminal boundary demand catalog is not strictly ordered");
+            }
+            let catalog = &self.boundary_application_demands;
+            if catalog.is_empty() {
+                return Ok(Vec::new());
+            }
+            // Only operations named by a demand need an owner. Still visit every
+            // machine so a duplicate in dormant code cannot satisfy the check.
+            let mut owners = vec![None; catalog.len()];
+            for machine in &self.machines {
+                for operation in machine.operations() {
+                    if let Ok(position) = catalog
+                        .binary_search_by_key(&operation.id.get(), |demand| {
+                            demand.terminal_operation().get()
+                        })
+                        && owners[position].replace(machine.id).is_some()
+                    {
+                        return Err("Terminal boundary demand has no unique operation owner");
+                    }
+                }
+            }
+            let mut demands = Vec::new();
+            for (demand, owner) in catalog.iter().zip(owners) {
+                let owner = owner.ok_or("Terminal boundary demand has no operation owner")?;
+                if machines.binary_search(&owner).is_ok() {
+                    demands.push(demand.clone());
+                }
+            }
+            Ok(demands)
+        }
+    }
 }
 pub(crate) mod conformances {
     use crate::terminal_module::{TerminalIdentityIndex, TerminalIdentityTable};

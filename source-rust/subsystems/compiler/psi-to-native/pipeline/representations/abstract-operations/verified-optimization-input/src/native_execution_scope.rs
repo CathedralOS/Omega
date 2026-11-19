@@ -6,9 +6,10 @@
 */
 use provider_admission::provider_installation::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use target_vocabulary::publication::{EmittedCallbackOccurrence, EmittedExecutionScope};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 struct ScalarDemand<'scope> {
-    emitted: Option<&'scope native_vocabulary::emission::EmittedExecutionScope>,
+    emitted: Option<&'scope EmittedExecutionScope>,
     owned_sequence_bounds: &'scope [(semantic_vocabulary::StructuralTypeId, u64)],
 }
 
@@ -238,7 +239,7 @@ pub struct NativeExecutionScope {
     entry_call: Option<crate::SelectedProgramEntryCall>,
     callbacks: Vec<backend_plan::TerminalCallbackOccurrenceProposal>,
     demands: boundary_applications::TerminalBoundaryApplicationDemands,
-    pub(super) emitted: std::sync::Arc<native_vocabulary::emission::EmittedExecutionScope>,
+    pub(super) emitted: std::sync::Arc<EmittedExecutionScope>,
     owned_sequence_bounds: Vec<(semantic_vocabulary::StructuralTypeId, u64)>,
     selected_candidate_positions: Vec<usize>,
 }
@@ -450,14 +451,14 @@ impl NativeExecutionScope {
                 }
             }
         }
-        let emitted = std::sync::Arc::new(native_vocabulary::emission::EmittedExecutionScope::new(
+        let emitted = std::sync::Arc::new(EmittedExecutionScope::new(
             machines,
             index.reached.into_iter().collect(),
             callbacks
                 .iter()
                 .zip(reached_callbacks)
                 .filter_map(|(callback, reached)| {
-                    reached.then_some(native_vocabulary::emission::EmittedCallbackOccurrence {
+                    reached.then_some(EmittedCallbackOccurrence {
                         application_index: callback.application_index(),
                         terminal_operation: callback.terminal_operation(),
                     })
@@ -470,8 +471,8 @@ impl NativeExecutionScope {
                 emitted.contains_machine(machine)
             })
             .map_err(|reason| NativeExecutionScopeError::TargetContext(reason.into()))?;
-        let demands = emitted
-            .boundary_application_demands(module)
+        let demands = module
+            .boundary_application_demands_for_machines(emitted.machines())
             .and_then(|rows| {
                 boundary_applications::TerminalBoundaryApplicationDemands::new(
                     artifact.identity(),
@@ -928,6 +929,50 @@ mod scope_tests {
         assert_eq!(
             scope(blocks, "macos_arm64").unwrap().machines(),
             &[machine_id(1), machine_id(2), machine_id(3)]
+        );
+    }
+
+    #[test]
+    fn boundary_demands_require_one_owner_across_reached_and_dormant_machines() {
+        let mut module = graph();
+        let operation = OperationId::new(77).unwrap();
+        let mut identities = module.identities.clone().into_builder();
+        let identity = identities.intern("Fixture::effect");
+        module.identities = identities.build();
+        let demand = terminal_psi::TerminalBoundaryApplicationDemand::new(
+            operation,
+            terminal_psi::BoundaryOperatorRequirement::new(
+                terminal_psi::NominalDeclarationIdentity::new(identity),
+                "effect".into(),
+                None,
+            )
+            .unwrap(),
+            terminal_psi::BoundaryApplication::Empty,
+        );
+        module.boundary_application_demands.push(demand.clone());
+        let reached = [machine_id(1)];
+        assert_eq!(
+            module.boundary_application_demands_for_machines(&reached),
+            Err("Terminal boundary demand has no operation owner"),
+        );
+        module.machines[1].blocks[0].operations[0].id = operation;
+        assert_eq!(
+            module
+                .boundary_application_demands_for_machines(&reached)
+                .unwrap(),
+            [],
+        );
+        module.machines[0].blocks[0].operations[0].id = operation;
+        assert_eq!(
+            module.boundary_application_demands_for_machines(&reached),
+            Err("Terminal boundary demand has no unique operation owner"),
+        );
+        module.machines[1].blocks[0].operations[0].id = OperationId::new(2).unwrap();
+        assert_eq!(
+            module
+                .boundary_application_demands_for_machines(&reached)
+                .unwrap(),
+            [demand],
         );
     }
 

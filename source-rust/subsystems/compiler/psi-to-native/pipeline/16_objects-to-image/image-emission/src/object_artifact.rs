@@ -278,7 +278,7 @@ mod carriers {
             &self,
             identity: terminal_psi::TerminalPsiIdentity,
             selected_provider_closure: [u8; 32],
-        ) -> Result<Option<&native_vocabulary::emission::EmittedExecutionScope>, &'static str>
+        ) -> Result<Option<&target_vocabulary::publication::EmittedExecutionScope>, &'static str>
         {
             let facts = self.emission_facts().admission.entry_facts();
             facts.selected_terminal_entry(identity, self.entry, self.target)?;

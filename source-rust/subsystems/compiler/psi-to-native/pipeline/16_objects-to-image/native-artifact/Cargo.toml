@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 native-vocabulary = { path = "../../../native-vocabulary" }
 published-runtime-input = { path = "../../../installation/published-runtime-input" }
 wire = { path = "../../../../../../foundation/wire" }
