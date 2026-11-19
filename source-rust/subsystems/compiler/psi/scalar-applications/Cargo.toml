@@ -1,0 +1,14 @@
+[package]
+name = "psi-scalar-applications"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "scalar_applications.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-codec = { path = "../codec" }
+terminal-psi = { path = ".." }
+terminal-semantics = { path = "../semantics" }

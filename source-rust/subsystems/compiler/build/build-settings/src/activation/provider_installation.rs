@@ -141,7 +141,7 @@ pub(super) fn prepare<'host, 'code>(
                     targets: Some(terminal_target_context(artifact.view(), scope)),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
-                        .map(|model| terminal_installation::ScalarAddressModel {
+                        .map(|model| semantic_vocabulary::ScalarAddressModel {
                             target: scope.to_owned(),
                             carrier: model.carrier(),
                             semantics_version: model.semantics_version(),

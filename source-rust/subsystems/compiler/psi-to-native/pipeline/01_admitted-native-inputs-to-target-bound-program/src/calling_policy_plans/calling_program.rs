@@ -137,7 +137,7 @@ impl CallingProgram {
         scope: CallingStorageScope<'_>,
         providers: &[effects::provider_plan::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
-        let demand = terminal_installation::CallingAbiStorageDemand::new(
+        let demand = psi_scalar_applications::CallingAbiStorageDemand::new(
             self.artifact.view(),
             target.target_name(),
             declaration,
@@ -154,7 +154,7 @@ impl CallingProgram {
 
     fn with_storage_extents<Output>(
         &self,
-        demand: &terminal_installation::CallingAbiStorageDemand,
+        demand: &psi_scalar_applications::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
         providers: &[effects::provider_plan::ProviderPlan],

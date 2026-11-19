@@ -120,6 +120,7 @@ members = [
     "source-rust/subsystems/compiler/psi/proof-applications",
     "source-rust/subsystems/compiler/psi/proofs/bounded",
     "source-rust/subsystems/compiler/psi/proofs/mathematical",
+    "source-rust/subsystems/compiler/psi/scalar-applications",
     "source-rust/subsystems/compiler/psi/schema",
     "source-rust/subsystems/compiler/psi/semantics",
     "source-rust/subsystems/compiler/psi/semantics/closed-predicates",
