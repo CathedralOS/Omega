@@ -804,3 +804,13 @@ was `0002000000df460000`.
 The frozen `b95769558667` input reached the same source unit and local
 coordinate, packed byte 18,029, observation `00020000006d460000`.
 Neither run reached semantic checking of the entire source graph.
+
+With carrier conversion followed by an explicit domain addition, the same
+production entry passed `mark as u64 +Trapping` and the intervening emitter
+machines. On the published 284-unit input it reached
+`ScalarOperationKind::Copy -> copy(emitter, body, operation)` on line 577,
+column 38 of `compilation/00_scalar_operations_to_alpha.omg`. The model
+returned `Incomplete` at the called name, packed byte 37,331 / unit byte
+23,577, observation `0002000000d3910000`. The frozen input reached the
+same unit and coordinate at packed byte 37,217, observation
+`000200000061910000`. Each nine-byte output contains the refusal coordinate.
