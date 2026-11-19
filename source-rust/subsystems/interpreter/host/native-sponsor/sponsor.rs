@@ -68,12 +68,7 @@ fn lookup_adapter<'roster>(
 ) -> io::Result<&'roster NativeForeignAdapterImage> {
     roster
         .iter()
-        .find(|candidate| {
-            candidate.application() == &requested.application
-                && candidate.locator() == &requested.locator
-                && candidate.bridge().request() == &requested.bridge
-                && candidate.image_digest() == &requested.image_digest
-        })
+        .find(|candidate| candidate.matches_runtime_identity(requested))
         .map(AsRef::as_ref)
         .ok_or_else(|| invalid("native adapter does not belong to this sponsor's published roster"))
 }
@@ -87,7 +82,7 @@ fn install_image(
     let mut packet = Packet::new(1);
     packet.number(ordinal);
     packet.text(image.export())?;
-    packet.bytes(image.container().contents())?;
+    packet.bytes(image.contents())?;
     packet.bytes(image.image_digest())?;
     packet.append(storage);
     transport::exchange(&mut channel, packet.as_bytes())
