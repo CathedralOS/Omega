@@ -16,7 +16,7 @@ optimization-core = { path = "../../../../optimization-contracts" }
 optimization-unit = { path = "../optimization-unit" }
 abstract-operations = { path = ".." }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../../representations/psi" }
-terminal-codec = { path = "../../../../../representations/psi/codec" }
-terminal-work = { path = "../../../../../representations/psi/work" }
-terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+terminal-psi = { path = "../../../../../psi" }
+terminal-codec = { path = "../../../../../psi/codec" }
+terminal-work = { path = "../../../../../psi/work" }
+terminal-semantics = { path = "../../../../../psi/semantics" }

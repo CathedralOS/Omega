@@ -14,4 +14,4 @@ native-vocabulary = { path = "../../../native-vocabulary" }
 language-core = { path = "../../../../source-to-psi/language/source-vocabulary" }
 optimization-core = { path = "../../../optimization-contracts" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }

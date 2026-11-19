@@ -17,12 +17,12 @@ function-identity = { path = "../../../../native-vocabulary/function-identity" }
 target = { path = "../../../../targets/target" }
 task-plans = { path = "../../../../installation/task-plans" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../../representations/psi" }
+terminal-psi = { path = "../../../../../psi" }
 
 installation-evidence = { path = "../../../../installation/installation-evidence" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
-terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+terminal-semantics = { path = "../../../../../psi/semantics" }
 
 
 optimization-core = { path = "../../../../optimization-contracts" }
-terminal-wire = { path = "../../../../../representations/psi/wire" }
+terminal-wire = { path = "../../../../../psi/wire" }

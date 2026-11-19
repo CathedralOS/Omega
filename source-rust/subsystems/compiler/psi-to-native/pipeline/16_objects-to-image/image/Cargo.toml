@@ -24,4 +24,4 @@ target = { path = "../../../target-description/target" }
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 mutation-matrix = { path = "../../../../../test-support/mutation-matrix", features = ["test-support"] }
 optimization-core = { path = "../../../optimization-contracts" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }

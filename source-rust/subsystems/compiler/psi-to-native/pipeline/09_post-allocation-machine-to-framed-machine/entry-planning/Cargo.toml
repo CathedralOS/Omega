@@ -25,5 +25,5 @@ target-x86_64 = { path = "../../../target-description/target-x86_64" }
 target-aarch64 = { path = "../../../target-description/target-aarch64" }
 calling-conventions = { path = "../../../target-description/calling-conventions" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }
 native-vocabulary = { path = "../../../native-vocabulary" }

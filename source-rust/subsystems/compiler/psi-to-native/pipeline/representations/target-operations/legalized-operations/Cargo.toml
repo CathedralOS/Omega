@@ -19,8 +19,8 @@ function-identity = { path = "../../../../native-vocabulary/function-identity" }
 optimization-core = { path = "../../../../optimization-contracts" }
 target = { path = "../../../../targets/target" }
 semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../../representations/psi" }
-terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+terminal-psi = { path = "../../../../../psi" }
+terminal-semantics = { path = "../../../../../psi/semantics" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
-terminal-wire = { path = "../../../../../representations/psi/wire" }
+terminal-wire = { path = "../../../../../psi/wire" }
 sha2 = "0.10.9"

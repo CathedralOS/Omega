@@ -25,5 +25,5 @@ register-model = { path = "../../../targets/register-model" }
 selected-instructions = { path = "../selected-instructions" }
 task-plans = { path = "../../../installation/task-plans" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-psi = { path = "../../../../psi" }
 sha2 = "0.10.9"

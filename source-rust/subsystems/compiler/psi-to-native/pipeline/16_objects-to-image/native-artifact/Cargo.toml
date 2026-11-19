@@ -37,9 +37,9 @@ object-file = { path = "../../15_placed-functions-to-objects" }
 optimization-core = { path = "../../../optimization-contracts" }
 target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../../representations/psi" }
-terminal-semantics = { path = "../../../../representations/psi/semantics" }
-terminal-codec = { path = "../../../../representations/psi/codec" }
+terminal-psi = { path = "../../../../psi" }
+terminal-semantics = { path = "../../../../psi/semantics" }
+terminal-codec = { path = "../../../../psi/codec" }
 sha2 = "0.10.9"
 program-entry-plan = { path = "../../../installation/program-entry" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }

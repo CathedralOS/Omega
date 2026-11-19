@@ -22,6 +22,6 @@ optimization-core = { path = "../../optimization-contracts" }
 selected-instructions = { path = "../representations/selected-instructions" }
 arena = { path = "../../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }
 target = { path = "../../target-description/target" }
 target-operations = { path = "../representations/target-operations" }

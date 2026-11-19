@@ -18,5 +18,5 @@ semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabul
 
 [dev-dependencies]
 target = { path = "../../target-description/target" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }
 runtime-abi = { path = "../../target-description/runtime-abi" }

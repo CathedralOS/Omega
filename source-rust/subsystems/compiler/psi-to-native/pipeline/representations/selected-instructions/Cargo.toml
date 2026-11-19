@@ -25,6 +25,6 @@ register-model = { path = "../../../targets/register-model" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 target = { path = "../../../targets/target" }
 semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
-terminal-wire = { path = "../../../../representations/psi/wire" }
-terminal-psi = { path = "../../../../representations/psi" }
+terminal-wire = { path = "../../../../psi/wire" }
+terminal-psi = { path = "../../../../psi" }
 sha2 = "0.10.9"
