@@ -512,11 +512,12 @@ pub(crate) fn invocation<'a>(
                     "boundary call needs its structural qualification proof",
                 ));
             }
+            // The descriptor checker verifies writable reference fields and
+            // applies their published lifetime anchors at each call.
             if !terminal_semantics::structural_qualifications::formal_domains_cover_requirements(
                 &boundary.structural_parameters,
                 &boundary.requires,
             ) || !boundary.normal_qualifications.is_empty()
-                || !boundary.reference_outputs.is_empty()
                 || !boundary.content_guarantees.is_empty()
                 || !boundary.result_reference_regions.is_empty()
                 || !boundary.program_local_root_introductions.is_empty()
