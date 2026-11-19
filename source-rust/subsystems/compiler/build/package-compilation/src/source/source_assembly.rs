@@ -1453,13 +1453,17 @@ impl PsiCompilationObserver for ParsingTimings<'_> {
 }
 
 #[cfg(test)]
+#[path = "../../../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
+#[cfg(test)]
 mod requirement_preparation_tests {
     use super::*;
 
     #[test]
     fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
+        let root = fixture_repository::root()
+            .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
             .canonicalize()
             .expect("the existing scalar fixture's exact source path");
         let core = crate::source::source_imports::bundled_core_root().unwrap();
@@ -1480,7 +1484,7 @@ mod requirement_preparation_tests {
                 file.source.as_ref(),
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../source/library/core/indexing.omg"
+                    "/../../../../../source/library/core/indexing.omg"
                 ))
             );
             file.source_id
