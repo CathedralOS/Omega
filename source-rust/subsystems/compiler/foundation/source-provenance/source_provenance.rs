@@ -44,6 +44,23 @@ impl record_storage::Record for PackageKeyIdentity {
     }
 }
 
+/// Identifies the admitted package graph, root role and exact consumed source units.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PackageSourceConsumptionCommitment {
+    digest: [u8; 32],
+}
+
+impl PackageSourceConsumptionCommitment {
+    #[doc(hidden)]
+    pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
+        Self { digest }
+    }
+
+    pub const fn digest(self) -> [u8; 32] {
+        self.digest
+    }
+}
+
 const SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CONSUMED-SOURCE-CONTENT-V1\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

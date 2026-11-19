@@ -28,10 +28,7 @@ pub use source_provenance::ConsumedSourceUnit;
 pub use source_provenance::ConsumedSourceUnitKind;
 use source_provenance::append_canonical_consumed_unit;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PackageSourceConsumptionCommitment {
-    digest: [u8; 32],
-}
+pub use source_provenance::PackageSourceConsumptionCommitment;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationSubject {
@@ -60,17 +57,6 @@ impl PackageCompilationSubject {
 
     pub fn consumed_units(&self) -> &[ConsumedSourceUnit] {
         &self.consumed_units
-    }
-}
-
-impl PackageSourceConsumptionCommitment {
-    #[doc(hidden)]
-    pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
-        Self { digest }
-    }
-
-    pub const fn digest(self) -> [u8; 32] {
-        self.digest
     }
 }
 
@@ -115,9 +101,7 @@ pub fn derive_source_consumption_commitment(
         append_canonical_consumed_unit(&mut row_bytes, unit);
         digest.bytes(&row_bytes);
     }
-    Ok(PackageSourceConsumptionCommitment {
-        digest: digest.finish(),
-    })
+    Ok(PackageSourceConsumptionCommitment::from_retained_digest(digest.finish()))
 }
 
 fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
