@@ -92,13 +92,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "advection-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -240,6 +233,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-consent"
+version = "0.1.0"
+dependencies = [
+ "build-output",
+ "evaluation-contracts",
+ "filesystem-authority",
+ "target",
+]
+
+[[package]]
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
@@ -248,6 +251,46 @@ dependencies = [
  "semantic-vocabulary",
  "source-syntax",
  "syntax-trees",
+]
+
+[[package]]
+name = "build-evaluation-result"
+version = "0.1.0"
+dependencies = [
+ "behavior-exclusion-requests",
+ "build-consent",
+ "build-declarations",
+ "build-output",
+ "checked-program-to-psi",
+ "diagnostics",
+ "evaluation-contracts",
+ "evaluation-receipts",
+ "normalized-build-settings",
+ "optimization-requests",
+ "package-compilation",
+ "source-admission",
+ "source-completion-accounting",
+ "source-declarations",
+ "source-provenance",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
+name = "build-invocation"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "build-value-projection",
+ "evaluation-accounting",
+ "evaluation-admission",
+ "layout-plans",
+ "psi-scalar-applications",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-work",
 ]
 
 [[package]]
@@ -268,7 +311,9 @@ dependencies = [
  "artifacts",
  "behavior-exclusion-requests",
  "build-declarations",
+ "build-evaluation-result",
  "build-output",
+ "build-scalar-evaluation",
  "build-time-values",
  "declaration-scope",
  "diagnostics",
@@ -277,9 +322,11 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
+ "interpreter-numeric-imports",
+ "normalized-build-settings",
+ "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
- "products",
  "provider-admission",
  "psi-authorization",
  "psi-provider-selections",
@@ -297,7 +344,6 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-runtime",
  "terminal-work",
  "tokens",
 ]
@@ -337,6 +383,17 @@ version = "0.1.0"
 dependencies = [
  "language-core",
  "source-provenance",
+]
+
+[[package]]
+name = "build-value-projection"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -598,6 +655,7 @@ name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "evaluation-receipts",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
@@ -648,6 +706,7 @@ version = "0.1.0"
 dependencies = [
  "direct-boundary-bindings",
  "project-build",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
@@ -661,6 +720,7 @@ dependencies = [
  "boundary-applications",
  "bounded-process",
  "build-declarations",
+ "build-evaluation-result",
  "build-output",
  "build-settings",
  "calling-conventions",
@@ -746,6 +806,21 @@ dependencies = [
  "verified-optimization-input",
  "wire",
  "worker-budget",
+]
+
+[[package]]
+name = "compiler-tools"
+version = "0.1.0"
+dependencies = [
+ "compiler",
+ "package-compilation",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-compiler",
+ "source-provenance",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
 ]
 
 [[package]]
@@ -985,6 +1060,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "saved-native-inputs"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "behavior-exclusion-requests",
+ "calling-conventions",
+ "diagnostics",
+ "direct-boundary-bindings",
+ "installation-conditions",
+ "language-core",
+ "layout-plans",
+ "native-binding-admission",
+ "native-intrinsics",
+ "numeric-literals",
+ "numerics",
+ "operation-evidence",
+ "optimization-selections",
+ "program-entry-contracts",
+ "provider-acceptance",
+ "provider-admission",
+ "provider-plans",
+ "psi-authorization",
+ "psi-provider-selections",
+ "record-storage",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "service-surface",
+ "source-text",
+ "target",
+ "target-provider-admission",
+ "terminal-codec",
+ "terminal-psi",
+ "verified-optimization-input",
+]
+
+[[package]]
 name = "selected-provider-plans"
 version = "0.1.0"
 dependencies = [
@@ -1113,7 +1224,6 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "optimization-core",
- "physical-recipes",
  "post-allocation-machine",
  "register-environment",
  "register-homes",
@@ -1144,13 +1254,6 @@ name = "graphs"
 version = "0.1.0"
 
 [[package]]
-name = "hmm-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "iced-x86"
 version = "1.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1165,8 +1268,8 @@ version = "0.1.0"
 dependencies = [
  "declaration-scope",
  "evaluation-receipts",
+ "provider-acceptance",
  "psi-authorization",
- "record-storage",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
@@ -1289,39 +1392,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ind11-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "provider-plans",
- "sample-runner",
-]
-
-[[package]]
-name = "ind19-spectrum-validation"
-version = "0.1.0"
-dependencies = [
- "build-declarations",
- "compiler",
- "diagnostics",
- "effects",
- "mimalloc",
- "orchestration",
- "package-compilation",
- "package-manager",
- "products",
- "published-object-verification",
- "review-evidence",
- "semantic-vocabulary",
- "source-acquisition",
- "symbols",
- "syntax-trees",
- "target",
- "terminal-interpreter",
- "terminal-psi",
- "terminal-runtime",
-]
-
-[[package]]
 name = "installation-admission"
 version = "0.1.0"
 dependencies = [
@@ -1368,9 +1438,22 @@ dependencies = [
 name = "installation-conditions"
 version = "0.1.0"
 dependencies = [
+ "psi-program-identity",
+ "record-storage",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
+]
+
+[[package]]
+name = "interpreter-numeric-imports"
+version = "0.1.0"
+dependencies = [
+ "bignum",
+ "numerics",
+ "semantic-vocabulary",
+ "target-vocabulary",
+ "terminal-interpreter",
  "terminal-psi",
 ]
 
@@ -1464,24 +1547,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
-name = "laminate-stiffness-response-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "language-core"
 version = "0.1.0"
 dependencies = [
  "record-storage",
-]
-
-[[package]]
-name = "layered-seismic-refraction-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
 ]
 
 [[package]]
@@ -1662,17 +1731,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "molecular-pair-distribution-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "native-artifact"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1682,12 +1743,12 @@ dependencies = [
  "image-emission",
  "image-macho",
  "installation-conditions",
- "legalized-operations",
  "machine-code",
  "native-binding-admission",
  "native-intrinsics",
  "object-file",
  "operation-evidence",
+ "operation-operands",
  "optimization-core",
  "platform-custody",
  "provider-admission",
@@ -1706,7 +1767,6 @@ dependencies = [
  "target-provider-admission",
  "target-vocabulary",
  "target-aarch64",
- "target-operations",
  "target-x86_64",
  "terminal-authority-receipts",
  "terminal-codec",
@@ -1738,6 +1798,7 @@ version = "0.1.0"
 dependencies = [
  "behavior-exclusion-requests",
  "native-behavior-exclusions",
+ "provider-acceptance",
  "provider-correspondence",
  "provider-demand",
  "host-provider-inputs",
@@ -1747,6 +1808,7 @@ dependencies = [
  "admitted-native-inputs-to-target-bound-program",
  "arena",
  "bound-installations",
+ "bounded-process",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1773,6 +1835,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "physical-program",
+ "platform-custody",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
  "program-entry-contracts",
@@ -1871,7 +1934,8 @@ name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
  "build-scalar-evaluation",
- "provider-admission",
+ "interpreter-numeric-imports",
+ "numeric-intrinsic-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
@@ -1883,7 +1947,6 @@ dependencies = [
  "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-runtime",
 ]
 
 [[package]]
@@ -1899,23 +1962,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "new031-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
-name = "new087-terminal-validation"
-version = "0.1.0"
-dependencies = [
- "orchestration",
- "target",
- "terminal-interpreter",
- "terminal-runtime",
-]
-
-[[package]]
 name = "nix"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1924,6 +1970,15 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
+]
+
+[[package]]
+name = "normalized-build-settings"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "optimization-selections",
+ "target",
 ]
 
 [[package]]
@@ -1941,6 +1996,25 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-psi",
+]
+
+[[package]]
+name = "numeric-intrinsic-admission"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "language-core",
+ "native-intrinsics",
+ "numeric-literals",
+ "numerics",
+ "provider-correspondence",
+ "provider-plans",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "target-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -1979,7 +2053,6 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
  "terminal-psi",
  "wire",
 ]
@@ -1992,6 +2065,8 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
+ "installation-conditions",
+ "normalized-build-settings",
  "product-publication",
  "psi-entry-memory",
  "worker-budget",
@@ -2003,7 +2078,6 @@ dependencies = [
  "package-compilation",
  "package-manager",
  "platform-custody",
- "products",
  "project-build",
  "psi-authorization",
  "resolver-execution",
@@ -2022,15 +2096,11 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "arena",
  "bounded-process",
- "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
- "source-admission",
- "source-compiler",
 ]
 
 [[package]]
@@ -2158,6 +2228,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "artifacts",
+ "build-consent",
  "build-declarations",
  "build-output",
  "build-time-values",
@@ -2166,16 +2237,17 @@ dependencies = [
  "cap-std",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
  "language-core",
+ "normalized-build-settings",
  "optimization-requests",
  "optimization-selections",
  "platform-custody",
+ "provider-acceptance",
  "record-storage",
  "semantic-vocabulary",
  "sha2",
@@ -2199,6 +2271,7 @@ dependencies = [
  "arena",
  "artifacts",
  "build-declarations",
+ "build-evaluation-result",
  "build-output",
  "build-settings",
  "cap-fs-ext",
@@ -2211,10 +2284,11 @@ dependencies = [
  "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
+ "installation-conditions",
  "language-core",
  "package-compilation",
  "platform-custody",
- "products",
+ "provider-acceptance",
  "provider-admission",
  "provider-plans",
  "record-storage",
@@ -2225,6 +2299,7 @@ dependencies = [
  "source-acquisition",
  "source-admission",
  "source-capture",
+ "source-completion-accounting",
  "source-provenance",
  "source-syntax",
  "source-text",
@@ -2283,11 +2358,11 @@ name = "portable-publication"
 version = "0.1.0"
 dependencies = [
  "checked-program-to-psi",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "declaration-scope",
  "diagnostics",
- "effects",
  "optimization",
  "package-compilation",
  "semantic-vocabulary",
@@ -2325,7 +2400,6 @@ dependencies = [
  "diagnostics",
  "frame-admission",
  "installation-admission",
- "legalized-operations",
  "machine-code",
  "operation-operands",
  "optimization-core",
@@ -2342,7 +2416,6 @@ dependencies = [
  "structural-storage",
  "target",
  "target-aarch64",
- "target-operations",
  "target-vocabulary",
  "target-x86_64",
  "terminal-psi",
@@ -2363,7 +2436,6 @@ name = "product-publication"
 version = "0.1.0"
 dependencies = [
  "image",
- "image-emission",
  "image-macho",
  "native-artifact",
  "object-file",
@@ -2383,6 +2455,7 @@ dependencies = [
  "build-declarations",
  "build-output",
  "calling-conventions",
+ "installation-conditions",
  "psi-to-admitted-native-inputs",
  "record-storage",
  "component-description",
@@ -2453,11 +2526,22 @@ dependencies = [
 name = "project-build"
 version = "0.1.0"
 dependencies = [
+ "artifacts",
+ "build-declarations",
+ "build-settings",
  "compiler",
  "diagnostics",
+ "installation-conditions",
+ "package-compilation",
+ "package-manager",
  "platform-custody",
  "product-publication",
+ "psi-authorization",
+ "semantic-vocabulary",
+ "source-compiler",
+ "source-declarations",
  "target",
+ "terminal-codec",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
@@ -2481,13 +2565,25 @@ dependencies = [
 name = "provider-demand"
 version = "0.1.0"
 dependencies = [
+ "declaration-scope",
  "diagnostics",
- "evaluation-receipts",
  "host-provider-inputs",
+ "psi-provider-selections",
  "semantic-vocabulary",
  "target",
  "terminal-codec",
  "terminal-semantics",
+]
+
+[[package]]
+name = "provider-acceptance"
+version = "0.1.0"
+dependencies = [
+ "provider-plans",
+ "record-storage",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
 ]
 
 [[package]]
@@ -2502,19 +2598,19 @@ dependencies = [
  "component-description",
  "diagnostics",
  "direct-boundary-bindings",
- "effects",
  "function-identity",
- "host-provider-inputs",
  "installation-conditions",
  "language-core",
  "layout",
  "layout-plans",
  "native-binding-admission",
  "native-intrinsics",
+ "numeric-intrinsic-admission",
  "numeric-literals",
  "numerics",
  "operation-evidence",
  "optimization-unit-semantics",
+ "provider-acceptance",
  "provider-correspondence",
  "provider-plans",
  "provider-stack-contribution",
@@ -2577,15 +2673,16 @@ dependencies = [
  "evaluation-admission",
  "build-scalar-evaluation",
  "native-intrinsics",
+ "provider-acceptance",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
  "arena",
  "build-time-values",
+ "build-value-projection",
  "calling-conventions",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
@@ -2812,33 +2909,22 @@ name = "review-evidence"
 version = "0.1.0"
 dependencies = [
  "application-identity",
- "arena",
+ "build-consent",
  "calling-conventions",
  "diagnostics",
- "direct-boundary-bindings",
- "effects",
- "evaluation-receipts",
  "language-core",
  "layout-plans",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
- "package-compilation",
- "products",
+ "provider-acceptance",
  "provider-plans",
  "psi-effect-contracts",
- "selected-provider-plans",
  "semantic-vocabulary",
  "service-surface",
- "source-admission",
- "source-compiler",
- "source-declarations",
  "source-provenance",
- "source-text",
  "symbols",
  "target",
- "target-provider-admission",
- "terminal-check-tables",
  "terminal-psi",
  "wire",
 ]
@@ -2883,19 +2969,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "sample-runner"
-version = "0.1.0"
-dependencies = [
- "bounded-process",
- "orchestration",
- "package-manager",
- "serde_json",
- "sha2",
- "target",
- "terminal-runtime",
-]
-
-[[package]]
 name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
@@ -2907,10 +2980,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "sci04-terminal-validation"
+name = "scientific-capture-check"
 version = "0.1.0"
 dependencies = [
- "sample-runner",
+ "serde_json",
 ]
 
 [[package]]
@@ -3009,8 +3082,8 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "target",
- "target-operations",
  "target-operations-to-selected-instructions",
+ "target-vocabulary",
  "terminal-psi",
 ]
 
@@ -3172,13 +3245,21 @@ dependencies = [
 name = "source-compiler"
 version = "0.1.0"
 dependencies = [
+ "access-admission",
+ "access-vocabulary",
  "application-identity",
  "arena",
+ "behavior-exclusion-requests",
  "bignum",
+ "build-invocation",
+ "build-scalar-evaluation",
+ "build-time-values",
+ "build-value-projection",
  "checked-program-to-psi",
- "declaration-contracts",
  "declaration-scope",
  "diagnostics",
+ "evaluation-accounting",
+ "evaluation-admission",
  "evaluation-contracts",
  "evaluation-receipts",
  "language-core",
@@ -3189,13 +3270,19 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
+ "psi-provider-selections",
+ "psi-scalar-applications",
+ "psi-target-layouts",
  "rayon",
  "record-storage",
+ "schema-reflection",
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "service-surface",
  "sha2",
  "source-admission",
+ "source-completion-accounting",
  "source-declarations",
  "source-files",
  "source-lexer",
@@ -3221,6 +3308,26 @@ dependencies = [
  "typed-trees-to-typed-trees",
  "wire",
  "worker-budget",
+]
+
+[[package]]
+name = "source-completion-accounting"
+version = "0.1.0"
+dependencies = [
+ "build-invocation",
+ "build-scalar-evaluation",
+ "build-time-values",
+ "checked-program-to-psi",
+ "diagnostics",
+ "evaluation-accounting",
+ "evaluation-admission",
+ "evaluation-contracts",
+ "record-storage",
+ "semantic-vocabulary",
+ "symbols",
+ "terminal-psi",
+ "terminal-work",
+ "typed-trees",
 ]
 
 [[package]]
@@ -3328,13 +3435,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spectral-power-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
-
-[[package]]
 name = "storage-access"
 version = "0.1.0"
 dependencies = [
@@ -3388,7 +3488,6 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "behavior-exclusion-requests",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3559,7 +3658,6 @@ dependencies = [
  "register-environment",
  "register-model",
  "runtime-abi",
- "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
@@ -3776,17 +3874,14 @@ version = "0.1.0"
 dependencies = [
  "access-vocabulary",
  "application-identity",
- "bignum",
  "calling-conventions",
  "extent-contracts",
  "extents",
+ "interpreter-numeric-imports",
  "language-core",
  "native-provider-runtime",
  "native-provider-sponsor",
- "numerics",
- "orchestration",
  "platform-custody",
- "project-build",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-target-layouts",
@@ -3868,13 +3963,6 @@ dependencies = [
  "evaluation-contracts",
  "semantic-vocabulary",
  "terminal-psi",
-]
-
-[[package]]
-name = "thin-film-reflectometry-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
 ]
 
 [[package]]
@@ -4024,25 +4112,21 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "direct-boundary-bindings",
- "host-provider-inputs",
- "installation-conditions",
  "native-behavior-exclusions",
  "native-binding-admission",
  "native-intrinsics",
  "operation-evidence",
  "operation-operands",
+ "provider-acceptance",
  "provider-plans",
  "psi-authorization",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
- "record-storage",
  "component-description",
  "diagnostics",
  "function-identity",
- "language-core",
- "layout-plans",
  "legalized-operations",
  "numeric-literals",
  "numerics",
@@ -4054,8 +4138,6 @@ dependencies = [
  "runtime-abi",
  "selected-provider-plans",
  "semantic-vocabulary",
- "service-surface",
- "source-text",
  "target",
  "target-operations",
  "target-provider-admission",
@@ -4070,13 +4152,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "wavelet-transient-validation"
-version = "0.1.0"
-dependencies = [
- "sample-runner",
-]
 
 [[package]]
 name = "winapi"

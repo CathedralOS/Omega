@@ -32,13 +32,13 @@ the returned activation via `validate_return`, `source_result`,
 
 use crate::{PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
+use build_evaluation_result::CompileFailure;
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
     BuildExecutionInputs, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
-use products::CompileFailure;
 use source_compiler::source_state::TypedTrees;
 use std::path::Path;
 use std::sync::Arc;
@@ -62,23 +62,31 @@ pub struct BuildEvaluationRequest<'request> {
 /// (`admission/build_stages.rs`), to be judged and admitted under the
 /// activation its first stage began.
 pub struct BuildStageRequest<'request> {
+    /// Capture and source map rejoined by the preceding staged Build.
+    pub source_acquisition:
+        Option<&'request package_compilation::source_assembly::BuildStageAcquisition>,
     pub typed: &'request source_compiler::source_state::TypedTrees,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
 }
 
-pub use products::{BuildSubjectValidation, EvaluatedBuild};
+use build_evaluation_result::BuildSubjectValidation;
+pub use build_evaluation_result::EvaluatedBuild;
 
 pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    constants: products::BuildConstants,
+    constants: build_evaluation_result::BuildConstants,
     source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
     subject_validation: BuildSubjectValidation,
 }
+
+#[path = "catalog_declaration.rs"]
+mod catalog_declaration;
+pub use catalog_declaration::SourceBuildDeclaration;
 
 impl PreparedBuildEvaluation {
     /// Judges and admits the next stage of this Build and makes it the
@@ -95,11 +103,25 @@ impl PreparedBuildEvaluation {
         timings: &mut CompileTimings,
     ) -> Result<(), CompileFailure> {
         let BuildStageRequest {
+            source_acquisition,
             typed,
             build_source,
             package_inputs,
             anonymous_source,
         } = request;
+        let acquisition = self
+            .execution
+            .unbound_acquisition
+            .as_ref()
+            .filter(|capture| match source_acquisition {
+                Some(stage) => stage.retains(capture, typed),
+                None if package_inputs.is_none() => {
+                    anonymous_source.and_then(|owner| owner.acquired_for(typed))
+                        == Some(capture.as_ref())
+                }
+                None => false,
+            })
+            .cloned();
         let build_source = build_source.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build execution requires its source-owned selection",
@@ -152,7 +174,7 @@ impl PreparedBuildEvaluation {
                 }
                 self.restricted_build_requests.push(request);
             }
-            self.execution = self.execution.continue_with(admitted)?;
+            self.execution = self.execution.continue_with(admitted, acquisition)?;
             Ok(())
         })();
         result.map_err(|failure: CompileFailure| failure.with_source_completion_accounting(spent))
@@ -162,6 +184,13 @@ impl PreparedBuildEvaluation {
         &self,
     ) -> &source_compiler::evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
+    }
+
+    /// Retain provider helper work charged to this returned activation with its source work.
+    pub fn record_return(&mut self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
+        self.validate_return(returned)?;
+        self.source_completion_accounting.append(returned.helper_accounting.clone());
+        Ok(())
     }
 
     pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
@@ -219,6 +248,20 @@ impl PreparedBuildEvaluation {
 
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
         Some(&mut self.execution)
+    }
+
+    /// Settle the returned activation against the source graph supplied for Product.
+    pub fn complete_with_sources(
+        self,
+        returned: crate::ReturnedBuild,
+        inputs: Option<&PackageCompilationInputs>,
+    ) -> Result<EvaluatedBuild, CompileFailure> {
+        self.validate_source_join(
+            Some(&returned),
+            inputs,
+            self.base_source_consumption_commitment.is_none(),
+        )?;
+        self.complete(Some(returned))
     }
 
     pub fn complete(
@@ -370,7 +413,15 @@ pub fn prepare_build_evaluation(
                 accounting: source_completion_accounting.clone(),
             });
         }
-        let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
+        let unbound_acquisition = anonymous_source
+            .filter(|owner| {
+                package_inputs.is_none() && std::ptr::eq(owner.sources().as_ref(), sources)
+            })
+            .and_then(|owner| owner.acquired_for(typed))
+            .cloned()
+            .map(Arc::new);
+        let execution =
+            PreparedBuildExecution::prepare(admitted, execution_purpose, unbound_acquisition)?;
         Ok(PreparedBuildEvaluation {
             execution,
             restricted_build_requests,

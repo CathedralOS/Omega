@@ -392,16 +392,17 @@ fn physical_publication_retains_linked_callback_children() {
 
 fn check_callback_publication(retain_body_source: bool) {
     use crate::pipeline::realization::plan_callables::inspect_private_body_demand;
+    use artifact_lowering::test_support::NativeExecutionSelection;
     use artifact_lowering::{
-        NativeAdmissionRequest, NativeExecutionSelection, VerifiedNativeArtifactInput,
+        NativeAdmissionRequest, VerifiedNativeArtifactInput,
         admit_prepared_native_realization,
     };
-    use provider_admission::provider_admission::{
+    use provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
         prepare_source_evaluated_bindings,
     };
     let fixture = build_fixture();
-    let adapters = provider_admission::provider_admission::retain_selected_provider_adapters(
+    let adapters = provider_admission::retain_selected_provider_adapters(
         &fixture.selected,
     )
     .unwrap();

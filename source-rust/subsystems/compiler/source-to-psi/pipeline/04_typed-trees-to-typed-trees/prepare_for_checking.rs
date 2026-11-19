@@ -8,6 +8,10 @@ use crate::declaration_selection::ProductDeclarationRequest;
 use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::product_declarations::collect_opaque_representations;
+
+#[path = "domain_access_plans.rs"]
+mod domain_access_plans;
 
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
@@ -64,7 +68,7 @@ impl ProductRepresentationInput<'_> {
         &self,
         typed: &crate::source_state::TypedTrees,
     ) -> Result<Vec<OpaqueRepresentationSelection>, Vec<Diagnostic>> {
-        let selected = crate::evaluation::opaque_representations::collect(
+        let selected = collect_opaque_representations(
             typed,
             self.activation,
             self.declared,
@@ -103,13 +107,7 @@ pub struct JudgedSource {
     pub constants: Vec<crate::ConstantRead>,
 }
 
-/// A failed preparation keeps actual invocation usage, including successful
-/// earlier jobs and a metered failed run. No frozen product accompanies it.
-#[derive(Debug)]
-pub struct SourcePreparationFailure {
-    pub diagnostics: Vec<Diagnostic>,
-    pub accounting: crate::evaluation::SourceCompletionAccounting,
-}
+pub use source_completion_accounting::SourcePreparationFailure;
 
 impl SourcePreparationRequest<'_> {
     /// Complete preparation and let the lowered-form checker judge this exact
@@ -124,7 +122,7 @@ impl SourcePreparationRequest<'_> {
             accounting,
             constants,
         } = self.prepare()?;
-        match crate::AcceptedTerminalSource::judge(program, compilation, publication) {
+        match crate::judge_terminal_source(program, compilation, publication) {
             Ok(accepted) => Ok(JudgedSource {
                 accepted,
                 accounting,
@@ -161,7 +159,7 @@ impl SourcePreparationRequest<'_> {
             // `domain D access Policy;` leaves who may issue `as +D` to the
             // policy's plan. Each demanded domain's plan runs once here, so
             // Psi 05 reads its issuers from the checked result.
-            crate::evaluation::evaluate_domain_access_plans(
+            domain_access_plans::evaluate(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority.clone(),

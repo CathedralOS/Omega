@@ -5,9 +5,10 @@
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
 mod linear_pipeline;
+mod native_stages;
 
 use serde::Deserialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -61,7 +62,7 @@ const PSI: &str = "omega-rust/psi";
 const OMEGA: &str = "omega-rust/omega";
 const PSI_PIPELINE: &str = "omega-rust/psi/compilation/pipeline";
 const OMEGA_PIPELINE: &str = "omega-rust/omega/compilation/pipeline";
-const PACKAGE_MANAGER: &str = "omega-rust/omega/packages/package-manager";
+const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
 const PRODUCT_COORDINATOR: &str = "omega-rust/omega/compilation/compiler";
 const PRODUCTS: &str = "omega-rust/omega/compilation/products";
 const BUILD_EVALUATION: &str = "omega-rust/omega/build-system/build-settings";
@@ -101,9 +102,17 @@ pub struct Allowance {
 pub struct Rule {
     pub owners: Vec<&'static str>,
     pub forbidden: Vec<&'static str>,
+    pub forbidden_packages: Vec<&'static str>,
     pub reason: &'static str,
     pub except_owners: Vec<&'static str>,
+    pub except_package: Option<&'static str>,
     pub allowed: Vec<Allowance>,
+}
+
+impl Rule {
+    fn forbids(&self, dependency: &str) -> bool {
+        self.forbidden_packages.contains(&dependency) || under(dependency, &self.forbidden)
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -160,8 +169,10 @@ pub fn forbidden_rules() -> Vec<Rule> {
     let rule = |owners, forbidden, reason| Rule {
         owners,
         forbidden,
+        forbidden_packages: vec![],
         reason,
         except_owners: vec![],
+        except_package: None,
         allowed: vec![],
     };
     let mut rules = vec![
@@ -184,18 +195,21 @@ pub fn forbidden_rules() -> Vec<Rule> {
             STAGES[3..].to_vec(),
             "the native driver orders target compilation",
         ),
-        rule(
-            vec![
-                PRODUCT_COORDINATOR,
-                PRODUCTS,
-                BUILD_EVALUATION,
-                PACKAGE_MANAGER,
-                "omega-rust/omega/packages/package-compilation",
-                "omega-rust/omega/packages/build-declarations",
-            ],
-            FRONTEND_OPERATIONS.to_vec(),
-            "source consumers activate checked files through the streaming source owner",
-        ),
+        Rule {
+            forbidden_packages: FRONTEND_OPERATIONS.to_vec(),
+            ..rule(
+                vec![
+                    PRODUCT_COORDINATOR,
+                    PRODUCTS,
+                    BUILD_EVALUATION,
+                    PACKAGE_MANAGER,
+                    "source-rust/subsystems/compiler/build/package-compilation",
+                    "source-rust/subsystems/compiler/build/build-declarations",
+                ],
+                vec![],
+                "source consumers activate checked files through the streaming source owner",
+            )
+        },
         rule(
             vec![REVIEW_EVIDENCE],
             vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
@@ -219,36 +233,33 @@ pub fn forbidden_rules() -> Vec<Rule> {
         FRONTEND_OPERATIONS.to_vec(),
         "portable publication takes the accepted source result",
     ));
-    // Dependency edits preserve the spelling and trivia of a single Build
-    // file. The text reader's production closure is checked in linear_pipeline.
+    // Only the source driver runs the full numbered source pipeline. The text reader
+    // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
-        allowed: vec![Allowance {
-            owner: PACKAGE_MANAGER,
-            dependency: linear_pipeline::TEXT_READER,
-        }],
+        except_package: Some(STAGES[1]),
+        except_owners: linear_pipeline::PSI_STAGES.to_vec(),
+        allowed: [
+            (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
+            ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
+            ("source-rust/subsystems/compiler/build/build-settings/result", linear_pipeline::PSI_STAGES[7]),
+            (STAGES[2], linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
+        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ..rule(
+            vec![""],
+            linear_pipeline::PSI_STAGES.to_vec(),
+            "source stages are consumed by the source driver, numbered stages, or an explicitly scoped reader",
+        )
+    });
+    rules.push(Rule {
+        forbidden_packages: vec![STAGES[1], STAGES[2], STAGES[19]],
         ..rule(
             vec![PACKAGE_MANAGER],
-            STAGES.to_vec(),
+            vec![],
             "package management does not execute compiler stages",
         )
     });
-    for (index, stage) in STAGES.iter().enumerate().skip(3) {
-        let mut external = rule(
-            vec![""],
-            vec![stage],
-            "only the native driver and the next stage consume a stage API in production",
-        );
-        external.except_owners.extend([
-            linear_pipeline::TEST_SUPPORT,
-            NATIVE_ROOT,
-            *stage,
-            "omega-rust/omega/compilation/verification",
-        ]);
-        external
-            .except_owners
-            .extend(STAGES.get(index + 1).copied());
-        rules.push(external);
-    }
+    rules.extend(native_stages::rules());
     rules.push(rule(
         STAGES[7..=11].to_vec(),
         vec![EARLIER_PROGRAM_FORMS, SEALED_TERMINAL_MODULE],
@@ -259,16 +270,22 @@ pub fn forbidden_rules() -> Vec<Rule> {
         vec![FRONTEND_OPERATIONS[1], linear_pipeline::FRONTEND[3]],
         "the lexer produces tokens",
     ));
-    rules.push(rule(
-        vec![FRONTEND_OPERATIONS[1]],
-        vec![FRONTEND_OPERATIONS[0]],
-        "the parser consumes token streams",
-    ));
-    rules.push(rule(
-        vec!["omega-rust/psi/compilation/representations/terminal-psi/check-tables"],
-        vec![PSI_PIPELINE],
-        "checker records cannot depend on a source producer",
-    ));
+    rules.push(Rule {
+        except_package: Some(linear_pipeline::TEXT_READER),
+        ..rule(
+            vec![FRONTEND_OPERATIONS[1]],
+            vec![FRONTEND_OPERATIONS[0]],
+            "the parser consumes token streams",
+        )
+    });
+    rules.push(Rule {
+        forbidden_packages: vec![STAGES[1]],
+        ..rule(
+            vec!["source-rust/subsystems/compiler/source-to-psi/pipeline/representations"],
+            vec![],
+            "source records cannot depend on the source driver",
+        )
+    });
     rules
 }
 
@@ -304,7 +321,8 @@ pub fn forbidden_dependency_violations(
         for rule in rules {
             if under(&owner, &rule.owners)
                 && !under(&owner, &rule.except_owners)
-                && under(&relative, &rule.forbidden)
+                && Some(owner.as_str()) != rule.except_package
+                && rule.forbids(&relative)
                 && !rule
                     .allowed
                     .iter()
@@ -342,7 +360,7 @@ pub fn stale_allowance_violations(
         let covered = rules.iter().any(|rule| {
             rule.allowed.contains(&allowed)
                 && under(allowed.owner, &rule.owners)
-                && under(allowed.dependency, &rule.forbidden)
+                && rule.forbids(allowed.dependency)
         });
         if !covered {
             violations.push(format!(
@@ -579,27 +597,68 @@ pub fn dependency_violations(
     Ok(violations)
 }
 
-pub fn psi_omega_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
+/// The shared Psi format can be used by either compiler. Its dependency tree
+/// cannot contain a compiler, and neither compiler may run the other through a helper.
+pub fn pipeline_dependency_violations(metadata: &Metadata) -> Result<Vec<String>, String> {
+    const SOURCE: &str = "source-rust/subsystems/compiler/source-to-psi";
+    const FORMAT: &str = "source-rust/subsystems/compiler/psi";
+    const NATIVE: &str = native_stages::DRIVER;
+
     let root = Path::new(&metadata.workspace_root);
+    let mut packages = BTreeMap::new();
+    let mut edges = BTreeMap::<String, Vec<String>>::new();
     let mut violations = Vec::new();
     for package in &metadata.packages {
-        let Some(parent) = Path::new(&package.manifest_path).parent() else {
-            continue;
-        };
-        let source = normalize_relative(root, parent)?;
-        if !under(&source, &[PSI]) {
-            continue;
+        let directory = Path::new(&package.manifest_path)
+            .parent()
+            .ok_or("manifest has no parent")?;
+        let owner = normalize_relative(root, directory)?;
+        packages.insert(owner.clone(), &package.name);
+        for dep in &package.dependencies {
+            let Some(path) = &dep.path else { continue };
+            let dependency = normalize_relative(root, Path::new(path))?;
+            if dep.kind.as_deref() == Some("dev") {
+                if under(&owner, &[SOURCE, FORMAT]) && under(&dependency, &[NATIVE]) {
+                    violations.push(format!(
+                        "{} -> {}: a source or Psi test imports native compilation ({dependency})",
+                        package.name, dep.name
+                    ));
+                }
+            } else {
+                edges.entry(owner.clone()).or_default().push(dependency);
+            }
         }
-        for dependency in &package.dependencies {
-            let Some(dep_path) = &dependency.path else {
-                continue;
-            };
-            let destination = normalize_relative(root, Path::new(dep_path))?;
-            if under(&destination, &[OMEGA]) {
-                violations.push(format!(
-                    "{} -> {}: Psi depends on Omega ({destination})",
-                    package.name, dependency.name
-                ));
+    }
+    for (owner, forbidden) in [
+        (SOURCE, &[NATIVE][..]),
+        (FORMAT, &[SOURCE, NATIVE][..]),
+        (NATIVE, &[SOURCE][..]),
+    ] {
+        let mut pending = VecDeque::new();
+        let mut seen = BTreeSet::new();
+        for (path, name) in &packages {
+            if under(path, &[owner]) {
+                pending.push_back((path.as_str(), name.to_string()));
+                seen.insert(path.as_str());
+            }
+        }
+        if pending.is_empty() {
+            return Err(format!("compiler boundary has no package: {owner}"));
+        }
+        while let Some((path, chain)) = pending.pop_front() {
+            for next in edges.get(path).into_iter().flatten() {
+                if !seen.insert(next.as_str()) {
+                    continue;
+                }
+                let next_name = packages
+                    .get(next)
+                    .map_or(next.as_str(), |name| name.as_str());
+                let chain = format!("{chain} -> {next_name}");
+                if under(next, forbidden) {
+                    violations.push(format!("forbidden compiler dependency: {chain} ({next})"));
+                } else {
+                    pending.push_back((next, chain));
+                }
             }
         }
     }
@@ -614,7 +673,9 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     paths.sort();
     for path in paths {
         if path.is_dir() {
-            collect_rs_files(&path, out);
+            if path.file_name().is_some_and(|name| name != "_recycling") {
+                collect_rs_files(&path, out);
+            }
         } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
             out.push(path);
         }
@@ -650,7 +711,7 @@ fn line_has_retired_string_representation_spelling(line: &str) -> bool {
     false
 }
 
-/// The entry points of stage 02's validator.
+/// The entry points of the target-operation plan validator.
 const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
     "verify_execution_plan(",
     "verify_target_operation_plan_with_closed_module(",
@@ -658,42 +719,42 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// The crate that defines the validator, and the one production caller: the
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/",
     "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
 ];
 
-/// Stage 02's accessor for its working program.
+/// The target-operation accessor for its working program.
 const WORKING_PROGRAM_ACCESSORS: &[&str] = &["working_program_for_validation"];
-const TARGET_REPLAY_RECORD: &str = "omega-rust/omega/compilation/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
+const TARGET_REPLAY_RECORD: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input/src/publication/target_replay.rs";
 /// Binding belongs to the driver after preparation, not to setters on the
 /// prepared stage output. Neither the old definitions nor callers may return.
 const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
     "with_installed_entry_execution",
     "with_installed_stack_requirements",
 ];
-/// Stage 02 and its preparation crate, and the one file through which image
+/// Stage 04 and its preparation crate, and the one file through which image
 /// emission's replay validators read the working program.
 const WORKING_PROGRAM_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/target_lowering/",
-    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
     "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
-/// cannot give object production access to stage 02's working program.
+/// cannot give object production access to the target-operation working program.
 const IMAGE_REPLAY_GATEWAYS: &[&str] = &["retained_working_program", "retained_source_validation"];
 const IMAGE_REPLAY_READERS: &[&str] = &[
-    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
-    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-    "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/validation.rs",
 ];
 const IMAGE_REPLAY_DECLARATIONS: &[(&str, &str)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/lib.rs",
         "mod retained_working_program;",
     ),
     (
-        "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments.rs",
         "pub(super) mod retained_source_validation;",
     ),
 ];
@@ -707,7 +768,7 @@ fn line_calls_any(line: &str, entries: &[&str]) -> bool {
     !code.starts_with("//") && entries.iter().any(|entry| code.contains(entry))
 }
 
-/// Report each line under `omega-rust/omega` that calls one of `entries`
+/// Report each line in the active Rust implementation that calls one of `entries`
 /// outside the files or directories in `allowed` and outside tests.
 fn call_violations(
     root: &Path,
@@ -716,7 +777,7 @@ fn call_violations(
     declarations: &[(&str, &str)],
     reason: &str,
 ) -> Vec<String> {
-    call_violations_in(root, OMEGA, entries, allowed, declarations, reason)
+    call_violations_in(root, "source-rust", entries, allowed, declarations, reason)
 }
 
 fn call_violations_in(
@@ -729,7 +790,11 @@ fn call_violations_in(
 ) -> Vec<String> {
     let mut violations = Vec::new();
     let mut files = Vec::new();
-    collect_rs_files(&root.join(scope), &mut files);
+    let directory = root.join(scope);
+    if !directory.is_dir() {
+        return vec![format!("{scope}: implementation directory is missing")];
+    }
+    collect_rs_files(&directory, &mut files);
     for path in files {
         let rel = path
             .strip_prefix(root)
@@ -769,17 +834,17 @@ fn call_violations_in(
 /// parameters past the first are configuration.
 const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
     (
-        "omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs",
         "stage_optimized_instruction_selection",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/src/lib.rs",
         "plan_function_frame",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/src/lib.rs",
         "encode_bound_function_body",
         1,
     ),
@@ -789,12 +854,12 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
         "place_encoded_program",
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
         "relax_resolved_layout",
         1,
     ),
@@ -804,7 +869,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions/src/function_realization.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/function_realization.rs",
         "assemble_fixed_frame_realization",
         1,
     ),
@@ -893,8 +958,8 @@ pub fn plan_validator_call_violations(root: &Path) -> Vec<String> {
     )
 }
 
-/// Stage 02 publishes the prepared execution plan; its working program is
-/// scratch that only stage 02 and validators of its output may read. A later
+/// Stage 04 publishes the prepared execution plan; its working program is
+/// scratch that only stage 04 and validators of its output may read. A later
 /// stage that read it would depend on a form the plan was meant to replace.
 pub fn working_program_read_violations(root: &Path) -> Vec<String> {
     call_violations(
@@ -905,7 +970,7 @@ pub fn working_program_read_violations(root: &Path) -> Vec<String> {
             TARGET_REPLAY_RECORD,
             "pub fn working_program_for_validation(&self) -> &TargetOperationPlan {",
         )],
-        "stage 02's working program is read outside stage 02, its validators and tests; read the prepared execution plan",
+        "the target-operation working program is read outside stage 04, its validators and tests; read the prepared execution plan",
     )
 }
 
@@ -914,23 +979,23 @@ pub fn working_program_read_violations(root: &Path) -> Vec<String> {
 fn retained_publication_violations(root: &Path) -> Vec<String> {
     let mut errors = call_violations_in(
         root,
-        "omega-rust",
+        "source-rust",
         &["publish_package_review_numeric_requirements"],
         &[
-            "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/provider_supply/package_review.rs",
+            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/package_review.rs",
         ],
         &[(
-            "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/package_review.rs",
+            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/package_review.rs",
             "pub(crate) fn publish_package_review_numeric_requirements(",
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
-    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("omega-rust/omega/compilation/representations/physical-program/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
-    errors.extend(call_violations(root, &["into_framed_body_facts"], &["omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("omega-rust/omega/compilation/representations/physical-program/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
+    errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
+    errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
         root,
         &["retain_target_operations"],
-        &["omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/target_lowering/mod.rs"],
+        &["source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/mod.rs"],
         &[(TARGET_REPLAY_RECORD, "pub fn retain_target_operations(")],
         "only native program planning can issue the archived target with its emitted facts",
     ));
@@ -942,21 +1007,21 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "::retained_target_operations",
         ],
         &[
-            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs",
-            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
-            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/retained_working_program.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
             "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
-            ("omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
+            ("source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/object_artifact.rs", ".map(crate::RetainedTargetOperations::target_for_correspondence)"),
         ],
         "only explicit object correspondence audits may inspect the original target forms",
     ));
     errors
 }
 
-/// Production must not reach stage 02 through a replay helper or its import.
+/// Production must not reach stage 04 through a replay helper or its import.
 pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
     call_violations(
         root,
@@ -968,15 +1033,15 @@ pub fn image_replay_read_violations(root: &Path) -> Vec<String> {
 }
 
 /// Backend publication reads current callable facts and the carried preparation
-/// root, not the stage 02 execution plan or stage 01 optimization output.
+/// root, not the target operation plan or the earlier optimization output.
 pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
     call_violations_in(
         root,
-        "omega-rust/omega/compilation/pipeline/17_objects-to-image",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
             "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
-            "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
         "backend production reads an earlier execution plan; read current execution contracts",
@@ -1090,7 +1155,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
         )?);
-        violations.extend(psi_omega_dependency_violations(&metadata)?);
+        violations.extend(pipeline_dependency_violations(&metadata)?);
         violations.extend(dependency_violations(
             &metadata,
             NATIVE_ROOT,
@@ -1172,7 +1237,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::*;
 
-    fn pkg(name: &str, rel: &str, deps: &[(&str, &str, Option<&str>)]) -> Package {
+    pub(super) fn pkg(name: &str, rel: &str, deps: &[(&str, &str, Option<&str>)]) -> Package {
         Package {
             name: name.to_owned(),
             manifest_path: format!("/repo/{rel}/Cargo.toml"),
@@ -1230,25 +1295,89 @@ mod tests {
     }
 
     #[test]
+    fn an_external_source_reader_only_receives_its_own_named_api() {
+        let stages = linear_pipeline::PSI_STAGES;
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg(
+                    "package-manager",
+                    PACKAGE_MANAGER,
+                    &[
+                        ("read-text", linear_pipeline::TEXT_READER, None),
+                        ("run-parser", stages[1], None),
+                    ],
+                ),
+                pkg(
+                    "neighbor",
+                    "source-rust/subsystems/package-manager/helper",
+                    &[("read-text", linear_pipeline::TEXT_READER, Some("build"))],
+                ),
+                pkg(
+                    "source-driver",
+                    linear_pipeline::STAGES[1],
+                    &[("lower", stages[5], None)],
+                ),
+                pkg(
+                    "source-record",
+                    linear_pipeline::FRONTEND[3],
+                    &[("lower", stages[5], None)],
+                ),
+            ],
+        };
+        let rules: Vec<_> = forbidden_rules()
+            .into_iter()
+            .filter(|rule| rule.reason.starts_with("source stages are consumed"))
+            .collect();
+        let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
+        assert_eq!(violations.len(), 3, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("package-manager -> 01_tokens-to-syntax-trees"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("neighbor -> source-syntax"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("source-record -> 05_typed-trees-to-lowered-program"))
+        );
+    }
+
+    #[test]
     fn only_the_native_driver_runs_omega_stages() {
-        const LIBRARY: &str =
-            "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions";
-        const PACKAGES: &str = "omega-rust/omega/packages/package-manager";
+        let library = linear_pipeline::STAGES[16];
+        let stages = linear_pipeline::STAGES;
         for (owner, dependency, kind, permitted) in [
-            (NATIVE_ROOT, linear_pipeline::STAGES[9], None, true),
-            (LIBRARY, linear_pipeline::STAGES[4], None, false),
-            (LIBRARY, linear_pipeline::STAGES[4], Some("build"), false),
-            (LIBRARY, linear_pipeline::STAGES[4], Some("dev"), true),
-            (PACKAGES, linear_pipeline::STAGES[3], None, false),
-            (PACKAGES, linear_pipeline::STAGES[1], None, false),
-            (PACKAGES, linear_pipeline::TEXT_READER, None, true),
-            (LIBRARY, linear_pipeline::STAGES[3], None, false),
-            // Machine emission reads stage 09's output as a representation.
-            (LIBRARY, linear_pipeline::STAGES[9], None, false),
-            // Image writers must not reach back to select instructions.
+            (native_stages::DRIVER, stages[9], None, true),
+            (library, stages[4], None, false),
+            (library, stages[4], Some("build"), false),
+            (library, stages[4], Some("dev"), true),
+            (PACKAGE_MANAGER, stages[3], None, false),
+            (PACKAGE_MANAGER, stages[1], None, false),
+            (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
+            (library, stages[3], None, false),
+            (library, stages[9], None, false),
+            (native_stages::IMAGE_EMISSION, stages[4], None, false),
             (
-                "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission",
-                linear_pipeline::STAGES[4],
+                native_stages::PRODUCT_PUBLICATION,
+                native_stages::NATIVE_ARTIFACT,
+                None,
+                true,
+            ),
+            (
+                native_stages::PRODUCT_PUBLICATION,
+                native_stages::IMAGE_EMISSION,
+                None,
+                false,
+            ),
+            (
+                "source-rust/subsystems/compiler/psi-to-native/other-driver",
+                stages[0],
                 None,
                 false,
             ),
@@ -1477,7 +1606,7 @@ mod tests {
             PLAN_VALIDATOR_ENTRIES
         ));
         assert!(is_test_source(
-            "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs"
+            "source-rust/subsystems/compiler/psi-to-native/tests/physical_publication/mod.rs"
         ));
         assert!(line_calls_any(
             "        .working_program_for_validation()",
@@ -1488,10 +1617,10 @@ mod tests {
             WORKING_PROGRAM_ACCESSORS
         ));
         assert!(is_test_source(
-            "omega-rust/omega/compilation/compiler/tests/executed_fixture_discovery.rs"
+            "source-rust/subsystems/compiler/tests/executed_fixture_discovery.rs"
         ));
         assert!(!is_test_source(
-            "omega-rust/omega/compilation/native-compiler/src/pipeline.rs"
+            "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs"
         ));
     }
 
@@ -1523,10 +1652,18 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
-        let image = "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src";
+        let image = "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src";
+        assert_eq!(
+            backend_execution_plan_read_violations(&root),
+            ["source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image: implementation directory is missing"]
+        );
         let files = [
             (
-                "omega-rust/omega/packages/review-evidence/src/projection.rs".to_owned(),
+                format!("{image}/_recycling/parked.rs"),
+                "crate::retained_working_program::target_operations(original);\noriginal.execution_plan();\n",
+            ),
+            (
+                "source-rust/subsystems/package-manager/review/evidence/src/projection.rs".to_owned(),
                 "let recalculate = AcceptedTerminalSource::publish_package_review_numeric_requirements;\n\
                  let pair = SemanticEmissionFacts::retain_target_operations;\n\
                  let read = RetainedTargetOperations::target_for_correspondence;\n\
@@ -1537,7 +1674,7 @@ mod tests {
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
             ),
             (
-                "omega-rust/omega/compilation/native-compiler/src/pipeline.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/pipeline/mod.rs".to_owned(),
                 "let pair = SemanticEmissionFacts::retain_target_operations;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
@@ -1699,8 +1836,8 @@ mod tests {
                 FRONTEND_OPERATIONS[0],
             ),
             (
-                "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
-                "omega-rust/psi/compilation/representations/semantic-vocabulary",
+                "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program",
+                "source-rust/subsystems/compiler/foundation/semantic-records",
                 PSI_FACADE,
             ),
         ] {
@@ -1760,21 +1897,52 @@ mod tests {
     }
 
     #[test]
-    fn rejects_psi_depending_on_omega() {
+    fn neither_pipeline_can_reenter_the_other_through_shared_dependencies() {
+        let source = "source-rust/subsystems/compiler/source-to-psi";
+        let psi = "source-rust/subsystems/compiler/psi";
+        let native = native_stages::DRIVER;
         let metadata = Metadata {
-            workspace_root: "/repo".to_owned(),
+            workspace_root: "/repo".into(),
             packages: vec![
                 pkg(
-                    "language-semantics",
-                    "omega-rust/psi/foundation/language-semantics",
-                    &[("native-compiler", NATIVE_ROOT, Some("dev"))],
+                    "source",
+                    source,
+                    &[("shared", "shared/source", Some("build"))],
                 ),
-                pkg("native-compiler", NATIVE_ROOT, &[]),
+                pkg(
+                    "psi",
+                    psi,
+                    &[
+                        ("shared", "shared/psi", None),
+                        ("native", native, Some("dev")),
+                    ],
+                ),
+                pkg(
+                    "native",
+                    native,
+                    &[
+                        ("shared", "shared/native", None),
+                        ("source", source, Some("dev")),
+                    ],
+                ),
+                pkg("from-source", "shared/source", &[("native", native, None)]),
+                pkg("from-psi", "shared/psi", &[("source", source, None)]),
+                pkg("from-native", "shared/native", &[("source", source, None)]),
             ],
         };
-        let violations = psi_omega_dependency_violations(&metadata).unwrap();
-        assert_eq!(violations.len(), 1);
-        assert!(violations[0].contains("language-semantics -> native-compiler"));
+        let violations = pipeline_dependency_violations(&metadata).unwrap();
+        for chain in [
+            "source -> from-source -> native",
+            "psi -> from-psi -> source",
+            "native -> from-native -> source",
+            "psi -> native: a source or Psi test",
+        ] {
+            assert!(
+                violations.iter().any(|message| message.contains(chain)),
+                "{violations:?}"
+            );
+        }
+        assert_eq!(violations.len(), 4);
     }
 
     #[test]

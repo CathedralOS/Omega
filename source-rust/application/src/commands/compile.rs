@@ -93,7 +93,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
             "stage validator roster (omega {} {}): {}\n",
             env!("OMEGA_VERSION"),
             env!("OMEGA_COMMIT"),
-            orchestration::StageValidator::ROSTER
+            compiler::stage_validators::StageValidator::ROSTER
                 .iter()
                 .map(|validator| validator.name())
                 .collect::<Vec<_>>()
@@ -211,7 +211,7 @@ fn present_single(
     target_name: Option<&str>,
     started: Option<Instant>,
     report_file: Option<&Path>,
-    installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
     roster: &str,
     output: DiagnosticOutput,
 ) {
@@ -262,7 +262,7 @@ fn present_batch(
     request: BuildRequest,
     started: Option<Instant>,
     report_file: Option<&Path>,
-    installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
     roster: &str,
     output: DiagnosticOutput,
 ) {
@@ -403,7 +403,7 @@ fn print_outcome(outcome: &BuildReport) {
     print!("{}", format_stage_validations(outcome));
 }
 
-fn assumption_text(row: &products::InstallationEnvironmentAssumption) -> String {
+fn assumption_text(row: &installation_conditions::InstallationEnvironmentAssumption) -> String {
     format!(
         "Caller assumption (not proof or observation): {}; entry {:?}; installation {:?}; target {}; Psi {}; environment SHA-256 {}; source {}; caller {}",
         row.description(),
@@ -423,7 +423,7 @@ fn assumption_text(row: &products::InstallationEnvironmentAssumption) -> String 
 fn report_text(
     target_name: Option<&str>,
     outcome: &BuildReport,
-    installation_assumptions: &[products::InstallationEnvironmentAssumption],
+    installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
 ) -> String {
     let product = if outcome.executable_path.is_some() {
         "native artifact"

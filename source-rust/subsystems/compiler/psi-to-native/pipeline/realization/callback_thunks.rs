@@ -12,7 +12,7 @@ artifact, or callback association.
 use super::plan_callables::{CallableTargetProduct, PrivateEntryContract};
 use diagnostics::Diagnostic;
 use image_emission::PrivateFunctionObject;
-use provider_admission::provider_admission::{
+use provider_admission::{
     AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry,
     AdmittedInstalledInterruptScope, realization_error,
 };

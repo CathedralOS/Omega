@@ -150,7 +150,7 @@ mod tests {
                 &crate::preparation::PreparationRequest::settled(),
             )
             .unwrap();
-            let accepted = crate::production::AcceptedTerminalSource::judge(
+            let accepted = crate::judge_fixture(
                 Arc::new(frozen),
                 crate::production::TerminalSourceCompilation {
                     declaration_metadata: &[],
@@ -255,7 +255,7 @@ mod tests {
             &crate::preparation::PreparationRequest::settled(),
         )
         .unwrap();
-        let accepted = crate::production::AcceptedTerminalSource::judge(
+        let accepted = crate::judge_fixture(
             Arc::new(frozen),
             crate::production::TerminalSourceCompilation {
                 declaration_metadata: &[],

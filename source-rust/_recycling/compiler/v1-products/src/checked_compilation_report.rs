@@ -7,6 +7,7 @@
 // `CompileReportSettlement` before the stage sequence consumes the checked
 // record.
 
+use crate::ComputedBuildConfigExt as _;
 use super::CheckedCompilation;
 use crate::{
     BuildAdmission, CompileOutputKind, CompileReport, ComputedBuildConfig, NativeProductRequest,

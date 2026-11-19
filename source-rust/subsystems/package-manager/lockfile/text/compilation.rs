@@ -9,13 +9,9 @@ use super::{
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
-use filesystem_authority::observation_codec::ObservationCursor;
-use package_compilation::{
-    AcceptedSemanticBinding,
-    review_record_encoding::{recover_semantic_binding_role, semantic_binding_role_tag},
-};
+use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn write(
@@ -37,7 +33,7 @@ pub(super) fn write(
     )?;
     writer.row("bindings", value.semantic_bindings().len())?;
     for binding in value.semantic_bindings() {
-        writer.row("role", semantic_binding_role_tag(binding.role()))?;
+        writer.row("role", binding.role().canonical_tag())?;
         writer.row("owner", hexadecimal(binding.package().digest()))?;
         writer.section("declaration", binding.declaration_path())?;
         writer.row(
@@ -120,8 +116,8 @@ pub(super) fn read(
     let mut bindings = Vec::new();
     crate::reserve!(bindings, count, Error);
     for _ in 0..count {
-        let role = [reader.count("role", u8::MAX as usize)? as u8];
-        let role = recover_semantic_binding_role(&mut ObservationCursor::new(&role))
+        let role = reader.count("role", u8::MAX as usize)? as u8;
+        let role = AcceptedSemanticBindingRole::from_canonical_tag(role)
             .ok_or(Error::InvalidFraming)?;
         let owner = PackageKeyIdentity::from_digest(digest(reader.field("owner")?)?)
             .ok_or(Error::InvalidFraming)?;
@@ -231,7 +227,6 @@ mod tests {
     use super::*;
     use crate::declarations::DependencyPurpose;
     use crate::lock::PackageLockRecoveryLimits;
-    use package_compilation::AcceptedSemanticBindingRole;
     use target::TargetProfile;
 
     fn package() -> PackageKeyIdentity {
@@ -397,7 +392,7 @@ mod tests {
         // role or class cannot turn a corruption into an unchanged copy.
         let role = format!(
             "role {}",
-            semantic_binding_role_tag(AcceptedSemanticBindingRole::ConsoleIo)
+            AcceptedSemanticBindingRole::ConsoleIo.canonical_tag()
         );
         let class = format!(
             "class {}",

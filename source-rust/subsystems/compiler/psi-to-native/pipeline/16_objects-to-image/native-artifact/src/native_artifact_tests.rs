@@ -23,8 +23,8 @@ use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
 use std::slice::from_ref;
 use target::TargetProfile;
-use target_operations::CallSiteOwner;
-use target_operations::NormalizedForeignCallMechanism;
+use target_vocabulary::CallSiteOwner;
+use target_vocabulary::NormalizedForeignCallMechanism;
 
 fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
     let native = profile.native_target();
@@ -36,7 +36,7 @@ fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
         machine: semantic_vocabulary::MachineId::new(1).unwrap(),
         owner: CallSiteOwner::Operation(OperationId::new(2).unwrap()),
         operation_ordinal: 0,
-        binding: target_operations::NormalizedForeignCallBinding {
+        binding: target_vocabulary::NormalizedForeignCallBinding {
             boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
                 calling_conventions::CallingPolicy::native_syscall_for_target(native).unwrap(),
                 &signature,
@@ -45,11 +45,11 @@ fn kernel_call(profile: TargetProfile) -> image_emission::ObjectForeignCall {
             .plan()
             .clone(),
             mechanism: NormalizedForeignCallMechanism::SystemCall(
-                target_operations::NormalizedSystemCallBinding {
+                target_vocabulary::NormalizedSystemCallBinding {
                     target: profile,
                     number: 0,
                     requirement_identity: "Input::read".into(),
-                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                    execution: target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                         report: 7,
                         commitment: [23; 32],
                     },
@@ -92,7 +92,7 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
             };
             match mutation {
                 0 => {
-                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                         commitment,
                         ..
                     } = &mut kernel.execution
@@ -101,7 +101,7 @@ fn kernel_provider_custody_rejects_substituted_plans_and_user_control_records() 
                     }
                 }
                 1 => {
-                    if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                    if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                         report,
                         ..
                     } = &mut kernel.execution
@@ -167,7 +167,7 @@ fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
             1 => kernel.number = 211,
             2 => kernel.requirement_identity = "Input::other".into(),
             3 => {
-                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     report, ..
                 } = &mut kernel.execution
                 {
@@ -175,7 +175,7 @@ fn kernel_custody_identity_binds_target_number_requirement_and_provider() {
                 }
             }
             _ => {
-                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     commitment,
                     ..
                 } = &mut kernel.execution

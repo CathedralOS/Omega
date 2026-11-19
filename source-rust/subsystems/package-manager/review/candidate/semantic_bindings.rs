@@ -17,10 +17,9 @@ use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
-use provider_admission::provider_admission::{
-    filesystem_host_permission_rows, time_host_permission_rows,
-};
+use build_evaluation_result::CompileFailure;
+use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use provider_admission::{filesystem_host_permission_rows, time_host_permission_rows};
 use review_evidence::SemanticBindingProjectionError;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -210,7 +209,7 @@ pub(super) fn projection_error(
             CompileResolvedPackageReviewsError::new(
                 crate::review::CompileResolvedPackageReviewCause::Compilation {
                     package: consumer.clone(),
-                    failure: products::CompileFailure::Diagnostics(diagnostics),
+                    failure: CompileFailure::Diagnostics(diagnostics),
                 },
             )
         }

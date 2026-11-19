@@ -465,6 +465,9 @@ boundary trait Child: Parent<i32> + Other {}",
             .contains("inherited with different applications"),
         "{refused:?}"
     );
+    // Lowering also refuses this child when its substituted parent contract
+    // lacks a prepared header. The projection above identifies the conflict.
+    assert!(form(conflicting).is_err());
 }
 
 #[test]
@@ -1701,6 +1704,26 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
             .expect("the authored call's operational violation");
         let call = text.rfind("read(").expect("the authored boundary call");
         assert_eq!(site.span, source_text::Span::new(call, call + "read".len()));
+        let terminal_check_tables::Construct::Operation(operation) = refusal.concerns else {
+            panic!("the boundary has a normal call operation");
+        };
+        let origins = elaboration.sources.get(refusal.machine).unwrap();
+        let full = origins
+            .operations
+            .get(operation)
+            .unwrap()
+            .authored_span()
+            .unwrap();
+        assert_eq!(&text[full.span.start..full.span.end], "Probe::read(7)");
+        let operand = text.rfind('7').expect("the authored operand");
+        let operand = source_text::SourceSpan::new(
+            full.source_id,
+            source_text::Span::new(operand, operand + 1),
+        );
+        assert!(
+            origins.operations.iter().any(|(_, origin)| origin.authored_span() == Some(operand)),
+            "argument evaluation retains its own source span"
+        );
         assert_eq!(
             refusal.detail,
             format!("call may {acknowledgement} and requires a {acknowledgement} acknowledgement")
@@ -1840,30 +1863,10 @@ Previous satisfies Step {{
 machine entry() crashes none {{}}
 "#
     );
-    let typed = typed(&text);
-    let entry = entry(&typed);
-    let verdicts = crate::checking::judge_compilation(
-        crate::lowering::prepare_compilation(
-            &typed,
-            crate::lowering::Compilation {
-                calling: None,
-                providers: None,
-
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[None],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .expect("fixture must lower to checker input")
-        .program,
-    );
-    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
-    verdicts.into_iter().map(Result::unwrap).collect()
+    compilation_results_for_subjects(&typed(&text), &[None])
+        .into_iter()
+        .map(Result::unwrap)
+        .collect()
 }
 
 #[test]
@@ -1969,6 +1972,13 @@ fn compilation_verdicts_of(typed: &crate::source_state::TypedTrees) -> Vec<Route
 pub(super) fn compilation_results_of(
     typed: &crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
+    compilation_results_for_subjects(typed, &[])
+}
+
+fn compilation_results_for_subjects(
+    typed: &crate::source_state::TypedTrees,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let entry = entry(typed);
     let prepared = crate::lowering::prepare_compilation(
         typed,
@@ -1977,7 +1987,7 @@ pub(super) fn compilation_results_of(
             providers: None,
             declaration_metadata: &[],
             entries: &[entry],
-            subjects: &[],
+            subjects,
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],

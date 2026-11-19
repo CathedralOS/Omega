@@ -1,7 +1,7 @@
 //! Prepare internal-call publication facts while physical source is still owned.
 use InternalCallPlanError as Error;
 use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement};
-use legalized_operations::{LegalizedScalarArgument, NativeCallOrigin};
+use target_vocabulary::{LegalizedScalarArgument, NativeCallOrigin};
 use machine_code::internal_call_plans::*;
 use machine_code::{
     InternalUnitCallSource, InternalUnitScalarArgumentSourceRecord,
@@ -10,7 +10,7 @@ use machine_code::{
 };
 use selected_instructions::{SelectedFunction, SelectedMemoryAccessRole};
 use semantic_vocabulary::{MachineId, PlaceId, ScalarType, ValueId};
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 
 struct PlanningSource<'a> {
     program: &'a post_allocation_machine::PostAllocationMachineProgram,
@@ -94,12 +94,12 @@ mod source {
     }
     pub(super) fn call_target_matches(
         expected: operation_operands::calls::AbstractCallTarget,
-        actual: target_operations::NativeCallTarget,
+        actual: target_vocabulary::NativeCallTarget,
     ) -> bool {
         match (expected, actual) {
             (
                 operation_operands::calls::AbstractCallTarget::Machine(expected),
-                target_operations::NativeCallTarget::Machine(actual),
+                target_vocabulary::NativeCallTarget::Machine(actual),
             ) => expected == actual,
             (
                 operation_operands::calls::AbstractCallTarget::Dynamic {
@@ -107,7 +107,7 @@ mod source {
                     interface,
                     slot,
                 },
-                target_operations::NativeCallTarget::Dynamic {
+                target_vocabulary::NativeCallTarget::Dynamic {
                     selector: other,
                     interface: other_interface,
                     slot: other_slot,
@@ -187,12 +187,12 @@ fn prepare(
                 return Err(Error::Unsupported("Unit call scalar publication"));
             };
             let (argument_source, location) = match &target.source {
-                target_operations::TargetStructuralArgumentSource::StructuralHome { .. } => {
+                target_vocabulary::TargetStructuralArgumentSource::StructuralHome { .. } => {
                     return Err(Error::Mismatch(
                         "aggregate home cannot use pointer-only call records",
                     ));
                 }
-                target_operations::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
+                target_vocabulary::TargetStructuralArgumentSource::EstablishedPrimitiveLocal {
                     psi_operation,
                 } => (
                     InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
@@ -200,11 +200,11 @@ fn prepare(
                     },
                     primitive_locals::location(source, selected, target, *psi_operation)?,
                 ),
-                target_operations::TargetStructuralArgumentSource::Placement(placement) => (
+                target_vocabulary::TargetStructuralArgumentSource::Placement(placement) => (
                     InternalUnitStructuralArgumentSourceRecord::Placement(placement.clone()),
                     source_location(selected, target.place)?,
                 ),
-                target_operations::TargetStructuralArgumentSource::EstablishedByteView {
+                target_vocabulary::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation,
                 } => (
                     InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
@@ -212,7 +212,7 @@ fn prepare(
                     },
                     established_views::location(source, selected, target, *psi_operation)?,
                 ),
-                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                target_vocabulary::TargetStructuralArgumentSource::EstablishedElementView {
                     psi_operation,
                 } => (
                     InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
@@ -220,7 +220,7 @@ fn prepare(
                     },
                     established_views::location(source, selected, target, *psi_operation)?,
                 ),
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
+                target_vocabulary::TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place,
                 } => (
@@ -369,7 +369,7 @@ fn published_call(
             if inline_owned_placement(target.access, &target.destination) {
                 return true;
             }
-            use target_operations::TargetStructuralArgumentSource;
+            use target_vocabulary::TargetStructuralArgumentSource;
             match &target.source {
                 TargetStructuralArgumentSource::Placement(placement) => {
                     selected.structural.as_ref().is_some_and(|signature| {
@@ -600,7 +600,7 @@ mod established_views {
         SelectedMemoryAccessRole, VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{BlockId, OperationId, PlaceId};
-    use target_operations::TargetStructuralArgument;
+    use target_vocabulary::TargetStructuralArgument;
     use terminal_psi::{ByteSequenceCarrier, StructuralAccess, StructuralTypeShape};
 
     pub(super) fn location(
@@ -1026,7 +1026,7 @@ mod primitive_locals {
         pub(in crate::internal_call_plans) fn location(
             source: &PlanningSource<'_>,
             selected: &SelectedFunction,
-            argument: &target_operations::TargetStructuralArgument,
+            argument: &target_vocabulary::TargetStructuralArgument,
             operation: OperationId,
         ) -> Result<StructuralSourceLocation, Error> {
             let invalid = || {
@@ -1113,7 +1113,7 @@ mod primitive_locals {
         }
 
         pub(super) fn argument_matches_source(
-            argument: &target_operations::TargetStructuralArgument,
+            argument: &target_vocabulary::TargetStructuralArgument,
             source_type: semantic_vocabulary::StructuralTypeId,
             source_scalar: ScalarType,
             types: &[StructuralTypeDeclaration],
@@ -1175,14 +1175,14 @@ mod scalar_result {
             || Error::Mismatch("structural scalar call result differs from current source");
         let abstracted = source::function_facts(source, selected.machine)?;
         let installed_boundary = match &contract.call.source {
-            legalized_operations::NativeCallOrigin::InstalledProvider { boundary, .. }
-            | legalized_operations::NativeCallOrigin::ProgramEntry { boundary, .. } => {
+            target_vocabulary::NativeCallOrigin::InstalledProvider { boundary, .. }
+            | target_vocabulary::NativeCallOrigin::ProgramEntry { boundary, .. } => {
                 Some(*boundary)
             }
-            legalized_operations::NativeCallOrigin::Authored => None,
+            target_vocabulary::NativeCallOrigin::Authored => None,
         };
         let mut operations = abstracted.scalar_call_results.iter().filter_map(|row| {
-            if contract.owner != target_operations::CallSiteOwner::Operation(row.operation) {
+            if contract.owner != target_vocabulary::CallSiteOwner::Operation(row.operation) {
                 return None;
             }
             let matches = match row.target {

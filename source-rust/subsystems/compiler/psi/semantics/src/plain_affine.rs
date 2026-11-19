@@ -1836,8 +1836,17 @@ fn analyze(
         let module = module.ok_or(Error::unsupported(
             "conditional storage analysis requires its exact module",
         ))?;
-        crate::descriptor_results::terminal_reference_graph_from(module, [machine.id])
-            .map_err(|_| Error::unsupported("reference storage has no complete closure"))?
+        crate::descriptor_results::terminal_reference_graph_from(module, [machine.id]).map_err(
+            |failure| Error::Unsupported {
+                detail: failure
+                    .detail()
+                    .unwrap_or("reference storage has no complete closure"),
+                site: (failure.machine() == machine.id)
+                    .then(|| failure.operation(module))
+                    .flatten()
+                    .map(Site::Operation),
+            },
+        )?
     } else {
         Vec::new()
     };

@@ -1,12 +1,12 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
 use declaration_scope::ProductDeclarationScope;
 use diagnostics::Diagnostic;
-use host_provider_inputs::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use provider_realization::program_entry::{
     PublishedEntryNomination, SelectedCompilerProgramEntry,
     plan_published_entry_calling_conventions,
 };
-use provider_realization::{PublishedSelection, SelectedProviderResult};
+use provider_realization::{PublishedSelection, SelectedExecution};
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -20,7 +20,7 @@ pub(super) struct PublishedNativeEntry<'a> {
 impl<'a> PublishedNativeEntry<'a> {
     pub fn for_program<Publisher>(
         artifact: &'a Arc<CanonicalTerminalArtifact>,
-        execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
+        execution: &'a PublishedSelection<Publisher, SelectedExecution>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let refuse = |reason: String| vec![Diagnostic::error(reason)];
         let realization = execution.realization();
@@ -29,10 +29,7 @@ impl<'a> PublishedNativeEntry<'a> {
             .map_err(refuse)?;
         let nomination = execution.entry_nomination()?;
         if nomination.program() != execution.original_program()
-            || nomination.source_signature().target_slot().owner
-                != execution
-                    .target_profile()
-                    .unwrap_or_else(target::TargetProfile::host)
+            || Some(nomination.source_signature().target_slot().owner) != execution.target_profile()
         {
             return Err(refuse(
                 "entry nomination belongs to a different source program or deployment target"
@@ -56,7 +53,7 @@ impl<'a> PublishedNativeEntry<'a> {
         self.source_signature()
             .target_slot()
             .physical_contract_package
-            .map(host_provider_inputs::program_entry_semantic_binding_role)
+            .map(provider_acceptance::program_entry_semantic_binding_role)
     }
 
     pub fn settle_calling_plans(

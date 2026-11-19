@@ -208,7 +208,7 @@ mod tests {
             contracts: std::sync::Arc::new(SelectedFunctionContracts {
                 machine: MachineId::new(1).unwrap(),
                 attachment: None,
-                provenance: target_operations::TerminalPsiProvenance {
+                provenance: target_vocabulary::TerminalPsiProvenance {
                     operations: vec![operation],
                     edges: vec![edge],
                 },
@@ -228,8 +228,8 @@ mod tests {
                             operation,
                             boundary,
                             source: value,
-                            execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                                target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                            execution: target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                                target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
                             ),
                         },
                     },
@@ -240,8 +240,8 @@ mod tests {
                             edge,
                             boundary,
                             source: value,
-                            execution: target_operations::BoundaryExecutionBinding::CompilerBuiltin(
-                                target_operations::CompilerBuiltinExecution::HostedExitProcessI32,
+                            execution: target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(
+                                target_vocabulary::CompilerBuiltinExecution::HostedExitProcessI32,
                             ),
                         },
                     },

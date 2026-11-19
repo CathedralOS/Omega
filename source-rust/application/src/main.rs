@@ -38,6 +38,7 @@ mod commands;
 mod diagnostic_output;
 mod execution;
 mod inspection;
+mod project_sources;
 mod saved_program;
 
 use arguments::Invocation;

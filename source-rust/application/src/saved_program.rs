@@ -7,7 +7,7 @@ use compiler::{
     TargetProviderInstallation,
 };
 use diagnostics::Diagnostic;
-use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
+use normalized_build_settings::EvaluatedBuildSettings;
 use package_manager::operations::ReviewedHostPackages;
 use project_build::output_directory;
 use psi_authorization::AuthorizedTerminalArtifact;
@@ -161,16 +161,14 @@ pub(crate) fn prepare(
             .admit_for(Some(profile))
             .map_err(|reason| vec![Diagnostic::error(reason)])?,
     };
-    let program = Program::Psi(program);
+    let program = Program::Psi { program, target };
     let request = match requested {
         ExecutionProduct::Native => CompileRequest::Native {
             program,
-            target,
             entry_memory,
         },
         ExecutionProduct::Runtime => CompileRequest::Runtime {
             program,
-            target,
             entry_memory,
         },
     };

@@ -13,10 +13,11 @@ pub(super) mod request;
 #[path = "../tests/physical_publication/mod.rs"]
 mod physical_publication_tests;
 
+use verified_optimization_input::RetainedTerminalArtifact;
 use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use self::prepare::PreparedNativeCompilation;
 use self::request::NativeCompileRequest;
-use artifact_lowering::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
+use artifact_lowering::RetainedNativeProviderInputs;
 use diagnostics::Diagnostic;
 use native_artifact::FinishedNativeImage;
 use published_object_verification::NativeStageReplay;
@@ -77,8 +78,6 @@ fn produce(
         components: prepared_components,
     } = prepared;
     let result = (|| {
-        let scalar_input =
-            || scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed });
         let artifact = retained.shared_artifact();
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -104,19 +103,18 @@ fn produce(
             .iter()
             .map(components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) = {
+        let input = {
             observation.enter(NativePipelineStage::TargetBoundProgramToAbstract);
             artifact_lowering::lower_native_execution(
                 proposal,
-                execution,
+                &execution,
                 &private_entry_ram,
-                scalar_input(),
+                scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed }),
             )
         }?;
         let prepared = {
             artifact_lowering::prepare_native_providers(
                 proposal,
-                artifact,
                 RetainedNativeProviderInputs {
                     execution: &execution,
                     optimization_selections: request.optimization_selections,
@@ -134,28 +132,33 @@ fn produce(
             &request.terminal_authority_permission_policy,
             request.installation_assumptions,
         );
-        let realization = request::NativeRealizationRequest {
-            retain_native_stage_inputs: request.retain_native_stage_inputs,
-            observation: &observation,
-            proposal,
-            execution: &execution,
-            scalar_applications: scalar_input(),
-            program_entry: proposal.program_entry().as_settlement(),
-            admission,
-            image_request: request.image_request,
-            elf_interpreter: proposal.application().elf_interpreter.as_ref(),
-            optimization_selections: request.optimization_selections,
-            target_provider_proposals: proposal.target_provider_proposals(),
-        };
+        let realization =
+            realization::admit_realization(artifact, input, proposal, &execution, &admission)?;
         if stop == NativeProductionStop::RuntimeAdmission {
-            let provisions = realization::admit_terminal_runtime(artifact, input, realization)?;
+            let provisions = realization::prepare_terminal_runtime(
+                realization,
+                admission.providers.target(),
+                request.optimization_selections,
+                &observation,
+            )?;
             observation.complete();
             return Ok(Produced::Runtime(provisions));
         }
+        let planning = realization::plan_callables::NativeProgramPlanningRequest {
+            proposal,
+            execution: &execution,
+            scalar_applications: scalars,
+            admission: &admission,
+            optimization_selections: request.optimization_selections,
+            budget: request::native_optimization_budget(),
+            retain_native_stage_inputs: request.retain_native_stage_inputs,
+        };
         let (image, stage_replay) = realization::prepare_program_image(
             std::sync::Arc::clone(artifact),
-            input,
             realization,
+            &planning,
+            request.image_request,
+            &observation,
         )?;
         drop(components);
         let mut component_products = Vec::with_capacity(emitted_components.len());

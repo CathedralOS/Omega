@@ -4,11 +4,12 @@
 // application, and emits a shared component image keyed by the component
 // version and calling application commitment (`component_export_slot`).
 
-use artifact_lowering::ComponentNativeInputs;
+use verified_optimization_input::{AdmittedNativeComponentCall, PreparedNativeExecution};
+use verified_optimization_input::ComponentNativeInputs;
 use artifact_lowering::admit_prepared_native_realization;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::{
+use provider_admission::{
     AdmittedNativeCallableAuthority, SourceEvaluatedImportSettlement,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, realization_error,
 };
@@ -49,7 +50,7 @@ pub struct ComponentExportImage<'input> {
 impl<'input> ComponentExportImage<'input> {
     pub fn into_product(
         self,
-        call: &artifact_lowering::AdmittedNativeComponentCall<'_>,
+        call: &AdmittedNativeComponentCall<'_>,
     ) -> Result<native_artifact::NativeComponentProduct, String> {
         if self.component.artifact() != call.component().artifact()
             || self.candidate.candidate != call.selection().candidate()
@@ -134,7 +135,7 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
-    executions: Vec<artifact_lowering::PreparedNativeExecution>,
+    executions: Vec<PreparedNativeExecution>,
     scalars: Option<artifact_lowering::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {
@@ -150,9 +151,9 @@ pub fn emit_component_exports<'input>(
     let mut targets = Vec::with_capacity(executions.len());
     for (export, execution) in inputs.exports().iter().zip(executions) {
         let entry = terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate);
-        let (input, execution) = artifact_lowering::lower_native_execution(
+        let input = artifact_lowering::lower_native_execution(
             proposal,
-            execution,
+            &execution,
             &[],
             scalars
                 .as_ref()
@@ -163,7 +164,6 @@ pub fn emit_component_exports<'input>(
         let selections = proposal.post_terminal_optimizations().selections();
         let prepared = artifact_lowering::prepare_native_providers(
             proposal,
-            artifact,
             artifact_lowering::RetainedNativeProviderInputs {
                 execution: &execution,
                 optimization_selections: selections,

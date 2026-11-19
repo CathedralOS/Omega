@@ -2,12 +2,14 @@
 //! loan per arm. The joined reference still borrows the caller's record, so
 //! a call can borrow it in both engines. Arms that borrow two different
 //! inputs have no single lender and stay refused.
-use std::path::Path;
+
+mod support;
+
 use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let project = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -38,8 +40,8 @@ fn a_match_of_one_incoming_reference_passes_to_a_borrowing_call() {
 fn a_match_of_two_incoming_references_has_no_single_lender() {
     let fixture = "fail/ownership/incoming_reference_match_two_lenders";
     let expected = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../tests/fixtures")
+        support::repository_root()
+            .join("tests/fixtures")
             .join(fixture)
             .join("expected.txt"),
     )

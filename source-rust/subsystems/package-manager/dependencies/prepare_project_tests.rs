@@ -32,11 +32,15 @@ fn source_graph(preparation: &LocalProjectPreparation) -> ResolvedPackageSourceC
         PackageSourceCustody, PackageSourceMaterialization, PackageSourceNavigation,
         PackageSourceSelectionEvidence,
     };
-    let acquired = preparation.acquire_root().unwrap();
-    let capture = acquired.source_capture();
+    let snapshot = source_acquisition::local::operations::resolve_local_source_snapshot_in_lane(
+        &preparation.canonical_root,
+        preparation.storage.external_local_sources(),
+        LocalSourceLimits::default(),
+    )
+    .unwrap();
     let lineage = source_acquisition::SourceLineage::ExternalLocal(
         source_acquisition::ExternalLocalLineage::from_canonical_path(
-            capture.canonical_live_root().to_str().unwrap().to_owned(),
+            snapshot.canonical_live_root().to_str().unwrap().to_owned(),
             ExternalSourceContext::derive(LOCAL_PROJECT_CONTEXT),
         )
         .unwrap(),
@@ -49,11 +53,11 @@ fn source_graph(preparation: &LocalProjectPreparation) -> ResolvedPackageSourceC
         BuildDeclarationKind::Application,
         source_acquisition::ImmutableSourceResolution::external_local(
             source_acquisition::SourceContentDigest::derive(
-                capture.normalized().content_identity.as_bytes(),
+                snapshot.normalized().content_identity.as_bytes(),
             ),
         ),
-        PackageSourceMaterialization::from_local(capture.normalized()),
-        capture.canonical_live_root().to_path_buf(),
+        PackageSourceMaterialization::from_local(snapshot.normalized()),
+        snapshot.snapshot_root().to_path_buf(),
         PackageSourceNavigation::Root,
         PackageSourceSelectionEvidence::Root,
         LocalSourceLimits::default(),
@@ -92,14 +96,63 @@ fn completion_keeps_the_declared_source_identity() {
     let temporary = project("calls/machine_self_call_recursion_compile");
     let pending = begin(temporary.path());
     let graph = source_graph(&pending);
+    let snapshot_entry = graph
+        .source_root(graph.graph().root())
+        .unwrap()
+        .join("main.omg");
     let prepared = pending.complete(graph).unwrap();
-    assert_eq!(
-        prepared.entry_path(),
-        temporary.path().canonicalize().unwrap().join("main.omg")
-    );
+    assert_eq!(prepared.entry_path(), snapshot_entry);
     assert_eq!(
         prepared.source_closure.graph().root().name().as_str(),
         "machine_self_call_recursion_compile"
+    );
+    let profile = TargetProfile::host_if_supported().unwrap();
+    assert!(
+        prepared
+            .accepted_root_permissions(profile)
+            .unwrap()
+            .is_none()
+    );
+    let other = *TargetProfile::ALL
+        .iter()
+        .find(|candidate| **candidate != profile)
+        .unwrap();
+    assert!(prepared.accepted_root_permissions(other).is_err());
+}
+
+#[test]
+fn uncached_occurrence_requires_checked_project_evidence() {
+    use crate::review::{
+        CandidateReview, CompileResolvedPackageReviewCause, review_resolved_packages,
+    };
+
+    let project_root = project("calls/machine_self_call_recursion_compile");
+    let acquisition = begin(project_root.path());
+    let closure = source_graph(&acquisition);
+    let profile = TargetProfile::host_if_supported().unwrap();
+    let target = closure.for_exact_target(profile);
+    let workspace = TemporaryDirectory::create("uncached-package", false).unwrap();
+    let mut session = crate::PackageBuildSession::create(workspace.path()).unwrap();
+    let error = review_resolved_packages(
+        CandidateReview {
+            target_closure: &target,
+            root_build_snapshot: None,
+        },
+        &mut session,
+        &mut crate::PackageSourceBindings::default(),
+        &mut |pass, sources| pass.recover_cached(sources),
+    )
+    .err()
+    .expect("a cache miss must never produce a review");
+    session.close().unwrap();
+    assert!(
+        matches!(
+            &error.cause,
+            CompileResolvedPackageReviewCause::Projection { package, diagnostics }
+                if package == closure.graph().root()
+                    && diagnostics.iter().any(|diagnostic| diagnostic.message.contains("requires checked project Build"))
+        ),
+        "{error:?}"
     );
 }
 

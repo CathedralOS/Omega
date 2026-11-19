@@ -1,5 +1,7 @@
 # Principal component analysis
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 This complete stdin application calculates PCA for 3–16 observations and 2–4
 features. `build.omg` explicitly binds the Linux x86-64, Windows x86-64 and macOS
 arm64 entries. Numerical qualification in this directory is on Linux x86-64.

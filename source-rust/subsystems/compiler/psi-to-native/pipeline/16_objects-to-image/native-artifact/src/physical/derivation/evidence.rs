@@ -48,7 +48,7 @@ use optimization_core::{
 use semantic_vocabulary::InvocationSite;
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::OperationKind;
 use terminal_psi::Terminator;
 

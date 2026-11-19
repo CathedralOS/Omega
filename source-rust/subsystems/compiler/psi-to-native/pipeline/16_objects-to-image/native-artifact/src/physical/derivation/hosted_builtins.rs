@@ -30,12 +30,12 @@ use semantic_vocabulary::IntegerValue;
 use semantic_vocabulary::ScalarType;
 use target::Architecture;
 use target::NativeTarget;
-use target_operations::BoundaryRealization;
-use target_operations::CompilerBuiltinExecution;
-use target_operations::HostedExitProcessI32Realization;
-use target_operations::HostedReadByteRealization;
-use target_operations::HostedWriteByteI32Realization;
-use target_operations::MachineRegister;
+use target_vocabulary::BoundaryRealization;
+use target_vocabulary::CompilerBuiltinExecution;
+use target_vocabulary::HostedExitProcessI32Realization;
+use target_vocabulary::HostedReadByteRealization;
+use target_vocabulary::HostedWriteByteI32Realization;
+use target_vocabulary::MachineRegister;
 
 enum HostedScalarArgumentForm {
     Absent,

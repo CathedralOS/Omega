@@ -16,9 +16,9 @@ path = "lib.rs"
 [dependencies]
 source-provenance = { path = "../../../foundation/source-provenance" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
-bundled-declarations = { path = "bundled-declarations" }
+bundled-declarations = { path = "../representations/source-files/bundled-declarations" }
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "symbol-table" }
+source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }

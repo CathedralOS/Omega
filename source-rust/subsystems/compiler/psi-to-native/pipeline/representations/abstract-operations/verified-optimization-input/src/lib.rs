@@ -58,11 +58,6 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 
 // Saved native inputs are read and written beside the retained artifact they
 // rebuild, so a saved product is recovered without running an Omega stage.
-mod retained_terminal_codec;
-pub use retained_terminal_codec::{
-    decode_installation_assumptions, encode_installation_assumptions,
-    recover_native_derivation_inputs, retain_native_derivation_inputs,
-};
 
 mod entry_call;
 pub use entry_call::SelectedProgramEntryCall;
@@ -244,6 +239,37 @@ impl VerifiedPsiOptimizationInput {
         self.selected_provider_requirement_identities = identities;
         self.selected_provider_closure = Some(selected_provider_closure);
         Ok(())
+    }
+
+    pub fn validate_behavior_exclusions(
+        &self,
+        exclusions: &native_behavior_exclusions::BehaviorExclusions,
+        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        profile: target::TargetProfile,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if !exclusions.has_semantic_exclusions() {
+            return Ok(());
+        }
+        let machines = match self.native_execution_scope.as_deref() {
+            Some(scope) => {
+                if scope.selected_provider_closure() != *providers.identity_digest().as_bytes()
+                    || scope.target_context().target() != profile.target_name()
+                {
+                    return Err(vec![diagnostics::Diagnostic::error(
+                        "behavior exclusions belong to another target or selected provider closure",
+                    )]);
+                }
+                Some(scope.machines())
+            }
+            None => None,
+        };
+        exclusions.validate_semantic_scope(
+            self.context.module(),
+            self.plan.entry,
+            machines,
+            providers,
+            profile.target_name(),
+        )
     }
 
     pub fn retain_admitted_assumed_bindings(

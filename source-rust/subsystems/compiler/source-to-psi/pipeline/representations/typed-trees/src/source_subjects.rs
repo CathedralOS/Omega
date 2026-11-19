@@ -32,3 +32,21 @@ pub fn contains(
         && file.dependency_scope == purpose
         && requested)
 }
+
+/// Locate the selected Build machine in the receiving package's admitted Build sources.
+pub fn rejoin_build_activation(
+    program: &TypedTrees,
+    subject: Option<PackageKeyIdentity>,
+    declaration: &source_admission::RetainedDeclaration,
+) -> Result<SymbolHandle, &'static str> {
+    let symbol = source_symbol_table::source_symbols::rejoin_declaration(
+        declaration,
+        &program.symbols,
+        program.machines().iter().map(|machine| machine.symbol)
+            .filter(|&symbol| program.symbols.symbol_source_is_selected(symbol)),
+    )?;
+    if !contains(program, symbol, &[subject], DependencyScope::Build)? {
+        return Err("selected Build activation is outside the package's admitted Build sources");
+    }
+    Ok(symbol)
+}

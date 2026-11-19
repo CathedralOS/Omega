@@ -13,7 +13,7 @@ pub mod boundary_application_settlement {
     pub struct BoundaryApplicationSettlement<'input> {
         pub selected_provider_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
         pub selected_provider_provenance:
-            Vec<provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
+            Vec<provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
         pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     }
 
@@ -39,7 +39,7 @@ pub mod boundary_application_settlement {
     pub fn settle(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         selected: &selected_provider_plans::SelectedProviderPlanFacts,
-        provenance: &[provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<
+        provenance: &[provider_admission::CompilerIntrinsicPlanProvenance<
             '_,
         >],
         calling: &[calling_conventions::BoundaryCallingApplication],

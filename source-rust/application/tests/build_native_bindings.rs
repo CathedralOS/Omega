@@ -21,7 +21,8 @@ them to the program that uses it.
 
 */
 
-use std::path::PathBuf;
+mod support;
+
 use std::process::Command;
 
 const PRODUCT: &str = "\
@@ -243,8 +244,8 @@ fn a_dependency_binding_the_program_reaches_is_judged() {
 /// provider choices its Build made. Nothing about them stops the program.
 #[test]
 fn a_program_receives_the_bindings_of_the_standard_library() {
-    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let directory = support::repository_root()
+        .join("tests/fixtures/run/providers/default_console_provider_reached");
     let stderr = omega_check(&directory);
     for refusal in ADMISSION_REFUSALS
         .into_iter()
@@ -262,8 +263,8 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
 
 #[test]
 fn windows_console_emits_with_its_authored_imports() {
-    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/providers/default_console_provider_reached");
+    let directory = support::repository_root()
+        .join("tests/fixtures/run/providers/default_console_provider_reached");
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
     command.args(["run", "--both"]);
     if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {

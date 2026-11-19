@@ -5,6 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-evaluation-result = { path = "../../../subsystems/compiler/build/build-settings/result" }
+source-declarations = { path = "../../../subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
+installation-conditions = { path = "../../../subsystems/compiler/psi-to-native/verification/installation-admission/conditions" }
 optimization-selections = { path = "../../../subsystems/compiler/foundation/optimization-selections" }
 published-program = { path = "../published-program" }
 published-runtime-input = { path = "../representations/published-runtime-input" }

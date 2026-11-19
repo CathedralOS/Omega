@@ -1,7 +1,7 @@
 //! Check the actual workspace, including nested operation crates and dependencies
 //! hidden behind shared libraries. Cargo metadata includes optional and target
 //! dependencies even on a machine that cannot execute the target.
-use super::{Metadata, normalize_relative, production_edges, under};
+use super::{Metadata, native_stages, normalize_relative, production_edges, under};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
@@ -9,8 +9,8 @@ pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
 
 pub(super) const STAGES: [&str; 20] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
-    "omega-rust/psi/compilation/pipeline/source-compilation",
-    "omega-rust/omega/compilation/products/source-publication",
+    "source-rust/subsystems/compiler/source-to-psi",
+    "source-rust/subsystems/compiler/build/package-compilation/psi-publication",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
@@ -36,24 +36,24 @@ const RETIRED: [&str; 4] = [
     "omega-rust/omega/foundation",
 ];
 pub(super) const TEXT_READER: &str =
-    "omega-rust/psi/compilation/pipeline/source-compilation/src/operations/source-syntax";
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax";
 
 pub(super) const FRONTEND: [&str; 4] = [
-    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
-    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
-    "omega-rust/psi/compilation/representations/tokens",
-    "omega-rust/psi/compilation/representations/syntax-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/tokens",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees",
 ];
 
-const PSI_STAGES: [&str; 8] = [
+pub(super) const PSI_STAGES: [&str; 8] = [
     FRONTEND[0],
     FRONTEND[1],
-    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi",
-    "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-typed-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
 ];
 
 fn stage(path: &str) -> Option<(usize, usize)> {
@@ -62,8 +62,17 @@ fn stage(path: &str) -> Option<(usize, usize)> {
     }
     STAGES
         .iter()
-        .position(|root| under(path, &[*root]))
+        .position(|root| path == *root || (*root != STAGES[1] && under(path, &[*root])))
         .map(|position| (position, usize::MAX))
+}
+
+/// Native admission precedes the two source/publication slots in the combined order.
+fn native_number((phase, _): (usize, usize)) -> Option<usize> {
+    match phase {
+        0 => Some(0),
+        3..=18 => Some(phase - 2),
+        _ => None,
+    }
 }
 
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
@@ -77,9 +86,9 @@ fn forbidden_frontend(start: &str, dependency: &str) -> bool {
                     &[
                         tokens,
                         syntax,
-                        "omega-rust/psi/compilation/representations/source-declarations",
-                        "omega-rust/psi/compilation/representations/symbol-resolved-trees",
-                        "omega-rust/psi/compilation/representations/typed-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
                     ],
                 )
         }
@@ -139,6 +148,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
             ));
         }
     }
+    let readers = native_stages::scoped_readers();
     for start in names.keys() {
         let phase = stage(start);
         if under(start, &RETIRED)
@@ -157,9 +167,6 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
         let mut queue = VecDeque::from([(start.as_str(), names[start].to_string())]);
         while let Some((here, chain)) = queue.pop_front() {
             for next in adjacency.get(here).into_iter().flatten() {
-                if !visited.insert(next) {
-                    continue;
-                }
                 let name = names
                     .get(next)
                     .ok_or_else(|| format!("undeclared workspace dependency: {next}"))?;
@@ -169,19 +176,28 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     .is_some_and(|number| phase.is_some_and(|start| number > start));
                 // Follow shared dependencies until the next stage API. Each numbered
                 // owner is checked separately, so its own predecessor starts a new walk.
-                let native_pair = phase
-                    .zip(dependency_phase)
-                    .filter(|((owner, _), (dependency, _))| *owner >= 3 && *dependency >= 3);
-                let skips_predecessor =
-                    native_pair.is_some_and(|((owner, _), (dependency, _))| dependency + 1 < owner);
-                if later
-                    || skips_predecessor
+                let native = phase.and_then(native_number);
+                let native_pair = native.zip(dependency_phase.and_then(native_number));
+                // Follow the actual importing edge. Another helper that reaches the
+                // same destination must still justify its own access.
+                let scoped_reader = readers
+                    .iter()
+                    .any(|edge| edge.owner == here && edge.dependency == next);
+                let enters_coordinator = native.is_some()
+                    && [native_stages::DRIVER, native_stages::OBJECT_REPLAY]
+                        .contains(&next.as_str());
+                if enters_coordinator
                     || (runtime && dependency_phase.is_some())
                     || forbidden_frontend(start, next)
+                    || (!scoped_reader
+                        && (later
+                            || native_pair
+                                .is_some_and(|(owner, dependency)| dependency + 1 < owner)))
                 {
                     errors.push(format!("forbidden production dependency: {chain} ({next})"));
-                } else if !native_pair
-                    .is_some_and(|((owner, _), (dependency, _))| dependency + 1 == owner)
+                } else if !scoped_reader
+                    && !native_pair.is_some_and(|(owner, dependency)| dependency + 1 == owner)
+                    && visited.insert(next)
                 {
                     queue.push_back((next.as_str(), chain));
                 }
@@ -194,7 +210,59 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::boundary::tests::pkg;
     use crate::boundary::{Dependency, Package};
+
+    #[test]
+    fn a_shared_helper_cannot_reenter_a_driver_or_borrow_another_readers_permission() {
+        let allowed = native_stages::scoped_readers()
+            .into_iter()
+            .find(|edge| edge.owner.ends_with("/verified-optimization-input"))
+            .unwrap();
+        let driver = native_stages::DRIVER;
+        let replay = native_stages::OBJECT_REPLAY;
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg(
+                    "optimizer",
+                    STAGES[5],
+                    &[("checked", allowed.owner, None), ("helper", "other", None)],
+                ),
+                pkg(
+                    "checked",
+                    allowed.owner,
+                    &[("entry", allowed.dependency, None)],
+                ),
+                pkg(
+                    "helper",
+                    "other",
+                    &[
+                        ("entry", allowed.dependency, None),
+                        ("driver", driver, None),
+                        ("replay", replay, None),
+                    ],
+                ),
+                pkg("entry", allowed.dependency, &[]),
+                pkg("driver", driver, &[]),
+                pkg("replay", replay, &[]),
+            ],
+        };
+        let errors = violations(&metadata).unwrap();
+        assert!(
+            !errors
+                .iter()
+                .any(|message| message.contains("optimizer -> checked -> entry"))
+        );
+        for destination in ["entry", "driver", "replay"] {
+            assert!(
+                errors
+                    .iter()
+                    .any(|message| message
+                        .contains(&format!("optimizer -> helper -> {destination}")))
+            );
+        }
+    }
 
     #[test]
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
@@ -259,7 +327,7 @@ mod tests {
             "06_selected-instructions-to-selected-instructions -> 08_register-homes-to-post-allocation-machine"
         )));
         assert!(errors.iter().any(|error| error.contains(
-            "06_terminal-psi-to-checked-terminal-psi -> shared -> 00_source-files-to-tokens"
+            "06_lowered-program-to-checked-program -> shared -> 00_source-files-to-tokens"
         )));
         assert!(errors.iter().any(|v| v.contains(
             "07_selected-instructions-to-register-homes -> shared -> 01_admitted-native-inputs-to-target-bound-program"
@@ -284,7 +352,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|v| v.contains("source-syntax -> shared -> source-compilation"))
+                .any(|v| v.contains("source-syntax -> shared -> source-to-psi"))
         );
         assert!(
             errors

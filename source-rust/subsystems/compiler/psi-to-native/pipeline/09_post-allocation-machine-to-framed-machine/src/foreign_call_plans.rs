@@ -4,7 +4,7 @@ use ForeignCallPlanError as ObjectError;
 use calling_conventions::ValueLocation;
 use machine_code::foreign_call_plans::*;
 use semantic_vocabulary::{MachineId, ScalarType};
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 
 mod descriptor_input {
     use selected_instructions::{
@@ -29,9 +29,9 @@ mod descriptor_input {
             .source
             .source_value();
         let call_position = block.instruction_index(record.instruction)?;
-        let form = legalized_operations::TrappingForm {
-            operation: legalized_operations::TrappingOperation::Subtract,
-            carrier: legalized_operations::SaturatingCarrier::from_integer(guard.count_type)?,
+        let form = target_vocabulary::TrappingForm {
+            operation: target_vocabulary::TrappingOperation::Subtract,
+            carrier: target_vocabulary::SaturatingCarrier::from_integer(guard.count_type)?,
         };
         let mut guards = block.instructions[..call_position]
             .iter()
@@ -128,7 +128,7 @@ pub fn durable_home_offsets(
     let mut producers = Vec::new();
     for contract in &function.calls {
         if let Some(placement) = &contract.call.result_placement
-            && let target_operations::CallSiteOwner::Operation(operation) = contract.owner
+            && let target_vocabulary::CallSiteOwner::Operation(operation) = contract.owner
         {
             producers.push((contract.instruction, operation, placement.shape.byte_size));
         }
@@ -142,7 +142,7 @@ pub fn durable_home_offsets(
             ));
         }
         for argument in &record.call.scalar_arguments {
-            if let target_operations::TargetUnitScalarArgumentSource::Home(requirement) =
+            if let target_vocabulary::TargetUnitScalarArgumentSource::Home(requirement) =
                 argument.source
             {
                 let Some(instruction) = producer_instruction(
@@ -242,11 +242,11 @@ pub fn foreign_result_operand_count(
         &record.call.result,
         &record.call.binding.boundary_entry_plan.call.result,
     ) {
-        (target_operations::TargetBoundaryResult::Unit, None) => Some(0),
-        (target_operations::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
+        (target_vocabulary::TargetBoundaryResult::Unit, None) => Some(0),
+        (target_vocabulary::TargetBoundaryResult::Scalar(_), Some(_)) => Some(1),
         (
-            target_operations::TargetBoundaryResult::Structural(_)
-            | target_operations::TargetBoundaryResult::ScalarReference { .. },
+            target_vocabulary::TargetBoundaryResult::Structural(_)
+            | target_vocabulary::TargetBoundaryResult::ScalarReference { .. },
             Some(placement),
         ) => match placement.locations.as_slice() {
             [
@@ -309,11 +309,11 @@ fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueSha
 fn rematerializes_argument(
     instruction: &selected_instructions::SelectedInstruction,
     register: &selected_instructions::VirtualRegister,
-    source: target_operations::TargetUnitScalarArgumentSource,
+    source: target_vocabulary::TargetUnitScalarArgumentSource,
 ) -> bool {
     use register_model::RegisterOperandAccess;
     use selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
-    let target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+    let target_vocabulary::TargetUnitScalarArgumentSource::IntegerImmediate {
         source_value,
         value,
         ..
@@ -350,10 +350,10 @@ fn rematerializes_argument(
 
 pub fn scalar_call_result_producer(
     function: &selected_instructions::SelectedFunction,
-    home: &target_operations::TargetUnitScalarHomeRequirement,
+    home: &target_vocabulary::TargetUnitScalarHomeRequirement,
 ) -> bool {
     let mut internal = function.calls.iter().filter(|contract| {
-        contract.owner == target_operations::CallSiteOwner::Operation(home.defining_operation)
+        contract.owner == target_vocabulary::CallSiteOwner::Operation(home.defining_operation)
     });
     let mut foreign = function
         .normalized_foreign_calls
@@ -421,7 +421,7 @@ fn scalar_argument_transport_context(
     function: &selected_instructions::SelectedFunction,
     block: &selected_instructions::SelectedBlock,
     record: &selected_instructions::SelectedNormalizedForeignCall,
-    argument: &target_operations::TargetUnitScalarCallArgument,
+    argument: &target_vocabulary::TargetUnitScalarCallArgument,
 ) -> String {
     use selected_instructions::{FrameStorageSlotId, SelectedInstructionKind};
     let outgoing = block.instructions.iter().position(|instruction| {
@@ -497,12 +497,12 @@ fn scalar_argument_span<F>(
     block: &selected_instructions::SelectedBlock,
     record: &selected_instructions::SelectedNormalizedForeignCall,
     instruction: &selected_instructions::SelectedInstruction,
-    argument: &target_operations::TargetUnitScalarCallArgument,
+    argument: &target_vocabulary::TargetUnitScalarCallArgument,
     register_operand: usize,
     fixed_view: &F,
 ) -> Option<InstructionSpanSequence>
 where
-    F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
+    F: Fn(&selected_instructions::SelectedOperand, target_vocabulary::MachineRegister) -> bool,
 {
     match argument.placement.locations.as_slice() {
         [
@@ -641,10 +641,10 @@ fn foreign_scalar_argument_custody<F>(
     fixed_view: F,
 ) -> Result<Vec<ForeignScalarArgumentPlan>, ObjectError>
 where
-    F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
+    F: Fn(&selected_instructions::SelectedOperand, target_vocabulary::MachineRegister) -> bool,
 {
     let invalid_argument =
-        |reason, argument: Option<&target_operations::TargetUnitScalarCallArgument>| {
+        |reason, argument: Option<&target_vocabulary::TargetUnitScalarCallArgument>| {
             ObjectError::InvalidForeignCallArgument {
                 caller,
                 owner,
@@ -735,12 +735,12 @@ where
             .position(|(position, _)| *position == native_position)
             .unwrap_or(register_arguments);
         let (source, span) = match argument.source {
-            source @ (target_operations::TargetUnitScalarArgumentSource::Parameter { .. }
-            | target_operations::TargetUnitScalarArgumentSource::BlockParameter(_)
-            | target_operations::TargetUnitScalarArgumentSource::BooleanImmediate {
+            source @ (target_vocabulary::TargetUnitScalarArgumentSource::Parameter { .. }
+            | target_vocabulary::TargetUnitScalarArgumentSource::BlockParameter(_)
+            | target_vocabulary::TargetUnitScalarArgumentSource::BooleanImmediate {
                 ..
             }
-            | target_operations::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
+            | target_vocabulary::TargetUnitScalarArgumentSource::IeeeFloatImmediate {
                 ..
             }) => (
                 machine_code::InternalUnitScalarArgumentSourceRecord::SelectedCall {
@@ -750,7 +750,7 @@ where
                 },
                 InstructionSpanSequence(vec![record.instruction]),
             ),
-            target_operations::TargetUnitScalarArgumentSource::IntegerImmediate {
+            target_vocabulary::TargetUnitScalarArgumentSource::IntegerImmediate {
                 defining_operation,
                 source_value,
                 scalar_type,
@@ -783,7 +783,7 @@ where
                     span,
                 )
             }
-            target_operations::TargetUnitScalarArgumentSource::Home(home) => {
+            target_vocabulary::TargetUnitScalarArgumentSource::Home(home) => {
                 if home.shape != argument.placement.shape
                     || !scalar_call_result_producer(function, &home)
                 {
@@ -844,7 +844,7 @@ fn structural_result_capture(
     };
     let home = record.call.result.structural_home()?;
     let (operation, result) = home.operation_result()?;
-    let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout else {
+    let target_vocabulary::TargetStructuralHomeLayout::Aggregate(shape) = home.layout else {
         return None;
     };
     let placement = record
@@ -856,7 +856,7 @@ fn structural_result_capture(
         .as_ref()?;
     let contract = function.structural.as_ref()?;
     let geometry = geometry?;
-    let declared_codec = target_operations::TargetBoundaryResult::declared_reference_codec(
+    let declared_codec = target_vocabulary::TargetBoundaryResult::declared_reference_codec(
         result.structural_type,
         |id| geometry.declaration(id).ok(),
     );
@@ -1212,7 +1212,7 @@ fn foreign_scalar_result_custody(
     let (Some(home), Some(placement)) = (record.call.result.scalar_home(), &plan.result) else {
         if matches!(
             record.call.result,
-            target_operations::TargetBoundaryResult::Unit
+            target_vocabulary::TargetBoundaryResult::Unit
         ) && plan.result.is_none()
         {
             return Ok(None);

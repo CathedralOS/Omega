@@ -114,7 +114,7 @@ fn probe(
             declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &subjects,
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &frontier.selected,
             calling: frontier
                 .normalization

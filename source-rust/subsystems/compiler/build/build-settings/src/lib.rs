@@ -91,7 +91,7 @@ pub use activation::{
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use build_evaluation::{
-    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation,
+    BuildEvaluationRequest, BuildStageRequest, EvaluatedBuild, PreparedBuildEvaluation, SourceBuildDeclaration,
     RestrictedBuildGrants, prepare_build_evaluation,
 };
 pub use build_output::BuildStagedOutputEntryKind;
@@ -110,8 +110,10 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
-pub use products::{BuildConfig, ComputedBuildConfig};
-pub use source_compiler::WireCompatibilityDemand;
+pub use build_evaluation_result::{
+    BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
+};
+pub use source_compiler::{ProducedBuildProvider, WireCompatibilityDemand};
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;

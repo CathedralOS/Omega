@@ -24,9 +24,13 @@ pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
-    AcceptedSemanticBinding, CheckedSourceCacheLimits, ConsumedSourceUnit,
-    IndependentComponentDescription, PackageBuildHandoff, PackageSourceConsumptionCommitment,
+    CheckedSourceCacheLimits,
+    ConsumedSourceUnit,
+    IndependentComponentDescription,
+    PackageBuildHandoff,
+    PackageSourceConsumptionCommitment,
 };
+use provider_acceptance::AcceptedSemanticBinding;
 use record_codec::{decode_record, encode_record};
 use review_evidence::encoding::PackagePolicyRecoveryLimits;
 use review_evidence::record::PackagePolicyBaseline;
@@ -72,35 +76,22 @@ pub(crate) struct CachedCompiledReview {
     policy_canonical_bytes: u64,
 }
 
-pub struct PackageReviewCacheWrite {
-    pub(crate) cache: CompiledReviewCache,
-    pub(crate) key: [u8; 32],
-    pub(crate) record: CachedCompiledReview,
-    pub(crate) component_source: Option<compiler::PackageReviewSource>,
-}
-
-impl PackageReviewCacheWrite {
-    pub fn component_source(&self) -> Option<&compiler::PackageReviewSource> {
-        self.component_source.as_ref()
-    }
-
-    pub fn store(mut self, component: Option<IndependentComponentDescription>) {
-        self.record.facts.component_description = component;
-        self.cache
-            .store(&self.key, &self.record, self.component_source.is_some());
-    }
-}
-
 impl CachedCompiledReview {
     pub(crate) fn into_review_and_facts(
         self,
         key: &PackageKey,
         resolution: &ImmutableSourceResolution,
+        purpose: DependencyPurpose,
+        target: target::TargetProfile,
+        execution_profile: Option<target::TargetProfile>,
     ) -> Option<(CompilerIssuedPackageReview, CachedOccurrenceFacts)> {
         if self.package_identity != key.identity()
             || self.name != key.name().as_str()
             || self.lineage != lineage_digest(key.source_lineage())
             || self.resolution != resolution_digest(resolution)
+            || self.purpose != purpose
+            || self.target != target
+            || self.build_execution_profile != execution_profile
         {
             return None;
         }

@@ -29,7 +29,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, WorkScheduleIdentity};
 use target::{NativeTarget, TargetWireIdentityError};
-use target_operations::MachineRegister;
+use calling_conventions::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v6\0";

@@ -50,7 +50,7 @@ to equal that derivation, to match its sources' header, to state only closed
 types the module retains, and to still hash to its seal. It runs on `omega --validator
 TargetOperationCorrespondence` and in tests, never in an ordinary compile.
 
-[stage 02](../../../02_target-bound-program-to-abstract-operations/src/artifact_lowering/native_execution_scope.rs)
+[stage 02](../../../02_target-bound-program-to-abstract-operations/admit_providers.rs)
 admits providers, callbacks and authority. This stage checks its lowering of
 those admitted settlements; it neither selects providers nor authorizes
 execution.

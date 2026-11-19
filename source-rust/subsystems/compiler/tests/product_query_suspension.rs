@@ -1,15 +1,15 @@
 //! Product queries pause the real Terminal Build before a description exists.
 
+#[path = "../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
 use compiler::{CheckedCompileRequest, CompilationSession};
 
 #[test]
 fn schema_and_named_provider_queries_resume_the_original_build() {
     use build_settings::host::bindings::BuildProductDescription;
     use source_compiler::TerminalBuildQueryOperation;
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .unwrap();
+    let repository = fixture_repository::root();
     let root = repository.join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");
     let mut session = CompilationSession::default();
     let mut invocation = session
@@ -114,10 +114,7 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
 
 #[test]
 fn authored_product_query_retains_lexical_occurrence_and_pauses() {
-    let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate belongs to the repository");
+    let repository = fixture_repository::root();
     let root =
         repository.join("tests/fixtures/pass/build/described_runner_entry_left_exit/main.omg");
     let mut session = CompilationSession::default();

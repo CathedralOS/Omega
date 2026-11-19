@@ -14,6 +14,9 @@
 // its programs need.
 #![allow(dead_code)]
 
+#[path = "../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
 #[path = "unbuilt_dependencies.rs"]
 mod unbuilt_dependencies;
 
@@ -21,9 +24,7 @@ use std::path::{Path, PathBuf};
 
 /// The repository path `relative` names.
 pub fn repository(relative: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../..")
-        .join(relative)
+    fixture_repository::root().join(relative)
 }
 
 /// The typed trees of `main` for `linux_x86_64`, or the messages that

@@ -595,9 +595,11 @@ impl AcquiredBuildSource {
     /// lineage and capture, without claiming a completed dependency graph.
     pub fn declared_source_inputs(
         &self,
-        declaration: &build_declarations::BuildDeclaration,
+        activation: &build_settings::TerminalBuildActivation,
     ) -> Result<package_compilation::PackageCompilationInputs, String> {
-        let source = self.declare_requests(Some(declaration), std::iter::empty())?;
+        activation.require_source_acquisition(self.source_capture())?;
+        let declaration = activation.project_declaration()?;
+        let source = self.declare_requests(Some(&declaration), std::iter::empty())?;
         package_compilation::PackageCompilationInputs::new(
             source.identity(),
             declaration.kind(),
@@ -611,6 +613,7 @@ impl AcquiredBuildSource {
         &self,
         returned: &build_settings::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
+        returned.require_source_acquisition(self.source_capture())?;
         self.declare_requests(
             returned.declaration(),
             returned.requests().iter().map(|issued| issued.request()),
@@ -621,6 +624,7 @@ impl AcquiredBuildSource {
         &self,
         result: &build_settings::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
+        result.require_source_acquisition(self.source_capture())?;
         self.declare_requests(result.declaration(), result.requests())
     }
 

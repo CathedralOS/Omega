@@ -8,14 +8,16 @@
 //! separate failure every std `Clock` program shares today, so it pins only
 //! that the acknowledgement check accepts the marked call.
 
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const MISSING_BLOCK: &str = "call may block and requires a block acknowledgement";
 
 fn fixture(relative: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(relative)
 }
 

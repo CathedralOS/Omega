@@ -5,10 +5,12 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-consent = { path = "../evaluation/consent" }
+normalized-build-settings = { path = "../build-settings/normalized" }
+provider-acceptance = { path = "../providers/acceptance" }
 build-time-values = { path = "../evaluation/values" }
 source-selection = { path = "../../../package-manager/source-acquisition/capture/selection" }
 language-core = { path = "../../foundation/language-core" }
-host-provider-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
 source-provenance = { path = "../../foundation/source-provenance" }
 optimization-requests = { path = "../optimization-policy/requests" }
@@ -31,7 +33,6 @@ source-compiler = { path = "../../source-to-psi" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../../../foundation/filesystem" }
-effects = { path = "../../psi-to-native/installation/native-effects" }
 target = { path = "../../psi-to-native/targets/target" }
 filesystem-authority = { path = "../evaluation/filesystem" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
@@ -42,3 +43,5 @@ sha2 = "0.10.9"
 [target.'cfg(windows)'.dependencies]
 cap-primitives = "4.0.3"
 
+[dev-dependencies]
+source-compiler = { path = "../../source-to-psi", features = ["test-support"] }

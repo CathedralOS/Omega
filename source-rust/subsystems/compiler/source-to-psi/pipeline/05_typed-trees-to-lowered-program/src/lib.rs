@@ -53,6 +53,8 @@ mod callables;
 mod calling_publication;
 mod claim_publication;
 mod compilation;
+pub mod source_roster;
+pub use compilation::LoweredSourcePublication;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{
@@ -1800,7 +1802,7 @@ fn lower_program<'source>(
                     Unserved::Machine("contract identity overflow"),
                 )
             })?;
-        let lowered = lower::machine(
+        let mut lowered = lower::machine(
             id,
             contract,
             bodies,
@@ -1815,6 +1817,15 @@ fn lower_program<'source>(
             requirements.contains(&id),
             &mut qualifications,
         )?;
+        if let Some(typed) = typed_source {
+            operational::retain_callee_spans(typed, &mut lowered);
+        }
+        if let Some(bounds) =
+            declarations.and_then(|source| source.declared_operational_ceilings(id))
+        {
+            lowered.machine.declared_suspension = bounds.suspension;
+            lowered.machine.declared_blocking = bounds.blocking;
+        }
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.

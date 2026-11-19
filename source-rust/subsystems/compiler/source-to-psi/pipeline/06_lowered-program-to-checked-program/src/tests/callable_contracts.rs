@@ -56,6 +56,9 @@ fn refinement_module() -> TerminalModule {
     let application = identities.intern("callable-refinement-test-selection");
     module.identities = identities.build();
     let mut proof = MachineContract::empty(id(10));
+    proof.parameters = vec![parameter];
+    proof.parameter_order = parameter_order.clone();
+    proof.result = TerminalMachineResult::Scalar(result);
     proof.requires = vec![at_least(10, 5)];
     proof.ensures = vec![ContractClause {
         obligation: id(90),

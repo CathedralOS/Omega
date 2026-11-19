@@ -509,7 +509,7 @@ mod product_policy {
                 }
             }
             let typed = self.typed();
-            let representations = crate::evaluation::opaque_representations::collect(
+            let representations = super::product_declarations::collect_opaque_representations(
                 typed,
                 request.activation,
                 request.declared,
@@ -522,7 +522,7 @@ mod product_policy {
                 request.native_bindings,
                 &formations,
             )?;
-            let grants = crate::evaluation::product_policy::collect_product_root_grants(
+            let grants = super::product_declarations::collect_product_root_grants(
                 typed,
                 request.activation,
                 request.declared,
@@ -535,9 +535,7 @@ mod product_policy {
                 request.executed,
                 &declaration_formations,
             )?;
-            let exclusions = crate::evaluation::product_policy::collect_behavior_exclusions(
-                typed,
-                request.activation,
+            crate::evaluation::product_declarations::require_supported_exclusions(
                 request.declared,
                 request.executed,
                 request.exclusions,
@@ -548,7 +546,7 @@ mod product_policy {
                 native_bindings,
                 grants,
                 declarations,
-                exclusions,
+                exclusions: Vec::new(),
             })
         }
 
@@ -1012,20 +1010,8 @@ impl ResolveAndTypeRequest {
             .as_mut()
             .map(|typing| typing.resolved_base_for_extension())
             .transpose()?;
-        let evaluated = crate::evaluation::evaluate_pre_resolution(
-            crate::evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: self.syntax.trees,
-                source_context: crate::evaluation::BuildTimeSources {
-                    sources: Some(Arc::clone(&self.sources)),
-                    source_scoped_top_level_bindings: &self.top_level_bindings,
-                    selection_authority: self.selection_authority,
-                    predecessor: retained.clone(),
-                    declaration_syntax: Some(&context.declaration_syntax),
-                    retained_declaration_syntax: retained_declaration_syntax.as_deref(),
-                },
-            },
-        )?;
-        let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
+        let syntax = self.syntax.trees;
+        let pre_check = PreCheckEvaluation::new(self.selection_authority);
         let (mut typing, mut pending_bodies) =
             if let (Some(typing), Some(base), Some(base_declarations)) =
                 (retained, resolved_base, retained_declaration_syntax)
@@ -1250,19 +1236,6 @@ impl SourceContinuation {
         .map_err(refuse)
     }
 
-    pub fn rejoin_product_provider_selection(
-        &mut self,
-        selection: &crate::evaluation::provider_declarations::RetainedProviderSelection,
-        candidates: &mut crate::source_symbols::SourceSpanCandidates,
-    ) -> Result<crate::evaluation::provider_declarations::ProviderSelection, Diagnostic> {
-        selection.rejoin(
-            Arc::make_mut(&mut self.input).typing.typed_mut(),
-            source_provenance::DependencyScope::Product,
-            &[],
-            candidates,
-        )
-    }
-
     pub fn materialize_authored_bodies(
         self,
         observer: &mut impl PsiCompilationObserver,
@@ -1316,15 +1289,12 @@ impl SourceContinuation {
             observer,
         )?;
         drop(pending_bodies);
-        let (deferred, accounting) = PreCheckEvaluation::evaluate_recorded_continuations(
-            pending_pre_checks,
-            typing.typed_mut(),
-        )?;
+        PreCheckEvaluation::record_continuations(pending_pre_checks, typing.typed_mut())?;
         let source = CompletedSource {
             declaration_syntax: context.declaration_syntax,
             typing,
-            pending_pre_checks: deferred,
-            accounting,
+            pending_pre_checks: Vec::new(),
+            accounting: Default::default(),
         };
         completions.retain(input, &source)?;
         Ok(source)
@@ -1410,18 +1380,20 @@ impl CompletedSource {
         let units = crate::source_parsing::SourceInput(extension.units).into_units(observer)?;
         let wire_schema_frontier = self.typing.typed().wire_schemas().len();
         let resolved_base = self.typing.resolved_base_for_extension()?;
-        let (syntax, pre_checks) = crate::evaluation::PreResolutionEvaluation::evaluate_extension(
-            units,
-            extension.first_source,
-            crate::evaluation::BuildTimeSources {
-                sources: Some(Arc::clone(&extension.sources)),
-                source_scoped_top_level_bindings: &[],
-                selection_authority: Some(extension.selection_authority),
-                predecessor: Some(self.typing.clone()),
-                declaration_syntax: Some(&self.declaration_syntax),
-                retained_declaration_syntax: None,
-            },
-        )?;
+        let pre_checks =
+            vec![PreCheckEvaluation::new(Some(extension.selection_authority)); units.len()];
+        let mut units = units.into_iter();
+        let mut syntax = units
+            .next()
+            .unwrap_or_else(|| syntax_trees::SyntaxTrees::new(extension.first_source));
+        for unit in units {
+            syntax.adopt_page(unit);
+        }
+        let generation = u32::try_from(syntax.page_count())
+            .ok()
+            .and_then(|count| count.checked_add(1))
+            .ok_or_else(|| vec![Diagnostic::error("syntax page identity overflow")])?;
+        syntax.begin_page(generation);
         let seeded = observer.record_result(PsiCompilationStage::Resolution, || {
             crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
                 base: resolved_base,
@@ -1436,11 +1408,7 @@ impl CompletedSource {
                 self.typing.lower_extension(seeded)
             })?
             .into_typed();
-        PreCheckEvaluation::evaluate_extension_or_defer(
-            pre_checks,
-            wire_schema_frontier,
-            &mut typed,
-        )?;
+        PreCheckEvaluation::record_extension(pre_checks, wire_schema_frontier, &mut typed)?;
         Ok(PreparedSource {
             accounting: self.accounting,
             typed,
@@ -1678,23 +1646,7 @@ mod resolution_handoff_tests {
         let text = "machine length() -> u64 { 4 }\n\
                     machine helper() { let bytes: [u8; length()]; }\n";
         let (mut typing, frontier, sources) = deferred(text);
-        let source_id = sources.files().next().unwrap().source_id;
-        let tokens = crate::frontend_fixture::Lexer::new(text)
-            .tokenize()
-            .unwrap();
-        let syntax =
-            crate::frontend_fixture::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let (_, pending) = crate::evaluation::evaluate_pre_resolution(
-            crate::evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: syntax,
-                source_context: crate::evaluation::BuildTimeSources {
-                    sources: Some(Arc::clone(&sources)),
-                    ..Default::default()
-                },
-            },
-        )
-        .unwrap()
-        .into_syntax_and_pre_check();
+        let pending = PreCheckEvaluation::new(None);
         PreCheckEvaluation::defer_declared_requests(typing.typed_mut()).unwrap();
         let frontier = frontier
             .with_prepared_allocations(typing.prepare_allocations().unwrap())
@@ -1727,7 +1679,7 @@ mod resolution_handoff_tests {
             &crate::preparation::PreparationRequest::settled(),
         )
         .unwrap();
-        let refused = crate::AcceptedTerminalSource::judge(
+        let refused = crate::judge_terminal_source(
             Arc::new(program),
             crate::TerminalSourceCompilation {
                 calling: None,

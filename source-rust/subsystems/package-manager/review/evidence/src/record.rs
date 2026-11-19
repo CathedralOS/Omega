@@ -35,9 +35,12 @@ pub(crate) use semantic_policy::{
     PackagePolicySemanticDependency, PackagePolicySemanticDependencyConsumer,
 };
 pub(crate) mod package;
-mod package_review;
 mod policy_rows;
-pub use package_review::{PackageReviewEvidence, PackageReviewSourceFacts};
+/// Exact source units reported by a review. An absent inventory cannot support cache reuse.
+#[derive(Debug)]
+pub struct PackageReviewSourceFacts {
+    pub consumed_units: Option<Vec<source_provenance::ConsumedSourceUnit>>,
+}
 mod public_policy;
 mod representation;
 mod restricted_build;

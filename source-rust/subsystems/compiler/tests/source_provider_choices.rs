@@ -117,7 +117,7 @@ fn prepare(
 }
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
-    AcceptedTerminalSource::judge(
+    source_compiler::judge_terminal_source(
         Arc::clone(&fixture.source),
         TerminalSourceCompilation {
             declaration_metadata: &[],
@@ -430,5 +430,5 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
     );
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

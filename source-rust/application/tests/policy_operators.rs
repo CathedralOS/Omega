@@ -2,13 +2,15 @@
 //! Runtime results cover every value/count policy combination, while the twin
 //! changes only the Exact shift's qualified count from 31 to 32.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("numeric/policy_operators")
 }

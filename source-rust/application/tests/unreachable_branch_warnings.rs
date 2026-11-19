@@ -15,14 +15,16 @@ still succeeds (`exit 0`). We run `omega --check` on the contract fixtures under
 
 */
 
+mod support;
+
 use std::path::PathBuf;
 use std::process::Command;
 
 const WARNING: &str = "warning: unreachable branch:";
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/pass/contracts")
+    support::repository_root()
+        .join("tests/fixtures/pass/contracts")
         .join(name)
 }
 

@@ -1,8 +1,7 @@
-// Shared wire-encoding tag tables for both halves of the compiled-review cache:
+// Wire helpers shared by both halves of the compiled-review cache:
 // the input digests and build-record codec in `package-compilation`, and the
-// package manager's persisted review record keys and codecs. Each tag table
-// exists once so digests and persisted records never diverge on wire byte
-// values.
+// package manager's persisted review record keys and codecs. Role and
+// authority-class tags come from their owning types.
 
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
@@ -65,36 +64,13 @@ pub fn recover_declaration_kind(
 }
 
 pub fn semantic_binding_role_tag(role: AcceptedSemanticBindingRole) -> u8 {
-    match role {
-        AcceptedSemanticBindingRole::ConsoleIo => 10,
-        AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => 1,
-        AcceptedSemanticBindingRole::FilesystemHostService => 2,
-        AcceptedSemanticBindingRole::TimeHostService => 3,
-        AcceptedSemanticBindingRole::UefiX64ProgramEntry => 4,
-        AcceptedSemanticBindingRole::MacosArm64ProgramEntry => 5,
-        AcceptedSemanticBindingRole::MacosX64ProgramEntry => 6,
-        AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry => 7,
-        AcceptedSemanticBindingRole::LinuxArm64ProgramEntry => 8,
-        AcceptedSemanticBindingRole::WindowsX64ProgramEntry => 9,
-    }
+    role.canonical_tag()
 }
 
 pub fn recover_semantic_binding_role(
     cursor: &mut ObservationCursor<'_>,
 ) -> Option<AcceptedSemanticBindingRole> {
-    Some(match cursor.u8()? {
-        10 => AcceptedSemanticBindingRole::ConsoleIo,
-        1 => AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-        2 => AcceptedSemanticBindingRole::FilesystemHostService,
-        3 => AcceptedSemanticBindingRole::TimeHostService,
-        4 => AcceptedSemanticBindingRole::UefiX64ProgramEntry,
-        5 => AcceptedSemanticBindingRole::MacosArm64ProgramEntry,
-        6 => AcceptedSemanticBindingRole::MacosX64ProgramEntry,
-        7 => AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry,
-        8 => AcceptedSemanticBindingRole::LinuxArm64ProgramEntry,
-        9 => AcceptedSemanticBindingRole::WindowsX64ProgramEntry,
-        _ => return None,
-    })
+    AcceptedSemanticBindingRole::from_canonical_tag(cursor.u8()?)
 }
 
 pub fn authority_class_tag(class: TerminalAuthorityClass) -> u8 {

@@ -895,15 +895,14 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn provider_result_leases_preserve_live_leaf_custody_and_retirement() {
-        use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+        use super::super::values::{ScalarField, StorageCodec};
         use platform_custody::temporary_directory::TemporaryDirectory;
+        use semantic_vocabulary::{IntegerSign, StructuralFieldId};
         use std::process::Command;
         use terminal_interpreter::{
             TerminalEffectResult, TerminalReferencePayload, TerminalStorageContents,
         };
         let directory = TemporaryDirectory::create("provider-result-leases", false).unwrap();
-        let root = directory.path().join("source");
-        std::fs::create_dir(&root).unwrap();
         let library = directory.path().join("libomega_pair.so");
         let provider = directory.path().join("provider.c");
         let version = directory.path().join("provider.map");
@@ -925,96 +924,33 @@ mod tests {
             .output()
             .unwrap();
         assert!(output.status.success(), "{output:?}");
-        std::fs::write(
-            root.join("main.omg"),
-            r#"
-data Pair { left: i32; right: i32; }
-boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
-machine read(pair: @Pair) -> i32 { pair.left }
-machine main() reaches Source invokes Source crashes Trap {
-    let observed: i32 = read(Source::cell());
-    transition observed == 37i32 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}
-"#,
-        )
-        .unwrap();
-        let profile = target::TargetProfile::host();
-        std::fs::write(root.join("build.omg"), format!(r#"
-use omega::language::core::DllImport;
-use omega::language::core::ForeignBinding;
-machine build(builder: @mut Build) {{
-    Build::application(builder, "provider_pair");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-    Build::bind(builder, linux_arm64::ProgramEntry, main);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-    Build::bind(builder, windows_x86_64::ProgramEntry, main);
-    Build::bind<Source::cell>(builder, {target}, ForeignBinding::DllImport {{
-        import: DllImport::ElfVersioned {{ object: "{library}", symbol: "omega_reference_pair", version: "PAIR_1.0" }}
-    }});
-}}
-"#, target=profile.target_name(), library=library.display())).unwrap();
-        let outcomes = orchestration::build(BuildRequest {
-            stage_validators: Default::default(),
-            root_path: root.join("main.omg"),
-            build_directory: Some(directory.path().join("build")),
-            targets: BuildTargets::Single(profile),
-            product: ProjectProduct::Native {
-                installation_assumptions: Vec::new(),
-                destination: NativeDestination::Retained,
-                private_entry_ram: Vec::new(),
-            },
-            timings: false,
-            offline: true,
-            verify: false,
-            require_package_project: true,
-            optimization_rollback: Default::default(),
-            build_snapshot: None,
-        })
-        .unwrap();
-        let report = outcomes
-            .into_iter()
-            .next()
-            .unwrap()
-            .result
-            .unwrap()
-            .into_report()
-            .unwrap()
-            .report;
-        let artifact = report.retained_native_program().unwrap().psi_artifact();
-        let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
-        let host = report.runtime_provisions().unwrap().host_provisions();
-        let boundary = program
-            .module()
-            .boundary_machines
-            .iter()
-            .find(|boundary| {
-                matches!(
-                    boundary.result,
-                    terminal_psi::BoundaryMachineResult::Structural(_)
-                )
-            })
-            .unwrap();
-        let provision = host
-            .host()
-            .iter()
-            .find(|row| row.boundary == boundary.id)
-            .unwrap();
-        let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding) =
-            &provision.realization
-        else {
-            panic!("produced native binding")
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let codec = StorageCodec {
+            structural_type: StructuralTypeId::new(1).unwrap(),
+            extent: 8,
+            alignment: 4,
+            fields: [0, 4]
+                .into_iter()
+                .enumerate()
+                .map(|(index, offset)| ScalarField {
+                    path: vec![Path::Field(
+                        StructuralFieldId::new(index as u64 + 1).unwrap(),
+                    )],
+                    offset,
+                    logical: scalar,
+                    stored: scalar,
+                })
+                .collect(),
+            references: vec![],
         };
         for failed in [false, true] {
             let mut worker = Command::new(std::env::current_exe().unwrap());
             worker.args(["internal_native_provider_worker", "--nocapture"]);
-            let worker = native_provider_sponsor::for_adapters(
+            let (worker, product) = native_provider_sponsor::test_support::pointer_result_worker(
                 worker,
-                report
-                    .published_runtime_provisions()
-                    .into_iter()
-                    .flat_map(|runtime| runtime.published_native_adapters()),
+                &library,
+                b"omega_reference_pair",
+                b"PAIR_1.0",
             );
             let context = NativeContext::new(
                 Some(worker),
@@ -1023,43 +959,30 @@ machine build(builder: @mut Build) {{
                     super::super::super::allocation::AllocationValues::default(),
                 )),
             );
-            let imported = super::super::NativeImport::admit(
-                &program,
-                boundary,
-                binding,
-                Some(host),
-                &context,
-                None,
-                None,
-                super::super::super::buffered_output::BufferedStreams::new(),
-            )
-            .unwrap()
-            .unwrap();
-            let super::super::ResultCodec::ProviderReference {
-                codec,
-                scalar_order,
-            } = &imported.result
-            else {
-                panic!("canonical provider result")
-            };
-            assert_eq!(
-                (codec.extent, codec.alignment, codec.fields.len()),
-                (8, 4, 2)
-            );
-            let lease = context
-                .call_provider_reference(imported.adapter, &[])
+            let adapter = context
+                .sponsor
+                .borrow_mut()
+                .with(|process| {
+                    process.install_published_with_result(
+                        &product,
+                        &[],
+                        native_provider_runtime::NativeResultStorage::SharedProviderReference {
+                            byte_size: codec.extent,
+                            alignment: codec.alignment,
+                        },
+                    )
+                })
                 .unwrap();
+            let lease = context.call_provider_reference(adapter, &[]).unwrap();
             let reference = lease.reference;
             // The C provider returns the same object every time. Occurrence
             // identities must never imply disjoint external regions.
-            let other = context
-                .call_provider_reference(imported.adapter, &[])
-                .unwrap();
+            let other = context.call_provider_reference(adapter, &[]).unwrap();
             assert_ne!(reference, other.reference);
             assert_eq!(context.sponsor.borrow().references.active(), 2);
             drop(other);
             let TerminalEffectResult::Reference(value) =
-                super::super::provider_results::complete(lease, codec, scalar_order).unwrap()
+                super::super::provider_results::complete(lease, &codec, &[0, 1]).unwrap()
             else {
                 panic!("live provider result")
             };
@@ -1106,7 +1029,6 @@ machine build(builder: @mut Build) {{
                 );
             }
             let retained_sponsor = Rc::downgrade(&context.sponsor);
-            drop(imported);
             drop(context);
             // Only the one result lease now pins this worker, across either
             // backing's clones and after the importing context is gone.

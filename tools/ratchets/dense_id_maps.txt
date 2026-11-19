@@ -10,10 +10,10 @@
 21 omega-rust/omega/compilation/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization/ranked_rewrites.rs
 24 omega-rust/omega/compilation/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization/semantic_analyses.rs
 86 omega-rust/omega/compilation/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization/validation.rs
-4 omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_lowering/lowering.rs
-4 omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_lowering/lowering_scalars.rs
-3 omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_lowering/lowering_storage.rs
-2 omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_lowering/native_execution_scope.rs
+4 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations.rs
+4 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations/scalars.rs
+3 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/operations/storage.rs
+2 source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations/admit_providers.rs
 20 omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/legalization_reference_custody.rs
 1 omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/legalization_scalar_graph.rs
 1 omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/legalization_target.rs

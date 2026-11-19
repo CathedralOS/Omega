@@ -33,6 +33,7 @@ pub use products::{
 };
 pub(crate) use source_checking::check_product_source;
 
+use products::ComputedBuildConfigExt as _;
 use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::{CompileTimings, counters};
 use diagnostics::Diagnostic;

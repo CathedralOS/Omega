@@ -4,6 +4,9 @@
 //! Product plans. No fixture parser or second discovery pass is used. Run
 //! alone: work counters are process-wide.
 
+#[path = "../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
 use artifacts::compile_timings::counters;
 use compiler::{
     CompilationProduct, CompletedBuild, PackageCompilationRequest, PackageSourceRequest,
@@ -14,7 +17,7 @@ use package_manager::operations::{
     begin_local_project_preparation,
 };
 use products::NativeProductRequest;
-use provider_admission::provider_admission::current_terminal_authority_policy;
+use provider_admission::current_terminal_authority_policy;
 use std::path::Path;
 use target::TargetProfile;
 
@@ -30,13 +33,7 @@ fn measure() {
     let before = work_counts();
     let root = std::env::var_os("OMEGA_CORPUS_ROOT")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .ancestors()
-                .nth(4)
-                .expect("compiler repository")
-                .to_path_buf()
-        });
+        .unwrap_or_else(|| fixture_repository::root().to_path_buf());
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "package-batch-sources",
         false,

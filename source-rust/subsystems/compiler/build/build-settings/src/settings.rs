@@ -18,9 +18,8 @@ product selections are never copied as plain settings.
 */
 
 use optimization_requests::OptimizationReportRequest;
-use package_compilation::build_execution::build_value::{
-    BuildValueAdmission, EvaluatedBuildSettings,
-};
+use normalized_build_settings::EvaluatedBuildSettings;
+use package_compilation::build_execution::build_value::BuildValueAdmission;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, IntegerValue, StructuralTypeId};
 use build_time_values::BuildTimeValue;
 use terminal_interpreter::{

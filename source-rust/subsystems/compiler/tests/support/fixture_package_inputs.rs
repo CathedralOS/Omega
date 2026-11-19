@@ -14,12 +14,14 @@
 // its fixtures need.
 #![allow(dead_code)]
 
+#[path = "../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
 use build_declarations::DependencyPurpose;
 use compiler::CheckedCompileRequest;
 use diagnostics::Diagnostic;
-use package_compilation::{
-    AcceptedSemanticBinding, PackageCompilationInputs, PackageSourceBinding,
-};
+use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use provider_acceptance::AcceptedSemanticBinding;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,11 +38,7 @@ pub fn repo_root() -> PathBuf {
     if let Some(root) = std::env::var_os("OMEGA_CORPUS_ROOT") {
         return PathBuf::from(root);
     }
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(4)
-        .expect("compiler crate should live under omega-rust/omega/compilation/compiler")
-        .to_path_buf()
+    fixture_repository::root().to_path_buf()
 }
 
 pub fn fixture_package_identity(marker: u8) -> PackageKeyIdentity {
@@ -187,8 +185,8 @@ pub fn produce_fixture_products(
                     cause:
                         package_manager::review::CompileResolvedPackageReviewCause::Compilation {
                             failure:
-                                products::CompileFailure::Diagnostics(diagnostics)
-                                | products::CompileFailure::SourceCompletion { diagnostics, .. },
+                                build_evaluation_result::CompileFailure::Diagnostics(diagnostics)
+                                | build_evaluation_result::CompileFailure::SourceCompletion { diagnostics, .. },
                             ..
                         },
                     ..

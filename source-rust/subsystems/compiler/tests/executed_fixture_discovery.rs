@@ -77,7 +77,7 @@ fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
         .packages()
         .find(|(_, root)| *root == standard_library)
         .expect("exact standard-library package");
-    let role = package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
+    let role = provider_acceptance::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
     let accepted = inputs.accepted_semantic_binding(role).unwrap();
     assert_eq!(accepted.package(), supplier);
     assert_eq!(accepted.declaration_path(), "MacosApplication");
@@ -165,7 +165,7 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

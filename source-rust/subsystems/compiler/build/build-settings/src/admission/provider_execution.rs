@@ -15,7 +15,7 @@ pub(crate) struct BuildProviderPlans {
 
 pub(crate) struct BuildProviderInstallation {
     pub(crate) checked: psi_provider_selections::AdmittedProviderSelections,
-    pub(crate) intrinsics: provider_admission::provider_admission::AdmittedTerminalIntrinsics,
+    pub(crate) intrinsics: numeric_intrinsic_admission::AdmittedTerminalIntrinsics,
 }
 
 impl BuildProviderPlans {
@@ -32,7 +32,7 @@ impl BuildProviderPlans {
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,
     ) -> Result<BuildProviderInstallation, Vec<Diagnostic>> {
-        use provider_admission::provider_admission as admission;
+        use provider_admission as admission;
         let module = artifact.module();
         let adapters =
             admission::retain_selected_provider_adapters(&self.selected).map_err(failure)?;
@@ -114,7 +114,7 @@ impl BuildProviderPlans {
             .iter()
             .map(|plan| vec![None; plan.rows.len()])
             .collect::<Vec<_>>();
-        let intrinsics = admission::admit_terminal_intrinsics(
+        let intrinsics = numeric_intrinsic_admission::admit_terminal_intrinsics(
             artifact,
             &self.selected,
             self.selected
@@ -122,7 +122,7 @@ impl BuildProviderPlans {
                 .iter()
                 .zip(&unreviewed)
                 .map(
-                    |(declaration, executions)| admission::CompilerIntrinsicPlanProvenance {
+                    |(declaration, executions)| numeric_intrinsic_admission::CompilerIntrinsicPlanProvenance {
                         plan: declaration,
                         semantic_schema: &declaration.schema,
                         row_executions: executions,

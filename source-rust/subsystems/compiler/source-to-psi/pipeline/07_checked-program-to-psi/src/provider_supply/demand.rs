@@ -1,15 +1,15 @@
 //! Finish one product target's source choices while the accepted source owns its declarations.
 use super::{
-    ClosedLogicalProviderReach, SourcePackageReviewRequirements, explicit_build_requirements,
+    ClosedLogicalProviderReach, explicit_build_requirements,
 };
 use crate::provider_choice_inputs::ProviderSelection;
 use crate::{AcceptedTerminalSource, SourcePublication};
 use diagnostics::Diagnostic;
 use crate::provider_choice_inputs::NativeBuildSupply;
-use semantic_vocabulary::{BoundaryMachineId, MachineId};
+use semantic_vocabulary::BoundaryMachineId;
 use std::sync::{Arc, Weak};
 
-pub type SourceNativeBinding = Result<evaluation_receipts::NativeBindingMaterialization, String>;
+use super::{SourceNativeBinding, SourceProviderDemand};
 
 /// The source producer alone can attach an issued judgment and deployment to these facts.
 /// The weak handle checks provenance without retaining trees for use by the receiver.
@@ -69,18 +69,6 @@ impl SourceProviderFacts<SourceProviderDemand> {
             SourceProviderDemand::Target { closed, .. } => Ok(Some(closed)),
         }
     }
-}
-
-pub enum SourceProviderDemand {
-    Unscoped {
-        roots: Vec<MachineId>,
-    },
-    Target {
-        closed: ClosedLogicalProviderReach,
-        labels: Vec<(BoundaryMachineId, String)>,
-        bindings: Vec<SourceNativeBinding>,
-        review: Option<SourcePackageReviewRequirements>,
-    },
 }
 
 impl SourcePublication {

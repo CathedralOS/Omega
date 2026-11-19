@@ -1,5 +1,7 @@
 # Weighted rigid point registration
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A bounded stdin application fitting a proper rigid transform to paired 3D
 points. All computation is private Omega source using f64 operations and the
 existing std Console provider. The independent Python oracle is a qualification

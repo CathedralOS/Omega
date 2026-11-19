@@ -72,7 +72,7 @@ impl<A> TerminalRuntimeProvisions<A> {
     pub fn matches_host_requirement(
         &self,
         declaration: &terminal_psi::BoundaryMachineDeclaration,
-        binding: &target_operations::NormalizedForeignCallBinding,
+        binding: &target_vocabulary::NormalizedForeignCallBinding,
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> bool {
         self.plan
@@ -255,13 +255,13 @@ impl<A> TerminalRuntimeProvisions<A> {
         for call in object.foreign_calls() {
             if !matches!(
                 &call.binding.mechanism,
-                target_operations::NormalizedForeignCallMechanism::Component { .. }
+                target_vocabulary::NormalizedForeignCallMechanism::Component { .. }
             ) {
                 continue;
             }
             if !self.host().iter().any(|provision| {
                 matches!(&provision.realization,
-                    target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
+                    target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding)
                         if binding == &call.binding)
             }) {
                 return Err(

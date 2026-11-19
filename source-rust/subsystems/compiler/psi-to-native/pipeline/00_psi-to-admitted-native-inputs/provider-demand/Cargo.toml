@@ -9,7 +9,8 @@ path = "demand.rs"
 
 [dependencies]
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
-evaluation-receipts = { path = "../../../../build/evaluation/receipts" }
+declaration-scope = { path = "../../../../foundation/declaration-scope" }
+psi-provider-selections = { path = "../../../../psi/providers" }
 host-provider-inputs = { path = "../host-providers" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 target = { path = "../../../targets/target" }

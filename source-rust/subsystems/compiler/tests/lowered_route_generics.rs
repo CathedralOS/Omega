@@ -449,7 +449,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
 
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
-    let refused = source_compiler::AcceptedTerminalSource::judge(
+    let refused = source_compiler::judge_terminal_source(
         std::sync::Arc::clone(&typed),
         compilation(),
         terminal_codec::TerminalPublication::Portable,
@@ -609,7 +609,7 @@ fn native_and_psi_execute_the_finite_family_contract() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });

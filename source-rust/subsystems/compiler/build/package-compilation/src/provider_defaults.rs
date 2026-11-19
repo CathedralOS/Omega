@@ -9,7 +9,7 @@ use source_admission::RetainedDeclaration;
 use source_admission::SourceFile;
 use source_admission::SourceResolutionStratum;
 use source_compiler::evaluation::provider_declarations::{
-    ProviderSelection, RetainedProviderSelection,
+    RetainedOperatorFamily, RetainedProviderSelection, RetainedProviderSubject,
 };
 use std::path::PathBuf;
 
@@ -49,18 +49,20 @@ impl CompletedProviderDefaults {
         for selection in self.selections() {
             let mut subject_paths = Vec::new();
             let mut selection_paths = Vec::new();
-            let subject_source = self.admit_source(inputs, selection.subject.source())?;
-            if subject_source.resolution_stratum == SourceResolutionStratum::Base {
-                subject_paths.push(subject_source.path.clone());
-                selection_paths.push(subject_source.path);
+            for declaration in selection.subject.declarations() {
+                let source = self.admit_source(inputs, declaration.source())?;
+                if source.resolution_stratum == SourceResolutionStratum::Base {
+                    subject_paths.push(source.path.clone());
+                    selection_paths.push(source.path);
+                }
             }
             let provider_source = self.admit_source(inputs, selection.provider.source())?;
             if provider_source.resolution_stratum == SourceResolutionStratum::Base {
                 selection_paths.push(provider_source.path);
             }
             for (is_subject, application) in [
-                (true, &selection.subject_application),
-                (false, &selection.provider_application),
+                (true, selection.subject.application()),
+                (false, selection.provider_application.as_ref()),
             ] {
                 let Some(application) = application else {
                     continue;
@@ -95,47 +97,41 @@ impl CompletedProviderDefaults {
         Ok(paths)
     }
 
-    pub(super) fn rejoin(
+    pub(super) fn admit(
         &self,
-        source: &mut source_compiler::SourceContinuation,
         inputs: &PackageCompilationInputs,
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    ) -> Result<Vec<RetainedProviderSelection>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;
         let mut selections = Vec::new();
-        // One guarded span lookup serves every selection's two declarations.
-        let mut candidates = source_compiler::source_symbols::SourceSpanCandidates::default();
         for selection in self.selections() {
             let mut selected = selection.clone();
-            selected.subject = self.admit_declaration(inputs, &selected.subject)?;
+            match &mut selected.subject {
+                RetainedProviderSubject::Declaration {
+                    declaration,
+                    application,
+                    ..
+                } => {
+                    *declaration = self.admit_declaration(inputs, declaration)?;
+                    if let Some(application) = application {
+                        *application = inputs
+                            .admit_retained_product_application(&self.supplier, application)?;
+                    }
+                }
+                RetainedProviderSubject::OperatorFamily(family) => {
+                    let mut members = family.coordinates().to_vec();
+                    for member in &mut members {
+                        member.declaration = self.admit_declaration(inputs, &member.declaration)?;
+                    }
+                    *family = RetainedOperatorFamily::new(family.canonical_path.clone(), members)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                }
+            }
             selected.provider = self.admit_declaration(inputs, &selected.provider)?;
-            for application in [
-                &mut selected.subject_application,
-                &mut selected.provider_application,
-            ]
-            .into_iter()
-            .flatten()
-            {
+            if let Some(application) = &mut selected.provider_application {
                 *application =
                     inputs.admit_retained_product_application(&self.supplier, application)?;
             }
-            let subject_loaded = source.typed().symbols.source_files().any(|file| {
-                file.dependency_scope
-                    == source_provenance::DependencyScope::Product
-                    && source
-                        .typed()
-                        .symbols
-                        .source_map()
-                        .is_none_or(|sources| sources.source_is_selected(file.source_id))
-                    && file.path == selected.subject.source().path
-            });
-            if !subject_loaded {
-                continue;
-            }
-            selections.push(
-                source
-                    .rejoin_product_provider_selection(&selected, &mut candidates)
-                    .map_err(|error| vec![error])?,
-            );
+            selections.push(selected);
         }
         Ok(selections)
     }

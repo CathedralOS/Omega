@@ -14,7 +14,7 @@ use super::{
 use crate::declarations::dependencies::read::PackageSelection;
 use crate::resolution::graph::PackageRootSourceRequest;
 use build_declarations::{BuildDeclaration, WorkspaceMemberPath};
-use compiler::SourceBuildDeclaration;
+use build_settings::SourceBuildDeclaration;
 use package_compilation::CapturedLocalSource;
 use source_acquisition::git::resolution::{GitWorkspaceCatalog, GitWorkspaceSession};
 use source_acquisition::{GitCommitId, GitTreeId, ImmutableSourceResolution, LocalSourceLimits};

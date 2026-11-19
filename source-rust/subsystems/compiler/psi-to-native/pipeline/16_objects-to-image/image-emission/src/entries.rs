@@ -983,6 +983,21 @@ pub(crate) mod foreign_adapter {
             }
         }
 
+        /// Match the complete admitted ABI and publication without copying either.
+        pub fn matches_runtime_identity(
+            &self,
+            requested: &calling_conventions::PublishedForeignAdapterIdentity,
+        ) -> bool {
+            self.application == requested.application
+                && self.locator == requested.locator
+                && self.bridge.request() == &requested.bridge
+                && self.image_digest == requested.image_digest
+        }
+
+        pub fn contents(&self) -> &[u8] {
+            self.container.contents()
+        }
+
         pub const fn image_digest(&self) -> &[u8; 32] {
             &self.image_digest
         }

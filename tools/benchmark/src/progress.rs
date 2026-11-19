@@ -122,6 +122,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         .map_err(|error| error.to_string())?
         .as_secs();
     let commit = git(&["rev-parse", "HEAD"])?;
+    let rust_tree = git(&["rev-parse", &format!("{commit}:source-rust")])?;
+    let omega_tree = git(&["rev-parse", &format!("{commit}:source")])?;
     let target = host_target();
     let host = Command::new("hostname")
         .stdin(Stdio::null())
@@ -180,8 +182,8 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
             "commit": commit,
             "dirty": !git(&["status", "--porcelain"])?.is_empty(),
             "source_trees": {
-                "omega-rust": git(&["rev-parse", "HEAD:omega-rust"])?,
-                "source": git(&["rev-parse", "HEAD:source"])?,
+                "source-rust": rust_tree,
+                "source": omega_tree,
             },
             "host": host,
             "target": target,

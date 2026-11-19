@@ -1,0 +1,16 @@
+[package]
+name = "interpreter-numeric-imports"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "numeric_imports.rs"
+
+[dependencies]
+bignum = { path = "../../../foundation/bignum" }
+numerics = { path = "../../compiler/psi/semantics/numeric" }
+semantic-vocabulary = { path = "../../compiler/foundation/semantic-records" }
+target-vocabulary = { path = "../../compiler/psi-to-native/pipeline/representations/target-operations/target-vocabulary" }
+terminal-interpreter = { path = ".." }
+terminal-psi = { path = "../../compiler/psi" }

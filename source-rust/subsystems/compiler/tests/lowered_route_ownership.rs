@@ -457,13 +457,11 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         publication.artifact.semantic_module(),
         &closure.elaboration().module
     );
-    let input = artifact_lowering::lower_artifact(
+    let input = artifact_lowering::test_support::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("Omega 00 carries the checked affine operations and their seals")
-    .into_optimization_artifact()
-    .into_optimization_input();
+    .expect("Omega 00 carries the checked affine operations and their seals");
     abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
@@ -555,13 +553,11 @@ fn execute_ownership_oracle(
             )),
         "the interpreted module retains its exact-value execution oracle"
     );
-    let input = artifact_lowering::lower_artifact(
+    let input = artifact_lowering::test_support::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("Omega 00 carries checked ownership operations")
-    .into_optimization_artifact()
-    .into_optimization_input();
+    .expect("Omega 00 carries checked ownership operations");
     let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
@@ -1519,13 +1515,11 @@ mod transferred_on_one_path {
             other => panic!("the program must be accepted: {other:?}"),
         };
         let publication = closure.publish().expect("publication");
-        let input = artifact_lowering::lower_artifact(
+        let input = artifact_lowering::test_support::lower_artifact(
             &artifact_trust::authorize(&publication.artifact),
             Some(publication.seals.clone()),
         )
-        .expect("Omega 00 carries the join's disposal")
-        .into_optimization_artifact()
-        .into_optimization_input();
+        .expect("Omega 00 carries the join's disposal");
         let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
             input,
             terminal_work::WorkSchedule::CURRENT.identity(),

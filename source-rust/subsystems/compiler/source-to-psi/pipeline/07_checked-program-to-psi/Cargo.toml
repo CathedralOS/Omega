@@ -21,7 +21,7 @@ declaration-scope = { path = "../../../foundation/declaration-scope" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
+source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
 source-provenance = { path = "../../../foundation/source-provenance" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
@@ -45,7 +45,7 @@ lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-
 [dev-dependencies]
 evaluation-admission = { path = "../../../build/evaluation/admission" }
 psi-provider-selections = { path = "../../../psi/providers" }
-bundled-declarations = { path = "../02_syntax-trees-to-symbol-resolved-trees/bundled-declarations" }
+bundled-declarations = { path = "../representations/source-files/bundled-declarations" }
 syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
 typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }

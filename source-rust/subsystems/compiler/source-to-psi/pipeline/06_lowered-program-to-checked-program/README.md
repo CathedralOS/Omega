@@ -1274,8 +1274,8 @@ arrives, so a module with an undischarged obligation must never reach it. Any
 other refusal is a compiler defect and comes back as `Err`.
 
 The product producer's
-[`AcceptedTerminalSource::judge`](../../terminal-production/src/accepted.rs)
-prepares the compilation, calls `judge_compilation` and accepts only its checked
+[source driver](../prepare_and_check/source_judgment.rs)
+prepares the compilation, calls `judge_publication` and accepts only its checked
 closure. Tests can call `judge` on one elaborated closure directly.
 
 ## Calls that do not return

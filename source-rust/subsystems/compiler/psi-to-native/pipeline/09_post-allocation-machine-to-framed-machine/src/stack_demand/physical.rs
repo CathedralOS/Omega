@@ -9,7 +9,7 @@ use crate::PhysicalFrameProgram;
 use selected_instructions::{MachineEncodedStackEffect, SelectedCallTarget};
 use semantic_vocabulary::InvocationSite;
 use target::Architecture;
-use target_operations::{CallSiteOwner, NativeCallTarget};
+use target_vocabulary::{CallSiteOwner, NativeCallTarget};
 use terminal_semantics::callable_values::{CallableInvocationSite, CallableInvocationTarget};
 
 pub fn plan_physical_stack_program(

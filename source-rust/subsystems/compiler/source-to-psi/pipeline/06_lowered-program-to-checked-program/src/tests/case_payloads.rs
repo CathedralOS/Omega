@@ -430,7 +430,7 @@ machine route(source: Source) -> u32 {{
     // place twice.
     assert_eq!(
         verdict(&scalar("both(@mut held, @location)")),
-        "state `both` receives `&<saved subject #1:1>.location` as both mutable and read-only"
+        "state `both` receives `@<saved subject #1:1>.location` as both mutable and read-only"
     );
 }
 
@@ -534,7 +534,7 @@ machine route() -> u32 {{
     assert_eq!(verdict(&lent("revision")), "accepted");
     assert_eq!(
         verdict(&lent("repository")),
-        "state `two` receives `&held.repository` as both mutable and read-only"
+        "state `two` receives `@held.repository` as both mutable and read-only"
     );
 }
 

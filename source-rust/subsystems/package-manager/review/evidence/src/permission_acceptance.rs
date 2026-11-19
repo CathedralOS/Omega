@@ -1,37 +1,9 @@
-/*
-Runtime permission and assumed-binding consent verification for the root Product
-occurrence (`RuntimePermissionInput` and `TerminalPermissionAcceptance`).
-
-The package manager selects the exact root Product occurrence and compares its
-projected `TerminalPermission` and `AssumedBindingContract` policy rows against
-retained lock consent without writing a lock during compilation. Only the lock
-carries accepted rows: the root's own `Build` authorization is not acceptance,
-so the compiler refuses a runtime Product with assumed bindings when no lock
-exists. Target selection and provider admission remain independent requirements.
-*/
-
-pub use crate::capture::PreparedRuntimePolicy;
-use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
+//! Compare a retained lock decision with a complete proposed policy. This comparison
+//! describes agreement between records; runtime admission also needs a checked issuer.
+use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyBaseline, PackagePolicyRowKind};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
-
-pub struct RuntimePermissionInput<'a> {
-    pub(crate) declarations: &'a PreparedRuntimePolicy,
-    pub(crate) compilation: &'a products::CheckedCompilation,
-}
-
-impl<'a> RuntimePermissionInput<'a> {
-    pub fn from_compilation(
-        declarations: &'a PreparedRuntimePolicy,
-        checked: &'a products::CheckedCompilation,
-    ) -> Self {
-        Self {
-            declarations,
-            compilation: checked,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct TerminalPermissionAcceptance {
@@ -42,24 +14,35 @@ pub struct TerminalPermissionAcceptance {
 }
 
 impl TerminalPermissionAcceptance {
-    pub fn validate(&self, input: &RuntimePermissionInput<'_>) -> Result<(), Vec<Diagnostic>> {
+    pub fn compare_policy(&self, policy: &PackagePolicyBaseline) -> Result<(), Vec<Diagnostic>> {
         if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
             return Err(vec![Diagnostic::error(
                 "accepted runtime policy uses an obsolete schema; run omega packages update",
             )]);
         }
-        let rows = input.declarations.rows(input, self.target, self.package)?;
+        if policy.package() != self.package || policy.target() != self.target {
+            return Err(vec![Diagnostic::error(
+                "policy package or target differs from the accepted root activation",
+            )]);
+        }
+        let (rows, _) = policy
+            .acceptance_rows_with_limits(Default::default())
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "cannot encode the runtime permission policy: {error:?}"
+                ))]
+            })?;
+        self.compare_rows(rows)
+    }
+
+    fn compare_rows(
+        &self,
+        rows: Vec<crate::record::PackagePolicyRow>,
+    ) -> Result<(), Vec<Diagnostic>> {
         let mut unaccepted_components = Vec::new();
         let mut rows: Vec<_> = rows
             .into_iter()
-            .filter(|row| {
-                matches!(
-                    row.kind(),
-                    PackagePolicyRowKind::TerminalPermission
-                        | PackagePolicyRowKind::AssumedBindingContract
-                        | PackagePolicyRowKind::ComponentAssumption
-                )
-            })
+            .filter(|row| row.kind().requires_runtime_consent())
             .map(|row| {
                 let component = row.kind() == PackagePolicyRowKind::ComponentAssumption;
                 let key = ::wire::digest_encoder::content_identity(row.key_bytes());
@@ -90,11 +73,71 @@ impl TerminalPermissionAcceptance {
                 .collect());
         }
         rows.sort_unstable_by_key(|(key, _)| *key);
-        if rows != self.rows {
+        let mut accepted: Vec<_> = self.rows.iter().collect();
+        accepted.sort_unstable_by_key(|(key, _)| *key);
+        if !rows.iter().eq(accepted) {
             return Err(vec![Diagnostic::error(
                 "checked runtime policy differs from accepted root Product permissions and assumed bindings; run omega packages update",
             )]);
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::record::PackagePolicyRow;
+
+    fn row(kind: PackagePolicyRowKind, key: u8, meaning: &str) -> PackagePolicyRow {
+        PackagePolicyRow {
+            kind,
+            key_bytes: vec![key],
+            canonical_bytes: Vec::new(),
+            canonical_text: meaning.to_owned(),
+            initial_requires_decision: true,
+            audit_recommended_when_present: true,
+        }
+    }
+
+    #[test]
+    fn runtime_consent_matches_each_exact_coordinate_and_meaning_across_lock_order() {
+        use PackagePolicyRowKind::{
+            AssumedBindingContract, ComponentAssumption, TerminalPermission,
+        };
+        let permission = row(TerminalPermission, 1, "terminal permission");
+        let binding = row(AssumedBindingContract, 2, "assumed contract");
+        let component = row(ComponentAssumption, 3, "component premise");
+        let lock = TerminalPermissionAcceptance {
+            schema_version: PACKAGE_POLICY_ROW_VERSION,
+            package: PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+            target: TargetProfile::host(),
+            rows: [&binding, &component, &permission]
+                .map(|r| {
+                    (
+                        wire::digest_encoder::content_identity(r.key_bytes()),
+                        r.canonical_text().to_owned(),
+                    )
+                })
+                .to_vec(),
+        };
+        let provisions = vec![component.clone(), permission.clone(), binding.clone()];
+        assert!(lock.compare_rows(provisions.clone()).is_ok());
+        let mut extra = provisions.clone();
+        extra.push(row(PackagePolicyRowKind::Callable, 4, "regular callable"));
+        assert!(lock.compare_rows(extra).is_ok());
+        assert!(
+            lock.compare_rows(vec![component.clone(), binding.clone()])
+                .is_err()
+        );
+        for changed in [
+            row(ComponentAssumption, 3, "different premise"),
+            row(ComponentAssumption, 4, "component premise"),
+        ] {
+            let failure = lock
+                .compare_rows(vec![changed.clone(), permission.clone(), binding.clone()])
+                .unwrap_err();
+            assert!(failure[0].message.contains(changed.canonical_text()));
+        }
     }
 }

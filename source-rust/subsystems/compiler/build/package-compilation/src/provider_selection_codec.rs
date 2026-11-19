@@ -1,11 +1,8 @@
-// Canonical wire encoding, decoding, and content digesting
-// (`OMG-BUILD-PROVIDER-CHOICES\x03`) for `RetainedProviderSelection` and
-// `RetainedDeclaration` slices. Sources are interned once per payload; the
-// cache wire format preserves physical custody paths while the comparison
-// digest uses package identities and relative source paths so relocating a
-// checkout does not alter the semantic digest.
+//! Package Build choices retain immutable declaration custody. Single-declaration
+//! choices keep their v3 bytes and digest. A v4 handoff also carries complete
+//! operator families. The comparison digest uses package-relative source paths
+//! while the wire payload retains paths needed for source admission.
 
-use source_provenance::DependencyScope;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use semantic_vocabulary::PackageKeyIdentity;
 use semantic_vocabulary::source_selections::CompositionMode;
@@ -17,14 +14,17 @@ use source_admission::SourceResolutionStratum;
 use source_compiler::declaration_selection::BuildSelectionOrigin;
 use source_compiler::declaration_selection::product_operands::ProductStaticOperandGraph;
 use source_compiler::evaluation::provider_declarations::{
-    RetainedProductApplication, RetainedProviderSelection,
+    RetainedOperatorCoordinate, RetainedOperatorFamily, RetainedProductApplication,
+    RetainedProviderSelection, RetainedProviderSubject,
 };
+use source_provenance::DependencyScope;
 use source_text::{SourceId, Span};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use symbols::SymbolKind;
 
 const MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x03";
+const FAMILY_MAGIC: &[u8] = b"OMG-BUILD-PROVIDER-CHOICES\x04";
 const MAXIMUM_ROWS: u64 = 1 << 20;
 
 struct SelectionSources {
@@ -37,15 +37,14 @@ impl SelectionSources {
             sources: Vec::new(),
         };
         for row in rows {
-            for anchor in [
-                &row.subject,
+            for anchor in row.subject.declarations().chain([
                 &row.provider,
                 row.origin.activation(),
                 row.origin.author(),
-            ] {
+            ]) {
                 pool.intern_source(anchor.source());
             }
-            for application in [&row.subject_application, &row.provider_application]
+            for application in [row.subject.application(), row.provider_application.as_ref()]
                 .into_iter()
                 .flatten()
             {
@@ -125,7 +124,12 @@ impl SelectionSources {
         output.push(kind_tag(anchor.kind()));
     }
 
-    fn rows(&self, rows: &[RetainedProviderSelection], observation: Option<[u8; 32]>) -> Vec<u8> {
+    fn rows(
+        &self,
+        rows: &[RetainedProviderSelection],
+        observation: Option<[u8; 32]>,
+        families: bool,
+    ) -> Vec<u8> {
         let mut output = Vec::new();
         match observation {
             None => output.push(0),
@@ -136,11 +140,34 @@ impl SelectionSources {
         }
         integer(&mut output, rows.len() as u64);
         for row in rows {
-            self.anchor(&row.subject, &mut output);
-            push_framed(&mut output, row.subject_identity.as_bytes());
+            match &row.subject {
+                RetainedProviderSubject::Declaration {
+                    declaration,
+                    identity,
+                    ..
+                } => {
+                    if families {
+                        output.push(0);
+                    }
+                    self.anchor(declaration, &mut output);
+                    push_framed(&mut output, identity.as_bytes());
+                }
+                RetainedProviderSubject::OperatorFamily(family) => {
+                    output.push(1);
+                    push_framed(&mut output, family.canonical_path.as_bytes());
+                    integer(&mut output, family.coordinates().len() as u64);
+                    for member in family.coordinates() {
+                        self.anchor(&member.declaration, &mut output);
+                        push_framed(&mut output, member.requirement_identity.as_bytes());
+                        integer(&mut output, member.static_parameter_count as u64);
+                    }
+                }
+            }
             self.anchor(&row.provider, &mut output);
             push_framed(&mut output, row.provider_identity.as_bytes());
-            self.application(row.subject_application.as_ref(), &mut output);
+            if let RetainedProviderSubject::Declaration { application, .. } = &row.subject {
+                self.application(application.as_ref(), &mut output);
+            }
             self.application(row.provider_application.as_ref(), &mut output);
             integer(&mut output, row.target.code());
             output.push(match row.composition_mode {
@@ -218,14 +245,20 @@ fn encode_sources(sources: &[SourceFile], output: &mut Vec<u8>) {
     }
 }
 
+fn has_families(rows: &[RetainedProviderSelection]) -> bool {
+    rows.iter()
+        .any(|row| matches!(row.subject, RetainedProviderSubject::OperatorFamily(_)))
+}
+
 pub fn encode_package_provider_selections(
     rows: &[RetainedProviderSelection],
     observation: Option<[u8; 32]>,
 ) -> Vec<u8> {
     let pool = SelectionSources::collect(rows);
-    let mut output = MAGIC.to_vec();
+    let families = has_families(rows);
+    let mut output = if families { FAMILY_MAGIC } else { MAGIC }.to_vec();
     encode_sources(&pool.sources, &mut output);
-    output.extend_from_slice(&pool.rows(rows, observation));
+    output.extend_from_slice(&pool.rows(rows, observation, families));
     output
 }
 
@@ -251,10 +284,14 @@ pub fn package_provider_selections_digest(
     observation: Option<[u8; 32]>,
 ) -> [u8; 32] {
     let pool = SelectionSources::collect(rows);
-    let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-provider-choices-v3\0");
+    let families = has_families(rows);
+    let mut digest = crate::digest_encoder::DomainDigestEncoder::new(if families {
+        b"omega-package-provider-choices-v4\0"
+    } else {
+        b"omega-package-provider-choices-v3\0"
+    });
     digest_sources(&pool.sources, &mut digest);
-    digest.bytes(&pool.rows(rows, observation));
+    digest.bytes(&pool.rows(rows, observation, families));
     digest.finish()
 }
 
@@ -262,9 +299,11 @@ pub fn decode_package_provider_selections(
     bytes: &[u8],
 ) -> Option<(Vec<RetainedProviderSelection>, Option<[u8; 32]>)> {
     let mut cursor = ObservationCursor::new(bytes);
-    if cursor.bytes(MAGIC.len())? != MAGIC {
-        return None;
-    }
+    let families = match cursor.bytes(MAGIC.len())? {
+        MAGIC => false,
+        FAMILY_MAGIC => true,
+        _ => return None,
+    };
     let sources = decode_sources(&mut cursor)?;
     let application_sources = Arc::new(source_compiler::source_inputs::SourceMap::from_files(
         sources
@@ -285,11 +324,35 @@ pub fn decode_package_provider_selections(
     let count = sequence_length(&mut cursor)?;
     let mut rows = Vec::with_capacity(count);
     for _ in 0..count {
-        let subject = decode_anchor(&mut cursor, &sources)?;
-        let subject_identity = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
+        let mut subject = match if families { cursor.u8()? } else { 0 } {
+            0 => RetainedProviderSubject::Declaration {
+                declaration: decode_anchor(&mut cursor, &sources)?,
+                identity: std::str::from_utf8(cursor.framed()?).ok()?.to_owned(),
+                application: None,
+            },
+            1 => {
+                let path = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
+                let mut members = Vec::new();
+                for _ in 0..sequence_length(&mut cursor)? {
+                    members.push(RetainedOperatorCoordinate {
+                        declaration: decode_anchor(&mut cursor, &sources)?,
+                        requirement_identity: std::str::from_utf8(cursor.framed()?)
+                            .ok()?
+                            .to_owned(),
+                        static_parameter_count: usize::try_from(cursor.u64()?).ok()?,
+                    });
+                }
+                RetainedProviderSubject::OperatorFamily(
+                    RetainedOperatorFamily::new(path, members).ok()?,
+                )
+            }
+            _ => return None,
+        };
         let provider = decode_anchor(&mut cursor, &sources)?;
         let provider_identity = std::str::from_utf8(cursor.framed()?).ok()?.to_owned();
-        let subject_application = decode_application(&mut cursor, &application_sources)?;
+        if let RetainedProviderSubject::Declaration { application, .. } = &mut subject {
+            *application = decode_application(&mut cursor, &application_sources)?;
+        }
         let provider_application = decode_application(&mut cursor, &application_sources)?;
         let target = ProductTarget::from_code(cursor.u64()?)?;
         let composition_mode = match cursor.u8()? {
@@ -310,8 +373,6 @@ pub fn decode_package_provider_selections(
                 .ok()?;
         rows.push(RetainedProviderSelection {
             subject,
-            subject_identity,
-            subject_application,
             provider,
             provider_identity,
             provider_application,
@@ -320,7 +381,7 @@ pub fn decode_package_provider_selections(
             origin,
         });
     }
-    cursor.exhausted().then_some((rows, observation))
+    (cursor.exhausted() && families == has_families(&rows)).then_some((rows, observation))
 }
 
 // Native bindings retain the same closed operands as provider selections.
@@ -441,11 +502,9 @@ fn decode_application(
             if identity.is_empty() {
                 return None;
             }
-            let mut graph: ProductStaticOperandGraph = record_storage::decode(
-                cursor.framed()?,
-                record_storage::RecordLimits::default(),
-            )
-            .ok()?;
+            let mut graph: ProductStaticOperandGraph =
+                record_storage::decode(cursor.framed()?, record_storage::RecordLimits::default())
+                    .ok()?;
             let mut valid = true;
             graph.remap_source_spans(|span| {
                 valid &= sources.get(span.source_id).is_some_and(|source| {
@@ -611,6 +670,86 @@ mod tests {
             encode_sources(&decoded, &mut reencoded);
             assert_eq!(reencoded, bytes);
         }
+    }
+
+    #[test]
+    fn retained_operator_rows_bind_every_overload_and_preserve_declaration_only_encoding() {
+        let file = SourceFile {
+            source_id: SourceId(0),
+            package_root: "root".into(),
+            path: "root/source.omg".into(),
+            package_identity: None,
+            dependency_scope: DependencyScope::Product,
+            origin: SourceOrigin::User,
+            resolution_stratum: SourceResolutionStratum::Base,
+            source: "build small wide".into(),
+        };
+        let anchor = |start, end, kind| {
+            RetainedDeclaration::from_retained_parts(file.clone(), Span::new(start, end), kind)
+                .unwrap()
+        };
+        let build = anchor(0, 5, SymbolKind::Machine);
+        let first = anchor(6, 11, SymbolKind::Operator);
+        let second = anchor(12, 16, SymbolKind::Operator);
+        let origin = BuildSelectionOrigin::from_retained_parts(
+            build.clone(),
+            build.clone(),
+            Span::new(0, 5),
+            Some(0),
+        )
+        .unwrap();
+        let single = RetainedProviderSelection {
+            subject: RetainedProviderSubject::Declaration {
+                declaration: build.clone(),
+                identity: "one".into(),
+                application: None,
+            },
+            provider: build,
+            provider_identity: "provider".into(),
+            provider_application: None,
+            target: ProductTarget::LinuxX86_64,
+            composition_mode: CompositionMode::Fused,
+            origin,
+        };
+        let observation = Some([0x73; 32]);
+        let ordinary =
+            encode_package_provider_selections(std::slice::from_ref(&single), observation);
+        assert!(ordinary.starts_with(MAGIC));
+        assert_eq!(
+            decode_package_provider_selections(&ordinary),
+            Some((vec![single.clone()], observation))
+        );
+        let members = vec![
+            RetainedOperatorCoordinate {
+                declaration: first,
+                requirement_identity: "family::one".into(),
+                static_parameter_count: 0,
+            },
+            RetainedOperatorCoordinate {
+                declaration: second,
+                requirement_identity: "family::two".into(),
+                static_parameter_count: 2,
+            },
+        ];
+        let family = |members| RetainedProviderSelection {
+            subject: RetainedProviderSubject::OperatorFamily(
+                RetainedOperatorFamily::new("Buffer::index".into(), members).unwrap(),
+            ),
+            ..single.clone()
+        };
+        let original = [single.clone(), family(members.clone())];
+        let bytes = encode_package_provider_selections(&original, observation);
+        assert!(bytes.starts_with(FAMILY_MAGIC));
+        assert_eq!(
+            decode_package_provider_selections(&bytes),
+            Some((original.to_vec(), observation))
+        );
+        let mut changed = members;
+        changed[1].static_parameter_count += 1;
+        assert_ne!(
+            package_provider_selections_digest(&original, observation),
+            package_provider_selections_digest(&[single.clone(), family(changed)], observation)
+        );
     }
 
     #[test]

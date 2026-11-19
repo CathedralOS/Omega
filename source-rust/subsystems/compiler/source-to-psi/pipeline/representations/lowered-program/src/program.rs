@@ -97,6 +97,9 @@ pub struct MachineSources {
     pub operations: IdTable<OperationId, SourceOrigin>,
     pub edges: IdTable<EdgeId, SourceOrigin>,
     pub obligations: IdTable<ObligationId, SourceOrigin>,
+    /// The authored callee token for an emitted call or folded tail call.
+    /// Operation and edge origins keep the entire call for other diagnostics.
+    pub call_targets: Vec<(terminal_psi::CallSite, source_text::SourceSpan)>,
     /// The member of the call component each loop head stands for, in
     /// block order (`lower`, `component`). The lowered form does not say
     /// which machine's body a head begins; a diagnostic about an arrival

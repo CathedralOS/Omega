@@ -11,7 +11,7 @@ use semantic_vocabulary::{IntegerSign, ScalarType};
 use sha2::Digest;
 use sha2::Sha256;
 use target::NativeTarget;
-use target_operations::{
+use target_vocabulary::{
     BoundaryRealization, CallSiteOwner, CompilerBuiltinExecution, CompletionClaimSource,
 };
 
@@ -164,7 +164,7 @@ pub(crate) fn hash_boundary_settlement_record(
                     | CompilerBuiltinExecution::StaticInterrupt { .. }
             ) {
                 let mut bytes = Vec::new();
-                legalized_operations::legalized_operations::identity::encode_boundary_execution_identity(&mut bytes, target_operations::BoundaryExecutionBinding::CompilerBuiltin(execution));
+                target_vocabulary::identity::encode_boundary_execution_identity(&mut bytes, target_vocabulary::BoundaryExecutionBinding::CompilerBuiltin(execution));
                 digest.raw(&bytes);
             }
         }
@@ -256,7 +256,7 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
     }
 }
 
-const fn float_arithmetic_tag(operation: target_operations::IeeeFloatArithmeticOperation) -> u8 {
+const fn float_arithmetic_tag(operation: target_vocabulary::IeeeFloatArithmeticOperation) -> u8 {
     operation.ordinal()
 }
 
@@ -290,7 +290,7 @@ fn hash_boundary_realization(
             digest.byte(9);
             digest.raw(&access.contract);
             let mut bytes = Vec::new();
-            legalized_operations::legalized_operations::identity::encode_accessor_scalar_demand(
+            target_vocabulary::identity::encode_accessor_scalar_demand(
                 &mut bytes,
                 access.demand,
             );
@@ -841,8 +841,8 @@ pub(crate) fn hash_call_site_owner(
             digest.byte(5);
             digest.raw(&operation.get().to_le_bytes());
             digest.byte(match role {
-                target_operations::InstallationCallRole::Validate => 0,
-                target_operations::InstallationCallRole::Work => 1,
+                target_vocabulary::InstallationCallRole::Validate => 0,
+                target_vocabulary::InstallationCallRole::Work => 1,
             });
         }
         CallSiteOwner::CleanupAction {

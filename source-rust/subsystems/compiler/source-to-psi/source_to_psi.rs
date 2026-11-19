@@ -24,21 +24,69 @@ pub struct StageSource<'a> {
     pub roots: Vec<SourceId>,
     pub imports: Vec<SourceScopedTopLevelBinding>,
     pub selections: ProductSourceInputs<'a>,
+    /// Costs of the Build that opened this Product, when it belongs to a project.
+    pub build_accounting: Option<&'a evaluation::SourceCompletionAccounting>,
     pub declaration_authority:
         Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
-    pub build_host: target::TargetProfile,
+    pub build_host: semantic_vocabulary::source_selections::ProductTarget,
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    publish_stage(source).map(|(artifact, _)| artifact)
+}
+
+/// Source choices for one deployment, judged by the same stage that published the Psi.
+pub struct PublishedTargetProgram {
+    artifact: PublishedPsi,
+    providers: psi_provider_selections::publication::PublishedTargetProviders,
+    exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+}
+
+impl PublishedTargetProgram {
+    pub fn into_parts(self) -> (
+        PublishedPsi,
+        psi_provider_selections::publication::PublishedTargetProviders,
+        Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
+    ) {
+        (self.artifact, self.providers, self.exclusions)
+    }
+}
+
+pub fn compile_for_target(
+    source: StageSource<'_>,
+    target: &str,
+) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
+    if !source.selections.calling_targets.contains(&target) {
+        return Err(vec![Diagnostic::error(format!(
+            "source program did not select deployment target `{target}`"
+        ))]);
+    }
+    let (artifact, checked) = publish_stage(source)?;
+    let demand = checked
+        .prepare_provider_demand(target)?
+        .receive(checked.terminal_publication(), Some(target))?;
+    let providers = psi_provider_selections::publication::PublishedTargetProviders::new(
+        &artifact, target, demand,
+    );
+    Ok(PublishedTargetProgram {
+        artifact,
+        providers,
+        exclusions: checked.exclusions,
+    })
+}
+
+fn publish_stage(
+    source: StageSource<'_>,
+) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
     let mut observer = UnmeasuredProduction;
     let parsed = lex_and_parse(&source, &mut observer)?;
-    let PreparedSource { typed, mut accounting } = parsed.resolve_and_type(&mut observer)?;
+    let (continuation, _) = parsed.prepare(&mut observer)?;
     let optimizations = source.selections.optimizations.clone();
+    let standalone = evaluation::SourceCompletionAccounting::default();
     let checked = prepare_lower_and_check(
-        typed,
+        continuation,
         source.selections,
-        &Default::default(),
-        &mut accounting,
+        source.build_accounting.unwrap_or(&standalone),
         None,
         None,
         &mut observer,
@@ -46,7 +94,7 @@ pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>>
     let psi = checked.terminal_publication.publish(
         &optimizations, source.declaration_authority, &mut observer,
     )?;
-    Ok(Arc::clone(psi.artifact()))
+    Ok((Arc::clone(psi.artifact()), checked))
 }
 
 fn lex_and_parse(
@@ -84,7 +132,7 @@ fn lex_and_parse(
         sources: Arc::clone(&source.files),
         top_level_bindings: source.imports.clone(),
         selection_authority: source.selections.layout_selection_authority.clone(),
-        build_helper_identity: source.build_host.target_name(),
+        build_helper_identity: source.build_host.canonical_name(),
         build_sources: Default::default(),
         build_stage: None,
         frontends: Default::default(),

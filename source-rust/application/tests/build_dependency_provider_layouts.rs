@@ -20,11 +20,13 @@ refuses the program.
 
 */
 
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 fn repository() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+    support::repository_root().to_path_buf()
 }
 
 fn omega(arguments: &[&str], directory: &Path) -> String {

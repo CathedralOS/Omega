@@ -18,7 +18,7 @@ use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use semantic_vocabulary::BoundaryMachineId;
 
 use super::reachability::AuthorityGraph;
-use crate::provider_admission::{
+use crate::{
     AdmittedTerminalMechanism, TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 
@@ -46,7 +46,7 @@ pub(super) struct ReviewContext<'a> {
     mechanisms: BTreeMap<BoundaryMachineId, AdmittedMechanismRow<'a>>,
     pub(super) installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
     target_profile: target::TargetProfile,
-    components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+    components: &'a [crate::NativeProviderSettlement<'a>],
     pub(super) installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
 }
 
@@ -60,7 +60,7 @@ impl<'a> ReviewContext<'a> {
         mechanisms: &[AdmittedTerminalMechanism],
         settlements: &'a [crate::AdmittedBoundarySettlement<'_>],
         installed_candidates: &'a [terminal_psi::ProviderCandidateConformance],
-        components: &'a [crate::provider_admission::NativeProviderSettlement<'a>],
+        components: &'a [crate::NativeProviderSettlement<'a>],
         installed_interrupts: &'a crate::AdmittedInstalledInterruptCohort,
     ) -> Result<Self, String> {
         let plan = input.plan();
@@ -126,7 +126,7 @@ impl<'a> ReviewContext<'a> {
                     if !components.iter().any(|component| {
                         matches!(
                             component.realization,
-                            crate::provider_admission::NativeBoundaryRealization::Component {
+                            crate::NativeBoundaryRealization::Component {
                                 call,
                                 ..
                             } if call.selection().receiving_boundary() == settlement.boundary
@@ -201,13 +201,13 @@ impl<'a> ReviewContext<'a> {
     pub(super) fn component_authority(
         &self,
         boundary: BoundaryMachineId,
-    ) -> Result<Option<&'a crate::provider_admission::AdmittedNativeCallableAuthority>, String>
+    ) -> Result<Option<&'a crate::AdmittedNativeCallableAuthority>, String>
     {
         let mut matches =
             self.components
                 .iter()
                 .filter_map(|settlement| match settlement.realization {
-                    crate::provider_admission::NativeBoundaryRealization::Component {
+                    crate::NativeBoundaryRealization::Component {
                         call,
                         authority,
                         ..

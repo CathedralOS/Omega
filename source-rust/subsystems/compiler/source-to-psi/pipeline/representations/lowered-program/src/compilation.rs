@@ -43,6 +43,14 @@ pub struct CallableFormationDefect {
     pub detail: String,
 }
 
+/// Lowering may retain a source owner and correspondence for publication. The
+/// checker reads only the terminal compilation and returns the source with its
+/// verdicts. Publication accepts the particular input type issued by lowering.
+pub trait CompilationForPublication {
+    type Source;
+    fn into_program_and_source(self) -> (TerminalCompilation, Self::Source);
+}
+
 #[derive(Debug)]
 pub enum TerminalCompilation {
     FormationFailures(Vec<CallableFormationFailure>),

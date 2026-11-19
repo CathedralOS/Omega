@@ -18,9 +18,9 @@
 
 use compiler::CheckedCompilation;
 use diagnostics::Diagnostic;
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
-use package_compilation::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
+use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::TerminalIdentityTableBuilder;
 

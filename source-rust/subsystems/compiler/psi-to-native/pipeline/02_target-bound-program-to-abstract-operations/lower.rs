@@ -1,0 +1,28 @@
+//! Lower selected, authorized Psi bodies to abstract operations and admit their providers and entry.
+#![forbid(unsafe_code)]
+
+mod admit_providers;
+mod entry_receiver;
+mod operations;
+mod selected_execution;
+mod selected_input;
+
+pub use admit_providers::{
+    AdmittedNativeRealization, NativeAdmissionRequest, RetainedNativeProviderInputs,
+    admit_prepared_native_realization, prepare_native_providers,
+};
+pub use entry_receiver::admit_executable_entry;
+pub use selected_execution::{lower_native_callable, lower_native_execution};
+pub use selected_input::{NativeScalarApplications, VerifiedNativeArtifactInput};
+
+use provider_admission::{NativeCallbackArgumentProposal, SelectedProviderAdapter};
+use selected_input::{
+    ArtifactLoweringError, NativeExecutionSelection, TerminalAccessViewEstablishment,
+};
+use verified_optimization_input::NativeExecutionScope;
+use verified_optimization_input::entry_settlement::{
+    SelectedProgramEntryCall, validate_native_program_entry_settlement,
+};
+
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;

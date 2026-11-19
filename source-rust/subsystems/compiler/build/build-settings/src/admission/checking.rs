@@ -33,6 +33,7 @@ things it did now has one owner, and this file only sequences them:
 */
 
 use artifacts::compile_timings::StageMeta;
+use build_evaluation_result::{BuildConstants, BuildSubjectValidation, CompileFailure};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
@@ -53,21 +54,21 @@ Provider-dependent folding still requires a provider-aware producer and is
 refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
-    constants: &products::BuildConstants,
+    constants: &BuildConstants,
     rejoined: &source_compiler::source_state::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
-    subject_validation: products::BuildSubjectValidation,
+    subject_validation: BuildSubjectValidation,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<source_compiler::evaluation::SourceCompletionAccounting, products::CompileFailure> {
+) -> Result<source_compiler::evaluation::SourceCompletionAccounting, CompileFailure> {
     if constants.folded_under_providers {
         return Err(vec![Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
         )].into());
     }
     if constants.read.is_empty()
-        && subject_validation != products::BuildSubjectValidation::AwaitingOwner
+        && subject_validation != BuildSubjectValidation::AwaitingOwner
     {
         return Ok(Default::default());
     }
@@ -86,18 +87,18 @@ pub fn settle_rejoined_build_slice(
         entry,
         packages,
         anonymous_source,
-        subject_validation != products::BuildSubjectValidation::EntryOnly,
+        subject_validation != BuildSubjectValidation::EntryOnly,
         timings,
     )?;
     let result = compare_rejoined_constants(constants, &current, accepted.source());
     result
         .map(|()| accounting.clone())
-        .map_err(|diagnostics| products::CompileFailure::source_completion(diagnostics, accounting))
+        .map_err(|diagnostics| CompileFailure::source_completion(diagnostics, accounting))
 }
 
 fn compare_rejoined_constants(
-    original: &products::BuildConstants,
-    current: &products::BuildConstants,
+    original: &BuildConstants,
+    current: &BuildConstants,
     typed: &source_compiler::source_state::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
     // Index only this constant family. The source anchor still authenticates
@@ -175,10 +176,10 @@ pub(crate) fn prepare_admitted_build(
     (
         Arc<source_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
-        products::BuildConstants,
+        BuildConstants,
         source_compiler::evaluation::SourceCompletionAccounting,
     ),
-    products::CompileFailure,
+    CompileFailure,
 > {
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let result = (|| -> Result<_, Vec<Diagnostic>> {
@@ -227,7 +228,7 @@ pub(crate) fn prepare_admitted_build(
         // Source preparation retains the demanded family before literal
         // substitution. Its genuine receipts travel as Build costs, while
         // the declaration/value ledger describes a later independent rejoin.
-        let constants = products::BuildConstants {
+        let constants = BuildConstants {
             folded_under_providers: false,
             read,
         };
@@ -239,7 +240,7 @@ pub(crate) fn prepare_admitted_build(
     })();
     match result {
         Ok((accepted, providers, constants)) => Ok((accepted, providers, constants, accounting)),
-        Err(diagnostics) => Err(products::CompileFailure::source_completion(
+        Err(diagnostics) => Err(CompileFailure::source_completion(
             diagnostics,
             accounting,
         )),
@@ -249,7 +250,7 @@ pub(crate) fn prepare_admitted_build(
 #[cfg(test)]
 mod tests {
     use super::settle_rejoined_build_slice;
-    use products::BuildConstants;
+    use build_evaluation_result::{BuildConstants, BuildSubjectValidation};
 
     fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
         let typed = source_compiler::source_state::TypedTrees::default();
@@ -259,7 +260,7 @@ mod tests {
             symbols::SymbolHandle::invalid(),
             None,
             None,
-            products::BuildSubjectValidation::Checked,
+            BuildSubjectValidation::Checked,
             &mut artifacts::compile_timings::CompileTimings::default(),
         )
         .map(|_| ())
@@ -427,7 +428,7 @@ mod tests {
                 entry,
                 None,
                 None,
-                products::BuildSubjectValidation::Checked,
+                BuildSubjectValidation::Checked,
                 &mut artifacts::compile_timings::CompileTimings::default(),
             )
             .unwrap();
@@ -483,7 +484,7 @@ mod tests {
         use package_compilation::build_execution::{
             RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
         };
-        use products::CompileFailure;
+        use build_evaluation_result::CompileFailure;
         let prepared = prepare(source(
             "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
         ))

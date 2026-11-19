@@ -19,6 +19,20 @@ test-support = [
 ]
 
 [dependencies]
+build-invocation = { path = "../build/evaluation/invocations" }
+evaluation-accounting = { path = "../build/evaluation/accounting" }
+evaluation-admission = { path = "../build/evaluation/admission" }
+psi-provider-selections = { path = "../psi/providers" }
+psi-scalar-applications = { path = "../psi/scalar-applications" }
+psi-target-layouts = { path = "../psi/layout/admission" }
+access-admission = { path = "../psi/access/admission" }
+access-vocabulary = { path = "../psi/access" }
+schema-reflection = { path = "../psi/schema" }
+source-completion-accounting = { path = "pipeline/prepare_and_check/accounting" }
+build-scalar-evaluation = { path = "../build/evaluation/scalars" }
+build-time-values = { path = "../build/evaluation/values" }
+build-value-projection = { path = "../build/evaluation/value-projection" }
+service-surface = { path = "../psi/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 source-files = { path = "pipeline/representations/source-files" }
@@ -29,13 +43,13 @@ typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 source-declarations = { path = "pipeline/representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
+source-symbol-table = { path = "pipeline/representations/symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "pipeline/representations/symbol-resolved-trees" }
 typed-trees = { path = "pipeline/representations/typed-trees" }
 source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
 source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
 source-lexer = { path = "pipeline/00_source-files-to-tokens" }
-declaration-contracts = { path = "language/declaration-contracts" }
+behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
 application-identity = { path = "../psi/application-identity" }
 layout-planning = { path = "../psi/layout/integer-defaults" }
 numeric-literals = { path = "../foundation/numeric-literals" }

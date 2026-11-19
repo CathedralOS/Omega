@@ -1,15 +1,16 @@
 use super::*;
-use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{BlockId, ContractId, EdgeId, MachineId, PlaceId, StructuralFieldId};
+use semantic_vocabulary::{ScalarType, StructuralPlaceKind};
 use terminal_interpreter::{
     TerminalExecutionStatus, TerminalInstantiation, TerminalStructuralInputs,
     TerminalStructuralValue,
 };
 use terminal_psi::{
     Block, BoundaryParameterKind, MachineContract, RegisterTargetApplicability, StructuralAccess,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-    StructuralRecordStorage, StructuralResultDeclaration, StructuralTypeDeclaration,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralRecordStorage,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator,
 };
 fn type_id() -> StructuralTypeId {
     StructuralTypeId::new(1).unwrap()

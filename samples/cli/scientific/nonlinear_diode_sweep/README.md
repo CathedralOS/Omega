@@ -1,5 +1,7 @@
 # Nonlinear diode sweep (NEW031)
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A complete console application solves the operating point of a voltage source,
 positive series resistor, and Shockley diode. It emits CSV operating points,
 currents, voltage residuals, bracket widths, iteration counts, evaluation counts,

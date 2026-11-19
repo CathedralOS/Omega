@@ -1,3 +1,6 @@
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -47,7 +50,7 @@ fn assert_psi_runs(name: &str, source: &str) {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
-    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../source/library");
+    let library = support::repository_root().join("source/library");
     let project = stage_project(
         "darwin-descriptor-input",
         r#"

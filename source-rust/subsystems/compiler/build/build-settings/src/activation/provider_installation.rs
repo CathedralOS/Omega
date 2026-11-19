@@ -20,7 +20,8 @@ use psi_target_layouts::{
     AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
 };
 use source_compiler::ProducedBuildProvider;
-use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
+use build_scalar_evaluation::{ScalarScopeEvaluation, prepare_scalar_applications};
+use source_compiler::evaluation::SourceCompletionAccounting;
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use psi_provider_selections::{AdmittedComponentProvider, admit_component_provider};
@@ -118,7 +119,7 @@ pub(super) fn prepare<'host, 'code>(
         let requirements = program
             .execution_requirements(Some(&supplies))
             .map_err(|error| format!("Build helper demands: {error:?}"))?;
-        let completed = source_compiler::evaluation::complete_scalar_applications(
+        let completed = prepare_scalar_applications(
             artifact,
             profile.target_name(),
             None,
@@ -152,7 +153,8 @@ pub(super) fn prepare<'host, 'code>(
                 })
             },
         )
-        .map_err(|reason| format!("Build helper scalar completion: {reason}"))?;
+        .map_err(|reason| format!("Build helper scalar completion: {reason}"))?
+        .into_admitted();
         let supplies = runtime_supplies(
             &program,
             &admitted,

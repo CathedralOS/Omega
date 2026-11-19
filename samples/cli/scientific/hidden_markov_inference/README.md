@@ -1,5 +1,7 @@
 # Hidden Markov inference
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A two-state hidden Markov model with binary emissions and 1–16 observations.
 The application computes the observation log-likelihood, scaled forward/backward
 posterior probabilities, and an exact Viterbi path. Equal-weight paths select the

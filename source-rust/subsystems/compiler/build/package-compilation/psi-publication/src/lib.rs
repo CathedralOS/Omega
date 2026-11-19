@@ -9,7 +9,7 @@ pub use terminal_psi::PublishedEntryMetadata;
 pub struct ExecutablePackageInputs {
     declaration_permissions:
         Option<declaration_scope::ProductDeclarationScope>,
-    accepted_semantic_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
+    accepted_semantic_bindings: Vec<provider_acceptance::AcceptedSemanticBinding>,
 }
 
 impl ExecutablePackageInputs {
@@ -26,14 +26,14 @@ impl ExecutablePackageInputs {
     ) -> Option<&declaration_scope::ProductDeclarationScope> {
         self.declaration_permissions.as_ref()
     }
-    pub fn accepted_semantic_bindings(&self) -> &[package_compilation::AcceptedSemanticBinding] {
+    pub fn accepted_semantic_bindings(&self) -> &[provider_acceptance::AcceptedSemanticBinding] {
         &self.accepted_semantic_bindings
     }
 
     pub fn accepted_semantic_binding(
         &self,
-        role: package_compilation::AcceptedSemanticBindingRole,
-    ) -> Option<&package_compilation::AcceptedSemanticBinding> {
+        role: provider_acceptance::AcceptedSemanticBindingRole,
+    ) -> Option<&provider_acceptance::AcceptedSemanticBinding> {
         self.accepted_semantic_bindings
             .iter()
             .find(|binding| binding.role() == role)

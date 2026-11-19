@@ -51,7 +51,6 @@ mod integer_parsing;
 mod native_provider;
 mod native_word;
 mod network_address;
-mod numeric;
 mod scalar_codec;
 mod scalar_record;
 mod standard_input;
@@ -383,12 +382,12 @@ fn bind_numeric_import<'host>(
     slot: BoundaryMachineId,
     realization: target_vocabulary::NearestIeeeFloatArithmeticRealization,
 ) -> Result<(), TerminalRuntimeError> {
-    let declaration = instance
-        .import(slot)
-        .ok_or(TerminalRuntimeError::InvalidProvision(
-            "numeric host provision names no demanded import",
-        ))?;
-    let adapter = numeric::NumericImport::for_import(program, declaration, realization)?;
+    let adapter = interpreter_numeric_imports::NumericImport::for_import(
+        program,
+        instance.import(slot),
+        realization,
+    )
+    .map_err(TerminalRuntimeError::InvalidProvision)?;
     instance.bind_import(slot, adapter)
 }
 
@@ -399,8 +398,13 @@ pub fn bind_numeric_import_slot(
     slot: BoundaryMachineId,
     realization: target_vocabulary::NearestIeeeFloatArithmeticRealization,
 ) -> Result<(), TerminalRuntimeError> {
-    let program = instance.program().clone();
-    bind_numeric_import(&program, instance, slot, realization)
+    use interpreter_numeric_imports::NumericImportError;
+    interpreter_numeric_imports::bind_numeric_import_slot(instance, slot, realization).map_err(
+        |error| match error {
+            NumericImportError::InvalidProvision(reason) => TerminalRuntimeError::InvalidProvision(reason),
+            NumericImportError::Binding(reason) => TerminalRuntimeError::Binding(reason),
+        },
+    )
 }
 
 pub(super) fn bind<'host>(

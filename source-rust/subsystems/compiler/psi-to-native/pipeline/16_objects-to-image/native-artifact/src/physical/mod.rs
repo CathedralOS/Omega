@@ -99,7 +99,7 @@ use optimization_core::{
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, ServiceId};
 use target::NativeTarget;
-use target_operations::{
+use target_vocabulary::{
     BoundaryRealization, BoundaryScalarArgument, CallSiteOwner, NormalizedForeignCallBinding,
     ProviderExecutionBinding,
 };
@@ -298,13 +298,13 @@ pub(crate) enum CompilerBuiltinResult {
 pub(crate) enum BoundaryTraitSettlementRole {
     CompilerBuiltin {
         catalog: NativeCompilerBuiltinCatalogIdentity,
-        execution: target_operations::CompilerBuiltinExecution,
+        execution: target_vocabulary::CompilerBuiltinExecution,
         realization: BoundaryRealization,
         scalar_argument: Option<CompilerBuiltinScalarArgument>,
         result: CompilerBuiltinResult,
     },
     External {
-        execution: target_operations::ExternalExecutionBinding,
+        execution: target_vocabulary::ExternalExecutionBinding,
         realization: NormalizedForeignCallBinding,
     },
     AdmittedProviderSettlement {

@@ -116,7 +116,7 @@ fn publish_executable(
             &output_path,
             &output.bytes,
             artifact.target(),
-            artifact.image().companion_images(),
+            artifact.image().companion_images().iter().map(|file| (file.filename(), file.contents())),
             components,
         )?;
         output_path
@@ -154,19 +154,19 @@ fn publish_dynamic_elf(
         &output_path,
         &output.bytes,
         artifact.target(),
-        &[],
+        [],
         components,
     )?;
     let receipt = publication.into_receipt(output_path);
     Ok((receipt, receipts))
 }
 
-fn publish_flat_native_files(
+fn publish_flat_native_files<'file>(
     output_path: &Path,
     output: &[u8],
     target: target::NativeTarget,
-    root_companions: &[image_emission::NativeCompanionImage],
-    components: &[Arc<NativeComponentProduct>],
+    root_companions: impl IntoIterator<Item = (&'file str, &'file [u8])>,
+    components: &'file [Arc<NativeComponentProduct>],
 ) -> Result<Vec<native_artifact::NativeComponentPublicationReceipt>, String> {
     let directory = output_path
         .parent()
@@ -210,36 +210,31 @@ fn publish_flat_native_files(
         false,
     )?);
     staged.push(stage_exact_bytes(output_path, output, true)?);
-    let mut companions = Vec::<&image_emission::NativeCompanionImage>::new();
-    for companion in root_companions.iter().chain(
-        components
-            .iter()
-            .flat_map(|component| component.image().companion_images()),
-    ) {
+    let component_files = components
+        .iter()
+        .flat_map(|component| component.image().companion_images())
+        .map(|file| (file.filename(), file.contents()));
+    let mut companions = Vec::new();
+    for (filename, contents) in root_companions.into_iter().chain(component_files) {
         if components
             .iter()
-            .any(|component| component.locator().image_filename() == companion.filename())
-            || output_path
-                .file_name()
-                .is_some_and(|name| name == companion.filename())
+            .any(|component| component.locator().image_filename() == filename)
+            || output_path.file_name().is_some_and(|name| name == filename)
         {
             return Err("a native product already uses a compiler companion filename".into());
         }
-        if let Some(previous) = companions
-            .iter()
-            .find(|previous| previous.filename() == companion.filename())
-        {
-            if previous.contents() != companion.contents() {
+        if let Some((_, previous)) = companions.iter().find(|(name, _)| *name == filename) {
+            if *previous != contents {
                 return Err("native products disagree on a compiler companion image".into());
             }
         } else {
-            companions.push(companion);
+            companions.push((filename, contents));
         }
     }
-    for companion in companions {
+    for (filename, contents) in companions {
         staged.push(stage_exact_bytes(
-            &directory.join(companion.filename()),
-            companion.contents(),
+            &directory.join(filename),
+            contents,
             false,
         )?);
     }
@@ -252,4 +247,39 @@ fn publish_flat_native_files(
             native_artifact::NativeComponentPublicationReceipt::verify(component, path)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::publish_flat_native_files;
+    use platform_custody::temporary_directory::TemporaryDirectory;
+
+    #[test]
+    fn flat_publication_installs_matching_companions_once_and_preserves_prior_files_on_conflict() {
+        let directory = TemporaryDirectory::create("companion-publication", false).unwrap();
+        let output = directory.path().join("program.exe");
+        let companion = ("omega_host.dll", b"issued companion".as_slice());
+        let target = target::TargetProfile::WindowsX64.native_target();
+
+        publish_flat_native_files(&output, b"first", target, [companion, companion], &[]).unwrap();
+        for (files, reason) in [
+            (
+                [companion, (companion.0, b"substituted".as_slice())],
+                "disagree",
+            ),
+            (
+                [companion, ("program.exe", b"collision".as_slice())],
+                "already uses",
+            ),
+        ] {
+            let error =
+                publish_flat_native_files(&output, b"second", target, files, &[]).unwrap_err();
+            assert!(error.contains(reason), "{error}");
+        }
+        assert_eq!(std::fs::read(output).unwrap(), b"first");
+        assert_eq!(
+            std::fs::read(directory.path().join(companion.0)).unwrap(),
+            companion.1
+        );
+    }
 }

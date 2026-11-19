@@ -79,6 +79,8 @@ mod reuse;
 mod static_contracts;
 mod static_reach;
 mod verdict;
+mod publication;
+pub use publication::{CheckedPublication, judge_publication};
 
 #[cfg(any(test, feature = "test-support"))]
 pub use ceilings::Axis as CeilingAxis;

@@ -17,12 +17,13 @@ Provenance:
 - Toolchain `build` machine and facet queries: `src/build_execution/build_value/vocabulary.rs`.
 */
 
+mod activation;
 mod configuration;
 mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::{EvaluatedBuildSettings, X86DeploymentClaim};
+pub use normalized_build_settings::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::{is_build_machine, is_exact_toolchain_build_prelude_data};
 
 use super::BuildMachineFilesystemScope;
@@ -40,7 +41,7 @@ impl BuildValueAdmission {
     pub fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
         let optimization = optimization::BuildOptimizationAdmission::admit(typed)?;
         let has_toolchain_build_activation =
-            source_compiler::evaluation::admit_toolchain_build_activation(typed)?;
+            activation::admit_toolchain_build_activation(typed)?;
         Ok(Self {
             optimization,
             has_toolchain_build_activation,

@@ -1,23 +1,21 @@
 //! Prepare native execution from the host-admitted publication and its selected providers.
-use super::application::{TerminalApplication, admit_package_permissions};
+use verified_optimization_input::{NativeProgramEntrySettlement, RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal};
+use verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement;
+use verified_optimization_input::native_proposal::project_terminal_native_realization_proposal;
+use provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions;
 use super::program_entry::PublishedNativeEntry;
-use artifact_lowering::{
-    BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
-};
 use diagnostics::Diagnostic;
-use provider_admission::provider_admission::{
+use provider_admission::{
     CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy,
 };
 use provider_realization::{
-    PublishedSelection, SelectedProviderResult, select_published_providers,
+    PublishedSelection, SelectedExecution, select_published_providers,
 };
 use std::sync::Arc;
 
 struct PublishedApplicationInputs<'a, Publisher> {
-    artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
-    execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
-    proposal: Option<target_provider_admission::TerminalTargetProviderProposal>,
-    bindings: &'a [host_provider_inputs::AcceptedSemanticBinding],
+    execution: &'a PublishedSelection<Publisher, SelectedExecution>,
+    bindings: &'a [provider_acceptance::AcceptedSemanticBinding],
     package_permissions:
         Option<&'a declaration_scope::ProductDeclarationScope>,
     application: target::NativeApplicationMetadata,
@@ -30,22 +28,25 @@ fn prepare_published_application<Publisher>(
     inputs: PublishedApplicationInputs<'_, Publisher>,
 ) -> Result<
     (
-        artifact_lowering::RetainedTerminalArtifact,
+        RetainedTerminalArtifact,
         TerminalAuthorityPermissionPolicy,
     ),
     Vec<Diagnostic>,
 > {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let artifact = inputs.artifact;
+    let execution = inputs.execution;
+    let original = execution.published_authorization();
+    let artifact = execution
+        .effective_artifact(original.shared_artifact())
+        .map_err(refuse)?;
     let publication = artifact.publication_metadata().ok_or_else(|| {
         refuse("saved Psi lacks entry declaration owners; recompile it to publish them".into())
     })?;
     let module = artifact.semantic_module();
-    let execution = inputs.execution;
     let realization = execution.realization();
     let profile = execution
         .target_profile()
-        .unwrap_or_else(target::TargetProfile::host);
+        .ok_or_else(|| refuse("saved Psi native selection has no deployment target".into()))?;
     let declarations = realization.provider_declarations();
     let selection = PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = publication
@@ -125,9 +126,11 @@ fn prepare_published_application<Publisher>(
     }
     roots.sort_unstable();
     roots.dedup();
-    let mut provider_proposal = inputs.proposal.ok_or_else(|| {
-        refuse("executable application requires an explicit deployment target".into())
-    })?;
+    let mut provider_proposal = execution
+        .provider_proposal(artifact.view(), inputs.optimizations.identity())
+        .ok_or_else(|| {
+            refuse("executable application requires an explicit deployment target".into())
+        })?;
     provider_proposal.application_roots = Some(roots);
     let plans = entry
         .calling_plans()
@@ -148,34 +151,32 @@ fn prepare_published_application<Publisher>(
             }
         })
         .collect();
-    let permissions = admit_package_permissions(
+    let permissions = admit_package_terminal_authority_permissions(
         realization.terminal_authority_permissions().to_vec(),
         realization
             .terminal_authority_permission_identities()
             .clone(),
+        "checked package terminal-authority permissions are invalid",
     )?;
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
         native_bindings: &[],
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
-        target_profile: Some(profile),
+        target_profile: profile,
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: realization.plans(),
             selected_provider_provenance: provenance,
             calling_applications: realization.calling_applications().to_vec(),
         },
-        native_target: Some(profile.native_target()),
-        program_entry: Some(
-            NativeProgramEntrySettlement::new(
-                entry.source_signature(),
-                Some((
-                    &plans.semantic_calling_application,
-                    &plans.physical_calling_application,
-                    &plans.storage_entry,
-                )),
-            )
-            .with_checked_entry(&receipt),
-        ),
+        program_entry: NativeProgramEntrySettlement::new(
+            entry.source_signature(),
+            Some((
+                &plans.semantic_calling_application,
+                &plans.physical_calling_application,
+                &plans.storage_entry,
+            )),
+        )
+        .with_checked_entry(&receipt),
         application: inputs.application,
         optimizations: inputs.optimizations.project_post_terminal(),
         external_bindings: realization.external_bindings(),
@@ -188,35 +189,30 @@ fn prepare_published_application<Publisher>(
             .clone(),
         x86_scalar_fma_provider: inputs.x86_scalar_fma_provider,
     };
-    let proposals = vec![provider_proposal];
-    let physical_entry_adapter = entry.physical_adapter().is_some();
-    let original = execution.published_authorization();
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
     } else {
-        // Target folding produces a new artifact. Only its actual result may receive
-        // the host's authorization for this locally run transformation.
-        let folded = execution.folded_program().ok_or_else(|| {
-            refuse("native execution received an artifact outside its admitted selection".into())
-        })?;
-        if !Arc::ptr_eq(folded.artifact(), artifact) {
-            return Err(refuse(
-                "native execution received a different folded artifact".into(),
-            ));
-        }
+        // effective_artifact checked the folded program against this publication.
         let producer =
             psi_authorization::HostProducerTrust::accept("in-process target folding");
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
-    let terminal = TerminalApplication {
-        artifact: authorized,
-        receipt: receipt.clone(),
-        provider_proposals: proposals,
-        physical_entry_adapter,
-        evidence: artifact.published_evidence().cloned(),
+    let mut proposal = project_terminal_native_realization_proposal(
+        authorized.shared_artifact(),
+        receipt.clone(),
+        native,
+    )?;
+    if entry.physical_adapter().is_some() {
+        proposal
+            .bind_physical_adapter(authorized.artifact())
+            .map_err(|message| vec![Diagnostic::error(message)])?;
     }
-    .prepare(native)?;
+    let terminal = RetainedTerminalArtifact::new_with_native_realization_proposal(
+        authorized,
+        proposal.with_target_provider_proposals(vec![provider_proposal]),
+    )
+    .with_evidence(artifact.published_evidence().cloned())?;
     Ok((terminal, permissions))
 }
 
@@ -266,17 +262,51 @@ pub struct SavedProgramTarget<'a> {
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
-/// Use the same provider, entry and native application stages as a source build.
-pub(crate) fn prepare_saved_program(
+/// Target application settings used after stage 00 has bound the issued demand.
+pub struct NativeApplicationSettings<'a> {
+    pub application: target::NativeApplicationMetadata,
+    pub optimizations: &'a optimization_core::OptimizationSelections,
+    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+}
+
+pub struct SourceNativeTarget<'a> {
+    pub profile: target::TargetProfile,
+    pub settings: NativeApplicationSettings<'a>,
+    pub package_permissions: Option<declaration_scope::ProductDeclarationScope>,
+    pub semantic_bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+    pub installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+}
+
+/// Receive the ordinary source publisher's target-bound program and Build choices.
+pub fn prepare_source_program(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    publication: psi_provider_selections::publication::PublishedTargetProviders,
+    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    target: SourceNativeTarget<'_>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let artifact = authorization.shared_artifact();
+    let demand = publication.receive(artifact, target.profile.target_name())?;
+    let issued = provider_demand::IssuedProviderDemand::from_publication(
+        artifact.manifest().identity(),
+        Arc::clone(artifact),
+        Some(target.profile),
+        demand,
+        target.package_permissions,
+        target.semantic_bindings,
+    )?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        target.settings,
+        exclusions,
+        target.installation_assumptions,
+    )
+}
+
+pub fn prepare_saved_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     mut target: SavedProgramTarget<'_>,
-) -> Result<
-    (
-        artifact_lowering::RetainedTerminalArtifact,
-        TerminalAuthorityPermissionPolicy,
-    ),
-    Vec<Diagnostic>,
-> {
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let artifact = Arc::clone(authorization.shared_artifact());
     let origins = target
@@ -306,8 +336,6 @@ pub(crate) fn prepare_saved_program(
             Some((*id, module.identities.text(boundary.identity)?.to_owned()))
         })
         .collect();
-    let package_permissions = origins.inputs().package_permissions.clone();
-    let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
     let facts = provider_demand::ProviderDemandInputs::Target {
         profile: target.profile,
         logical,
@@ -318,32 +346,70 @@ pub(crate) fn prepare_saved_program(
         review: None,
     };
     let issued = provider_demand::IssuedProviderDemand::issue((), facts);
-    let admitted = native_inputs::admit(authorization, issued)
-        .map_err(|error| refuse(error.to_string()))?;
+    prepare_issued_program(
+        authorization,
+        issued,
+        NativeApplicationSettings {
+            application: target.application,
+            optimizations: target.optimizations,
+            x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+        },
+        target.behavior_exclusions,
+        Vec::new(),
+    )
+}
+
+/// Admit an issued target demand against its authorized Psi, then use its selected
+/// providers and application settings to prepare one native invocation.
+fn prepare_issued_program<Publisher>(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    issued: provider_demand::IssuedProviderDemand<Publisher>,
+    settings: NativeApplicationSettings<'_>,
+    behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
+) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
+    let refuse = |reason: String| vec![Diagnostic::error(reason)];
+    let provider_demand::ProviderDemandInputs::Target {
+        profile, origins, ..
+    } = issued.inputs()
+    else {
+        return Err(refuse(
+            "native application preparation requires a target-scoped provider demand".into(),
+        ));
+    };
+    let profile = *profile;
+    let package_permissions = origins.inputs().package_permissions.clone();
+    let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
+    let artifact = Arc::clone(authorization.shared_artifact());
+    let admitted =
+        native_inputs::admit(authorization, issued).map_err(|error| refuse(error.to_string()))?;
     let mut execution = select_published_providers(admitted)?;
     execution
         .bind_folded_entry(&artifact, artifact.published_evidence().map(Arc::as_ref))
         .map_err(refuse)?;
-    let effective = Arc::clone(execution.effective_artifact(&artifact).map_err(refuse)?);
-    let proposal = execution.provider_proposal(effective.view(), target.optimizations.identity());
-    let execution = execution.into_result();
-    prepare_published_application(PublishedApplicationInputs {
-        artifact: &effective,
+    let subsystem = settings.application.subsystem;
+    let (terminal, permissions) = prepare_published_application(PublishedApplicationInputs {
         execution: &execution,
-        proposal,
         bindings: &entry_bindings,
         package_permissions: package_permissions.as_ref(),
-        application: target.application,
-        optimizations: target.optimizations,
-        behavior_exclusions: target.behavior_exclusions,
-        x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+        application: settings.application,
+        optimizations: settings.optimizations,
+        behavior_exclusions,
+        x86_scalar_fma_provider: settings.x86_scalar_fma_provider,
+    })?;
+    Ok(crate::NativeProgram {
+        terminal,
+        permissions,
+        subsystem,
+        installation_assumptions,
+        profile,
     })
 }
 
 /// Complete exactly the scalar applications required by the authorized native entry.
 pub fn complete_entry_scalars(
     authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
+    proposal: &TerminalNativeRealizationProposal,
     accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
     let Some(demand) = proposal.entry_scalar_demand(authorization)? else {

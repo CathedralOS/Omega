@@ -45,7 +45,7 @@ pub(super) fn validate(
 
 fn matches_terminal_machine(
     machine: &TerminalMachine,
-    abi: &target_operations::MixedStructuralScalarFunctionAbi,
+    abi: &target_vocabulary::MixedStructuralScalarFunctionAbi,
 ) -> bool {
     machine.parameters.len() == abi.scalar_parameters.len()
         && machine
@@ -81,7 +81,7 @@ mod tests {
         BlockId, ContractId, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType,
         StructuralTypeId, ValueId,
     };
-    use target_operations::{
+    use target_vocabulary::{
         MixedStructuralScalarFunctionAbi, ScalarAbiValue, TargetStructuralParameter,
     };
     use terminal_psi::{

@@ -1,3 +1,5 @@
+mod support;
+
 use std::path::Path;
 use std::process::{Command, Stdio};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -8,8 +10,8 @@ use terminal_psi::{
 
 #[test]
 fn a_checked_boundary_returns_its_stored_descriptor() {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/ownership/stored_descriptor_boundary");
+    let project =
+        support::repository_root().join("tests/fixtures/run/ownership/stored_descriptor_boundary");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "--keep", "build.omg"])
         .current_dir(project)

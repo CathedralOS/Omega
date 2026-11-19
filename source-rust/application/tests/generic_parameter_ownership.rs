@@ -1,12 +1,13 @@
 //! Generic helpers forward values and loans without gaining discard permission.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("ownership/generic_parameter_ownership");
     let scratch = TemporaryDirectory::create("generic-parameter-storage", false).unwrap();

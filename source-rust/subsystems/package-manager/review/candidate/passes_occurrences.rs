@@ -1,86 +1,30 @@
-/*
-    We admit review occurrences in dependency-first order and join their
-    compiler-issued evidence without executing compilers directly. Acquisition
-    and the immutable parse checkpoint remain package-owned, while Build and
-    Product occurrences each have their own target, generated sources, semantic
-    bindings, and review.
-
-    For each occurrence in a `PackageReviewRound`, we assemble its complete
-    compilation inputs (`assemble_occurrence_inputs`), carry forward an
-    identical compile from a prior pass or the persistent review cache when the
-    complete inputs and build snapshot match (`carry_prior_compile`), or emit a
-    `PackageReviewWork` request for fresh compilation and then retain the
-    resulting review (`retain`). Aggregate canonical-policy bytes across the
-    closure are bounded by `MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES` (64 MiB).
-*/
+//! Reuse a complete package review only when its exact source, Build inputs, target and decisions match.
+//! A missing occurrence requires a new project compilation before it can become a review.
 
 use crate::build_session::dependency_first_package_order;
-use products::CompileFailure;
+use source_completion_accounting::SourceCompletionAccounting;
 
-use super::super::semantic_bindings::projection_error;
 use super::super::{
     CompileResolvedPackageReviewsError, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
 };
 use crate::declarations::PackageKey;
 use crate::declarations::{DependencyPurpose, purpose_slot};
-use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
+use crate::lock::PackageOccurrenceRoster;
 use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageSourceClosure};
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    AcceptedSemanticBinding, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs, derive_source_consumption_commitment,
+    PackageCompilationInputError, PackageCompilationInputs, derive_source_consumption_commitment,
 };
-use review_evidence::PackageReviewProjectionError;
-use review_evidence::record::PackageReviewEvidence;
+use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 
-use super::super::review_cache::{PackageReviewCacheWrite, compiled_review_key};
+use super::super::review_cache::{CachedOccurrenceFacts, compiled_review_key};
 use super::PackageSourceBindings;
-use std::collections::BTreeSet;
-use std::iter::empty;
 
 pub(super) const MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES: usize = 64 * 1024 * 1024;
-
-pub(super) fn projection_failure(
-    key: &PackageKey,
-    error: PackageReviewProjectionError,
-) -> CompileResolvedPackageReviewsError {
-    use PackageReviewProjectionError as Error;
-    match error {
-        Error::SourceConsumptionMissing => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::SourceConsumptionMissing {
-                package: key.clone(),
-            },
-        ),
-        Error::Projection(diagnostics) => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::Projection {
-                package: key.clone(),
-                diagnostics,
-            },
-        ),
-        Error::IdentityMismatch => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
-                package: key.clone(),
-            },
-        ),
-        Error::Encoding(error) => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::Encoding {
-                package: key.clone(),
-                error,
-            },
-        ),
-        Error::PolicyBudget => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
-                package: key.clone(),
-                maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-            },
-        ),
-        Error::SemanticBinding(error) => projection_error(key, error),
-    }
-}
 
 pub(super) fn reserve(current: usize, additional: usize) -> Option<usize> {
     current
@@ -95,21 +39,10 @@ pub struct RetainedPackageReviews {
 }
 
 impl RetainedPackageReviews {
-    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
-        occurrence_accounting(&self.occurrences)
+    pub fn source_completion_accounting(&self) -> SourceCompletionAccounting {
+        // Reused occurrences perform no additional source compilation.
+        SourceCompletionAccounting::default()
     }
-}
-
-fn occurrence_accounting(
-    occurrences: &[RetainedOccurrenceCompile],
-) -> products::SourceCompletionAccounting {
-    let mut accounting = products::SourceCompletionAccounting::default();
-    for occurrence in occurrences {
-        if let OccurrenceCompile::Live(source) = &occurrence.compilation {
-            accounting.append(source.source_completion_accounting().clone());
-        }
-    }
-    accounting
 }
 
 #[derive(Debug, Clone)]
@@ -121,49 +54,7 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) build_snapshot: build_settings::BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
     pub(super) policy_canonical_bytes: usize, // Canonical-policy bytes added to the running retained-policy total.
     pub(super) review: usize, // Index of this occurrence's review inside the pass's review vector.
-    pub(super) compilation: OccurrenceCompile, // Opaque live source custody or source-free facts recovered from cache.
-    compiled_in_pass: bool,
-}
-
-#[derive(Debug, Clone)]
-pub(super) enum OccurrenceCompile {
-    Live(compiler::PackageReviewSource),
-    Cached(Box<super::super::review_cache::CachedOccurrenceFacts>),
-}
-
-impl OccurrenceCompile {
-    fn target_entry_candidate(
-        &self,
-        owner: &PackageKey,
-    ) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
-        match self {
-            Self::Live(source) => source.target_entry_candidate().map_err(|error| {
-                projection_error(owner, error).with_source_completion_accounting(
-                    source.source_completion_accounting().clone(),
-                )
-            }),
-            Self::Cached(facts) => Ok(facts.target_entry_candidate.clone()),
-        }
-    }
-
-    fn verify_current_source_consumption(
-        &self,
-        inputs: &PackageCompilationInputs,
-    ) -> Result<(), Vec<Diagnostic>> {
-        match self {
-            Self::Live(_) => Ok(()),
-            Self::Cached(facts) => {
-                let commitment =
-                    derive_source_consumption_commitment(&facts.consumed_units, inputs)?;
-                if commitment != facts.source_consumption_commitment {
-                    return Err(vec![Diagnostic::error(
-                        "a persisted review's retained source-consumption commitment does not re-derive over its retained consumed units and the live inputs",
-                    )]);
-                }
-                Ok(())
-            }
-        }
-    }
+    pub(super) compilation: Box<CachedOccurrenceFacts>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -268,7 +159,7 @@ impl<'pass> PackageReviewPass<'pass> {
         })
     }
 
-    pub fn occurrences(&self) -> impl Iterator<Item = PackageReviewOccurrence<'_>> {
+    fn occurrences(&self) -> impl Iterator<Item = PackageReviewOccurrence<'_>> {
         self.packages.iter().flat_map(|package| {
             package
                 .purposes
@@ -290,14 +181,21 @@ impl<'pass> PackageReviewPass<'pass> {
         })
     }
 
-    pub fn begin_round<'round>(
+    /// Recover a complete review for every occurrence, or report exactly which one needs a fresh issuer.
+    pub fn recover_cached(
+        self,
+        source_bindings: &mut PackageSourceBindings,
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
+        let mut round = self.begin_round(source_bindings);
+        for occurrence in self.occurrences() {
+            round.recover_occurrence(occurrence)?;
+        }
+        round.finish_reviews()
+    }
+
+    fn begin_round<'round>(
         &'round self,
         source_bindings: &'round mut PackageSourceBindings,
-        fresh_components: &'round BTreeSet<(
-            semantic_vocabulary::PackageKeyIdentity,
-            DependencyPurpose,
-        )>,
-        recovered: &'round [RetainedPackageReviews],
     ) -> PackageReviewRound<'round> {
         PackageReviewRound {
             closure: self.closure,
@@ -307,11 +205,8 @@ impl<'pass> PackageReviewPass<'pass> {
             discovery: self.discovery,
             prior: self.prior,
             source_bindings,
-            fresh_components,
-            recovered,
             reviews: Vec::with_capacity(self.roster.occurrence_count()),
             review_positions: vec![[None; 2]; self.closure.graph().packages().len()],
-            component_candidates: BTreeMap::new(),
             occurrences: Vec::new(),
             carried_occurrences: 0,
             retained_policy_canonical_total: 0,
@@ -320,7 +215,7 @@ impl<'pass> PackageReviewPass<'pass> {
     }
 }
 
-pub struct PackageReviewRound<'pass> {
+struct PackageReviewRound<'pass> {
     closure: &'pass ResolvedPackageSourceClosure,
     execution_profile: Option<target::TargetProfile>,
     semantic_bindings_by_consumer:
@@ -329,19 +224,15 @@ pub struct PackageReviewRound<'pass> {
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
-    fresh_components: &'pass BTreeSet<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose)>,
-    recovered: &'pass [RetainedPackageReviews],
     reviews: Vec<CompilerIssuedPackageReview>,
     review_positions: Vec<[Option<usize>; 2]>, // Index into `reviews` of each package position's review, by purpose slot.
-    component_candidates:
-        BTreeMap<(semantic_vocabulary::PackageKeyIdentity, DependencyPurpose), OccurrenceCompile>,
     occurrences: Vec<RetainedOccurrenceCompile>,
     carried_occurrences: usize, // Occurrences carried forward instead of compiled.
     retained_policy_canonical_total: usize,
     target_entry_candidates: Vec<(DependencyPurpose, SemanticBindingReviewCandidate)>,
 }
 
-pub struct PackageReviewOccurrence<'occurrence> {
+struct PackageReviewOccurrence<'occurrence> {
     key: &'occurrence PackageKey,
     scope: &'occurrence PackageCompilationScope<'occurrence>,
     _timing: Option<crate::review::timings::StageTiming>,
@@ -354,41 +245,28 @@ pub struct PackageReviewOccurrence<'occurrence> {
 struct AssembledOccurrence {
     entry: std::path::PathBuf,
     build_snapshot: build_settings::BuildSnapshotRequest,
-    proposed_entry: Option<SemanticBindingReviewCandidate>,
 }
 
 impl<'pass> PackageReviewRound<'pass> {
-    pub fn admit_occurrence<'occurrence>(
+    fn recover_occurrence(
         &mut self,
-        occurrence: PackageReviewOccurrence<'occurrence>,
-    ) -> Result<Option<PackageReviewWork<'occurrence>>, CompileResolvedPackageReviewsError>
-    where
-        'pass: 'occurrence,
-    {
+        occurrence: PackageReviewOccurrence<'_>,
+    ) -> Result<(), CompileResolvedPackageReviewsError> {
         let (inputs, assembled) = self.assemble_occurrence_inputs(&occurrence)?;
         if self.carry_prior_compile(&occurrence, &inputs, &assembled)? {
-            return Ok(None);
+            return Ok(());
         }
-        let request = PackageReviewRequest {
-            inputs,
-            execution: package_compilation::build_execution::BuildExecutionContract {
-                profile: self.execution_profile,
-                snapshot: Some(assembled.build_snapshot.clone()),
+        Err(CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::Projection {
+                package: occurrence.key.clone(),
+                diagnostics: vec![Diagnostic::error(format!(
+                    "fresh {:?} review for {} requires checked project Build, source and provider evidence for {}",
+                    occurrence.purpose,
+                    occurrence.key.name().as_str(),
+                    occurrence.checked_target.target_name()
+                ))],
             },
-            entry: assembled.entry.clone(),
-            target: occurrence.checked_target,
-        };
-        Ok(Some(PackageReviewWork {
-            request,
-            completion: PackageReviewCompletion {
-                occurrence,
-                assembled,
-                closure: self.closure,
-                execution_profile: self.execution_profile,
-            },
-            maximum_policy_canonical_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES
-                .saturating_sub(self.retained_policy_canonical_total),
-        }))
+        ))
     }
 
     fn assemble_occurrence_inputs(
@@ -417,7 +295,6 @@ impl<'pass> PackageReviewRound<'pass> {
             .get(&(key.clone(), purpose))
             .cloned()
             .unwrap_or_default();
-        let mut proposed_entry = None;
         if self.discovery == TargetEntryDiscovery::Dependencies
             && inputs.root_role() == package_compilation::BuildDeclarationKind::Application
         {
@@ -435,7 +312,6 @@ impl<'pass> PackageReviewRound<'pass> {
                 .collect::<Vec<_>>();
             if let [candidate] = candidates.as_slice() {
                 semantic_bindings.push(candidate.binding().clone());
-                proposed_entry = Some((*candidate).clone());
             }
         }
         let inputs = inputs
@@ -526,14 +402,14 @@ impl<'pass> PackageReviewRound<'pass> {
         } else {
             None
         }
-        .unwrap_or_else(|| build_settings::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
-        let unanswered_inputs = inputs;
+        .unwrap_or_else(|| {
+            build_settings::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>())
+        });
         Ok((
-            unanswered_inputs,
+            inputs,
             AssembledOccurrence {
                 entry,
                 build_snapshot,
-                proposed_entry,
             },
         ))
     }
@@ -552,50 +428,27 @@ impl<'pass> PackageReviewRound<'pass> {
             checked_target,
             ..
         } = *occurrence;
-        let closure = self.closure;
         let execution_profile = self.execution_profile;
         let entry = assembled.entry.as_path();
         let build_snapshot = &assembled.build_snapshot;
-        let reused = self
-            .recovered
-            .iter()
-            .rev()
-            .map(|prior| (prior, true))
-            .chain(self.prior.map(|prior| (prior, false)))
-            .find_map(|(prior, same_pass)| {
-                prior
-                    .occurrences
-                    .iter()
-                    .find(|occurrence| {
-                        occurrence.position == position
-                            && occurrence.purpose == purpose
-                            && (!self.fresh_components.contains(&(key.identity(), purpose))
-                                || matches!(occurrence.compilation, OccurrenceCompile::Live(_)))
-                            && occurrence.entry == *entry
-                            && occurrence.inputs == *unanswered_inputs
-                            && occurrence.build_snapshot == *build_snapshot
-                    })
-                    .and_then(|occurrence| {
-                        prior
-                            .reviews
-                            .reviews()
-                            .get(occurrence.review)
-                            .map(|review| (occurrence, review.clone(), same_pass))
-                    })
-            });
-        let carried = reused
-            .map(|(occurrence, review, same_pass)| {
-                (
+        let carried = self
+            .prior
+            .and_then(|prior| {
+                let occurrence = prior.occurrences.iter().find(|occurrence| {
+                    occurrence.position == position
+                        && occurrence.purpose == purpose
+                        && occurrence.entry == *entry
+                        && occurrence.inputs == *unanswered_inputs
+                        && occurrence.build_snapshot == *build_snapshot
+                })?;
+                let review = prior.reviews.reviews().get(occurrence.review)?.clone();
+                Some((
                     occurrence.compilation.clone(),
                     review,
                     occurrence.policy_canonical_bytes,
-                    same_pass && occurrence.compiled_in_pass,
-                )
+                ))
             })
             .or_else(|| {
-                if self.fresh_components.contains(&(key.identity(), purpose)) {
-                    return None;
-                }
                 let directory = custody.compiled_review_cache_dir()?;
                 let cache = super::super::review_cache::CompiledReviewCache::open(directory)?;
                 let record = cache.lookup(&compiled_review_key(
@@ -608,15 +461,26 @@ impl<'pass> PackageReviewRound<'pass> {
                     build_snapshot,
                 )?)?;
                 let policy_canonical_bytes = record.policy_canonical_bytes()?;
-                let (review, facts) = record.into_review_and_facts(key, custody.resolution())?;
-                let occurrence = OccurrenceCompile::Cached(Box::new(facts));
-                Some((occurrence, review, policy_canonical_bytes, false))
+                let (review, facts) = record.into_review_and_facts(
+                    key,
+                    custody.resolution(),
+                    purpose,
+                    checked_target,
+                    execution_profile,
+                )?;
+                let occurrence = Box::new(facts);
+                Some((occurrence, review, policy_canonical_bytes))
             });
-        let Some((compile, review, policy_canonical_bytes, compiled_in_pass)) = carried else {
+        let Some((compile, review, policy_canonical_bytes)) = carried else {
             return Ok(false);
         };
-        compile
-            .verify_current_source_consumption(unanswered_inputs)
+        derive_source_consumption_commitment(&compile.consumed_units, unanswered_inputs).and_then(|commitment| {
+            if commitment == compile.source_consumption_commitment {
+                Ok(())
+            } else {
+                Err(vec![Diagnostic::error("retained review source consumption differs from the current package inputs")])
+            }
+        })
             .map_err(|diagnostics| {
                 CompileResolvedPackageReviewsError::new(
                     crate::review::CompileResolvedPackageReviewCause::SourceConsumptionDrift {
@@ -639,17 +503,14 @@ impl<'pass> PackageReviewRound<'pass> {
         if self.discovery == TargetEntryDiscovery::Dependencies {
             self.target_entry_candidates.extend(
                 compile
-                    .target_entry_candidate(key)?
+                    .target_entry_candidate
+                    .clone()
                     .map(|candidate| (purpose, candidate)),
             );
         }
         let review_position = self.reviews.len();
         self.review_positions[position][purpose_slot(purpose)] = Some(review_position);
         self.reviews.push(review);
-        if key != closure.graph().root() {
-            self.component_candidates
-                .insert((key.identity(), purpose), compile.clone());
-        }
         self.occurrences.push(RetainedOccurrenceCompile {
             position,
             purpose,
@@ -659,234 +520,9 @@ impl<'pass> PackageReviewRound<'pass> {
             policy_canonical_bytes,
             review: review_position,
             compilation: compile,
-            compiled_in_pass,
         });
-        self.carried_occurrences += usize::from(!compiled_in_pass);
+        self.carried_occurrences += 1;
         Ok(true)
-    }
-
-    pub fn component(
-        &self,
-        completion: &PackageReviewCompletion<'_>,
-        inputs: &PackageCompilationInputs,
-        component: semantic_vocabulary::PackageKeyIdentity,
-    ) -> Result<Option<PackageReviewComponent>, CompileResolvedPackageReviewsError> {
-        let occurrence = &completion.occurrence;
-        if component == occurrence.key.identity() {
-            return Ok(None);
-        }
-        match self
-            .component_candidates
-            .get(&(component, occurrence.purpose))
-        {
-            Some(OccurrenceCompile::Live(source)) => {
-                Ok(Some(PackageReviewComponent::Source(source.clone())))
-            }
-            Some(OccurrenceCompile::Cached(facts)) => {
-                let description = facts.component_description.clone().ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::ComponentDescriptionNotRetained {
-                        package: occurrence.key.clone(),
-                        component,
-                        purpose: occurrence.purpose,
-                    })
-                })?;
-                Ok(Some(PackageReviewComponent::Description(description)))
-            }
-            None => Err(CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::Compilation {
-                    package: occurrence.key.clone(),
-                    failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-                        format!(
-                            "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                            inputs.package_name(component).unwrap_or("<unnamed>"),
-                        ),
-                    )]),
-                },
-            )),
-        }
-    }
-
-    pub fn retain(
-        &mut self,
-        completion: PackageReviewCompletion<'_>,
-        product: compiler::PackageReviewProduct,
-        occurrence_inputs: PackageCompilationInputs,
-    ) -> Result<Option<PackageReviewCacheWrite>, CompileResolvedPackageReviewsError> {
-        let accounting = product.source.source_completion_accounting().clone();
-        self.retain_product(completion, product, occurrence_inputs)
-            .map_err(|error| error.with_source_completion_accounting(accounting))
-    }
-
-    fn retain_product(
-        &mut self,
-        completion: PackageReviewCompletion<'_>,
-        product: compiler::PackageReviewProduct,
-        occurrence_inputs: PackageCompilationInputs,
-    ) -> Result<Option<PackageReviewCacheWrite>, CompileResolvedPackageReviewsError> {
-        let PackageReviewCompletion {
-            occurrence,
-            assembled,
-            ..
-        } = completion;
-        let PackageReviewOccurrence {
-            key,
-            custody,
-            position,
-            purpose,
-            checked_target,
-            ..
-        } = occurrence;
-        let closure = self.closure;
-        let execution_profile = self.execution_profile;
-        let AssembledOccurrence {
-            entry,
-            build_snapshot,
-            proposed_entry,
-        } = assembled;
-        let entry = entry.as_path();
-        let compiler::PackageReviewProduct { evidence, source } = product;
-        let PackageReviewEvidence {
-            source_consumption_commitment,
-            selected_build_machine_identity,
-            build_observation_summary,
-            restricted_build_requests,
-            build_evaluation_usage,
-            semantic_bindings,
-            service_binding_candidates,
-            hosted_exit_binding_candidates,
-            build_handoff,
-            policy,
-            policy_canonical_bytes,
-        } = evidence;
-        if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
-            return Err(CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
-                    package: key.clone(),
-                },
-            ));
-        }
-        self.retained_policy_canonical_total =
-            reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
-                || {
-                    CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
-                    package: key.clone(),
-                    maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                },
-            )
-                },
-            )?;
-        let mut semantic_binding_candidates = service_binding_candidates;
-        semantic_binding_candidates.extend(proposed_entry);
-        if self.discovery == TargetEntryDiscovery::Dependencies {
-            for (candidate_purpose, candidate) in &self.target_entry_candidates {
-                if *candidate_purpose == purpose
-                    && semantic_bindings
-                        .iter()
-                        .any(|binding| binding == candidate.binding())
-                    && !semantic_binding_candidates
-                        .iter()
-                        .any(|existing| existing.binding() == candidate.binding())
-                {
-                    semantic_binding_candidates.push(candidate.clone());
-                }
-            }
-        }
-        semantic_binding_candidates.extend(hosted_exit_binding_candidates);
-        if self.discovery == TargetEntryDiscovery::Dependencies {
-            self.target_entry_candidates.extend(
-                source
-                    .target_entry_candidate()
-                    .map_err(|error| projection_error(key, error))?
-                    .map(|candidate| (purpose, candidate)),
-            );
-        }
-        let (policy_rows, policy_commitment) =
-            super::super::review_set::policy_rows_and_commitment(&policy).map_err(|error| {
-                CompileResolvedPackageReviewsError::new(
-                    crate::review::CompileResolvedPackageReviewCause::Encoding {
-                        package: key.clone(),
-                        error,
-                    },
-                )
-            })?;
-        let review = CompilerIssuedPackageReview {
-            key: key.clone(),
-            resolution: custody.resolution().clone(),
-            source_consumption_commitment,
-            selected_build_machine_identity,
-            build_evaluation_usage,
-            build_observation_summary,
-            restricted_build_requests,
-            semantic_bindings,
-            semantic_binding_candidates,
-            build_handoff: build_handoff.clone(),
-            policy,
-            policy_rows,
-            policy_commitment,
-        };
-        let mut cache_write = None;
-        if let Some(directory) = custody.compiled_review_cache_dir()
-            && let Some(cache) = super::super::review_cache::CompiledReviewCache::open(directory)
-            && let Some(consumed_units) = source.facts().consumed_units.as_ref()
-            && let Ok(target_entry_candidate) = source.target_entry_candidate()
-        {
-            let demanded = self.fresh_components.contains(&(key.identity(), purpose));
-            if let Some(record) = super::super::review_cache::record_compiled_review(
-                &review,
-                super::super::review_cache::CachedOccurrenceFacts {
-                    consumed_units: consumed_units.to_vec(),
-                    source_consumption_commitment,
-                    component_description: None,
-                    target_entry_candidate,
-                },
-                policy_canonical_bytes,
-            ) && let Some(cache_key) = compiled_review_key(
-                key.identity(),
-                purpose,
-                checked_target,
-                execution_profile,
-                entry,
-                &occurrence_inputs,
-                &build_snapshot,
-            ) {
-                cache_write = Some(PackageReviewCacheWrite {
-                    cache,
-                    key: cache_key,
-                    record,
-                    component_source: demanded.then(|| source.clone()),
-                });
-            }
-        }
-        let review_position = self.reviews.len();
-        self.review_positions[position][purpose_slot(purpose)] = Some(review_position);
-        self.reviews.push(review);
-        self.occurrences.push(RetainedOccurrenceCompile {
-            position,
-            purpose,
-            entry: entry.to_path_buf(),
-            inputs: occurrence_inputs,
-            build_snapshot,
-            policy_canonical_bytes,
-            review: review_position,
-            compilation: OccurrenceCompile::Live(source.clone()),
-            compiled_in_pass: true,
-        });
-        if key != closure.graph().root() {
-            self.component_candidates
-                .insert((key.identity(), purpose), OccurrenceCompile::Live(source));
-        }
-        Ok(cache_write)
-    }
-
-    pub fn source_completion_accounting(&self) -> products::SourceCompletionAccounting {
-        occurrence_accounting(&self.occurrences)
-    }
-
-    pub fn finish(self) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
-        let accounting = self.source_completion_accounting();
-        self.finish_reviews()
-            .map_err(|error| error.with_source_completion_accounting(accounting))
     }
 
     fn finish_reviews(
@@ -954,7 +590,7 @@ impl<'pass> PackageReviewRound<'pass> {
         Ok(self.into_retained())
     }
 
-    pub fn into_retained(self) -> RetainedPackageReviews {
+    fn into_retained(self) -> RetainedPackageReviews {
         RetainedPackageReviews {
             reviews: CompilerIssuedPackageReviewSet {
                 reviews: self.reviews,
@@ -963,71 +599,4 @@ impl<'pass> PackageReviewRound<'pass> {
             carried: self.carried_occurrences,
         }
     }
-}
-
-pub struct PackageReviewWork<'occurrence> {
-    pub request: PackageReviewRequest,
-    pub completion: PackageReviewCompletion<'occurrence>,
-    pub maximum_policy_canonical_bytes: usize,
-}
-
-pub struct PackageReviewRequest {
-    pub inputs: PackageCompilationInputs,
-    pub execution: package_compilation::build_execution::BuildExecutionContract,
-    pub target: target::TargetProfile,
-    pub entry: std::path::PathBuf,
-}
-
-pub struct PackageReviewCompletion<'occurrence> {
-    occurrence: PackageReviewOccurrence<'occurrence>,
-    assembled: AssembledOccurrence,
-    closure: &'occurrence ResolvedPackageSourceClosure,
-    execution_profile: Option<target::TargetProfile>,
-}
-
-impl PackageReviewCompletion<'_> {
-    pub fn compilation_failure(
-        &self,
-        failure: CompileFailure,
-    ) -> CompileResolvedPackageReviewsError {
-        let occurrence = &self.occurrence;
-        CompileResolvedPackageReviewsError::from_compilation(
-            occurrence.key.clone(),
-            PackageCheckedContext::new(
-                occurrence.purpose,
-                occurrence.checked_target,
-                self.execution_profile,
-            ),
-            self.closure.dependency_path(occurrence.key),
-            failure,
-        )
-    }
-
-    pub fn input_failure(
-        &self,
-        errors: Vec<PackageCompilationInputError>,
-    ) -> CompileResolvedPackageReviewsError {
-        CompileResolvedPackageReviewsError::compilation_inputs(self.occurrence.key, errors)
-    }
-
-    pub fn review_failure(
-        &self,
-        failure: compiler::PackageReviewFailure,
-    ) -> CompileResolvedPackageReviewsError {
-        match failure {
-            compiler::PackageReviewFailure::Compilation(failure) => {
-                self.compilation_failure(failure)
-            }
-            compiler::PackageReviewFailure::Projection {
-                failure,
-                accounting,
-            } => projection_failure(self.occurrence.key, failure)
-                .with_source_completion_accounting(accounting),
-        }
-    }
-}
-
-pub enum PackageReviewComponent {
-    Source(compiler::PackageReviewSource),
-    Description(IndependentComponentDescription),
 }

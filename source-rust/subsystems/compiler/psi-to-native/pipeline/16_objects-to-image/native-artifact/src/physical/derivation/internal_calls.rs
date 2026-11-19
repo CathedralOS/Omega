@@ -24,7 +24,7 @@ use machine_code::SemanticCodeSite;
 use optimization_core::NativeOptimizationProjectionIdentity;
 use semantic_vocabulary::{InvocationSite, MachineId};
 use target::{Architecture, NativeTarget};
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::OperationKind;
 
 enum InternalCallRow<'artifact> {
@@ -37,7 +37,7 @@ fn rejoin_call_custody<'publication>(
     occurrence: &OptimizedBoundaryOccurrence,
     callee: MachineId,
     field_offset: usize,
-) -> Result<&'publication legalized_operations::LegalizedScalarCall, &'static str> {
+) -> Result<&'publication target_vocabulary::LegalizedScalarCall, &'static str> {
     let owner = CallSiteOwner::from(occurrence.invocation_site());
     let function = publication
         .call_origins()
@@ -261,7 +261,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         return Err("selected boundary internal call changed its completion transfers");
     }
 
-    let legalized_operations::NativeCallOrigin::InstalledProvider {
+    let target_vocabulary::NativeCallOrigin::InstalledProvider {
         boundary: selected_boundary,
         provider,
         assumption,

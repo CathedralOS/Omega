@@ -1,74 +1,28 @@
-# Omega Package Review Evidence
+# Package review evidence
 
-This crate records checked compiler facts for package review. Its output is
-inert evidence: not package admission, an accepted lock, or proof of an audit.
+`record` holds the package policy that can be retained in a lock. `encoding` projects decisions, encodes canonical bytes and text, and recovers them under the caller's resource limits. Lock recovery, policy differences and comparison of retained consent use these records directly. Their versions and coordinates belong to the [schema](EVIDENCE_SCHEMA.md) and [policy baseline](POLICY_BASELINE.md).
 
-Capture reads the immutable `CheckedCompilation` product directly from
-`products`. Production review does not depend on the compiler coordinator or Build
-evaluator; running the compiler is a test-only dependency for fixtures.
+`TerminalPermissionAcceptance::compare_policy` compares a complete proposed policy with the retained lock rows for the same package and target. It checks the version and exact coordinate and meaning of each Terminal permission, assumed binding and component assumption. The application must separately establish that the proposal belongs to its current checked product before execution. Recovery of saved bytes alone confers no execution permission.
 
-[`permission_acceptance.rs`](src/permission_acceptance.rs) compares the root
-Product's permission consent, as supplied by the package manager, with freshly
-checked service declarations. Compilation calls it before native production;
-it neither rebuilds a full review nor creates consent. Schema,
-package, target, row coordinates and complete readable meanings must match.
+## Issuing a fresh package review
 
-`PackageReviewInput` borrows the candidate's typed trees and the
-`CheckedCompilation` holding them. It refuses a candidate that is not the
-accepted source, a non-portable judgment, an incomplete declaration subject,
-or a selected Build without an accepted judgment. It grants no acceptance.
+The [package review contract](../../../../../wiki/spec/packages/review.md) requires one complete review tied to the same source, Build, target and execution. The [candidate pass](../candidate/passes_occurrences.rs) consumes the in-memory project handoff. The fields it receives have distinct issuers.
 
-Start at [`src/lib.rs`](src/lib.rs), then follow the question you are asking:
+| Review fields | Required source |
+| --- | --- |
+| Source consumption commitment, consumed units, accepted semantic bindings | `CheckedSourceCustody` retains the exact frozen trees and the `PackageCompilationSubject`. Source identity includes the selected source closure. |
+| Build machine, evaluation usage, observed inputs and outputs, restricted requests | `select_build_machine` and `admit_build_machine` establish the selected Build. `PreparedBuildEvaluation` and the evaluated configuration own its completed evaluation. A request is a `build_consent::RestrictedBuildRequest`, including its bounds and grant root. |
+| Build handoff | `PackageBuildHandoff` belongs to package compilation. Its package, target, source commitment and selection observation must match this exact occurrence. |
+| Service and hosted-exit candidates | An accepted semantic binding must carry the exact supplier's declaration, compiled source and checked service schema. A nomination is independent of the consumer's later decision. |
+| Whole-package policy and its canonical byte count | The source publication must cover the complete declared inventory, including unused public declarations. Native selection must match the same source and target for provider and permission rows. The encoder measures the completed baseline against the caller's budget. |
 
-```text
-src/
-├── lib.rs       public entrance
-├── record/      what stable package-review facts exist
-├── capture/     how checked compiler state produces those facts
-└── encoding/    how facts are canonically encoded and recovered
-```
+The V2 project path has no issuer that joins these facts for a complete checked occurrence. A saved Psi artifact and an evaluated Build each cover only a part of the contract. The previous projector and its runtime permission custody checks are retained together in [the V1 capture archive](_recycling/v1-product-capture/capture.md). Package review cannot use a partial baseline to accept a new occurrence. Existing lock rows and canonical records remain readable.
 
-The ratified package workflow reviews compiler-derived reachability, unsafe API
-and assumption facts. The lock records pins, the dependency graph,
-accepted baselines and decisions; the project trusts whoever lands it. Compiler
-proof and reach checks and native artifact checks keep separate jobs.
-The [review specification](../../../../wiki/spec/packages/review.md) defines
-those distinctions; [capture joins](capture.md) maps the compiler inputs and the
-source each one explains.
+### Target-entry proposals
 
-## Record
+For a cached occurrence, the [candidate codec](../candidate/review_cache/record_codec.rs) recovers the binding and its full `ServiceSchema` and checks the normalized schema digest for that exact role. The [candidate pass](../candidate/passes_occurrences.rs) consumes the cached nomination only within its occurrence checks. A changed role, supplier, source or target needs a fresh reviewed occurrence.
 
-`record/` is the review vocabulary, free of source handles. Begin with
-`record.rs`; its children group package identity, public signatures and
-contracts, authority and behavior, representation commitments, complete package
-records, and policy rows. It neither inspects compiler state nor encodes
-stored bytes.
-
-The representation record marks package-owned opaque data as `Unbound`, and
-separately records which opaque, conformance and carrier forms each public
-producer candidate makes available. Availability chooses nothing for a consumer
-and may coexist with `Unbound`. [Opaque consumer demand](../../../../wiki/spec/build/opaque_representations.md)
-belongs to the consumer that selects it and exists only where a value actually
-crosses a boundary by value at run time. A demand keeps the exact boundary
-requirement application, the complete checked shape graph, every opaque carrier
-occurrence and its semantic path, the replay-validated physical placement, the
-target and calling policy, and strong selection and boundary-plan commitments. Checked compilation records the exact carrier shape root as it
-materializes each opaque; capture does not infer occurrences from equal layouts
-or an aggregate digest. Package composition joins each real foreign opaque use
-to the producer's declaration and availability rows, tied to the immutable
-source the consumer compiled against, and requires
-the selected application to equal the producer's own selection at the exchange.
-It does not need a certified `PackageInstance` or a lock-promotion stage.
-
-## Capture
-
-`capture/` is the only part that reads compiler state. Begin with `capture.rs`;
-`input.rs` builds the input, `policy.rs` the whole-package baseline,
-`declarations.rs` public declarations, `callables.rs` machine contracts and
-behavior, `package_review.rs` review evidence, `runtime_permissions.rs` consent
-rows, and `semantic_bindings.rs` the target-entry binding candidate. Capture may
-build records; records never depend on capture. Capture refuses an unsupported
-nonempty declaration or authority inventory rather than return a partial review.
+For a fresh occurrence, `ProductCodeSource` can join the actual accepted source and package custody, and its `publish_provider_demand` receives a selection for one exact target. The application still needs a project review executor to deliver that declaration's validated schema and complete policy to the candidate pass. The V1 source handle could also recompile an independent component on demand. A V2 executor must obtain the component from its owning publication route before using it for a consumer.
 
 ## Encoding
 
@@ -224,7 +178,7 @@ with no nested envelopes or budget resets. Recovery checks that components
 agree on package and target, declaration scopes, canonical ordering and kept
 cross-component associations, then exact re-encoding, without an old checkout.
 This is not a lock or a policy decision: the manager's
-[lock format](../package-manager/src/lock/README.md) joins it to source pins,
+[lock format](../../lockfile/README.md) joins it to source pins,
 the graph and past decisions. Source locations, proof certificates,
 stand-down and discharge records, and replay receipts are left out.
 

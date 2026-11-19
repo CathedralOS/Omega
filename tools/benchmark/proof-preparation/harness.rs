@@ -71,7 +71,7 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
             Some(package),
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(&text)
@@ -95,7 +95,7 @@ fn inputs(path: &std::path::Path) -> Vec<Input> {
             declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package)],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &[],
             bindings: &[],
             supplies: &[],

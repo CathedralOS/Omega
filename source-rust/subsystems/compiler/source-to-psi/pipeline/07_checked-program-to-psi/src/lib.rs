@@ -71,7 +71,7 @@ pub(crate) mod observation {
         /// evidence seals beside that product. Entry receipt records
         /// `prepare_program_entry_receipt`: that canonical artifact in,
         /// `CheckedProgramEntryTerminalReceipt` out. Elaboration and discharge
-        /// remain the judgment in `AcceptedTerminalSource::judge`.
+        /// run before the publisher receives the whole-compilation judgment.
         pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
             match self {
                 Self::EntryReceipt => (

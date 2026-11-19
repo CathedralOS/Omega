@@ -1,9 +1,9 @@
 // Source-seed discovery and declaration admission for dependency-owned Product
 // provider selections (`product_selection_source_seeds`,
-// `rejoin_package_provider_selections`, `admit_retained_product_declaration`).
+// `admitted_package_provider_selections`, `admit_retained_product_declaration`).
 // Authenticates each retained base or generated source file against the
 // receiving compilation's immutable `SourceFileSystem` or supplying
-// `PackageBuildHandoff` before rejoining declaration handles.
+// `PackageBuildHandoff` before providing its declarations to Product preparation.
 
 use super::provider_defaults::CompletedProviderDefaults;
 use super::{PackageBuildHandoff, PackageCompilationInputs};
@@ -12,7 +12,7 @@ use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
-use source_compiler::evaluation::provider_declarations::ProviderSelection;
+use source_compiler::evaluation::provider_declarations::RetainedProviderSelection;
 use std::path::PathBuf;
 
 impl PackageCompilationInputs {
@@ -73,10 +73,9 @@ impl PackageCompilationInputs {
         Ok(paths)
     }
 
-    pub fn rejoin_package_provider_selections(
+    pub fn admitted_package_provider_selections(
         &self,
-        source: &mut source_compiler::SourceContinuation,
-    ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
+    ) -> Result<Vec<RetainedProviderSelection>, Vec<Diagnostic>> {
         let mut selections = Vec::new();
         for (scope, bundle) in self.dependency_build_handoff_instances() {
             if scope != DependencyPurpose::Product {
@@ -85,7 +84,7 @@ impl PackageCompilationInputs {
             if let Some(defaults) = CompletedProviderDefaults::from_package(bundle)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?
             {
-                selections.extend(defaults.rejoin(source, self)?);
+                selections.extend(defaults.admit(self)?);
             }
         }
         Ok(selections)

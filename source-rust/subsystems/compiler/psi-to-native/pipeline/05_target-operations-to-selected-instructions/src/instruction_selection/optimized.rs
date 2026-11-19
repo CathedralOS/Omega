@@ -237,17 +237,18 @@ pub(crate) mod model {
             &self.body
         }
 
-        pub fn into_optimization_input(
+        pub fn into_optimization_settings(
             self,
-        ) -> selected_instruction_analyses::SelectedOptimizationInput {
-            selected_instruction_analyses::SelectedOptimizationInput {
-                program: self.selected_program(),
-                custody: self.custody().core(),
-                register_environment: self.register_environment,
-                selections: self.selections,
-                budget_per_pass: self.budget_per_pass,
-                record: selected_instruction_analyses::SelectedOptimizationRecord::default(),
-            }
+        ) -> (
+            ValidatedTargetRegisterEnvironment,
+            OptimizationSelections,
+            OptimizationWorkBudget,
+        ) {
+            (
+                self.register_environment,
+                self.selections,
+                self.budget_per_pass,
+            )
         }
 
         pub fn selected_program(&self) -> selected_instructions::SelectedProgram {

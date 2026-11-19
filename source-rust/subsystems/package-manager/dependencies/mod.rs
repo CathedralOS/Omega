@@ -18,17 +18,14 @@ pub mod source;
 
 pub(crate) use compiler_input::PackageCompilationScope;
 
-mod accepted_compilation;
+mod accepted_compilation_identity;
+mod reviewed_host_packages;
 pub mod declarations;
 mod prepare_project;
 mod stage_build_edit;
 
-pub(crate) use accepted_compilation::compiler_input_identity;
-pub use accepted_compilation::{
-    AdmittedProjectCompilation, ProjectCompilationAdmissionRequest, ProjectCompilationCompletion,
-    ProjectCompilationError, ProjectCompilationOutcome, ReviewedHostPackages,
-    admit_project_compilation, admit_project_products,
-};
+pub(crate) use accepted_compilation_identity::compiler_input_identity;
+pub use reviewed_host_packages::ReviewedHostPackages;
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
     LocalProjectPreparation, PrepareLocalProjectError, PreparedLocalProject,

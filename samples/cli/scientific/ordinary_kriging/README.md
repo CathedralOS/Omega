@@ -1,5 +1,7 @@
 # Ordinary kriging
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 Predict a latent spatial field with an unknown constant mean. The declared
 process covariance is `C(p,q) = variance * exp(-||p-q|| / range)` in planar
 coordinate units. Observation errors are independent with common variance

@@ -17,6 +17,9 @@ file bytes.
 mod snapshot;
 pub use snapshot::{SourceSnapshotEntry, SourceSnapshotError, SourceSnapshotMetadata};
 
+mod inventory;
+pub use inventory::{BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory};
+
 use diagnostics::Diagnostic;
 use filesystem_authority::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind,

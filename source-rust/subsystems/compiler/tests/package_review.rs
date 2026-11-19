@@ -2343,7 +2343,7 @@ fn saved_native_inputs_roundtrip_the_checked_product_on_every_host() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2564,7 +2564,7 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy:
-            provider_admission::provider_admission::current_terminal_authority_policy(),
+            provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
         optimization_rollback: Default::default(),
     });
@@ -2991,13 +2991,13 @@ fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
     session.resources().record_source_completion(history);
     let staging = force_build_cleanup_failure(workspace.path());
     let primary = package_manager::operations::PackageInspectionError::from(
-        products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+        build_evaluation_result::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
             "actual primary inspection failure",
         )]),
     );
     assert!(primary.source_completion_accounting().receipts().is_empty());
     let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
-    let Some(products::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
+    let Some(build_evaluation_result::CompileFailure::Diagnostics(diagnostics)) = failure.compilation_failure()
     else {
         panic!("cleanup must preserve the original typed compilation cause")
     };
@@ -3322,11 +3322,11 @@ fn review_keeps_the_target_selected_fixed_layout_delivery_contract() {
 
     let main = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/main.omg"
     ));
     let build = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
+        "/../../../samples/cli/facts/fixed_layout_storage/target_body/build.omg"
     ));
     let (_workspace, _session, checked) = captured_review_compilation(main, build);
     let checked = checked.expect("the original Product reaches checked target supply");
@@ -3544,12 +3544,11 @@ machine main() {}
     let [build] = reviewed.policy.callables().callables() else {
         panic!("the selected Build must retain its own checked contract");
     };
-    assert_eq!(
-        build.identity().path(),
-        checked
-            .symbols
-            .display_path(checked.build().selected_build_machine_symbol.unwrap(), "::",)
-    );
+    let activation = checked.build().selected_build_declaration.as_ref().unwrap();
+    let selected = source_compiler::source_state::source_subjects::rejoin_build_activation(
+        &checked, Some(package), activation,
+    ).unwrap();
+    assert_eq!(build.identity().path(), checked.symbols.display_path(selected, "::"));
     assert_eq!(
         build.identity().owner(),
         review_evidence::record::PackageReviewNominalOwner::Package(package)
@@ -3581,7 +3580,7 @@ machine main() {}
     // Build invocation, and dropping Build custody cannot publish its rows.
     let source = std::sync::Arc::clone(checked.source_inspection().program());
     let roster = checked.terminal_publication().roster().unwrap().clone();
-    let other_judgment = roster.judge(std::sync::Arc::clone(&source)).unwrap();
+    let other_judgment = source_compiler::judge_source_roster(roster.clone(), std::sync::Arc::clone(&source)).unwrap();
     let publication = std::sync::Arc::new(
         source_compiler::SourcePublication::judge(
             source,
@@ -3828,5 +3827,5 @@ machine main() {}
     session.close().unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;

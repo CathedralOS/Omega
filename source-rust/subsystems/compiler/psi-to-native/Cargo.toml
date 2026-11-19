@@ -8,10 +8,11 @@ version.workspace = true
 path = "psi_to_native.rs"
 
 [features]
-test-support = []
+test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
+provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
 target-provider-admission = { path = "verification/target-providers" }
@@ -88,3 +89,7 @@ native-compiler = { path = ".", features = ["test-support"] }
 optimization-unit = { path = "pipeline/representations/abstract-operations/optimization-unit" }
 legalized-operations = { path = "pipeline/representations/target-operations/legalized-operations" }
 target-operations = { path = "pipeline/representations/target-operations" }
+
+[target.'cfg(all(target_os = "linux", target_arch = "x86_64"))'.dev-dependencies]
+bounded-process = { path = "../../../foundation/bounded-process" }
+platform-custody = { path = "../../../foundation/filesystem" }

@@ -35,4 +35,3 @@ calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
 structural-storage = { path = "../representations/structural-storage" }
-selected-instruction-analyses = { path = "../06_selected-instructions-to-selected-instructions/analyses" }

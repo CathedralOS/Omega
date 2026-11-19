@@ -28,6 +28,17 @@ impl CompilerRequestOutcome {
         }
     }
 
+    /// Keep compiler invariant failures distinct from invocation errors and
+    /// source refusals when a Build requested independent validation.
+    pub fn of_stage_validation(error: &crate::stage_validators::NativeValidationError) -> Self {
+        use crate::stage_validators::NativeValidationError;
+        match error {
+            NativeValidationError::Compilation(diagnostics) => Self::of_refusal(diagnostics),
+            NativeValidationError::Unavailable(_) => Self::Reject,
+            NativeValidationError::Failed(_) => Self::InternalFailure,
+        }
+    }
+
     pub const fn halt_value(self) -> u8 {
         match self {
             Self::Complete => 0,

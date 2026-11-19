@@ -1,0 +1,13 @@
+[package]
+name = "normalized-build-settings"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "settings.rs"
+
+[dependencies]
+build-time-values = { path = "../../evaluation/values" }
+optimization-selections = { path = "../../../foundation/optimization-selections" }
+target = { path = "../../../psi-to-native/targets/target" }

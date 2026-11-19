@@ -19,7 +19,7 @@ use terminal_authority_receipts::{
 use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use provider_admission::ProviderExecutionEvidence;
-use provider_admission::provider_admission::AdmittedNativeProviders;
+use provider_admission::AdmittedNativeProviders;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 
 #[path = "dynamic_elf.rs"]
@@ -177,6 +177,12 @@ pub struct FinishedNativeImage {
 }
 
 impl FinishedNativeImage {
+    pub fn parts(
+        &self,
+    ) -> (&RequestedNativeArtifact, Option<&crate::TerminalRuntimeProvisions>) {
+        (&self.artifact, self.runtime.as_ref())
+    }
+
     pub fn into_parts(
         self,
     ) -> (

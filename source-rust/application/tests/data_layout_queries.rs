@@ -4,13 +4,14 @@
 //! The positive runs in native code and in the Psi interpreter; its twin
 //! differs only in the queried record, which the C policy cannot lay out, and
 //! must be refused rather than receive a fabricated measurement.
+
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn fixture(path: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
-        .join(path)
+    support::repository_root().join("tests/fixtures").join(path)
 }
 
 fn run_both(project: &Path) -> (Output, String) {

@@ -9,10 +9,8 @@ operation-operands = { path = "../representations/operation-operands" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../08_register-homes-to-post-allocation-machine" }
 installation-admission = { path = "../../verification/installation-admission" }
-legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 structural-storage = { path = "../representations/structural-storage" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
-target-operations = { path = "../representations/target-operations" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }

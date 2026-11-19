@@ -39,12 +39,31 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+/// The immutable acquisition and source map a resumed Build stage was assembled from.
+#[derive(Clone)]
+pub struct BuildStageAcquisition {
+    capture: crate::CapturedLocalSource,
+    sources: Arc<source_compiler::source_inputs::SourceMap>,
+}
+
+impl BuildStageAcquisition {
+    pub fn retains(
+        &self,
+        capture: &crate::CapturedLocalSource,
+        typed: &source_compiler::source_state::TypedTrees,
+    ) -> bool {
+        &self.capture == capture && typed.symbols.source_map()
+            .is_some_and(|selected| Arc::ptr_eq(&self.sources, &selected))
+    }
+}
+
 #[derive(Clone)]
 pub struct AssembledSyntax {
     pub root_sources: Vec<source_text::SourceId>, // Selected root-package `SourceId`s.
     pub syntax_trees: SourceSyntax,               // Parsed syntax forest.
     pub source_items: Vec<(source_text::SourceId, source_compiler::SourceItems)>, // Parser-issued authored item roots per source.
     pub sources: Arc<source_compiler::source_inputs::SourceMap>, // Selected `SourceMap` cohort.
+    pub build_source_acquisition: Option<BuildStageAcquisition>,
     pub anonymous_owner: Option<crate::AnonymousSourceCapture>, // Unbound anonymous capture carried until `Product` sealing.
     pub product_sources: Option<DeferredProductSources>, // Deferred `Product` continuation held during `Build` evaluation.
     pub build_source: Option<BuildSourceSelection>, // Exact authored or compiler-default `Build` source selection.
@@ -187,6 +206,7 @@ impl DeferredProductSources {
             source_items,
             syntax_trees: storage.syntax_trees,
             sources: Arc::new(storage.sources),
+            build_source_acquisition: None,
             anonymous_owner: None,
             product_sources: None,
             build_source,
@@ -305,6 +325,7 @@ impl DeferredProductSources {
             })
             .map(|file| file.source_id)
             .collect();
+        let acquisition = storage.unbound_acquisition.clone();
         let capture = storage.retain_anonymous_owner(&generated_source_custody)?;
         let (sources, anonymous_owner) = match capture {
             Some(capture) => (capture.sources().clone(), Some(capture)),
@@ -316,6 +337,10 @@ impl DeferredProductSources {
                 root_sources,
                 source_items,
                 syntax_trees: storage.syntax_trees,
+                build_source_acquisition: acquisition.map(|capture| BuildStageAcquisition {
+                    capture,
+                    sources: Arc::clone(&sources),
+                }),
                 sources,
                 anonymous_owner,
                 product_sources: Some(DeferredProductSources {
@@ -801,6 +826,7 @@ impl ImmutableSourceParseCheckpoint {
                 .map(|(_, roots)| (roots.source_id, roots.root_items.clone()))
                 .collect(),
             syntax_trees: source_storage.syntax_trees,
+            build_source_acquisition: None,
             sources,
             anonymous_owner,
             product_sources,
@@ -1453,13 +1479,17 @@ impl PsiCompilationObserver for ParsingTimings<'_> {
 }
 
 #[cfg(test)]
+#[path = "../../../../../../../tests/support/fixture_repository.rs"]
+mod fixture_repository;
+
+#[cfg(test)]
 mod requirement_preparation_tests {
     use super::*;
 
     #[test]
     fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
+        let root = fixture_repository::root()
+            .join("tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
             .canonicalize()
             .expect("the existing scalar fixture's exact source path");
         let core = crate::source::source_imports::bundled_core_root().unwrap();
@@ -1480,7 +1510,7 @@ mod requirement_preparation_tests {
                 file.source.as_ref(),
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../source/library/core/indexing.omg"
+                    "/../../../../../source/library/core/indexing.omg"
                 ))
             );
             file.source_id

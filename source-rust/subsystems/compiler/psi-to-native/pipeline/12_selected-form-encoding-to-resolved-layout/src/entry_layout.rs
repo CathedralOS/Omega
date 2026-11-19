@@ -1,36 +1,33 @@
 //! Lay out an encoded adapter's body-call instruction before object relocation.
 
+use machine_code::layout::AdapterCallField;
 use physical_recipes::{
     native_entry_bridge::NativeEntryBridgeCode, native_foreign_bridge::NativeForeignBridgeCode,
 };
 use target::Architecture;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AdapterCallField {
-    X86Relative32 { field_offset: usize },
-    Aarch64Branch26 { instruction_offset: usize },
-}
-
-impl AdapterCallField {
-    fn read(architecture: Architecture, bytes: &[u8], field: usize) -> Option<Self> {
-        match architecture {
-            Architecture::X86_64 => {
-                let opcode = field.checked_sub(1)?;
-                let end = field.checked_add(4)?;
-                (bytes.get(opcode..end)? == target_x86_64::ORDINARY_DIRECT_CALL_BYTES).then_some(
-                    Self::X86Relative32 {
-                        field_offset: field,
-                    },
-                )
-            }
-            Architecture::Aarch64 => {
-                let end = field.checked_add(4)?;
-                (field.is_multiple_of(4)
-                    && bytes.get(field..end)? == target_aarch64::ORDINARY_DIRECT_CALL_BYTES)
-                    .then_some(Self::Aarch64Branch26 {
-                        instruction_offset: field,
-                    })
-            }
+fn unresolved_call_field(
+    architecture: Architecture,
+    bytes: &[u8],
+    field: usize,
+) -> Option<AdapterCallField> {
+    match architecture {
+        Architecture::X86_64 => {
+            let opcode = field.checked_sub(1)?;
+            let end = field.checked_add(4)?;
+            (bytes.get(opcode..end)? == target_x86_64::ORDINARY_DIRECT_CALL_BYTES).then_some(
+                AdapterCallField::X86Relative32 {
+                    field_offset: field,
+                },
+            )
+        }
+        Architecture::Aarch64 => {
+            let end = field.checked_add(4)?;
+            (field.is_multiple_of(4)
+                && bytes.get(field..end)? == target_aarch64::ORDINARY_DIRECT_CALL_BYTES)
+                .then_some(AdapterCallField::Aarch64Branch26 {
+                    instruction_offset: field,
+                })
         }
     }
 }
@@ -63,7 +60,7 @@ impl<Code> ResolvedBridge<Code> {
 pub(crate) fn resolve_native_entry_bridge(
     encoded: NativeEntryBridgeCode,
 ) -> Result<ResolvedNativeEntryBridge, BridgePlacementError> {
-    let call = AdapterCallField::read(
+    let call = unresolved_call_field(
         encoded.request().target.architecture,
         encoded.bytes(),
         encoded.call_field_offset(),
@@ -78,7 +75,7 @@ pub(crate) fn resolve_native_entry_bridge(
 pub(crate) fn resolve_native_foreign_bridge(
     encoded: NativeForeignBridgeCode,
 ) -> Result<ResolvedNativeForeignBridge, BridgePlacementError> {
-    let call = AdapterCallField::read(
+    let call = unresolved_call_field(
         encoded.request().target.architecture,
         encoded.bytes(),
         encoded.call_field_offset(),
@@ -198,15 +195,15 @@ mod tests {
                 },
             ),
         ] {
-            assert_eq!(AdapterCallField::read(arch, code, field), Some(expected));
+            assert_eq!(unresolved_call_field(arch, code, field), Some(expected));
             for wrong in [0, field - 1, field + 1, usize::MAX] {
-                assert!(AdapterCallField::read(arch, code, wrong).is_none());
+                assert!(unresolved_call_field(arch, code, wrong).is_none());
             }
             let start = field - usize::from(arch == Architecture::X86_64);
             for index in start..field + 4 {
                 let mut changed = code.to_vec();
                 changed[index] ^= 1;
-                assert!(AdapterCallField::read(arch, &changed, field).is_none());
+                assert!(unresolved_call_field(arch, &changed, field).is_none());
             }
         }
     }

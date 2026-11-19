@@ -130,6 +130,9 @@ fn declared_reference_result<'module>(
                     result.structural_type,
                     result.multiplicity,
                     0,
+                )
+                .map_err(
+                    |_| "public reference result has an unresolved declared lifetime frontier",
                 )?;
             }
             &[]

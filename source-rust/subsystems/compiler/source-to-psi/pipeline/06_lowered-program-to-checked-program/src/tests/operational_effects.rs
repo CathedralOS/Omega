@@ -111,10 +111,16 @@ fn private_omission_infers_the_envelope() {
         "machine wrapped() -> u32",
     );
     let accepted = accepted(&text);
-    let root = &accepted.elaboration.module.machines[0];
-    assert_eq!(root.declared_blocking, None);
-    assert!(root.published_may_block);
-    assert!(!root.published_may_suspend);
+    let (wrapped, _) = accepted
+        .elaboration
+        .names
+        .iter()
+        .find(|(_, names)| names.machine == "wrapped")
+        .expect("the checked closure includes the private wrapper");
+    let wrapper = accepted.elaboration.module.machine(wrapped).unwrap();
+    assert_eq!(wrapper.declared_blocking, None);
+    assert!(wrapper.published_may_block);
+    assert!(!wrapper.published_may_suspend);
 }
 
 #[test]

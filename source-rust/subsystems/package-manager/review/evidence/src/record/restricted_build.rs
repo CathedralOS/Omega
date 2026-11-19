@@ -10,7 +10,7 @@
 // in the enum so review surfaces it if an evaluator ever carries it, even
 // though build admission issues only scoped grants.
 
-use package_compilation::build_execution::{
+use build_consent::{
     RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
     RestrictedBuildOperation, RestrictedBuildRequest,
 };
@@ -23,7 +23,7 @@ pub(crate) enum PackagePolicyRestrictedBuildOperation {
 }
 
 pub(crate) type PackagePolicyRestrictedBuildGrantRoot =
-    package_compilation::RestrictedBuildGrantRoot;
+    build_consent::RestrictedBuildGrantRoot;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyRestrictedBuildGrant {

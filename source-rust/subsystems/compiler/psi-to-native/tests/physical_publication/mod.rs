@@ -52,7 +52,7 @@ fn emit_body<'execution>(
     inspect_target: impl FnOnce(&target_lowering::NativeBodyPlan),
 ) -> (
     crate::pipeline::realization::physical_body::BodyObject,
-    provider_admission::provider_admission::AdmittedNativeProviders<'execution>,
+    provider_admission::AdmittedNativeProviders<'execution>,
 ) {
     emit_body_inspecting_physical(admitted, retain_native_stage_inputs, inspect_target, |_| {})
 }
@@ -64,7 +64,7 @@ fn emit_body_inspecting_physical<'execution>(
     inspect_physical: impl FnOnce(&crate::pipeline::realization::physical_body::PreparedPhysicalBody),
 ) -> (
     crate::pipeline::realization::physical_body::BodyObject,
-    provider_admission::provider_admission::AdmittedNativeProviders<'execution>,
+    provider_admission::AdmittedNativeProviders<'execution>,
 ) {
     let profile = target::TargetProfile::WindowsX64;
     let observation = crate::pipeline::observations::NativePipelineObservation::new(
@@ -916,7 +916,7 @@ fn check_canonical_publication(
     Option<image_emission::FragmentReplay>,
     published_object_verification::NativeStageReplay,
 ) {
-    use provider_admission::provider_admission::{
+    use provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
     };
     let entry = artifact.semantic_module().entry.unwrap();
@@ -935,7 +935,7 @@ fn check_canonical_publication(
     })
     .unwrap();
     let adapters =
-        provider_admission::provider_admission::retain_selected_provider_adapters(&selected)
+        provider_admission::retain_selected_provider_adapters(&selected)
             .unwrap();
     let policy = current_terminal_authority_policy();
     let exclusions = native_behavior_exclusions::BehaviorExclusions::default();
@@ -966,7 +966,7 @@ fn check_canonical_publication(
         behavior_exclusions: &exclusions,
     };
     let admitted =
-        artifact_lowering::admit_native_realization(&authorize_fixture(&artifact), &admission)
+        artifact_lowering::test_support::admit_native_realization(&authorize_fixture(&artifact), &admission)
             .expect("canonical constant admits without provider authority");
     let runtime_input = admitted.input.optimization_input().runtime_input();
     assert!(std::ptr::eq(

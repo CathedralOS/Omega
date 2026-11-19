@@ -6,13 +6,12 @@
 // step reads the retained Terminal product, its native proposal and the
 // request; `compile` then runs Omega 00 to 09 once, front to back.
 
-mod application;
 mod program_entry;
 pub(crate) mod published_application;
 pub(in crate::pipeline) mod required_scalars;
 
+use verified_optimization_input::{PreparedNativeExecution, RetainedTerminalArtifact, TerminalNativeRealizationProposal};
 use super::request::NativeCompileRequest;
-use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
 use psi_target_layouts::admit_target_layouts;
@@ -111,7 +110,7 @@ pub(crate) fn prepare<'input>(
 
 fn validate_installation_environment_inputs(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
+    proposal: &TerminalNativeRealizationProposal,
     assumptions: &[InstallationEnvironmentAssumption],
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: &str| {

@@ -1,6 +1,6 @@
 # Accepted project lock
 
-The [lock specification](../../../../../../wiki/spec/packages/locks.md) says
+The [lock specification](../../../../wiki/spec/packages/locks.md) says
 what the lock means to users; this note covers the current text format and
 the API that reads it.
 
@@ -65,7 +65,7 @@ discovery and bound passes. On a mismatch it fails with the package name and
 `omega packages update`; it never audits or updates acceptance itself. The
 compiler input digest combines the compiler's embedded build-input identity
 with the selected toolchain library's content. It detects stale acceptance; it
-does not vouch for the compiler, host or reviewer. See [ordinary compilation](../../../../../../wiki/spec/packages/acceptance.md#ordinary-compilation).
+does not vouch for the compiler, host or reviewer. See [ordinary compilation](../../../../wiki/spec/packages/acceptance.md#ordinary-compilation).
 
 ## Version 4 text
 

@@ -11,6 +11,8 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+normalized-build-settings = { path = "../subsystems/compiler/build/build-settings/normalized" }
+installation-conditions = { path = "../subsystems/compiler/psi-to-native/verification/installation-admission/conditions" }
 product-publication = { path = "../subsystems/compiler/build/build-output/product-publication" }
 psi-entry-memory = { path = "../subsystems/compiler/psi/access/entry-memory" }
 native-provider-sponsor = { path = "../subsystems/interpreter/host/native-sponsor" }
@@ -22,7 +24,6 @@ bounded-process = { path = "../foundation/bounded-process" }
 compiler = { path = "../subsystems/compiler" }
 project-build = { path = "../subsystems/compiler/build" }
 optimization-requests = { path = "../subsystems/compiler/build/optimization-policy/requests" }
-products = { path = "../compilation/products" }
 artifacts = { path = "../subsystems/compiler/foundation/measurements" }
 platform-custody = { path = "../foundation/filesystem" }
 package-manager = { path = "../subsystems/package-manager" }

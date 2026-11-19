@@ -15,9 +15,9 @@ inspect_packages/
     └── policy_callables.rs  callable reach, invocation, and checked behavior
 ```
 
-Application Build's [`package_inspection.rs`](../../../../../build-system/orchestration/src/package/package_inspection.rs)
-creates and disposes of the session, runs shared source Builds and loops over
-targets in order. Each selected source Build runs once, before any target's
+The [inspection transaction](../inspect_packages.rs) takes the project Build session
+from its caller. The caller runs shared source Builds and requests each target's
+review in order. Each selected source Build runs once, before any target's
 review; review passes read its kept result and request no new execution or
 grants. It uses the same source resolver and review
 executor as install/update. Inspection finishes every admitted target in

@@ -3,13 +3,14 @@
 //! Typed preparation writes those calls after checking the callback against
 //! the binder the library publishes; a callback that adds a precondition on
 //! its inputs is refused even when every generated call would meet it.
+
+mod support;
+
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 fn fixture(name: &str) -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
-        .join(name)
+    support::repository_root().join("tests/fixtures").join(name)
 }
 
 fn run_both(name: &str) -> (bool, String) {
@@ -37,8 +38,8 @@ fn run_project(project: &Path) -> (Option<i32>, String) {
 #[test]
 fn runtime_visitors_preserve_field_order_and_mutate_the_actual_fields() {
     for fact in ["typed_reflection", "typed_reflection_mutation"] {
-        let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../samples/cli/facts")
+        let project = support::repository_root()
+            .join("samples/cli/facts")
             .join(fact)
             .join("local");
         let (status, report) = run_project(&project);
@@ -55,8 +56,8 @@ fn runtime_visitors_preserve_field_order_and_mutate_the_actual_fields() {
 #[test]
 fn runtime_visitors_reject_callbacks_that_exclude_an_actual_field_type() {
     for fact in ["typed_reflection", "typed_reflection_mutation"] {
-        let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../samples/cli/facts")
+        let project = support::repository_root()
+            .join("samples/cli/facts")
             .join(fact)
             .join("invalid_local");
         let (status, report) = run_project(&project);
@@ -116,8 +117,7 @@ fn runtime_visitors_preserve_the_contexts_borrowed_storage() {
 
 #[test]
 fn the_wire_program_round_trips_thirteen_bytes_and_every_field() {
-    let project =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../samples/cli/systems/wire_protocol");
+    let project = support::repository_root().join("samples/cli/systems/wire_protocol");
     let (status, report) = run_project(&project);
     assert_eq!(status, Some(70), "{report}");
     for receipt in [

@@ -4,6 +4,7 @@
 //! receiver permissions. Complete normalized locators and actual native word
 //! placement identify an API; source method names and empty reach do not.
 
+use numeric_intrinsic_admission::signature::boundary_contract_matches_selected_schema;
 use std::sync::OnceLock;
 
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueLocation, ValueShape};
@@ -299,7 +300,7 @@ pub(super) fn reviewed_process_exit<'a>(
         receiving_identity,
         requirement,
         binding.provider_plan_report_identity(),
-    ) || !super::super::compiler_builtins::boundary_contract_matches_selected_schema(
+    ) || !boundary_contract_matches_selected_schema(
         context.input.module(),
         declaration,
         plan,
@@ -388,7 +389,7 @@ fn original_windows_import<'a>(
     if locator.target() != target::TargetProfile::WindowsX64 {
         return Ok(None);
     }
-    let actual = crate::provider_admission::terminal_authority_policy::normalized_foreign_terminal_mechanism(
+    let actual = crate::terminal_authority_policy::normalized_foreign_terminal_mechanism(
         locator, &binding.boundary_entry_plan,
     )?;
     if context.mechanism(boundary) != Some(&actual) {

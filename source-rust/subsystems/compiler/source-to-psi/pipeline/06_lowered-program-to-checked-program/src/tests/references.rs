@@ -788,7 +788,7 @@ machine entry() crashes none {
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
     assert_eq!(
         refused.detail,
-        "invocation row and lowered call name different targets"
+        "invocation row and lowered call name different targets in machine `relay`"
     );
 
     let mut missing_lifetimes = prepare();
@@ -854,7 +854,7 @@ machine entry() crashes none {
         refused.concerns,
         terminal_check_tables::Construct::Operation(operation)
     );
-    assert_eq!(refused.detail, format!("{detail} in machine `relay`"));
+    assert_eq!(refused.detail, detail);
 }
 
 #[test]
@@ -1758,10 +1758,11 @@ fn returned_relay(entry: &str) -> crate::checking::RouteVerdict {
 fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let verdict = returned_relay(
-        "machine entry() crashes none {
+        "machine entry() -> i64 crashes none {
     let mut backing: i64 = 17;
     let child: @mut i64 = relay<Direct>(@mut backing);
     child = 41;
+    backing
 }",
     );
     let RouteVerdict::Accepted(accepted) = verdict else {
@@ -1770,11 +1771,20 @@ fn a_returned_selected_result_keeps_its_input_lent_and_runs() {
     let publication = accepted.publish_invocation().unwrap();
     let program = TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
-    assert_eq!(
-        instance
-            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
-            .unwrap(),
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Signed(41),
+                    ..
+                }
+            ))
+        ),
+        "{status:?}"
     );
 
     // The negative twin writes `backing` while the returned `child` is live.

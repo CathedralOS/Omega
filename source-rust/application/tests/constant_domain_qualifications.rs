@@ -6,12 +6,13 @@
 //! the constant in both engines; one whose plan names an issuer is refused
 //! at the constant, while the same `make()` called directly still runs.
 
-use std::path::Path;
+mod support;
+
 use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let project = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])

@@ -108,7 +108,7 @@ pub struct RunRequest {
 
 pub struct RunOutcome {
     pub build_dir: PathBuf, // Removed on return unless keep_artifacts was requested.
-    pub test_roster: Vec<products::TestRosterEntry>, // Registered tests that ran before the program.
+    pub test_roster: Vec<String>, // Display rows from the registered tests that ran before the program.
     pub execution: ExecutionOutcome,
 }
 
@@ -217,7 +217,7 @@ pub fn run_project(
         psi_work_budget,
     )
     .map_err(RunError::Compilation)?;
-    let test_roster = report.test_roster().to_vec();
+    let test_roster = report.test_roster();
     let (replay_input, interpretation) =
         if request.selection == ExecutionSelection::Both && request.target_name.is_none() {
             match compilation::interpret_product(&report, None, target_name, psi_work_budget) {
@@ -334,7 +334,7 @@ fn run_terminal(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
-    let test_roster = report.test_roster().to_vec();
+    let test_roster = report.test_roster();
     let outcome = match compilation::interpret_product(
         &report,
         Some(Box::new(std::io::stdin())),

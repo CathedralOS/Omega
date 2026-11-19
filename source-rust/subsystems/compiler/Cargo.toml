@@ -1,5 +1,6 @@
 [package]
 name = "compiler"
+build = "build_identity.rs"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -20,7 +21,16 @@ target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
 
+[build-dependencies]
+wire = { path = "../../foundation/wire" }
+
 [dev-dependencies]
+provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
+host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
+verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
+build-evaluation-result = { path = "build/build-settings/result" }
+provider-acceptance = { path = "build/providers/acceptance" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }
 project-build = { path = "build" }
 target-provider-admission = { path = "psi-to-native/verification/target-providers" }
@@ -33,9 +43,7 @@ native-intrinsics = { path = "psi-to-native/targets/intrinsics" }
 entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }
 service-surface = { path = "psi/service-surface" }
-provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
-host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
 native-compiler = { path = "psi-to-native", features = ["test-support"] }
 numerics = { path = "psi/semantics/numeric" }

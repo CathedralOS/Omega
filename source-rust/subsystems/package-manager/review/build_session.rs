@@ -17,7 +17,7 @@ session disposal removes the private directory before any checked result can
 escape.
 */
 
-use std::iter::empty;
+use source_completion_accounting::SourceCompletionAccounting;
 use std::process::id;
 mod bindings;
 mod order;
@@ -52,7 +52,7 @@ pub struct PackageBuildSession {
     evaluation_sponsor: BuildEvaluationSponsor,
     next_occurrence: u64,
     active: bool,
-    source_completion_accounting: products::SourceCompletionAccounting,
+    source_completion_accounting: SourceCompletionAccounting,
 }
 
 impl std::fmt::Debug for PackageBuildSession {
@@ -168,37 +168,24 @@ impl PackageBuildSession {
         self.create_build_directory(base)
     }
 
-    pub fn source_build_request(
+    /// Run an acquired Build under this command's retained resource grants.
+    pub fn source_build_inputs(
         &mut self,
-        capture: &package_compilation::CapturedLocalSource,
-        entry: &Path,
         profile: target::TargetProfile,
-        execution: package_compilation::BuildExecutionInputs,
-    ) -> Result<compiler::CheckedCompileRequest, CompileResolvedPackageReviewsError> {
-        self.require_open()?;
-        let profile = execution.profile.unwrap_or(profile);
-        let directory = match execution.directory {
-            Some(directory) => directory,
-            None => self.create_build_directory(self.root.join("source"))?,
-        };
-        Ok(compiler::CheckedCompileRequest {
-            source_capture: Some(capture.clone()),
-            build: package_compilation::BuildExecutionInputs {
-                profile: Some(profile),
-                snapshot: execution
-                    .snapshot
-                    .or_else(|| Some(package_compilation::BuildSnapshotRequest::new(empty()))),
-                directory: Some(directory),
-                filesystem_sponsor: execution
-                    .filesystem_sponsor
-                    .or_else(|| Some(self.filesystem_sponsor.clone())),
-                evaluation_sponsor: execution
-                    .evaluation_sponsor
-                    .or_else(|| Some(self.evaluation_sponsor.clone())),
-                restricted_grants: execution.restricted_grants,
-                dependency_activation: execution.dependency_activation,
-            },
-            ..compiler::CheckedCompileRequest::new(entry, Some(profile.target_name()))
+        snapshot: Option<package_compilation::BuildSnapshotRequest>,
+        dependency_activation: bool,
+    ) -> Result<package_compilation::BuildExecutionInputs, CompileResolvedPackageReviewsError> {
+        let directory = self.create_build_directory(self.root.join("source"))?;
+        Ok(package_compilation::BuildExecutionInputs {
+            profile: Some(profile),
+            directory: Some(directory),
+            filesystem_sponsor: Some(self.filesystem_sponsor.clone()),
+            evaluation_sponsor: Some(self.evaluation_sponsor.clone()),
+            snapshot: Some(snapshot.unwrap_or_else(|| {
+                package_compilation::BuildSnapshotRequest::new(std::iter::empty())
+            })),
+            dependency_activation,
+            ..Default::default()
         })
     }
 
@@ -268,11 +255,11 @@ impl PackageBuildSession {
 
     /// Retain actual occurrences before a coordinator drops its source/result.
     /// Shared histories join once; independent invocations remain separate costs.
-    pub fn record_source_completion(&mut self, accounting: products::SourceCompletionAccounting) {
+    pub fn record_source_completion(&mut self, accounting: SourceCompletionAccounting) {
         self.source_completion_accounting.append(accounting);
     }
 
-    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &SourceCompletionAccounting {
         &self.source_completion_accounting
     }
 

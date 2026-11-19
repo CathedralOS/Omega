@@ -20,8 +20,8 @@ resolved bindings even when no receiving policy was supplied.
 use std::collections::BTreeSet;
 
 use diagnostics::Diagnostic;
-pub use host_provider_inputs::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+pub use provider_acceptance::ServiceTerminalAuthorityPermission as TerminalAuthorityPermissionPolicyRow;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::TerminalAuthorityDisposition;
 use terminal_authority_receipts::TerminalAuthorityPermissionPolicyIdentity;
 use semantic_vocabulary::provider_identity::ServiceSchemaDigest;
@@ -97,11 +97,9 @@ pub fn terminal_authority_permission_policy_with_rows(
         return Err(TerminalAuthorityPermissionPolicyBuildError::EmptyRequirement);
     }
     if rows.iter().any(|row| {
-        identities
-            .text(row.requirement_identity())
-            .unwrap_or_default()
-            .chars()
-            .any(char::is_control)
+        identities.text(row.requirement_identity()).is_none_or(|name| {
+            name.is_empty() || name.chars().any(char::is_control)
+        })
     }) {
         return Err(TerminalAuthorityPermissionPolicyBuildError::InvalidRequirement);
     }
@@ -167,7 +165,7 @@ fn permission_policy_identity(
 pub fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
     retained_identities: &terminal_psi::TerminalIdentityTable,
-    accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
+    accepted: &crate::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
@@ -219,6 +217,18 @@ pub fn validate_retained_package_terminal_authority_permissions(
     }
 }
 
+/// Check the package's permission coordinates before issuing the receiving policy.
+pub fn admit_package_terminal_authority_permissions(
+    permissions: Vec<ServiceTerminalAuthorityPermission>,
+    identities: terminal_psi::TerminalIdentityTable,
+    invalid_policy_context: &'static str,
+) -> Result<TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
+    validate_package_terminal_authority_permission_custody(permissions.iter(), &identities)?;
+    terminal_authority_permission_policy_with_rows(permissions, identities).map_err(|error| {
+        vec![Diagnostic::error(format!("{invalid_policy_context}: {error:?}"))]
+    })
+}
+
 pub fn validate_package_terminal_authority_permission_custody<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
     identities: &terminal_psi::TerminalIdentityTable,
@@ -241,5 +251,33 @@ pub fn validate_package_terminal_authority_permission_custody<'a>(
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn requirement_must_resolve_in_the_receivers_identity_table() {
+        let mut names = terminal_psi::TerminalIdentityTable::default().into_builder();
+        let requirement = names.intern("Clock::read");
+        let permission = TerminalAuthorityPermissionPolicyRow::new(
+            ServiceSchemaDigest::from_digest([1; 32]),
+            requirement,
+            TerminalAuthorityDisposition::from_classes(Vec::new()),
+        );
+        assert_eq!(
+            terminal_authority_permission_policy_with_rows(
+                vec![permission.clone()],
+                terminal_psi::TerminalIdentityTable::default(),
+            ),
+            Err(TerminalAuthorityPermissionPolicyBuildError::InvalidRequirement),
+        );
+        let policy = terminal_authority_permission_policy_with_rows(vec![permission], names.build())
+            .expect("the receiving table names this requirement");
+        assert!(
+            policy.permission_for(ServiceSchemaDigest::from_digest([1; 32]), "Clock::read").is_ok()
+        );
     }
 }

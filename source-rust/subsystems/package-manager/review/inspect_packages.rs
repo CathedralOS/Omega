@@ -10,6 +10,8 @@ changed while inspection ran.
 */
 
 use crate::dependencies::LOCAL_PROJECT_CONTEXT;
+use build_evaluation_result::CompileFailure;
+use source_completion_accounting::SourceCompletionAccounting;
 mod report;
 mod sources;
 
@@ -55,16 +57,13 @@ pub struct PackageInspectionOutcome {
 pub struct PackageInspectionError(crate::PackageCommandError);
 
 impl PackageInspectionError {
-    pub fn source_completion_accounting(&self) -> &products::SourceCompletionAccounting {
+    pub fn source_completion_accounting(&self) -> &SourceCompletionAccounting {
         self.0.source_completion_accounting()
     }
-    pub fn with_source_completion_accounting(
-        self,
-        accounting: products::SourceCompletionAccounting,
-    ) -> Self {
+    pub fn with_source_completion_accounting(self, accounting: SourceCompletionAccounting) -> Self {
         Self(self.0.with_source_completion_accounting(accounting))
     }
-    pub fn compilation_failure(&self) -> Option<&products::CompileFailure> {
+    pub fn compilation_failure(&self) -> Option<&CompileFailure> {
         self.0.compilation_failure()
     }
 }
@@ -88,8 +87,8 @@ impl From<String> for PackageInspectionError {
         Self(message.into())
     }
 }
-impl From<products::CompileFailure> for PackageInspectionError {
-    fn from(error: products::CompileFailure) -> Self {
+impl From<CompileFailure> for PackageInspectionError {
+    fn from(error: CompileFailure) -> Self {
         Self(error.into())
     }
 }

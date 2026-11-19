@@ -1,5 +1,7 @@
 # Planar orbital dynamics
 
+See [scientific validation](../README.md) for the current status of this sample’s Rust execution driver.
+
 A test body moves around a fixed central mass under acceleration
 `a = -mu r / |r|^3`. The body does not perturb that mass. The program uses
 second-order velocity Verlet: a half kick, full drift and half kick. No force

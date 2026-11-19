@@ -553,8 +553,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .declaration_metadata
                 .push(symbols::SymbolHandle::invalid());
             assert!(
-                executable_roster
-                    .judge(std::sync::Arc::clone(accepted.source()))
+                source_compiler::judge_source_roster(executable_roster, std::sync::Arc::clone(accepted.source()))
                     .is_err()
             );
         })
@@ -565,7 +564,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
     std::fs::remove_dir_all(workspace).unwrap();
 }
 
-#[path = "../../../../../tests/support/frontend.rs"]
+#[path = "../../../../tests/support/frontend.rs"]
 mod frontend_fixture;
 
 // The unchanged fixture imports GNU libc's versioned abs through the GNU loader.
@@ -585,7 +584,7 @@ fn dynamic_native_publication_and_receiver_replay_need_no_producer_recheck_repor
                 retain_native_stage_inputs: false,
                 image: Default::default(),
                 private_entry_ram: Vec::new(),
-                terminal_authority_policy: provider_admission::provider_admission::current_terminal_authority_policy(),
+                terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
                 terminal_authority_permission_policy: None,
                 optimization_rollback: Default::default(),
             });

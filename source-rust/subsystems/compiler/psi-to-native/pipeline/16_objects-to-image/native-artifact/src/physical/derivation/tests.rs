@@ -368,7 +368,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         BoundaryMachineId, ClaimId, EdgeId, IntegerValue, OperationId, PlaceId, ServiceId,
         StructuralCaseId, StructuralTypeId, ValueId,
     };
-    use target_operations::{
+    use target_vocabulary::{
         BoundaryScalarArgument, ClaimCompletionOnlyRealization, MetadataOnlyPortRealization,
     };
     use terminal_psi::{
@@ -379,8 +379,8 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     let projection = physical_projection();
     let occurrence = &projection.boundary_occurrences()[0];
     let record = machine_code::ProviderExecutionRecord::new(7, 11, 13, 17, 19).unwrap();
-    let execution = target_operations::ProviderExecutionBinding::from_execution_record(
-        target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+    let execution = target_vocabulary::ProviderExecutionBinding::from_execution_record(
+        target_vocabulary::ProviderPlanReportIdentity::new(7).unwrap(),
         11,
         13,
         17,
@@ -395,7 +395,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         )],
         access: StructuralAccess::Owned,
     };
-    let source = target_operations::CompletionClaimSource {
+    let source = target_vocabulary::CompletionClaimSource {
         claim,
         entry: Some(EntryClaim {
             claim,
@@ -458,7 +458,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         invocation_site: OperationId::new(41).unwrap().into(),
         boundary: BoundaryMachineId::new(43).unwrap(),
         execution: machine_code::BoundaryExecutionRecord::AdmittedProvider(record),
-        realization: target_operations::BoundaryRealization::ClaimCompletionOnly(
+        realization: target_vocabulary::BoundaryRealization::ClaimCompletionOnly(
             ClaimCompletionOnlyRealization,
         ),
         scalar_arguments: Vec::new(),
@@ -479,7 +479,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     };
     let identity = |settlement: &machine_code::BoundarySettlementRecord,
                     port_effect: Option<&machine_code::PortEffectRecord>,
-                    execution: target_operations::ProviderExecutionBinding| {
+                    execution: target_vocabulary::ProviderExecutionBinding| {
         admitted_provider_settlement_identity(
             occurrence,
             "Extent::complete",
@@ -505,11 +505,11 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
             }
             3 => {
                 changed.execution = machine_code::BoundaryExecutionRecord::CompilerBuiltin(
-                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                    target_vocabulary::CompilerBuiltinExecution::HostedWriteByteI32,
                 )
             }
             4 => {
-                changed.realization = target_operations::BoundaryRealization::MetadataOnlyPort(
+                changed.realization = target_vocabulary::BoundaryRealization::MetadataOnlyPort(
                     MetadataOnlyPortRealization {
                         effect_operation: OperationId::new(40).unwrap(),
                         service: ServiceId::new(3).unwrap(),
@@ -636,8 +636,8 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
             _ => identity(
                 &completion,
                 None,
-                target_operations::ProviderExecutionBinding::from_execution_record(
-                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                target_vocabulary::ProviderExecutionBinding::from_execution_record(
+                    target_vocabulary::ProviderPlanReportIdentity::new(7).unwrap(),
                     11,
                     13,
                     17,
@@ -659,7 +659,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
         byte_count: 2,
     };
     let port = machine_code::BoundarySettlementRecord {
-        realization: target_operations::BoundaryRealization::MetadataOnlyPort(
+        realization: target_vocabulary::BoundaryRealization::MetadataOnlyPort(
             MetadataOnlyPortRealization {
                 effect_operation: OperationId::new(40).unwrap(),
                 service: ServiceId::new(3).unwrap(),
@@ -697,7 +697,7 @@ fn admitted_provider_settlement_identity_binds_the_complete_retained_row() {
     }
     for mutation in 0..4 {
         let mut changed = port.clone();
-        let target_operations::BoundaryRealization::MetadataOnlyPort(realization) =
+        let target_vocabulary::BoundaryRealization::MetadataOnlyPort(realization) =
             &mut changed.realization
         else {
             panic!("metadata-only port settlement")
@@ -729,7 +729,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
 
     fn operand_binding(
         placements: &[ValuePlacement],
-    ) -> target_operations::NormalizedForeignCallBinding {
+    ) -> target_vocabulary::NormalizedForeignCallBinding {
         let mut boundary_entry_plan = calling_conventions::evaluate_ordinary_boundary_entry_plan(
             calling_conventions::CallingPolicy::LinuxSyscallX86_64,
             &calling_conventions::CallSignature {
@@ -741,14 +741,14 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
         .plan()
         .clone();
         boundary_entry_plan.call.parameters = placements.to_vec();
-        target_operations::NormalizedForeignCallBinding {
+        target_vocabulary::NormalizedForeignCallBinding {
             boundary_entry_plan,
-            mechanism: target_operations::NormalizedForeignCallMechanism::SystemCall(
-                target_operations::NormalizedSystemCallBinding {
+            mechanism: target_vocabulary::NormalizedForeignCallMechanism::SystemCall(
+                target_vocabulary::NormalizedSystemCallBinding {
                     target: target::TargetProfile::LinuxX64,
                     number: 0,
                     requirement_identity: "test-only::operand-view".to_owned(),
-                    execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+                    execution: target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                         report: 7,
                         commitment: [7; 32],
                     },
@@ -1007,8 +1007,8 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
 
     let projection = physical_projection();
     let occurrence = &projection.boundary_occurrences()[0];
-    let execution = target_operations::ProviderExecutionBinding::from_execution_record(
-        target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+    let execution = target_vocabulary::ProviderExecutionBinding::from_execution_record(
+        target_vocabulary::ProviderPlanReportIdentity::new(7).unwrap(),
         11,
         13,
         17,
@@ -1048,7 +1048,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             requirement_index,
         )
         .unwrap();
-        target_operations::NormalizedForeignCallMechanism::Import {
+        target_vocabulary::NormalizedForeignCallMechanism::Import {
             locator: locator.clone(),
             same_stack_contribution: contribution,
         }
@@ -1209,8 +1209,8 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 "Input::read",
                 NativeSelectedProviderPlanDigest::from_digest([7; 32]).into(),
                 NativeTarget::linux_x64(),
-                target_operations::ProviderExecutionBinding::from_execution_record(
-                    target_operations::ProviderPlanReportIdentity::new(7).unwrap(),
+                target_vocabulary::ProviderExecutionBinding::from_execution_record(
+                    target_vocabulary::ProviderPlanReportIdentity::new(7).unwrap(),
                     11,
                     13,
                     17,
@@ -1269,11 +1269,11 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
         };
         assert_ne!(changed, expected, "binding input mutation {mutation}");
     }
-    let kernel = target_operations::NormalizedSystemCallBinding {
+    let kernel = target_vocabulary::NormalizedSystemCallBinding {
         target: target::TargetProfile::LinuxX64,
         number: 0,
         requirement_identity: "Input::read".to_owned(),
-        execution: target_operations::NormalizedForeignExecution::ProviderPlan {
+        execution: target_vocabulary::NormalizedForeignExecution::ProviderPlan {
             report: 7,
             commitment: [7; 32],
         },
@@ -1286,7 +1286,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             NativeTarget::linux_x64(),
             execution.into(),
             [9; 32],
-            &target_operations::NormalizedForeignCallMechanism::SystemCall(kernel),
+            &target_vocabulary::NormalizedForeignCallMechanism::SystemCall(kernel),
             &structural_arguments,
             &structural_parameters,
         )
@@ -1303,7 +1303,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
             1 => changed.number = 211,
             2 => changed.requirement_identity = "Input::other".to_owned(),
             3 => {
-                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     report, ..
                 } = &mut changed.execution
                 {
@@ -1311,7 +1311,7 @@ fn normalized_foreign_parent_identity_binds_the_structural_call_custody() {
                 }
             }
             _ => {
-                if let target_operations::NormalizedForeignExecution::ProviderPlan {
+                if let target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     commitment,
                     ..
                 } = &mut changed.execution
@@ -1335,7 +1335,7 @@ fn physical_child_identity_binds_every_retained_field() {
         TerminalBoundaryApplicationRealizations,
     };
     use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
-    use target_operations::{
+    use target_vocabulary::{
         BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
     };
     use terminal_psi::{
@@ -1640,7 +1640,7 @@ fn physical_child_identity_binds_the_normalized_foreign_relocation() {
     use function_identity::MachineFunctionIdentity;
     use object_file::{ObjectSymbolHandle, RelocationKind, RelocationOrigin};
     use semantic_vocabulary::{IntegerValue, ValueId};
-    use target_operations::{
+    use target_vocabulary::{
         BoundaryRealization, BoundaryScalarArgument, CompilerBuiltinExecution,
     };
 
@@ -1938,7 +1938,7 @@ fn physical_evidence_gap_identity_binds_the_exact_subject() {
     use crate::physical::NativePhysicalEvidenceGapSubject;
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
     use semantic_vocabulary::{EdgeId, ServiceId};
-    use target_operations::CallSiteOwner;
+    use target_vocabulary::CallSiteOwner;
 
     let projection = physical_projection();
     let boundary = projection.boundary_occurrences()[0];
@@ -2052,7 +2052,7 @@ fn physical_evidence_gap_names_the_blocking_occurrence() {
     use crate::physical::derivation::hashing::physical_evidence_gap_identity;
     use crate::physical::native_physical_evidence_gap;
     use semantic_vocabulary::EdgeId;
-    use target_operations::CallSiteOwner;
+    use target_vocabulary::CallSiteOwner;
 
     let projection = physical_projection();
     let boundary = projection.boundary_occurrences()[0];

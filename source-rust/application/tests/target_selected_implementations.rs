@@ -13,12 +13,14 @@ compiler must refuse the program for that target rather than pick one.
 
 */
 
+mod support;
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn fixture(relative: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(relative)
 }
 

@@ -26,7 +26,6 @@ provider-stack-contribution = { path = "../../../verification/provider-admission
 runtime-abi = { path = "../../../targets/runtime-abi" }
 platform-custody = { path = "../../../../../../foundation/filesystem" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-abstract-operations = { path = "../../representations/abstract-operations" }
 boundary-applications = { path = "../../representations/operation-evidence/boundary-applications" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 function-identity = { path = "../../representations/function-identity" }
@@ -41,16 +40,15 @@ operation-evidence = { path = "../../representations/operation-evidence" }
 machine-code = { path = "../../representations/machine-code" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 optimization-core = { path = "../../representations/optimization-records" }
-target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-codec = { path = "../../../../psi/codec" }
 sha2 = "0.10.9"
-legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
 provider-admission = { path = "../../../verification/provider-admission" }
 diagnostics = { path = "../../../../../../foundation/diagnostics" }
 
 [dev-dependencies]
+operation-operands = { path = "../../representations/operation-operands" }
 optimization-core = { path = "../../representations/optimization-records" }

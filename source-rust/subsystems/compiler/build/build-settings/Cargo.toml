@@ -6,11 +6,15 @@ version.workspace = true
 
 
 [dependencies]
+build-evaluation-result = { path = "result" }
+normalized-build-settings = { path = "normalized" }
 behavior-exclusion-requests = { path = "../behavior-exclusions" }
+numeric-intrinsic-admission = { path = "../../psi-to-native/verification/numeric-intrinsics" }
 selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }
 psi-provider-selections = { path = "../../psi/providers" }
+build-scalar-evaluation = { path = "../evaluation/scalars" }
 build-time-values = { path = "../evaluation/values" }
 psi-target-layouts = { path = "../../psi/layout/admission" }
 declaration-scope = { path = "../../foundation/declaration-scope" }
@@ -28,11 +32,10 @@ source-compiler = { path = "../../source-to-psi" }
 evaluation-accounting = { path = "../evaluation/accounting" }
 filesystem-authority = { path = "../evaluation/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
-products = { path = "../../compilation/products" }
 build-output = { path = "../build-output" }
 package-compilation = { path = "../package-compilation" }
 provider-admission = { path = "../../psi-to-native/verification/provider-admission" }
-terminal-runtime = { path = "../../../interpreter/host" }
+interpreter-numeric-imports = { path = "../../../interpreter/numeric-imports" }
 target = { path = "../../psi-to-native/targets/target" }
 runtime-abi = { path = "../../psi-to-native/targets/runtime-abi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
