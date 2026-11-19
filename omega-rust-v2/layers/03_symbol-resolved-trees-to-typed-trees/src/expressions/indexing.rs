@@ -23,6 +23,10 @@ impl BodyTyper<'_, '_> {
             t => (None, t),
         };
         let range = source.nodes[selector].kind == NodeKind::Range;
+        // An element of a referenced collection lives wherever the reference
+        // points; an element of an owned collection lives in that collection.
+        let contents = self.origin(base).whole();
+        let backing = if access.is_some() { contents.clone() } else { self.backing(base) };
         let element = match storage {
             ValueType::Slice(t) | ValueType::Array(t, _) | ValueType::IndexedArray(t, _) => t.as_ref(),
             _ => {
@@ -107,6 +111,8 @@ impl BodyTyper<'_, '_> {
             CollectionSelectors::Index(Site::at(source, selector))
         };
         let result = contract.result.substitute(&contract.machine, element_args);
+        self.set_origin(node_index, if requested.is_some() || range { backing.clone() } else { contents });
+        self.set_backing(node_index, backing);
         self.record_obligation(node_index, ObligationKind::CallPrecondition(contract.machine.clone()));
         self.record_obligation(
             node_index,
