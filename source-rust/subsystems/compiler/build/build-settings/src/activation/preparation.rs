@@ -24,6 +24,8 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
+    predecessor: Option<terminal_codec::TerminalExecutionIdentity>,
+    pub(crate) unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::ProducedTerminalProgram>,
     accepted: Arc<source_compiler::AcceptedTerminalSource>,
@@ -44,6 +46,7 @@ impl PreparedBuildExecution {
     pub(crate) fn prepare(
         admitted: AdmittedBuildProgram,
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
+        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -85,6 +88,8 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            predecessor: None,
+            unbound_acquisition,
             execution_purpose,
             accepted: prepared,
             produced,
@@ -132,6 +137,7 @@ impl PreparedBuildExecution {
     pub(crate) fn continue_with(
         &self,
         admitted: AdmittedBuildProgram,
+        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -150,6 +156,8 @@ impl PreparedBuildExecution {
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
         let providers = providers.admit(produced.view())?;
         Ok(Self {
+            predecessor: Some(self.produced.view().custody_identity()),
+            unbound_acquisition,
             execution_purpose: self.execution_purpose,
             produced,
             providers: Arc::new(providers),
@@ -175,6 +183,11 @@ impl PreparedBuildExecution {
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
+        if !self.account.same_invocation(&previous.host.account)
+            || self.predecessor.as_ref() != Some(&previous.host.produced.view().custody_identity())
+        {
+            return Err(self.refuse("Build resume requires the preceding stage of this invocation"));
+        }
         self.host_issued = true;
         let mut carried = previous.carry().map_err(|reason| self.refuse(&reason))?;
         crate::TerminalBuildHost::new(
@@ -187,6 +200,7 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
+            self.unbound_acquisition.clone(),
             carried.filesystem.take(),
         )
         .and_then(|host| host.resume(carried))
@@ -194,6 +208,9 @@ impl PreparedBuildExecution {
     }
 
     pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
+        if self.predecessor.is_some() {
+            return Err(self.refuse("a later Build stage must resume its preceding activation"));
+        }
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
@@ -208,13 +225,17 @@ impl PreparedBuildExecution {
             self.execution_profile,
             self.default_source,
             self.default_sources.clone(),
+            self.unbound_acquisition.clone(),
             None,
         )
         .map_err(|reason| self.refuse(&reason))
     }
 
     pub(crate) fn validate_return(&self, returned: &ReturnedBuild) -> Result<(), Vec<Diagnostic>> {
-        if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
+        if !self.host_issued
+            || !self.account.same_invocation(&returned.account)
+            || returned.identity != self.produced.view().custody_identity()
+        {
             return Err(self.refuse("Build completion belongs to another invocation"));
         }
         Ok(())
@@ -284,11 +305,17 @@ impl PreparedBuildExecution {
             ..Default::default()
         };
         let activation = source_compiler::source_symbols::retain_declaration(
-            &self.accepted.source().symbols, self.machine.symbol,
-        ).map_err(|reason| self.refuse(reason))?;
-        let selected_build_declaration = source_admission::RetainedDeclaration::from_retained_parts(
-            activation.source().clone(), activation.span(), activation.kind(),
-        ).map_err(|reason| self.refuse(reason))?;
+            &self.accepted.source().symbols,
+            self.machine.symbol,
+        )
+        .map_err(|reason| self.refuse(reason))?;
+        let selected_build_declaration =
+            source_admission::RetainedDeclaration::from_retained_parts(
+                activation.source().clone(),
+                activation.span(),
+                activation.kind(),
+            )
+            .map_err(|reason| self.refuse(reason))?;
         Ok(ComputedBuildConfig {
             accepted_build: Some(self.accepted),
             config,

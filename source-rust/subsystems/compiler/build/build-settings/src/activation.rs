@@ -75,8 +75,20 @@ pub(crate) fn measurement() -> evaluation_contracts::EvaluationMeasurementIdenti
     }
 }
 
+fn require_source_acquisition(
+    issued: Option<&package_compilation::CapturedLocalSource>,
+    expected: &package_compilation::CapturedLocalSource,
+) -> Result<(), String> {
+    if issued != Some(expected) {
+        return Err("Build declaration does not belong to this original source acquisition".into());
+    }
+    Ok(())
+}
+
 pub struct ReturnedBuild {
     pub(crate) helper_accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    account: EvaluationInvocationAccount,
+    unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     pub(crate) identity: terminal_codec::TerminalExecutionIdentity,
     pub(crate) declaration: Option<build_declarations::BuildDeclaration>,
     pub(crate) source_join: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
@@ -95,6 +107,18 @@ pub struct ReturnedBuild {
 }
 
 impl ReturnedBuild {
+    pub(crate) fn original_acquisition(&self) -> Option<&package_compilation::CapturedLocalSource> {
+        self.unbound_acquisition.as_deref()
+    }
+
+    /// Check that the receiving source acquisition owns this declaration and request ledger.
+    pub fn require_source_acquisition(
+        &self,
+        source: &package_compilation::CapturedLocalSource,
+    ) -> Result<(), String> {
+        require_source_acquisition(self.original_acquisition(), source)
+    }
+
     pub fn source_result(&mut self) -> BuildSourceResult<'_> {
         BuildSourceResult::executed(self)
     }
@@ -176,6 +200,7 @@ impl OriginalOutput {
 }
 
 pub struct TerminalBuildHost {
+    unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<ProducedTerminalProgram>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
@@ -204,6 +229,7 @@ impl TerminalBuildHost {
         execution_profile: Option<target::TargetProfile>,
         default_source: bool,
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
+        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
         carried_filesystem: Option<crate::host::filesystem::CarriedFilesystem>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
@@ -262,6 +288,7 @@ impl TerminalBuildHost {
             carried_filesystem,
         )?;
         Ok(Arc::new(Self {
+            unbound_acquisition,
             execution_purpose,
             produced,
             providers,
@@ -519,6 +546,14 @@ pub struct TerminalBuildStep<'step> {
 }
 
 impl TerminalBuildActivation {
+    /// Check the owner before a live declaration names a subsequent Build stage.
+    pub fn require_source_acquisition(
+        &self,
+        source: &package_compilation::CapturedLocalSource,
+    ) -> Result<(), String> {
+        require_source_acquisition(self.host.unbound_acquisition.as_deref(), source)
+    }
+
     pub fn helper_evaluation_accounting(
         &self,
     ) -> &source_compiler::evaluation::SourceCompletionAccounting {
@@ -789,6 +824,8 @@ impl TerminalBuildActivation {
         let declared_product_selections = self.host.bindings.declared()?;
         Ok(ReturnedBuild {
             helper_accounting: self.helper_accounting,
+            account: self.host.account.clone(),
+            unbound_acquisition: self.host.unbound_acquisition.clone(),
             identity: self.host.produced.view().custody_identity(),
             declaration,
             source_join: self.host.default_sources.clone(),

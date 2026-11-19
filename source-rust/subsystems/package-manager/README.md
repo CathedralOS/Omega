@@ -220,10 +220,11 @@ for that occurrence. The previous scheduler and projection are preserved under
 [`v1-project-admission`](_recycling/v1-project-admission) and
 [`v1-project-review`](_recycling/v1-project-review).
 
-Workspace and Git acquisition get their source declaration from the prepared
-Build's original unbound capture and its returned activation. A workspace
-member roster requires completion of that same Build. Package and application
-requests can observe the declaration before joining their resolved inputs.
+Acquisition binds each returned package declaration and dependency ledger to
+the same immutable capture that admitted its Build. A staged Build can name
+the captured package while running. Later stages retain the original selection
+only when source assembly has rejoined it to the actual typed sources. Workspace
+membership also requires completion of that Build.
 
 Install and update live in `package_manager.rs`, which records accepted
 baselines and decisions directly and certifies nothing; the source and review

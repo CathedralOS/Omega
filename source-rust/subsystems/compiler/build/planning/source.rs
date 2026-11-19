@@ -232,6 +232,7 @@ impl PlanningSource {
         }
         evaluation.continue_stage(
             BuildStageRequest {
+                source_acquisition: assembled.build_source_acquisition.as_ref(),
                 typed: source.typed(),
                 build_source: assembled.build_source,
                 package_inputs: authority.as_ref(),

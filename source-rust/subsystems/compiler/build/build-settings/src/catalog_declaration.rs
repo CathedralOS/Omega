@@ -24,8 +24,12 @@ impl SourceBuildDeclaration {
 }
 
 impl PreparedBuildEvaluation {
-    fn require_catalog_acquisition(&self) -> Result<CapturedLocalSource, CompileFailure> {
-        self.unbound_acquisition.clone().ok_or_else(|| {
+    fn require_catalog_acquisition(
+        &self,
+        returned: &crate::ReturnedBuild,
+    ) -> Result<CapturedLocalSource, CompileFailure> {
+        self.validate_return(returned)?;
+        returned.original_acquisition().cloned().ok_or_else(|| {
             CompileFailure::source_completion(
                 vec![Diagnostic::error(
                     "workspace catalog requires the Build's original unbound source acquisition",
@@ -40,8 +44,7 @@ impl PreparedBuildEvaluation {
         &self,
         returned: &crate::ReturnedBuild,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
-        let capture = self.require_catalog_acquisition()?;
-        self.validate_return(returned)?;
+        let capture = self.require_catalog_acquisition(returned)?;
         let declaration = returned.declaration().cloned().ok_or_else(|| {
             CompileFailure::source_completion(
                 vec![Diagnostic::error(
@@ -62,7 +65,7 @@ impl PreparedBuildEvaluation {
         self,
         returned: crate::ReturnedBuild,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
-        let capture = self.require_catalog_acquisition()?;
+        let capture = self.require_catalog_acquisition(&returned)?;
         self.validate_source_join(Some(&returned), None, true)?;
         let evaluated = self.complete(Some(returned))?;
         let Some(declaration @ BuildDeclaration::Workspace(_)) =
