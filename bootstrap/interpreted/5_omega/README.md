@@ -814,3 +814,65 @@ returned `Incomplete` at the called name, packed byte 37,331 / unit byte
 23,577, observation `0002000000d3910000`. The frozen input reached the
 same unit and coordinate at packed byte 37,217, observation
 `000200000061910000`. Each nine-byte output contains the refusal coordinate.
+
+
+The target token is lowercase `copy`, which the Omega lexer classifies as
+a keyword. Line 612 declares `machine copy(...)` inside the same enclosing
+machine. D's terminal target parser accepts an identifier or a boolean
+result, and its nested machine name parser accepts an identifier. The
+[terminal-call rule](../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms)
+resolves a called target as a machine and applies ordinary argument and
+completion rules.
+
+### Same-carrier cast comparison
+
+The carrier-cast rule says, “The operand of a carrier cast must carry no
+domain.” It defines `plain as T +D` as `(plain as T) as +D`. The bootstrap
+producer below follows this rule for arithmetic policy domains as well.
+[Carrier casts](../../../wiki/spec/language/domains.md#carrier-casts)
+
+The input below selects `main`. For each row in the table, replace the body
+of `mark` with the listed expression and use the listed type for both its
+return and `x`.
+
+```omega
+machine mark(n:u32 in Trapping)->u32 in Trapping {(n as u32) as +Trapping}
+machine main()->u8 {
+    let x:u32 in Trapping=mark(3 as +Trapping);
+    transition x==3 {true->pass() _->miss()}
+    machine pass()->u8 {42}
+    machine miss()->u8 {1}
+}
+```
+
+| Body of `mark` | Return type and `x` | Bootstrap | Rust |
+| --- | --- | --- | --- |
+| `(n as u32) as +Trapping` | `u32 in Trapping` | Reject | 42 |
+| `n as u32 +Trapping` | `u32 in Trapping` | Reject | Reject |
+| `n as u32` | `u32` | Reject | 42 |
+| `(n as u32) as -Trapping` | `u32` | Reject | Reject, absent domain |
+| `n as -Trapping` | `u32` | 42 | 42 |
+| `(n as -Trapping) as u32 +Trapping` | `u32 in Trapping` | 42 | 42 |
+| `n as +Trapping` | `u32 in Trapping` | Reject | Reject, repeated domain |
+
+The bootstrap producer was 839,302 Epsilon bytes, SHA-256
+`e30d71de073d6933f0e4a9ac3b6b530284443e50f06098ad7f4e4d29d4cfb601`.
+The independent Epsilon model ran its source. Its two 306-byte Alpha tapes
+ran on Linux and exited 42. All five rejected inputs emitted zero tape bytes.
+The Rust-built compiler ELF from published commit
+`1f4fe6db8a27f3e28f446ec277522394980f1908` was SHA-256
+`9b91b6827fea60db11f69feedbbddf149a399d261b75b9e7d77cae2e7c4aa31b`.
+Its native comparison entry checked that `main()` equaled 42. A second
+Linux entry forwarded `main()` as the process status for the parenthesized
+expansion. In the two-step Rust form, the inner cast drops `Trapping`.
+Removing it again gives the diagnostic that the operand's type `u32` does
+not carry `Trapping`. The combined form diagnoses the original qualified
+operand and asks for explicit removal first.
+The Rust lowerer in that revision accepts an arithmetic policy on an
+identical scalar carrier and produces the plain target qualification.
+Its `operations/lowering/src/read/casts.rs` Git blob
+`dc22719ef09bb175c5e1fa7c8745984c65e926d5` also appears in
+`87e11d9cecd7`. The native observations above used the earlier binary.
+The same Rust ELF also compiled the retired `n as u32 in Trapping` spelling
+for a plain `u32` operand and produced exit 42. The bootstrap parser returns
+`Incomplete` at that spelling.
