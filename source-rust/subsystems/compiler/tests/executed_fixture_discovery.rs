@@ -80,7 +80,7 @@ fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
     let role = provider_acceptance::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
     let accepted = inputs.accepted_semantic_binding(role).unwrap();
     assert_eq!(accepted.package(), supplier);
-    assert_eq!(accepted.declaration_path(), "MacosApplication");
+    assert_eq!(accepted.declaration_path(), "targets::macos_arm64::MacosApplication");
     let published = produce_fixture(&mut prepared, Some(profile.target_name()))
         .expect("carry the accepted binding into Product completion");
     assert!(

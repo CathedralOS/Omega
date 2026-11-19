@@ -23,7 +23,7 @@ def dependency(alias, path):
         f'let mut {alias}_dependency: DependencyDescription = '
         f'dependency::from_source(Source::Path {{ location: "{path.as_posix()}" }});\n'
         f'    dependency::with_alias(@mut {alias}_dependency, "{alias}");\n'
-        f'    let package_registration: DependencyRegistration = Build::dependency(builder, {alias}_dependency);'
+        f'    let {alias}_registration: DependencyRegistration = Build::dependency(builder, {alias}_dependency);'
     )
 
 
@@ -52,7 +52,7 @@ use selected::entry;
 boundary trait UefiApplication: ProgramStorageEntry + selected::entry::UefiPhysicalEntry + Calling<selected::entry::UefiX86_64CallingPolicy> { }
 '''
         write(package / "entry" / "contract.omg", body)
-    selection = "" if mode == "no_selection" else "Build::select_provider::<selected::entry::UefiPhysicalEntry, Adapter>(builder);"
+    selection = "" if mode == "no_selection" else "Build::select_provider::<selected::entry::UefiPhysicalEntry, Adapter>(builder, uefi_x86_64);"
     write(application / "build.omg", f'''machine build(builder: @mut Build) {{
     Build::application(builder, "entry_review");
     {dependency("std", standard)}
