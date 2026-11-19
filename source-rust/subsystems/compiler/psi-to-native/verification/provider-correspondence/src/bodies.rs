@@ -2,7 +2,7 @@
 Selected execution bodies: Psi's checked bodies, external numeric execution
 meaning, and pre-optimization callback roots.
 
-select_checked_body and select_terminal_checked_body join selected rows to Psi's
+select_terminal_checked_body joins selected rows to Psi's
 checked declaration and application inventory without reconstructing source
 conformance or specialization. A generic declaration is eligible policy, never
 a substitute for the distinct closed-body roster a concrete application must
@@ -19,48 +19,11 @@ mod callback_roots;
 pub use callback_roots::{
     CallbackProviderDeclarations, SelectedCallbackRow, select_callback_declarations,
 };
-pub use declaration_contracts::CheckedBodyCandidate;
 
+use crate::external_providers::reconcile_numeric_meaning;
 use diagnostics::Diagnostic;
-use effects::external_providers::reconcile_numeric_meaning;
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;
 use provider_plans::{ProviderBinding, ProviderPlan};
-
-pub fn select_checked_body<'candidate, Body>(
-    plan: &ProviderPlan,
-    candidates: impl IntoIterator<Item = CheckedBodyCandidate<'candidate, Body>>,
-) -> Result<Body, Diagnostic> {
-    let [row] = plan.rows.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "checked boundary-operator ProviderPlan `{}` requires one realization row",
-            plan.name,
-        )));
-    };
-    let selection = CheckedBodySelection::new(plan, row)?;
-    let mut matching = candidates.into_iter().filter(|candidate| {
-        let declaration = candidate.declaration;
-        candidate.is_product
-            && declaration.is_product
-            && declaration.requirement
-                == plan
-                    .schema
-                    .identity_text(plan.schema.declaration.trait_name)
-            && declaration.requirement_package == plan.schema.declaration.trait_package_identity
-            && declaration.requirement == plan.identities.text(row.requirement_identity)
-            && selection.matches(&declaration.callable, declaration.package, candidate.target)
-            && declaration.provider == plan.provider_type
-            && declaration.provider_package == plan.provider_type_package_identity
-            && declaration.provider_application.as_deref() == plan.application_identity()
-            && declaration.requirement_lifetime_partition == row.requirement_lifetime_partition
-    });
-    match (matching.next(), matching.next()) {
-        (Some(candidate), None) => Ok(candidate.body),
-        _ => Err(Diagnostic::error(format!(
-            "selected checked boundary-operator ProviderPlan `{}` has no unique exact checked candidate",
-            plan.name,
-        ))),
-    }
-}
 
 struct CheckedBodySelection<'plan> {
     callable: &'plan str,
@@ -151,27 +114,7 @@ pub fn selected_external_execution(
     let requirement = identities
         .text(requirement.identity())
         .ok_or("numeric provider requirement has no nominal identity")?;
-    selected_execution_for_identity(
-        external_providers,
-        identities,
-        requirement,
-        plan,
-        row,
-        retained,
-        realization,
-    )
-}
-
-pub(crate) fn selected_execution_for_identity(
-    external_providers: &[terminal_psi::ExternalProviderConformance],
-    identities: &terminal_psi::TerminalIdentityTable,
-    requirement: &str,
-    plan: &ProviderPlan,
-    row: &provider_plans::ProviderPlanRow,
-    retained: Option<CompilerIntrinsicExecutionIdentity>,
-    realization: Option<&str>,
-) -> Result<Option<CompilerIntrinsicExecutionIdentity>, String> {
-    if let Some(candidate) = effects::external_providers::selected_sealed_native_provider(
+    if let Some(candidate) = crate::external_providers::selected_sealed_native_provider(
         external_providers,
         identities,
         requirement,
@@ -180,13 +123,13 @@ pub(crate) fn selected_execution_for_identity(
         row,
     )? {
         let expected =
-            effects::external_providers::canonical_external_execution(candidate, &plan.target)?
+            crate::external_providers::canonical_external_execution(candidate, &plan.target)?
                 .ok_or("sealed native provider lost its canonical execution meaning")?;
-        return effects::external_providers::reconcile_sealed_execution(expected, retained)
+        return crate::external_providers::reconcile_sealed_execution(expected, retained)
             .map(Some)
             .map_err(str::to_owned);
     }
-    let candidate = effects::external_providers::selected_numeric_provider(
+    let candidate = crate::external_providers::selected_numeric_provider(
         external_providers,
         identities,
         requirement,

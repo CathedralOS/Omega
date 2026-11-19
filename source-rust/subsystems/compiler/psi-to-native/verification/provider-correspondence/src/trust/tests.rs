@@ -2,12 +2,12 @@
 //! rejoins those exact coordinates and validates only requested evidence.
 
 use super::{RootTrustPolicy, TrustAdmission, reconstruct_trust_obligations};
-use declaration_contracts::trust_declarations::AcceptedContractDeclaration;
-use declaration_contracts::trust_declarations::AcceptedMachineDeclaration;
-use declaration_contracts::trust_declarations::AcceptedTemplateDeclaration;
-use declaration_contracts::trust_declarations::TrustDeclarationCardinality;
-use declaration_contracts::trust_declarations::TrustDeclarations;
 use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
+use symbols::trust_declarations::AcceptedContractDeclaration;
+use symbols::trust_declarations::AcceptedMachineDeclaration;
+use symbols::trust_declarations::AcceptedTemplateDeclaration;
+use symbols::trust_declarations::TrustDeclarationCardinality;
+use symbols::trust_declarations::TrustDeclarations;
 
 fn machine(index: u32, name: &str) -> AcceptedMachineDeclaration {
     AcceptedMachineDeclaration {

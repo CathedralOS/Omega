@@ -1,7 +1,7 @@
 //! Rejoin an authored accepted-machine handle to exactly one checked declaration.
 
-use declaration_contracts::trust_declarations::AcceptedMachineDeclaration;
 use diagnostics::Diagnostic;
+use symbols::trust_declarations::AcceptedMachineDeclaration;
 
 pub(crate) fn accepted_machine<'a>(
     machines: &[&'a AcceptedMachineDeclaration],

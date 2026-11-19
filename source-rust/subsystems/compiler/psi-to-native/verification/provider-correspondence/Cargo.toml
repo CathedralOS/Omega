@@ -10,14 +10,14 @@ native-intrinsics = { path = "../../targets/intrinsics" }
 target-provider-admission = { path = "../target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }
+numerics = { path = "../../../psi/semantics/numeric" }
+language-core = { path = "../../../foundation/language-core" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 function-identity = { path = "../../pipeline/representations/function-identity" }
-declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }
 graphs = { path = "../../../foundation/graphs" }
 boundary-applications = { path = "../../pipeline/representations/operation-evidence/boundary-applications" }
 terminal-psi = { path = "../../../psi" }
-effects = { path = "../../installation/native-effects" }
 target = { path = "../../targets/target" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }

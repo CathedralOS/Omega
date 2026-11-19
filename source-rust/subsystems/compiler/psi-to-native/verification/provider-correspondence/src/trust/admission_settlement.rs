@@ -3,14 +3,14 @@
 // complete checked promise together with the selected Build locator receipt.
 
 use super::TrustAdmission;
-use declaration_contracts::trust_declarations::{
-    AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality,
-    TrustDeclarations,
-};
 use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 use symbols::root_grants::AuthoredRootGrant;
 use symbols::root_grants::RootGrantSubject;
+use symbols::trust_declarations::{
+    AcceptedContractDeclaration, AcceptedTemplateDeclaration, TrustDeclarationCardinality,
+    TrustDeclarations,
+};
 
 enum PreparedTrustIdentity {
     ProviderPlan {
@@ -68,7 +68,7 @@ pub fn reconstruct_trust_obligations(
         (machine.machine.arena_index(), machine.machine.generation())
     });
     let mut native_grants = native_grants.iter();
-    let mut provider_grants = super::resolve_authored_selected_provider_grants(
+    let mut provider_grants = super::provider_grants::selected_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
@@ -86,10 +86,10 @@ pub fn reconstruct_trust_obligations(
                     refuse("root provider grant lost its exact selected application".into())
                 })?;
                 (
-                    provider.grant.commitment(),
+                    super::provider_grants::commitment(provider),
                     PreparedTrustIdentity::ProviderPlan {
-                        report_identity: provider.grant.selected_plan_report_identity,
-                        digest: provider.grant.selected_plan_digest,
+                        report_identity: provider.report_fingerprint(),
+                        digest: provider.identity_digest(),
                     },
                 )
             }
