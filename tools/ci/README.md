@@ -6,25 +6,21 @@ there is no merge queue.
 
 ## Admission
 
-`.github/workflows/admission.yml` is the only check a pull request needs. It
-builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
-and diff, then, when Rust files changed, `fmt --check`, which runs one
-`rustfmt` per CPU.
+[Admission](../../.github/workflows/admission.yml) checks the paths in tracked
+Cargo manifests and Rust sources before merge. Active workspaces, dependencies,
+Cargo targets and Rust modules or literal file includes must resolve outside
+`_recycling/`. The check follows literal `#[path]` attributes, including in
+`cfg_attr`, and the `include!`, `include_bytes!` and `include_str!` macros. It
+also evaluates literal `concat!` arguments and `env!("CARGO_MANIFEST_DIR")`.
+Generated source and arbitrary build-script execution are outside its scope.
 
-`tools/xtask/bootstrap-mbx.sh` installs the checksum-capable adapter pinned in
-`tools/mbx-version`. It verifies the official bootstrap release, pins upstream
-source, applies `tools/xtask/mbx-checksum.patch`, and caches the completed binary
-by source, patch, installer, profile and toolchain identity. CI restores that
-small artifact cache before setup, so unchanged recipes do not rebuild mbx.
-The installer and patch live under `tools/xtask/`, covered by admission's push
-filter and cache key along with the `xtask` crate. See
-[checksum setup](../docs/testing.md#checksum-capable-mbx-setup) for build policy
-and the cache-hit/restored-mtime mutation control.
+Run `python3 -B tools/ci/check_recycling.py` from a checkout with Python 3.11 or
+newer. `python3 -B tools/ci/test_check_recycling.py` runs its regression checks.
+Both commands run while the root Cargo workspace is under repair.
 
-A pull request can restore a cache only from its own runs or from main's. So
-the same workflow also runs on pushes to main that change `tools/xtask`,
-`Cargo.lock` or the toolchain, and saves the built `xtask` there for every pull
-request to restore.
+Changes to the standalone V2 workspace or its CI toolchain also run
+`mbx test --locked --workspace` under `omega-rust-v2/`.
+[mbx setup](../docs/testing.md#checksum-capable-mbx-setup)
 
 ## Post-merge check
 
