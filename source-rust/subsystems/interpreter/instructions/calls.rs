@@ -1124,7 +1124,7 @@ pub(crate) mod component_arguments {
             completion_receipts: &[CompletionReceipt],
             receiver: &BoundaryMachineDeclaration,
             provider: &TerminalProgram<'artifact>,
-            selected: &terminal_installation::AdmittedComponentProvider,
+            selected: &psi_provider_selections::AdmittedComponentProvider,
         ) -> Result<PreparedComponentArguments, TerminalInterpretError> {
             let reject = |reason| TerminalInterpretError::UnsupportedSemanticVariant(reason);
             let supplied = provider

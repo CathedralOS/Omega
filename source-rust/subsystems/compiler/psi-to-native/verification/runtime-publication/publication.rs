@@ -21,7 +21,7 @@ pub type RuntimeHostProvisions = TerminalRuntimeHostProvisions<RuntimeAdapterIde
 #[derive(Debug, Clone)]
 pub struct RuntimeComponent {
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    selection: terminal_installation::AdmittedComponentProvider,
+    selection: psi_provider_selections::AdmittedComponentProvider,
     application: BoundaryCallingApplication,
     runtime: TerminalCallableRuntimeProvisions<RuntimeAdapterIdentity>,
     authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
@@ -94,7 +94,7 @@ impl RuntimeComponent {
     pub fn artifact(&self) -> &Arc<terminal_codec::CanonicalTerminalArtifact> {
         &self.artifact
     }
-    pub fn selection(&self) -> &terminal_installation::AdmittedComponentProvider {
+    pub fn selection(&self) -> &psi_provider_selections::AdmittedComponentProvider {
         &self.selection
     }
     pub fn locator(&self) -> &target::NormalizedComponentLocator {

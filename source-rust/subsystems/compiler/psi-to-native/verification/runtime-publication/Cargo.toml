@@ -21,6 +21,5 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
 terminal-codec = { path = "../../../psi/codec" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-psi = { path = "../../../psi" }
 verified-optimization-input = { path = "../../pipeline/representations/abstract-operations/verified-optimization-input" }

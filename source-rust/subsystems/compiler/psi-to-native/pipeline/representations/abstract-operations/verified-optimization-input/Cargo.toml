@@ -35,7 +35,6 @@ language-core = { path = "../../../../../foundation/language-core" }
 layout-plans = { path = "../../../../../psi/layout" }
 terminal-codec = { path = "../../../../../psi/codec" }
 psi-authorization = { path = "../../../../../psi/authorization" }
-terminal-installation = { path = "../../../../../psi-admission" }
 terminal-psi = { path = "../../../../../psi" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 backend-plan = { path = "../../../../installation/provider-plans" }

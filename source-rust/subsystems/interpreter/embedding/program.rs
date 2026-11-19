@@ -261,8 +261,8 @@ pub(crate) mod instance {
         use std::collections::BTreeMap;
 
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
+        use psi_provider_selections::AdmittedComponentProvider;
         use psi_scalar_applications::AdmittedScalarApplications;
-        use terminal_installation::AdmittedComponentProvider;
         use terminal_work::WorkMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
@@ -661,7 +661,7 @@ pub(crate) mod instance {
         impl<'host, 'artifact> TerminalInstance<'host, 'artifact> {
             pub(crate) fn into_component_return(
                 mut self,
-                selected: &terminal_installation::AdmittedComponentProvider,
+                selected: &psi_provider_selections::AdmittedComponentProvider,
             ) -> Result<ComponentOwnedReturn<'host, 'artifact>, (Self, TerminalInstanceError)>
             {
                 let verified = (|| {
