@@ -47,8 +47,8 @@ fn verdict(text: &str) -> String {
 #[test]
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
-boundary trait Errno { machine slot() -> &i32 reaches none crashes none; }
-machine read(slot: &i32) -> i32 { slot }
+boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }
+machine read(slot: @i32) -> i32 { slot }
 machine entry() -> i32 reaches Errno invokes Errno { read(Errno::slot()) }
 "#;
     assert_eq!(verdict(source), "accepted");
@@ -58,18 +58,18 @@ machine entry() -> i32 reaches Errno invokes Errno { read(Errno::slot()) }
 fn a_provider_reference_keeps_its_declared_input_borrow_until_the_read() {
     let source = r#"
 data Token { id: u64; }
-boundary trait ErrorState { machine slot(token: &Token) -> &i32 reaches none crashes none; }
-machine read(other: &mut Token, slot: &i32) -> i32 { other.id = 4; slot }
+boundary trait ErrorState { machine slot(token: @Token) -> @i32 reaches none crashes none; }
+machine read(other: @mut Token, slot: @i32) -> i32 { other.id = 4; slot }
 machine entry() -> i32 reaches ErrorState invokes ErrorState {
     let mut token: Token = Token { id: 1 };
     let mut other: Token = Token { id: 2 };
-    let slot: &i32 = ErrorState::slot(&token);
-    read(&mut other, slot)
+    let slot: @i32 = ErrorState::slot(@token);
+    read(@mut other, slot)
 }
 "#;
     assert_eq!(verdict(source), "accepted");
     let conflicts = match crate::checking::judge(elaborate(
-        &source.replace("read(&mut other, slot)", "read(&mut token, slot)"),
+        &source.replace("read(@mut other, slot)", "read(@mut token, slot)"),
     )) {
         Ok(RouteVerdict::Rejected { conflicts, .. }) => conflicts,
         other => panic!("the provider reference must keep token borrowed: {other:?}"),

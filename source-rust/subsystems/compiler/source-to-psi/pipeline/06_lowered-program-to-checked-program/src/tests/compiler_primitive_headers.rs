@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 const INDEXING: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../source/library/core/indexing.omg"
+    "/../../../../../../source/library/core/indexing.omg"
 ));
 
 fn typed(
@@ -115,7 +115,7 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
 fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation.omg"
     ));
     use language_core::byte_predicates::ByteSequencePredicate;
     let program = typed_at(
@@ -218,7 +218,7 @@ ensures result.len == items.len { items }
 fn copied_or_edited_byte_observation_headers_cannot_acquire_catalog_supply() {
     const SOURCE: &str = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation.omg"
     ));
     let edited = SOURCE.replace("reaches none", "reaches none\nsuspends true");
     for (source, origin) in [
@@ -242,7 +242,7 @@ fn observed_typed(text: &str) -> crate::source_state::TypedTrees {
             "byte_observation",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../source/library/core/byte_observation.omg"
+                "/../../../../../../source/library/core/byte_observation.omg"
             )),
         )],
     )
@@ -588,7 +588,7 @@ fn bounded_concat_keeps_its_original_room_a1_execution_oracle() {
     // both copies, every bound, and the Room A1/length-seven check stay intact.
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../samples/cli/probes/bounded_concat/main.omg"
+        "/../../../../../../samples/cli/probes/bounded_concat/main.omg"
     ))
     .replace("machine entry_start()", "machine main()");
     let typed = observed_typed(&source);

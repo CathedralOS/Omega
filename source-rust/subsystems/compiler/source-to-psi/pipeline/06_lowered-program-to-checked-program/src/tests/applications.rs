@@ -17,7 +17,7 @@ fn source_program_in_scope(
     // declaration. Keep the full file, including its open generic proof.
     let optional = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/option.omg"
+        "/../../../../../../source/library/core/option.omg"
     ));
     let declaration = if bundled_optional {
         "use omega::language::core::Optional;"
@@ -47,7 +47,7 @@ machine entry() -> Applied {{
         .source_id;
     let core = bundled_optional.then(|| {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../../source/library/core");
+            .join("../../../../../../source/library/core");
         sources
             .add_with_metadata(
                 root.join("option.omg"),

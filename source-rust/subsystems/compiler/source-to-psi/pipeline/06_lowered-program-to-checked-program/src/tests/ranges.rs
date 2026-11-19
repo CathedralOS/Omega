@@ -554,64 +554,64 @@ fn an_exact_polynomial_multiple_has_zero_remainder_and_refuses_odd_twins() {
         (
             "local",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/local/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/local/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_local/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_local/main.omg"
             ),
         ),
         (
             "field",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/field/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/field/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_field/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_field/main.omg"
             ),
         ),
         (
             "parameter",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/parameter/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/parameter/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_parameter/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_parameter/main.omg"
             ),
         ),
         (
             "match_join",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/match_join/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/match_join/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_match_join/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_match_join/main.omg"
             ),
         ),
         (
             "const_name",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/const_name/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/const_name/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_const_name/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_const_name/main.omg"
             ),
         ),
         (
             "other_state",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/other_state/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/other_state/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_state/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_state/main.omg"
             ),
         ),
         (
             "other_machine",
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/other_machine/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/other_machine/main.omg"
             ),
             include_str!(
-                "../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_machine/main.omg"
+                "../../../../../../../../samples/cli/facts/integer_multiple_remainder/invalid_other_machine/main.omg"
             ),
         ),
     ] {

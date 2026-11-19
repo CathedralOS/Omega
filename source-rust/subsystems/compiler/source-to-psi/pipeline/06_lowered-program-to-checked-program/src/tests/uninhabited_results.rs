@@ -209,7 +209,7 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
                 "Never",
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/never.omg"
+                    "/../../../../../../source/library/core/never.omg"
                 )),
             ),
             (
@@ -217,7 +217,7 @@ fn canonical_process_exit_publishes_never_without_a_receiving_value() {
                 "ProcessExit",
                 include_str!(concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../../../../../source/library/core/process_exit.omg"
+                    "/../../../../../../source/library/core/process_exit.omg"
                 )),
             ),
         ],

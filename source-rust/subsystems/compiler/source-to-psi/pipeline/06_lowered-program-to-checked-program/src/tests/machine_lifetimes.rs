@@ -413,7 +413,7 @@ machine take(view: @[u8]) { }
 
 const LITERAL_MATCH: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tests/fixtures/run/calls/caller_chosen_literal_match/main.omg"
+    "/../../../../../../tests/fixtures/run/calls/caller_chosen_literal_match/main.omg"
 ));
 
 fn literal_match_source() -> String {
@@ -541,7 +541,7 @@ fn a_caller_chosen_result_is_not_a_view_of_a_local_even_when_empty() {
     };
     let local_match = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/fail/calls/caller_chosen_local_match/main.omg"
+        "/../../../../../../tests/fixtures/fail/calls/caller_chosen_local_match/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     for source in [

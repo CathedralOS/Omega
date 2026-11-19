@@ -179,7 +179,7 @@ fn multiple_provider_declarations_publish_in_portable_order() {
     // one must not stop the other exact candidates from being published.
     let typed = typed(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/providers/target_selected_implementation/main.omg"
+        "/../../../../../../tests/fixtures/run/providers/target_selected_implementation/main.omg"
     )));
     let supplies = [crate::lowering::Supply {
         slot: declared(&typed, "TargetConstants"),

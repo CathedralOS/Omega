@@ -7,29 +7,29 @@
 use super::boundary_calls::typed;
 use super::*;
 
-const VOCABULARY: &str = include_str!("../../../../../../../source/library/std/calling.omg");
-const SHAPES: &str = include_str!("../../../../../../../source/library/std/entry_shapes.omg");
+const VOCABULARY: &str = include_str!("../../../../../../../../source/library/std/calling.omg");
+const SHAPES: &str = include_str!("../../../../../../../../source/library/std/entry_shapes.omg");
 /// Each hosted target's named policy and its private static plan helper.
 const TARGETS: [(&str, &str, &str); 4] = [
     (
         "WindowsX86_64",
         "windows_x86_64_entry_plan",
-        include_str!("../../../../../../../source/library/std/targets/windows_x86_64/entry.omg"),
+        include_str!("../../../../../../../../source/library/std/targets/windows_x86_64/entry.omg"),
     ),
     (
         "LinuxX86_64",
         "linux_x86_64_entry_plan",
-        include_str!("../../../../../../../source/library/std/targets/linux_x86_64/entry.omg"),
+        include_str!("../../../../../../../../source/library/std/targets/linux_x86_64/entry.omg"),
     ),
     (
         "LinuxArm64",
         "linux_arm64_entry_plan",
-        include_str!("../../../../../../../source/library/std/targets/linux_arm64/entry.omg"),
+        include_str!("../../../../../../../../source/library/std/targets/linux_arm64/entry.omg"),
     ),
     (
         "MacosArm64",
         "macos_arm64_entry_plan",
-        include_str!("../../../../../../../source/library/std/targets/macos_arm64/entry.omg"),
+        include_str!("../../../../../../../../source/library/std/targets/macos_arm64/entry.omg"),
     ),
 ];
 

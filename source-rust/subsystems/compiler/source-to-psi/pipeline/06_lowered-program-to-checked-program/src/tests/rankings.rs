@@ -263,10 +263,10 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
 pub(crate) fn typed_with_ranking_catalog(text: &str) -> crate::source_state::TypedTrees {
     use std::sync::Arc;
     let core_root =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library/core");
     let nat = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/nat.omg"
+        "/../../../../../../source/library/core/nat.omg"
     ));
     let prefix = nat
         .split_once("// The core algebraic")
@@ -363,7 +363,7 @@ fn ranks_value(cycle: &TerminalNaturalCycle) -> semantic_vocabulary::ValueId {
 fn borrowed_slice_iterations_keep_their_measure_and_backing() {
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
     ));
     let source = format!("{program}\nmachine entry() crashes Trap {{ main(); }}\n");
     let results =
@@ -601,7 +601,7 @@ machine entry() crashes none {{ measured({actual}); }}
 fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
     let original = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
     ));
     let source = original.replace("checksum(bytes[1..],", "checksum(bytes,");
     assert_ne!(source, original);

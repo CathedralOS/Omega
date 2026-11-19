@@ -21,7 +21,7 @@ const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
     "byte_observation",
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/byte_observation.omg"
+        "/../../../../../../source/library/core/byte_observation.omg"
     )),
 )];
 
@@ -875,7 +875,7 @@ fn a_subslice_cast_requires_the_exact_backing_to_preserve_its_predicate() {
 fn removing_a_domain_keeps_the_backing_bytes_of_a_prefix() {
     let prefix = |predicate, bytes| {
         sliced_cast(predicate, " in Text", bytes)
-            .replace("&text[0..end]", "&(text as -Text)[0..end]")
+            .replace("@text[0..end]", "@(text as -Text)[0..end]")
     };
     for predicate in ["no_nul", "ascii_only"] {
         assert_eq!(verdict(&prefix(predicate, r#""pl" as +Text"#)), "accepted");
@@ -1029,11 +1029,11 @@ machine build_entry() {
 fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
     let valid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/shared_byte_view_join/main.omg"
+        "/../../../../../../tests/fixtures/run/views/shared_byte_view_join/main.omg"
     ));
     let invalid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/fail/views/shared_byte_view_join/main.omg"
+        "/../../../../../../tests/fixtures/fail/views/shared_byte_view_join/main.omg"
     ));
     let build_source = |source: &str| {
         source
@@ -1067,11 +1067,11 @@ fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
 fn a_shared_array_prefix_uses_its_own_backing_membership() {
     let valid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/shared_fixed_array_prefix/main.omg"
+        "/../../../../../../tests/fixtures/run/views/shared_fixed_array_prefix/main.omg"
     ));
     let invalid = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/fail/views/shared_fixed_array_prefix/main.omg"
+        "/../../../../../../tests/fixtures/fail/views/shared_fixed_array_prefix/main.omg"
     ));
     let build_source = |source: &str| {
         source
@@ -1138,7 +1138,7 @@ machine build_entry() {
 fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/mutable_domain_buffer/main.omg"
+        "/../../../../../../tests/fixtures/run/views/mutable_domain_buffer/main.omg"
     ))
     .replace("use omega::language::core::byte_observation;", "")
     .replace("machine main()", "machine build_entry()");

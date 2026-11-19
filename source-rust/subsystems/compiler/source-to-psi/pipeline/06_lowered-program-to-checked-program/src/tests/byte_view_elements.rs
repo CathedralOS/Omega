@@ -665,7 +665,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
             "byte_observation",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),
-                "/../../../../../source/library/core/byte_observation.omg"
+                "/../../../../../../source/library/core/byte_observation.omg"
             )),
         )],
     );
@@ -1305,7 +1305,7 @@ fn a_shared_reference_kept_across_a_byte_store_prevents_the_write() {
 fn byte_store_array_backing_program_is_checked_without_changing_its_operations() {
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/byte_view_store/main.omg"
+        "/../../../../../../tests/fixtures/run/views/byte_view_store/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     assert_eq!(verdict(&program), "accepted");

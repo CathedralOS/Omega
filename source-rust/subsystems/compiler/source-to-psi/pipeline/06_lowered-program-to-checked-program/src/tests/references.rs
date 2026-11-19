@@ -861,7 +861,7 @@ machine entry() crashes none {
 fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../samples/cli/facts/reference_arrival_handoff");
+        .join("../../../../../../samples/cli/facts/reference_arrival_handoff");
     let prepared = |path: &std::path::Path| {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|error| panic!("reading reference source {}: {error}", path.display()));
@@ -1050,7 +1050,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
 // independently of whether its shared reference type admits later copies.
 const SHARED_REFERENCE_FORMATION: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tests/fixtures/run/ownership/shared_reference_formation/main.omg"
+    "/../../../../../../tests/fixtures/run/ownership/shared_reference_formation/main.omg"
 ));
 
 fn shared_reference_source() -> String {
@@ -1229,7 +1229,7 @@ fn a_shared_reference_copy_keeps_the_original_formation_owned() {
 fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/fail/ownership/reference_live_across_replacement/main.omg"
+        "/../../../../../../tests/fixtures/fail/ownership/reference_live_across_replacement/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     let verdict = super::build_purpose::judge_build(&source).unwrap();
@@ -1251,7 +1251,7 @@ fn a_shared_reference_still_excludes_replacement_until_its_last_use() {
 fn a_whole_record_assignment_writes_the_storage_its_references_observe() {
     let negative = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/fail/ownership/reference_live_across_whole_record_assignment/main.omg"
+        "/../../../../../../tests/fixtures/fail/ownership/reference_live_across_whole_record_assignment/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     let verdict = super::build_purpose::judge_build(&negative).unwrap();
@@ -1262,7 +1262,7 @@ fn a_whole_record_assignment_writes_the_storage_its_references_observe() {
     assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
     let positive = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/ownership/whole_record_assignment/main.omg"
+        "/../../../../../../tests/fixtures/run/ownership/whole_record_assignment/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     let verdict = super::build_purpose::judge_build(&positive).unwrap();

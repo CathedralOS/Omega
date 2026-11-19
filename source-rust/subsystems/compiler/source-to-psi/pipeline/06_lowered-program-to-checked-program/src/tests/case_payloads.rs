@@ -543,7 +543,7 @@ machine route() -> u32 {{
 // executable oracle rather than accepting any completing store.
 const OWNED_STORE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tests/fixtures/run/ownership/known_case_payload_store/main.omg"
+    "/../../../../../../tests/fixtures/run/ownership/known_case_payload_store/main.omg"
 ));
 
 // The inline source harness selects build_entry; the kept executable binds
