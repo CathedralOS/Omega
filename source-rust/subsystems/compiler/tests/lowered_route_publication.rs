@@ -47,8 +47,7 @@ fn an_indexed_discriminator_keeps_its_pre_dispatch_evidence() {
     let seals = product
         .evidence()
         .expect("the checker sealed the indexed read");
-    let execution = proposal
-        .prepare_native_execution(product.authorization(), &[])
+    let execution = provider_realization::native_execution::prepare_program(proposal, product.authorization(), &[])
         .unwrap()
         .with_operation_evidence(product.artifact(), Some(seals.clone()))
         .unwrap();

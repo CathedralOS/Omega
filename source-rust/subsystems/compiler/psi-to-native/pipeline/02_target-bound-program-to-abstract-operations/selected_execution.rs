@@ -3,10 +3,7 @@ use diagnostics::Diagnostic;
 use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
 
 pub fn lower_native_callable(
-    execution: &PreparedNativeExecution,
-    artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &TerminalNativeRealizationProposal,
-    entry: terminal_psi::TargetMachineCallable,
+    callable: provider_realization::native_execution::BoundNativeCallable<'_>,
     scalar_applications: Option<crate::NativeScalarApplications<'_>>,
 ) -> Result<
     (
@@ -15,11 +12,7 @@ pub fn lower_native_callable(
     ),
     Vec<Diagnostic>,
 > {
-    execution
-        .authorization()
-        .require_artifact(artifact)
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-    let checked_scope = proposal.callable_execution_scope(artifact, entry, Some(execution))?;
+    let (proposal, execution, artifact, entry, checked_scope) = callable.into_parts();
     let selection = crate::NativeExecutionSelection::checked(
         &checked_scope,
         &proposal.providers().selection,

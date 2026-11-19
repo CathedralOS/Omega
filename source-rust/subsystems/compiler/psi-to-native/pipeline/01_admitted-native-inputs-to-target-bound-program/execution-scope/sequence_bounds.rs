@@ -3,7 +3,7 @@ use semantic_vocabulary::StructuralTypeId;
 /// Infer storage bounds from the exact closed native machine selection. This
 /// query precedes target layout demand; the resulting roster travels unchanged
 /// into the native stages rather than being rediscovered by their consumers.
-pub(super) fn closed_owned_sequence_bounds(
+pub fn closed_owned_sequence_bounds(
     module: &terminal_psi::TerminalModule,
     included: impl Fn(semantic_vocabulary::MachineId) -> bool,
 ) -> Result<Vec<(StructuralTypeId, u64)>, &'static str> {

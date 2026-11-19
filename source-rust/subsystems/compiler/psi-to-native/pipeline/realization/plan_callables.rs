@@ -355,11 +355,11 @@ fn plan_callback_target(
         },
         ..*request.admission
     };
+    let callable = provider_realization::native_execution::BoundNativeCallable::prepare(
+        request.proposal, request.execution, artifact, admission.entry,
+    )?;
     let (input, boundary_coverage) = artifact_lowering::lower_native_callable(
-        request.execution,
-        artifact,
-        request.proposal,
-        admission.entry,
+        callable,
         request
             .scalar_applications
             .map(|completed| artifact_lowering::NativeScalarApplications { completed }),

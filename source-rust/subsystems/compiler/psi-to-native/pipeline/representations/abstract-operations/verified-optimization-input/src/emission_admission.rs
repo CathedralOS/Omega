@@ -35,7 +35,7 @@ impl super::AdmittedLoweringFacts {
                 native_execution_scope: self
                     .native_execution_scope
                     .as_ref()
-                    .map(|scope| std::sync::Arc::clone(&scope.emitted)),
+                    .map(|scope| std::sync::Arc::clone(scope.reach.emitted())),
                 selected_provider_closure: self.selected_provider_closure,
             },
             native_callbacks: self.native_callbacks.clone(),
@@ -52,7 +52,7 @@ impl EmissionAdmission {
             &self.entry.native_execution_scope,
             &lowering.native_execution_scope,
         ) {
-            (Some(carried), Some(issued)) => std::sync::Arc::ptr_eq(carried, &issued.emitted),
+            (Some(carried), Some(issued)) => std::sync::Arc::ptr_eq(carried, issued.reach.emitted()),
             (None, None) => true,
             _ => false,
         };

@@ -1,0 +1,22 @@
+[package]
+name = "native-execution-scope"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "scope.rs"
+
+[dependencies]
+arena = { path = "../../../../../../foundation/arena" }
+provider-admission = { path = "../../../verification/provider-admission" }
+provider-correspondence = { path = "../../../verification/provider-correspondence" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+terminal-codec = { path = "../../../../psi/codec" }
+terminal-psi = { path = "../../../../psi" }
+
+[dev-dependencies]
+calling-conventions = { path = "../../../targets/calling-conventions" }
+function-identity = { path = "../../representations/function-identity" }
+psi-target-layouts = { path = "../../../../psi/layout/admission" }

@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+native-execution-scope = { path = "../../../01_admitted-native-inputs-to-target-bound-program/execution-scope" }
 native-behavior-exclusions = { path = "../../../../verification/behavior-exclusions" }
 provider-acceptance = { path = "../../../../../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../../../../../build/behavior-exclusions" }

@@ -8,6 +8,8 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+native-execution-scope = { path = "execution-scope" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
 build-value-projection = { path = "../../../build/evaluation/value-projection" }
 provider-acceptance = { path = "../../../build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }

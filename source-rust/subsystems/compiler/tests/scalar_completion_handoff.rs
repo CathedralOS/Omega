@@ -74,8 +74,7 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
     )
     .unwrap();
     let proposal = pending.terminal.native_realization_proposal().expect("native proposal");
-    let demand = proposal
-        .entry_scalar_demand(pending.terminal.authorization())
+    let demand = provider_realization::native_execution::entry_scalar_demand(proposal, pending.terminal.authorization())
         .expect("checked entry demand");
     let mut changed = proposal.target_provider_proposals().to_vec();
     changed[0].selection = Err(vec!["changed provider proposal".into()]);

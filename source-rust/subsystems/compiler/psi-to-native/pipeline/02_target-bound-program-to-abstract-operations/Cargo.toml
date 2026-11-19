@@ -11,6 +11,7 @@ path = "lower.rs"
 test-support = []
 
 [dependencies]
+provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "../01_admitted-native-inputs-to-target-bound-program" }
 native-behavior-exclusions = { path = "../../verification/behavior-exclusions" }
 target-provider-admission = { path = "../../verification/target-providers" }
 selected-provider-plans = { path = "../../../build/providers/selections" }

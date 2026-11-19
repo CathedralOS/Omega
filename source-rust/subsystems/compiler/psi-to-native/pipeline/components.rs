@@ -50,8 +50,8 @@ pub(crate) fn prepare_components<'input>(
             .exports()
             .iter()
             .map(|export| {
-                proposal
-                    .prepare_native_callable_execution(
+                provider_realization::native_execution::prepare_export(
+                        proposal,
                         input.authorization(),
                         terminal_psi::TargetMachineCallable::Machine(export.candidate.candidate),
                     )?

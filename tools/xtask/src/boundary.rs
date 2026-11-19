@@ -1047,6 +1047,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &root,
             &root.join(crate::boundary_contracts::MANIFEST),
         )?);
+        violations.extend(call_violations(
+            &root,
+            &["IssuedReach::derive("],
+            &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs"],
+            &[],
+            "stage 01 issues reachability before a native body can be lowered",
+        ));
         violations.extend(plan_validator_call_violations(&root));
         violations.extend(single_form_entry_violations(&root));
         violations.extend(working_program_read_violations(&root));

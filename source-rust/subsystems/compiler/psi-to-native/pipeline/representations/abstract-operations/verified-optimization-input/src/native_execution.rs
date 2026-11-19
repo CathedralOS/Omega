@@ -17,74 +17,11 @@ pub struct PreparedNativeExecution {
 }
 
 impl TerminalNativeRealizationProposal {
-    /// Choose what the program entry executes natively and settle its provider
-    /// demand. Component calls replace the local implementations they name.
-    pub fn prepare_native_execution(
-        &self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    pub fn program_scope_request<'a>(
+        &'a self,
+        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         components: &[&crate::AdmittedNativeComponentCall<'_>],
-    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-        let scope = self.execution_scope(authorization.artifact(), components)?;
-        self.prepare_native_provider_demand(authorization, scope)
-    }
-
-    /// Choose what one separately emitted callable executes natively and
-    /// settle its provider demand.
-    pub fn prepare_native_callable_execution(
-        &self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        entry: terminal_psi::TargetMachineCallable,
-    ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-        let scope = self.callable_execution_scope(authorization.artifact(), entry, None)?;
-        self.prepare_native_provider_demand(authorization, scope)
-    }
-
-    /// The scalar values native compilation of the program entry reads, or
-    /// `None` when it reads none and the program states no scalar condition.
-    /// Component calls only remove local implementations from the scope, so
-    /// this demand covers the entry with or without them.
-    pub fn entry_scalar_demand(
-        &self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
-        let demand = self
-            .prepare_native_execution(authorization, &[])?
-            .scalar_application_demand(self.target_profile())?;
-        Ok(Self::required(authorization, demand))
-    }
-
-    /// The scalar values native compilation of separately emitted callables
-    /// reads, or `None` when they read none and the program states no scalar
-    /// condition.
-    pub fn callable_scalar_demand(
-        &self,
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        entries: &[terminal_psi::TargetMachineCallable],
-    ) -> Result<Option<Vec<semantic_vocabulary::ScalarApplicationId>>, Vec<Diagnostic>> {
-        let mut demand = Vec::new();
-        for &entry in entries {
-            demand.extend(
-                self.prepare_native_callable_execution(authorization, entry)?
-                    .scalar_application_demand(self.target_profile())?,
-            );
-        }
-        demand.sort_unstable();
-        demand.dedup();
-        Ok(Self::required(authorization, demand))
-    }
-
-    fn required(
-        authorization: &psi_authorization::AuthorizedTerminalArtifact,
-        demand: Vec<semantic_vocabulary::ScalarApplicationId>,
-    ) -> Option<Vec<semantic_vocabulary::ScalarApplicationId>> {
-        requires_scalar_values(authorization.artifact(), &demand).then_some(demand)
-    }
-
-    pub fn execution_scope(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
-        components: &[&crate::AdmittedNativeComponentCall<'_>],
-    ) -> Result<crate::NativeExecutionScope, Vec<Diagnostic>> {
+    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
         let adapters = self.providers().checked_adapters.as_slice();
         if components.iter().any(|component| {
             component.selection().receiver()
@@ -130,15 +67,15 @@ impl TerminalNativeRealizationProposal {
             &self.providers().intrinsic_executions,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        self.derive_scope(artifact, root, semantic_call.as_ref(), &local)
+        self.scope_request(artifact, root, semantic_call, local, None)
     }
 
-    pub fn callable_execution_scope(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    pub fn callable_scope_request<'a>(
+        &'a self,
+        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
-        previous: Option<&PreparedNativeExecution>,
-    ) -> Result<crate::NativeExecutionScope, Vec<Diagnostic>> {
+        previous: Option<&'a PreparedNativeExecution>,
+    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
         let adapters = self.providers().checked_adapters.as_slice();
         let local = if let Some(previous) = previous {
             previous
@@ -155,20 +92,17 @@ impl TerminalNativeRealizationProposal {
         } else {
             adapters
         };
-        let mut scope = self.derive_scope(artifact, entry, None, local)?;
-        if let Some(previous) = previous {
-            scope.bind_completed_provider_selection(previous.selection());
-        }
-        Ok(scope)
+        self.scope_request(artifact, entry, None, local.to_vec(), previous.map(PreparedNativeExecution::selection))
     }
 
-    fn derive_scope(
-        &self,
-        artifact: &terminal_codec::CanonicalTerminalArtifact,
+    fn scope_request<'a>(
+        &'a self,
+        artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         root: terminal_psi::TargetMachineCallable,
-        entry_call: Option<&crate::SelectedProgramEntryCall>,
-        adapters: &[provider_admission::SelectedProviderAdapter],
-    ) -> Result<crate::NativeExecutionScope, Vec<Diagnostic>> {
+        entry_call: Option<crate::SelectedProgramEntryCall>,
+        local_adapters: Vec<provider_admission::SelectedProviderAdapter>,
+        completed_selection: Option<&'a selected_provider_plans::SelectedProviderPlanFacts>,
+    ) -> Result<crate::ProposalScopeRequest<'a>, Vec<Diagnostic>> {
         if self.program_entry().checked_entry().terminal_psi_identity()
             != artifact.view().identity()
         {
@@ -188,19 +122,16 @@ impl TerminalNativeRealizationProposal {
             .selection
             .assumed_binding_coordinates(artifact.semantic_module())
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let mut scope = crate::NativeExecutionScope::derive(
-            artifact.view(),
+        Ok(crate::ProposalScopeRequest {
+            artifact: artifact.view(),
             entry,
-            &targets,
+            targets,
             entry_call,
-            (adapters, &self.providers().selection),
-            &assumptions,
-            &self.occurrences().callbacks,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-        scope.bind_checked_source_entry(self.program_entry().checked_entry());
-        scope.bind_native_supply(&self.providers().native_bindings);
-        Ok(scope)
+            local_adapters,
+            assumptions,
+            proposal: self,
+            completed_selection,
+        })
     }
 
     pub fn selected_intrinsic_provenance<'a>(

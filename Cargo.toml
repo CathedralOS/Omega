@@ -53,6 +53,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/program-entry-contracts",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",

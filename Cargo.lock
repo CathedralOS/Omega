@@ -580,6 +580,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "native-execution-scope"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "calling-conventions",
+ "function-identity",
+ "provider-admission",
+ "provider-correspondence",
+ "psi-target-layouts",
+ "semantic-vocabulary",
+ "target-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+]
+
+[[package]]
 name = "native-intrinsics"
 version = "0.1.0"
 dependencies = [
@@ -2649,6 +2665,8 @@ dependencies = [
 name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
+ "native-execution-scope",
+ "verified-optimization-input",
  "direct-boundary-bindings",
  "evaluation-admission",
  "build-scalar-evaluation",
@@ -3824,6 +3842,7 @@ dependencies = [
 name = "target-bound-program-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
+ "admitted-native-inputs-to-target-bound-program",
  "abstract-operations",
  "boundary-applications",
  "diagnostics",
@@ -4085,6 +4104,7 @@ checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
 name = "verified-optimization-input"
 version = "0.1.0"
 dependencies = [
+ "native-execution-scope",
  "abstract-operations",
  "application-identity",
  "arena",

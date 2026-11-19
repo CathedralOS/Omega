@@ -84,8 +84,7 @@ pub(crate) fn prepare<'input>(
             .iter()
             .flat_map(|component| &component.calls)
             .collect::<Vec<_>>();
-        let execution = proposal
-            .prepare_native_execution(retained.authorization(), &calls)?
+        let execution = provider_realization::native_execution::prepare_program(proposal, retained.authorization(), &calls)?
             .with_operation_evidence(artifact, retained.evidence().cloned())?;
         let scalars = self::required_scalars::required_scalars(
             artifact,
