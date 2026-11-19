@@ -24,15 +24,17 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let producer = HostProducerTrust::accept("retained runtime fixture");
     let program = authorize_terminal_artifact(artifact, Some(&producer)).unwrap();
     let Artifact::Native(report) = compiler::compile(CompileRequest::Native {
-        program: Program::Psi(program),
-        target: NativeTarget {
-            profile,
-            installation,
-            optimizations: &Default::default(),
-            requested_boundaries: Vec::new(),
-            application: Default::default(),
-            behavior_exclusions: &[],
-            x86_scalar_fma_provider: None,
+        program: Program::Psi {
+            program,
+            target: NativeTarget {
+                profile,
+                installation,
+                optimizations: &Default::default(),
+                requested_boundaries: Vec::new(),
+                application: Default::default(),
+                behavior_exclusions: &[],
+                x86_scalar_fma_provider: None,
+            },
         },
         entry_memory: &[],
     })

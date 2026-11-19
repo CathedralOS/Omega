@@ -270,7 +270,7 @@ pub struct NativeApplicationSettings<'a> {
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
-pub(crate) fn prepare_saved_program(
+pub fn prepare_saved_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     mut target: SavedProgramTarget<'_>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {

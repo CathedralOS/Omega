@@ -56,11 +56,12 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
         behavior_exclusions: &[],
         x86_scalar_fma_provider: None,
     };
-    let program =
-        || Program::Psi(authorize_terminal_artifact(Arc::clone(&artifact), Some(&trust)).unwrap());
+    let program = || Program::Psi {
+        program: authorize_terminal_artifact(Arc::clone(&artifact), Some(&trust)).unwrap(),
+        target: target(),
+    };
     let native = CompileRequest::Native {
         program: program(),
-        target: target(),
         entry_memory: &[],
     };
     let named =
@@ -85,7 +86,6 @@ fn final_native_image_passes_checks_and_runtime_admission_obeys_applicability() 
 
     let runtime = || CompileRequest::Runtime {
         program: program(),
-        target: target(),
         entry_memory: &[],
     };
     let all = StageValidatorRequest::from_exact_names([], true).unwrap();
