@@ -204,15 +204,15 @@ fn prepare_and_judge(
         .inspection
         .map(|name| inspection_root(&typed, subject, name))
         .transpose()?;
-    // Entry policies are executable dependencies of the source program. All
-    // Build-bound entry contracts join its one roster before targets settle.
+    // The shared roster includes the physical policies supplied for bound
+    // entries. A recognized slot can have a source shape without such a policy.
     let exact_sources = source_admission::source_identity::toolchain_source_identities(
         typed.symbols.source_files(),
     )
     .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut declaration_metadata = Vec::new();
     let mut entry_catalog = None;
-    for profile in build.targets {
+    for profile in build.targets.iter().filter(|p| p.entry_contract.is_some()) {
         let slot_name = format!("{}::ProgramEntry", profile.entry.owner);
         if !build
             .root_bindings

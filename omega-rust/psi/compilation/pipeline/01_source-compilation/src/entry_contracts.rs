@@ -48,7 +48,7 @@ pub fn select_program_entry_contract(
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
     let contract = profile.entry_contract.as_ref().ok_or_else(|| {
         refuse(format!(
-            "target `{}` has no physical entry contract",
+            "physical entry checking for target `{}` is not implemented",
             profile.name,
         ))
     })?;
