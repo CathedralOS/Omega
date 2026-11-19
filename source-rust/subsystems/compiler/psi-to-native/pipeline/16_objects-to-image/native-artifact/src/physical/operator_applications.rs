@@ -9,7 +9,7 @@ use super::derivation::hashing::sha256;
 use boundary_applications::BoundaryApplicationRealization;
 use object_file::{RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
 use target::{Architecture, NativeTarget};
-use target_operations::CallSiteOwner;
+use target_vocabulary::CallSiteOwner;
 use terminal_psi::OperationKind;
 
 pub(super) use super::derivation::evidence::{ranges_overlap, span, text_relocation_overlaps};

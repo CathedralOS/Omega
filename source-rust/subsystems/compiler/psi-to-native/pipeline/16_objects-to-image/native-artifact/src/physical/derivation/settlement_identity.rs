@@ -16,7 +16,7 @@ use crate::{BoundaryInternalCallCustody, CompilerBuiltinResult, CompilerBuiltinS
 use machine_code::PortEffectRecord;
 use semantic_vocabulary::BoundaryMachineId;
 use target::NativeTarget;
-use target_operations::ProviderExecutionBinding;
+use target_vocabulary::ProviderExecutionBinding;
 
 pub(crate) fn hosted_builtin_settlement_identity(
     occurrence: &OptimizedBoundaryOccurrence,
@@ -85,9 +85,9 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     requirement_identity: &str,
     selected_supply: crate::physical::NativeSelectedSupply,
     target: NativeTarget,
-    execution: target_operations::ExternalExecutionBinding,
+    execution: target_vocabulary::ExternalExecutionBinding,
     boundary_plan_identity: [u8; 32],
-    mechanism: &target_operations::NormalizedForeignCallMechanism,
+    mechanism: &target_vocabulary::NormalizedForeignCallMechanism,
     structural_arguments: &[terminal_psi::StructuralArgument],
     structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
 ) -> [u8; 32] {
@@ -107,10 +107,10 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
     hash_target(&mut digest, target);
     digest.byte(2);
     let mut execution_bytes = Vec::new();
-    legalized_operations::encode_external_execution(&mut execution_bytes, execution);
+    target_vocabulary::encode_external_execution(&mut execution_bytes, execution);
     digest.raw(&execution_bytes);
     match mechanism {
-        target_operations::NormalizedForeignCallMechanism::CompilerImport {
+        target_vocabulary::NormalizedForeignCallMechanism::CompilerImport {
             import,
             requirement_identity,
             selected_plan,
@@ -120,7 +120,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(selected_plan);
             hash_bytes(&mut digest, requirement_identity.as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::HostedImport {
+        target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
             locator,
             receipt,
             requirement_identity,
@@ -130,7 +130,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(receipt);
             hash_bytes(&mut digest, requirement_identity.as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::Table {
+        target_vocabulary::NormalizedForeignCallMechanism::Table {
             target,
             byte_offset,
             dispatch_only,
@@ -142,7 +142,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.byte(u8::from(*dispatch_only));
             digest.raw(&same_stack_contribution.commitment().as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::Import {
+        target_vocabulary::NormalizedForeignCallMechanism::Import {
             locator,
             same_stack_contribution,
         } => {
@@ -150,7 +150,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(&locator.identity_digest().as_bytes());
             digest.raw(&same_stack_contribution.commitment().as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::Component {
+        target_vocabulary::NormalizedForeignCallMechanism::Component {
             locator,
             provider,
             candidate,
@@ -165,12 +165,12 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
             digest.raw(application_commitment);
             digest.raw(&same_stack_contribution.commitment().as_bytes());
         }
-        target_operations::NormalizedForeignCallMechanism::SystemCall(kernel) => {
+        target_vocabulary::NormalizedForeignCallMechanism::SystemCall(kernel) => {
             digest.byte(2);
             hash_bytes(&mut digest, kernel.target.target_name().as_bytes());
             digest.raw(&kernel.number.to_le_bytes());
             match kernel.execution {
-                target_operations::NormalizedForeignExecution::ProviderPlan {
+                target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     report,
                     commitment,
                 } => {
@@ -178,7 +178,7 @@ pub(crate) fn admitted_provider_boundary_trait_settlement_identity(
                     digest.raw(&report.to_le_bytes());
                     digest.raw(&commitment);
                 }
-                target_operations::NormalizedForeignExecution::NativeBinding(binding) => {
+                target_vocabulary::NormalizedForeignExecution::NativeBinding(binding) => {
                     digest.byte(1);
                     digest.raw(&binding);
                 }

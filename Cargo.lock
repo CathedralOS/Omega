@@ -1736,7 +1736,6 @@ dependencies = [
 name = "native-artifact"
 version = "0.1.0"
 dependencies = [
- "abstract-operations",
  "boundary-applications",
  "calling-conventions",
  "component-description",
@@ -1746,12 +1745,12 @@ dependencies = [
  "image-emission",
  "image-macho",
  "installation-conditions",
- "legalized-operations",
  "machine-code",
  "native-binding-admission",
  "native-intrinsics",
  "object-file",
  "operation-evidence",
+ "operation-operands",
  "optimization-core",
  "platform-custody",
  "provider-admission",
@@ -1770,7 +1769,6 @@ dependencies = [
  "target-provider-admission",
  "target-vocabulary",
  "target-aarch64",
- "target-operations",
  "target-x86_64",
  "terminal-authority-receipts",
  "terminal-codec",

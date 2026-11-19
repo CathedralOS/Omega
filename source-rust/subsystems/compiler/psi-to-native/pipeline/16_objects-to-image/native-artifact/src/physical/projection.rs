@@ -263,7 +263,7 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
 #[cfg(test)]
 mod tests {
     use super::{D29ReferenceCoordinate, ValidatedProjectionCoordinates, derive_optimized_scope};
-    use abstract_operations::AbstractFunctionResult;
+    use operation_operands::values::AbstractFunctionResult;
     use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
     use semantic_vocabulary::{BoundaryMachineId, InvocationSite, MachineId, OperationId};
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};

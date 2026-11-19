@@ -45,7 +45,7 @@ use semantic_vocabulary::ScalarType;
 use sha2::{Digest, Sha256};
 use target::Architecture;
 use target::NativeTarget;
-use target_operations::TargetBoundaryResult;
+use target_vocabulary::TargetBoundaryResult;
 use terminal_psi::BoundaryMachineResult;
 use terminal_psi::OperationKind;
 use terminal_psi::OperationResult;
@@ -294,7 +294,7 @@ pub(crate) fn derive_normalized_foreign_child(
             let Some(home) = rejoin.record.call.result.structural_home() else {
                 return Err("normalized foreign D41 child changed its structural result custody");
             };
-            let target_operations::TargetStructuralHomeLayout::Aggregate(shape) = home.layout
+            let target_vocabulary::TargetStructuralHomeLayout::Aggregate(shape) = home.layout
             else {
                 return Err("normalized foreign D41 child changed its structural result layout");
             };
@@ -602,7 +602,7 @@ pub(crate) fn derive_normalized_foreign_child(
             )?;
             (
                 crate::physical::NativeSelectedSupply::ProviderPlan(selected_plan.plan_digest()),
-                target_operations::ExternalExecutionBinding::Provider(execution),
+                target_vocabulary::ExternalExecutionBinding::Provider(execution),
             )
         }
         machine_code::ExternalExecutionRecord::NativeBinding(_) => {
@@ -619,7 +619,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 )?;
             (
                 crate::physical::NativeSelectedSupply::NativeBinding(execution.receipt()),
-                target_operations::ExternalExecutionBinding::NativeBinding(execution),
+                target_vocabulary::ExternalExecutionBinding::NativeBinding(execution),
             )
         }
     };
@@ -1152,7 +1152,7 @@ pub(crate) fn normalized_foreign_structural_parameter_shapes(
     caller_structural_parameters: &[terminal_psi::StructuralParameterDeclaration],
     parameter_order: &[terminal_psi::BoundaryParameterKind],
     callback_present: bool,
-    plan_parameters: &target_operations::ForeignCallOperands<'_>,
+    plan_parameters: &target_vocabulary::ForeignCallOperands<'_>,
     pointer_shape: calling_conventions::ValueShape,
 ) -> Result<Option<Vec<calling_conventions::ValueShape>>, &'static str> {
     if structural_arguments.len() != structural_parameters.len() {

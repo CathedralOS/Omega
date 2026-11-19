@@ -53,7 +53,7 @@ pub(super) fn replay_provider_executions(
     }
     for foreign in foreign_calls {
         let (boundary_id, completion) = match foreign.owner {
-            target_operations::CallSiteOwner::Operation(owner) => {
+            target_vocabulary::CallSiteOwner::Operation(owner) => {
                 let operation = sole_terminal_operation(module, foreign.machine, owner)
                     .ok_or(ProviderExecutionReplayError::NonUniqueForeignOperation)?;
                 let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind
@@ -62,7 +62,7 @@ pub(super) fn replay_provider_executions(
                 };
                 (*boundary, BoundaryCompletion::NormalReturn)
             }
-            target_operations::CallSiteOwner::ExternalCompletion(owner) => {
+            target_vocabulary::CallSiteOwner::ExternalCompletion(owner) => {
                 let mut completions = module
                     .machine(foreign.machine)
                     .into_iter()
@@ -92,9 +92,9 @@ pub(super) fn replay_provider_executions(
                 }
                 (boundary, BoundaryCompletion::External(kind))
             }
-            target_operations::CallSiteOwner::InvokeNoNormal(_)
-            | target_operations::CallSiteOwner::CleanupAction { .. }
-            | target_operations::CallSiteOwner::Installation { .. } => {
+            target_vocabulary::CallSiteOwner::InvokeNoNormal(_)
+            | target_vocabulary::CallSiteOwner::CleanupAction { .. }
+            | target_vocabulary::CallSiteOwner::Installation { .. } => {
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };
@@ -164,16 +164,16 @@ pub(crate) fn rejoin_compiler_import(
     module: &terminal_psi::TerminalModule,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     foreign: &ObjectForeignCall,
-    import: target_operations::CompilerImport,
+    import: target_vocabulary::CompilerImport,
     selected: &NativeSelectedProviderPlan,
-) -> Result<target_operations::ExternalExecutionBinding, &'static str> {
-    let execution = target_operations::ExternalExecutionBinding::CompilerImport(import);
+) -> Result<target_vocabulary::ExternalExecutionBinding, &'static str> {
+    let execution = target_vocabulary::ExternalExecutionBinding::CompilerImport(import);
     let requirement = module
         .identities
         .text(declaration.identity)
         .ok_or("compiler import lost its declaration")?;
     if !matches!(&foreign.binding.mechanism,
-            target_operations::NormalizedForeignCallMechanism::CompilerImport { selected_plan, .. } if selected_plan == selected.plan_digest().as_bytes())
+            target_vocabulary::NormalizedForeignCallMechanism::CompilerImport { selected_plan, .. } if selected_plan == selected.plan_digest().as_bytes())
         || !selected
             .requirement_identities()
             .iter()
@@ -182,7 +182,7 @@ pub(crate) fn rejoin_compiler_import(
         || foreign.binding.requirement_identity(&module.identities) != Some(requirement)
         || !matches!(
             foreign.owner,
-            target_operations::CallSiteOwner::ExternalCompletion(_)
+            target_vocabulary::CallSiteOwner::ExternalCompletion(_)
         )
         || terminal_semantics::closed_conformances::hosted_primitive_requirement(
             module,
@@ -233,7 +233,7 @@ pub(crate) fn validate_foreign_provider_binding(
     } else if let Some(kernel) = foreign.binding.system_call() {
         if !selected_provider_plans.iter().any(|plan| {
             kernel.execution
-                == target_operations::NormalizedForeignExecution::ProviderPlan {
+                == target_vocabulary::NormalizedForeignExecution::ProviderPlan {
                     report: plan.report_identity,
                     commitment: *plan.plan_digest.as_bytes(),
                 }
@@ -263,7 +263,7 @@ pub(crate) fn rejoin_native_foreign_execution(
     foreign: &ObjectForeignCall,
     retained: &native_binding_admission::RetainedNativeBindings,
     calling: &[calling_conventions::BoundaryCallingApplication],
-) -> Result<target_operations::NativeBindingExecution, &'static str> {
+) -> Result<target_vocabulary::NativeBindingExecution, &'static str> {
     let machine_code::ExternalExecutionRecord::NativeBinding(execution) =
         foreign.provider_execution
     else {
@@ -298,7 +298,7 @@ pub(crate) fn rejoin_native_foreign_execution(
         || foreign.binding.native_target() != Some(row.binding.target().native_target())
         || !foreign.binding.has_valid_entry_mechanism()
         || !foreign.binding.matches_execution(
-            target_operations::ExternalExecutionBinding::NativeBinding(execution),
+            target_vocabulary::ExternalExecutionBinding::NativeBinding(execution),
         )
     {
         return Err("native call changed its execution, target or normalized calling plan");
