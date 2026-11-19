@@ -254,13 +254,11 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = artifact_lowering::lower_artifact(
+    let input = artifact_lowering::test_support::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
-    .expect("native planning lowers the published module with its seals")
-    .into_optimization_artifact()
-    .into_optimization_input();
+    .expect("native planning lowers the published module with its seals");
     let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
@@ -606,7 +604,7 @@ mod evidence_seal_tests {
     use abstract_optimization::{
         VerifiedPsiOptimizationUnitBuildError, build_verified_psi_optimization_unit,
     };
-    use artifact_lowering::lower_artifact;
+    use artifact_lowering::test_support::lower_artifact;
     use verified_optimization_input::{ObligationEvidence, VerifiedPsiOptimizationInput};
 
     fn u32_type() -> ScalarType {
@@ -699,9 +697,7 @@ mod evidence_seal_tests {
         let evidence = EvidenceSeals::for_module(module, seals).unwrap();
         let authorized = super::authorize_fixture(super::canonical_fixture(module));
         let input = lower_artifact(&authorized, Some(evidence))
-            .unwrap()
-            .into_optimization_artifact()
-            .into_optimization_input();
+            .unwrap();
         fingerprints(input)
     }
 
@@ -713,9 +709,7 @@ mod evidence_seal_tests {
         let decoded = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
         let authorized = super::authorize_fixture(decoded);
         let input = lower_artifact(&authorized, None)
-            .unwrap()
-            .into_optimization_artifact()
-            .into_optimization_input();
+            .unwrap();
         assert_eq!(input.evidence(), &ObligationEvidence::NoSeals);
         fingerprints(input)
     }

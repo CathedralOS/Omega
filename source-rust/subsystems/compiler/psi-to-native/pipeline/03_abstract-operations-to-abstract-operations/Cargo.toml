@@ -25,4 +25,4 @@ wire = { path = "../../../../../foundation/wire" }
 [dev-dependencies]
 psi-authorization = { path = "../../../psi/authorization" }
 source-compiler = { path = "../../../source-to-psi", features = ["test-support"] }
-artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../02_target-bound-program-to-abstract-operations" }
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "../02_target-bound-program-to-abstract-operations", features = ["test-support"] }

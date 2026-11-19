@@ -4,6 +4,9 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+test-support = []
+
 [dependencies]
 native-behavior-exclusions = { path = "../../verification/behavior-exclusions" }
 target-provider-admission = { path = "../../verification/target-providers" }

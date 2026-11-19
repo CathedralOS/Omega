@@ -8,7 +8,7 @@ version.workspace = true
 path = "psi_to_native.rs"
 
 [features]
-test-support = []
+test-support = ["artifact-lowering/test-support"]
 
 [dependencies]
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }

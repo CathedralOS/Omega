@@ -25,6 +25,7 @@ psi-authorization = { path = "psi/authorization" }
 wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
+artifact-lowering = { package = "target-bound-program-to-abstract-operations", path = "psi-to-native/pipeline/02_target-bound-program-to-abstract-operations", features = ["test-support"] }
 build-evaluation-result = { path = "build/build-settings/result" }
 provider-acceptance = { path = "build/providers/acceptance" }
 direct-boundary-bindings = { path = "psi-to-native/verification/provider-correspondence/direct-boundaries" }

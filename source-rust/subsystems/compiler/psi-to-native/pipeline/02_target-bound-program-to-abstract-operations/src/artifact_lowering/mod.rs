@@ -1,16 +1,7 @@
 #![forbid(unsafe_code)]
 
-/*
-  Check the selected code before lowering it, so unused library functions do
-  not demand unavailable target operations. Omega 00 lowers those functions,
-  establishes access to their inputs, and admits their native realization.
+//! Lower the selected, authorized Psi bodies and admit their providers and entry.
 
-  The shared `verified-optimization-input` crate supplies the complete checked native proposal
-  and its execution scope. This stage retains source-free native inputs through
-  `retained_terminal` and its codec, lowers canonical Psi with `lowering`, and
-  passes the resulting plan and selections to subsequent stages. Loose bytes
-  enter through `artifact_admission`; an existing canonical artifact is reused.
-*/
 mod artifact_admission;
 mod entry_receiver;
 pub use entry_receiver::admit_executable_entry;
@@ -18,8 +9,10 @@ mod lowering;
 mod native_execution_scope;
 pub(crate) use native_execution_scope::native_admission;
 mod retained_terminal;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub use native_admission::{
-    AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
+    AdmittedNativeRealization, NativeAdmissionRequest,
     admit_prepared_native_realization,
 };
 pub use provider_admission::NativeCallbackArgumentProposal;
@@ -33,7 +26,7 @@ pub use retained_terminal::{
 pub(crate) use artifact_admission::ArtifactLoweringError;
 pub use artifact_admission::{
     NativeExecutionSelection, NativeScalarApplications, TerminalAccessViewEstablishment,
-    VerifiedNativeArtifactInput, lower_artifact,
+    VerifiedNativeArtifactInput,
 };
 pub use provider_admission::SelectedProviderAdapter;
 pub use verified_optimization_input::NativeExecutionScope;
