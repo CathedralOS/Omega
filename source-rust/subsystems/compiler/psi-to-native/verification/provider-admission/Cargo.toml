@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
-application-identity = { path = "../../../source-to-psi/language/application-identity" }
+application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 arena = { path = "../../../../../foundation/arena" }
 wire = { path = "../../../../../foundation/wire" }

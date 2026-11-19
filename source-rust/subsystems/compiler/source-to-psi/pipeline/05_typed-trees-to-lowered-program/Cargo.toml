@@ -19,7 +19,7 @@ source-declarations = { path = "../../language/source-declarations" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
 schema-reflection = { path = "../../language/schema-reflection" }
-application-identity = { path = "../../language/application-identity" }
+application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }

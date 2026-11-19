@@ -544,7 +544,7 @@ pub mod calling_policies {
 pub mod native_layouts {
 
     use crate::{TargetLayoutInput, TerminalIdentityIndex};
-    use application_identity::callback_declarations::PrivateCallbackSlotSelection;
+    pub use application_identity::callback_declarations::PrivateCallbackSlotSelection;
     use arena::{Arena, HandleSpan};
     use layout_plans::NativeLayoutPlanReport;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};

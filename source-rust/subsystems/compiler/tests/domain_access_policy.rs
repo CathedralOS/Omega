@@ -330,8 +330,8 @@ fn result_membership_promises_demand_their_access_plans() {
                     domain.target_type,
                     subject
                 ),
-                application_identity::type_identity::builtin_type_name(atom),
-                application_identity::type_identity::builtin_type_identity(atom)
+                source_compiler::source_state::type_identity::builtin_type_name(atom),
+                source_compiler::source_state::type_identity::builtin_type_identity(atom)
             );
         }
         let state = match domain.access_policy.as_ref().map(|policy| &policy.plan) {

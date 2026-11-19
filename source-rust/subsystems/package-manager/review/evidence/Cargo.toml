@@ -9,7 +9,7 @@ version.workspace = true
 [dependencies]
 evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
 declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
-application-identity = { path = "../../../compiler/source-to-psi/language/application-identity" }
+application-identity = { path = "../../../compiler/psi/application-identity" }
 numeric-literals = { path = "../../../compiler/foundation/numeric-literals" }
 source-admission = { path = "../../../compiler/source-to-psi/inputs/source-admission" }
 source-text = { path = "../../../../foundation/source-text" }

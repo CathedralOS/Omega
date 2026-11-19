@@ -7,7 +7,7 @@ version.workspace = true
 [dependencies]
 compiler-check-site = { path = "../../../foundation/check-site" }
 abstract-operations = { path = "../representations/abstract-operations" }
-application-identity = { path = "../../../source-to-psi/language/application-identity" }
+application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }

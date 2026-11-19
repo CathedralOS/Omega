@@ -15,7 +15,7 @@ test-support = []
 
 [dependencies]
 declaration-contracts = { path = "../../language/declaration-contracts" }
-application-identity = { path = "../../language/application-identity" }
+application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../../inputs/source-admission" }
 source-text = { path = "../../../../../foundation/source-text" }
