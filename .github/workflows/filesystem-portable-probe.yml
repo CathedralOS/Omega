@@ -1,0 +1,89 @@
+name: Portable filesystem cut qualification
+on:
+  push:
+    branches: [work/fs-portable-capture]
+permissions:
+  contents: read
+concurrency:
+  group: portable-filesystem-capture
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_TARGET_DIR: /tmp/ot
+      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
+      CARGO_BUILD_FINGERPRINT: content
+      RUST_MIN_STACK: '67108864'
+      RAYON_NUM_THREADS: '1'
+      MBX_GC_AUTO: 'false'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the verified mbx recipe
+        id: mbx-key
+        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ~/.cache/omega-mbx/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ${{ env.CARGO_TARGET_DIR }}
+          key: filesystem-cut-qualification-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
+          restore-keys: |
+            filesystem-replay-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+            filesystem-probe-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
+      - name: Install verified mbx
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Prepare current proof replay
+        run: python3 .github/diagnostics/filesystem-range-replay/prepare.py
+      - name: Build only the focused proof harness
+        run: |
+          mbx build --manifest-path build/fs-range-replay/Cargo.toml --message-format=json > build/fs-range-replay/cargo.jsonl 2> build/fs-range-replay/build.stderr
+          mbx build --manifest-path build/fs-range-replay/Cargo.toml --tests --message-format=json > build/fs-range-replay/tests.jsonl 2> build/fs-range-replay/tests-build.stderr
+      - name: Check sibling cuts and exact range replay
+        run: python3 .github/diagnostics/filesystem-range-replay/run-replay.py
+      - name: Check scoped source compiler lint
+        run: |
+          mkdir -p build/fs-cut-qualification
+          mbx clippy --locked -p source-compiler --all-targets -- -D warnings > build/fs-cut-qualification/clippy.stdout 2> build/fs-cut-qualification/clippy.stderr
+      - name: Build one optimized compiler
+        run: mbx build --locked -p omega --message-format=json > build/fs-cut-qualification/cargo.jsonl 2> build/fs-cut-qualification/build.stderr
+      - name: Record exact optimized producer
+        run: python3 .github/diagnostics/filesystem-range-replay/qualify.py --record-only
+      - name: Retain the shared optimized producer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fs-cut-qualified-producer
+          path: |
+            build/fs-cut-qualification/retained-omega
+            build/fs-cut-qualification/producer.json
+            build/fs-cut-qualification/source-digests.json
+          retention-days: 14
+      - name: Run the unchanged 4200-file filesystem witness
+        run: python3 .github/diagnostics/filesystem-range-replay/qualify.py
+      - name: Retain qualification records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: fs-cut-qualification-records
+          path: |
+            build/fs-range-replay
+            build/fs-cut-qualification/*.json
+            build/fs-cut-qualification/*.jsonl
+            build/fs-cut-qualification/*.stderr
+            build/fs-cut-qualification/*.stdout
+            build/fs-cut-qualification/*.txt
+            build/fs-cut-qualification/both
+            build/fs-cut-qualification/native-fresh-seed
+            build/fs-cut-qualification/compiled-program
+          retention-days: 14
