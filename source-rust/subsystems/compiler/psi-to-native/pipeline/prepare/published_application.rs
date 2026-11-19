@@ -339,3 +339,23 @@ pub(crate) fn prepare_saved_program(
         x86_scalar_fma_provider: target.x86_scalar_fma_provider,
     })
 }
+
+/// Complete exactly the scalar applications required by the authorized native entry.
+pub fn complete_entry_scalars(
+    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
+    accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
+) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
+    let Some(demand) = proposal.entry_scalar_demand(authorization)? else {
+        return Ok(None);
+    };
+    native_scalar_inputs::complete(
+        authorization.shared_artifact(),
+        proposal.target_profile().target_name(),
+        &demand,
+        proposal.target_provider_proposals(),
+        accounting,
+    )
+    .map(Some)
+    .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])
+}

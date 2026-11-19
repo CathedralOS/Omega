@@ -57,7 +57,6 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
     assert!(
         pending
             .scalar_completion
-            .completed
             .admitted()
             .values()
             .observed()
@@ -66,16 +65,28 @@ fn native_and_psi_execute_with_extended_product_scalar_conditions() {
         "the witness must evaluate actual target-layout scalar conditions during Product checking"
     );
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
-    let mut changed = native_scalar_inputs::prepare(
+    let completed = native_scalar_inputs::prepare(
         pending.terminal.shared_artifact(),
         Some("linux_x86_64"),
         &[],
-        &pending.scalar_completion.proposals,
+        pending.scalar_completion.proposals(),
         &mut accounting,
     )
     .unwrap();
-    changed.proposals[0].selection = Err(vec!["changed provider proposal".into()]);
-    let error = native_scalar_inputs::extend_native(&pending.terminal, changed, &mut accounting)
+    let proposal = pending.terminal.native_realization_proposal().expect("native proposal");
+    let demand = proposal
+        .entry_scalar_demand(pending.terminal.authorization())
+        .expect("checked entry demand");
+    let mut changed = proposal.target_provider_proposals().to_vec();
+    changed[0].selection = Err(vec!["changed provider proposal".into()]);
+    let error = completed
+        .extend(
+            pending.terminal.artifact(),
+            proposal.target_profile().target_name(),
+            &changed,
+            demand.as_deref(),
+            &mut accounting,
+        )
         .expect_err("native demand cannot reuse another provider selection");
     assert!(error.contains("retained provider proposal"), "{error}");
     let report = orchestration::complete_product(output)
