@@ -279,8 +279,8 @@ fn prepare_and_judge(
             return Err(failure.diagnostics);
         }
     };
-    let mut provider_defaults = crate::evaluation::provider_declarations::retain_provider_defaults(
-        crate::evaluation::provider_declarations::ProviderPlanningContext::new(
+    let mut provider_defaults = crate::source_provider_choices::retain_provider_defaults(
+        ProviderPlanningContext::new(
             &program,
             source_provenance::DependencyScope::Product,
         ),
@@ -292,7 +292,7 @@ fn prepare_and_judge(
     let prepared_provider_defaults = chosen_defaults
         .iter()
         .map(
-            |chosen| crate::evaluation::provider_declarations::TargetProviderDefaults {
+            |chosen| crate::provider_choice_inputs::TargetProviderDefaults {
                 target: Some(chosen.target.clone()),
                 machines: Vec::new(),
                 selections: vec![chosen.selection.clone()],
@@ -301,7 +301,7 @@ fn prepare_and_judge(
         .collect::<Vec<_>>();
     for selection in build.default_provider_selections {
         provider_defaults.push(
-            crate::evaluation::provider_declarations::TargetProviderDefaults {
+            crate::provider_choice_inputs::TargetProviderDefaults {
                 target: selection
                     .target
                     .map(|target| target.canonical_name().to_owned()),

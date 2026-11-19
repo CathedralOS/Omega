@@ -14,6 +14,27 @@ use semantic_vocabulary::ProgramEntrySourceCatalog;
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
 
+/// Retain the exact lexical machine occurrence that issued a Build selection.
+pub fn capture_build_selection_origin(
+    symbols: &crate::source_symbols::SymbolTable,
+    activation: SymbolHandle,
+    author: SymbolHandle,
+    occurrence: SourceSpan,
+    event_ordinal: Option<u64>,
+) -> Result<crate::declaration_selection::BuildSelectionOrigin, &'static str> {
+    let activation = crate::source_symbols::retain_declaration(symbols, activation)?;
+    let author = crate::source_symbols::retain_declaration(symbols, author)?;
+    if author.source().source_id != occurrence.source_id {
+        return Err("Build selection occurrence does not belong to its lexical author");
+    }
+    crate::declaration_selection::BuildSelectionOrigin::from_retained_parts(
+        activation,
+        author,
+        occurrence.span,
+        event_ordinal,
+    )
+}
+
 /// Where a path is read from, and what it may name there.
 struct ProductScope<'path> {
     occurrence: SourceSpan,

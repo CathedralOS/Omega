@@ -3251,6 +3251,7 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
+ "service-surface",
  "sha2",
  "source-admission",
  "source-declarations",

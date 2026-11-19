@@ -103,7 +103,7 @@ pub use crate::production::{
 /// Logical provider closure; native planning consumes only its accepted result.
 pub use checked_program_to_psi::provider_supply;
 
-#[path = "../language/provider-choices/source_provider_choices.rs"]
+#[path = "prepare_and_check/provider_choices.rs"]
 pub mod source_provider_choices;
 
 #[path = "prepare_and_check/entry_contracts.rs"]

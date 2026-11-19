@@ -19,6 +19,7 @@ test-support = [
 ]
 
 [dependencies]
+service-surface = { path = "../psi/service-surface" }
 source-provenance = { path = "../foundation/source-provenance" }
 declaration-scope = { path = "../foundation/declaration-scope" }
 source-files = { path = "pipeline/representations/source-files" }
