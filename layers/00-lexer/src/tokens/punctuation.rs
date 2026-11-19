@@ -246,7 +246,7 @@ mod tests {
             .flat_map(|(spelling, _)| spelling.bytes())
             .collect();
 
-        distinguishing_bytes.extend_from_slice(b"a0 @\x00\x80\xFF");
+        distinguishing_bytes.extend_from_slice(b"a0 ?\x00\x80\xFF");
         distinguishing_bytes.sort_unstable();
         distinguishing_bytes.dedup();
 

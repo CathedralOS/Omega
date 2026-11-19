@@ -17,14 +17,13 @@ to the warning under "Noise" below; the lexer's experiments 8 to 12 are why
 it exists. `--passes N` sets how many times the tool repeats the measurement
 (it was `--rounds` before the tool moved onto the shared `measure` crate).
 
-**Workload.** There is no large body of V2 source. V1's source tree is in
-V1's syntax, which this grammar refuses on purpose. So the workload is this
-crate's 22 accept fixtures laid end to end, 12,747 bytes, lexed and parsed
-5,265 times: 64 MB in all. That source is denser than real code, 2.3 bytes
+**Workload.** The harness reads the current accept fixtures on each run. The
+measurements below predate the `@` syntax and used 22 fixtures laid end to end,
+12,747 bytes, lexed and parsed 5,265 times: 64 MB in all. That source is denser than real code, 2.3 bytes
 per token against about 5 in V1's source, so the number to carry forward is
 time per token; MB/s on this workload understates the parser.
 
-**Two shapes of the same bytes.** `--files` parses them as 5,265 small files,
+**Two shapes of the same bytes.** In those runs, `--files` parsed 5,265 small files,
 which is what a compiler does. Without it they are one 64 MB file. The two
 behave differently: a 64 MB file has 870 MB of tokens, so each pass over them
 waits on memory, while a 12 KB file's tokens stay in the cache. Experiments

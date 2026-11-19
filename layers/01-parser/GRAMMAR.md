@@ -11,7 +11,8 @@ The spec has no grammar, so this document is one. Its sources, in order of
 authority:
 
 1. **Decisions by Jarod and Zac**, recorded under [Decisions](#decisions).
-   Three of them depart from how the spec writes things.
+   The syntax changes from the imported spec are listed under
+   [How the spec's examples change](#how-the-specs-examples-change).
 2. **The spec's prose**, where it states a rule of form.
 3. **The spec's 132 `omega` examples**, cited as `file:line` under
    `wiki/spec/`.
@@ -554,15 +555,14 @@ Four examples are parsed as one of the narrower shapes; they are named in
 
 ## How the spec's examples change
 
-Three decisions change how existing source is written. The spec's examples
-were written before them, so V2's copy of the spec has to be edited to match
-before the examples can serve as a test corpus.
+V2's spec corpus incorporates four syntax decisions from the parser review.
 
 | Decision | The spec's examples | V2 |
 | --- | --- | --- |
 | 2 | Arms on separate lines, no separator | A comma after each arm |
 | 7 | `name<T>(x)` in expressions | `name::<T>(x)` |
 | 1 | One `if` statement (language/conformances.md:39) | Rewritten as a `transition` |
+| 12 | Prefix `&` for references and borrows | Prefix `@` in types and expressions. Each adjacent `@` adds one layer. |
 | 4 | `requires ...;` and `requires ...,` before a body (language/generics.md:223, :242) | Nothing before the body |
 
 Also not source, and tagged as such in the corpus: bodies written `{ ... }`
@@ -604,7 +604,7 @@ Beyond the fixtures, `tests/hostile_inputs.rs` checks that the parser refuses
 without crashing or hanging: every recursive rule nested 100,000 deep on a
 1 MB stack, five inputs that make a try-and-rewind parser take exponential
 time, 30,000 random sources built from the grammar's own vocabulary, and
-every accept fixture with each of its tokens removed in turn (3,482 inputs).
+every accept fixture with each of its tokens removed in turn (3,515 inputs).
 
 For accepted fixtures, spec fragments, random sources and token-deletion cases,
 the invariant checks for one root, finished nodes, ordered tokens and brackets
@@ -615,6 +615,14 @@ token's spelling and kind, including the radix and suffix boundary of a number.
 `tests/operator_grouping.rs` checks the tree grouping for all 1,600 ordered
 pairs of the 40 binary operator spellings. For the 36 comparison pairs it
 checks the diagnostic on the second operator and both explicit groupings.
+
+`tests/reference_syntax.rs` checks the tree for every pair of shared,
+mutable and write-only layers in types and expressions. Each pair is tried
+with touching sigils, a space, a comment and a line break. Malformed and
+retired prefixes have explicit diagnostic spans, including end of input.
+The `reference_to_reference` fixture also checks adjacent AND and borrow
+tokens and distinguishes a reference type argument from a borrowed value
+argument written in parentheses.
 
 `tests/psi_parser_cases.rs` adapts cases from V1's
 `tests/psi/parser/test_parser.py` at `0b90bdbaaa6`. It checks 27 malformed

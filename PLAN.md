@@ -123,7 +123,7 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.15 s |
+| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.12 s |
 | L2 Resolver | syntax tree → names resolved | not started | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
@@ -195,9 +195,10 @@ Psi to native code) are not planned yet.
   | Spec corpus | All 132 examples parse. 125 did on the first run; the other seven each showed a gap in the grammar, listed as F1 to F7 in GRAMMAR.md. |
   | Independent check | Trees from fixtures, spec fragments, random sources and token deletions preserve token order and bracket ownership. Printing their leaves and lexing the result reproduces the meaningful token kinds and spellings. |
   | Operator grouping | All 1,600 ordered pairs of binary operator spellings have their specified grouping or refusal. All 36 comparison pairs accept either explicit grouping. |
-  | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,482 one-token deletions pass the robustness checks. |
-  | Mutation | All 35 deliberate parser changes were caught. Four exercise prefix `&&`, saturating shift precedence, the exact nesting limit and trailing fragment input. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
-  | Suite time | 1.15 s wall clock for a warm `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
+  | Reference syntax | 72 independently predicted fragment trees check all nine pairs of access modes in types and expressions, across four token separators. Twelve diagnostic cases cover incomplete and retired prefixes. |
+  | Hostile input | 128 nested data declarations parse and 129 are refused. 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five ambiguous inputs, 30,000 random sources and 3,515 one-token deletions pass the robustness checks. |
+  | Mutation | All 37 deliberate parser changes were caught. Two remove recognition of a nested `@` after an access word, one in a type and one in an expression. The runner requires a passing baseline and exits with failure for any missed or unapplied change. |
+  | Suite time | 1.12 s median wall clock across three warm runs of `cargo test -p omega-parser --tests` on Windows. Doctests and mutation checks run separately. |
   | Speed | 571 MB/s on one thread, 6.5 ns per token, after three kept experiments (8.4% faster than first built, same tree); 8.1 GB/s parsing on 32 threads. The lexer is now the slower layer on the same bytes. Ledger, including four rejected attempts, in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
 
 - **Design:** recursive descent, one function per grammar rule, with
