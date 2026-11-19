@@ -14,6 +14,7 @@ test-support = []
 path = "lib.rs"
 
 [dependencies]
+service-surface = { path = "../../../psi/service-surface" }
 proof-applications = { path = "../../../psi/proof-applications" }
 source-declarations = { path = "../../language/source-declarations" }
 source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }

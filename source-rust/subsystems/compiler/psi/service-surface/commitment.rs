@@ -133,22 +133,22 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
             None => self.byte(0),
         }
     }
-    fn carry_policy(&mut self, policy: crate::CarryPolicy) {
+    fn carry_policy(&mut self, policy: language_core::CarryPolicy) {
         self.byte(match policy.suspension {
-            crate::CarrySuspension::Forbidden => 0,
-            crate::CarrySuspension::Allowed => 1,
+            language_core::CarrySuspension::Forbidden => 0,
+            language_core::CarrySuspension::Allowed => 1,
         });
         self.byte(match policy.cpu {
-            crate::CarryCpu::Origin => 0,
-            crate::CarryCpu::Any => 1,
+            language_core::CarryCpu::Origin => 0,
+            language_core::CarryCpu::Any => 1,
         });
         self.byte(match policy.host_thread {
-            crate::CarryHostThread::Origin => 0,
-            crate::CarryHostThread::Any => 1,
+            language_core::CarryHostThread::Origin => 0,
+            language_core::CarryHostThread::Any => 1,
         });
         self.byte(match policy.address {
-            crate::CarryAddress::Stable => 0,
-            crate::CarryAddress::Movable => 1,
+            language_core::CarryAddress::Stable => 0,
+            language_core::CarryAddress::Movable => 1,
         });
     }
 
@@ -176,8 +176,8 @@ impl<Output: ServiceContractSink> ContractEncoder<'_, Output> {
             self.string(identities.text(claim.carrier_identity));
             self.string(&claim.domain);
             self.byte(match claim.predicate_presence {
-                crate::DomainPredicatePresence::Absent => 0,
-                crate::DomainPredicatePresence::Present => 1,
+                language_core::DomainPredicatePresence::Absent => 0,
+                language_core::DomainPredicatePresence::Present => 1,
             });
             self.carry_policy(claim.effective_carry);
             self.byte(match claim.authority_flow {

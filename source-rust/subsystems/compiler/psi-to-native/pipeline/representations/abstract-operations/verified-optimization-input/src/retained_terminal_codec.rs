@@ -1518,7 +1518,7 @@ mod tests {
 
     #[test]
     fn retained_service_method_preserves_result_membership_and_invocation_targets() {
-        use declaration_contracts::service_surface::{
+        use service_surface::{
             ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
         };
         let membership = ServiceNormalResultMembership {

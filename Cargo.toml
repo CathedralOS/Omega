@@ -114,6 +114,7 @@ members = [
     "source-rust/subsystems/compiler/psi/schema",
     "source-rust/subsystems/compiler/psi/semantics",
     "source-rust/subsystems/compiler/psi/semantics/numeric",
+    "source-rust/subsystems/compiler/psi/service-surface",
     "source-rust/subsystems/compiler/psi/storage-bounds",
     "source-rust/subsystems/compiler/psi/wire",
     "source-rust/subsystems/compiler/psi/work",

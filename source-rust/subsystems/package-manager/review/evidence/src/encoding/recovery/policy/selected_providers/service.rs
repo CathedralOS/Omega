@@ -10,7 +10,7 @@ use declaration_contracts::CarryHostThread;
 use declaration_contracts::CarryPolicy;
 use declaration_contracts::CarrySuspension;
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::service_surface::{
+use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
 use effects::provider_plan::{

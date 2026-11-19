@@ -391,7 +391,7 @@ machine entry() invokes Handler {}
     assert_eq!(
         surface.declaration.methods[0].synchronous_invocations,
         [
-            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+            service_surface::ServiceSynchronousInvocation::Service(
                 handler_path
             )
         ]
