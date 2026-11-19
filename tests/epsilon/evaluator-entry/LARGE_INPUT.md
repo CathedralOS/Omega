@@ -1,6 +1,6 @@
 # Running the evaluator on the whole Omega compiler source
 
-The published evaluator refused the 4,651,287-byte request before the bootstrap compiler read the product source. Widening its input limit to 8 MiB let execution proceed until a host guard stopped it at 8 GiB of resident memory. The evaluator that reads stdin through a cursor reached the same guard. None of these four runs produced a compiler or a source diagnostic.
+The frozen bootstrap compiler reported unsupported source at coordinate 895 on the full 4,651,287-byte request when its evaluator used an 8 MiB input limit and a private collecting Gamma runtime. With ordinary allocation the same cursor evaluator hit an 8 GiB resident-memory guard. The published 4 MiB input adapter refused the request before the bootstrap compiler read the product source.
 
 | Epsilon evaluator | Input limit | Process outcome | Elapsed seconds | Peak RSS (KiB) |
 | --- | ---: | --- | ---: | ---: |
@@ -44,3 +44,27 @@ The product request packs 284 units (3,822,481 source bytes) into 3,826,171 byte
 | Cursor | `eec989b92850e3d18f14586a22111e3dbad1a7cf3ac15bc1580ba4870c94ee34` | `5c9425d50aa62ca233f30e123a48ffcd424d6b6b451475c79cf4e82e3e934fbb` |
 
 A smaller request kept all five packages, all four dependency edges and unit zero, the unchanged 13,510-byte `source/omega/application/construction/main.omg`. Encoding that single unit with the same entry produces 13,804 product bytes. The eager 8 MiB evaluator returned `00020000007f030000` in 268.335 seconds at 6,581,284 KiB. The bootstrap compiler reported unsupported source at coordinate 895, byte 765 of that frozen file, at `crashes Trap` on line 25.
+
+## Collecting Gamma pairs
+
+The frozen bootstrap compiler reached its first unsupported product declaration when its evaluator could reclaim unused pairs. It returned `00020000007f030000` on the entire 284-unit input, matching both the independent Epsilon model and the earlier one-unit diagnosis. The Linux process exited with status 0. The nine output bytes encode Epsilon Exit 2 and source coordinate 895, which points to `crashes Trap` on line 25 of the entry unit. This source revision produced a diagnostic before emitting a compiler.
+
+| Sealed cursor, 8 MiB input | Outcome | Measured seconds | Peak RSS (KiB) |
+| --- | --- | ---: | ---: |
+| Ordinary cumulative allocation | Supervisor stopped the process | 240.553 elapsed | 8,391,356 |
+| Two 1.5 GiB copying spaces | Compiler diagnostic at coordinate 895 | 2,522.924 active | 3,170,260 |
+
+Both programs consumed the identical cursor request and came from the same 728,066-byte Gamma receipt in the preceding table. The collecting run used 2,466.443 user and 12.109 system CPU seconds. Including waits for its shared CPU, it took 5,920.700 seconds in 56 quanta. Its stderr was empty and the cgroup recorded no out-of-memory event. The smaller one-unit request also reached coordinate 895. Its peak fell from 6,579,260 KiB with ordinary allocation to 548,240 KiB with two 256 MiB spaces. The respective CPU times were 206.808 and 203.195 seconds.
+
+The experiment changes the frozen Gamma compiler's lowering of pair allocation. Its nine ordinary Gamma definitions (137 lines, 5,857 bytes) emit existing instructions for the native and Alpha backends. Four changes in the frozen compiler initialize the heap, clear fresh local tags, call the allocator and include its instructions. The resulting 1.5 GiB profile takes 45,814 source bytes versus 40,173 for the frozen native compiler. Its self-rebuilt compiler grew from 1,635,203 to 1,783,751 bytes. Sharing one allocator reduced the cursor evaluator from 26,075,468 to 25,244,496 bytes. The numeric instruction operands in the lowering follow [the Alpha instruction table](../../../bootstrap/interpreted/0_alpha/SEMANTICS.md).
+
+When the active space is full, the allocator copies pairs reachable from tagged frame slots and both operands of the pending allocation. It uses a forwarding address in each copied cell to preserve sharing, then visits the two fields of each copy. Frame links and scalar addresses carry the scalar tag. Established lexical slots can retain pairs until their frame returns, including after their last source use. Exhaustion now depends on reachable pairs. Each space holds 50,331,648 cells of 32 bytes. The frozen input's 3,822,611 nonzero blob bytes alone need at least 19,113,052 pairs in the authored sparse array representation. Each leaf uses two pairs and each branch uses three, with one fewer branch than leaves. The smaller 256 MiB space holds 8,388,608 cells. Its full run was stopped by the supervisor after establishing that lower bound.
+
+To reproduce on Linux x86-64, follow the frozen and cursor setup above. `large_input.py` without `--measure` supplies the same receipt and request. The following opt-in test uses Python 3, GNU `patch` and the frozen Alpha seed. It reconstructs the collecting native compiler from source through two matching generations, builds the evaluator, and runs eight 32-cell controls using both native code and Alpha tape. The cases exercise active callers, duplicate references, both restored operands, unused frame slots, and exact and adjacent capacity failures. `--whole` executes the complete request under the same 8 GiB resident-memory guard used by `large_input.py`. Omit it to build the exact executable and run the small controls alone.
+
+```sh
+python3 tests/epsilon/evaluator-entry/collecting/compare.py \
+  "$scratch/eager" "$scratch/cursor-run" "$scratch/collecting" --whole
+```
+
+The collecting compiler's SHA-256 is `242a3353102502d18b08fc625051172c92349d6a0c588ccd9af3708994f249b7`. The evaluator's is `c44852d8006ab8f78cc1d5f01096f53ead740c34eb01e0313d3f4ef35d1472be`, and the whole result's is `09cc2e49b328869319f3f447ee9bf21e492e6d396aab2ba199a2809b05b5010a`.
