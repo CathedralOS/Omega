@@ -8,10 +8,10 @@
     irrelevance gated solely on the shared type's `Strict` sort.
 */
 
-use crate::mathematical_core::conversion::{Budget, weak_head_normalize};
-use crate::mathematical_core::signature::Signature;
-use crate::mathematical_core::substitution::{instantiate_levels, shift};
-use crate::mathematical_core::term::{Level, Sort, Term, TermArena, TermHandle};
+use crate::conversion::{Budget, weak_head_normalize};
+use crate::signature::Signature;
+use crate::substitution::{instantiate_levels, shift};
+use crate::term::{Level, Sort, Term, TermArena, TermHandle};
 
 macro_rules! row {
     (Apply => $function:expr => $argument:expr) => {
@@ -440,9 +440,9 @@ pub(crate) fn box_body_type(
 
 mod judgments {
     use super::{Context, CoreError, box_body_type, infer_leaf_type, inferred_sort, w_step_type};
-    use crate::mathematical_core::conversion::{Budget, weak_head_normalize};
-    use crate::mathematical_core::substitution::{shift, substitute};
-    use crate::mathematical_core::term::{Level, Sort, Term, TermArena, TermHandle};
+    use crate::conversion::{Budget, weak_head_normalize};
+    use crate::substitution::{shift, substitute};
+    use crate::term::{Level, Sort, Term, TermArena, TermHandle};
     use std::collections::HashMap;
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -536,9 +536,9 @@ mod judgments {
     mod comparison {
         use super::super::{Context, CoreError, box_body_type, inferred_sort, w_step_type};
         use super::JudgmentValue;
-        use crate::mathematical_core::conversion::{Budget, weak_head_normalize_retaining};
-        use crate::mathematical_core::substitution::{shift, substitute};
-        use crate::mathematical_core::term::{
+        use crate::conversion::{Budget, weak_head_normalize_retaining};
+        use crate::substitution::{shift, substitute};
+        use crate::term::{
             Level, Sort, Term, TermArena, TermHandle, levels_equal, sorts_equal,
         };
 

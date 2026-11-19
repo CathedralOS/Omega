@@ -1,0 +1,46 @@
+//! Check explicit mathematical certificates with the selected predicative kernel.
+//! Terms, declarations, reductions and typing judgments belong to this package.
+#![forbid(unsafe_code)]
+
+mod certificate;
+mod conversion;
+mod indexed;
+mod quotient;
+pub mod scheme_dsl;
+mod signature;
+mod substitution;
+mod term;
+mod theorems;
+mod typing;
+
+#[cfg(test)]
+mod tests;
+
+pub use certificate::{
+    MathematicalCertificate, MathematicalCertificateBatchError, certificate_assumption_closure,
+    verify_mathematical_certificate, verify_mathematical_certificates,
+};
+pub use conversion::Budget;
+pub use conversion::{
+    DEFAULT_CONVERSION_STEPS, convertible, convertible_retaining, weak_head_normalize,
+    weak_head_normalize_retaining,
+};
+pub use indexed::{
+    INDEXED_AT, INDEXED_IND, INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily,
+    indexed_correctness, indexed_scheme,
+};
+pub use quotient::{
+    EquivalenceProofs, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP, QUOTIENT_COVERAGE,
+    QUOTIENT_EFFECTIVE, QUOTIENT_ELIM, QUOTIENT_ID_CANCEL, QUOTIENT_ID_SYM, QUOTIENT_ID_TRANS,
+    QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT, QUOTIENT_PROP_IS_SET,
+    QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT, QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE,
+    QuotientFamily, quotient_scheme,
+};
+pub use signature::{
+    Declaration, Signature, SignatureCheckError, assumption_closure, check_signature,
+    check_signature_with_attribution, judgment_assumption_closure,
+};
+pub use substitution::{instantiate_levels, shift, substitute, universe_parameter_arity};
+pub use term::{Level, Sort, Term, TermArena, TermHandle, sorts_equal};
+pub use theorems::identity_substitution;
+pub use typing::{Context, CoreError, check_type, infer_sort, infer_type};

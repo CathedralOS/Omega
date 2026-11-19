@@ -63,7 +63,6 @@ language-core = { path = "../foundation/language-core" }
 layout-plans = { path = "../psi/layout" }
 numerics = { path = "../psi/semantics/numeric" }
 optimization = { path = "../psi/optimization-selections" }
-proof-admission = { path = "proof-admission" }
 rayon = "1.11"
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 symbols = { path = "../foundation/declaration-identity" }

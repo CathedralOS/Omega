@@ -28,6 +28,6 @@ terminal-psi = { path = "../compiler/psi" }
 terminal-codec = { path = "../compiler/psi/codec" }
 terminal-work = { path = "../compiler/psi/work" }
 terminal-semantics = { path = "../compiler/psi/semantics" }
-proof-admission = { path = "../compilation/proof-admission" }
+proof-admission = { path = "../compiler/psi/proofs/bounded" }
 
 terminal-installation = { path = "../compiler/psi-admission" }

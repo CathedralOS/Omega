@@ -1417,6 +1417,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4"
 
 [[package]]
+name = "mathematical-kernel"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "record-storage",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1943,7 +1951,6 @@ dependencies = [
  "package-compilation",
  "platform-custody",
  "products",
- "proof-admission",
  "provider-admission",
  "record-storage",
  "review-evidence",
@@ -2179,6 +2186,7 @@ dependencies = [
  "arena",
  "bignum",
  "record-storage",
+ "mathematical-kernel",
  "numerics",
  "semantic-vocabulary",
  "terminal-psi",
@@ -2886,7 +2894,6 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
- "proof-admission",
  "provider-choices",
  "rayon",
  "record-storage",
@@ -3560,9 +3567,9 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numeric-literals",
+ "mathematical-kernel",
  "numerics",
  "optimization",
- "proof-admission",
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",

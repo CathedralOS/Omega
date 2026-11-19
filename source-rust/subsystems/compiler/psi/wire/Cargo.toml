@@ -25,7 +25,7 @@ arena = { path = "../../../../foundation/arena" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 optimization = { path = "../optimization-selections" }
 numerics = { path = "../semantics/numeric" }
-proof-admission = { path = "../../../source-to-psi/proof-admission" }
+mathematical-kernel = { path = "../proofs/mathematical" }
 terminal-psi = { path = ".." }
 terminal-semantics = { path = "../semantics" }
 

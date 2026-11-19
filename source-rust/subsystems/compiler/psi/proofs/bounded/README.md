@@ -1,11 +1,11 @@
 # Proof admission
 
-Contracts: [fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md),
-[integer certificates](../../../../wiki/spec/terminal-psi/integer_certificates.md),
-and [mathematical proof values](../../../../wiki/spec/terminal-psi/mathematical_values.md).
+Contracts: [fact validity](../../../../../../wiki/spec/terminal-psi/fact_validity.md),
+[integer certificates](../../../../../../wiki/spec/terminal-psi/integer_certificates.md),
+and [mathematical proof values](../../../../../../wiki/spec/terminal-psi/mathematical_values.md).
 
-[lib.rs](src/lib.rs) exposes kernel judgments, proof checking, recursion,
-normalization and witness checks a producer can call. [proof.rs](src/proof.rs)
+[bounded.rs](bounded.rs) exposes kernel judgments, proof checking, recursion,
+normalization and witness checks a producer can call. [proof.rs](proof.rs)
 admits certificates, walking them with an explicit work list rather than the
 host call stack.
 
@@ -13,7 +13,7 @@ Admission re-decides each judgment from the supplied mathematical evidence
 and runs no proof search of its own. These checks serve source proof obligations; the
 Terminal artifact carries no certificate of the compiler's translation.
 
-[integer_rules.rs](src/integer_rules.rs) gives the exact meaning of signed
+[integer_rules.rs](integer_rules.rs) gives the exact meaning of signed
 mathematical integers, shared by primitive judgments and by checks of closed
 guards at run time. It never truncates to a runtime carrier or adds a proof rule. Open values and undefined negative shift counts have no closed
 relation; running out of resources is a typed incomplete-evaluation error,
@@ -34,13 +34,13 @@ intermediate values without a separate cache or storage ledger. A positive
 unrepresentable shift count is refused as a resource limit, keeping its
 mathematical meaning.
 
-[mathematical_core.rs](src/mathematical_core.rs) owns the common mathematical
-core for the [selected foundation](../../../../wiki/spec/proofs/foundation.md):
+[The mathematical kernel](../mathematical/mathematical.rs) owns the common mathematical
+core for the [selected foundation](../../../../../../wiki/spec/proofs/foundation.md):
 de Bruijn dependent terms, stratified `Type`/`Strict` sorts with closed levels,
 Π/λ/application typing without cumulativity, dependent pairs, and typed
 conversion whose strict collapse depends on the shared type's sort, never on
 term shape. It also owns the first primitive of the selected
-[W-based inductive profile](../../../../wiki/spec/proofs/inductive_profile.md):
+[W-based inductive profile](../../../../../../wiki/spec/proofs/inductive_profile.md):
 the `Two` type with `zero`/`one` and dependent `caseTwo` elimination computing
 on each constructor, restricted to motives in relevant `Type`. It is the
 `PROOF-KERNEL-CORE` model; the bounded `Proposition` kernel above is an
@@ -55,10 +55,10 @@ family; a covered certificate the kernel rejects is rejected.
 
 ## Normalization is not authority
 
-[integer_affine.rs](src/integer_affine.rs),
-[integer_cast](src/integer_rules.rs),
-[integer_shift](src/integer_rules.rs), and
-[integer_forbidden_root](src/integer_rules.rs) each replay the exact witness
+[integer_affine.rs](integer_affine.rs),
+[integer_cast](integer_rules.rs),
+[integer_shift](integer_rules.rs), and
+[integer_forbidden_root](integer_rules.rs) each replay the exact witness
 coordinates themselves. A checked normalization result is not a bound to
 assume. Only its specified proof rule, checked child evidence and accepted
 premises establish the conclusion.

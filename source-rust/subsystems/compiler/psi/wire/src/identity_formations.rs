@@ -9,7 +9,7 @@
 //! comparison can stand in for this kernel type constructor.
 
 use crate::{CodecError, decode_mathematical_certificate};
-use proof_admission::{
+use mathematical_kernel::{
     Budget, Signature, Term, verify_mathematical_certificate, weak_head_normalize,
 };
 use terminal_psi::TerminalModule;
@@ -146,7 +146,7 @@ pub fn verify_identity_formations(
     }
     let shared = crate::encode_mathematical_certificate(
         &decoded.arena,
-        &proof_admission::MathematicalCertificate {
+        &mathematical_kernel::MathematicalCertificate {
             signature: decoded.certificate.signature[..prefix].to_vec(),
             level_arity: 0,
             context: Vec::new(),
@@ -203,7 +203,7 @@ pub fn verify_identity_formations(
         }
         let actual = crate::encode_mathematical_certificate(
             &decoded.arena,
-            &proof_admission::MathematicalCertificate {
+            &mathematical_kernel::MathematicalCertificate {
                 signature: Vec::new(),
                 level_arity: declaration.level_arity,
                 context,
@@ -224,7 +224,7 @@ pub fn verify_identity_formations(
 mod tests {
     use super::*;
     use crate::{decode_module, encode_mathematical_certificate, encode_module};
-    use proof_admission::{Declaration, Level, MathematicalCertificate, Sort, TermArena};
+    use mathematical_kernel::{Declaration, Level, MathematicalCertificate, Sort, TermArena};
     use terminal_psi::{
         TerminalIdentityFormation, TerminalIdentityFormations, TerminalIdentityTableBuilder,
     };
