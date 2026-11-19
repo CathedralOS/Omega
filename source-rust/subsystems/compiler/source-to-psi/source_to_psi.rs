@@ -24,6 +24,8 @@ pub struct StageSource<'a> {
     pub roots: Vec<SourceId>,
     pub imports: Vec<SourceScopedTopLevelBinding>,
     pub selections: ProductSourceInputs<'a>,
+    /// Costs of the Build that opened this Product, when it belongs to a project.
+    pub build_accounting: Option<&'a evaluation::SourceCompletionAccounting>,
     pub declaration_authority:
         Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
@@ -80,10 +82,11 @@ fn publish_stage(
     let parsed = lex_and_parse(&source, &mut observer)?;
     let (continuation, _) = parsed.prepare(&mut observer)?;
     let optimizations = source.selections.optimizations.clone();
+    let standalone = evaluation::SourceCompletionAccounting::default();
     let checked = prepare_lower_and_check(
         continuation,
         source.selections,
-        &Default::default(),
+        source.build_accounting.unwrap_or(&standalone),
         None,
         None,
         &mut observer,
