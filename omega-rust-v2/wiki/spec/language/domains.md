@@ -39,8 +39,8 @@ domain Player::Alive
 
 `Player::` determines the domain's carrier. In data predicates the carrier is
 the containing data type. Generic arguments are substituted in either context.
-Membership `candidate in AtMost<8>` substitutes that exact candidate for `self`;
-users supply no subject argument. Each declaration has one subject. Ordinary
+Membership `candidate in AtMost::<8>` substitutes that exact candidate for `self`.
+Users supply no subject argument. Each declaration has one subject. Ordinary
 generic parameters and other lexical contract names remain available.
 
 `self` is a logical subject, not a field, generic index, runtime parameter,

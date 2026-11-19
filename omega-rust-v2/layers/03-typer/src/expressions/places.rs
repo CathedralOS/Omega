@@ -68,7 +68,7 @@ impl BodyTyper<'_, '_> {
         for &entry in entries {
             let domain = self
                 .unit
-                .domain_application(self.unit.single_child(entry)?, &self.catalog.types)?;
+                .checked_domain_application(self.unit.single_child(entry)?, &self.catalog.types)?;
             let action = source_file.nodes[entry].leaves[0].text;
             for atom in self
                 .catalog
@@ -201,9 +201,14 @@ impl BodyTyper<'_, '_> {
     ) -> Result<ValueType, TypeError> {
         let owner = self.catalog.case_owner[case];
         if !self.unit.file.nodes[node_index].children.is_empty() {
-            return self
+            let data = self
                 .unit
-                .data_application(node_index, owner, &self.catalog.types, None);
+                .data_application(node_index, owner, &self.catalog.types, None)?;
+            return self
+                .catalog
+                .types
+                .normalize_at(data, &self.unit.file, node_index)
+                .map_err(|message| TypeError::at(&self.unit.file, node_index, message));
         }
         if matches!(self.catalog.types.open_data(owner), ValueType::Nominal(_)) {
             return Ok(ValueType::Nominal(Box::new(owner.clone())));

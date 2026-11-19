@@ -67,3 +67,35 @@ fn complete_psi_examples_and_v2_followups_parse_as_files() {
         parse_file(source.as_bytes(), &tokens).unwrap_or_else(|error| panic!("{source}: {error}"));
     }
 }
+
+#[test]
+fn a_named_arrow_inside_generic_arguments_is_a_function_type() {
+    use omega_parser::{NodeKind, TreeEvent};
+    for source in [
+        "machine f(x:Box<(n:u8)->bool>){}",
+        "machine f(x:Box<[(n:u8)->bool]>){}",
+        "machine f(){g::<(n:u8)->bool>(x)}",
+    ] {
+        let tokens = lex(source.as_bytes()).unwrap();
+        let tree = parse_file(source.as_bytes(), &tokens).unwrap();
+        assert!(
+            tree.get_events()
+                .contains(&TreeEvent::Open(NodeKind::FunctionType)),
+            "{source}"
+        );
+    }
+    let source = "machine f(){g::<(1 + 2)>(x)}";
+    let tokens = lex(source.as_bytes()).unwrap();
+    let tree = parse_file(source.as_bytes(), &tokens).unwrap();
+    assert!(tree.get_events().contains(&TreeEvent::Open(NodeKind::Binary)));
+    let source = "machine f(x:Box<(n:u8) bool>){}";
+    let tokens = lex(source.as_bytes()).unwrap();
+    assert_eq!(
+        parse_file(source.as_bytes(), &tokens)
+            .unwrap_err()
+            .get_span()
+            .slice(source.as_bytes())
+            .unwrap(),
+        b"bool"
+    );
+}

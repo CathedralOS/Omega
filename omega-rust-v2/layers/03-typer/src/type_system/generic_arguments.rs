@@ -4,7 +4,6 @@ use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
-use std::collections::HashSet;
 
 impl<'a> ResolvedSourceFile<'a> {
     pub fn argument(
@@ -16,7 +15,7 @@ impl<'a> ResolvedSourceFile<'a> {
     ) -> Result<ValueType, TypeError> {
         let arg = self.raw_argument(node_index, types, owner, index, Some(owner))?;
         types
-            .normalize(arg, &mut HashSet::new())
+            .normalize_at(arg, &self.file, node_index)
             .map_err(|m| TypeError::at(&self.file, node_index, m))
     }
     pub(crate) fn raw_argument(

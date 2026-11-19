@@ -54,7 +54,19 @@ impl BodyTyper<'_, '_> {
         match self.unit.symbol(node_index) {
             Some(Symbol::Builtin(name)) => matches!(name.as_str(), "bool" | "f32" | "f64") || ValueType::integer(name).is_some(),
             Some(Symbol::Declaration(id)) => matches!(id.kind, NodeKind::Data | NodeKind::Domain),
-            Some(Symbol::Binding { kind: NodeKind::TypeParam, .. }) => true,
+            Some(Symbol::Binding {
+                kind: NodeKind::TypeParam | NodeKind::SomeParam,
+                ..
+            }) => true,
+            Some(Symbol::Binding {
+                span,
+                kind: NodeKind::KindedParam | NodeKind::ConstParam,
+            }) => self
+                .unit
+                .parameters
+                .get(span)
+                .and_then(|parameter| self.catalog.types.parameter_carrier(parameter))
+                .is_some_and(|carrier| matches!(carrier, ValueType::Universe { .. })),
             _ => false,
         }
     }
@@ -98,7 +110,8 @@ impl BodyTyper<'_, '_> {
             site: Site::at(source, node_index),
             subject: left_type.clone(),
             domain: if id.kind == NodeKind::Domain {
-                self.unit.domain_application(right, &self.catalog.types)?
+                self.unit
+                    .checked_domain_application(right, &self.catalog.types)?
             } else {
                 crate::DomainApplication {
                     declaration: id.clone(),

@@ -182,3 +182,80 @@ fn mathematical_generic_arguments_and_chained_prefixes_keep_the_checked_term() {
         assert!(err.message.contains(message), "{expression}: {err:?}");
     }
 }
+
+#[test]
+fn named_function_types_and_explicit_universe_arguments_work_through_calls() {
+    for source in [
+        "data Box<T>{} machine f(x:Box<(n:u8)->bool>)->Box<u8->bool>{x}",
+        "machine id<T>(x:T)->T{x} machine f(x:(n:u8)->bool)->u8->bool{id::<(n:u8)->bool>(x)}",
+        "machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:u8)->u8{id::<u8>(x)}",
+        "data X{} machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:X)->X{id::<X>(x)}",
+        "machine id<A:core::Type<0>>(x:A)->A{x} machine f<B:core::Type<0>>(x:B)->B{id::<B>(x)}",
+    ] {
+        check(&[("types.omg", source)]).unwrap();
+    }
+    check(&[(
+        "domain.omg",
+        "domain<A:core::Type<1>> u8::Tag<A>; machine member(x:u8)->bool{x in Tag::<core::Type<0>>}",
+    )])
+    .unwrap();
+    for source in [
+        "machine one<A:core::Type<0>>() requires A == u8 {}",
+        "machine two<A:core::Type<0>,B:core::Type<0>>() requires A == B {}",
+        "machine numeric<N:u8>() requires N == 0u8 {}",
+    ] {
+        check(&[("equality.omg", source)]).unwrap();
+    }
+    let wrong = "data Box<T>{} machine f<A:core::Type<0>,F:A->core::Type<0>>(x:Box<(a:A)->(b:A)->F(a)>)->Box<(a:A)->(b:A)->F(b)>{x}";
+    assert!(
+        check(&[("types.omg", wrong)])
+            .unwrap_err()
+            .message
+            .contains("expected")
+    );
+}
+
+#[test]
+fn type_applications_require_the_same_universe_membership_as_machine_calls() {
+    let prefix = "data Box<u:core::Level,A:core::Type<u>>{} data U=core::Type<0>;";
+    let valid = format!("{prefix} machine f(x:Box<1,U>){{}}");
+    let stage = check(&[("universe.omg", &valid)]).unwrap();
+    let rows = stage
+        .obligations
+        .iter()
+        .filter(|o| {
+            matches!(&o.kind,omega_typer::ObligationKind::UniverseMembership {subject,sort}
+        if subject.to_string()=="core::Type<0>" && sort.to_string()=="core::Type<1>")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].site.span.slice(valid.as_bytes()).unwrap(), b"Box<1,U>");
+    // Only the ordinary successor contains a universe. Ask the same question
+    // through each construct that accepts an explicit type argument.
+    for subject_level in 0..=3 {
+        for bound_level in 0..=3 {
+            let subject = format!("core::Type<{subject_level}>");
+            let sort = format!("core::Type<{bound_level}>");
+            let domain = format!("domain<A:{sort}> u8::Tag<A>;");
+            for source in [
+                format!("machine id<A:{sort}>(x:A)->A{{x}} machine f(x:{subject})->{subject}{{id::<{subject}>(x)}}"),
+                format!("let id<A:{sort}>(x:A):A=x; let f(x:{subject}):{subject} = id::<{subject}>(x);"),
+                format!("{prefix} machine f(x:Box<{bound_level},{subject}>){{}}"),
+                format!("data U={subject}; data Box<A:{sort}>{{}} data Wrap<T> = Box<T>; machine f(x:Wrap<U>){{}}"),
+                format!("{domain} machine f(x:u8 in Tag<{subject}>){{}}"),
+                format!("{domain} machine f(x:u8::Tag<{subject}>){{}}"),
+                format!("{domain} machine f(x:u8)->bool{{x in u8::Tag::<{subject}>}}"),
+                format!("{domain} machine f(x:u8){{let tagged=x as +Tag<{subject}>;}}"),
+            ] {
+                let result = check(&[("universe.omg", &source)]);
+                if bound_level == subject_level + 1 {
+                    result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
+                } else {
+                    assert_eq!(result.unwrap_err().message, "universe argument requires its exact successor universe", "{source}");
+                }
+            }
+        }
+    }
+    let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
+    assert_eq!(check(&[("universe.omg", strict)]).unwrap_err().message, "universe argument requires its exact successor universe");
+}

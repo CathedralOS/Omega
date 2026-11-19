@@ -49,14 +49,8 @@ impl BodyTyper<'_, '_> {
         for (index, ty) in bindings.iter().enumerate() {
             if let Some(sort @ ValueType::Universe { .. }) = self.catalog.types.bound(id, index) {
                 let expected = sort.substitute(id, bindings);
-                if let ValueType::Universe { level, .. } = ty
-                    && let ValueType::Level(actual) = level.as_ref()
-                    && let ValueType::Universe { strict, level: outer } = &expected
-                    && let ValueType::Level(target) = outer.as_ref()
-                    && (*strict || actual + 1u8 != *target)
-                {
-                    return Err(TypeError::at(source_file, callee, "universe argument requires its exact successor universe"));
-                }
+                crate::type_system::type_catalog::TypeCatalog::check_universe_member(ty, &expected)
+                    .map_err(|message| TypeError::at(source_file, callee, message))?;
                 self.record_obligation(
                     node_index,
                     ObligationKind::UniverseMembership {
