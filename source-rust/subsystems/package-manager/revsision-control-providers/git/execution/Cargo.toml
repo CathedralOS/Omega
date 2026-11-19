@@ -6,4 +6,4 @@ version.workspace = true
 
 
 [dependencies]
-bounded-process = { path = "../../host-support/bounded-process" }
+bounded-process = { path = "../../../../../foundation/bounded-process" }

@@ -8,7 +8,7 @@ compiler = { path = "../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 package-manager = { path = "../../../../../omega-rust/omega/packages/package-manager" }
 target = { path = "../../../../../omega-rust/omega/compilation/target-description/target" }
-bounded-process = { path = "../../../../../omega-rust/omega/host-support/bounded-process" }
+bounded-process = { path = "../../../../../source-rust/foundation/bounded-process" }
 
 [workspace]
 

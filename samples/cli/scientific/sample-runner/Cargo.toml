@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bounded-process = { path = "../../../../omega-rust/omega/host-support/bounded-process" }
+bounded-process = { path = "../../../../source-rust/foundation/bounded-process" }
 orchestration = { path = "../../../../omega-rust/omega/build-system/orchestration" }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
