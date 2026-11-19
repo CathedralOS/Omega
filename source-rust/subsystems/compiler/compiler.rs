@@ -14,8 +14,8 @@ use psi_authorization::{
 };
 
 pub use native_compiler::{
-    NativeApplicationSettings, SavedProgramTarget as NativeTarget, TargetProviderInstallation,
-    SourceNativeTarget, stage_validators,
+    NativeApplicationSettings, SavedProgramTarget as NativeTarget, SourceNativeTarget,
+    TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource, inspect};
@@ -39,11 +39,13 @@ pub enum Program<'a> {
     Source {
         source: StageSource<'a>,
         target: SourceNativeTarget<'a>,
-        runtime_consent: Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        runtime_consent:
+            Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
     },
     CheckedSource {
         publication: source_compiler::PublishedTargetProgram,
-        runtime_consent: Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        runtime_consent:
+            Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
         target: SourceNativeTarget<'a>,
     },
     Psi {
@@ -67,7 +69,9 @@ fn compile_reporting(
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<Artifact, Vec<Diagnostic>> {
     match request {
-        CompileRequest::Psi(source) => source_to_psi::compile_reporting(source, advisories).map(Artifact::Psi),
+        CompileRequest::Psi(source) => {
+            source_to_psi::compile_reporting(source, advisories).map(Artifact::Psi)
+        }
         CompileRequest::Runtime {
             program,
             entry_memory,
@@ -109,7 +113,10 @@ pub fn compile_with_observations(
     request: CompileRequest<'_>,
     validators: &stage_validators::StageValidatorRequest,
     advisories: Option<&mut Vec<Diagnostic>>,
-) -> Result<(Artifact, Vec<stage_validators::StageValidationRow>), stage_validators::NativeValidationError> {
+) -> Result<
+    (Artifact, Vec<stage_validators::StageValidationRow>),
+    stage_validators::NativeValidationError,
+> {
     use stage_validators::NativeValidationError;
 
     let rows = match request {
@@ -134,7 +141,8 @@ pub fn compile_with_observations(
             |_| "runtime admission stops before target lowering",
         )?,
     };
-    let product = compile_reporting(request, advisories).map_err(NativeValidationError::Compilation)?;
+    let product =
+        compile_reporting(request, advisories).map_err(NativeValidationError::Compilation)?;
     Ok((product, rows))
 }
 
@@ -149,33 +157,71 @@ impl Program<'_> {
     fn application(&self) -> &target::NativeApplicationMetadata {
         match self {
             Self::Psi { target, .. } => &target.application,
-            Self::Source { target, .. } | Self::CheckedSource { target, .. } => &target.settings.application,
+            Self::Source { target, .. } | Self::CheckedSource { target, .. } => {
+                &target.settings.application
+            }
         }
     }
 
-    fn prepare(self, advisories: Option<&mut Vec<Diagnostic>>) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
+    fn prepare(
+        self,
+        advisories: Option<&mut Vec<Diagnostic>>,
+    ) -> Result<native_compiler::NativeProgram, Vec<Diagnostic>> {
         match self {
             Self::Psi { program, target } => {
                 native_compiler::prepare_saved_program(program, target)
             }
-            Self::Source { source, target, runtime_consent } => {
-                let publication =
-                    source_to_psi::compile_for_target_reporting(source, target.profile.target_name(), advisories)?;
-                Self::CheckedSource { publication, target, runtime_consent }.prepare(None)
+            Self::Source {
+                source,
+                target,
+                runtime_consent,
+            } => {
+                let publication = source_to_psi::compile_for_target_reporting(
+                    source,
+                    target.profile.target_name(),
+                    advisories,
+                )?;
+                Self::CheckedSource {
+                    publication,
+                    target,
+                    runtime_consent,
+                }
+                .prepare(None)
             }
-            Self::CheckedSource { publication, target, runtime_consent } => {
+            Self::CheckedSource {
+                publication,
+                target,
+                runtime_consent,
+            } => {
                 let subject = publication.subject();
-                let consent = runtime_consent.map(|accepted| {
-                    let declarations = publication.runtime_permission_declarations()?;
-                    Ok::<_, Vec<Diagnostic>>((accepted, declarations, target.semantic_bindings.clone()))
-                }).transpose()?;
+                let consent = runtime_consent
+                    .map(|accepted| {
+                        let declarations = publication.runtime_permission_declarations()?;
+                        Ok::<_, Vec<Diagnostic>>((
+                            accepted,
+                            declarations,
+                            target.semantic_bindings.clone(),
+                        ))
+                    })
+                    .transpose()?;
                 let (artifact, providers, exclusions) = publication.into_parts();
                 let producer = HostProducerTrust::accept("current compiler invocation");
                 let authorized = authorize_terminal_artifact(artifact, Some(&producer))
                     .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
-                let program = native_compiler::prepare_source_program(authorized, providers, &exclusions, target)?;
+                let program = native_compiler::prepare_source_program(
+                    authorized,
+                    providers,
+                    &exclusions,
+                    target,
+                )?;
                 if let Some((accepted, declarations, bindings)) = consent {
-                    runtime_consent::compare(accepted, subject, &program, &bindings, &declarations)?;
+                    runtime_consent::compare(
+                        accepted,
+                        subject,
+                        &program,
+                        &bindings,
+                        &declarations,
+                    )?;
                 }
                 Ok(program)
             }

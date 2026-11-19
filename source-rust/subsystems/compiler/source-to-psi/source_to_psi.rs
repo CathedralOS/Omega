@@ -19,9 +19,9 @@ pub use stages::*;
 #[path = "pipeline/registered_tests.rs"]
 pub mod registered_tests;
 
-use product_source::{ProductSourceInputs, prepare_lower_and_check};
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::SourceScopedTopLevelBinding;
+use product_source::{ProductSourceInputs, prepare_lower_and_check};
 use source_text::SourceId;
 use std::sync::Arc;
 
@@ -36,8 +36,7 @@ pub struct StageSource<'a> {
     pub selections: ProductSourceInputs<'a>,
     /// Costs of the Build that opened this Product, when it belongs to a project.
     pub build_accounting: Option<&'a evaluation::SourceCompletionAccounting>,
-    pub declaration_authority:
-        Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
+    pub declaration_authority: Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
     pub build_host: semantic_vocabulary::source_selections::ProductTarget,
 }
 
@@ -79,7 +78,8 @@ impl RuntimePermissionDeclarations {
         let source = &self.source;
         let symbols = &source.symbols;
         let mut services = source.traits().iter().filter(|service| {
-            service.is_boundary && symbols.symbol_package_identity(service.symbol) == Some(package)
+            service.is_boundary
+                && symbols.symbol_package_identity(service.symbol) == Some(package)
                 && symbols.display_path(service.symbol, "::") == service_path
         });
         let (Some(service), None) = (services.next(), services.next()) else {
@@ -101,23 +101,30 @@ impl RuntimePermissionDeclarations {
     }
 }
 
-
 impl PublishedTargetProgram {
     pub fn subject(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
         self.subject
     }
 
-    pub fn runtime_permission_declarations(&self) -> Result<RuntimePermissionDeclarations, Vec<Diagnostic>> {
+    pub fn runtime_permission_declarations(
+        &self,
+    ) -> Result<RuntimePermissionDeclarations, Vec<Diagnostic>> {
         if self.runtime_declarations.has_root_grants {
-            return Err(vec![Diagnostic::error("the accepted policy schema cannot compare this Build's authored root grants")]);
+            return Err(vec![Diagnostic::error(
+                "the accepted policy schema cannot compare this Build's authored root grants",
+            )]);
         }
         if self.runtime_declarations.has_assumed_bindings {
-            return Err(vec![Diagnostic::error("the checked Build's assumed binding lacks its canonical review request")]);
+            return Err(vec![Diagnostic::error(
+                "the checked Build's assumed binding lacks its canonical review request",
+            )]);
         }
         Ok(self.runtime_declarations.clone())
     }
 
-    pub fn into_parts(self) -> (
+    pub fn into_parts(
+        self,
+    ) -> (
         PublishedPsi,
         psi_provider_selections::publication::PublishedTargetProviders,
         Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
@@ -195,7 +202,9 @@ impl StageSource<'_> {
     fn resolve(&self) -> Result<SourceContinuation, Vec<Diagnostic>> {
         let mut observer = UnmeasuredProduction;
         let parsed = lex_and_parse(self, &mut observer)?;
-        parsed.prepare(&mut observer).map(|(continuation, _)| continuation)
+        parsed
+            .prepare(&mut observer)
+            .map(|(continuation, _)| continuation)
     }
 
     fn judge(
@@ -215,9 +224,14 @@ impl StageSource<'_> {
         )
     }
 
-    fn publish(&self, checked: &product_source::CompletedProductSource) -> Result<PublishedPsi, Vec<Diagnostic>> {
+    fn publish(
+        &self,
+        checked: &product_source::CompletedProductSource,
+    ) -> Result<PublishedPsi, Vec<Diagnostic>> {
         let psi = checked.terminal_publication.publish(
-            &self.selections.optimizations, self.declaration_authority, &mut UnmeasuredProduction,
+            &self.selections.optimizations,
+            self.declaration_authority,
+            &mut UnmeasuredProduction,
         )?;
         Ok(Arc::clone(psi.artifact()))
     }
@@ -230,12 +244,18 @@ fn lex_and_parse(
     let Some(&primary) = source.roots.first() else {
         return Err(vec![Diagnostic::error("stage has no root source")]);
     };
-    if source.roots.iter().any(|id| !source.files.source_is_selected(*id)) {
+    if source
+        .roots
+        .iter()
+        .any(|id| !source.files.source_is_selected(*id))
+    {
         return Err(vec![Diagnostic::error(
             "stage root is outside its selected sources",
         )]);
     }
-    let files: LoadedSources = source.files.files()
+    let files: LoadedSources = source
+        .files
+        .files()
         .filter(|file| source.files.source_is_selected(file.source_id))
         .map(|file| LoadedSource {
             source_id: file.source_id,
@@ -247,7 +267,9 @@ fn lex_and_parse(
         .collect();
     let mut syntax = SourceSyntax::new(primary);
     let parsed = SourceInput(files).append(&mut syntax, observer)?;
-    let source_items = parsed.sources.span_or_empty(parsed.batch)
+    let source_items = parsed
+        .sources
+        .span_or_empty(parsed.batch)
         .iter()
         .map(|unit| (unit.source_id, unit.root_items.clone()))
         .collect();
