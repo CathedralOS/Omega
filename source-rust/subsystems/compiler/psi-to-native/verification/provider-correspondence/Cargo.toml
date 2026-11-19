@@ -7,16 +7,16 @@ version.workspace = true
 [dependencies]
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }
-graphs = { path = "../../../../psi/foundation/graphs" }
+graphs = { path = "../../../foundation/graphs" }
 flow-effects = { path = "../../../source-to-psi/language/source-effects" }
 boundary-applications = { path = "../../installation/boundary-applications" }
 backend-plan = { path = "../../installation/provider-plans" }
-terminal-psi = { path = "../../../representations/psi" }
+terminal-psi = { path = "../../../psi" }
 effects = { path = "../../installation/native-effects" }
-target = { path = "../../target-description/target" }
+target = { path = "../../targets/target" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
 
 symbols = { path = "../../../source-to-psi/language/declaration-identity" }
-terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-codec = { path = "../../../psi/codec" }
 wire = { path = "../../../../../foundation/wire" }

@@ -1,0 +1,20 @@
+[package]
+name = "frame-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+machine-code = { path = ".." }
+optimization-core = { path = "../../../../optimization-contracts" }
+post-allocation-machine = { path = "../../post-allocation-machine" }
+register-environment = { path = "../../../../targets/register-environment" }
+register-homes = { path = "../../register-homes" }
+register-model = { path = "../../../../targets/register-model" }
+selected-instructions = { path = "../../selected-instructions" }
+target = { path = "../../../../targets/target" }
+semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+target-x86_64 = { path = "../../../../targets/target-x86_64" }
+target-aarch64 = { path = "../../../../targets/target-aarch64" }
+diagnostics = { path = "../../../../../../../foundation/diagnostics" }
+wire = { path = "../../../../../../../foundation/wire" }

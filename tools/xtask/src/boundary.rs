@@ -655,7 +655,7 @@ const PLAN_VALIDATOR_ENTRIES: &[&str] = &[
 /// explicit stage-validator request (`omega --validator ...`).
 const PLAN_VALIDATOR_CALLERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/preparation/",
-    "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
 ];
 
 /// Stage 02's accessor for its working program.
@@ -672,7 +672,7 @@ const RETIRED_INSTALLATION_SETTERS: &[&str] = &[
 const WORKING_PROGRAM_READERS: &[&str] = &[
     "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/target_lowering/",
     "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
-    "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
+    "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
 ];
 
 /// Naming either gateway is restricted, so importing it under another name
@@ -780,7 +780,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/verification/encoding-admission/src/lib.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/lib.rs",
         "validate_optimized_layout_independent_selected_form_encoding",
         1,
     ),
@@ -795,7 +795,7 @@ const SINGLE_FORM_ENTRIES: &[(&str, &str, usize)] = &[
         1,
     ),
     (
-        "omega-rust/omega/compilation/verification/encoding-admission/src/layout/mod.rs",
+        "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission/src/layout/mod.rs",
         "validate_optimized_resolved_selected_form_layout",
         1,
     ),
@@ -941,7 +941,7 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
             "omega-rust/omega/compilation/native-compiler/src/physical_publication_tests.rs",
             "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/retained_working_program.rs",
             "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
-            "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
         ],
         &[
             (TARGET_REPLAY_RECORD, "pub fn target_for_correspondence(&self) -> &TargetOperationsForReplay {"),
@@ -971,7 +971,7 @@ pub fn backend_execution_plan_read_violations(root: &Path) -> Vec<String> {
         "omega-rust/omega/compilation/pipeline/17_objects-to-image",
         &["execution_plan", "pre_physical_manifest("],
         &[
-            "omega-rust/omega/compilation/verification/published-objects/src/lib.rs",
+            "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs",
             "omega-rust/omega/compilation/pipeline/17_objects-to-image/image-emission/src/function_fragments/source/retained_source_validation.rs",
         ],
         &[],
@@ -1530,7 +1530,7 @@ mod tests {
                  let retained = ObjectArtifact::retained_target_operations;\n",
             ),
             (
-                "omega-rust/omega/compilation/verification/published-objects/src/lib.rs".to_owned(),
+                "source-rust/subsystems/compiler/psi-to-native/replay/published-objects/src/lib.rs".to_owned(),
                 "current.working_program_for_validation();\ncurrent.execution_plan();\n",
             ),
             (

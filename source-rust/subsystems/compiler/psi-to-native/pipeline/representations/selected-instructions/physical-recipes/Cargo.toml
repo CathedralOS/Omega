@@ -11,7 +11,7 @@ terminal-psi = { path = "../../../../../representations/psi" }
 arena = { path = "../../../../../../../foundation/arena" }
 calling-conventions = { path = "../../../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../../../foundation/diagnostics" }
-frame-admission = { path = "../../../../verification/frame-admission" }
+frame-admission = { path = "../../machine-code/frame-admission" }
 machine-code = { path = "../../machine-code" }
 post-allocation-machine = { path = "../../post-allocation-machine" }
 register-model = { path = "../../../../targets/register-model" }

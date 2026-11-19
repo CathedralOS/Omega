@@ -14,7 +14,7 @@ function-identity = { path = "../../../native-vocabulary/function-identity" }
 arena = { path = "../../../../../../foundation/arena" }
 runtime-abi = { path = "../../../target-description/runtime-abi" }
 installation-evidence = { path = "../../../installation/installation-evidence" }
-frame-admission = { path = "../../../verification/frame-admission" }
+frame-admission = { path = "../../representations/machine-code/frame-admission" }
 machine-code = { path = "../../representations/machine-code" }
 post-allocation-machine = { path = "../../representations/post-allocation-machine" }
 register-model = { path = "../../../target-description/register-model" }

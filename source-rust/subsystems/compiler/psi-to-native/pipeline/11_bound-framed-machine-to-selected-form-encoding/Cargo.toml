@@ -15,9 +15,9 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 arena = { path = "../../../../../foundation/arena" }
 runtime-abi = { path = "../../target-description/runtime-abi" }
 register-environment = { path = "../../target-description/register-environment" }
-frame-admission = { path = "../../verification/frame-admission" }
+frame-admission = { path = "../representations/machine-code/frame-admission" }
 physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
-encoding-admission = { path = "../../verification/encoding-admission" }
+encoding-admission = { path = "../representations/machine-code/encoding-admission" }
 target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
 calling-conventions = { path = "../../target-description/calling-conventions" }
 machine-code = { path = "../representations/machine-code" }
