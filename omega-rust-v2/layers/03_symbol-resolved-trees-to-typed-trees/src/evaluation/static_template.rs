@@ -1,5 +1,5 @@
 use super::integer_arithmetic;
-use super::specialized_indices::SyntaxKey;
+use super::specialized_indices::{ClosedArguments, SyntaxKey};
 use crate::{IntegerIndex, Site, ValueType};
 use num_bigint::BigInt;
 use std::{
@@ -12,7 +12,7 @@ pub struct StaticTemplate {
     pub(super) key: SyntaxKey,
     pub site: Site,
     pub(super) carrier: ValueType,
-    pub(super) values: Arc<HashMap<Vec<ValueType>, BigInt>>,
+    pub(super) values: Arc<HashMap<ClosedArguments, BigInt>>,
 }
 impl std::fmt::Debug for StaticTemplate {
     fn fmt(
@@ -45,12 +45,15 @@ impl StaticTemplate {
         self: &Arc<Self>,
         arguments: Vec<ValueType>,
     ) -> IntegerIndex {
-        if arguments.iter().any(ValueType::contains_parameter) {
-            return IntegerIndex::Deferred {
-                template: self.clone(),
-                arguments,
-            };
-        }
+        let arguments = match ClosedArguments::try_from(arguments) {
+            Ok(arguments) => arguments,
+            Err(arguments) => {
+                return IntegerIndex::Deferred {
+                    template: self.clone(),
+                    arguments,
+                };
+            }
+        };
         match self.values.get(&arguments) {
             Some(v) if integer_arithmetic::fits(v, &self.carrier) => IntegerIndex::Value(v.clone()),
             Some(v) => IntegerIndex::Invalid(format!("static index {v} exceeds {}", self.carrier)),

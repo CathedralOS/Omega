@@ -28,6 +28,13 @@ V2 takes the other route: build one layer at a time, from the spec, and do not
 start the next layer until the current one is proven by a test suite fast
 enough to run on every change. **Decided.**
 
+A layer carries each decision the next layer needs in its output. When changing
+a handoff, name the layer that owns the decision and the field that carries it.
+Remove any consumer code that reconstructs the decision. Test the field at the
+producer and its effect at the consumer. For example, L2 classifies equality
+as a type or value operation, and L3 types the operands using that classification.
+**Decided.**
+
 ## What is authoritative
 
 - **The spec is the reference.** `wiki/spec/` (104 files, copied from V1 `main`
