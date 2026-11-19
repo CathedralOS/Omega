@@ -29,8 +29,7 @@ calling-conventions = { path = "../../compiler/psi-to-native/targets/calling-con
 
 [dev-dependencies]
 service-surface = { path = "../../compiler/psi/service-surface" }
-native-provider-sponsor = { path = "native-sponsor" }
+native-provider-sponsor = { path = "native-sponsor", features = ["test-support"] }
 application-identity = { path = "../../compiler/psi/application-identity" }
 language-core = { path = "../../compiler/foundation/language-core" }
-orchestration = { path = "../../build-system/orchestration" }
 platform-custody = { path = "../../../foundation/filesystem" }
