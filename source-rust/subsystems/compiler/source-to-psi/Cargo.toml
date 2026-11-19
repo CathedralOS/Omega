@@ -84,6 +84,8 @@ terminal-work = { path = "../psi/work" }
 tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
+proof-admission = { path = "../psi/proofs/bounded" }
+psi-authorization = { path = "../psi/authorization" }
 checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 typed-trees-to-lowered-program = { path = "pipeline/05_typed-trees-to-lowered-program", features = ["test-support"] }

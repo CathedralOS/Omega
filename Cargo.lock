@@ -2962,6 +2962,8 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "optimization",
+ "proof-admission",
+ "psi-authorization",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
