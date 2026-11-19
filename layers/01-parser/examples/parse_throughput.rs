@@ -58,6 +58,13 @@ fn main() {
     };
     let megabyte_count = (source_bytes.len() * parse_count) as f64 / (1024.0 * 1024.0);
 
+    // `--threads`: how parsing scales when every hardware thread parses its own files.
+    if arguments.iter().any(|argument| argument == "--threads") {
+        run_thread_scaling(&source_bytes, parse_count, megabyte_count);
+
+        return;
+    }
+
     let mut tokens = Vec::new();
     let mut lex_durations = Vec::new();
     let mut parse_durations = Vec::new();
@@ -208,6 +215,75 @@ fn build_workload(only_filter: Option<&str>) -> (Vec<u8>, usize, usize) {
     let copy_count = TARGET_BYTE_COUNT.div_ceil(one_copy.len());
 
     (one_copy, fixture_paths.len(), copy_count)
+}
+
+/*
+    Each thread lexes the source once, then parses it `parse_count` times, and
+    only the parsing is timed. If parsing scaled perfectly, N threads would do
+    N times the work in the same time; the table shows what they do. The
+    lexer's version of this found that a fresh list per file made the threads
+    queue for the memory allocator (its experiment 4), and the parser returns
+    two fresh lists per file, so this is the first place to look.
+*/
+fn run_thread_scaling(
+    source_bytes: &[u8],
+    parse_count: usize,
+    megabyte_count: f64,
+) {
+    let hardware_thread_count = std::thread::available_parallelism().map_or(1, |count| count.get());
+    let mut thread_counts = vec![1usize, 2, 4, 8, 16, hardware_thread_count];
+
+    thread_counts.retain(|&thread_count| thread_count <= hardware_thread_count);
+    thread_counts.dedup();
+
+    let mut tokens = Vec::new();
+
+    if let Err(lex_error) = lex_into(source_bytes, &mut tokens) {
+        eprintln!("the fixtures do not lex: {lex_error}");
+        std::process::exit(1);
+    }
+
+    println!(
+        "{megabyte_count:.1} MB per thread as {parse_count} file(s) of {} bytes; parsing only",
+        source_bytes.len()
+    );
+    println!("{:>8} {:>10} {:>10} {:>10}", "threads", "wall ms", "MB/s", "x 1 thread");
+
+    let mut single_thread_rate = 0.0f64;
+
+    for thread_count in thread_counts {
+        let mut best_wall = Duration::MAX;
+
+        for _ in 0..3 {
+            let started_at = Instant::now();
+
+            std::thread::scope(|scope| {
+                for _ in 0..thread_count {
+                    scope.spawn(|| {
+                        for _ in 0..parse_count {
+                            let parse_result = parse_file(source_bytes, &tokens);
+
+                            std::hint::black_box(parse_result.is_ok());
+                        }
+                    });
+                }
+            });
+
+            best_wall = best_wall.min(started_at.elapsed());
+        }
+
+        let rate = megabyte_count * thread_count as f64 / best_wall.as_secs_f64();
+
+        if thread_count == 1 {
+            single_thread_rate = rate;
+        }
+
+        println!(
+            "{thread_count:>8} {:>10.1} {rate:>10.0} {:>10.1}",
+            to_milliseconds(best_wall),
+            rate / single_thread_rate
+        );
+    }
 }
 
 /// The least a parser over these tokens could do: drop the trivia, number what is left, and write

@@ -197,7 +197,7 @@ Psi to native code) are not planned yet.
   | Hostile input | 17 recursive constructs nested 100,000 deep are refused on a 1 MB stack. Five inputs that make a try-and-rewind parser take exponential time are refused at once. 30,000 random sources and 3,300 one-token-removed fixtures never crash it or produce a malformed tree. |
   | Mutation | 29 deliberate breakages of the parser, one rule each; the suite fails on all 29. |
   | Suite time | 1.1 s, almost all of it the hostile-input tests in a debug build. |
-  | Speed | About 400 MB/s on one thread (383 and 416 in two runs), 9 to 10 ns per token, about the lexer's cost on the same bytes. Measured, not tuned; baseline and candidates in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
+  | Speed | 571 MB/s on one thread, 6.5 ns per token, after three kept experiments (8.4% faster than first built, same tree); 8.1 GB/s parsing on 32 threads. The lexer is now the slower layer on the same bytes. Ledger, including four rejected attempts, in [EXPERIMENTS.md](layers/01-parser/EXPERIMENTS.md). |
 
 - **Design:** recursive descent, one function per grammar rule, with
   precedence climbing for binary operators. The tree is a flat list of

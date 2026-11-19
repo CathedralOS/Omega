@@ -56,6 +56,36 @@ Read on the small files: of 122 ms, 16 ms is the floor and 106 ms is the
 grammar. The parser is already slightly faster than the lexer on these
 bytes. On one thread that is 140 million tokens a second.
 
+## Where it stands, 2026-11-18
+
+After experiments 3, 4 and 5, commit `a569962`. Same tree as the baseline,
+event for event.
+
+| Measure | Baseline | Now | Change |
+| --- | --- | --- | --- |
+| Parse, 64 MB as 5,265 files, one thread | 122.3 ms, 523 MB/s | 112.0 ms, 571 MB/s | 8.4% faster |
+| Per meaningful token | 7.08 ns | 6.48 ns | |
+| Parse alone on 32 threads | not measured | 8.1 GB/s | |
+| Lex, same bytes, one thread | 135 ms | 135 ms | not touched |
+
+Against the hardware: the drive reads a packed file at 6 to 9 GB/s (the
+lexer's experiment 6). Parsing alone on every thread is now inside that
+range on this dense source, and would be above it on ordinary source, which
+has about half as many tokens per byte. The lexer is the slower of the two
+layers on these bytes.
+
+Of the 112 ms, 16 ms is the floor, the pass that drops whitespace and
+comments, and 96 ms is the grammar. Experiment 1 measured what two more
+things are worth if they could be had for nothing: the floor itself (16 ms)
+and keyword identity (about 29 ms). Both are things the lexer has in hand
+while it scans, which is candidate D below, and together they are 40% of the
+parse. That is the largest known step left, and it is not the parser's to
+take alone.
+
+What is not known: how the remaining 96 ms divides. There is no sampling
+profiler on this machine, and three of my guesses about where time went were
+wrong. The next single-thread gain should start from a profile, not a guess.
+
 ## What the experiments have shown about where the time goes
 
 Measured, not guessed:
@@ -90,6 +120,9 @@ Measured, not guessed:
 
 | 5 | Every grammar function returns `Result<_, ParseError>`. The error is 40 bytes, so each result goes through memory on every call to carry an error that almost never exists. | The error is recorded in the parser when found; functions return `Result<_, ParseFailed>`, where `ParseFailed` has no size. | 118.7 ms to 112.0 ms, **5.6% faster**, in three alternating runs (112.0 each against 118.4 to 119.1). | Yes | **Kept.** |
 
+| 6 | The build could be leaving speed behind: 16 codegen units and no link-time optimization are Cargo's defaults. | Same source built with one codegen unit, and with one unit plus full link-time optimization. | One unit: 112.0 ms to 111.5 ms, nothing. With LTO: 108.1 ms, 3.5% faster, but the lexer in the same binary went from 138 ms to 142 ms. | Yes | **Not adopted.** Lexing and parsing together come out even, and the profile is a decision for the whole workspace. |
+| 7 | The parser returns two fresh lists per file. The lexer's threads queued for the allocator until its list was made reusable; the parser's may too. | Measured only: `--threads` parses on 1 to 32 threads. | 598 MB/s on one thread, 6,740 on 16 (11.3 times), 8,144 on 32 (13.6 times). | n/a | **No change needed.** 16 cores with a second thread each rarely give more than this, so the allocator is not holding it back at this file size. |
+
 What my guess got wrong in experiment 1: I priced the classification at
 nothing, because it is "one pass". It was the most expensive pass in the
 parser. I also guessed the wrong cost inside the grammar; it was the spelling
@@ -97,10 +130,14 @@ comparisons, not the token reads.
 
 ## Candidates, not tried
 
+A (fewer spelling tests) and B (a small error) became experiments 3 and 5.
+C was done for statements and single-name patterns in experiment 4; what is
+left of it is the first row here.
+
 | # | Idea | Why it might help | What the findings above say |
 | --- | --- | --- | --- |
-| A | Ask about spellings less often: test the cheap thing first. A prefix word (`move`, `suspend`, `block`) needs a word after it, so check that before comparing three spellings; in the binary-operator test, look for punctuation before comparing with `in`. | Up to the 29 ms that spelling comparisons cost, though only part of it is avoidable. | Supported: this is the one cost the measurements isolated. |
-| B | Return a small error. Every grammar function returns `Result<_, ParseError>`, 40 bytes, through memory. Keeping the error in the parser and returning a marker would let results travel in registers. | Every call in the grammar pays for it. | Unknown; nothing measured yet. |
-| C | Stop inserting into the event list. `open_before` shifts the events of the child being wrapped; each binary operator, call, field access, cast and statement does one. For statements the wrapper can simply be opened first. | A call into `memmove` per wrapped node. | Unknown. |
+| C | Stop shifting events for the nodes that still wrap their first child: binary operators, calls, field accesses, casts. A link ("my parent starts N events back") resolved in one pass at the end would do it, at the price of a second pass over the events. | A call into `memmove` per wrapped node. | In the spec examples about 4% of tokens begin such a node, so a few percent at most, less on source with fewer expressions. |
 | D | Have the lexer hand over what the parser's setup pass computes: the list of meaningful tokens, and for each word which keyword it is spelled like. | The lexer already has each word's bytes in hand and knows which tokens are trivia. Experiment 1 shows the grammar would run 27% faster if keyword identity were free. | Supported, but the cost moves to the lexer and has to be measured there. Needs the lexer to be free to change. |
 | E | Check the nesting counter less often. | It is incremented and decremented in every prefix, type and pattern. | Probably small. |
+| F | Let a caller hand the parser the lists to fill, as `lex_into` does, so a thread parsing many files allocates nothing after the first few. | Three allocations per file today. | Experiment 7 shows threads are not queuing for the allocator at 12 KB per file. Worth re-measuring on much smaller files. |
+| G | A sampling profiler, which this machine does not have. | It would replace guessing about the 96 ms of grammar. | Three of the guesses in the ledger were wrong. |

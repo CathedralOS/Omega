@@ -23,7 +23,7 @@ MUTATIONS=(
   "record literal allowed everywhere|grammar/expressions.rs|s/context.get_allows_record_literal() \&\& self.at(Punctuation::LeftBrace)/self.at(Punctuation::LeftBrace)/"
   "membership allowed everywhere|grammar/expressions.rs|s/context.get_allows_membership() \&\& self.at_keyword(\"in\")/self.at_keyword(\"in\")/"
   "greater-than never stops|grammar/expressions.rs|s/if context.get_stops_at_greater() {/if false {/"
-  "prefix words apply before anything|grammar/expressions.rs|s/\&\& self.nth_at_word(1)$/\&\& true/"
+  "prefix words apply before anything|grammar/expressions.rs|s/        if self.nth_at_word(1) {$/        if true {/"
   "function arrow allowed after a cast|grammar/types.rs|s/type_position != TypePosition::Cast \&\& self.at(Punctuation::Arrow)/self.at(Punctuation::Arrow)/"
   "clauses inside angles read past the close|grammar/clauses.rs|s/let stops_at_greater = type_position == TypePosition::InsideAngles;/let stops_at_greater = false;/"
   "hypothesis is read as a plain requires|grammar/clauses.rs|s/if kind == NodeKind::Requires \&\& self.nth_at_keyword(1, \"machine\") \&\& self.nth_at_word(2) {/if false {/"
