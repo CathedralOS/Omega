@@ -22,7 +22,7 @@ mod initial;
 mod optimization;
 mod vocabulary;
 
-pub use configuration::{EvaluatedBuildSettings, X86DeploymentClaim};
+pub use normalized_build_settings::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::{is_build_machine, is_exact_toolchain_build_prelude_data};
 
 use super::BuildMachineFilesystemScope;

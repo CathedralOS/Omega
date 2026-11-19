@@ -48,9 +48,8 @@ pub use source_join::BuildDependencySelection;
 pub use source_result::BuildSourceResult;
 
 use evaluation_accounting::EvaluationInvocationAccount;
-use package_compilation::build_execution::build_value::{
-    BuildValueAdmission, EvaluatedBuildSettings,
-};
+use normalized_build_settings::EvaluatedBuildSettings;
+use package_compilation::build_execution::build_value::BuildValueAdmission;
 use source_compiler::ProducedTerminalProgram;
 use source_compiler::declaration_selection::ExecutedBuildSelection;
 use source_compiler::declaration_selection::ExecutedEnumExclusion;

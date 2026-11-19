@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+normalized-build-settings = { path = "../subsystems/compiler/build/build-settings/normalized" }
 installation-conditions = { path = "../subsystems/compiler/psi-to-native/verification/installation-admission/conditions" }
 product-publication = { path = "../subsystems/compiler/build/build-output/product-publication" }
 psi-entry-memory = { path = "../subsystems/compiler/psi/access/entry-memory" }
