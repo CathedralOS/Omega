@@ -1,0 +1,30 @@
+[package]
+name = "terminal-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+access-vocabulary = { path = "../../../source-to-psi/language/access-vocabulary" }
+declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
+schema-reflection = { path = "../../../source-to-psi/language/schema-reflection" }
+application-identity = { path = "../../../source-to-psi/language/application-identity" }
+layout-planning = { path = "../layout/integer-defaults" }
+resource-bounds = { path = "../storage-bounds" }
+numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
+arena = { path = "../../../../../foundation/arena" }
+source-text = { path = "../../../../foundation/source-text" }
+bignum = { path = "../../../../../foundation/bignum" }
+wire = { path = "../../../../../foundation/wire" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+layout-plans = { path = "../layout" }
+access-admission = { path = "../../../source-to-psi/access-admission" }
+optimization = { path = "../optimization-selections" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+terminal-psi = { path = ".." }
+proof-admission = { path = "../../../source-to-psi/proof-admission" }

@@ -1,0 +1,36 @@
+[package]
+name = "target-operations-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+compiler-check-site = { path = "../../../foundation/check-site" }
+provider-admission = { path = "../../verification/provider-admission" }
+installation-admission = { path = "../../verification/installation-admission" }
+target-lowering = { package = "abstract-operations-to-target-operations", path = "../04_abstract-operations-to-target-operations" }
+physical-program = { path = "../representations/post-allocation-machine/body-facts" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+access-admission = { path = "../../../../psi/compilation/access-admission" }
+layout-plans = { path = "../../../psi/layout" }
+legalized-operations = { path = "../representations/target-operations/legalized-operations" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+bound-installations = { path = "../../installation/bound-installations" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+access-vocabulary = { path = "../../../source-to-psi/language/access-vocabulary" }
+optimization-core = { path = "../../optimization-contracts" }
+register-environment = { path = "../../target-description/register-environment" }
+register-model = { path = "../../target-description/register-model" }
+selected-instructions = { path = "../representations/selected-instructions" }
+target = { path = "../../target-description/target" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+terminal-psi = { path = "../../../representations/psi" }
+native-vocabulary = { path = "../../native-vocabulary" }
+selected-instruction-analyses = { path = "../06_selected-instructions-to-selected-instructions/analyses" }

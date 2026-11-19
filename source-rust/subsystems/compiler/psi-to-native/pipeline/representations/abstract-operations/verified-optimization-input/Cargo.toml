@@ -1,0 +1,47 @@
+[package]
+name = "verified-optimization-input"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "verified_optimization_input"
+path = "src/lib.rs"
+
+[dependencies]
+target-vocabulary = { path = "../../target-operations/target-vocabulary" }
+legalized-operations = { path = "../../target-operations/legalized-operations" }
+optimization-unit = { path = "../optimization-unit" }
+runtime-abi = { path = "../../../../targets/runtime-abi" }
+native-vocabulary = { path = "../../../../native-vocabulary" }
+declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
+application-identity = { path = "../../../../../source-to-psi/language/application-identity" }
+numeric-literals = { path = "../../../../../source-to-psi/language/numeric-literals" }
+source-text = { path = "../../../../../../../foundation/source-text" }
+abstract-operations = { path = ".." }
+target-operations = { path = "../../target-operations" }
+effects = { path = "../../../../installation/native-effects" }
+installation-evidence = { path = "../../../../installation/installation-evidence" }
+provider-admission = { path = "../../../../verification/provider-admission" }
+semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+arena = { path = "../../../../../../../foundation/arena" }
+record-storage = { path = "../../../../../../../foundation/record-storage" }
+language-core = { path = "../../../../../source-to-psi/language/source-vocabulary" }
+layout-plans = { path = "../../../../../psi/layout" }
+symbols = { path = "../../../../../source-to-psi/language/declaration-identity" }
+terminal-codec = { path = "../../../../../representations/psi/codec" }
+terminal-installation = { path = "../../../../../psi-admission" }
+terminal-psi = { path = "../../../../../representations/psi" }
+calling-conventions = { path = "../../../../targets/calling-conventions" }
+backend-plan = { path = "../../../../installation/provider-plans" }
+target = { path = "../../../../targets/target" }
+terminal-semantics = { path = "../../../../../representations/psi/semantics" }
+program-entry-plan = { path = "../../../../installation/program-entry" }
+diagnostics = { path = "../../../../../../../foundation/diagnostics" }
+boundary-applications = { path = "../../../../installation/boundary-applications" }
+provider-correspondence = { path = "../../../../verification/provider-correspondence" }
+function-identity = { path = "../../../../native-vocabulary/function-identity" }
+optimization-core = { path = "../../../../optimization-contracts" }
+component-description = { path = "../../../../components/description" }
+task-plans = { path = "../../../../installation/task-plans" }
+numerics = { path = "../../../../../source-to-psi/language/scalar-values" }

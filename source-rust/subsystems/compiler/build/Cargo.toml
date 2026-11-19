@@ -1,0 +1,13 @@
+[package]
+name = "project-build"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+build = false
+
+[lib]
+path = "build.rs"
+
+[dependencies]
+compiler = { path = ".." }
+diagnostics = { path = "../../../foundation/diagnostics" }

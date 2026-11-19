@@ -1,0 +1,34 @@
+[package]
+name = "orchestration"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+published-program = { path = "../../compilation/published-program" }
+terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
+execution-admission = { path = "../../../psi/foundation/execution-admission" }
+rayon = "1.10"
+native-compiler = { path = "../../compilation/native-compiler" }
+published-object-verification = { path = "../../compilation/verification/published-objects" }
+compiler = { path = "../../compilation/compiler" }
+products = { path = "../../compilation/products" }
+package-compilation = { path = "../../packages/package-compilation" }
+build-declarations = { path = "../../packages/build-declarations" }
+build-settings = { path = "../build-settings" }
+semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
+package-manager = { path = "../../packages/package-manager" }
+artifacts = { path = "../../compilation/products/measurements" }
+platform-custody = { path = "../../host-support/platform-custody" }
+bounded-process = { path = "../../host-support/bounded-process" }
+target = { path = "../../compilation/target-description/target" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-interpreter = { path = "../../../psi/interpreter" }
+terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
+terminal-runtime = { path = "../../interpreter/terminal-runtime" }
+
+[dev-dependencies]
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+sha2 = "0.10.9"
+native-artifact = { path = "../../../subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact" }

@@ -1,0 +1,12 @@
+[package]
+name = "evaluation-receipts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+record-storage = { path = "../../../../../foundation/record-storage" }
+evaluation-contracts = { path = "../evaluation-contracts" }
+semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+wire = { path = "../../../../../foundation/wire" }

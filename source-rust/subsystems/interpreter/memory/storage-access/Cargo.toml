@@ -1,0 +1,16 @@
+[package]
+name = "storage-access"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+language-core = { path = "../../../compiler/source-to-psi/language/source-vocabulary" }
+access-vocabulary = { path = "../../../compiler/source-to-psi/language/access-vocabulary" }
+access-admission = { path = "../../compilation/access-admission" }
+extent-contracts = { path = "../../../compiler/source-to-psi/language/extent-contracts" }
+extents = { path = "../extents" }
+
+[dev-dependencies]
+access-admission = { path = "../../compilation/access-admission", features = ["test-support"] }
+layout-plans = { path = "../../../compiler/psi/layout", features = ["test-support"] }

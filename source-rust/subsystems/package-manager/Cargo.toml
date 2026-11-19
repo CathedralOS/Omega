@@ -1,0 +1,49 @@
+[package]
+name = "package-manager"
+autotests = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[dependencies]
+backend-plan = { path = "../compiler/psi-to-native/installation/provider-plans" }
+record-storage = { path = "../../foundation/record-storage" }
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+declaration-contracts = { path = "../compiler/source-to-psi/language/declaration-contracts" }
+evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
+source-capture = { path = "../../../host-support/source-capture" }
+source-admission = { path = "../compiler/source-to-psi/inputs/source-admission" }
+source-text = { path = "../../foundation/source-text" }
+wire = { path = "../../foundation/wire" }
+terminal-codec = { path = "../compiler/representations/psi/codec" }
+evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+terminal-work = { path = "../compiler/representations/psi/work" }
+artifacts = { path = "../../compilation/products/measurements" }
+build-declarations = { path = "../build-declarations" }
+build-settings = { path = "../../build-system/build-settings" }
+build-output = { path = "../build-output" }
+boundary-applications = { path = "../compiler/psi-to-native/installation/boundary-applications" }
+compiler = { path = "../../compilation/compiler" }
+products = { path = "../../compilation/products" }
+effects = { path = "../compiler/psi-to-native/installation/native-effects" }
+review-evidence = { path = "../review-evidence" }
+source-acquisition = { path = "../source-acquisition" }
+package-compilation = { path = "../package-compilation" }
+optimization-core = { path = "../compiler/psi-to-native/optimization-contracts" }
+platform-custody = { path = "../../host-support/platform-custody" }
+target = { path = "../../compilation/target-description/target" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
+arena = { path = "../../foundation/arena" }
+semantic-vocabulary = { path = "../compiler/source-to-psi/language/semantic-vocabulary" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+diagnostics = { path = "../../foundation/diagnostics" }
+proof-admission = { path = "../../../psi/compilation/proof-admission" }
+source-syntax = { path = "../../../psi/compilation/pipeline/source-compilation/src/operations/source-syntax" }
+syntax-trees = { path = "../compiler/source-to-psi/pipeline/representations/syntax-trees" }
+terminal-psi = { path = "../compiler/representations/psi" }
+tokens = { path = "../compiler/source-to-psi/pipeline/representations/tokens" }
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
+sha2 = "0.10.9"
+

@@ -1,0 +1,15 @@
+[package]
+name = "runtime-abi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "runtime_abi"
+path = "src/lib.rs"
+
+[dependencies]
+arena = { path = "../../../../../foundation/arena" }
+target = { path = "../target" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+sha2 = "0.10.9"

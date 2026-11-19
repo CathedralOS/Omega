@@ -1,0 +1,23 @@
+[package]
+name = "terminal-installation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+schema-reflection = { path = "../source-to-psi/language/schema-reflection" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+graphs = { path = "../foundation/graphs" }
+bignum = { path = "../../../foundation/bignum" }
+flow-effects = { path = "../source-to-psi/language/source-effects" }
+arena = { path = "../../../foundation/arena" }
+numerics = { path = "../source-to-psi/language/scalar-values" }
+proof-admission = { path = "../source-to-psi/proof-admission" }
+layout-plans = { path = "../../../psi/layout" }
+record-storage = { path = "../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../representations/psi" }
+terminal-codec = { path = "../representations/psi/codec" }
+terminal-semantics = { path = "../representations/psi/semantics" }
+
+[dev-dependencies]

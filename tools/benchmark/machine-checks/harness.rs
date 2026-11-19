@@ -1,7 +1,7 @@
 // Compare the same lowered program at different invocation worker counts.
 // Setup, input cloning and result fingerprints stay outside the discharge timer.
 
-use execution_admission::ExecutionBudget;
+use worker_budget::ExecutionBudget;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use arena::{IdTable};
 use std::hash::{Hash, Hasher};

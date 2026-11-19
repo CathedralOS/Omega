@@ -13,18 +13,18 @@ orchestration = { path = "../../../../omega-rust/omega/build-system/orchestratio
 terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
 products = { path = "../../../../omega-rust/omega/compilation/products" }
 review-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
-optimization-core = { path = "../../../../omega-rust/omega/compilation/representations/optimization-contracts" }
+optimization-core = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/optimization-contracts" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation" }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 source-acquisition = { path = "../../../../omega-rust/omega/packages/source-acquisition" }
-semantic-vocabulary = { path = "../../../../omega-rust/psi/compilation/representations/semantic-vocabulary" }
-syntax-trees = { path = "../../../../omega-rust/psi/compilation/representations/syntax-trees" }
+semantic-vocabulary = { path = "../../../../source-rust/subsystems/compiler/source-to-psi/language/semantic-vocabulary" }
+syntax-trees = { path = "../../../../source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees" }
 diagnostics = { path = "../../../../omega-rust/psi/foundation/diagnostics" }
 target = { path = "../../../../omega-rust/omega/compilation/target-description/target" }
 terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter" }
-terminal-psi = { path = "../../../../omega-rust/psi/compilation/representations/terminal-psi" }
+terminal-psi = { path = "../../../../source-rust/subsystems/compiler/representations/psi" }
 published-object-verification = { path = "../../../../omega-rust/omega/compilation/verification/published-objects" }
-effects = { path = "../../../../omega-rust/omega/compilation/representations/native-effects" }
-symbols = { path = "../../../../omega-rust/psi/compilation/representations/declaration-identity" }
+effects = { path = "../../../../source-rust/subsystems/compiler/psi-to-native/installation/native-effects" }
+symbols = { path = "../../../../source-rust/subsystems/compiler/source-to-psi/language/declaration-identity" }
 mimalloc = { version = "0.1", default-features = false }

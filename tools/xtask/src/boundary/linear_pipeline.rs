@@ -8,26 +8,26 @@ use std::path::Path;
 pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
 
 pub(super) const STAGES: [&str; 20] = [
-    "omega-rust/omega/compilation/pipeline/01_compilation-request-to-admitted-inputs",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
     "omega-rust/psi/compilation/pipeline/source-compilation",
     "omega-rust/omega/compilation/products/source-publication",
-    "omega-rust/omega/compilation/pipeline/02_provider-demand-to-selected-execution",
-    "omega-rust/omega/compilation/pipeline/03_terminal-psi-to-abstract-operations",
-    "omega-rust/omega/compilation/pipeline/04_abstract-operations-to-abstract-operations",
-    "omega-rust/omega/compilation/pipeline/05_abstract-operations-to-target-operations",
-    "omega-rust/omega/compilation/pipeline/06_target-operations-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/07_selected-instructions-to-selected-instructions",
-    "omega-rust/omega/compilation/pipeline/08_selected-instructions-to-register-homes",
-    "omega-rust/omega/compilation/pipeline/09_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine",
-    "omega-rust/omega/compilation/pipeline/11_framed-machine-to-bound-framed-machine",
-    "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding",
-    "omega-rust/omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/14_resolved-layout-to-resolved-layout",
-    "omega-rust/omega/compilation/pipeline/15_resolved-layout-to-placed-functions",
-    "omega-rust/omega/compilation/pipeline/16_placed-functions-to-objects",
-    "omega-rust/omega/compilation/pipeline/17_objects-to-image",
-    "omega-rust/omega/compilation/pipeline/18_finished-products-to-installed-files",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/06_selected-instructions-to-selected-instructions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/07_selected-instructions-to-register-homes",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/08_register-homes-to-post-allocation-machine",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/10_framed-machine-to-bound-framed-machine",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image",
+    "source-rust/subsystems/compiler/build/build-output/product-publication",
 ];
 const RETIRED: [&str; 4] = [
     "omega-rust/omega/compilation/pipeline/07_native-layout",
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn nested_stages_and_streaming_reject_indirect_production_edges() {
         const SHARED: &str = "shared";
-        const ENCODER: &str = "omega-rust/omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding/test-encoder";
+        const ENCODER: &str = "source-rust/subsystems/compiler/psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding/test-encoder";
         const FIXTURE: &str = "omega-rust/test-support/image-fixtures";
         let paths = STAGES
             .into_iter()
@@ -250,19 +250,19 @@ mod tests {
         })
         .unwrap();
         assert!(errors.iter().any(|v| {
-            v.contains("03_terminal-psi-to-abstract-operations -> shared -> test-encoder")
+            v.contains("02_target-bound-program-to-abstract-operations -> shared -> test-encoder")
         }));
         assert!(errors.iter().any(|v| {
             v.contains("01_tokens-to-syntax-trees -> shared -> 00_source-files-to-tokens")
         }));
         assert!(errors.iter().any(|error| error.contains(
-            "07_selected-instructions-to-selected-instructions -> 09_register-homes-to-post-allocation-machine"
+            "06_selected-instructions-to-selected-instructions -> 08_register-homes-to-post-allocation-machine"
         )));
         assert!(errors.iter().any(|error| error.contains(
             "06_terminal-psi-to-checked-terminal-psi -> shared -> 00_source-files-to-tokens"
         )));
         assert!(errors.iter().any(|v| v.contains(
-            "08_selected-instructions-to-register-homes -> shared -> 02_provider-demand-to-selected-execution"
+            "07_selected-instructions-to-register-homes -> shared -> 01_admitted-native-inputs-to-target-bound-program"
         )));
         let fixture_errors: Vec<_> = errors
             .iter()

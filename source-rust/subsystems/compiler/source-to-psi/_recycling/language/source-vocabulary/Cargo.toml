@@ -1,0 +1,14 @@
+[package]
+name = "language-core"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "language_core"
+path = "src/lib.rs"
+
+[dependencies]
+numeric-literals = { path = "../numeric-literals" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+numerics = { path = "../scalar-values" }

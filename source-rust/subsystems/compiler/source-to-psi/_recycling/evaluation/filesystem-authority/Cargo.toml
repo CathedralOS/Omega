@@ -1,0 +1,14 @@
+[package]
+name = "filesystem-authority"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "filesystem_authority"
+path = "src/lib.rs"
+
+[dependencies]
+source-capture = { path = "../../../host-support/source-capture" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }

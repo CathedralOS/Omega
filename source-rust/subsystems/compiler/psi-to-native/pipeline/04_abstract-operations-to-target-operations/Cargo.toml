@@ -1,0 +1,36 @@
+[package]
+name = "abstract-operations-to-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+compiler-check-site = { path = "../../../foundation/check-site" }
+abstract-operations = { path = "../representations/abstract-operations" }
+application-identity = { path = "../../../source-to-psi/language/application-identity" }
+arena = { path = "../../../../../foundation/arena" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+function-identity = { path = "../../native-vocabulary/function-identity" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+legalized-operations = { path = "../representations/target-operations/legalized-operations" }
+native-vocabulary = { path = "../../native-vocabulary" }
+optimization-core = { path = "../../optimization-contracts" }
+optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../representations/abstract-operations/optimization-unit-semantics" }
+provider-admission = { path = "../../verification/provider-admission" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+target = { path = "../../target-description/target" }
+target-operations = { path = "../representations/target-operations" }
+target-vocabulary = { path = "../representations/target-operations/target-vocabulary" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+
+[dev-dependencies]
+instruction-selection = { package = "target-operations-to-selected-instructions", path = "../05_target-operations-to-selected-instructions", features = ["test-support"] }
+register-environment = { path = "../../target-description/register-environment" }
+selected-instructions = { path = "../representations/selected-instructions" }

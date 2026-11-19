@@ -1,0 +1,51 @@
+[package]
+name = "checked-program-to-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[lib]
+path = "lib.rs"
+
+[features]
+test-support = ["typed-trees-to-lowered-program/test-support", "lowered-program-to-checked-program/test-support"]
+
+[dependencies]
+typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
+source-declarations = { path = "../../language/source-declarations" }
+typed-trees = { path = "../representations/typed-trees" }
+declaration-contracts = { path = "../../language/declaration-contracts" }
+evaluation-receipts = { path = "../../../evaluation/evaluation-receipts" }
+source-admission = { path = "../../inputs/source-admission" }
+source-text = { path = "../../../../../foundation/source-text" }
+provider-choices = { path = "../../language/provider-choices" }
+wire = { path = "../../../../../foundation/wire" }
+arena = { path = "../../../../../foundation/arena" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+language-core = { path = "../../language/source-vocabulary" }
+numerics = { path = "../../language/scalar-values" }
+optimization = { path = "../../../representations/psi/optimization-selections" }
+semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+symbols = { path = "../../language/declaration-identity" }
+terminal-check-tables = { path = "../representations/lowered-program" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-program" }
+
+[dev-dependencies]
+bundled-declarations = { path = "../../inputs/bundled-declarations" }
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
+typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }
+source-parser = { path = "../01_tokens-to-syntax-trees" }
+source-lexer = { path = "../00_source-files-to-tokens" }
+syntax-trees = { path = "../representations/syntax-trees" }
+tokens = { path = "../representations/tokens" }
+typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program", features = ["test-support"] }
+lowered-program-to-checked-program = { path = "../06_lowered-program-to-checked-program", features = ["test-support"] }

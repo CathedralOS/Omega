@@ -1,0 +1,37 @@
+[package]
+name = "typed-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+artifacts = { path = "../../../../foundation/measurements" }
+access-vocabulary = { path = "../../../language/access-vocabulary" }
+declaration-contracts = { path = "../../../language/declaration-contracts" }
+schema-reflection = { path = "../../../language/schema-reflection" }
+application-identity = { path = "../../../language/application-identity" }
+numeric-literals = { path = "../../../language/numeric-literals" }
+source-admission = { path = "../../../inputs/source-admission" }
+source-text = { path = "../../../../../../foundation/source-text" }
+bignum = { path = "../../../../../../foundation/bignum" }
+sha2 = "0.10.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+wire = { path = "../../../../../../foundation/wire" }
+access-admission = { path = "../../../access-admission" }
+arena = { path = "../../../../../../foundation/arena" }
+record-storage = { path = "../../../../../../foundation/record-storage" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+flow-effects = { path = "../../../language/source-effects" }
+language-core = { path = "../../../language/source-vocabulary" }
+layout-plans = { path = "../../../../psi/layout" }
+numerics = { path = "../../../language/scalar-values" }
+semantic-vocabulary = { path = "../../../language/semantic-vocabulary" }
+symbols = { path = "../../../language/declaration-identity" }
+source-declarations = { path = "../../../language/source-declarations" }
+
+[dev-dependencies]
+bundled-declarations = { path = "../../../inputs/bundled-declarations" }

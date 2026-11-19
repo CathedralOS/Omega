@@ -1,0 +1,13 @@
+[package]
+name = "build-output"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[dependencies]
+wire = { path = "../../../../foundation/wire" }
+record-storage = { path = "../../../../foundation/record-storage" }
+filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+optimization-core = { path = "../../psi-to-native/optimization-contracts" }

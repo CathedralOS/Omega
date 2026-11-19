@@ -1,0 +1,39 @@
+[package]
+name = "isa-aarch64"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "isa_aarch64"
+path = "src/lib.rs"
+
+[dependencies]
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
+wire = { path = "../../../../../../foundation/wire" }
+normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls" }
+encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+optimization-core = { path = "../../../optimization-contracts" }
+register-model = { path = "../../../target-description/register-model" }
+target = { path = "../../../target-description/target" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+layout-plans = { path = "../../../../psi/layout" }
+post-handoff-writer-plan = { path = "../../../installation/post-handoff-writer" }
+
+[dev-dependencies]
+selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }
+register-model = { path = "../../../target-description/register-model", features = ["test-support"] }
+isa-conformance = { path = "../../../../../test-support/isa-conformance" }
+normalized-foreign-call-plan = { path = "../../representations/selected-instructions/foreign-calls", features = ["test-support"] }
+encoded-scalar-plan = { path = "../../representations/machine-code/scalar-encoding", features = ["test-support"] }
+function-identity = { path = "../../../native-vocabulary/function-identity" }
+symbols = { path = "../../../../source-to-psi/language/declaration-identity" }
+optimization-core = { path = "../../../optimization-contracts" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+target-operations = { path = "../../representations/target-operations" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+terminal-psi = { path = "../../../../representations/psi" }
+task-plans = { path = "../../../installation/task-plans" }

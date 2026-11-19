@@ -1,0 +1,7395 @@
+pub(crate) mod representation_geometry;
+
+/*
+Semantic judgments for structural reference origins, placed loan regions, reborrow custody, and
+reference access capabilities.
+*/
+
+mod boundary_results;
+mod declared_results;
+pub(crate) use boundary_results::provider_lifetime_debts;
+pub use boundary_results::{
+    boundary_descriptor_access, boundary_result_lifetimes, boundary_result_lifetimes_match,
+    boundary_result_slots, validate_declared_boundary_reference_outputs,
+    validate_provider_reference_outputs,
+};
+pub(crate) use declared_results::validate_result_lifetime_groups;
+pub use declared_results::{
+    DeclaredReferenceResult, callable_reference_result, declared_lifetime_path_is_static,
+    public_reference_result, requirement_reference_result, selected_reference_result,
+};
+
+pub(crate) mod reference_completion {
+
+    use semantic_vocabulary::{PlaceId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralAccess, StructuralParameterDeclaration, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
+    };
+
+    pub struct ReferenceCompletionOccurrence<'a, Identity> {
+        pub identity: &'a Identity,
+        pub parents: Vec<&'a Identity>,
+        pub returned: bool,
+        pub in_caller_storage: bool,
+        pub disposed: bool,
+    }
+
+    pub fn borrowed_entry_reference_referent<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        parameter: &StructuralParameterDeclaration,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        if parameter.access == StructuralAccess::Owned
+            || !crate::projection_stays_in_inline_storage(
+                declarations.clone(),
+                parameter.structural_type,
+                path,
+            )
+        {
+            return None;
+        }
+        match crate::runtime_structural_path_tip(declarations, parameter.structural_type, path)?
+            .shape
+        {
+            StructuralTypeShape::Reference { referent, .. } => Some(referent),
+            _ => None,
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ReferenceCompletionError {
+        DuplicateOccurrence,
+        MissingParent,
+        CyclicAncestry,
+        UndisposedParent,
+        SurvivingChild,
+    }
+
+    impl ReferenceCompletionError {
+        pub const fn description(self) -> &'static str {
+            match self {
+                Self::DuplicateOccurrence => {
+                    "reference completion has duplicate occurrence identities"
+                }
+                Self::MissingParent => "reference completion lost an immediate parent",
+                Self::CyclicAncestry => "reference completion has cyclic ancestry",
+                Self::UndisposedParent => {
+                    "reference completion does not dispose an intermediate parent"
+                }
+                Self::SurvivingChild => {
+                    "reference completion leaves a child of a closing parent live"
+                }
+            }
+        }
+    }
+
+    pub fn validate_reference_result_completion<Identity: PartialEq>(
+        occurrences: &[ReferenceCompletionOccurrence<'_, Identity>],
+    ) -> Result<(), ReferenceCompletionError> {
+        for (position, occurrence) in occurrences.iter().enumerate() {
+            if occurrences[..position]
+                .iter()
+                .any(|previous| previous.identity == occurrence.identity)
+            {
+                return Err(ReferenceCompletionError::DuplicateOccurrence);
+            }
+        }
+        let mut visited = vec![0u8; occurrences.len()];
+        let mut closing = vec![false; occurrences.len()];
+        for (position, occurrence) in occurrences
+            .iter()
+            .enumerate()
+            .filter(|(_, occurrence)| occurrence.returned || occurrence.in_caller_storage)
+        {
+            if occurrence.disposed {
+                return Err(ReferenceCompletionError::UndisposedParent);
+            }
+            let mut pending = vec![(position, false)];
+            while let Some((position, completed)) = pending.pop() {
+                if completed {
+                    visited[position] = 2;
+                    continue;
+                }
+                match visited[position] {
+                    1 => return Err(ReferenceCompletionError::CyclicAncestry),
+                    2 => continue,
+                    _ => {}
+                }
+                visited[position] = 1;
+                pending.push((position, true));
+                for parent in occurrences[position].parents.iter().rev() {
+                    let parent_position = occurrences
+                        .iter()
+                        .position(|candidate| candidate.identity == *parent)
+                        .ok_or(ReferenceCompletionError::MissingParent)?;
+                    let parent = &occurrences[parent_position];
+                    if !parent.in_caller_storage && (!parent.disposed || parent.returned) {
+                        return Err(ReferenceCompletionError::UndisposedParent);
+                    }
+                    closing[parent_position] = !parent.in_caller_storage;
+                    pending.push((parent_position, false));
+                }
+            }
+        }
+        for (position, occurrence) in occurrences.iter().enumerate() {
+            if !closing[position] {
+                continue;
+            }
+            if occurrences.iter().any(|child| {
+                child.parents.contains(&occurrence.identity)
+                    && !child.returned
+                    && !child.in_caller_storage
+                    && !child.disposed
+            }) {
+                return Err(ReferenceCompletionError::SurvivingChild);
+            }
+        }
+        Ok(())
+    }
+
+    /// A borrow keeps the resource it arrived with. Literal storage can own
+    /// shared permission; an input or an earlier loan keeps its own identity.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum BorrowedLoanSource {
+        Owner,
+        Incoming,
+        Loan(semantic_vocabulary::ObligationId),
+        Provider,
+    }
+
+    // Inline byte-view fields carry their type on the field itself. They need
+    // not have a separate type declaration, but still name an exact leaf.
+    fn borrowed_descriptor_shape(
+        module: &terminal_psi::TerminalModule,
+        root_type: StructuralTypeId,
+        path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+    ) -> Option<StructuralTypeShape> {
+        let path = crate::descriptor_lifetimes::descriptor_path(
+            &module.structural_types,
+            root_type,
+            path,
+        )?;
+        let shape = if let Some(tip) =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root_type, &path)
+        {
+            match &tip.shape {
+                StructuralTypeShape::ByteSequence(carrier) => {
+                    StructuralTypeShape::ByteSequence(*carrier)
+                }
+                StructuralTypeShape::ElementView { element, access } => {
+                    StructuralTypeShape::ElementView {
+                        element: *element,
+                        access: *access,
+                    }
+                }
+                _ => return None,
+            }
+        } else {
+            StructuralTypeShape::ByteSequence(
+                crate::runtime_structural_field(module.structural_types.iter(), root_type, &path)?
+                    .field_type
+                    .byte_sequence_carrier()?,
+            )
+        };
+        (shape.is_borrowed_byte_carrier()
+            || matches!(shape, StructuralTypeShape::ElementView { .. }))
+        .then_some(shape)
+    }
+
+    /// Different slices may borrow the same input value. Every possible source
+    /// must name that same input or field. Address and length checks keep
+    /// all slice and capture information.
+    pub fn incoming_view_occurrence(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        origins: &[crate::descriptor_results::DescriptorSourceOrigin],
+    ) -> Result<crate::descriptor_lifetimes::DescriptorLocation, &'static str> {
+        use crate::descriptor_lifetimes::{descriptor_location, descriptor_path};
+        use crate::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        let mut original = None;
+        for origin in origins {
+            let location = match origin {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) if !projection.indirect => {
+                    let parameter = crate::exactly_one::exactly_one(
+                        machine.structural_parameters.iter(),
+                        |parameter| parameter.place == *source,
+                    )
+                    .ok_or("the view's original incoming borrow cannot be identified")?;
+                    let path = projection
+                        .original_descriptor_path()
+                        .ok_or("the view's original borrowed field cannot be identified")?;
+                    descriptor_location(
+                        &module.structural_types,
+                        *source,
+                        parameter.structural_type,
+                        path,
+                        None,
+                    )
+                    .ok_or("the view's original borrowed field cannot be identified")?
+                }
+                DescriptorSourceOrigin::IncomingSlot(location) => location.clone(),
+                DescriptorSourceOrigin::IncomingContents { query, projection }
+                    if !projection.indirect
+                        && projection
+                            .original_descriptor_path()
+                            .is_some_and(|path| path.is_empty()) =>
+                {
+                    query
+                        .exact_location()
+                        .ok_or("the view's original borrowed field cannot be identified")?
+                }
+                _ => return Err("the view's original borrow cannot be identified"),
+            };
+            let parameter = crate::exactly_one::exactly_one(
+                machine.structural_parameters.iter(),
+                |parameter| parameter.place == location.root,
+            )
+            .ok_or("the view's original incoming borrow cannot be identified")?;
+            let path = descriptor_path(
+                &module.structural_types,
+                parameter.structural_type,
+                &location.path,
+            )
+            .ok_or("the view's original borrowed field cannot be identified")?;
+            if !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &path,
+            ) || borrowed_descriptor_shape(module, parameter.structural_type, &location.path)
+                .is_none()
+            {
+                return Err("the view's original borrowed field cannot be identified");
+            }
+            if original
+                .as_ref()
+                .is_some_and(|previous| *previous != location)
+            {
+                return Err("the view can name different incoming borrows or fields");
+            }
+            original = Some(location);
+        }
+        original.ok_or("the view's original borrow cannot be identified")
+    }
+
+    /// A shared reference whose arrivals each bring a different live loan
+    /// (`match choice { true -> incoming, _ -> incoming }` forms one loan per
+    /// arm) has no single parent loan at the join. It still borrows the
+    /// caller's storage when the arrival replay traces every arrival to the
+    /// same exact field of one borrowed input: that input is the lender of
+    /// each arm's loan. Arrivals from different inputs or local storage stay
+    /// refused, and so do exclusive references, whose reborrow must descend
+    /// from the one loan its arrival brought.
+    fn joined_incoming_loans(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+    ) -> Result<BorrowedLoanSource, &'static str> {
+        use crate::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        const UNRESOLVED: &str =
+            "reference descriptor has an unresolved surviving immediate loan occurrence";
+        let shared = machine
+            .structural_place_type(descriptor.root)
+            .and_then(|ty| {
+                let path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    ty,
+                    &descriptor.path,
+                )?;
+                crate::runtime_structural_path_tip(module.structural_types.iter(), ty, &path)
+            })
+            .is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+            });
+        if !shared {
+            return Err(UNRESOLVED);
+        }
+        let origins = analysis
+            .symbolic_source_origins(machine.id, at, descriptor)
+            .ok_or(UNRESOLVED)?;
+        let [
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, projection }),
+        ] = origins.as_slice()
+        else {
+            return Err("joined reference arms borrow from different lenders");
+        };
+        let parameter =
+            crate::exactly_one::exactly_one(machine.structural_parameters.iter(), |parameter| {
+                parameter.place == *source
+            })
+            .filter(|parameter| parameter.access != StructuralAccess::Owned)
+            .ok_or("joined reference arms borrow from different lenders")?;
+        let path = projection.original_descriptor_path().ok_or(UNRESOLVED)?;
+        if projection.window.is_some()
+            || projection
+                .enclosing_storage()
+                .is_none_or(|storage| storage.path != path)
+            || !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                path,
+            )
+        {
+            return Err(UNRESOLVED);
+        }
+        Ok(BorrowedLoanSource::Incoming)
+    }
+
+    /// Complete borrowed-resource correspondence at this use. A family keeps
+    /// every incoming storage identity; it does not select a new loan's parent.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum BorrowedLoanSources {
+        Single(BorrowedLoanSource),
+        Incoming(Vec<crate::descriptor_results::DescriptorCallOrigin>),
+        Selected(crate::descriptor_lifetimes::DescriptorLoanChoice),
+    }
+
+    impl BorrowedLoanSources {
+        pub fn single(self) -> Result<BorrowedLoanSource, &'static str> {
+            match self {
+                Self::Single(source) => Ok(source),
+                Self::Incoming(family) if family.len() == 1 => Ok(BorrowedLoanSource::Incoming),
+                Self::Incoming(_) => {
+                    Err("reference descriptor has no single immediate incoming occurrence")
+                }
+                Self::Selected(_) => Err(
+                    "reference descriptor has an unresolved surviving immediate loan occurrence",
+                ),
+            }
+        }
+    }
+
+    /// Select one immediate resource when a new borrow or result needs it.
+    pub fn borrowed_loan_source<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<BorrowedLoanSource, &'static str> {
+        borrowed_loan_sources(module, machine, analysis, at, descriptor, candidates)?.single()
+    }
+
+    /// Authenticate the resources carried by this borrowed transport.
+    pub fn borrowed_loan_sources<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<BorrowedLoanSources, &'static str> {
+        let mut parent = None;
+        // Loans that may still own the descriptor here, but not on every
+        // arrival: each arm of a join formed its own loan.
+        let mut joined = Vec::new();
+        for (identity, lifetime) in candidates {
+            // An input a provider-returned view keeps borrowed is retained for
+            // the result's use, but the provider lends the bytes: that
+            // lifetime authorizes no carrier anywhere and is never a view's
+            // immediate loan occurrence.
+            if lifetime
+                .authorized
+                .values()
+                .all(std::collections::BTreeSet::is_empty)
+            {
+                continue;
+            }
+            let authorized = lifetime
+                .authorized
+                .get(&at)
+                .is_some_and(|names| names.contains(descriptor));
+            if lifetime
+                .surviving
+                .get(&at)
+                .is_some_and(|names| names.contains(descriptor))
+                && !authorized
+            {
+                if !lifetime.live.contains(&at) {
+                    return Err(
+                        "reference descriptor has an unresolved surviving immediate loan occurrence",
+                    );
+                }
+                joined.push((identity, lifetime));
+                continue;
+            }
+            if !authorized {
+                continue;
+            }
+            if parent.is_some_and(|previous| previous != identity) {
+                return Err("reference descriptor has ambiguous immediate loan occurrences");
+            }
+            parent = Some(identity);
+        }
+        if !joined.is_empty() {
+            const UNRESOLVED: &str =
+                "reference descriptor has an unresolved surviving immediate loan occurrence";
+            if parent.is_some() {
+                return Err(UNRESOLVED);
+            }
+            let unresolved = match joined_incoming_loans(module, machine, analysis, at, descriptor)
+            {
+                Ok(source) => return Ok(BorrowedLoanSources::Single(source)),
+                Err(reason) => reason,
+            };
+            let flow = analysis.flow(machine.id).map_err(|_| unresolved)?;
+            return crate::descriptor_lifetimes::joined_loan_authority(
+                &flow,
+                (at, descriptor.clone()),
+                &joined,
+            )
+            .map(BorrowedLoanSources::Selected)
+            .ok_or(unresolved);
+        }
+        if let Some(parent) = parent {
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Loan(
+                parent,
+            )));
+        }
+        // A borrowed block header can continue a borrowed machine input
+        // without creating a new loan occurrence. Read its original storage
+        // from the same arrival replay used for ordinary reference paths.
+        let view_shape = machine
+            .structural_place_type(descriptor.root)
+            .and_then(|ty| borrowed_descriptor_shape(module, ty, &descriptor.path));
+        let view = view_shape.is_some();
+        // Every immutable literal or empty arrival supplies shared permission.
+        // Their identities may differ, but no arrival may introduce mutable,
+        // local, provider or unresolved backing into this owner-backed case.
+        if view_shape.as_ref().is_some_and(|shape| {
+            shape.is_shared_readable_byte_view()
+                || matches!(
+                    shape,
+                    StructuralTypeShape::ElementView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                        ..
+                    }
+                )
+        }) && analysis
+            .source_origins(machine.id, at, descriptor)
+            .is_some_and(|origins| {
+                !origins.is_empty()
+                    && origins.iter().all(|origin| match origin {
+                        crate::descriptor_results::DescriptorCallOrigin::Empty => true,
+                        crate::descriptor_results::DescriptorCallOrigin::Literal {
+                            machine: owner,
+                            place,
+                        } => module
+                            .machine(*owner)
+                            .and_then(|machine| machine.structural_place(*place))
+                            .is_some_and(|place| {
+                                matches!(place.kind,
+                                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                                        structural_type, ..
+                                    } if module.structural_type(structural_type)
+                                        .is_some_and(|ty| ty.shape.is_shared_readable_byte_view()))
+                            }),
+                        _ => false,
+                    })
+            })
+        {
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Owner));
+        }
+        let source_origins = analysis.symbolic_source_origins(machine.id, at, descriptor);
+        let provider = source_origins.as_ref().is_some_and(|origins| {
+            !origins.is_empty()
+                && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                    )
+                })
+        });
+        // An incoming storage argument can keep different original inputs
+        // on different arrivals. Authenticate every address without choosing
+        // one of those inputs as the parent of a new loan.
+        'incoming_storage: {
+            // A provider lends its payload independently of the variable that
+            // holds its view. Its invocation is checked below, not as an input address.
+            if provider {
+                break 'incoming_storage;
+            }
+            let Some(arrival) = crate::arrival_parameter(machine, descriptor.root)
+                .filter(|arrival| arrival.access != StructuralAccess::Owned)
+            else {
+                break 'incoming_storage;
+            };
+            let family = analysis.captured_storage_family(machine.id, at, descriptor)?;
+            for origin in &family {
+                let crate::descriptor_results::DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                } = origin
+                else {
+                    break 'incoming_storage;
+                };
+                let Some(parameter) = crate::exactly_one::exactly_one(
+                    machine.structural_parameters.iter(),
+                    |parameter| parameter.place == *source,
+                )
+                .filter(|parameter| parameter.access != StructuralAccess::Owned) else {
+                    break 'incoming_storage;
+                };
+                let path = projection
+                    .captured_storage_path()
+                    .ok_or("borrowed successor has no exact captured original input path")?;
+                if !crate::projection_stays_in_inline_storage(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    &path,
+                ) {
+                    break 'incoming_storage;
+                }
+                let current_path = crate::descriptor_lifetimes::descriptor_path(
+                    &module.structural_types,
+                    arrival.structural_type,
+                    &descriptor.path,
+                )
+                .ok_or("borrowed successor has no exact current referent path")?;
+                let original = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    &path,
+                )
+                .ok_or("borrowed successor has no exact original referent type")?;
+                let current = crate::runtime_structural_path_tip(
+                    module.structural_types.iter(),
+                    arrival.structural_type,
+                    &current_path,
+                )
+                .ok_or("borrowed successor has no exact current referent type")?;
+                if original.id != current.id {
+                    return Err("borrowed successor changes its original incoming referent type");
+                }
+                if !crate::reference_source_projection_accessible(
+                    module.structural_types.iter(),
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                    &path,
+                    arrival.access,
+                ) {
+                    return Err("borrowed successor exceeds its original incoming access");
+                }
+            }
+            return Ok(BorrowedLoanSources::Incoming(family));
+        }
+        let origins = source_origins
+            .ok_or("reference descriptor has no complete original loan correspondence")?;
+        if !origins.is_empty()
+            && origins.iter().all(|origin| {
+                matches!(
+                    origin,
+                    crate::descriptor_results::DescriptorSourceOrigin::Provider(_)
+                )
+            })
+        {
+            if origins.iter().any(|origin| {
+                matches!(origin,
+                crate::descriptor_results::DescriptorSourceOrigin::Provider(provider)
+                    if provider.invocations.is_empty())
+            }) {
+                return Err("provider view has no establishing invocation");
+            }
+            if origins.iter().any(|origin| {
+                let crate::descriptor_results::DescriptorSourceOrigin::Provider(provider) = origin
+                else {
+                    return false;
+                };
+                provider.projection.indirect
+                    || !provider
+                        .projection
+                        .original_descriptor_path()
+                        .is_some_and(|path| path.is_empty())
+            }) {
+                return Err("a view inside provider storage needs its own original borrow");
+            }
+            let root = machine
+                .structural_place_type(descriptor.root)
+                .ok_or("provider borrow has no exact descriptor type")?;
+            let mut path = crate::descriptor_lifetimes::descriptor_path(
+                &module.structural_types,
+                root,
+                &descriptor.path,
+            )
+            .ok_or("provider borrow has no exact descriptor path")?;
+            let shared_reference =
+                crate::runtime_structural_path_tip(module.structural_types.iter(), root, &path)
+                    .is_some_and(|row| {
+                        matches!(
+                            row.shape,
+                            StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            }
+                        )
+                    });
+            if shared_reference {
+                // Owning the reference carrier does not own its referent.
+                // Check the admitted leaf's permission at that crossing.
+                path.push(StructuralPathSegment::Referent);
+            }
+            if !(view || shared_reference)
+                || crate::structural_projection_authority(
+                    machine,
+                    &module.structural_types,
+                    &terminal_psi::StructuralArgument {
+                        place: descriptor.root,
+                        path,
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                ) != Some(StructuralAccess::SharedBorrow)
+            {
+                return Err("a writable provider borrow needs its exact payload region");
+            }
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Provider));
+        }
+        if view {
+            incoming_view_occurrence(module, machine, &origins)?;
+            return Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming));
+        }
+        let [origin] = origins.as_slice() else {
+            return Err("reference descriptor has no single immediate incoming occurrence");
+        };
+        let original = origin
+            .captured_entry_slot()
+            .ok_or("reference descriptor has no authenticated formation or incoming loan")?;
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == original.root)
+            .ok_or("incoming reference occurrence names no declared input")?;
+        let path = crate::descriptor_lifetimes::descriptor_path(
+            &module.structural_types,
+            parameter.structural_type,
+            &original.path,
+        )
+        .ok_or("incoming reference occurrence has no exact declared path")?;
+        if !crate::projection_stays_in_inline_storage(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &path,
+        ) || !crate::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &path,
+        )
+        .is_some_and(|row| {
+            matches!(row.shape, StructuralTypeShape::Reference { .. })
+                || view
+                    && crate::descriptor_results::is_descriptor(
+                        module.structural_types.iter(),
+                        row.id,
+                    )
+        }) {
+            return Err("incoming reference parent is not an original contained reference leaf");
+        }
+        // None denotes this verified caller-owned resource, not a failed
+        // lookup. No local Loan identity is invented for an incoming leaf.
+        Ok(BorrowedLoanSources::Single(BorrowedLoanSource::Incoming))
+    }
+
+    pub fn reference_loan_parent<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+        match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
+            BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
+            BorrowedLoanSource::Incoming => Ok(None),
+            BorrowedLoanSource::Owner => {
+                Err("owned view backing is not an incoming reference occurrence")
+            }
+            BorrowedLoanSource::Provider => {
+                Err("provider backing is not an incoming reference occurrence")
+            }
+        }
+    }
+
+    /// The storage one call input keeps borrowed after the call returns, and
+    /// for how long. `path` is the caller's storage path under the input's
+    /// place: the argument's own path, or the longer exact source a returned
+    /// reference's published origin binds (`grid.cells` for `pick(&mut grid,
+    /// i)` returning `&mut grid.cells[i].x`). The argument's own loan still
+    /// covers its whole place for the call; this narrower region is what
+    /// lifetimes.md, "Returned views", requires to "remain live for the
+    /// result's use".
+    pub struct RetainedCallLoan {
+        pub position: usize,
+        pub path: Vec<StructuralPathSegment>,
+        pub lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    }
+
+    /// The exact retained region for a bound source beneath `argument`.
+    /// A loan row captures fields, cases and fixed indices exactly; a
+    /// runtime selector chosen inside the callee, a referent crossing or a
+    /// representation step stops the region at the storage enclosing it.
+    /// Stopping early only widens the retained region, never narrows it.
+    fn retained_call_path(
+        argument: &terminal_psi::StructuralArgument,
+        source: &[StructuralPathSegment],
+    ) -> Vec<StructuralPathSegment> {
+        let exact = source[argument.path.len()..]
+            .iter()
+            .take_while(|segment| {
+                matches!(
+                    segment,
+                    StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::Case(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                )
+            })
+            .count();
+        source[..argument.path.len() + exact].to_vec()
+    }
+
+    fn retain_call_lifetime(
+        retained: &mut Vec<RetainedCallLoan>,
+        position: usize,
+        path: Vec<StructuralPathSegment>,
+        lifetime: crate::descriptor_lifetimes::DescriptorLifetime,
+    ) {
+        if let Some(previous) = retained
+            .iter_mut()
+            .find(|previous| previous.position == position && previous.path == path)
+        {
+            let previous = &mut previous.lifetime;
+            previous.live.extend(lifetime.live);
+            for (at, names) in lifetime.demanded {
+                previous.demanded.entry(at).or_default().extend(names);
+            }
+            for (at, names) in lifetime.surviving {
+                previous.surviving.entry(at).or_default().extend(names);
+            }
+            for (at, names) in lifetime.authorized {
+                previous.authorized.entry(at).or_default().extend(names);
+            }
+        } else {
+            retained.push(RetainedCallLoan {
+                position,
+                path,
+                lifetime,
+            });
+        }
+    }
+
+    fn retain_provider_inputs(
+        module: &terminal_psi::TerminalModule,
+        result: &terminal_psi::StructuralOperationResult,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        arguments: &[terminal_psi::StructuralArgument],
+        slots: &[crate::descriptor_results::DescriptorResultSlot],
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        flow: &std::collections::BTreeMap<
+            crate::descriptor_lifetimes::DescriptorPosition,
+            crate::descriptor_lifetimes::DescriptorFlowStep,
+        >,
+        retained: &mut Vec<RetainedCallLoan>,
+    ) -> Result<(), &'static str> {
+        use crate::descriptor_results::DescriptorStoredOrigin;
+        for slot in slots {
+            slot.visit(
+                result.structural_type,
+                &mut Vec::new(),
+                &mut |path, containing_type, slot| {
+                    let declared = crate::descriptor_lifetimes::descriptor_location_type(
+                        &module.structural_types,
+                        containing_type,
+                        &slot.path,
+                    )
+                    .and_then(|ty| module.structural_type(ty));
+                    if !declared.is_some_and(|row| row.shape.is_borrowed_descriptor())
+                        && borrowed_descriptor_shape(module, containing_type, &slot.path).is_none()
+                    {
+                        return Ok(());
+                    }
+                    let descriptor = crate::descriptor_lifetimes::DescriptorLocation {
+                        root: result.place,
+                        path: path.to_vec(),
+                    };
+                    let mut pending = Vec::new();
+                    for origin in &slot.origins {
+                        if let DescriptorStoredOrigin::Provider(provider) = origin {
+                            pending.extend(
+                                provider
+                                    .lifetime_dependencies
+                                    .iter()
+                                    .map(|debt| &debt.origin),
+                            );
+                        }
+                    }
+                    if pending.is_empty() {
+                        return Ok(());
+                    }
+                    let lifetime = crate::descriptor_lifetimes::descriptor_location_lifetime(
+                        flow,
+                        at,
+                        &descriptor,
+                    );
+                    if lifetime.live.contains(&at) {
+                        return Err("returned provider dependency crosses its own call formation");
+                    }
+                    retain_result_dependencies(
+                        module, parameters, arguments, pending, &lifetime, retained,
+                    )?;
+                    Ok::<(), &'static str>(())
+                },
+            )?;
+        }
+        Ok(())
+    }
+
+    fn retain_result_dependencies(
+        module: &terminal_psi::TerminalModule,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        arguments: &[terminal_psi::StructuralArgument],
+        mut pending: Vec<&crate::descriptor_results::DescriptorStoredOrigin>,
+        lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
+        retained: &mut Vec<RetainedCallLoan>,
+    ) -> Result<(), &'static str> {
+        use crate::descriptor_results::DescriptorStoredOrigin;
+        if parameters.len() != arguments.len() {
+            return Err("returned value differs from its input contract");
+        }
+        // Keeping an input live grants no authority to use its loan.
+        let mut inputs = Vec::new();
+        while let Some(origin) = pending.pop() {
+            let (position, stored) = match origin {
+                DescriptorStoredOrigin::Provider(provider) => {
+                    pending.extend(
+                        provider
+                            .lifetime_dependencies
+                            .iter()
+                            .map(|debt| &debt.origin),
+                    );
+                    continue;
+                }
+                DescriptorStoredOrigin::ProducedContents(contents) => {
+                    pending.extend(
+                        contents
+                            .lifetime_dependencies
+                            .iter()
+                            .map(|debt| &debt.origin),
+                    );
+                    continue;
+                }
+                DescriptorStoredOrigin::Parameter { position, .. } => (*position, false),
+                DescriptorStoredOrigin::IncomingSlot { position, .. }
+                | DescriptorStoredOrigin::IncomingContents { position, .. } => (*position, true),
+                DescriptorStoredOrigin::Literal { .. } | DescriptorStoredOrigin::Empty => {
+                    continue;
+                }
+                DescriptorStoredOrigin::Invocation { .. }
+                | DescriptorStoredOrigin::AccessFormation { .. }
+                | DescriptorStoredOrigin::Carried { .. } => {
+                    return Err("returned value dependency needs its admitted retention resource");
+                }
+            };
+            let formal = parameters
+                .get(position)
+                .ok_or("returned value dependency names no input formal")?;
+            let argument = arguments
+                .get(position)
+                .ok_or("returned value dependency names no actual argument")?;
+            if argument.access != formal.access {
+                return Err("returned value dependency changes its input access");
+            }
+            if argument.access == StructuralAccess::Owned {
+                // A moved descriptor carries its original permission;
+                // the call did not form a new loan of its storage.
+                continue;
+            }
+            let formal_type = module
+                .structural_type(formal.structural_type)
+                .ok_or("returned value dependency has no typed input formal")?;
+            if formal_type.shape.is_view_descriptor() {
+                // The view carries its original payload loan through
+                // descriptor flow; this is not a loan of its storage.
+                continue;
+            }
+            if stored
+                && !crate::descriptor_results::is_descriptor(
+                    module.structural_types.iter(),
+                    formal.structural_type,
+                )
+            {
+                // A reference held inside an input retains its own
+                // original loan through descriptor flow, not a new
+                // borrow of the enclosing record's storage.
+                continue;
+            }
+            if !inputs.contains(&position) {
+                inputs.push(position);
+            }
+        }
+        for position in inputs {
+            let argument = arguments
+                .get(position)
+                .ok_or("returned value dependency names no actual argument")?;
+            retain_call_lifetime(
+                retained,
+                position,
+                argument.path.clone(),
+                crate::descriptor_lifetimes::DescriptorLifetime {
+                    live: lifetime.live.clone(),
+                    demanded: lifetime.demanded.clone(),
+                    surviving: lifetime.surviving.clone(),
+                    authorized: Default::default(),
+                },
+            );
+        }
+        Ok(())
+    }
+
+    /// A reference or view returned by a call keeps its input loan until
+    /// every transported result descriptor ends (lifetimes.md, "Returned
+    /// views": the source must "remain live for the result's use").
+    /// Reconstruct the callee's actual origins before using the existing call
+    /// binding; a result header alone cannot extend a loan or supply an
+    /// unrelated backing resource.
+    pub fn reference_call_lifetimes(
+        module: &terminal_psi::TerminalModule,
+        caller: &terminal_psi::TerminalMachine,
+        operation: &terminal_psi::Operation,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Result<Vec<RetainedCallLoan>, crate::descriptor_results::DescriptorGraphError> {
+        let refuse = |detail| {
+            crate::descriptor_results::DescriptorGraphError::at_operation(
+                module, caller.id, operation, detail,
+            )
+        };
+        use super::reference_origins::{
+            ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
+        };
+        use crate::descriptor_lifetimes::{
+            DescriptorLocation, descriptor_location, descriptor_location_lifetime, descriptor_path,
+        };
+
+        let invocation = operation.declared_invocation();
+        let runtime = operation.kind.callable_invocation();
+        if invocation.is_none()
+            && runtime.is_none()
+            && !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallDynamic { .. }
+            )
+        {
+            return Ok(Vec::new());
+        }
+        let Some(result) = operation.result.as_structural().filter(|result| {
+            terminal_psi::structural_type_has_borrowed_storage_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        }) else {
+            return Ok(Vec::new());
+        };
+        let has_reference_contents = terminal_psi::structural_type_contains_reference_by(
+            |id| module.structural_type(id),
+            result.structural_type,
+        );
+        let result_inventory = crate::reference_inventory(
+            module.structural_types.iter(),
+            result.structural_type,
+            usize::MAX,
+        )
+        .ok_or_else(|| refuse("returned contents have no complete reference inventory"))?;
+        // An opaque value packet carries its existing loans. It does not
+        // form a new reference to the storage that previously held the value.
+        let returns_reference = !result_inventory.references.is_empty();
+        let arguments = operation.kind.structural_arguments();
+        let (declared_parameters, slots, actual, public) = if let Some(call) = runtime {
+            let contract = module
+                .callables
+                .contract(call.contract)
+                .ok_or_else(|| refuse("returned runtime value has no exact public contract"))?;
+            let declared = super::callable_reference_result(&module.structural_types, contract)
+                .map_err(refuse)?;
+            if !contract.result.matches_machine_result(
+                &terminal_psi::TerminalMachineResult::Structural(
+                    terminal_psi::StructuralResultDeclaration {
+                        place: result.place,
+                        structural_type: result.structural_type,
+                        multiplicity: result.multiplicity,
+                        qualifications: result.qualifications.clone(),
+                        projected_qualifications: result.projected_qualifications.clone(),
+                        reference_sources: Vec::new(),
+                    },
+                ),
+            ) {
+                return Err(refuse(
+                    "returned runtime value changes its public result carrier",
+                ));
+            }
+            let slots = crate::descriptor_results::public_result_slots(
+                &module.structural_types,
+                crate::descriptor_results::DescriptorSlotKind::Views,
+                &declared,
+                result.place,
+            )
+            .ok_or_else(|| refuse("returned runtime views have no complete declared frontier"))?;
+            (
+                contract.structural_parameters.as_slice(),
+                slots,
+                Vec::new(),
+                Some(declared),
+            )
+        } else {
+            let Some(call) = invocation else {
+                return Err(refuse(if returns_reference {
+                    "returned dynamic reference needs its admitted completion resource"
+                } else {
+                    "returned dynamic view needs its declared lifetime contract"
+                }));
+            };
+            match call.callee {
+                terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+                    let declaration = module.boundary_machine(boundary).ok_or_else(|| {
+                        refuse("returned boundary borrow has no exact declaration")
+                    })?;
+                    let terminal_psi::BoundaryMachineResult::Structural(expected) =
+                        &declaration.result
+                    else {
+                        return Err(refuse("returned borrow has no structural boundary result"));
+                    };
+                    if result.qualifications != expected.qualifications
+                        || result.projected_qualifications != expected.projected_qualifications
+                    {
+                        return Err(refuse(
+                            "returned borrow differs from its boundary result contract",
+                        ));
+                    }
+                    let slots = crate::boundary_result_slots(
+                        &module.structural_types,
+                        declaration,
+                        crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+                        result,
+                    )
+                    .map_err(refuse)?;
+                    (
+                        declaration.structural_parameters.as_slice(),
+                        slots,
+                        Vec::new(),
+                        None,
+                    )
+                }
+                terminal_psi::TargetMachineCallable::Machine(callee) => {
+                    let callee = module.machine(callee).ok_or_else(|| {
+                        refuse("returned reference call has no actual callee body")
+                    })?;
+                    let signature = callee.result.structural().ok_or_else(|| {
+                        refuse("returned reference call has no structural result contract")
+                    })?;
+                    if result.structural_type != signature.structural_type
+                        || result.multiplicity != signature.multiplicity
+                    {
+                        return Err(refuse(
+                            "returned reference call changes its declared result carrier",
+                        ));
+                    }
+                    // A rigid call reaches a bodiless requirement: its declared
+                    // lifetimes are the only origins, and no body can narrow them.
+                    // It binds through the same public account a selected call reads.
+                    if let Some(requirement) =
+                        super::requirement_reference_result(module, callee.id).map_err(refuse)?
+                    {
+                        (
+                            callee.structural_parameters.as_slice(),
+                            Vec::new(),
+                            Vec::new(),
+                            Some(requirement),
+                        )
+                    } else {
+                        let contents = analysis.result_contents(callee.id).ok_or_else(|| {
+                        // A dependency can fail before its return sources are
+                        // exported. Keep that flow's actual machine and site.
+                        analysis.flow(callee.id).err().unwrap_or_else(|| {
+                            refuse("returned reference callee has no complete actual source correspondence")
+                        })
+                    })?;
+                        let actual = if has_reference_contents {
+                            super::reference_origins::reference_result_contents(
+                                &module.structural_types,
+                                &callee.structural_parameters,
+                                signature,
+                                &contents,
+                            )
+                            .map_err(refuse)?
+                        } else {
+                            Vec::new()
+                        };
+                        if actual != signature.reference_sources {
+                            return Err(refuse(
+                                "returned reference header differs from its actual body origins",
+                            ));
+                        }
+                        let public = call
+                            .required_contract
+                            .filter(|_| returns_reference)
+                            .map(|required| {
+                                super::selected_reference_result(
+                                    module, caller.id, callee.id, required,
+                                )
+                            })
+                            .transpose()
+                            .map_err(refuse)?;
+                        if let Some(public) = &public {
+                            public
+                                .validate_actual_sources(&callee.structural_parameters, &actual)
+                                .map_err(refuse)?;
+                        }
+                        (
+                            callee.structural_parameters.as_slice(),
+                            contents.slots,
+                            actual,
+                            public,
+                        )
+                    }
+                }
+            }
+        };
+        let parameters = public.as_ref().map_or(declared_parameters, |public| {
+            public.contract().structural_parameters.as_slice()
+        });
+        // An admitted boundary establishes its own result provenance. Its
+        // logical input debts below retain loans without claiming that the
+        // returned bytes lie inside an input's storage.
+        let admitted_boundary = invocation.is_some_and(|call| {
+            matches!(
+                call.callee,
+                terminal_psi::TargetMachineCallable::Boundary(_)
+            )
+        });
+        let bindings = if !returns_reference || admitted_boundary {
+            Vec::new()
+        } else if let Some(public) = &public {
+            super::reference_origins::bind_public_reference_call_results(
+                module.structural_types.iter(),
+                public,
+                arguments,
+            )
+            .map_err(refuse)?
+        } else {
+            bind_reference_call_results(
+                module.structural_types.iter(),
+                ReferenceCallContract::Machine {
+                    parameters,
+                    sources: &actual,
+                },
+                arguments,
+            )
+            .map_err(refuse)?
+        };
+        let mut positions = caller.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, candidate)| {
+                    (candidate.id == operation.id && candidate == operation)
+                        .then_some((block.id, ordinal))
+                })
+        });
+        let (block, ordinal) = positions
+            .next()
+            .ok_or_else(|| refuse("returned reference has no exact caller operation"))?;
+        if positions.next().is_some() {
+            return Err(refuse(
+                "returned reference has ambiguous caller operation coordinates",
+            ));
+        }
+        let at = (
+            block,
+            u32::try_from(ordinal).map_err(|_| refuse("call ordinal overflows"))?,
+        );
+        let flow = analysis.flow(caller.id)?;
+        let mut retained = Vec::new();
+        for (mapping_index, binding) in bindings.into_iter().enumerate() {
+            let source_positions = if let Some(public) = &public {
+                use terminal_psi::ReferenceResultShape;
+                public
+                    .reference_regions(&binding.path)
+                    .map(|region| {
+                        let region = region.map_err(refuse)?;
+                        let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                            argument_index,
+                        } = region.origin
+                        else {
+                            return Err(refuse(
+                                "selected reference input unexpectedly uses provider storage",
+                            ));
+                        };
+                        usize::try_from(argument_index).map_err(|_| {
+                            refuse("selected reference input ordinal exceeds host positions")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                actual
+                    .get(mapping_index)
+                    .ok_or_else(|| refuse("returned reference binding lost its body mapping"))?
+                    .sources
+                    .iter()
+                    .map(|origin| {
+                        let formal = origin.parameter().ok_or_else(|| {
+                            refuse("returned reference has no formal input origin")
+                        })?;
+                        terminal_psi::structural_parameter_position(parameters, formal.place)
+                            .ok_or_else(|| refuse("returned reference names no formal input"))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            if source_positions.len() != binding.sources.len() {
+                return Err(refuse(
+                    "returned reference binding differs from its exact source ordinals",
+                ));
+            }
+            let descriptor = descriptor_location(
+                &module.structural_types,
+                result.place,
+                result.structural_type,
+                &binding.path,
+                None,
+            )
+            .ok_or_else(|| refuse("returned reference has no exact result descriptor path"))?;
+            for (position, bound) in source_positions.into_iter().zip(binding.sources) {
+                let ReferenceCallOrigin::Parameter {
+                    source,
+                    transfers_existing,
+                } = bound.origin
+                else {
+                    return Err(refuse(
+                        "returned invocation reference needs its admitted resource",
+                    ));
+                };
+                if transfers_existing {
+                    // The existing descriptor flow transports that input
+                    // occurrence. It does not form a new loan of its backing.
+                    continue;
+                }
+                let argument = arguments
+                    .get(position)
+                    .ok_or_else(|| refuse("returned reference input has no actual argument"))?;
+                if argument.access == StructuralAccess::Owned
+                    || source.place != argument.place
+                    || !source.path.starts_with(&argument.path)
+                {
+                    return Err(refuse(
+                        "returned reference does not retain an actual input loan",
+                    ));
+                }
+                let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                if lifetime.live.contains(&at) {
+                    return Err(refuse(
+                        "returned reference loan crosses its own call formation",
+                    ));
+                }
+                retain_call_lifetime(
+                    &mut retained,
+                    position,
+                    retained_call_path(argument, &source.path),
+                    lifetime,
+                );
+            }
+        }
+        // A view leaf uses actual body slots for a direct call and the
+        // declared input union for a runtime callable. A view into a borrowed formal's
+        // own storage keeps the argument's loan for the view's use. One that
+        // reaches through a reference held by the input points into that
+        // reference's original backing, whose own loan the descriptor flow
+        // already transports; it is not a borrow of the caller's carrier.
+        let is_view = |shape: &StructuralTypeShape| {
+            matches!(
+                shape,
+                StructuralTypeShape::ElementView { .. }
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    )
+            )
+        };
+        if !result_inventory.unknown_contents.is_empty() {
+            let packets = analysis
+                .call_result_contents(caller.id, at, operation.id)
+                .ok_or_else(|| refuse("generic call result has no checked contents account"))?;
+            for packet in packets {
+                let dependencies = packet
+                    .origins
+                    .iter()
+                    .filter_map(|origin| match origin {
+                        crate::descriptor_results::DescriptorStoredOrigin::ProducedContents(
+                            contents,
+                        ) => Some(&contents.lifetime_dependencies),
+                        _ => None,
+                    })
+                    .flatten()
+                    .map(|debt| &debt.origin)
+                    .collect::<Vec<_>>();
+                if dependencies.is_empty() {
+                    continue;
+                }
+                let location = DescriptorLocation {
+                    root: result.place,
+                    path: packet.path,
+                };
+                let lifetime = descriptor_location_lifetime(&flow, at, &location);
+                if lifetime.live.contains(&at) {
+                    return Err(refuse("returned contents cross their own call formation"));
+                }
+                retain_result_dependencies(
+                    module,
+                    parameters,
+                    arguments,
+                    dependencies,
+                    &lifetime,
+                    &mut retained,
+                )
+                .map_err(refuse)?;
+            }
+        }
+        for slot in &slots {
+            slot.visit(
+                result.structural_type,
+                &mut Vec::new(),
+                &mut |path, containing_type, slot| {
+                    descriptor_path(&module.structural_types, containing_type, &slot.path)
+                        .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
+                    if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
+                        return Ok(());
+                    }
+                    let descriptor = DescriptorLocation {
+                        root: result.place,
+                        path: path.to_vec(),
+                    };
+                    for origin in &slot.origins {
+                        let crate::descriptor_results::DescriptorStoredOrigin::Parameter {
+                            position,
+                            projection,
+                        } = origin
+                        else {
+                            continue;
+                        };
+                        // A formal that is itself a view hands back the descriptor
+                        // it was given, or a window of it: that view's backing is
+                        // the original one, not the argument's storage.
+                        let formal = parameters
+                            .get(*position)
+                            .and_then(|formal| module.structural_type(formal.structural_type))
+                            .ok_or_else(|| refuse("returned view input has no typed formal"))?;
+                        if is_view(&formal.shape)
+                            || projection
+                                .path
+                                .contains(&terminal_psi::StructuralPathSegment::Referent)
+                        {
+                            continue;
+                        }
+                        let argument = arguments
+                            .get(*position)
+                            .ok_or_else(|| refuse("returned view input has no actual argument"))?;
+                        if argument.access == StructuralAccess::Owned {
+                            // An owned input moves into the callee, so a view it
+                            // returns is a descriptor the input carried, as when a
+                            // view passed by value comes back. The descriptor flow
+                            // transports that view's own loan; the call lends none.
+                            continue;
+                        }
+                        let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                        if lifetime.live.contains(&at) {
+                            return Err(refuse(
+                                "returned view loan crosses its own call formation",
+                            ));
+                        }
+                        retain_call_lifetime(
+                            &mut retained,
+                            *position,
+                            argument.path.clone(),
+                            lifetime,
+                        );
+                    }
+                    Ok::<(), crate::descriptor_results::DescriptorGraphError>(())
+                },
+            )?;
+        }
+        retain_provider_inputs(
+            module,
+            result,
+            parameters,
+            arguments,
+            &slots,
+            at,
+            &flow,
+            &mut retained,
+        )
+        .map_err(refuse)?;
+        if retained
+            .iter()
+            .any(|loan| loan.position >= parameters.len())
+        {
+            return Err(refuse("returned borrow dependency has no input position"));
+        }
+        // Consumers walk the call's arguments in order: each input's own
+        // region first, then its narrower ones in path order.
+        retained.sort_by(|left, right| {
+            (left.position, left.path.len(), &left.path).cmp(&(
+                right.position,
+                right.path.len(),
+                &right.path,
+            ))
+        });
+        Ok(retained)
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn owned_cleanup_disposes_only_the_transferred_descriptor_subtree() {
+        let carrier = PlaceId::new(1).unwrap();
+        let field = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1));
+        let actions = [TerminalAffineCleanupAction::InvokeOwned(
+            terminal_psi::OwnedCleanupInvocation {
+                subject: terminal_psi::StructuralArgument {
+                    place: carrier,
+                    path: vec![field.clone()],
+                    access: StructuralAccess::Owned,
+                },
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                cleanup_machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+            },
+        )];
+        assert!(cleanup_disposes_reference(
+            &actions,
+            carrier,
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(&actions, carrier, &[]));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            PlaceId::new(2).unwrap(),
+            std::slice::from_ref(&field)
+        ));
+        assert!(!cleanup_disposes_reference(
+            &actions,
+            carrier,
+            &[field, StructuralPathSegment::Referent]
+        ));
+    }
+
+    pub fn cleanup_disposes_reference(
+        actions: &[TerminalAffineCleanupAction],
+        carrier: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> bool {
+        if path.contains(&StructuralPathSegment::Referent) {
+            return false;
+        }
+        actions.iter().any(|action| match action {
+            TerminalAffineCleanupAction::DiscardRoot(place) => *place == carrier,
+            TerminalAffineCleanupAction::DiscardResidual(discard) => {
+                discard.place == carrier
+                    && path.starts_with(&discard.path)
+                    && !discard.path.contains(&StructuralPathSegment::Referent)
+            }
+            TerminalAffineCleanupAction::InvokeOwned(cleanup) => {
+                cleanup.subject.access == StructuralAccess::Owned
+                    && cleanup.subject.place == carrier
+                    && path.starts_with(&cleanup.subject.path)
+                    && !cleanup
+                        .subject
+                        .path
+                        .contains(&StructuralPathSegment::Referent)
+            }
+            TerminalAffineCleanupAction::RetireHome(_) => false,
+        })
+    }
+}
+pub(crate) mod reference_origins {
+
+    use semantic_vocabulary::{IntegerSign, ScalarType, StructuralTypeId};
+    use terminal_psi::{
+        ReferenceOriginProjection, StructuralPathSegment, StructuralTypeDeclaration,
+        StructuralTypeShape,
+    };
+
+    pub(crate) mod borrowed_leaves {
+
+        use semantic_vocabulary::StructuralTypeId;
+        use terminal_psi::{
+            ByteSequenceCarrier, StructuralAccess, StructuralFieldDeclaration,
+            StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+            StructuralTypeShape,
+        };
+
+        pub enum BorrowedResultLeafKind {
+            Reference(StructuralTypeId),
+            View,
+        }
+
+        pub struct BorrowedResultLeaf {
+            pub path: Vec<StructuralPathSegment>,
+            pub access: StructuralAccess,
+            pub kind: BorrowedResultLeafKind,
+        }
+
+        pub fn borrowed_result_leaves<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            multiplicity: StructuralMultiplicity,
+            maximum_leaves: usize,
+        ) -> Result<Vec<BorrowedResultLeaf>, &'static str> {
+            let mut roster = BorrowedResultRoster {
+                types,
+                multiplicity,
+                maximum_leaves,
+                active: Vec::new(),
+                leaves: Vec::new(),
+            };
+            roster.visit(root, &mut Vec::new())?;
+            roster
+                .leaves
+                .sort_by(|left, right| left.path.cmp(&right.path));
+            Ok(roster.leaves)
+        }
+
+        struct BorrowedResultRoster<I> {
+            types: I,
+            multiplicity: StructuralMultiplicity,
+            maximum_leaves: usize,
+            active: Vec<StructuralTypeId>,
+            leaves: Vec<BorrowedResultLeaf>,
+        }
+
+        impl<'types, I: Iterator<Item = &'types StructuralTypeDeclaration> + Clone>
+            BorrowedResultRoster<I>
+        {
+            fn push(
+                &mut self,
+                path: &[StructuralPathSegment],
+                access: StructuralAccess,
+                kind: BorrowedResultLeafKind,
+            ) -> Result<(), &'static str> {
+                if self.leaves.len() == self.maximum_leaves {
+                    return Err("dynamic result has more borrowed leaves than public regions");
+                }
+                if access == StructuralAccess::Owned {
+                    return Err("dynamic borrowed result leaf has owned access");
+                }
+                self.leaves.push(BorrowedResultLeaf {
+                    path: path.to_vec(),
+                    access,
+                    kind,
+                });
+                Ok(())
+            }
+
+            fn visit(
+                &mut self,
+                root: StructuralTypeId,
+                path: &mut Vec<StructuralPathSegment>,
+            ) -> Result<(), &'static str> {
+                if self.active.contains(&root) {
+                    return Err("dynamic result contains a cyclic owned type");
+                }
+                let mut declarations = self.types.clone().filter(|row| row.id == root);
+                let declaration = declarations
+                    .next()
+                    .ok_or("dynamic result has an unknown structural type")?;
+                if declarations.next().is_some() {
+                    return Err("dynamic result has an ambiguous structural type");
+                }
+                match &declaration.shape {
+                    StructuralTypeShape::Reference { access, referent } => {
+                        return self.push(
+                            path,
+                            *access,
+                            BorrowedResultLeafKind::Reference(*referent),
+                        );
+                    }
+                    StructuralTypeShape::ElementView { access, .. }
+                    | StructuralTypeShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { access }
+                        | ByteSequenceCarrier::BoundedView { access, .. },
+                    ) => {
+                        let access = if path.is_empty() {
+                            crate::descriptors::descriptor_results::descriptor_value_access(
+                                self.types.clone(),
+                                root,
+                                self.multiplicity,
+                            )
+                            .ok_or("dynamic result descriptor has incompatible access and multiplicity")?
+                        } else {
+                            access.ok_or("stored result descriptor has no declared access")?
+                        };
+                        return self.push(path, access, BorrowedResultLeafKind::View);
+                    }
+                    _ => {}
+                }
+                self.active.push(root);
+                match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length }
+                        if length.literal() != Some(0) =>
+                    {
+                        let first = self.leaves.len();
+                        path.push(StructuralPathSegment::FixedIndex(0));
+                        self.visit(*element, path)?;
+                        path.pop();
+                        let per_element = self.leaves.len() - first;
+                        if per_element != 0 {
+                            let length = length.literal().ok_or(
+                                "dynamic result borrowed leaf enumeration requires a closed array extent",
+                            )?;
+                            let count = usize::try_from(length)
+                                .ok()
+                                .and_then(|length| length.checked_mul(per_element))
+                                .and_then(|count| first.checked_add(count))
+                                .ok_or("dynamic result borrowed leaf count overflows")?;
+                            if count > self.maximum_leaves {
+                                return Err(
+                                    "dynamic result has more borrowed leaves than public regions",
+                                );
+                            }
+                            for index in 1..length {
+                                path.push(StructuralPathSegment::FixedIndex(index));
+                                self.visit(*element, path)?;
+                                path.pop();
+                            }
+                        }
+                    }
+                    StructuralTypeShape::Record { fields, .. }
+                    | StructuralTypeShape::Mixed { fields, .. } => self.fields(fields, path)?,
+                    _ => {}
+                }
+                if let StructuralTypeShape::Sum { cases }
+                | StructuralTypeShape::Mixed { cases, .. } = &declaration.shape
+                {
+                    for case in cases {
+                        path.push(StructuralPathSegment::Case(case.id));
+                        self.fields(&case.fields, path)?;
+                        path.pop();
+                    }
+                }
+                self.active.pop();
+                Ok(())
+            }
+
+            fn fields(
+                &mut self,
+                fields: &[StructuralFieldDeclaration],
+                path: &mut Vec<StructuralPathSegment>,
+            ) -> Result<(), &'static str> {
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    path.push(StructuralPathSegment::Field(field.identity));
+                    if let Some(child) = field.field_type.as_structural() {
+                        self.visit(child, path)?;
+                    } else if let Some(
+                        ByteSequenceCarrier::BorrowedView { access }
+                        | ByteSequenceCarrier::BoundedView { access, .. },
+                    ) = field.field_type.byte_sequence_carrier()
+                    {
+                        self.push(
+                            path,
+                            access.ok_or("stored result byte view has no declared access")?,
+                            BorrowedResultLeafKind::View,
+                        )?;
+                    }
+                    path.pop();
+                }
+                Ok(())
+            }
+        }
+    }
+    pub(crate) mod call_results {
+
+        use super::reference_origin_type;
+        use semantic_vocabulary::{ReferenceOriginExtent, StructuralTypeId};
+        use terminal_psi::TerminalDynamicReferenceOrigin;
+        use terminal_psi::{
+            ReferenceOriginProjection, StructuralArgument, StructuralParameterDeclaration,
+            StructuralPathSegment, StructuralReferenceResultSource, StructuralTypeDeclaration,
+            TerminalDynamicSlot,
+        };
+
+        pub enum ReferenceCallContract<'declaration> {
+            Machine {
+                parameters: &'declaration [StructuralParameterDeclaration],
+                sources: &'declaration [StructuralReferenceResultSource],
+            },
+            Requirement(&'declaration TerminalDynamicSlot),
+            Callable(super::super::DeclaredReferenceResult<'declaration>),
+        }
+
+        pub enum ReferenceCallOrigin {
+            Parameter {
+                source: StructuralArgument,
+                transfers_existing: bool,
+            },
+            Invocation {
+                carrier_type: StructuralTypeId,
+                path: Vec<ReferenceOriginProjection>,
+                access: terminal_psi::StructuralAccess,
+            },
+        }
+
+        pub struct ReferenceCallSource {
+            pub origin: ReferenceCallOrigin,
+            pub suffix: Vec<ReferenceOriginProjection>,
+            pub endpoint: StructuralTypeId,
+            pub extent: ReferenceOriginExtent,
+        }
+
+        pub struct ReferenceCallResult {
+            pub path: Vec<StructuralPathSegment>,
+            pub sources: Vec<ReferenceCallSource>,
+        }
+
+        impl ReferenceCallSource {
+            /// The origin suffix a returned reference projects from its actual
+            /// argument, or `None` when that storage cannot be the declared
+            /// referent. `source_root` is the argument's resolved storage type.
+            ///
+            /// The returned reference keeps exactly the storage its argument lent.
+            /// An argument may lend a scalar under another carrier: an exclusive
+            /// loan of a restricted field stays a place loan, so its recast is not
+            /// materialized before the call. The origin then records the presented
+            /// view over the stored carrier, as an established reference view does,
+            /// so later reads and writes still address the original backing.
+            pub fn projected_origin_suffix<'types>(
+                &self,
+                types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+                source_root: StructuralTypeId,
+                expected: StructuralTypeId,
+                access: terminal_psi::StructuralAccess,
+            ) -> Option<std::borrow::Cow<'_, [ReferenceOriginProjection]>> {
+                let endpoint = reference_origin_type(types.clone(), source_root, &self.suffix)?;
+                if self.extent != ReferenceOriginExtent::Projected || endpoint == expected {
+                    return Some(std::borrow::Cow::Borrowed(&self.suffix));
+                }
+                let scalar = |identity| {
+                    crate::structural_declaration(types.clone(), identity)
+                        .filter(|declaration| declaration.scalar_restriction.is_none())
+                        .and_then(|declaration| match declaration.shape {
+                            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => {
+                                Some(scalar)
+                            }
+                            _ => None,
+                        })
+                };
+                if !crate::scalar_reference_view_admits(
+                    access,
+                    scalar(endpoint)?,
+                    scalar(expected)?,
+                ) {
+                    return None;
+                }
+                let mut suffix = self.suffix.clone();
+                suffix.push(ReferenceOriginProjection::Exact(
+                    StructuralPathSegment::RepresentationView {
+                        structural_type: expected,
+                        stored_scalar: None,
+                    },
+                ));
+                Some(std::borrow::Cow::Owned(suffix))
+            }
+        }
+
+        pub fn bind_reference_call_results<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            contract: ReferenceCallContract<'_>,
+            arguments: &[StructuralArgument],
+        ) -> Result<Vec<ReferenceCallResult>, &'static str> {
+            let mut results = Vec::new();
+            match contract {
+                ReferenceCallContract::Machine {
+                    parameters,
+                    sources,
+                } => {
+                    for mapping in sources {
+                        let mut candidates = Vec::with_capacity(mapping.sources.len());
+                        for origin in &mapping.sources {
+                            let origin = match origin {
+                                terminal_psi::StructuralReferenceOrigin::Parameter(origin) => {
+                                    origin
+                                }
+                                terminal_psi::StructuralReferenceOrigin::Invocation {
+                                    carrier_type,
+                                    path,
+                                    extent,
+                                    access,
+                                } => {
+                                    let endpoint =
+                                        reference_origin_type(types.clone(), *carrier_type, path).ok_or(
+                                            "invocation reference origin has no typed provider endpoint",
+                                        )?;
+                                    candidates.push(ReferenceCallSource {
+                                        origin: ReferenceCallOrigin::Invocation {
+                                            carrier_type: *carrier_type,
+                                            path: path.clone(),
+                                            access: *access,
+                                        },
+                                        suffix: Vec::new(),
+                                        endpoint,
+                                        extent: *extent,
+                                    });
+                                    continue;
+                                }
+                            };
+                            let argument_index = terminal_psi::structural_parameter_position(
+                                parameters,
+                                origin.place,
+                            )
+                            .ok_or("returned origin names no formal input")?;
+                            let parameter = &parameters[argument_index];
+                            let binding = super::bind_reference_origin(
+                                types.clone(),
+                                parameter.structural_type,
+                                origin,
+                            )?;
+                            let transfers_existing = binding.transfers_existing(
+                                types.clone(),
+                                parameter.structural_type,
+                                parameter.access,
+                            );
+                            let mut source = arguments
+                                .get(argument_index)
+                                .ok_or("returned origin has no actual structural argument")?
+                                .clone();
+                            source.path.extend(binding.source.path);
+                            source.access = origin.access;
+                            candidates.push(ReferenceCallSource {
+                                origin: ReferenceCallOrigin::Parameter {
+                                    source,
+                                    transfers_existing,
+                                },
+                                suffix: binding.suffix.to_vec(),
+                                endpoint: binding.endpoint,
+                                extent: binding.extent,
+                            });
+                        }
+                        results.push(ReferenceCallResult {
+                            path: mapping.path.clone(),
+                            sources: candidates,
+                        });
+                    }
+                }
+                ReferenceCallContract::Requirement(slot) => {
+                    return bind_public_reference_call_results(types, slot, arguments);
+                }
+                ReferenceCallContract::Callable(contract) => {
+                    return bind_public_reference_call_results(types, &contract, arguments);
+                }
+            }
+            Ok(results)
+        }
+
+        pub fn bind_public_reference_call_results<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            slot: &impl terminal_psi::ReferenceResultShape,
+            arguments: &[StructuralArgument],
+        ) -> Result<Vec<ReferenceCallResult>, &'static str> {
+            let mut results: Vec<ReferenceCallResult> = Vec::new();
+            let declared_result = slot.result();
+            let leaves = match declared_result.as_ref() {
+                terminal_psi::BoundaryMachineResult::Structural(result) => {
+                    super::borrowed_result_leaves(
+                        types.clone(),
+                        result.structural_type,
+                        result.multiplicity,
+                        slot.maximum_reference_leaves(),
+                    )?
+                }
+                _ => Vec::new(),
+            };
+            for leaf in leaves
+                .iter()
+                .filter(|leaf| matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_)))
+            {
+                for region in slot.reference_regions(&leaf.path) {
+                    let region = region?;
+                    let index = match region.origin {
+                        TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                            argument_index
+                        }
+                        TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                            let path = region
+                                .source_path
+                                .iter()
+                                .cloned()
+                                .map(ReferenceOriginProjection::Exact)
+                                .collect::<Vec<_>>();
+                            let endpoint =
+                                reference_origin_type(types.clone(), carrier_type, &path).ok_or(
+                                    "dynamic invocation reference origin has no typed endpoint",
+                                )?;
+                            let candidate = ReferenceCallSource {
+                                origin: ReferenceCallOrigin::Invocation {
+                                    carrier_type,
+                                    path,
+                                    access: region.access,
+                                },
+                                suffix: Vec::new(),
+                                endpoint,
+                                extent: ReferenceOriginExtent::Projected,
+                            };
+                            if let Some(result) =
+                                results.iter_mut().find(|result| result.path == region.path)
+                            {
+                                result.sources.push(candidate);
+                            } else {
+                                results.push(ReferenceCallResult {
+                                    path: region.path.clone(),
+                                    sources: vec![candidate],
+                                });
+                            }
+                            continue;
+                        }
+                    };
+                    let argument_index = usize::try_from(index)
+                        .map_err(|_| "dynamic returned region input ordinal overflows")?;
+                    let (parameter_type, _) = slot
+                        .structural_parameter(argument_index)
+                        .ok_or("dynamic returned region names no formal input")?;
+                    let origin_path = region
+                        .source_path
+                        .iter()
+                        .cloned()
+                        .map(ReferenceOriginProjection::Exact)
+                        .collect::<Vec<_>>();
+                    let endpoint =
+                        reference_origin_type(types.clone(), parameter_type, &origin_path)
+                            .ok_or("dynamic returned region has no typed input endpoint")?;
+                    let source_path = crate::reference_source_storage_path(
+                        types.clone(),
+                        parameter_type,
+                        &region.source_path,
+                    );
+                    let mut source = arguments
+                        .get(argument_index)
+                        .ok_or("dynamic returned region has no actual structural argument")?
+                        .clone();
+                    source.path.extend_from_slice(source_path);
+                    source.access = region.access;
+                    let candidate = ReferenceCallSource {
+                        origin: ReferenceCallOrigin::Parameter {
+                            source,
+                            transfers_existing: false,
+                        },
+                        suffix: Vec::new(),
+                        endpoint,
+                        extent: ReferenceOriginExtent::WithinRegion,
+                    };
+                    if let Some(result) =
+                        results.iter_mut().find(|result| result.path == region.path)
+                    {
+                        result.sources.push(candidate);
+                    } else {
+                        results.push(ReferenceCallResult {
+                            path: region.path.clone(),
+                            sources: vec![candidate],
+                        });
+                    }
+                }
+            }
+            Ok(results)
+        }
+    }
+    pub(crate) mod memberships {
+        use super::{ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult};
+        use crate::descriptors::descriptor_lifetimes::DescriptorPosition;
+        use crate::descriptors::descriptor_results::{
+            self as descriptors, DescriptorAnalysis, DescriptorMachine, PayloadMembershipContract,
+        };
+        use semantic_vocabulary::{MachineId, PlaceId, ReferenceOriginExtent, StructuralTypeId};
+        use terminal_psi::{
+            Operation, ReferenceOriginProjection, StructuralAccess, StructuralOperationResult,
+            StructuralPathQualification, StructuralPathSegment, StructuralResultDeclaration,
+            StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
+        };
+
+        pub struct ReferenceResultMemberships<'module> {
+            module: &'module TerminalModule,
+            graph: std::cell::OnceCell<Vec<DescriptorMachine>>,
+        }
+
+        impl<'module> ReferenceResultMemberships<'module> {
+            pub fn new(module: &'module TerminalModule) -> Self {
+                Self {
+                    module,
+                    graph: std::cell::OnceCell::new(),
+                }
+            }
+
+            pub fn for_operation(
+                &self,
+                caller: &TerminalMachine,
+                operation: &Operation,
+            ) -> Result<Vec<StructuralPathQualification>, &'static str> {
+                let (terminal_psi::call_structural_pair_pattern!(callee, structural_arguments, ..)) =
+                    &operation.kind
+                else {
+                    return Ok(Vec::new());
+                };
+                let caller = self
+                    .module
+                    .machine(caller.id)
+                    .ok_or("reference call has no caller")?;
+                let result = operation
+                    .result
+                    .structural()
+                    .ok_or("reference call has no result")?;
+                let callee = self
+                    .module
+                    .machine(*callee)
+                    .ok_or("reference call has no callee")?;
+                let public = crate::public_reference_result(
+                    self.module,
+                    caller.id,
+                    callee.id,
+                    operation.required_contract,
+                )?;
+                let contract = public
+                    .as_ref()
+                    .map_or(&callee.contract, |public| public.contract());
+                let signature = contract
+                    .result
+                    .structural()
+                    .ok_or("reference callee has no result")?;
+                if public.is_none() && signature.reference_sources.is_empty() {
+                    return Ok(Vec::new());
+                }
+                if result.structural_type != signature.structural_type
+                    || result.multiplicity != signature.multiplicity
+                {
+                    return Err("reference call result disagrees with its public carrier");
+                }
+                let mut positions =
+                    caller.blocks.iter().flat_map(|block| {
+                        block.operations.iter().enumerate().filter_map(
+                            move |(ordinal, candidate)| {
+                                (candidate.id == operation.id && candidate == operation)
+                                    .then_some((block.id, ordinal))
+                            },
+                        )
+                    });
+                let (block, ordinal) = positions
+                    .next()
+                    .ok_or("reference call has no current-body cut")?;
+                if positions.next().is_some() {
+                    return Err("reference call has ambiguous current-body cuts");
+                }
+                let position = (
+                    block,
+                    u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
+                );
+                let mappings = if let Some(public) = &public {
+                    super::bind_public_reference_call_results(
+                        self.module.structural_types.iter(),
+                        public,
+                        structural_arguments,
+                    )?
+                } else {
+                    super::bind_reference_call_results(
+                        self.module.structural_types.iter(),
+                        ReferenceCallContract::Machine {
+                            parameters: &contract.structural_parameters,
+                            sources: &signature.reference_sources,
+                        },
+                        structural_arguments,
+                    )?
+                };
+                preserve_call_memberships(
+                    &self.module.structural_types,
+                    &self.module.structural_domains,
+                    || {
+                        self.graph
+                            .get_or_init(|| {
+                                descriptors::terminal_borrowed_storage_graph(self.module)
+                            })
+                            .as_slice()
+                    },
+                    caller.id,
+                    position,
+                    result,
+                    signature,
+                    &mappings,
+                    &|place| descriptors::terminal_payload_contract(caller, place),
+                )
+            }
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub fn reference_call_preserved_memberships(
+            types: &[StructuralTypeDeclaration],
+            domains: &[terminal_psi::StructuralDomainDeclaration],
+            graph: &[DescriptorMachine],
+            identity: MachineId,
+            position: DescriptorPosition,
+            result: &StructuralOperationResult,
+            declaration: &StructuralResultDeclaration,
+            mappings: &[ReferenceCallResult],
+            source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
+        ) -> Result<Vec<StructuralPathQualification>, &'static str> {
+            preserve_call_memberships(
+                types,
+                domains,
+                || graph,
+                identity,
+                position,
+                result,
+                declaration,
+                mappings,
+                source,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn preserve_call_memberships<'input>(
+            types: &'input [StructuralTypeDeclaration],
+            domains: &[terminal_psi::StructuralDomainDeclaration],
+            graph: impl Fn() -> &'input [DescriptorMachine],
+            identity: MachineId,
+            position: DescriptorPosition,
+            result: &StructuralOperationResult,
+            declaration: &StructuralResultDeclaration,
+            mappings: &[ReferenceCallResult],
+            source: &impl Fn(PlaceId) -> Option<PayloadMembershipContract>,
+        ) -> Result<Vec<StructuralPathQualification>, &'static str> {
+            if result.structural_type != declaration.structural_type
+                || result.multiplicity != declaration.multiplicity
+            {
+                return Err("preserved reference result has a different declared carrier");
+            }
+            let replay_source = |place| {
+                if place == result.place {
+                    Some(PayloadMembershipContract {
+                        scalar_observations: Vec::new(),
+                        scalar_requirements: Vec::new(),
+                        carrier: declaration.structural_type,
+                        qualifications: declaration.qualifications.clone(),
+                        projected_qualifications: declaration.projected_qualifications.clone(),
+                    })
+                } else {
+                    source(place)
+                }
+            };
+            let mut replay = None;
+            let mut retained = Vec::new();
+            for (ordinal, mapping) in mappings.iter().enumerate() {
+                if mappings[..ordinal]
+                    .iter()
+                    .any(|previous| previous.path == mapping.path)
+                {
+                    return Err("returned reference membership repeats an output leaf");
+                }
+                let Some(leaf) = crate::runtime_structural_path_tip(
+                    types.iter(),
+                    result.structural_type,
+                    &mapping.path,
+                ) else {
+                    return Err("returned reference membership has no typed leaf");
+                };
+                let StructuralTypeShape::Reference {
+                    referent,
+                    access: StructuralAccess::SharedBorrow,
+                } = leaf.shape
+                else {
+                    continue;
+                };
+                let mut common: Option<PayloadMembershipContract> = None;
+                let mut complete = !mapping.sources.is_empty();
+                for candidate in &mapping.sources {
+                    let selected = (|| {
+                        if candidate.extent != ReferenceOriginExtent::Projected {
+                            return None;
+                        }
+                        let ReferenceCallOrigin::Parameter { source: actual, .. } =
+                            &candidate.origin
+                        else {
+                            return None;
+                        };
+                        let root = replay_source(actual.place)?;
+                        let mut path = actual.path.clone();
+                        path.extend(candidate.suffix.iter().map(|projection| match projection {
+                            ReferenceOriginProjection::Exact(segment) => segment.clone(),
+                            ReferenceOriginProjection::Element => {
+                                StructuralPathSegment::AllElements
+                            }
+                        }));
+                        if let Some((StructuralPathSegment::Referent, prefix)) = path.split_last()
+                            && crate::qualification_path_carrier(types.iter(), root.carrier, prefix)
+                                .and_then(|carrier| {
+                                    terminal_psi::find_structural_type(types, carrier)
+                                })
+                                .is_some_and(|row| {
+                                    !matches!(row.shape, StructuralTypeShape::Reference { .. })
+                                })
+                        {
+                            path.pop();
+                        }
+                        let query = descriptors::descriptor_contents_query(
+                            types,
+                            actual.place,
+                            root.carrier,
+                            &path,
+                            None,
+                        )?;
+                        let (graph, analysis) = replay.get_or_insert_with(|| {
+                            let graph = graph();
+                            (
+                                graph,
+                                DescriptorAnalysis::with_borrowed_storage_slots(types, graph),
+                            )
+                        });
+                        let targets = analysis.payload_targets(identity, position, &query)?;
+                        descriptors::payload_memberships(types, domains, targets, |root| {
+                            descriptors::completed_payload_contract(
+                                types,
+                                domains,
+                                graph,
+                                identity,
+                                position,
+                                root,
+                                &replay_source,
+                            )
+                            .ok()
+                        })?
+                        .presented(types, domains, referent)
+                    })();
+                    let Some(selected) = selected else {
+                        complete = false;
+                        break;
+                    };
+                    if let Some(common) = &mut common {
+                        common
+                            .qualifications
+                            .retain(|domain| selected.qualifications.contains(domain));
+                        common
+                            .projected_qualifications
+                            .retain(|row| selected.projected_qualifications.contains(row));
+                    } else {
+                        common = Some(selected);
+                    }
+                }
+                if complete && let Some(common) = common {
+                    let mut destination = mapping.path.clone();
+                    destination.push(StructuralPathSegment::Referent);
+                    StructuralPathQualification::append_under(
+                        &common.qualifications,
+                        &common.projected_qualifications,
+                        &destination,
+                        &mut retained,
+                    );
+                }
+            }
+            retained.sort();
+            retained.dedup();
+            Ok(retained)
+        }
+
+        pub fn reference_result_memberships_weaken<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            carrier: StructuralTypeId,
+            source: &[StructuralPathQualification],
+            declared: &[StructuralPathQualification],
+        ) -> bool {
+            declared.iter().all(|row| source.contains(row))
+                && source.iter().all(|row| {
+                    if declared.contains(row) {
+                        return true;
+                    }
+                    let mut crosses_shared = false;
+                    for (index, segment) in row.path.iter().enumerate() {
+                        if *segment != StructuralPathSegment::Referent {
+                            continue;
+                        }
+                        let Some(declaration) =
+                            crate::qualification_path_carrier(types.clone(), carrier, &row.path[..index])
+                                .and_then(|carrier| crate::structural_declaration(types.clone(), carrier))
+                        else {
+                            return false;
+                        };
+                        match declaration.shape {
+                            StructuralTypeShape::Reference {
+                                access: StructuralAccess::SharedBorrow,
+                                ..
+                            } => {
+                                crosses_shared = true;
+                            }
+                            _ => return false,
+                        }
+                    }
+                    crosses_shared
+                })
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use semantic_vocabulary::{BlockId, ScalarType};
+            use std::cell::Cell;
+            use terminal_psi::{StructuralArgument, StructuralMultiplicity, TerminalIdentityIndex};
+
+            fn declarations(
+                access: StructuralAccess,
+            ) -> (
+                Vec<StructuralTypeDeclaration>,
+                StructuralOperationResult,
+                StructuralResultDeclaration,
+            ) {
+                let scalar = StructuralTypeId::new(1).unwrap();
+                let reference = StructuralTypeId::new(2).unwrap();
+                let types = [
+                    (
+                        scalar,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                    ),
+                    (
+                        reference,
+                        StructuralTypeShape::Reference {
+                            referent: scalar,
+                            access,
+                        },
+                    ),
+                ]
+                .into_iter()
+                .map(|(id, shape)| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    id,
+                    identity: TerminalIdentityIndex(1),
+                    owns_linear_claim: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    nominal_cleanup: None,
+                    shape,
+                    scalar_restriction: None,
+                })
+                .collect();
+                let result = StructuralOperationResult {
+                    place: PlaceId::new(99).unwrap(),
+                    structural_type: reference,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                };
+                let declaration = StructuralResultDeclaration {
+                    place: result.place,
+                    structural_type: reference,
+                    multiplicity: result.multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                };
+                (types, result, declaration)
+            }
+
+            #[test]
+            fn unresolved_views_keep_loans_without_becoming_reference_authority() {
+                let (mut types, _, declaration) = declarations(StructuralAccess::SharedBorrow);
+                let contents = crate::descriptor_results::DescriptorResultContents {
+                    slots: vec![crate::descriptor_results::DescriptorResultSlot {
+                        path: Vec::new(),
+                        origins: Vec::new(),
+                    }],
+                    unknown_contents: Vec::new(),
+                    unresolved_slots: vec![Vec::new()],
+                    case_facts: Default::default(),
+                };
+                assert_eq!(
+                    crate::reference_result_contents(&types, &[], &declaration, &contents),
+                    Err("reference result retains an unresolved spatial origin")
+                );
+                types[1].shape = StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                );
+                assert_eq!(
+                    crate::reference_result_contents(&types, &[], &declaration, &contents),
+                    Ok(Vec::new())
+                );
+            }
+
+            fn mapping(extent: ReferenceOriginExtent) -> ReferenceCallResult {
+                ReferenceCallResult {
+                    path: Vec::new(),
+                    sources: vec![super::super::ReferenceCallSource {
+                        origin: ReferenceCallOrigin::Parameter {
+                            source: StructuralArgument {
+                                place: PlaceId::new(3).unwrap(),
+                                path: Vec::new(),
+                                access: StructuralAccess::SharedBorrow,
+                            },
+                            transfers_existing: false,
+                        },
+                        suffix: Vec::new(),
+                        endpoint: StructuralTypeId::new(1).unwrap(),
+                        extent,
+                    }],
+                }
+            }
+
+            fn observe(
+                types: &[StructuralTypeDeclaration],
+                result: &StructuralOperationResult,
+                declaration: &StructuralResultDeclaration,
+                mappings: &[ReferenceCallResult],
+            ) -> (
+                Result<Vec<StructuralPathQualification>, &'static str>,
+                usize,
+            ) {
+                let builds = Cell::new(0);
+                let outcome = preserve_call_memberships(
+                    types,
+                    &[],
+                    || {
+                        builds.set(builds.get() + 1);
+                        &[]
+                    },
+                    MachineId::new(1).unwrap(),
+                    (BlockId::new(1).unwrap(), 0),
+                    result,
+                    declaration,
+                    mappings,
+                    &|_| {
+                        Some(PayloadMembershipContract {
+                            scalar_observations: Vec::new(),
+                            scalar_requirements: Vec::new(),
+                            carrier: StructuralTypeId::new(1).unwrap(),
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                        })
+                    },
+                );
+                (outcome, builds.get())
+            }
+
+            #[test]
+            fn undemanded_rows_still_reject_malformed_mappings_without_a_graph() {
+                let (types, mut result, declaration) =
+                    declarations(StructuralAccess::MutableBorrow);
+                let repeated = [
+                    mapping(ReferenceOriginExtent::Projected),
+                    mapping(ReferenceOriginExtent::Projected),
+                ];
+                assert_eq!(
+                    observe(&types, &result, &declaration, &repeated),
+                    (
+                        Err("returned reference membership repeats an output leaf"),
+                        0
+                    )
+                );
+                let mut invalid = mapping(ReferenceOriginExtent::Projected);
+                invalid.path.push(StructuralPathSegment::FixedIndex(0));
+                assert_eq!(
+                    observe(&types, &result, &declaration, &[invalid]),
+                    (Err("returned reference membership has no typed leaf"), 0)
+                );
+                result.structural_type = StructuralTypeId::new(1).unwrap();
+                assert_eq!(
+                    observe(&types, &result, &declaration, &[]),
+                    (
+                        Err("preserved reference result has a different declared carrier"),
+                        0
+                    )
+                );
+            }
+
+            #[test]
+            fn only_a_projected_shared_referent_demands_the_graph() {
+                for access in [
+                    StructuralAccess::MutableBorrow,
+                    StructuralAccess::SharedBorrow,
+                ] {
+                    let (types, result, declaration) = declarations(access);
+                    assert_eq!(
+                        observe(&types, &result, &declaration, &[]),
+                        (Ok(Vec::new()), 0)
+                    );
+                    assert_eq!(
+                        observe(
+                            &types,
+                            &result,
+                            &declaration,
+                            &[mapping(ReferenceOriginExtent::WithinRegion)]
+                        ),
+                        (Ok(Vec::new()), 0)
+                    );
+                    assert_eq!(
+                        observe(
+                            &types,
+                            &result,
+                            &declaration,
+                            &[mapping(ReferenceOriginExtent::Projected)]
+                        ),
+                        (
+                            Ok(Vec::new()),
+                            usize::from(access == StructuralAccess::SharedBorrow)
+                        )
+                    );
+                }
+            }
+        }
+    }
+    pub use borrowed_leaves::{BorrowedResultLeaf, BorrowedResultLeafKind, borrowed_result_leaves};
+    pub use memberships::{
+        ReferenceResultMemberships, reference_call_preserved_memberships,
+        reference_result_memberships_weaken,
+    };
+    pub(crate) mod descriptor_regions {
+
+        use semantic_vocabulary::ReferenceOriginExtent;
+        use terminal_psi::{
+            ReferenceOriginProjection, ReferenceOriginSource, StructuralAccess,
+            StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
+            StructuralTypeDeclaration, StructuralTypeShape, TerminalDynamicReferenceRegion,
+        };
+
+        use crate::descriptors::descriptor_lifetimes::{
+            descriptor_location, descriptor_location_type, descriptor_path,
+        };
+        use crate::descriptors::descriptor_results::{
+            DescriptorContentsStep, DescriptorResultSlot, DescriptorStoredOrigin,
+        };
+        use crate::storage::borrowed_storage::Projection;
+
+        pub fn validate_descriptor_result_regions(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            regions: &[TerminalDynamicReferenceRegion],
+            slots: &[DescriptorResultSlot],
+        ) -> Result<(), &'static str> {
+            let leaves = super::borrowed_result_leaves(
+                types.iter(),
+                result.structural_type,
+                result.multiplicity,
+                regions.len(),
+            )?;
+            for leaf in leaves
+                .into_iter()
+                .filter(|leaf| matches!(leaf.kind, super::BorrowedResultLeafKind::View))
+            {
+                let location = descriptor_location(
+                    types,
+                    result.place,
+                    result.structural_type,
+                    &leaf.path,
+                    None,
+                )
+                .ok_or("dynamic returned view has no typed descriptor location")?;
+                let mut matching = slots.iter().filter(|slot| slot.path == location.path);
+                let slot = matching
+                    .next()
+                    .ok_or("dynamic row has no complete returned view origins")?;
+                if matching.next().is_some() || slot.origins.is_empty() {
+                    return Err("dynamic row has ambiguous or unknown returned view origins");
+                }
+                for origin in &slot.origins {
+                    if matches!(origin, DescriptorStoredOrigin::Empty) {
+                        continue;
+                    }
+                    if matches!(origin, DescriptorStoredOrigin::Literal { .. }) {
+                        if leaf.access != StructuralAccess::SharedBorrow {
+                            return Err("dynamic literal view exceeds immutable image access");
+                        }
+                        let mut advertised = false;
+                        for region in regions.iter().filter(|region| region.path == leaf.path) {
+                            let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                                argument_index,
+                            } = region.origin
+                            else {
+                                return Err(
+                                    "dynamic literal view has no shared input-region contract",
+                                );
+                            };
+                            if region.access != StructuralAccess::SharedBorrow {
+                                return Err("dynamic literal view exceeds its public access");
+                            }
+                            let parameter = usize::try_from(argument_index)
+                                .ok()
+                                .and_then(|position| parameters.get(position))
+                                .ok_or("dynamic literal view names no formal input")?;
+                            super::result_regions::validate_input_region(
+                                types.iter(),
+                                parameter.structural_type,
+                                parameter.access,
+                                &region.source_path,
+                                region.access,
+                            )?;
+                            advertised = true;
+                        }
+                        if !advertised {
+                            return Err("dynamic literal view has no public input-region contract");
+                        }
+                        continue;
+                    }
+                    let (position, path) = descriptor_input_origin_path(types, parameters, origin)?;
+                    let parameter = parameters
+                        .get(position)
+                        .ok_or("dynamic returned view names no formal input")?;
+                    let actual = ReferenceOriginSource {
+                        place: parameter.place,
+                        path,
+                        extent: ReferenceOriginExtent::WithinRegion,
+                        access: leaf.access,
+                    };
+                    let allowed = regions
+                        .iter()
+                        .filter(|region| {
+                            region.path == leaf.path
+                                && matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index } if usize::try_from(argument_index).ok() == Some(position))
+                        })
+                        .map(|region| ReferenceOriginSource {
+                            place: parameter.place,
+                            path: region
+                                .source_path
+                                .iter()
+                                .cloned()
+                                .map(ReferenceOriginProjection::Exact)
+                                .collect(),
+                            extent: ReferenceOriginExtent::WithinRegion,
+                            access: region.access,
+                        })
+                        .collect::<Vec<_>>();
+                    if !super::reference_origin_is_covered(
+                        types.iter(),
+                        parameter.structural_type,
+                        &actual,
+                        &allowed,
+                    ) && !inline_view_is_covered(
+                        types,
+                        parameter.structural_type,
+                        &actual,
+                        &allowed,
+                    ) {
+                        return Err("dynamic row returned view exceeds its public input regions");
+                    }
+                }
+            }
+            Ok(())
+        }
+
+        /// Derive the declared input origins from actual returned descriptor
+        /// slots. A signature alone cannot authorize unrelated backing; callers
+        /// must reconstruct the slots from the body before using this mapping.
+        pub fn reference_result_sources(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            slots: &[DescriptorResultSlot],
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
+            let leaves = super::reference_leaves(types.iter(), result.structural_type, slots.len())
+                .ok_or("reference result has no complete finite leaf roster")?;
+            reference_sources_for_leaves(types, parameters, result, slots, leaves)
+        }
+
+        pub fn reference_result_contents(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            contents: &crate::descriptor_results::DescriptorResultContents,
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
+            let inventory = super::reference_inventory(
+                types.iter(),
+                result.structural_type,
+                contents
+                    .slots
+                    .len()
+                    .checked_add(contents.unknown_contents.len())
+                    .ok_or("reference result contents count overflow")?,
+            )
+            .ok_or("reference result has no complete contents inventory")?;
+            if !contents.unresolved_slots.is_empty() {
+                let mut views = crate::descriptor_results::DescriptorSlotKind::Views
+                    .owned_inventory(types, result.place, result.structural_type)
+                    .ok_or("unresolved result slots have no complete view inventory")?;
+                // A view can retain every possible input loan without choosing
+                // one address. References still need a complete spatial origin
+                // on every return path; unknown contents do not supply one.
+                views
+                    .slots
+                    .sort_unstable_by(|left, right| left.path.cmp(&right.path));
+                if contents.unresolved_slots.iter().any(|path| {
+                    views
+                        .slots
+                        .binary_search_by(|slot| slot.path.cmp(path))
+                        .is_err()
+                }) {
+                    return Err("reference result retains an unresolved spatial origin");
+                }
+            }
+            if inventory.unknown_contents.len() != contents.unknown_contents.len() {
+                return Err("reference result omits an unknown contents packet");
+            }
+            let mut packets = contents.unknown_contents.iter().collect::<Vec<_>>();
+            packets.sort_unstable_by(|left, right| left.path.cmp(&right.path));
+            if packets.windows(2).any(|pair| pair[0].path == pair[1].path) {
+                return Err("unknown result contents repeat or omit their origins");
+            }
+            for expected in inventory.unknown_contents {
+                let mut path = crate::descriptor_lifetimes::descriptor_location(
+                    types,
+                    result.place,
+                    result.structural_type,
+                    &expected.path,
+                    None,
+                )
+                .ok_or("unknown result contents lost their exact carrier")?
+                .path;
+                path.push(crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents);
+                let packet = packets
+                    .binary_search_by(|packet| packet.path.cmp(&path))
+                    .ok()
+                    .map(|position| packets[position])
+                    .ok_or("unknown result contents lost their custody packet")?;
+                if packet.origins.is_empty() {
+                    if contents
+                        .case_facts
+                        .excludes_payload(result.structural_type, &packet.path)
+                    {
+                        continue;
+                    }
+                    return Err("unknown result contents repeat or omit their origins");
+                }
+                for origin in &packet.origins {
+                    if let DescriptorStoredOrigin::ProducedContents(produced) = origin {
+                        if produced.structural_type != expected.structural_type {
+                            return Err("a call returned contents of another generic type");
+                        }
+                        continue;
+                    }
+                    let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
+                        return Err("unknown result contents need their exact admitted producer");
+                    };
+                    let (last, prefix) = path
+                        .split_last()
+                        .ok_or("unknown input contents lost their packet identity")?;
+                    if *last != crate::descriptor_lifetimes::DescriptorPathSegment::UnknownContents
+                    {
+                        return Err("a reference address cannot stand for unknown value contents");
+                    }
+                    let parameter = parameters
+                        .get(*position)
+                        .ok_or("unknown contents name an absent input")?;
+                    let carrier = crate::descriptor_lifetimes::descriptor_location_type(
+                        types,
+                        parameter.structural_type,
+                        prefix,
+                    )
+                    .ok_or("unknown contents input has no exact carrier")?;
+                    if carrier != expected.structural_type {
+                        return Err("unknown contents changed their declared type parameter");
+                    }
+                    let declaration = terminal_psi::find_structural_type(types, carrier)
+                        .ok_or("unknown contents carrier is absent")?;
+                    let path = descriptor_path(types, parameter.structural_type, prefix)
+                        .ok_or("unknown contents input has no typed storage path")?;
+                    let requested = if declaration.is_copyable() {
+                        StructuralAccess::SharedBorrow
+                    } else {
+                        StructuralAccess::MutableBorrow
+                    };
+                    if !matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+                        || !crate::reference_source_projection_accessible(
+                            types.iter(),
+                            parameter.structural_type,
+                            parameter.multiplicity,
+                            parameter.access,
+                            &path,
+                            requested,
+                        )
+                    {
+                        return Err("unknown contents were transferred without owned access");
+                    }
+                }
+            }
+            reference_sources_for_leaves(
+                types,
+                parameters,
+                result,
+                &contents.slots,
+                inventory.references,
+            )
+        }
+
+        fn reference_sources_for_leaves(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            slots: &[DescriptorResultSlot],
+            leaves: Vec<super::ReferenceLeaf>,
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
+            let mut mappings = Vec::with_capacity(leaves.len());
+            for leaf in leaves {
+                let StructuralTypeShape::Reference { referent, access } = types
+                    .iter()
+                    .find(|row| row.id == leaf.structural_type)
+                    .ok_or("reference result leaf has no type")?
+                    .shape
+                else {
+                    return Err("reference result leaf changed constructor");
+                };
+                let mut matching = slots.iter().filter(|slot| {
+                    descriptor_path(types, result.structural_type, &slot.path).as_ref()
+                        == Some(&leaf.path)
+                });
+                let slot = matching
+                    .next()
+                    .ok_or("reference result leaf has no actual return origins")?;
+                if matching.next().is_some() || slot.origins.is_empty() {
+                    return Err("reference result origins are ambiguous or empty");
+                }
+                let mut sources = Vec::with_capacity(slot.origins.len());
+                for origin in &slot.origins {
+                    // A result known only within a declared input region,
+                    // such as a selected or rigid requirement call's, keeps
+                    // that whole region (lifetimes.md, "Returned views").
+                    // A result whose runtime element selector was stripped
+                    // keeps the exact storage after that element, with the
+                    // selector as `Element`, so the published origin names
+                    // only what the result can reach. Unresolved indirection or a
+                    // live runtime window has no static region to publish.
+                    let extent = match origin {
+                        DescriptorStoredOrigin::Parameter { projection, .. }
+                        | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if projection.indirect || projection.window.is_some() =>
+                        {
+                            return Err(
+                                "reference result needs a static retained input projection",
+                            );
+                        }
+                        DescriptorStoredOrigin::Parameter { projection, .. }
+                        | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if !projection.exact && projection.stripped_origin_path().is_none() =>
+                        {
+                            ReferenceOriginExtent::WithinRegion
+                        }
+                        DescriptorStoredOrigin::Parameter { .. }
+                        | DescriptorStoredOrigin::IncomingSlot { .. }
+                        | DescriptorStoredOrigin::IncomingContents { .. } => {
+                            ReferenceOriginExtent::Projected
+                        }
+                        _ => {
+                            return Err(
+                                "reference result backing needs its actual admitted producer",
+                            );
+                        }
+                    };
+                    let (position, mut path) =
+                        descriptor_input_origin_path(types, parameters, origin)?;
+                    if path.iter().any(|step| {
+                        !matches!(
+                            step,
+                            ReferenceOriginProjection::Element
+                                | ReferenceOriginProjection::Exact(
+                                    StructuralPathSegment::Field(_)
+                                        | StructuralPathSegment::Case(_)
+                                        | StructuralPathSegment::FixedIndex(_)
+                                        | StructuralPathSegment::Referent
+                                )
+                        )
+                    }) {
+                        return Err("reference result needs a static captured input path");
+                    }
+                    let parameter = parameters
+                        .get(position)
+                        .ok_or("reference result input is unavailable")?;
+                    let endpoint = super::reference_origin_type(
+                        types.iter(),
+                        parameter.structural_type,
+                        &path,
+                    )
+                    .ok_or("reference result input path has no exact typed endpoint")?;
+                    if endpoint != referent {
+                        let Some(StructuralTypeShape::Reference {
+                            referent: stored,
+                            access: ceiling,
+                        }) = types
+                            .iter()
+                            .find(|row| row.id == endpoint)
+                            .map(|row| &row.shape)
+                        else {
+                            return Err("reference result changes its original referent");
+                        };
+                        if *stored != referent || !access.admits_referent(*ceiling) {
+                            return Err("reference result changes its input type or access");
+                        }
+                        path.push(ReferenceOriginProjection::Exact(
+                            StructuralPathSegment::Referent,
+                        ));
+                    } else if !access.admits(parameter.access) {
+                        return Err("reference result exceeds its input storage access");
+                    }
+                    if parameter.access == StructuralAccess::Owned
+                        && !path.iter().any(|step| {
+                            matches!(
+                                step,
+                                ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)
+                            )
+                        })
+                    {
+                        return Err(
+                            "reference result escapes owned input storage rather than its carried backing",
+                        );
+                    }
+                    // Check the whole path's access, not only its endpoint.
+                    // A mutable result cannot cross a shared ancestor. Every
+                    // element of one array has the same access, so the first
+                    // element stands for an unknown one; an empty array has
+                    // no element and fails closed.
+                    let exact = path
+                        .iter()
+                        .map(|step| match step {
+                            ReferenceOriginProjection::Exact(segment) => segment.clone(),
+                            ReferenceOriginProjection::Element => {
+                                StructuralPathSegment::FixedIndex(0)
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if !crate::reference_source_projection_accessible(
+                        types.iter(),
+                        parameter.structural_type,
+                        parameter.multiplicity,
+                        parameter.access,
+                        &exact,
+                        access,
+                    ) {
+                        return Err("reference result exceeds an input path's access");
+                    }
+                    let source = ReferenceOriginSource {
+                        place: parameter.place,
+                        path,
+                        extent,
+                        access,
+                    };
+                    sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));
+                }
+                sources.sort();
+                sources.dedup();
+                let first = sources
+                    .first()
+                    .and_then(|source| source.parameter())
+                    .map(|source| source.place);
+                if sources
+                    .iter()
+                    .filter_map(|source| source.parameter())
+                    .any(|source| Some(source.place) != first)
+                {
+                    return Err("reference result has alternatives from different input roots");
+                }
+                mappings.push(terminal_psi::StructuralReferenceResultSource {
+                    path: leaf.path,
+                    sources,
+                });
+            }
+            mappings.sort();
+            Ok(mappings)
+        }
+
+        pub fn descriptor_input_origin_path(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            origin: &DescriptorStoredOrigin,
+        ) -> Result<(usize, Vec<ReferenceOriginProjection>), &'static str> {
+            let (position, mut path, projection) = match origin {
+                DescriptorStoredOrigin::Parameter {
+                    position,
+                    projection,
+                } => (*position, Vec::new(), Some(projection)),
+                DescriptorStoredOrigin::IncomingSlot { position, path } => {
+                    let parameter = parameters
+                        .get(*position)
+                        .ok_or("returned view slot names no formal input")?;
+                    let path = descriptor_path(types, parameter.structural_type, path)
+                        .ok_or("returned view slot has no complete typed input path")?;
+                    (
+                        *position,
+                        path.into_iter()
+                            .map(ReferenceOriginProjection::Exact)
+                            .collect(),
+                        None,
+                    )
+                }
+                DescriptorStoredOrigin::IncomingContents {
+                    position,
+                    steps,
+                    projection,
+                } => {
+                    let parameter = parameters
+                        .get(*position)
+                        .ok_or("returned view contents name no formal input")?;
+                    (
+                        *position,
+                        contents_path(types, parameter.structural_type, steps)?,
+                        Some(projection),
+                    )
+                }
+                _ => return Err("dynamic returned view has no public input-relative origin"),
+            };
+            if let Some(projection) = projection {
+                append_projection(&mut path, projection)?;
+            }
+            Ok((position, path))
+        }
+
+        fn append_projection(
+            path: &mut Vec<ReferenceOriginProjection>,
+            projection: &Projection,
+        ) -> Result<(), &'static str> {
+            if projection.indirect {
+                return Err("dynamic returned view has unresolved indirect backing");
+            }
+            if let Some(stripped) = projection.stripped_origin_path() {
+                path.extend(stripped);
+                return Ok(());
+            }
+            for segment in &projection.path {
+                match segment {
+                    StructuralPathSegment::FixedRange { .. } => break,
+                    StructuralPathSegment::RuntimeIndex { .. } => {
+                        path.push(ReferenceOriginProjection::Element)
+                    }
+                    StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::Case(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::Referent => {
+                        path.push(ReferenceOriginProjection::Exact(segment.clone()))
+                    }
+                    _ => return Err("dynamic returned view has an unsupported backing projection"),
+                }
+            }
+            Ok(())
+        }
+
+        fn contents_path(
+            types: &[StructuralTypeDeclaration],
+            mut root: semantic_vocabulary::StructuralTypeId,
+            steps: &[DescriptorContentsStep],
+        ) -> Result<Vec<ReferenceOriginProjection>, &'static str> {
+            let mut path = Vec::new();
+            let mut exact = Vec::new();
+            for step in steps {
+                match step {
+                    DescriptorContentsStep::Address(segment) => exact.push(*segment),
+                    DescriptorContentsStep::Element { element, .. } => {
+                        let collection = descriptor_location_type(types, root, &exact)
+                            .ok_or("returned view contents have no typed collection")?;
+                        if super::collection_element_type(types.iter(), collection)
+                            != Some(*element)
+                        {
+                            return Err(
+                                "returned view contents disagree with the input element type",
+                            );
+                        }
+                        path.extend(
+                            descriptor_path(types, root, &exact)
+                                .ok_or("returned view contents have no typed prefix")?
+                                .into_iter()
+                                .map(ReferenceOriginProjection::Exact),
+                        );
+                        path.push(ReferenceOriginProjection::Element);
+                        exact.clear();
+                        root = *element;
+                    }
+                }
+            }
+            path.extend(
+                descriptor_path(types, root, &exact)
+                    .ok_or("returned view contents have no typed endpoint")?
+                    .into_iter()
+                    .map(ReferenceOriginProjection::Exact),
+            );
+            Ok(path)
+        }
+
+        fn inline_view_is_covered(
+            types: &[StructuralTypeDeclaration],
+            root: semantic_vocabulary::StructuralTypeId,
+            actual: &ReferenceOriginSource,
+            allowed: &[ReferenceOriginSource],
+        ) -> bool {
+            let Some(path) = actual
+                .path
+                .iter()
+                .map(|segment| match segment {
+                    ReferenceOriginProjection::Exact(segment) => Some(segment.clone()),
+                    ReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()
+            else {
+                return false;
+            };
+            let inline_view = crate::runtime_structural_field(types.iter(), root, &path)
+                .and_then(|field| field.field_type.byte_sequence_carrier())
+                .is_some_and(|carrier| {
+                    matches!(
+                        carrier,
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    )
+                });
+            inline_view
+                && allowed.iter().any(|allowed| {
+                    allowed.place == actual.place
+                        && allowed.access == actual.access
+                        && allowed.path == actual.path
+                })
+        }
+    }
+    pub(crate) mod result_regions {
+
+        use semantic_vocabulary::StructuralTypeId;
+        use terminal_psi::TerminalDynamicReferenceOrigin;
+        use terminal_psi::{
+            BoundaryMachineResult, ReferenceOriginProjection, StructuralAccess,
+            StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalDynamicSlot,
+        };
+
+        pub fn validate_dynamic_reference_regions<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            slot: &TerminalDynamicSlot,
+        ) -> Result<(), &'static str> {
+            validate_reference_regions(
+                types,
+                &slot.result,
+                &slot.result_reference_regions,
+                |index| {
+                    slot.structural_parameters
+                        .get(index)
+                        .map(|p| (p.structural_type, p.access))
+                },
+                true,
+                slot.result_reference_regions.len(),
+            )
+        }
+
+        pub fn validate_boundary_reference_regions(
+            types: &[StructuralTypeDeclaration],
+            boundary: &terminal_psi::BoundaryMachineDeclaration,
+        ) -> Result<(), &'static str> {
+            let groups = crate::boundary_result_lifetimes(types, boundary)?;
+            let maximum_leaves = crate::references::validate_result_lifetime_groups(groups)?;
+            // The logical contract inventories provider-owned views too. They
+            // consume the bounded traversal budget without requiring spatial
+            // regions that would falsely place their backing inside inputs.
+            validate_reference_regions(
+                types.iter(),
+                &boundary.result,
+                &boundary.result_reference_regions,
+                |index| {
+                    boundary
+                        .structural_parameters
+                        .get(index)
+                        .map(|p| (p.structural_type, p.access))
+                },
+                false,
+                maximum_leaves,
+            )
+        }
+
+        fn validate_reference_regions<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            result: &BoundaryMachineResult,
+            regions: &[terminal_psi::TerminalDynamicReferenceRegion],
+            parameter: impl Fn(usize) -> Option<(StructuralTypeId, StructuralAccess)>,
+            include_views: bool,
+            maximum_leaves: usize,
+        ) -> Result<(), &'static str> {
+            let BoundaryMachineResult::Structural(result) = result else {
+                return if regions.is_empty() {
+                    Ok(())
+                } else {
+                    Err("nonstructural dynamic result carries reference regions")
+                };
+            };
+            if regions.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Err("dynamic reference regions are not unique and ordered");
+            }
+            let leaves = super::borrowed_result_leaves(
+                types.clone(),
+                result.structural_type,
+                result.multiplicity,
+                maximum_leaves,
+            )?;
+            if leaves
+                .iter()
+                .filter(|leaf| {
+                    include_views
+                        || matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_))
+                })
+                .any(|leaf| !regions.iter().any(|region| region.path == leaf.path))
+            {
+                return Err("dynamic reference regions omit a result leaf");
+            }
+            for region in regions {
+                let leaf = leaves
+                    .iter()
+                    .find(|leaf| leaf.path == region.path)
+                    .ok_or("dynamic reference region does not name an owned result leaf")?;
+                if leaf.access != region.access {
+                    return Err("dynamic reference region disagrees with result access");
+                }
+                let index = match region.origin {
+                    TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
+                    TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                        let path = region
+                            .source_path
+                            .iter()
+                            .cloned()
+                            .map(ReferenceOriginProjection::Exact)
+                            .collect::<Vec<_>>();
+                        let endpoint =
+                            super::reference_origin_type(types.clone(), carrier_type, &path)
+                                .ok_or("dynamic invocation origin has no typed provider storage")?;
+                        if let super::BorrowedResultLeafKind::Reference(referent) = leaf.kind
+                            && referent != endpoint
+                        {
+                            return Err("dynamic invocation origin changes its reference referent");
+                        }
+                        validate_input_region(
+                            types.clone(),
+                            carrier_type,
+                            StructuralAccess::Owned,
+                            &region.source_path,
+                            region.access,
+                        )?;
+                        continue;
+                    }
+                };
+                let (parameter_type, parameter_access) = usize::try_from(index)
+                    .ok()
+                    .and_then(&parameter)
+                    .ok_or("dynamic reference region has no structural input")?;
+                validate_input_region(
+                    types.clone(),
+                    parameter_type,
+                    parameter_access,
+                    &region.source_path,
+                    region.access,
+                )?;
+            }
+            Ok(())
+        }
+
+        pub(crate) fn validate_input_region<'types>(
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            access: StructuralAccess,
+            path: &[StructuralPathSegment],
+            required: StructuralAccess,
+        ) -> Result<(), &'static str> {
+            if !required.admits(access) {
+                return Err("dynamic reference region exceeds input access");
+            }
+            let mut borrowed = access != StructuralAccess::Owned;
+            for (position, segment) in path.iter().enumerate() {
+                let field_view =
+                    crate::runtime_structural_field(types.clone(), root, &path[..=position])
+                        .and_then(|field| field.field_type.byte_sequence_carrier());
+                let view_access = match field_view {
+                    Some(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                        | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+                    ) => Some(access.ok_or("stored byte view has no declared access")?),
+                    _ => {
+                        crate::runtime_structural_path_tip(types.clone(), root, &path[..=position])
+                            .and_then(|row| match row.shape {
+                                StructuralTypeShape::ElementView { .. } => {
+                                    Some(StructuralAccess::SharedBorrow)
+                                }
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                                        access, ..
+                                    },
+                                ) => Some(access.unwrap_or(StructuralAccess::SharedBorrow)),
+                                _ => None,
+                            })
+                    }
+                };
+                if let Some(view_access) = view_access {
+                    if !required.admits_referent(view_access) {
+                        return Err("dynamic reference region exceeds stored view access");
+                    }
+                    borrowed = true;
+                }
+                match segment {
+                    StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::Case(_)
+                    | StructuralPathSegment::FixedIndex(_) => {}
+                    StructuralPathSegment::Referent => {
+                        let prefix = crate::runtime_structural_path_tip(
+                            types.clone(),
+                            root,
+                            &path[..position],
+                        )
+                        .ok_or("dynamic input region crossing has no typed carrier")?;
+                        if let StructuralTypeShape::Reference { access, .. } = prefix.shape {
+                            if !required.admits_referent(access) {
+                                return Err(
+                                    "dynamic reference region exceeds stored reference access",
+                                );
+                            }
+                            borrowed = true;
+                        } else if position + 1 != path.len() {
+                            return Err("dynamic input region has a nonterminal storage marker");
+                        }
+                    }
+                    _ => return Err("dynamic input region is not an exact public storage path"),
+                }
+            }
+            let origin = path
+                .iter()
+                .cloned()
+                .map(ReferenceOriginProjection::Exact)
+                .collect::<Vec<_>>();
+            let storage_path = crate::reference_source_storage_path(types.clone(), root, path);
+            let inline_view = crate::runtime_structural_field(types.clone(), root, storage_path)
+                .and_then(|field| field.field_type.byte_sequence_carrier())
+                .is_some_and(|carrier| {
+                    matches!(
+                        carrier,
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                            | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                    )
+                });
+            if !inline_view {
+                super::reference_origin_type(types, root, &origin)
+                    .ok_or("dynamic input region path has no typed endpoint")?;
+            }
+            if !borrowed {
+                return Err("dynamic result cannot borrow private owned parameter storage");
+            }
+            Ok(())
+        }
+
+        /// Enumerating known references never proves an unknown packet empty.
+        pub fn reference_leaves<'types>(
+            types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            maximum_leaves: usize,
+        ) -> Option<Vec<ReferenceLeaf>> {
+            let inventory = reference_inventory(types, root, maximum_leaves)?;
+            inventory
+                .unknown_contents
+                .is_empty()
+                .then_some(inventory.references)
+        }
+
+        pub struct ReferenceInventory {
+            pub references: Vec<ReferenceLeaf>,
+            pub unknown_contents: Vec<UnknownReferenceContents>,
+        }
+
+        /// The exact value whose contained references cannot yet be enumerated.
+        /// Its path stops at the carrier and grants no access to a referent.
+        pub struct UnknownReferenceContents {
+            pub path: Vec<StructuralPathSegment>,
+            pub structural_type: StructuralTypeId,
+        }
+
+        /// References stored in a value. A slice descriptor borrows its
+        /// elements from separate storage, and descriptor flow tracks that loan.
+        pub fn reference_inventory<'types>(
+            types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            maximum_leaves: usize,
+        ) -> Option<ReferenceInventory> {
+            let contains_reference = |root| {
+                terminal_psi::structural_type_contains_reference_by(
+                    |id| types.clone().find(|row| row.id == id),
+                    root,
+                )
+            };
+            let mut output = Vec::new();
+            let mut unknown_contents = Vec::new();
+            let mut pending = vec![(root, Vec::new())];
+            while let Some((current, path)) = pending.pop() {
+                if !contains_reference(current) {
+                    continue;
+                }
+                let declaration = types.clone().find(|row| row.id == current)?;
+                let fields: Vec<_> = match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::ElementView { .. } => continue,
+                    terminal_psi::StructuralTypeShape::TypeParameter => {
+                        if output.len() + unknown_contents.len() == maximum_leaves {
+                            return None;
+                        }
+                        unknown_contents.push(UnknownReferenceContents {
+                            path,
+                            structural_type: current,
+                        });
+                        continue;
+                    }
+                    terminal_psi::StructuralTypeShape::Reference { .. } => {
+                        if output.len() + unknown_contents.len() == maximum_leaves {
+                            return None;
+                        }
+                        output.push(ReferenceLeaf {
+                            path,
+                            structural_type: current,
+                        });
+                        continue;
+                    }
+                    terminal_psi::StructuralTypeShape::Record { fields, .. } => {
+                        fields.iter().map(|field| (None, field)).collect()
+                    }
+                    terminal_psi::StructuralTypeShape::Sum { cases } => cases
+                        .iter()
+                        .flat_map(|case| {
+                            case.fields.iter().map(move |field| (Some(case.id), field))
+                        })
+                        .collect(),
+                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => cases
+                        .iter()
+                        .flat_map(|case| {
+                            case.fields.iter().map(move |field| (Some(case.id), field))
+                        })
+                        .chain(fields.iter().map(|field| (None, field)))
+                        .collect(),
+                    terminal_psi::StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } => {
+                        let count = usize::try_from(*length).ok()?;
+                        if pending
+                            .len()
+                            .checked_add(output.len())?
+                            .checked_add(unknown_contents.len())?
+                            .checked_add(count)?
+                            > maximum_leaves
+                        {
+                            return None;
+                        }
+                        for element_index in (0..*length).rev() {
+                            let mut child_path = path.clone();
+                            child_path.push(terminal_psi::StructuralPathSegment::FixedIndex(
+                                element_index,
+                            ));
+                            pending.push((*element, child_path));
+                        }
+                        continue;
+                    }
+                    _ => return None,
+                };
+                for (case, field) in fields.into_iter().rev() {
+                    if let Some(child) = field.field_type.as_structural() {
+                        if !contains_reference(child) {
+                            continue;
+                        }
+                        if pending
+                            .len()
+                            .checked_add(output.len())?
+                            .checked_add(unknown_contents.len())?
+                            >= maximum_leaves
+                        {
+                            return None;
+                        }
+                        let mut child_path = path.clone();
+                        if let Some(case) = case {
+                            child_path.push(StructuralPathSegment::Case(case));
+                        }
+                        child_path.push(terminal_psi::StructuralPathSegment::Field(field.identity));
+                        pending.push((child, child_path));
+                    }
+                }
+            }
+
+            output.sort_by(|left, right| left.path.cmp(&right.path));
+            if output.windows(2).any(|pair| {
+                pair[0].path == pair[1].path && pair[0].structural_type != pair[1].structural_type
+            }) {
+                return None;
+            }
+            output.dedup_by(|left, right| left.path == right.path);
+            unknown_contents.sort_by(|left, right| left.path.cmp(&right.path));
+            if unknown_contents.windows(2).any(|pair| {
+                pair[0].path == pair[1].path && pair[0].structural_type != pair[1].structural_type
+            }) {
+                return None;
+            }
+            unknown_contents.dedup_by(|left, right| left.path == right.path);
+            Some(ReferenceInventory {
+                references: output,
+                unknown_contents,
+            })
+        }
+
+        pub struct ReferenceLeaf {
+            pub path: Vec<StructuralPathSegment>,
+            pub structural_type: StructuralTypeId,
+        }
+    }
+    pub use call_results::{
+        ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
+        bind_public_reference_call_results, bind_reference_call_results,
+    };
+    pub use descriptor_regions::{
+        descriptor_input_origin_path, reference_result_contents, reference_result_sources,
+        validate_descriptor_result_regions,
+    };
+    pub use result_regions::{
+        ReferenceInventory, ReferenceLeaf, UnknownReferenceContents, reference_inventory,
+        reference_leaves, validate_boundary_reference_regions, validate_dynamic_reference_regions,
+    };
+    use std::slice::from_ref;
+
+    pub struct ReferenceOriginBinding<'origin> {
+        pub source: terminal_psi::StructuralArgument,
+        pub suffix: &'origin [ReferenceOriginProjection],
+        pub endpoint: StructuralTypeId,
+        pub extent: semantic_vocabulary::ReferenceOriginExtent,
+    }
+
+    impl ReferenceOriginBinding<'_> {
+        pub fn transfers_existing<'types>(
+            &self,
+            types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+            root: StructuralTypeId,
+            access: terminal_psi::StructuralAccess,
+        ) -> bool {
+            self.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                && self.suffix.is_empty()
+                && matches!(
+                    access,
+                    terminal_psi::StructuralAccess::Owned
+                        | terminal_psi::StructuralAccess::SharedBorrow
+                )
+                && self.source.path.split_last().is_some_and(|(last, prefix)| {
+                    *last == StructuralPathSegment::Referent
+                        && crate::runtime_structural_path_tip(types, root, prefix).is_some_and(
+                            |row| matches!(row.shape, StructuralTypeShape::Reference { .. }),
+                        )
+                })
+        }
+    }
+
+    pub fn bind_reference_origin<'types, 'origin>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        origin: &'origin terminal_psi::ReferenceOriginSource,
+    ) -> Result<ReferenceOriginBinding<'origin>, &'static str> {
+        use ReferenceOriginProjection::{Element, Exact};
+        use StructuralPathSegment::{FixedIndex, Referent};
+        let endpoint = reference_origin_type(types.clone(), root, &origin.path)
+            .ok_or("returned origin has no typed endpoint")?;
+        let selection = origin
+            .path
+            .iter()
+            .position(|projection| matches!(projection, Element | Exact(FixedIndex(_))));
+        let last_crossing = origin
+            .path
+            .iter()
+            .rposition(|projection| *projection == Exact(Referent));
+        let split = selection.map_or(origin.path.len(), |selection| {
+            last_crossing.map_or(selection, |crossing| selection.max(crossing + 1))
+        });
+        let prefix = origin.path[..split]
+            .iter()
+            .map(|projection| match projection {
+                Exact(segment) => Ok(segment.clone()),
+                Element => Err("returned origin needs a captured stored-descriptor identity"),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let source = terminal_psi::StructuralArgument {
+            place: origin.place,
+            path: crate::reference_source_storage_path(types, root, &prefix).to_vec(),
+            access: origin.access,
+        };
+        Ok(ReferenceOriginBinding {
+            source,
+            suffix: &origin.path[split..],
+            endpoint,
+            extent: origin.extent,
+        })
+    }
+
+    fn reference_origin_refines<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        actual: &terminal_psi::ReferenceOriginSource,
+        allowed: &terminal_psi::ReferenceOriginSource,
+    ) -> bool {
+        use ReferenceOriginProjection::{Element, Exact};
+        use semantic_vocabulary::ReferenceOriginExtent::{Projected, WithinRegion};
+        if actual.place != allowed.place
+            || actual.access != allowed.access
+            || captured_reference_origin_type(types.clone(), root, &actual.path).is_none()
+            || reference_origin_type(types.clone(), root, &allowed.path).is_none()
+        {
+            return false;
+        }
+        let prefix_matches = actual.path.len() >= allowed.path.len()
+            && allowed
+                .path
+                .iter()
+                .zip(&actual.path)
+                .all(|(expected, observed)| {
+                    expected == observed
+                        || matches!(
+                            (expected, observed),
+                            (Element, Exact(StructuralPathSegment::FixedIndex(_)))
+                        )
+                });
+        if !prefix_matches {
+            return false;
+        }
+        match allowed.extent {
+            Projected => actual.extent == Projected && actual.path.len() == allowed.path.len(),
+            WithinRegion => {
+                for (position, projection) in
+                    actual.path.iter().enumerate().skip(allowed.path.len())
+                {
+                    if !matches!(
+                        projection,
+                        Exact(
+                            StructuralPathSegment::Referent | StructuralPathSegment::FixedIndex(_)
+                        ) | Element
+                    ) {
+                        continue;
+                    }
+                    let Some(endpoint) = captured_reference_origin_type(
+                        types.clone(),
+                        root,
+                        &actual.path[..position],
+                    ) else {
+                        return false;
+                    };
+                    let Some(declaration) = types.clone().find(|row| row.id == endpoint) else {
+                        return false;
+                    };
+                    match projection {
+                        Exact(StructuralPathSegment::Referent) => {
+                            if position + 1 != actual.path.len()
+                                || matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                            {
+                                return false;
+                            }
+                        }
+                        _ if descriptor_region(&declaration.shape)
+                            && position != allowed.path.len() =>
+                        {
+                            return false;
+                        }
+                        _ => {}
+                    }
+                }
+                !(actual.extent == WithinRegion
+                    && actual.path.len() > allowed.path.len()
+                    && captured_reference_origin_type(types.clone(), root, &actual.path)
+                        .and_then(|endpoint| crate::structural_declaration(types.clone(), endpoint))
+                        .is_some_and(|row| descriptor_region(&row.shape)))
+            }
+        }
+    }
+
+    pub fn reference_origin_is_covered<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        actual: &terminal_psi::ReferenceOriginSource,
+        allowed: &[terminal_psi::ReferenceOriginSource],
+    ) -> bool {
+        if allowed
+            .iter()
+            .any(|source| reference_origin_refines(types.clone(), root, actual, source))
+        {
+            return true;
+        }
+        for (position, projection) in actual.path.iter().enumerate() {
+            if *projection != ReferenceOriginProjection::Element {
+                continue;
+            }
+            let Some(collection) =
+                captured_reference_origin_type(types.clone(), root, &actual.path[..position])
+                    .and_then(|identity| crate::structural_declaration(types.clone(), identity))
+            else {
+                return false;
+            };
+            let StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = collection.shape
+            else {
+                continue;
+            };
+            if length == 0 {
+                return false;
+            }
+            let mut indices = allowed
+                .iter()
+                .filter(|source| source.place == actual.place && source.access == actual.access)
+                .filter_map(|source| match source.path.get(position) {
+                    Some(ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(
+                        index,
+                    ))) if *index < length => Some(*index),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            indices.sort_unstable();
+            indices.dedup();
+            if u64::try_from(indices.len()).ok() != Some(length) {
+                continue;
+            }
+            let mut selected = actual.clone();
+            return indices.into_iter().all(|index| {
+                selected.path[position] =
+                    ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(index));
+                reference_origin_is_covered(types.clone(), root, &selected, allowed)
+            });
+        }
+        false
+    }
+
+    fn descriptor_region(shape: &StructuralTypeShape) -> bool {
+        matches!(
+            shape,
+            StructuralTypeShape::ElementView { .. }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
+                )
+        )
+    }
+
+    pub fn reference_result_refines_regions<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        parameters: &[terminal_psi::StructuralParameterDeclaration],
+        result: &terminal_psi::StructuralResultDeclaration,
+        regions: &[terminal_psi::TerminalDynamicReferenceRegion],
+    ) -> bool {
+        result.reference_sources.iter().all(|mapping| {
+            !mapping.sources.is_empty()
+                && mapping.sources.iter().all(|source| {
+                    let source = match source {
+                        terminal_psi::StructuralReferenceOrigin::Parameter(source) => source,
+                        terminal_psi::StructuralReferenceOrigin::Invocation { carrier_type, path, extent, access } => {
+                            let Some(endpoint) = reference_origin_type(types.clone(), *carrier_type, path) else {
+                                return false;
+                            };
+                            return *extent == semantic_vocabulary::ReferenceOriginExtent::Projected
+                                && regions.iter().any(|region| {
+                                    let terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type: allowed } = region.origin else { return false; };
+                                    region.path == mapping.path && region.access == *access
+                                        && reference_origin_type(types.clone(), allowed, &region.source_path.iter().cloned().map(ReferenceOriginProjection::Exact).collect::<Vec<_>>()) == Some(endpoint)
+                                });
+                        }
+                    };
+                    let Some((argument_index, parameter)) = parameters
+                        .iter()
+                        .enumerate()
+                        .find(|(_, parameter)| parameter.place == source.place)
+                    else {
+                        return false;
+                    };
+                    let allowed = regions
+                        .iter()
+                        .filter(|region| {
+                            matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index: index } if index as usize == argument_index)
+                                && region.path == mapping.path
+                        })
+                        .map(|region| terminal_psi::ReferenceOriginSource {
+                            place: parameter.place,
+                            path: region
+                                .source_path
+                                .iter()
+                                .cloned()
+                                .map(ReferenceOriginProjection::Exact)
+                                .collect(),
+                            extent: semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
+                            access: region.access,
+                        })
+                        .collect::<Vec<_>>();
+                    reference_origin_is_covered(
+                        types.clone(),
+                        parameter.structural_type,
+                        source,
+                        &allowed,
+                    )
+                })
+        })
+    }
+
+    pub fn reference_origin_paths_may_overlap(
+        left: &[ReferenceOriginProjection],
+        right: &[ReferenceOriginProjection],
+    ) -> bool {
+        use ReferenceOriginProjection::{Element, Exact};
+        for (left, right) in left.iter().zip(right) {
+            match (left, right) {
+                (Exact(StructuralPathSegment::RepresentationView { .. }), _)
+                | (_, Exact(StructuralPathSegment::RepresentationView { .. })) => return true,
+                (
+                    Exact(StructuralPathSegment::Case(left)),
+                    Exact(StructuralPathSegment::Case(right)),
+                ) if left != right => return true,
+                (Element, _) | (_, Element) => {}
+                (Exact(left), Exact(right))
+                    if !crate::structural_paths_may_overlap(from_ref(left), from_ref(right)) =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
+    pub fn captured_reference_origin_type<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[ReferenceOriginProjection],
+    ) -> Option<StructuralTypeId> {
+        let geometry = path
+            .iter()
+            .map(|projection| match projection {
+                ReferenceOriginProjection::Exact(StructuralPathSegment::RuntimeIndex {
+                    ..
+                }) => ReferenceOriginProjection::Element,
+                _ => projection.clone(),
+            })
+            .collect::<Vec<_>>();
+        resolve_reference_origin_type(types, root, &geometry)
+    }
+
+    pub fn reference_origin_type<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[ReferenceOriginProjection],
+    ) -> Option<StructuralTypeId> {
+        if path.iter().any(|projection| {
+            matches!(
+                projection,
+                ReferenceOriginProjection::Exact(
+                    StructuralPathSegment::RuntimeIndex { .. }
+                        | StructuralPathSegment::FixedRange { .. }
+                )
+            )
+        }) {
+            return None;
+        }
+        resolve_reference_origin_type(types, root, path)
+    }
+
+    fn resolve_reference_origin_type<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        mut root: StructuralTypeId,
+        path: &[ReferenceOriginProjection],
+    ) -> Option<StructuralTypeId> {
+        let mut exact = Vec::new();
+        for projection in path {
+            match projection {
+                ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(index)) => {
+                    root = exact_origin_type(types.clone(), root, &exact)?;
+                    exact.clear();
+                    let collection = crate::structural_declaration(types.clone(), root)?;
+                    if matches!(collection.shape, StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. } if *index >= length)
+                    {
+                        return None;
+                    }
+                    root = collection_element_type(types.clone(), root)?;
+                }
+                ReferenceOriginProjection::Exact(segment) => {
+                    exact.push(segment.clone());
+                }
+                ReferenceOriginProjection::Element => {
+                    root = exact_origin_type(types.clone(), root, &exact)?;
+                    exact.clear();
+                    root = collection_element_type(types.clone(), root)?;
+                }
+            }
+        }
+        exact_origin_type(types, root, &exact)
+    }
+
+    fn exact_origin_type<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<StructuralTypeId> {
+        let path = crate::reference_source_storage_path(types.clone(), root, path);
+        crate::runtime_structural_path_tip(types.clone(), root, path)
+            .map(|declaration| declaration.id)
+            .or_else(|| crate::primitive_projection_declaration(types, root, path))
+    }
+
+    pub fn collection_element_type<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        collection: StructuralTypeId,
+    ) -> Option<StructuralTypeId> {
+        let declaration = crate::structural_declaration(types.clone(), collection)?;
+        match declaration.shape {
+            StructuralTypeShape::FixedArray { element, .. }
+            | StructuralTypeShape::ElementView { element, .. } => Some(element),
+            StructuralTypeShape::ByteSequence(_) => {
+                let mut matching = types.filter(|declaration| declaration.scalar_restriction.is_none()
+                    && matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                        if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address()));
+                let element = matching.next()?;
+                matching.next().is_none().then_some(element.id)
+            }
+            _ => None,
+        }
+    }
+}
+pub(crate) mod reference_storage_geometry {
+
+    use semantic_vocabulary::{
+        AuthoredFieldStorage, ScalarApplicationId, ScalarType, StructuralTypeId,
+        TargetCarrierLayout,
+    };
+    use terminal_psi::{
+        LayoutApplicationId, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
+        StructuralTypeShape, TargetLayoutRealization,
+    };
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ReferenceStorageProjection {
+        pub byte_offset: u64,
+        pub logical_scalar: ScalarType,
+        pub stored_scalar: ScalarType,
+    }
+
+    pub enum ReferenceScalarStorage<'recipe> {
+        Contiguous(ReferenceStorageProjection),
+        Fragmented {
+            byte_offset: u64,
+            logical_scalar: ScalarType,
+            fragments: &'recipe semantic_vocabulary::AuthoredBitFragments,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ReferenceStorageRegion {
+        pub byte_offset: u64,
+        pub byte_length: u64,
+        pub scalar: Option<ReferenceStorageProjection>,
+        pub array: Option<ReferenceArrayWindow>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ReferenceArrayWindow {
+        pub declaration: StructuralTypeId,
+        pub byte_offset: u64,
+        pub byte_length: u64,
+    }
+
+    fn align(offset: u64, alignment: u64) -> Option<u64> {
+        offset
+            .checked_add(alignment.checked_sub(1)?)
+            .map(|value| value / alignment * alignment)
+    }
+
+    fn scalar_geometry(scalar: ScalarType) -> Option<(u64, u64)> {
+        let width = u64::from(crate::reference_storage_byte_width(scalar)?);
+        Some((width, width))
+    }
+
+    // Placement follows the existing native default, not the stricter
+    // byte-view codec query. Address placement remains target-owned.
+    fn primitive_scalar_geometry(
+        scalar: ScalarType,
+        carriers: Option<TargetCarrierLayout>,
+    ) -> Result<(u64, u64), StorageGeometryError> {
+        match scalar {
+            ScalarType::Integer(integer) if integer.is_address() => {
+                let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+                carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment)
+            }
+            ScalarType::Integer(integer) => {
+                let integer = semantic_vocabulary::ClosedIntegerType::try_from(integer)
+                    .map_err(|_| StorageGeometryError::UnsupportedScalar(scalar))?;
+                let layout = layout_planning::standalone_integer_geometry(integer);
+                Ok((layout.byte_size, layout.byte_alignment))
+            }
+            _ => scalar_geometry(scalar).ok_or(StorageGeometryError::UnsupportedScalar(scalar)),
+        }
+    }
+
+    fn field_geometry<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
+        field: &StructuralFieldDeclaration,
+        storage: Option<&AuthoredFieldStorage>,
+        active: &mut Vec<StructuralTypeId>,
+        carriers: Option<TargetCarrierLayout>,
+        records: &impl RecordStorageResolver,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        if let Some(scalar) = field.field_type.scalar_type() {
+            return scalar_geometry(
+                storage
+                    .and_then(AuthoredFieldStorage::stored_scalar)
+                    .unwrap_or(scalar),
+            )
+            .map(Some)
+            .ok_or(StorageGeometryError::UnsupportedScalar(scalar));
+        }
+        if let Some(carrier) = field.field_type.byte_sequence_carrier() {
+            if let Some(layout) = physical_carrier_geometry(records, owner, &field.field_type)? {
+                return Ok(Some(layout));
+            }
+            return byte_sequence_geometry(carrier, carriers).map(Some);
+        }
+        let child = field
+            .field_type
+            .as_structural()
+            .ok_or(StorageGeometryError::UnsupportedField)?;
+        geometry(types, child, active, carriers, records, extents)
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum StorageGeometryError {
+        MissingType(StructuralTypeId),
+        RecursiveType(StructuralTypeId),
+        NestingLimit,
+        UnsupportedType(StructuralTypeId),
+        UnsupportedScalar(ScalarType),
+        UnsupportedField,
+        UnsupportedByteSequence(terminal_psi::ByteSequenceCarrier),
+        UnresolvedExtent(ScalarApplicationId),
+        UnresolvedLayout(StructuralTypeId),
+        MissingFieldStorage(StructuralTypeId, semantic_vocabulary::StructuralFieldId),
+        InvalidRecordStorage(StructuralTypeId),
+        Overflow,
+        MissingCarrierLayout,
+        InvalidCarrierLayout,
+        AggregateLayout(layout_plans::AggregateGeometryError),
+    }
+
+    impl std::fmt::Display for StorageGeometryError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "storage geometry: {self:?}")
+        }
+    }
+    impl std::error::Error for StorageGeometryError {}
+
+    pub trait RecordStorageResolver {
+        /// A representation consumer can supply its current physical carrier
+        /// footprint. Aggregates still use the shared checked field/path walk;
+        /// this query only replaces reference and sequence carrier geometry.
+        /// `None` retains source geometry, while a physical lookup error must
+        /// propagate rather than fall back to a different representation.
+        fn carrier_layout(
+            &self,
+            _owner: StructuralTypeId,
+            _carrier: &StructuralFieldType,
+        ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+            Ok(None)
+        }
+
+        fn realization(
+            &self,
+            record: StructuralTypeId,
+            application: LayoutApplicationId,
+        ) -> Result<&TargetLayoutRealization, StorageGeometryError>;
+    }
+
+    pub struct UnselectedRecordStorage;
+
+    impl RecordStorageResolver for UnselectedRecordStorage {
+        fn realization(
+            &self,
+            record: StructuralTypeId,
+            _application: LayoutApplicationId,
+        ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+            Err(StorageGeometryError::UnresolvedLayout(record))
+        }
+    }
+
+    /// The checked representation width used by both source plan validation
+    /// and foreign storage recipes. Bounded nonnegative integers retain every
+    /// representable bit, independently of their byte-sized home carrier.
+    pub fn reference_field_representation_width<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &StructuralFieldType,
+    ) -> Option<u64> {
+        if let StructuralFieldType::BoundedInteger(integer) = field {
+            use semantic_vocabulary::IntegerValue;
+            let maximum = match (integer.minimum(), integer.maximum()) {
+                (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) if minimum >= 0 => {
+                    u128::try_from(maximum).ok()?
+                }
+                (IntegerValue::Unsigned(_), IntegerValue::Unsigned(maximum)) => maximum,
+                _ => return Some(u64::from(integer.integer_type().bits()?)),
+            };
+            return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
+        }
+        let scalar = field.scalar_type().or_else(|| {
+            let identity = field.as_structural()?;
+            let StructuralTypeShape::PrimitiveScalar(scalar) =
+                crate::structural_declaration(types, identity)?.shape
+            else {
+                return None;
+            };
+            Some(scalar)
+        })?;
+        match scalar {
+            // Code references keep their contract and custody; numeric fragments
+            // cannot represent that association.
+            ScalarType::Callable(_) => None,
+            ScalarType::Boolean => Some(1),
+            ScalarType::Integer(integer) => Some(u64::from(integer.bits()?)),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(32),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(64),
+        }
+    }
+
+    /// Compute and check a retained storage recipe against its actual field.
+    /// The caller supplies child geometry from its own immutable target and
+    /// selected-layout context; foreign validation keeps its boundary policy.
+    pub fn authored_field_storage_extent<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &terminal_psi::StructuralFieldDeclaration,
+        storage: &AuthoredFieldStorage,
+        record_size: u64,
+        mut child_layout: impl FnMut(StructuralTypeId) -> Option<(u64, u64)>,
+    ) -> Result<Option<(u64, u64)>, &'static str> {
+        use semantic_vocabulary::AuthoredFieldStorage;
+
+        let scalar = field
+            .field_type
+            .scalar_type()
+            .or_else(|| field.field_type.atomic_scalar_type());
+        let mut declared_layout = || {
+            if let Some(scalar) = scalar {
+                let width = u64::from(crate::reference_storage_byte_width(scalar)?);
+                return Some((width, width));
+            }
+            let child = field.field_type.as_structural()?;
+            child_layout(child)
+        };
+        let (offset, extent) = match storage {
+            AuthoredFieldStorage::Fragmented(recipe) => {
+                validate_storage_fragments(types.clone(), field, recipe, record_size)?;
+                return Ok(None);
+            }
+            AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: Some(stored),
+            } => {
+                let width = crate::reference_storage_byte_width(*stored)
+                    .ok_or("encoded field has no contiguous scalar footprint")?;
+                (byte_offset, Some(u64::from(width)))
+            }
+            AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: None,
+            }
+            | AuthoredFieldStorage::Direct { byte_offset } => {
+                (byte_offset, declared_layout().map(|(size, _)| size))
+            }
+            AuthoredFieldStorage::Repeated {
+                byte_offset,
+                element_stride,
+            } => {
+                let Some(array) = field.field_type.as_structural() else {
+                    return Err("repeated field requires a fixed array");
+                };
+                let Some(StructuralTypeShape::FixedArray { element, length }) =
+                    crate::structural_declaration(types.clone(), array)
+                        .map(|declaration| &declaration.shape)
+                else {
+                    return Err("repeated field requires a fixed array");
+                };
+                if let Some((size, alignment)) = child_layout(*element)
+                    && (alignment == 0
+                        || *element_stride < size
+                        || *element_stride % alignment != 0
+                        || *byte_offset % alignment != 0)
+                {
+                    return Err("repeated field stride overlaps or misaligns its elements");
+                }
+                let length = length
+                    .literal()
+                    .ok_or("authored repeated storage requires a closed array extent")?;
+                let extent = length
+                    .checked_mul(*element_stride)
+                    .ok_or("repeated field extent overflows")?;
+                (byte_offset, Some(extent))
+            }
+        };
+        if extent.is_some_and(|extent| {
+            offset
+                .checked_add(extent)
+                .is_none_or(|end| end > record_size)
+        }) {
+            return Err("authored field extent exceeds its record storage");
+        }
+        Ok(extent.map(|extent| (*offset, extent)))
+    }
+
+    fn validate_storage_fragments<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &terminal_psi::StructuralFieldDeclaration,
+        recipe: &semantic_vocabulary::AuthoredBitFragments,
+        record_size: u64,
+    ) -> Result<(), &'static str> {
+        let source_width = reference_field_representation_width(types, &field.field_type)
+            .ok_or("fragmented field requires a known scalar representation width")?;
+        if recipe.fragments().is_empty() {
+            return Err("fragmented field requires a complete recipe");
+        }
+        let mut source_intervals = Vec::with_capacity(recipe.fragments().len());
+        for fragment in recipe.fragments() {
+            if fragment.container_width_bits == 0
+                || !fragment.container_width_bits.is_multiple_of(8)
+                || fragment.width == 0
+                || fragment
+                    .container_byte_offset
+                    .checked_add(fragment.container_width_bits / 8)
+                    .is_none_or(|end| end > record_size)
+                || fragment
+                    .destination_lsb
+                    .checked_add(fragment.width)
+                    .is_none_or(|end| end > fragment.container_width_bits)
+            {
+                return Err("fragmented field has an invalid transfer container or destination");
+            }
+            let end = fragment
+                .source_lsb
+                .checked_add(fragment.width)
+                .ok_or("fragment source range overflows")?;
+            if end > source_width {
+                return Err("fragment source range exceeds its declaration representation");
+            }
+            source_intervals.push((fragment.source_lsb, end));
+        }
+        source_intervals.sort_unstable();
+        let mut cursor = 0;
+        for (start, end) in source_intervals {
+            if start != cursor {
+                return Err("fragment source ranges have a gap or overlap");
+            }
+            cursor = end;
+        }
+        if cursor != source_width {
+            return Err("fragment source ranges do not tile the declaration representation");
+        }
+        Ok(())
+    }
+
+    /// Check occupied destination bits after all recipes are computed. Scratch
+    /// is proportional to those recipes, never to the declared byte extent.
+    pub fn validate_storage_destination_intervals(
+        mut destinations: Vec<(u128, u128)>,
+    ) -> Result<(), &'static str> {
+        destinations.sort_unstable();
+        if destinations.windows(2).any(|pair| pair[1].0 < pair[0].1) {
+            return Err("authored field destination bits overlap");
+        }
+        Ok(())
+    }
+
+    /// Classify the representation source of one field. This describes
+    /// geometry only; an explicit child still needs the caller's exact
+    /// selected realization and supplies no storage or access permission.
+    pub fn schema_field_layout_source(
+        module: &terminal_psi::TerminalModule,
+        field: &terminal_psi::StructuralFieldType,
+        records: &impl RecordStorageResolver,
+    ) -> Result<terminal_psi::TargetLayoutFieldLayoutSource, StorageGeometryError> {
+        use terminal_psi::{ByteSequenceCarrier, TargetLayoutFieldLayoutSource};
+        if field.scalar_type().is_some()
+            || matches!(
+                field.byte_sequence_carrier(),
+                Some(ByteSequenceCarrier::BoundedOwned { .. })
+            )
+        {
+            return Ok(TargetLayoutFieldLayoutSource::Scalar);
+        }
+        let Some(mut identity) = field.as_structural() else {
+            return Ok(TargetLayoutFieldLayoutSource::Default);
+        };
+        // Each step follows one array child. A chain longer than the
+        // declaration roster repeats a type, without whole-module scratch.
+        let mut remaining = module.structural_types.len();
+        loop {
+            let declaration = module
+                .structural_type(identity)
+                .ok_or(StorageGeometryError::MissingType(identity))?;
+            if remaining == 0 {
+                return Err(StorageGeometryError::RecursiveType(identity));
+            }
+            remaining -= 1;
+            match &declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+                    return Ok(TargetLayoutFieldLayoutSource::Scalar);
+                }
+                StructuralTypeShape::FixedArray { element, length }
+                    if length.literal().is_some() =>
+                {
+                    identity = *element;
+                }
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::TargetLayout(application),
+                    ..
+                } => {
+                    records.realization(identity, *application)?;
+                    return Ok(TargetLayoutFieldLayoutSource::Explicit);
+                }
+                _ => return Ok(TargetLayoutFieldLayoutSource::Default),
+            }
+        }
+    }
+
+    pub struct ReferenceRecordField<'storage> {
+        pub declaration: &'storage StructuralFieldDeclaration,
+        pub storage: Option<&'storage AuthoredFieldStorage>,
+        pub byte_offset: Option<u64>,
+        pub byte_size: u64,
+        pub byte_alignment: u64,
+        pub repeated: Option<ReferenceRepeatedField>,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct ReferenceRepeatedField {
+        pub element_size: u64,
+        pub element_count: u64,
+        pub element_stride: u64,
+    }
+
+    pub struct ReferenceStorageGeometry<Types, Extents, Records = UnselectedRecordStorage> {
+        types: Types,
+        extents: Extents,
+        carriers: Option<TargetCarrierLayout>,
+        records: Records,
+    }
+
+    impl<'types, Types, Extents> ReferenceStorageGeometry<Types, Extents, UnselectedRecordStorage>
+    where
+        Types: Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    {
+        pub fn new(types: Types, extents: Extents) -> Self {
+            Self {
+                types,
+                extents,
+                carriers: None,
+                records: UnselectedRecordStorage,
+            }
+        }
+    }
+
+    impl<'types, Types, Extents, Records> ReferenceStorageGeometry<Types, Extents, Records>
+    where
+        Types: Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        Extents: FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+        Records: RecordStorageResolver,
+    {
+        pub fn with_record_storage<Selected: RecordStorageResolver>(
+            self,
+            records: Selected,
+        ) -> ReferenceStorageGeometry<Types, Extents, Selected> {
+            ReferenceStorageGeometry {
+                types: self.types,
+                extents: self.extents,
+                carriers: self.carriers,
+                records,
+            }
+        }
+
+        pub fn with_target_carriers(mut self, carriers: Option<TargetCarrierLayout>) -> Self {
+            self.carriers = carriers;
+            self
+        }
+
+        pub fn dependencies(
+            &self,
+            root: StructuralTypeId,
+        ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
+            let mut dependencies = Vec::new();
+            geometry(
+                self.types.clone(),
+                root,
+                &mut Vec::new(),
+                self.carriers,
+                &self.records,
+                &mut |application| {
+                    if !dependencies.contains(&application) {
+                        dependencies.push(application);
+                    }
+                    Ok(None)
+                },
+            )?;
+            Ok(dependencies)
+        }
+
+        pub fn layout(
+            &mut self,
+            root: StructuralTypeId,
+        ) -> Result<(u64, u64), StorageGeometryError> {
+            geometry(
+                self.types.clone(),
+                root,
+                &mut Vec::new(),
+                self.carriers,
+                &self.records,
+                &mut |application| (self.extents)(application).map(Some),
+            )?
+            .ok_or(StorageGeometryError::UnresolvedLayout(root))
+        }
+
+        pub fn sum_layout(
+            &mut self,
+            root: StructuralTypeId,
+        ) -> Result<layout_plans::ConventionalSumGeometry, StorageGeometryError> {
+            let declaration = crate::structural_declaration(self.types.clone(), root)
+                .ok_or(StorageGeometryError::MissingType(root))?;
+            let (fields, cases) = match &declaration.shape {
+                StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+                _ => return Err(StorageGeometryError::UnsupportedType(root)),
+            };
+            sum_layout(
+                self.types.clone(),
+                root,
+                fields,
+                cases,
+                &mut vec![root],
+                self.carriers,
+                &self.records,
+                &mut |application| (self.extents)(application).map(Some),
+            )?
+            .ok_or(StorageGeometryError::UnresolvedLayout(root))
+        }
+
+        pub fn region(
+            &mut self,
+            root: StructuralTypeId,
+            path: &[StructuralPathSegment],
+        ) -> Option<ReferenceStorageRegion> {
+            storage_region(
+                self.types.clone(),
+                root,
+                path,
+                &self.records,
+                self.carriers,
+                &mut self.extents,
+            )
+        }
+
+        pub fn source_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            self.source_representation_compatible(source, reference, stored, false)
+        }
+
+        fn source_representation_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+            captured_geometry_matches: bool,
+        ) -> bool {
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(self.types.clone(), reference)
+            else {
+                return false;
+            };
+            let Some(source_shape) = crate::structural_shape(self.types.clone(), source) else {
+                return false;
+            };
+            let byte_endpoint = matches!(source_shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if !integer.is_address() && integer.bits() == Some(8)
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned);
+            let Some(target) = crate::structural_shape(self.types.clone(), *referent) else {
+                return false;
+            };
+            match (stored, target) {
+                (Some(stored), StructuralTypeShape::PrimitiveScalar(logical)) => {
+                    let StructuralTypeShape::PrimitiveScalar(source) = source_shape else {
+                        return false;
+                    };
+                    (byte_endpoint
+                        || source == logical
+                        || crate::scalar_reference_view_is_total(*source, *logical))
+                        && crate::reference_storage_view_is_compatible(stored, *logical)
+                }
+                (None, terminal_psi::record_or_fixed_array_shape_pattern!()) => {
+                    use crate::references::reference_views::{
+                        is_byte_scalar, plain_storage, storage_scalars_satisfy,
+                    };
+
+                    if !plain_storage(self.types.clone(), *referent, &mut Vec::new()) {
+                        return false;
+                    }
+                    if byte_endpoint {
+                        return true;
+                    }
+                    if !plain_storage(self.types.clone(), source, &mut Vec::new()) {
+                        return false;
+                    }
+                    if let (Ok(source_layout), Ok(target_layout)) =
+                        (self.layout(source), self.layout(*referent))
+                        && (source_layout == target_layout
+                            || (source_layout.0 == target_layout.0
+                                && target_layout.1 != 0
+                                && source_layout.1.is_multiple_of(target_layout.1)
+                                && storage_scalars_satisfy(
+                                    self.types.clone(),
+                                    *referent,
+                                    &mut Vec::new(),
+                                    &is_byte_scalar,
+                                )))
+                    {
+                        return true;
+                    }
+                    // The captured address may be more aligned than its type.
+                    // Every byte must still belong to the source representation.
+                    captured_geometry_matches
+                        && crate::representation_element_layout(self.types.clone(), source)
+                            .is_some_and(|layout| layout.is_tightly_tiled())
+                }
+                _ => false,
+            }
+        }
+
+        pub fn view_source_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            path: &[StructuralPathSegment],
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            if matches!(path.last(), Some(StructuralPathSegment::FixedRange { .. })) {
+                return self.region_source_compatible(source, path, reference, stored);
+            }
+            let Some(region) = self.region(source, path) else {
+                return false;
+            };
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(self.types.clone(), reference)
+            else {
+                return false;
+            };
+            let Ok((target_size, target_align)) = self.layout(*referent) else {
+                return false;
+            };
+            let Ok((_, source_align)) = self.layout(source) else {
+                return false;
+            };
+            let width = match stored {
+                Some(stored) => {
+                    if region
+                        .scalar
+                        .is_none_or(|scalar| scalar.stored_scalar != stored)
+                    {
+                        return false;
+                    }
+                    match crate::reference_storage_byte_width(stored) {
+                        Some(width) => u64::from(width),
+                        None => return false,
+                    }
+                }
+                None => target_size,
+            };
+            if region.byte_length != width
+                || target_align == 0
+                || !source_align.is_multiple_of(target_align)
+                || !region.byte_offset.is_multiple_of(target_align)
+            {
+                return false;
+            }
+            let tip = crate::runtime_structural_path_tip(self.types.clone(), source, path)
+                .map(|row| row.id)
+                .or_else(|| {
+                    crate::primitive_projection_declaration(self.types.clone(), source, path)
+                });
+            // The checked root and byte offset establish this address's
+            // alignment even when the selected field has a lower minimum.
+            tip.is_some_and(|tip| {
+                self.source_representation_compatible(tip, reference, stored, true)
+            })
+        }
+
+        pub fn region_source_compatible(
+            &mut self,
+            source: StructuralTypeId,
+            path: &[StructuralPathSegment],
+            reference: StructuralTypeId,
+            stored: Option<ScalarType>,
+        ) -> bool {
+            if stored.is_some() {
+                return false;
+            }
+            let Some(region) = self.region(source, path) else {
+                return false;
+            };
+            let Some(array) = region.array else {
+                return false;
+            };
+            let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(self.types.clone(), reference)
+            else {
+                return false;
+            };
+            if !crate::references::reference_views::plain_storage(
+                self.types.clone(),
+                array.declaration,
+                &mut Vec::new(),
+            ) || !crate::references::reference_views::plain_storage(
+                self.types.clone(),
+                *referent,
+                &mut Vec::new(),
+            ) {
+                return false;
+            }
+            let (Ok((source_size, source_align)), Ok((target_size, target_align))) =
+                (self.layout(source), self.layout(*referent))
+            else {
+                return false;
+            };
+            target_align != 0
+                && source_align.is_multiple_of(target_align)
+                && region.byte_offset.is_multiple_of(target_align)
+                && region.byte_length == target_size
+                && region
+                    .byte_offset
+                    .checked_add(region.byte_length)
+                    .is_some_and(|end| end <= source_size)
+        }
+
+        pub fn record_fields<'storage>(
+            &'storage mut self,
+            root: StructuralTypeId,
+        ) -> Result<Vec<ReferenceRecordField<'storage>>, StorageGeometryError>
+        where
+            'types: 'storage,
+        {
+            let declaration = crate::structural_declaration(self.types.clone(), root)
+                .ok_or(StorageGeometryError::MissingType(root))?;
+            let StructuralTypeShape::Record { fields, storage } = &declaration.shape else {
+                return Err(StorageGeometryError::UnsupportedType(root));
+            };
+            let selected = match storage {
+                StructuralRecordStorage::TargetLayout(application) => {
+                    Some(self.records.realization(root, *application)?)
+                }
+                StructuralRecordStorage::Packed | StructuralRecordStorage::Authored(_) => None,
+                _ => return Err(StorageGeometryError::UnsupportedType(root)),
+            };
+            let mut output = Vec::with_capacity(fields.len());
+            let mut packed_offset = 0;
+            for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                let field_storage = match selected {
+                    Some(realization) => Some(
+                        &realization
+                            .fields
+                            .iter()
+                            .find(|row| row.field == field.id)
+                            .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
+                            .storage,
+                    ),
+                    None => field.storage.as_ref(),
+                };
+                let (byte_size, byte_alignment) = field_geometry(
+                    self.types.clone(),
+                    root,
+                    field,
+                    field_storage,
+                    &mut Vec::new(),
+                    self.carriers,
+                    &self.records,
+                    &mut |application| (self.extents)(application).map(Some),
+                )?
+                .ok_or(StorageGeometryError::UnresolvedLayout(root))?;
+                let repeated = match field_storage {
+                    Some(AuthoredFieldStorage::Repeated { element_stride, .. }) => {
+                        let array = field
+                            .field_type
+                            .as_structural()
+                            .ok_or(StorageGeometryError::InvalidRecordStorage(root))?;
+                        let StructuralTypeShape::FixedArray { element, length } =
+                            &crate::structural_declaration(self.types.clone(), array)
+                                .ok_or(StorageGeometryError::MissingType(array))?
+                                .shape
+                        else {
+                            return Err(StorageGeometryError::InvalidRecordStorage(root));
+                        };
+                        let element_count = match length {
+                            terminal_psi::ArrayExtent::Parameter { .. } => {
+                                return Err(StorageGeometryError::UnresolvedLayout(array));
+                            }
+                            terminal_psi::ArrayExtent::Literal(count) => *count,
+                            terminal_psi::ArrayExtent::Application(application) => {
+                                (self.extents)(*application)?
+                            }
+                        };
+                        let element_size = geometry(
+                            self.types.clone(),
+                            *element,
+                            &mut Vec::new(),
+                            self.carriers,
+                            &self.records,
+                            &mut |application| (self.extents)(application).map(Some),
+                        )?
+                        .ok_or(StorageGeometryError::UnresolvedLayout(*element))?
+                        .0;
+                        Some(ReferenceRepeatedField {
+                            element_size,
+                            element_count,
+                            element_stride: *element_stride,
+                        })
+                    }
+                    _ => None,
+                };
+                let byte_offset = match storage {
+                    StructuralRecordStorage::Packed => {
+                        packed_offset = align(packed_offset, byte_alignment)
+                            .ok_or(StorageGeometryError::Overflow)?;
+                        let offset = packed_offset;
+                        packed_offset = packed_offset
+                            .checked_add(byte_size)
+                            .ok_or(StorageGeometryError::Overflow)?;
+                        Some(offset)
+                    }
+                    _ => field_storage
+                        .ok_or(StorageGeometryError::MissingFieldStorage(root, field.id))?
+                        .byte_offset(),
+                };
+                output.push(ReferenceRecordField {
+                    declaration: field,
+                    storage: field_storage,
+                    byte_offset,
+                    byte_size,
+                    byte_alignment,
+                    repeated,
+                });
+            }
+            Ok(output)
+        }
+    }
+
+    pub fn reference_storage_dependencies<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+    ) -> Result<Vec<ScalarApplicationId>, StorageGeometryError> {
+        ReferenceStorageGeometry::new(types, |application| {
+            Err(StorageGeometryError::UnresolvedExtent(application))
+        })
+        .dependencies(root)
+    }
+
+    fn geometry<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        active: &mut Vec<StructuralTypeId>,
+        carriers: Option<TargetCarrierLayout>,
+        records: &impl RecordStorageResolver,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        if active.len() >= 128 {
+            return Err(StorageGeometryError::NestingLimit);
+        }
+        if active.contains(&root) {
+            return Err(StorageGeometryError::RecursiveType(root));
+        }
+        let shape = &crate::structural_declaration(types.clone(), root)
+            .ok_or(StorageGeometryError::MissingType(root))?
+            .shape;
+        if matches!(
+            shape,
+            StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. }
+        ) && let Some(layout) =
+            physical_carrier_geometry(records, root, &StructuralFieldType::Structural(root))?
+        {
+            return Ok(Some(layout));
+        }
+        active.push(root);
+        let result = (|| match shape {
+            StructuralTypeShape::Reference { .. } => {
+                let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+                carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment)
+                    .map(Some)
+            }
+            StructuralTypeShape::ByteSequence(carrier) => {
+                byte_sequence_geometry(*carrier, carriers).map(Some)
+            }
+            StructuralTypeShape::ElementView { .. } => {
+                let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+                carrier_geometry(
+                    carriers.descriptor_byte_size,
+                    carriers.descriptor_byte_alignment,
+                )
+                .map(Some)
+            }
+            StructuralTypeShape::AtomicCell(cell) => scalar_geometry(cell.scalar_type())
+                .map(Some)
+                .ok_or(StorageGeometryError::UnsupportedScalar(cell.scalar_type())),
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                primitive_scalar_geometry(*scalar, carriers).map(Some)
+            }
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::TargetLayout(application),
+                ..
+            } => {
+                let selected = records.realization(root, *application)?;
+                Ok(Some((
+                    selected.storage.byte_size,
+                    selected.storage.byte_alignment,
+                )))
+            }
+            StructuralTypeShape::Record {
+                storage: StructuralRecordStorage::Authored(storage),
+                ..
+            } => Ok(Some((storage.byte_size, storage.byte_alignment))),
+            StructuralTypeShape::Record {
+                fields,
+                storage: StructuralRecordStorage::Packed,
+            } => {
+                let mut size = Some(0);
+                let mut alignment = 1;
+                for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+                    let child = field_geometry(
+                        types.clone(),
+                        root,
+                        field,
+                        field.storage.as_ref(),
+                        active,
+                        carriers,
+                        records,
+                        extents,
+                    )?;
+                    let Some((child_size, child_alignment)) = child else {
+                        size = None;
+                        continue;
+                    };
+                    if let Some(current) = size {
+                        size = Some(
+                            align(current, child_alignment)
+                                .and_then(|offset| offset.checked_add(child_size))
+                                .ok_or(StorageGeometryError::Overflow)?,
+                        );
+                    }
+                    alignment = alignment.max(child_alignment);
+                }
+                size.map(|size| {
+                    Ok((
+                        align(size, alignment).ok_or(StorageGeometryError::Overflow)?,
+                        alignment,
+                    ))
+                })
+                .transpose()
+            }
+            StructuralTypeShape::FixedArray { element, length } => {
+                let length = match length {
+                    terminal_psi::ArrayExtent::Parameter { .. } => None,
+                    terminal_psi::ArrayExtent::Literal(length) => Some(*length),
+                    terminal_psi::ArrayExtent::Application(application) => extents(*application)?,
+                };
+                let element =
+                    geometry(types.clone(), *element, active, carriers, records, extents)?;
+                let (Some(length), Some((size, alignment))) = (length, element) else {
+                    return Ok(None);
+                };
+                let size = align(size, alignment)
+                    .and_then(|stride| stride.checked_mul(length))
+                    .ok_or(StorageGeometryError::Overflow)?;
+                Ok(Some((size, alignment)))
+            }
+            StructuralTypeShape::Sum { cases } => {
+                sum_geometry(types, root, &[], cases, active, carriers, records, extents)
+            }
+            StructuralTypeShape::Mixed { fields, cases } => sum_geometry(
+                types, root, fields, cases, active, carriers, records, extents,
+            ),
+            _ => Err(StorageGeometryError::UnsupportedType(root)),
+        })();
+        active.pop();
+        result
+    }
+
+    fn physical_carrier_geometry(
+        records: &impl RecordStorageResolver,
+        owner: StructuralTypeId,
+        carrier: &StructuralFieldType,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        let Some((size, alignment)) = records.carrier_layout(owner, carrier)? else {
+            return Ok(None);
+        };
+        // A native inline carrier can end before its trailing alignment (a
+        // bounded byte value is one). The enclosing walk rounds placements;
+        // requiring size to be an alignment multiple would invent padding.
+        if size == 0 || !alignment.is_power_of_two() {
+            return Err(StorageGeometryError::InvalidCarrierLayout);
+        }
+        Ok(Some((size, alignment)))
+    }
+
+    fn sum_geometry<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
+        common_fields: &[StructuralFieldDeclaration],
+        cases: &[terminal_psi::StructuralCaseDeclaration],
+        active: &mut Vec<StructuralTypeId>,
+        carriers: Option<TargetCarrierLayout>,
+        records: &impl RecordStorageResolver,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+    ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+        Ok(sum_layout(
+            types,
+            owner,
+            common_fields,
+            cases,
+            active,
+            carriers,
+            records,
+            extents,
+        )?
+        .map(|geometry| (geometry.storage.byte_size, geometry.storage.byte_alignment)))
+    }
+
+    fn sum_layout<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        owner: StructuralTypeId,
+        common_fields: &[StructuralFieldDeclaration],
+        cases: &[terminal_psi::StructuralCaseDeclaration],
+        active: &mut Vec<StructuralTypeId>,
+        carriers: Option<TargetCarrierLayout>,
+        records: &impl RecordStorageResolver,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<Option<u64>, StorageGeometryError>,
+    ) -> Result<Option<layout_plans::ConventionalSumGeometry>, StorageGeometryError> {
+        let mut fields = |fields: &[StructuralFieldDeclaration]| {
+            fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .map(|field| {
+                    field_geometry(
+                        types.clone(),
+                        owner,
+                        field,
+                        field.storage.as_ref(),
+                        active,
+                        carriers,
+                        records,
+                        extents,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let common = fields(common_fields)?;
+        let payloads = cases
+            .iter()
+            .map(|case| fields(&case.fields))
+            .collect::<Result<Vec<_>, _>>()?;
+        let Some(common) = common.into_iter().collect::<Option<Vec<_>>>() else {
+            return Ok(None);
+        };
+        let Some(payloads) = payloads
+            .into_iter()
+            .map(|fields| fields.into_iter().collect::<Option<Vec<_>>>())
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+        let tag = carrier_geometry(
+            carriers.case_tag_byte_size,
+            carriers.case_tag_byte_alignment,
+        )?;
+        let shape = |(byte_size, byte_alignment)| layout_plans::StorageGeometry {
+            byte_size,
+            byte_alignment,
+        };
+        let geometry = layout_plans::packing::conventional_sum_geometry(
+            shape(tag),
+            common.into_iter().map(shape),
+            payloads
+                .into_iter()
+                .map(|fields| fields.into_iter().map(shape)),
+        )
+        .map_err(StorageGeometryError::AggregateLayout)?;
+        Ok(Some(geometry))
+    }
+
+    fn carrier_geometry(size: u64, alignment: u64) -> Result<(u64, u64), StorageGeometryError> {
+        if size == 0 || !alignment.is_power_of_two() || !size.is_multiple_of(alignment) {
+            return Err(StorageGeometryError::InvalidCarrierLayout);
+        }
+        Ok((size, alignment))
+    }
+
+    fn byte_sequence_geometry(
+        carrier: terminal_psi::ByteSequenceCarrier,
+        carriers: Option<TargetCarrierLayout>,
+    ) -> Result<(u64, u64), StorageGeometryError> {
+        use terminal_psi::ByteSequenceCarrier;
+        let carriers = carriers.ok_or(StorageGeometryError::MissingCarrierLayout)?;
+        match carrier {
+            ByteSequenceCarrier::BorrowedView { .. } => carrier_geometry(
+                carriers.descriptor_byte_size,
+                carriers.descriptor_byte_alignment,
+            ),
+            ByteSequenceCarrier::BoundedView { .. } => {
+                carrier_geometry(carriers.pointer_byte_size, carriers.pointer_byte_alignment)
+            }
+            ByteSequenceCarrier::BoundedOwned { .. } => {
+                Err(StorageGeometryError::UnsupportedByteSequence(carrier))
+            }
+        }
+    }
+
+    pub fn reference_storage_size<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+    ) -> Option<u64> {
+        reference_storage_layout(types, root).map(|(size, _)| size)
+    }
+
+    pub fn reference_storage_layout<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+    ) -> Option<(u64, u64)> {
+        ReferenceStorageGeometry::new(types, |application| {
+            Err(StorageGeometryError::UnresolvedExtent(application))
+        })
+        .layout(root)
+        .ok()
+    }
+
+    pub fn reference_storage_projection<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<ReferenceStorageProjection> {
+        reference_storage_region(types, root, path)?.scalar
+    }
+
+    pub fn reference_storage_region<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<ReferenceStorageRegion> {
+        crate::ReferenceStorageGeometry::new(types, |application| {
+            Err(StorageGeometryError::UnresolvedExtent(application))
+        })
+        .region(root, path)
+    }
+
+    fn storage_region<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        records: &impl RecordStorageResolver,
+        carriers: Option<TargetCarrierLayout>,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    ) -> Option<ReferenceStorageRegion> {
+        let projection = storage_path(types.clone(), root, path, records, carriers, extents)?;
+        if projection.fragments.is_some() {
+            return None;
+        }
+        if let Some(stride) = projection.repeated_stride {
+            let StructuralTypeShape::FixedArray { element, .. } =
+                crate::structural_shape(types.clone(), projection.carrier)?
+            else {
+                return None;
+            };
+            let (size, alignment) =
+                selected_storage_layout(types.clone(), *element, records, carriers, extents)?;
+            if stride != align(size, alignment)? {
+                return None;
+            }
+        }
+        let size = match (projection.window, projection.scalar) {
+            (Some(window), _) => window.byte_length,
+            (None, Some((_, stored))) => scalar_geometry(stored)?.0,
+            (None, None) => {
+                selected_storage_layout(types, projection.carrier, records, carriers, extents)?.0
+            }
+        };
+        Some(ReferenceStorageRegion {
+            byte_offset: projection.byte_offset,
+            byte_length: size,
+            scalar: projection.scalar.map(|(logical_scalar, stored_scalar)| {
+                ReferenceStorageProjection {
+                    byte_offset: projection.byte_offset,
+                    logical_scalar,
+                    stored_scalar,
+                }
+            }),
+            array: projection.window,
+        })
+    }
+
+    fn selected_storage_layout<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        records: &impl RecordStorageResolver,
+        carriers: Option<TargetCarrierLayout>,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    ) -> Option<(u64, u64)> {
+        geometry(
+            types,
+            root,
+            &mut Vec::new(),
+            carriers,
+            records,
+            &mut |application| extents(application).map(Some),
+        )
+        .ok()?
+    }
+
+    pub fn reference_scalar_storage<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<ReferenceScalarStorage<'types>> {
+        let projection = storage_path(
+            types,
+            root,
+            path,
+            &UnselectedRecordStorage,
+            None,
+            &mut |application| Err(StorageGeometryError::UnresolvedExtent(application)),
+        )?;
+        let (logical_scalar, stored_scalar) = projection.scalar?;
+        Some(match projection.fragments {
+            Some(fragments) => ReferenceScalarStorage::Fragmented {
+                byte_offset: projection.byte_offset,
+                logical_scalar,
+                fragments,
+            },
+            None => ReferenceScalarStorage::Contiguous(ReferenceStorageProjection {
+                byte_offset: projection.byte_offset,
+                logical_scalar,
+                stored_scalar,
+            }),
+        })
+    }
+
+    struct StoragePathProjection<'recipe> {
+        byte_offset: u64,
+        carrier: StructuralTypeId,
+        scalar: Option<(ScalarType, ScalarType)>,
+        fragments: Option<&'recipe semantic_vocabulary::AuthoredBitFragments>,
+        repeated_stride: Option<u64>,
+        window: Option<ReferenceArrayWindow>,
+    }
+
+    fn storage_path<'types, 'storage>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+        records: &'storage impl RecordStorageResolver,
+        carriers: Option<TargetCarrierLayout>,
+        extents: &mut impl FnMut(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
+    ) -> Option<StoragePathProjection<'storage>>
+    where
+        'types: 'storage,
+    {
+        let mut carrier = root;
+        let mut byte_offset = 0_u64;
+        let mut repeated_stride = None;
+        let mut selected_storage = None;
+        let mut selected_scalar = None;
+        let mut fragments = None;
+        let mut window: Option<ReferenceArrayWindow> = None;
+        let mut segments = path.iter();
+        while let Some(segment) = segments.next() {
+            if let StructuralPathSegment::RepresentationView {
+                structural_type,
+                stored_scalar,
+            } = segment
+            {
+                if fragments.is_some() {
+                    return None;
+                }
+                let source_size = if let Some(window) = window {
+                    window.byte_length
+                } else {
+                    match selected_scalar {
+                        Some(logical) => scalar_geometry(selected_storage.unwrap_or(logical))?.0,
+                        None => match *crate::structural_shape(types.clone(), carrier)? {
+                            StructuralTypeShape::PrimitiveScalar(logical) => {
+                                scalar_geometry(selected_storage.unwrap_or(logical))?.0
+                            }
+                            _ => {
+                                selected_storage_layout(
+                                    types.clone(),
+                                    carrier,
+                                    records,
+                                    carriers,
+                                    extents,
+                                )?
+                                .0
+                            }
+                        },
+                    }
+                };
+                let view = crate::representation_view_declaration(
+                    types.clone(),
+                    *structural_type,
+                    *stored_scalar,
+                )?;
+                let view_size = match stored_scalar {
+                    Some(scalar) => scalar_geometry(*scalar)?.0,
+                    None => {
+                        selected_storage_layout(types.clone(), view.id, records, carriers, extents)?
+                            .0
+                    }
+                };
+                if source_size != view_size {
+                    return None;
+                }
+                carrier = view.id;
+                selected_storage = *stored_scalar;
+                selected_scalar = None;
+                repeated_stride = None;
+                window = None;
+                continue;
+            }
+            if window.is_some() {
+                return None;
+            }
+            if selected_scalar.is_some() {
+                return None;
+            }
+            let shape = &crate::structural_shape(types.clone(), carrier)?;
+            match (shape, segment) {
+                (
+                    StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. },
+                    StructuralPathSegment::Field(_) | StructuralPathSegment::Case(_),
+                ) => {
+                    let (common, cases) = match shape {
+                        StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                        StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
+                        _ => return None,
+                    };
+                    let layout = sum_layout(
+                        types.clone(),
+                        carrier,
+                        common,
+                        cases,
+                        &mut vec![carrier],
+                        carriers,
+                        records,
+                        &mut |application| extents(application).map(Some),
+                    )
+                    .ok()??;
+                    let (field, offset) = match segment {
+                        StructuralPathSegment::Field(identity) => {
+                            let (ordinal, field) =
+                                terminal_psi::live_field_entry(common, *identity)?;
+                            (field, *layout.common_field_offsets.get(ordinal)?)
+                        }
+                        StructuralPathSegment::Case(case) => {
+                            let (ordinal, selected) =
+                                cases.iter().enumerate().find(|(_, row)| row.id == *case)?;
+                            let StructuralPathSegment::Field(identity) = segments.next()? else {
+                                return None;
+                            };
+                            let (field_ordinal, field) =
+                                terminal_psi::live_field_entry(&selected.fields, *identity)?;
+                            (
+                                field,
+                                *layout.case_field_offsets.get(ordinal)?.get(field_ordinal)?,
+                            )
+                        }
+                        _ => return None,
+                    };
+                    let recipe = field.storage.as_ref();
+                    if matches!(recipe, Some(AuthoredFieldStorage::Fragmented(_))) {
+                        return None;
+                    }
+                    byte_offset = byte_offset.checked_add(offset)?;
+                    selected_storage = recipe.and_then(AuthoredFieldStorage::stored_scalar);
+                    repeated_stride = recipe.and_then(AuthoredFieldStorage::element_stride);
+                    if let Some(logical_scalar) = field.field_type.scalar_type() {
+                        selected_scalar = Some(logical_scalar);
+                        continue;
+                    }
+                    carrier = field.field_type.as_structural()?;
+                }
+                (
+                    StructuralTypeShape::Record { fields, storage },
+                    StructuralPathSegment::Field(identity),
+                ) => {
+                    let field = terminal_psi::live_field_by_identity(fields, *identity)?;
+                    let recipe = match storage {
+                        StructuralRecordStorage::TargetLayout(application) => Some(
+                            &records
+                                .realization(carrier, *application)
+                                .ok()?
+                                .fields
+                                .iter()
+                                .find(|row| row.field == field.id)?
+                                .storage,
+                        ),
+                        _ => field.storage.as_ref(),
+                    };
+                    let offset = match storage {
+                        terminal_psi::StructuralRecordStorage::AccessView(_)
+                        | terminal_psi::StructuralRecordStorage::Accessor(_) => return None,
+                        StructuralRecordStorage::TargetLayout(_)
+                        | StructuralRecordStorage::Authored(_) => match recipe? {
+                            AuthoredFieldStorage::Fragmented(recipe) => {
+                                fragments = Some(recipe);
+                                0
+                            }
+                            storage => storage.byte_offset()?,
+                        },
+                        StructuralRecordStorage::Packed => {
+                            let mut offset = 0;
+                            for candidate in
+                                fields.iter().filter(|field| !field.relevance.is_erased())
+                            {
+                                let (size, alignment) = field_geometry(
+                                    types.clone(),
+                                    carrier,
+                                    candidate,
+                                    candidate.storage.as_ref(),
+                                    &mut Vec::new(),
+                                    carriers,
+                                    records,
+                                    &mut |application| extents(application).map(Some),
+                                )
+                                .ok()??;
+                                offset = align(offset, alignment)?;
+                                if candidate.id == field.id {
+                                    break;
+                                }
+                                offset = offset.checked_add(size)?;
+                            }
+                            offset
+                        }
+                    };
+                    byte_offset = byte_offset.checked_add(offset)?;
+                    selected_storage = recipe.and_then(AuthoredFieldStorage::stored_scalar);
+                    repeated_stride = recipe.and_then(AuthoredFieldStorage::element_stride);
+                    if let Some(logical_scalar) = field.field_type.scalar_type() {
+                        selected_scalar = Some(logical_scalar);
+                        continue;
+                    }
+                    let child = field.field_type.as_structural()?;
+                    carrier = child;
+                }
+                (
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    },
+                    StructuralPathSegment::FixedIndex(index),
+                ) if index < length => {
+                    let (size, alignment) = selected_storage_layout(
+                        types.clone(),
+                        *element,
+                        records,
+                        carriers,
+                        extents,
+                    )?;
+                    let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
+                    byte_offset = byte_offset.checked_add(index.checked_mul(stride)?)?;
+                    carrier = *element;
+                    selected_storage = None;
+                }
+                (
+                    StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    },
+                    StructuralPathSegment::FixedRange { start, end },
+                ) if start <= end && end <= length => {
+                    let (size, alignment) = selected_storage_layout(
+                        types.clone(),
+                        *element,
+                        records,
+                        carriers,
+                        extents,
+                    )?;
+                    let stride = repeated_stride.take().unwrap_or(align(size, alignment)?);
+                    if stride < size {
+                        return None;
+                    }
+                    let array_offset = start.checked_mul(stride)?;
+                    byte_offset = byte_offset.checked_add(array_offset)?;
+                    let count = end.checked_sub(*start)?;
+                    let byte_length = if count == 0 {
+                        0
+                    } else {
+                        count
+                            .checked_sub(1)?
+                            .checked_mul(stride)?
+                            .checked_add(size)?
+                    };
+                    window = Some(ReferenceArrayWindow {
+                        declaration: carrier,
+                        byte_offset: array_offset,
+                        byte_length,
+                    });
+                    selected_storage = None;
+                }
+                _ => return None,
+            }
+        }
+        let scalar = match selected_scalar {
+            Some(logical) => Some((logical, selected_storage.unwrap_or(logical))),
+            None => match *crate::structural_shape(types.clone(), carrier)? {
+                StructuralTypeShape::PrimitiveScalar(logical) => {
+                    Some((logical, selected_storage.unwrap_or(logical)))
+                }
+                _ => None,
+            },
+        };
+        Some(StoragePathProjection {
+            byte_offset,
+            carrier,
+            scalar,
+            fragments,
+            repeated_stride,
+            window,
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            AuthoredRecordStorage, IntegerSign, IntegerType, StructuralFieldId,
+        };
+        use terminal_psi::{BindingRelevance, StructuralFieldType, TerminalIdentityIndex};
+
+        fn identity(value: u64) -> StructuralTypeId {
+            StructuralTypeId::new(value).expect("type identity")
+        }
+        fn scalar(bits: u16) -> ScalarType {
+            ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).expect("signed scalar"))
+        }
+        fn field(
+            value: u64,
+            field_type: StructuralFieldType,
+            storage: Option<AuthoredFieldStorage>,
+        ) -> StructuralFieldDeclaration {
+            StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(value).expect("field identity"),
+                identity: TerminalIdentityIndex(4),
+                relevance: BindingRelevance::Relevant,
+                field_type,
+                storage,
+            }
+        }
+
+        #[test]
+        fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
+            let address = ScalarType::Integer(IntegerType::address(64).unwrap());
+            let narrow = scalar(13);
+            let types = [address, narrow, scalar(32)]
+                .into_iter()
+                .enumerate()
+                .map(|(position, scalar)| StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    id: identity(position as u64 + 1),
+                    identity: TerminalIdentityIndex(position as u32 + 1),
+                    shape: StructuralTypeShape::PrimitiveScalar(scalar),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                })
+                .collect::<Vec<_>>();
+            let target = |size, alignment| TargetCarrierLayout {
+                pointer_byte_size: size,
+                pointer_byte_alignment: alignment,
+                descriptor_byte_size: 16,
+                descriptor_byte_alignment: 8,
+                case_tag_byte_size: 4,
+                case_tag_byte_alignment: 4,
+            };
+            let layout = |root, carriers| {
+                ReferenceStorageGeometry::new(types.iter(), |application| {
+                    Err(StorageGeometryError::UnresolvedExtent(application))
+                })
+                .with_target_carriers(carriers)
+                .layout(root)
+            };
+            // The displayed 64-bit carrier supplies no target placement.
+            assert_eq!(
+                layout(identity(1), None),
+                Err(StorageGeometryError::MissingCarrierLayout)
+            );
+            assert_eq!(layout(identity(1), Some(target(4, 2))), Ok((4, 2)));
+            assert_eq!(layout(identity(1), Some(target(16, 8))), Ok((16, 8)));
+            assert_eq!(
+                layout(identity(1), Some(target(0, 8))),
+                Err(StorageGeometryError::InvalidCarrierLayout)
+            );
+            assert_eq!(
+                layout(identity(1), Some(target(8, 3))),
+                Err(StorageGeometryError::InvalidCarrierLayout)
+            );
+            assert_eq!(layout(identity(2), None), Ok((2, 2)));
+            assert_eq!(layout(identity(3), None), Ok((4, 4)));
+            assert_eq!(crate::reference_storage_byte_width(address), None);
+            assert_eq!(crate::reference_storage_byte_width(narrow), None);
+            assert!(!crate::reference_storage_view_is_compatible(
+                address, address
+            ));
+        }
+
+        #[test]
+        fn physical_carriers_preserve_source_defaults_and_lookup_errors() {
+            let declaration = |raw, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                id: identity(raw),
+                identity: TerminalIdentityIndex(raw as u32),
+                shape,
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+            };
+            let bytes = terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 13 };
+            let types = [
+                declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(32))),
+                declaration(
+                    2,
+                    StructuralTypeShape::Reference {
+                        referent: identity(1),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: vec![
+                            field(1, StructuralFieldType::ByteSequence(bytes), None),
+                            StructuralFieldDeclaration {
+                                identity: TerminalIdentityIndex(5),
+                                ..field(2, StructuralFieldType::Scalar(scalar(8)), None)
+                            },
+                        ],
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+            ];
+            let carriers = TargetCarrierLayout {
+                pointer_byte_size: 8,
+                pointer_byte_alignment: 8,
+                descriptor_byte_size: 16,
+                descriptor_byte_alignment: 8,
+                case_tag_byte_size: 4,
+                case_tag_byte_alignment: 4,
+            };
+            fn unresolved(application: ScalarApplicationId) -> Result<u64, StorageGeometryError> {
+                Err(StorageGeometryError::UnresolvedExtent(application))
+            }
+            let mut source = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers));
+            assert_eq!(source.layout(identity(2)), Ok((8, 8)));
+            assert!(matches!(
+                source.layout(identity(3)),
+                Err(StorageGeometryError::UnsupportedByteSequence(_))
+            ));
+
+            struct Physical {
+                unavailable: bool,
+            }
+            impl RecordStorageResolver for Physical {
+                fn carrier_layout(
+                    &self,
+                    owner: StructuralTypeId,
+                    carrier: &StructuralFieldType,
+                ) -> Result<Option<(u64, u64)>, StorageGeometryError> {
+                    if self.unavailable {
+                        return Err(StorageGeometryError::UnresolvedLayout(owner));
+                    }
+                    match carrier {
+                        StructuralFieldType::Structural(id)
+                            if *id == identity(2) && owner == *id =>
+                        {
+                            Ok(Some((16, 8)))
+                        }
+                        StructuralFieldType::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 13 },
+                        ) if owner == identity(3) => Ok(Some((21, 8))),
+                        _ => Err(StorageGeometryError::InvalidRecordStorage(owner)),
+                    }
+                }
+                fn realization(
+                    &self,
+                    record: StructuralTypeId,
+                    _application: LayoutApplicationId,
+                ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+                    Err(StorageGeometryError::UnresolvedLayout(record))
+                }
+            }
+            let mut physical = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers))
+                .with_record_storage(Physical { unavailable: false });
+            assert_eq!(physical.layout(identity(2)), Ok((16, 8)));
+            assert_eq!(physical.layout(identity(3)), Ok((24, 8)));
+            let region = physical
+                .region(
+                    identity(3),
+                    &[StructuralPathSegment::Field(TerminalIdentityIndex(5))],
+                )
+                .unwrap();
+            assert_eq!(
+                region.byte_offset, 21,
+                "the inline carrier receives its real owner and keeps its unrounded size"
+            );
+            assert_eq!(region.byte_length, 1);
+            let mut unavailable = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                .with_target_carriers(Some(carriers))
+                .with_record_storage(Physical { unavailable: true });
+            assert_eq!(
+                unavailable.layout(identity(2)),
+                Err(StorageGeometryError::UnresolvedLayout(identity(2)))
+            );
+        }
+
+        #[test]
+        fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
+            use terminal_psi::{LayoutApplicationId, TargetLayoutFieldLayoutSource as Source};
+            let application = LayoutApplicationId(1);
+            let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                id: identity(value),
+                identity: TerminalIdentityIndex(value as u32),
+                shape,
+            };
+            let mut module = terminal_psi::TerminalModule::declarations();
+            module.structural_types = vec![
+                declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(32))),
+                declaration(
+                    2,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Literal(32),
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+                declaration(
+                    4,
+                    StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::TargetLayout(application),
+                    },
+                ),
+                declaration(
+                    5,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(4),
+                        length: terminal_psi::ArrayExtent::Literal(64),
+                    },
+                ),
+                declaration(
+                    6,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(6),
+                        length: terminal_psi::ArrayExtent::Literal(1),
+                    },
+                ),
+            ];
+            let source = |value| {
+                schema_field_layout_source(
+                    &module,
+                    &StructuralFieldType::Structural(identity(value)),
+                    &UnselectedRecordStorage,
+                )
+            };
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Scalar(ScalarType::Boolean)
+                ),
+                Some(1),
+            );
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Structural(identity(1))
+                ),
+                Some(32),
+            );
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Structural(identity(2))
+                ),
+                None,
+            );
+            let bounded = semantic_vocabulary::BoundedIntegerType::new(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    32,
+                )
+                .expect("u32"),
+                semantic_vocabulary::IntegerValue::Unsigned(0),
+                semantic_vocabulary::IntegerValue::Unsigned(7),
+            )
+            .expect("checked bounded integer");
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::BoundedInteger(bounded)
+                ),
+                Some(3),
+            );
+            assert_eq!(source(2), Ok(Source::Scalar));
+            assert_eq!(source(3), Ok(Source::Default));
+            assert_eq!(
+                source(4),
+                Err(StorageGeometryError::UnresolvedLayout(identity(4)))
+            );
+            assert_eq!(
+                source(6),
+                Err(StorageGeometryError::RecursiveType(identity(6)))
+            );
+            assert_eq!(
+                source(99),
+                Err(StorageGeometryError::MissingType(identity(99)))
+            );
+
+            struct Selected {
+                application: LayoutApplicationId,
+                realization: TargetLayoutRealization,
+            }
+            impl RecordStorageResolver for Selected {
+                fn realization(
+                    &self,
+                    record: StructuralTypeId,
+                    application: LayoutApplicationId,
+                ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+                    if record != identity(4) || application != self.application {
+                        return Err(StorageGeometryError::UnresolvedLayout(record));
+                    }
+                    Ok(&self.realization)
+                }
+            }
+            let mut selected = Selected {
+                application,
+                realization: TargetLayoutRealization {
+                    schema_argument: terminal_psi::TargetLayoutSchemaArgument {
+                        abi_version: 4,
+                        fields: Vec::new(),
+                        retired_field_identities: Vec::new(),
+                    },
+                    target: "actual-target".into(),
+                    pointer_size: 8,
+                    pointer_alignment: 8,
+                    case_tag_size: 4,
+                    case_tag_alignment: 4,
+                    little_endian: true,
+                    storage: AuthoredRecordStorage {
+                        byte_size: 0,
+                        byte_alignment: 1,
+                    },
+                    fields: Vec::new(),
+                },
+            };
+            let field = StructuralFieldDeclaration {
+                declaration_identity: Default::default(),
+                inline_carrier: None,
+                id: StructuralFieldId::new(1).expect("field"),
+                identity: TerminalIdentityIndex(1),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(identity(1)),
+                storage: None,
+            };
+            let direct = AuthoredFieldStorage::Direct { byte_offset: 0 };
+            let extent = |storage: &AuthoredFieldStorage, size| {
+                authored_field_storage_extent(
+                    module.structural_types.iter(),
+                    &field,
+                    storage,
+                    size,
+                    |child| (child == identity(1)).then_some((4, 4)),
+                )
+            };
+            assert_eq!(extent(&direct, 4), Ok(Some((0, 4))));
+            assert_eq!(
+                extent(&direct, 3),
+                Err("authored field extent exceeds its record storage")
+            );
+            let recipe = |width| {
+                AuthoredFieldStorage::Fragmented(semantic_vocabulary::AuthoredBitFragments::new([
+                    semantic_vocabulary::AuthoredBitFragment {
+                        container_byte_offset: 0,
+                        container_width_bits: 32,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width,
+                    },
+                ]))
+            };
+            assert_eq!(extent(&recipe(32), 4), Ok(None));
+            assert_eq!(
+                extent(&recipe(31), 4),
+                Err("fragment source ranges do not tile the declaration representation")
+            );
+            assert_eq!(
+                validate_storage_destination_intervals(vec![(0, 8), (8, 16)]),
+                Ok(())
+            );
+            assert_eq!(
+                validate_storage_destination_intervals(vec![(0, 8), (7, 16)]),
+                Err("authored field destination bits overlap")
+            );
+            let array = StructuralFieldType::Structural(identity(5));
+            assert_eq!(
+                schema_field_layout_source(&module, &array, &selected),
+                Ok(Source::Explicit)
+            );
+            selected.application = LayoutApplicationId(2);
+            assert_eq!(
+                schema_field_layout_source(&module, &array, &selected),
+                Err(StorageGeometryError::UnresolvedLayout(identity(4)))
+            );
+        }
+
+        #[test]
+        fn sum_image_offsets_and_array_extent_share_the_selected_tag_geometry() {
+            let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                id: identity(value),
+                identity: TerminalIdentityIndex(value as u32),
+                shape,
+            };
+            let types = [
+                declaration(
+                    1,
+                    StructuralTypeShape::Mixed {
+                        fields: vec![field(1, StructuralFieldType::Scalar(scalar(16)), None)],
+                        cases: vec![
+                            terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: semantic_vocabulary::StructuralCaseId::new(1).unwrap(),
+                                identity: TerminalIdentityIndex(10),
+                                fields: vec![],
+                            },
+                            terminal_psi::StructuralCaseDeclaration {
+                                declaration_identity: Default::default(),
+                                id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                                identity: TerminalIdentityIndex(11),
+                                fields: vec![
+                                    field(1, StructuralFieldType::Scalar(scalar(8)), None),
+                                    StructuralFieldDeclaration {
+                                        identity: TerminalIdentityIndex(5),
+                                        ..field(2, StructuralFieldType::Scalar(scalar(64)), None)
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                ),
+                declaration(
+                    2,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Literal(3),
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: vec![
+                            field(1, StructuralFieldType::Scalar(scalar(32)), None),
+                            StructuralFieldDeclaration {
+                                identity: TerminalIdentityIndex(5),
+                                ..field(2, StructuralFieldType::Structural(identity(1)), None)
+                            },
+                        ],
+                    },
+                ),
+                declaration(
+                    4,
+                    StructuralTypeShape::Sum {
+                        cases: vec![terminal_psi::StructuralCaseDeclaration {
+                            declaration_identity: Default::default(),
+                            id: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                            identity: TerminalIdentityIndex(11),
+                            fields: vec![StructuralFieldDeclaration {
+                                identity: TerminalIdentityIndex(5),
+                                ..field(
+                                    2,
+                                    StructuralFieldType::Scalar(scalar(64)),
+                                    Some(AuthoredFieldStorage::Scalar {
+                                        byte_offset: 0,
+                                        stored_scalar: Some(scalar(32)),
+                                    }),
+                                )
+                            }],
+                        }],
+                    },
+                ),
+            ];
+            let unresolved = |application| Err(StorageGeometryError::UnresolvedExtent(application));
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), unresolved).sum_layout(identity(1)),
+                Err(StorageGeometryError::MissingCarrierLayout)
+            );
+            for (tag_size, common, payload, extent) in [(4, 4, 8, 24), (8, 8, 16, 32)] {
+                let mut geometry = ReferenceStorageGeometry::new(types.iter(), unresolved)
+                    .with_target_carriers(Some(TargetCarrierLayout {
+                        pointer_byte_size: 8,
+                        pointer_byte_alignment: 8,
+                        descriptor_byte_size: 16,
+                        descriptor_byte_alignment: 8,
+                        case_tag_byte_size: tag_size,
+                        case_tag_byte_alignment: tag_size,
+                    }));
+                let sum = geometry.sum_layout(identity(1)).unwrap();
+                assert_eq!(sum.tag_byte_offset, 0);
+                assert_eq!(sum.tag.byte_size, tag_size);
+                assert_eq!(sum.tag.byte_alignment, tag_size);
+                assert_eq!(sum.common_field_offsets, vec![common]);
+                assert_eq!(
+                    sum.case_field_offsets,
+                    vec![vec![], vec![payload, payload + 8]]
+                );
+                assert_eq!(geometry.layout(identity(1)), Ok((extent, 8)));
+                assert_eq!(sum.storage.byte_size, extent);
+                assert_eq!(geometry.layout(identity(2)), Ok((3 * extent, 8)));
+                let common_region = geometry
+                    .region(
+                        identity(1),
+                        &[StructuralPathSegment::Field(TerminalIdentityIndex(4))],
+                    )
+                    .unwrap();
+                assert_eq!(
+                    (common_region.byte_offset, common_region.byte_length),
+                    (common, 2)
+                );
+                let selected = [
+                    StructuralPathSegment::Case(
+                        semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+                    ),
+                    StructuralPathSegment::Field(TerminalIdentityIndex(5)),
+                ];
+                let region = geometry.region(identity(1), &selected).unwrap();
+                assert_eq!((region.byte_offset, region.byte_length), (payload + 8, 8));
+                assert_eq!(region.scalar.unwrap().logical_scalar, scalar(64));
+                let narrow = geometry.region(identity(4), &selected).unwrap();
+                assert_eq!((narrow.byte_offset, narrow.byte_length), (tag_size, 4));
+                assert_eq!(narrow.scalar.unwrap().logical_scalar, scalar(64));
+                assert_eq!(narrow.scalar.unwrap().stored_scalar, scalar(32));
+                let mut nested = vec![StructuralPathSegment::Field(TerminalIdentityIndex(5))];
+                nested.extend_from_slice(&selected);
+                let region = geometry.region(identity(3), &nested).unwrap();
+                assert_eq!(
+                    (region.byte_offset, region.byte_length),
+                    (8 + payload + 8, 8)
+                );
+                let mut indexed = vec![StructuralPathSegment::FixedIndex(2)];
+                indexed.extend_from_slice(&selected);
+                let region = geometry.region(identity(2), &indexed).unwrap();
+                assert_eq!(
+                    (region.byte_offset, region.byte_length),
+                    (2 * extent + payload + 8, 8)
+                );
+                assert!(geometry.region(identity(1), &selected[..1]).is_none());
+                assert!(
+                    geometry
+                        .region(
+                            identity(1),
+                            &[
+                                StructuralPathSegment::Case(
+                                    semantic_vocabulary::StructuralCaseId::new(1).unwrap()
+                                ),
+                                StructuralPathSegment::Field(TerminalIdentityIndex(5)),
+                            ]
+                        )
+                        .is_none()
+                );
+            }
+        }
+
+        #[test]
+        fn extent_discovery_visits_unknown_siblings_but_respects_storage_and_erasure() {
+            let application = |value| ScalarApplicationId::new(value).unwrap();
+            let declaration = |value, shape| StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                id: identity(value),
+                identity: TerminalIdentityIndex(value as u32),
+                shape,
+            };
+            let mut types = [
+                declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(64))),
+                declaration(
+                    2,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Application(application(1)),
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Application(application(2)),
+                    },
+                ),
+                declaration(
+                    4,
+                    StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: vec![
+                            field(1, StructuralFieldType::Structural(identity(2)), None),
+                            field(2, StructuralFieldType::Structural(identity(3)), None),
+                        ],
+                    },
+                ),
+            ];
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(4)),
+                Ok(vec![application(1), application(2)])
+            );
+            assert_eq!(
+                reference_storage_layout(types.iter(), identity(4)),
+                None,
+                "discovery cannot publish unknown geometry"
+            );
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |dependency| Ok(dependency.get()))
+                    .layout(identity(4)),
+                Ok((24, 8))
+            );
+            let StructuralTypeShape::Record { fields, .. } = &mut types[3].shape else {
+                panic!("record");
+            };
+            fields[0].relevance = BindingRelevance::Erased;
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(4)),
+                Ok(vec![application(2)])
+            );
+            let StructuralTypeShape::Record { storage, .. } = &mut types[3].shape else {
+                panic!("record");
+            };
+            *storage = StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                byte_size: 3,
+                byte_alignment: 1,
+            });
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(4)),
+                Ok(Vec::new())
+            );
+            assert_eq!(
+                reference_storage_layout(types.iter(), identity(4)),
+                Some((3, 1))
+            );
+
+            types[1].shape = StructuralTypeShape::FixedArray {
+                element: identity(3),
+                length: terminal_psi::ArrayExtent::Literal(0),
+            };
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(2)),
+                Ok(vec![application(2)])
+            );
+            types[2].shape = StructuralTypeShape::FixedArray {
+                element: identity(2),
+                length: terminal_psi::ArrayExtent::Literal(0),
+            };
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(2)),
+                Err(StorageGeometryError::RecursiveType(identity(2)))
+            );
+            types[2].shape = StructuralTypeShape::FixedArray {
+                element: identity(99),
+                length: terminal_psi::ArrayExtent::Literal(0),
+            };
+            assert_eq!(
+                reference_storage_dependencies(types.iter(), identity(2)),
+                Err(StorageGeometryError::MissingType(identity(99)))
+            );
+        }
+
+        #[test]
+        fn resolved_array_extent_uses_the_same_geometry_and_reports_missing_or_overflow() {
+            let dependency = ScalarApplicationId::new(1).unwrap();
+            let mut types = [
+                StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: identity(1),
+                    identity: TerminalIdentityIndex(1),
+                    shape: StructuralTypeShape::PrimitiveScalar(scalar(64)),
+                },
+                StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: true,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: identity(2),
+                    identity: TerminalIdentityIndex(2),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Application(dependency),
+                    },
+                },
+            ];
+            assert_eq!(reference_storage_layout(types.iter(), identity(2)), None);
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |application| Err(
+                    StorageGeometryError::UnresolvedExtent(application)
+                ))
+                .layout(identity(2)),
+                Err(StorageGeometryError::UnresolvedExtent(dependency))
+            );
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |_| Ok(3)).layout(identity(2)),
+                Ok((24, 8))
+            );
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |_| Ok(0)).layout(identity(2)),
+                Ok((0, 8))
+            );
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |_| Ok(u64::MAX)).layout(identity(2)),
+                Err(StorageGeometryError::Overflow)
+            );
+            types[1].shape = StructuralTypeShape::FixedArray {
+                element: identity(2),
+                length: terminal_psi::ArrayExtent::Application(dependency),
+            };
+            assert_eq!(
+                ReferenceStorageGeometry::new(types.iter(), |_| Ok(3)).layout(identity(2)),
+                Err(StorageGeometryError::RecursiveType(identity(2)))
+            );
+        }
+
+        #[test]
+        fn canonical_parent_keeps_authored_child_width_and_codec() {
+            let types = [
+                StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: identity(1),
+                    identity: TerminalIdentityIndex(3),
+                    shape: StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                            byte_size: 1,
+                            byte_alignment: 1,
+                        }),
+                        fields: vec![field(
+                            1,
+                            StructuralFieldType::Scalar(scalar(64)),
+                            Some(AuthoredFieldStorage::Scalar {
+                                byte_offset: 0,
+                                stored_scalar: Some(scalar(8)),
+                            }),
+                        )],
+                    },
+                },
+                StructuralTypeDeclaration {
+                    declaration_identity: Default::default(),
+                    requires: Vec::new(),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    no_code_affine_cleanup: false,
+                    multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                    descriptor_cleanup: false,
+                    nominal_cleanup: None,
+                    scalar_restriction: None,
+                    id: identity(2),
+                    identity: TerminalIdentityIndex(2),
+                    shape: StructuralTypeShape::Record {
+                        storage: StructuralRecordStorage::Packed,
+                        fields: vec![field(2, StructuralFieldType::Structural(identity(1)), None)],
+                    },
+                },
+            ];
+            assert_eq!(reference_storage_size(types.iter(), identity(2)), Some(1));
+            assert_eq!(
+                reference_storage_projection(
+                    types.iter(),
+                    identity(2),
+                    &[
+                        StructuralPathSegment::Field(TerminalIdentityIndex(4)),
+                        StructuralPathSegment::Field(TerminalIdentityIndex(4))
+                    ]
+                ),
+                Some(ReferenceStorageProjection {
+                    byte_offset: 0,
+                    logical_scalar: scalar(64),
+                    stored_scalar: scalar(8)
+                })
+            );
+        }
+
+        #[test]
+        fn fragmented_fields_do_not_hide_the_record_extent_or_invent_a_scalar_address() {
+            let types = [StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                scalar_restriction: None,
+                id: identity(1),
+                identity: TerminalIdentityIndex(1),
+                shape: StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Authored(AuthoredRecordStorage {
+                        byte_size: 1,
+                        byte_alignment: 1,
+                    }),
+                    fields: vec![field(
+                        1,
+                        StructuralFieldType::Scalar(scalar(8)),
+                        Some(AuthoredFieldStorage::Fragmented(
+                            semantic_vocabulary::AuthoredBitFragments::new([
+                                semantic_vocabulary::AuthoredBitFragment {
+                                    container_byte_offset: 0,
+                                    container_width_bits: 8,
+                                    destination_lsb: 4,
+                                    source_lsb: 0,
+                                    width: 4,
+                                },
+                                semantic_vocabulary::AuthoredBitFragment {
+                                    container_byte_offset: 0,
+                                    container_width_bits: 8,
+                                    destination_lsb: 0,
+                                    source_lsb: 4,
+                                    width: 4,
+                                },
+                            ]),
+                        )),
+                    )],
+                },
+            }];
+            assert_eq!(reference_storage_size(types.iter(), identity(1)), Some(1));
+            assert_eq!(
+                reference_storage_projection(
+                    types.iter(),
+                    identity(1),
+                    &[StructuralPathSegment::Field(TerminalIdentityIndex(4))]
+                ),
+                None
+            );
+        }
+    }
+}
+pub(crate) mod reference_views {
+
+    use crate::descriptors::descriptor_results::descriptor_value_access;
+    use crate::exactly_one::exactly_one;
+    use crate::runtime_structural_path_tip;
+    use semantic_vocabulary::IntegerSign;
+    use semantic_vocabulary::{ScalarType, StructuralTypeId};
+
+    pub fn shared_descriptor_copy_matches<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        occurrence_access: Option<StructuralAccess>,
+        destination: StructuralTypeId,
+        destination_multiplicity: terminal_psi::StructuralMultiplicity,
+    ) -> bool {
+        let Some(source) = crate::structural_declaration(types.clone(), source) else {
+            return false;
+        };
+        let Some(destination) = crate::structural_declaration(types.clone(), destination) else {
+            return false;
+        };
+        descriptor_geometry_matches(&source.shape, &destination.shape)
+            && descriptor_declared_access(&source.shape)
+                .flatten()
+                .or(occurrence_access)
+                == Some(StructuralAccess::SharedBorrow)
+            && descriptor_value_access(types, destination.id, destination_multiplicity)
+                == Some(StructuralAccess::SharedBorrow)
+    }
+
+    pub fn descriptor_value_transfer_matches<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        destination: StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+    ) -> bool {
+        let Some(source_access) = descriptor_value_access(types.clone(), source, multiplicity)
+        else {
+            return false;
+        };
+        descriptor_value_access(types.clone(), destination, multiplicity) == Some(source_access)
+            && crate::borrowed_referent_presentation(types, source, destination)
+                == Some(crate::BorrowedReferentPresentation::Unchanged)
+    }
+
+    pub fn descriptor_reborrow_matches<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        source_access: StructuralAccess,
+        source_occurrence_access: Option<StructuralAccess>,
+        destination: StructuralTypeId,
+        requested_access: StructuralAccess,
+    ) -> bool {
+        let Some(source) = crate::structural_declaration(types.clone(), source) else {
+            return false;
+        };
+        let Some(destination) = crate::structural_declaration(types.clone(), destination) else {
+            return false;
+        };
+        descriptor_reborrow_shapes_match(
+            &source.shape,
+            source_access,
+            source_occurrence_access,
+            &destination.shape,
+            requested_access,
+        )
+    }
+
+    pub fn descriptor_reborrow_shapes_match(
+        source: &StructuralTypeShape,
+        source_access: StructuralAccess,
+        source_occurrence_access: Option<StructuralAccess>,
+        destination: &StructuralTypeShape,
+        requested_access: StructuralAccess,
+    ) -> bool {
+        let source_ceiling = descriptor_declared_access(source).flatten();
+        let destination_ceiling = descriptor_declared_access(destination).flatten();
+        descriptor_geometry_matches(source, destination)
+            && requested_access.admits(source_access)
+            && source_occurrence_access
+                .or(source_ceiling)
+                .is_some_and(|access| requested_access.admits_referent(access))
+            && source_ceiling.is_none_or(|access| requested_access.admits_referent(access))
+            && destination_ceiling.is_none_or(|access| requested_access.admits_referent(access))
+    }
+
+    pub fn stored_reference_access(shape: &StructuralTypeShape) -> Option<StructuralAccess> {
+        match shape {
+            StructuralTypeShape::Reference { access, .. } => Some(*access),
+            _ => descriptor_declared_access(shape).flatten(),
+        }
+    }
+
+    pub(crate) fn descriptor_declared_access(
+        shape: &StructuralTypeShape,
+    ) -> Option<Option<StructuralAccess>> {
+        match shape {
+            StructuralTypeShape::ElementView { access, .. }
+            | StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
+            ) => Some(*access),
+            _ => None,
+        }
+    }
+
+    pub fn descriptor_geometry_matches(
+        source: &StructuralTypeShape,
+        destination: &StructuralTypeShape,
+    ) -> bool {
+        use terminal_psi::ByteSequenceCarrier;
+        match (source, destination) {
+            (
+                StructuralTypeShape::ElementView {
+                    element: source, ..
+                },
+                StructuralTypeShape::ElementView {
+                    element: destination,
+                    ..
+                },
+            ) => source == destination,
+            (
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }),
+            ) => true,
+            (
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    capacity: source,
+                    ..
+                }),
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                    capacity: destination,
+                    ..
+                }),
+            ) => source == destination,
+            _ => false,
+        }
+    }
+
+    pub fn is_copyable_carrier<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        structural_type: StructuralTypeId,
+    ) -> bool {
+        let mut declarations = types.clone().filter(|row| row.id == structural_type);
+        let declared_copyable = declarations
+            .next()
+            .is_some_and(|row| row.is_copyable() && !row.owns_linear_claim)
+            && declarations.next().is_none();
+        declared_copyable || is_shared_reference_carrier(types, structural_type)
+    }
+
+    pub fn is_shared_reference_carrier<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        mut structural_type: StructuralTypeId,
+    ) -> bool {
+        for _ in 0..types.clone().count() {
+            let mut matching = types.clone().filter(|row| row.id == structural_type);
+            let Some(declaration) = matching.next() else {
+                return false;
+            };
+            if matching.next().is_some() || declaration.quotient_carrier.is_some() {
+                return false;
+            }
+            match declaration.shape {
+                StructuralTypeShape::Reference { access, .. } => {
+                    return access == StructuralAccess::SharedBorrow;
+                }
+                StructuralTypeShape::ElementView {
+                    access: Some(access),
+                    ..
+                }
+                | StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(access),
+                    }
+                    | terminal_psi::ByteSequenceCarrier::BoundedView {
+                        access: Some(access),
+                        ..
+                    },
+                ) => {
+                    return access == StructuralAccess::SharedBorrow;
+                }
+                StructuralTypeShape::FixedArray { element, .. } => structural_type = element,
+                _ => return false,
+            }
+        }
+        false
+    }
+
+    pub fn representation_view_declaration<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        view: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> Option<&'types StructuralTypeDeclaration> {
+        let declaration = exactly_one(types, |declaration| declaration.id == view)?;
+        match (stored, &declaration.shape) {
+            (Some(stored), StructuralTypeShape::PrimitiveScalar(logical))
+                if reference_storage_view_is_compatible(stored, *logical) => {}
+            (None, StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
+            }
+            _ => return None,
+        }
+        Some(declaration)
+    }
+
+    pub fn reference_source_storage_path<'types, 'path>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &'path [terminal_psi::StructuralPathSegment],
+    ) -> &'path [terminal_psi::StructuralPathSegment] {
+        if let Some((terminal_psi::StructuralPathSegment::Referent, prefix)) = path.split_last()
+            && (runtime_structural_path_tip(types.clone(), root, prefix).is_some_and(|tip| {
+                !matches!(
+                    tip.shape,
+                    terminal_psi::StructuralTypeShape::Reference { .. }
+                )
+            }) || crate::runtime_structural_field(types, root, prefix)
+                .is_some_and(|field| field.field_type.byte_sequence_carrier().is_some()))
+        {
+            prefix
+        } else {
+            path
+        }
+    }
+
+    pub fn reference_source_projection_compatible<'types>(
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[terminal_psi::StructuralPathSegment],
+        reference: StructuralTypeId,
+    ) -> bool {
+        let path = reference_source_storage_path(types.clone(), root, path);
+        if let Some(StructuralTypeShape::Reference {
+            access: StructuralAccess::SharedBorrow,
+            referent,
+        }) = crate::structural_shape(types.clone(), reference)
+            && let Some(target) = crate::structural_declaration(types.clone(), *referent)
+            && matches!(target.shape, StructuralTypeShape::PrimitiveScalar(_))
+        {
+            let Some(source) = crate::borrowed_primitive_projection_declaration(
+                types.clone(),
+                root,
+                path,
+                Some(*referent),
+            ) else {
+                return false;
+            };
+            return (source == *referent || target.scalar_restriction.is_none())
+                && reference_source_compatible(types, source, reference);
+        }
+        if let Some(field) = crate::runtime_structural_field(types.clone(), root, path)
+            && let Some(carrier) = field.field_type.byte_sequence_carrier()
+            && let Some(StructuralTypeShape::Reference { referent, .. }) =
+                crate::structural_shape(types.clone(), reference)
+            && crate::structural_declaration(types.clone(), *referent)
+                .is_some_and(|row| row.shape == StructuralTypeShape::ByteSequence(carrier))
+        {
+            return true;
+        }
+        if let Some(source) = crate::runtime_structural_path_tip(types.clone(), root, path) {
+            return reference_source_compatible(types, source.id, reference);
+        }
+        if let Some(source) = crate::primitive_projection_declaration(types.clone(), root, path) {
+            return reference_source_compatible(types, source, reference);
+        }
+        let Some(field) = crate::runtime_structural_field(types.clone(), root, path) else {
+            return false;
+        };
+        let Some(carrier) = field.field_type.byte_sequence_carrier() else {
+            return false;
+        };
+        let Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) =
+            crate::structural_shape(types.clone(), reference)
+        else {
+            return false;
+        };
+        crate::structural_declaration(types.clone(), *referent).is_some_and(|row| {
+            row.shape == terminal_psi::StructuralTypeShape::ByteSequence(carrier)
+        })
+    }
+
+    pub fn reference_source_projection_accessible<'types>(
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+        mut authority: terminal_psi::StructuralAccess,
+        path: &[terminal_psi::StructuralPathSegment],
+        requested: terminal_psi::StructuralAccess,
+    ) -> bool {
+        use terminal_psi::{
+            ByteSequenceCarrier, StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+        };
+        if authority == StructuralAccess::Owned
+            && multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && crate::descriptors::descriptor_results::is_shared_descriptor(types.clone(), root)
+        {
+            authority = StructuralAccess::SharedBorrow;
+        }
+        if !requested.admits(authority) {
+            return false;
+        }
+        let path = reference_source_storage_path(types.clone(), root, path);
+        let mut region_start = 0;
+        for (position, segment) in path.iter().enumerate() {
+            let prefix = &path[..position];
+            match segment {
+                StructuralPathSegment::Referent => {
+                    let Some(StructuralTypeShape::Reference { access, .. }) =
+                        runtime_structural_path_tip(types.clone(), root, prefix)
+                            .map(|declaration| &declaration.shape)
+                    else {
+                        return false;
+                    };
+                    if !StructuralAccess::SharedBorrow.admits(authority)
+                        || !requested.admits_referent(*access)
+                    {
+                        return false;
+                    }
+                    authority = *access;
+                    region_start = position + 1;
+                }
+                StructuralPathSegment::FixedIndex(_)
+                | StructuralPathSegment::RuntimeIndex { .. } => {
+                    let declaration = runtime_structural_path_tip(types.clone(), root, prefix);
+                    if let Some(StructuralTypeShape::ElementView { access, .. }) =
+                        declaration.map(|row| &row.shape)
+                    {
+                        match access {
+                            Some(access) if !requested.admits_referent(*access) => return false,
+                            None if position != region_start
+                                && requested != StructuralAccess::SharedBorrow =>
+                            {
+                                return false;
+                            }
+                            _ => {}
+                        }
+                    }
+                    let carrier = crate::runtime_structural_field(types.clone(), root, prefix)
+                        .and_then(|field| field.field_type.byte_sequence_carrier())
+                        .or_else(|| {
+                            declaration.and_then(|row| match row.shape {
+                                StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                                _ => None,
+                            })
+                        });
+                    if let Some(
+                        ByteSequenceCarrier::BorrowedView {
+                            access: Some(access),
+                        }
+                        | ByteSequenceCarrier::BoundedView {
+                            access: Some(access),
+                            ..
+                        },
+                    ) = carrier
+                        && !requested.admits_referent(access)
+                    {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
+    pub fn descriptor_source_projection_accessible<'types>(
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        multiplicity: terminal_psi::StructuralMultiplicity,
+        authority: terminal_psi::StructuralAccess,
+        path: &[terminal_psi::StructuralPathSegment],
+        requested: terminal_psi::StructuralAccess,
+    ) -> bool {
+        use terminal_psi::{
+            ByteSequenceCarrier, StructuralAccess, StructuralPathSegment, StructuralTypeShape,
+        };
+        if !reference_source_projection_accessible(
+            types.clone(),
+            root,
+            multiplicity,
+            authority,
+            path,
+            requested,
+        ) {
+            return false;
+        }
+        let path = reference_source_storage_path(types.clone(), root, path);
+        let region_start = path
+            .iter()
+            .rposition(|segment| *segment == StructuralPathSegment::Referent)
+            .map_or(0, |position| position + 1);
+        if let Some(StructuralTypeShape::ElementView { access, .. }) =
+            runtime_structural_path_tip(types.clone(), root, path).map(|row| &row.shape)
+        {
+            match access {
+                Some(access) if !requested.admits_referent(*access) => return false,
+                None if path.len() != region_start
+                    && requested != StructuralAccess::SharedBorrow =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        let carrier = crate::runtime_structural_field(types.clone(), root, path)
+            .and_then(|field| field.field_type.byte_sequence_carrier())
+            .or_else(|| {
+                runtime_structural_path_tip(types.clone(), root, path).and_then(|row| {
+                    match row.shape {
+                        StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
+                        _ => None,
+                    }
+                })
+            });
+        if let Some(
+            ByteSequenceCarrier::BorrowedView { access }
+            | ByteSequenceCarrier::BoundedView { access, .. },
+        ) = carrier
+        {
+            match access {
+                Some(access) if !requested.admits_referent(access) => return false,
+                None if path.len() != region_start
+                    && requested != StructuralAccess::SharedBorrow =>
+                {
+                    return false;
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
+    pub fn reference_byte_field_compatible<'types, 'domains>(
+        types: impl Iterator<Item = &'types terminal_psi::StructuralTypeDeclaration> + Clone,
+        domains: impl Iterator<Item = &'domains terminal_psi::StructuralDomainDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[terminal_psi::StructuralPathSegment],
+        reference: StructuralTypeId,
+        memberships: &[terminal_psi::StructuralPathQualification],
+    ) -> bool {
+        let Some(terminal_psi::StructuralTypeShape::Reference { referent, access }) =
+            crate::structural_shape(types.clone(), reference)
+        else {
+            return false;
+        };
+        let Some(terminal_psi::StructuralTypeShape::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+        )) = crate::structural_shape(types.clone(), *referent)
+        else {
+            return false;
+        };
+        let Some(field) = crate::runtime_structural_field(types, root, path) else {
+            return false;
+        };
+        if field.field_type.byte_sequence_carrier()
+            != Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                capacity: *capacity,
+            })
+            || memberships
+                .iter()
+                .any(|row| row.path != [terminal_psi::StructuralPathSegment::Referent])
+        {
+            return false;
+        }
+        let qualifications = memberships.iter().map(|row| row.domain).collect::<Vec<_>>();
+        let Some(required) =
+            crate::byte_qualification_predicates_in(domains, *referent, &qualifications)
+        else {
+            return false;
+        };
+        let predicates = field.field_type.byte_predicates();
+        predicates.implies(required)
+            && (*access == terminal_psi::StructuralAccess::SharedBorrow
+                || required.implies(predicates))
+    }
+    pub fn reference_storage_byte_width(stored: ScalarType) -> Option<u8> {
+        match stored {
+            ScalarType::Integer(integer) if !integer.is_address() => {
+                let bits = integer.bits()?;
+                (bits % 8 == 0)
+                    .then(|| u8::try_from(bits / 8).ok())
+                    .flatten()
+            }
+            ScalarType::Callable(_) => Some(8),
+            ScalarType::Boolean => Some(1),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),
+            _ => None,
+        }
+    }
+
+    pub fn reference_storage_view_is_compatible(stored: ScalarType, logical: ScalarType) -> bool {
+        if reference_storage_byte_width(stored).is_none() {
+            return false;
+        }
+        if scalar_reference_view_is_total(stored, logical) {
+            return true;
+        }
+        let (ScalarType::Integer(stored), ScalarType::Integer(logical)) = (stored, logical) else {
+            return false;
+        };
+        if logical.is_address() || logical.bits() < stored.bits() {
+            return false;
+        }
+        match (stored.sign(), logical.sign()) {
+            (IntegerSign::Signed, IntegerSign::Unsigned) => false,
+            (IntegerSign::Unsigned, IntegerSign::Signed) => logical.bits() > stored.bits(),
+            _ => true,
+        }
+    }
+
+    pub fn reference_storage_export_byte_width(
+        logical: ScalarType,
+        access: StructuralAccess,
+    ) -> Option<u8> {
+        let width = reference_storage_byte_width(logical)?;
+        if access == StructuralAccess::MutableBorrow {
+            return Some(width);
+        }
+        let same_width = |stored| {
+            !reference_storage_view_is_compatible(stored, logical)
+                || reference_storage_byte_width(stored) == Some(width)
+        };
+        for stored in [
+            ScalarType::Boolean,
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+        ] {
+            if !same_width(stored) {
+                return None;
+            }
+        }
+        for bits in (8..=128).step_by(8) {
+            for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                let integer = semantic_vocabulary::IntegerType::new(sign, bits).ok()?;
+                if !same_width(ScalarType::Integer(integer)) {
+                    return None;
+                }
+            }
+        }
+        Some(width)
+    }
+
+    pub fn reference_storage_region_source_compatible<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        path: &[terminal_psi::StructuralPathSegment],
+        reference: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> bool {
+        crate::ReferenceStorageGeometry::new(types, |application| {
+            Err(crate::StorageGeometryError::UnresolvedExtent(application))
+        })
+        .view_source_compatible(source, path, reference, stored)
+    }
+
+    pub fn reference_storage_source_compatible<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        reference: StructuralTypeId,
+        stored: Option<ScalarType>,
+    ) -> bool {
+        crate::ReferenceStorageGeometry::new(types, |application| {
+            Err(crate::StorageGeometryError::UnresolvedExtent(application))
+        })
+        .source_compatible(source, reference, stored)
+    }
+
+    pub(crate) fn plain_storage<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        active: &mut Vec<StructuralTypeId>,
+    ) -> bool {
+        storage_scalars_satisfy(types, root, active, &|scalar| {
+            reference_storage_byte_width(scalar).is_some()
+        })
+    }
+
+    pub(super) fn is_byte_scalar(scalar: ScalarType) -> bool {
+        matches!(scalar, ScalarType::Integer(integer) if !integer.is_address()
+            && integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned)
+    }
+
+    pub(super) fn storage_scalars_satisfy<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        active: &mut Vec<StructuralTypeId>,
+        accepts: &impl Fn(ScalarType) -> bool,
+    ) -> bool {
+        if active.len() >= 128 || active.contains(&root) {
+            return false;
+        }
+        let Some(shape) = crate::structural_shape(types.clone(), root) else {
+            return false;
+        };
+        active.push(root);
+        let valid = match shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => accepts(*scalar),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                storage_scalars_satisfy(types.clone(), *element, active, accepts)
+            }
+            StructuralTypeShape::Record { fields, .. } => fields
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .all(|field| match field.field_type {
+                    terminal_psi::StructuralFieldType::Structural(child) => {
+                        storage_scalars_satisfy(types.clone(), child, active, accepts)
+                    }
+                    terminal_psi::StructuralFieldType::Atomic(_)
+                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => false,
+                    _ => field.field_type.scalar_type().is_some_and(accepts),
+                }),
+            _ => false,
+        };
+        active.pop();
+        valid
+    }
+    use terminal_psi::{StructuralAccess, StructuralTypeDeclaration, StructuralTypeShape};
+
+    use crate::scalars::scalar_representation_view::{integer_bits, integer_from_bits};
+    use crate::{ScalarRepresentationViewPair, ScalarViewValue};
+
+    pub fn scalar_reference_view_is_total(source: ScalarType, target: ScalarType) -> bool {
+        if source == target {
+            return true;
+        }
+        if let (ScalarType::Integer(source), ScalarType::Integer(target)) = (source, target) {
+            return !source.is_address()
+                && !target.is_address()
+                && source.bits() == target.bits()
+                && source.bits().is_some_and(|bits| bits <= 64);
+        }
+        ScalarRepresentationViewPair::classify(source, target)
+            .is_some_and(|pair| !pair.requires_landing())
+    }
+
+    /// Whether a reference with `access` may present `stored` scalar storage as
+    /// `presented` (wiki/spec/layouts/recasts.md#shared-and-mutable-views).
+    ///
+    /// A recast keeps the same backing, so the judgment follows the operations
+    /// the view enables: a shared reader needs every stored value to read as a
+    /// valid presented value, a write-only view needs every presented value to
+    /// leave valid stored bits, and a mutable view needs both. Owned values are
+    /// never reinterpreted in place. Domain handback obligations on the lender
+    /// stay with the checker; this judges only representation validity.
+    pub fn scalar_reference_view_admits(
+        access: StructuralAccess,
+        stored: ScalarType,
+        presented: ScalarType,
+    ) -> bool {
+        let reads = || scalar_reference_view_is_total(stored, presented);
+        let writes = || scalar_reference_view_is_total(presented, stored);
+        match access {
+            StructuralAccess::Owned => stored == presented,
+            StructuralAccess::SharedBorrow => reads(),
+            StructuralAccess::WriteOnlyBorrow => writes(),
+            StructuralAccess::MutableBorrow => reads() && writes(),
+        }
+    }
+
+    /// The leaf contract an inline field presents to a borrow with `access`
+    /// that expects `expected`. Every Terminal consumer (native target lowering
+    /// and the Psi interpreter) resolves borrowed field leaves here, so a
+    /// cross-carrier scalar view of a field has one admission rule.
+    pub fn borrowed_field_presentation(
+        field: &terminal_psi::StructuralFieldType,
+        access: StructuralAccess,
+        expected: Option<&StructuralTypeDeclaration>,
+    ) -> Option<terminal_psi::StructuralFieldType> {
+        let presentation = field.borrowed_presentation_type(access, expected)?;
+        if let Some(expected) = expected
+            && presentation != terminal_psi::StructuralFieldType::Structural(expected.id)
+            && expected.scalar_restriction.is_none()
+            && let StructuralTypeShape::PrimitiveScalar(presented) = expected.shape
+            && let Some(StructuralTypeShape::PrimitiveScalar(stored)) =
+                presentation.canonical_leaf_shape()
+            && scalar_reference_view_admits(access, stored, presented)
+        {
+            return Some(terminal_psi::StructuralFieldType::Structural(expected.id));
+        }
+        Some(presentation)
+    }
+
+    pub fn scalar_reference_view_value(
+        source: ScalarType,
+        target: ScalarType,
+        value: ScalarViewValue,
+    ) -> Option<ScalarViewValue> {
+        if !scalar_reference_view_is_total(source, target) {
+            return None;
+        }
+        if source == target {
+            return match (source, value) {
+                (ScalarType::Boolean, ScalarViewValue::Boolean(_)) => Some(value),
+                (ScalarType::Integer(integer), ScalarViewValue::Integer(value))
+                    if integer.admits(value) =>
+                {
+                    Some(ScalarViewValue::Integer(value))
+                }
+                (ScalarType::IeeeFloat(format), ScalarViewValue::IeeeFloat(value))
+                    if value.format() == format =>
+                {
+                    Some(ScalarViewValue::IeeeFloat(value))
+                }
+                _ => None,
+            };
+        }
+        if let (
+            ScalarType::Integer(source),
+            ScalarType::Integer(target),
+            ScalarViewValue::Integer(value),
+        ) = (source, target, value)
+        {
+            return Some(ScalarViewValue::Integer(integer_from_bits(
+                target,
+                integer_bits(source, value)?,
+            )?));
+        }
+        ScalarRepresentationViewPair::classify(source, target)?.view(value)
+    }
+
+    pub fn shared_byte_descriptor_storage_matches(
+        source: terminal_psi::ByteSequenceCarrier,
+        referent: terminal_psi::ByteSequenceCarrier,
+    ) -> bool {
+        use terminal_psi::ByteSequenceCarrier::BorrowedView;
+        source == (BorrowedView { access: None })
+            && referent
+                == (BorrowedView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                })
+    }
+
+    fn shared_byte_descriptor_reference_shapes(
+        source: &StructuralTypeShape,
+        referent: &StructuralTypeShape,
+        access: StructuralAccess,
+    ) -> bool {
+        access == StructuralAccess::SharedBorrow
+            && matches!((source, referent),
+                (StructuralTypeShape::ByteSequence(source), StructuralTypeShape::ByteSequence(referent))
+                    if shared_byte_descriptor_storage_matches(*source, *referent))
+    }
+
+    /// Match a shared borrow of an incoming mutable view's descriptor slot.
+    /// The original formal supplies the backing permission.
+    pub fn shared_direct_byte_descriptor_source(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        source: &terminal_psi::StructuralArgument,
+        reference: StructuralTypeId,
+    ) -> Option<bool> {
+        let StructuralTypeShape::Reference { access, referent } =
+            module.structural_type(reference)?.shape
+        else {
+            return None;
+        };
+        let target = module.structural_type(referent)?;
+        let direct_byte_view =
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: None,
+            });
+        if !shared_byte_descriptor_reference_shapes(&direct_byte_view, &target.shape, access) {
+            return None;
+        }
+        let root = machine.structural_place_type(source.place)?;
+        let path =
+            reference_source_storage_path(module.structural_types.iter(), root, &source.path);
+        let actual =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)?;
+        if actual.shape != direct_byte_view {
+            return None;
+        }
+        Some(
+            source.access == access
+                && source.path.is_empty()
+                && crate::arrival_parameter(machine, source.place).is_some_and(|parameter| {
+                    parameter.structural_type == root
+                        && parameter.access == StructuralAccess::MutableBorrow
+                }),
+        )
+    }
+
+    pub fn reference_source_compatible<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        source: StructuralTypeId,
+        reference: StructuralTypeId,
+    ) -> bool {
+        let Some(StructuralTypeShape::Reference { referent, access }) =
+            crate::structural_shape(types.clone(), reference)
+        else {
+            return false;
+        };
+        let Some(source_shape) = crate::structural_shape(types.clone(), source) else {
+            return false;
+        };
+        if source == *referent {
+            return true;
+        }
+        if crate::structural_shape(types.clone(), *referent).is_some_and(|target| {
+            shared_byte_descriptor_reference_shapes(source_shape, target, *access)
+        }) {
+            return true;
+        }
+        if matches!(
+            source_shape,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        ) && crate::structural_declaration(types.clone(), *referent)
+            .is_some_and(|row| row.shape == *source_shape)
+        {
+            return true;
+        }
+        let Some(StructuralTypeShape::PrimitiveScalar(target)) =
+            crate::structural_shape(types, *referent)
+        else {
+            return false;
+        };
+        matches!(source_shape, StructuralTypeShape::PrimitiveScalar(source)
+            if scalar_reference_view_admits(*access, *source, *target))
+    }
+    #[cfg(test)]
+    mod scalar_view_admission_tests {
+        use super::*;
+        use semantic_vocabulary::{IntegerSign, IntegerType, StructuralTypeId};
+        use terminal_psi::{StructuralFieldType, TerminalIdentityIndex};
+
+        fn integer(sign: IntegerSign, bits: u16) -> ScalarType {
+            ScalarType::Integer(IntegerType::new(sign, bits).expect("fixed integer"))
+        }
+
+        fn primitive(raw: u64, scalar: ScalarType) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                requires: Vec::new(),
+                id: StructuralTypeId::new(raw).expect("type identity"),
+                identity: TerminalIdentityIndex(raw as u32),
+                owns_linear_claim: false,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                nominal_cleanup: None,
+                quotient_carrier: None,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::PrimitiveScalar(scalar),
+            }
+        }
+
+        // `&mut pair.start as &mut u32` over an i32 field: every bit pattern is
+        // valid in both carriers, so every borrow access admits the view, but an
+        // owned value is never reinterpreted in place.
+        #[test]
+        fn equal_width_integer_views_admit_every_borrow() {
+            let signed = integer(IntegerSign::Signed, 32);
+            let unsigned = integer(IntegerSign::Unsigned, 32);
+            for access in [
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::WriteOnlyBorrow,
+            ] {
+                assert!(scalar_reference_view_admits(access, signed, unsigned));
+                assert!(scalar_reference_view_admits(access, unsigned, signed));
+            }
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::Owned,
+                signed,
+                unsigned
+            ));
+        }
+
+        // Every bool reads as a valid u8, but a u8 write of 2 would leave invalid
+        // bool storage: only the direction the view's operations need is admitted.
+        #[test]
+        fn one_way_views_admit_only_the_operations_they_keep_valid() {
+            let byte = integer(IntegerSign::Unsigned, 8);
+            let boolean = ScalarType::Boolean;
+            assert!(scalar_reference_view_admits(
+                StructuralAccess::SharedBorrow,
+                boolean,
+                byte
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::MutableBorrow,
+                boolean,
+                byte
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::WriteOnlyBorrow,
+                boolean,
+                byte
+            ));
+            assert!(scalar_reference_view_admits(
+                StructuralAccess::WriteOnlyBorrow,
+                byte,
+                boolean
+            ));
+            assert!(!scalar_reference_view_admits(
+                StructuralAccess::SharedBorrow,
+                byte,
+                boolean
+            ));
+        }
+
+        #[test]
+        fn borrowed_fields_present_only_admitted_scalar_views() {
+            let signed = StructuralFieldType::Scalar(integer(IntegerSign::Signed, 32));
+            let unsigned = primitive(7, integer(IntegerSign::Unsigned, 32));
+            assert_eq!(
+                borrowed_field_presentation(
+                    &signed,
+                    StructuralAccess::MutableBorrow,
+                    Some(&unsigned)
+                ),
+                Some(StructuralFieldType::Structural(unsigned.id))
+            );
+            let boolean = StructuralFieldType::Scalar(ScalarType::Boolean);
+            let byte = primitive(8, integer(IntegerSign::Unsigned, 8));
+            assert_eq!(
+                borrowed_field_presentation(&boolean, StructuralAccess::SharedBorrow, Some(&byte)),
+                Some(StructuralFieldType::Structural(byte.id))
+            );
+            assert_eq!(
+                borrowed_field_presentation(&boolean, StructuralAccess::MutableBorrow, Some(&byte)),
+                Some(boolean)
+            );
+        }
+    }
+}
+pub(crate) mod resident_references {
+
+    use semantic_vocabulary::StructuralTypeId;
+    use terminal_psi::{
+        ResidentReferenceSource, StructuralAccess, StructuralTypeShape, TerminalAccessViewPlan,
+        TerminalModule,
+    };
+
+    pub fn resident_reference_plan(
+        module: &TerminalModule,
+        source_type: StructuralTypeId,
+        result_type: StructuralTypeId,
+        access: StructuralAccess,
+        resident: ResidentReferenceSource,
+    ) -> Result<&TerminalAccessViewPlan, &'static str> {
+        validate_resident_owner_geometry(module, source_type, resident.base, resident.length)?;
+        let Some(StructuralTypeShape::Reference {
+            referent,
+            access: requested,
+        }) = module.structural_type(result_type).map(|row| &row.shape)
+        else {
+            return Err("resident interpretation requires an ordinary reference result");
+        };
+        if !matches!(
+            access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || !matches!(
+            requested,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) || !requested.admits(access)
+        {
+            return Err("resident interpretation cannot increase source borrow access");
+        }
+        if resident.granted == resident.resident
+            || [resident.granted, resident.resident]
+                .iter()
+                .any(|identity| {
+                    module
+                        .structural_domain(*identity)
+                        .is_none_or(|domain| domain.carrier != source_type)
+                })
+        {
+            return Err("resident interpretation lost distinct source-owner qualification roles");
+        }
+        let mut plans = module
+            .access_view_plans
+            .iter()
+            .filter(|plan| plan.carrier == *referent);
+        let (Some(plan), None) = (plans.next(), plans.next()) else {
+            return Err("resident interpretation requires one exact retained placement");
+        };
+        Ok(plan)
+    }
+
+    pub(crate) fn validate_resident_owner_geometry(
+        module: &TerminalModule,
+        carrier: StructuralTypeId,
+        base: semantic_vocabulary::StructuralFieldId,
+        length: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<(), &'static str> {
+        let declaration = module
+            .structural_type(carrier)
+            .ok_or("placement extent carrier is absent")?;
+        validate_resident_owner_fields(declaration, base, length)
+    }
+
+    pub fn validate_resident_owner_fields(
+        declaration: &terminal_psi::StructuralTypeDeclaration,
+        base: semantic_vocabulary::StructuralFieldId,
+        length: semantic_vocabulary::StructuralFieldId,
+    ) -> Result<(), &'static str> {
+        let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+            return Err("placement extent carrier is not a record");
+        };
+        if !declaration.owns_linear_claim || base == length {
+            return Err("placement extent lost linear custody or distinct geometry fields");
+        }
+        let field_type = |identity| {
+            fields
+                .iter()
+                .find(|field| field.id == identity && !field.relevance.is_erased())
+                .and_then(|field| field.field_type.scalar_type())
+                .and_then(|scalar| scalar.as_integer())
+        };
+        if field_type(base).is_none_or(|integer| !integer.is_address())
+            || field_type(length).is_none_or(|integer| {
+                integer.is_address()
+                    || integer.sign() != semantic_vocabulary::IntegerSign::Unsigned
+                    || integer.bits() != Some(64)
+            })
+        {
+            return Err("placement extent geometry roles have incorrect scalar types");
+        }
+        Ok(())
+    }
+}

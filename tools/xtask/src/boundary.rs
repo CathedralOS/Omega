@@ -38,7 +38,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/psi/compilation/proof-admission",
     "omega-rust/psi/compilation/access-admission",
     "omega-rust/psi/compilation/terminal-installation",
-    "omega-rust/psi/compilation/layout-planning",
+    "source-rust/subsystems/compiler/psi/layout/integer-defaults",
     "omega-rust/psi/compilation/representations/terminal-psi",
     "omega-rust/psi/compilation/representations/access-vocabulary",
     "omega-rust/psi/compilation/representations/application-identity",
@@ -52,7 +52,7 @@ pub const PERMITTED_OWNERS: &[&str] = &[
     "omega-rust/psi/compilation/representations/semantic-vocabulary",
     "omega-rust/psi/compilation/representations/source-effects",
     "omega-rust/psi/compilation/representations/source-vocabulary",
-    "omega-rust/psi/compilation/representations/storage-layout",
+    "source-rust/subsystems/compiler/psi/layout",
 ];
 
 const PSI: &str = "omega-rust/psi";

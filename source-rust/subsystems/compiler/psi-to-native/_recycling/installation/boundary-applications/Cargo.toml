@@ -1,0 +1,22 @@
+[package]
+name = "boundary-applications"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "boundary_applications"
+path = "src/lib.rs"
+
+[dependencies]
+numeric-literals = { path = "../../../source-to-psi/language/numeric-literals" }
+wire = { path = "../../../../../foundation/wire" }
+numerics = { path = "../../../source-to-psi/language/scalar-values" }
+effects = { path = "../native-effects" }
+optimization-core = { path = "../../optimization-contracts" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+
+[dev-dependencies]
+# The source guards delegate their scan to the shared audit crate.
+source-audit = { path = "../../../../test-support/source-audit" }

@@ -1,0 +1,17 @@
+[package]
+name = "declaration-contracts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+numeric-literals = { path = "../numeric-literals" }
+source-text = { path = "../../../../../../foundation/source-text" }
+bignum = { path = "../../../../../foundation/bignum" }
+wire = { path = "../../../../../foundation/wire" }
+record-storage = { path = "../../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+language-core = { path = "../source-vocabulary" }
+numerics = { path = "../scalar-values" }
+symbols = { path = "../declaration-identity" }

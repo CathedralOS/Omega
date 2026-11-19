@@ -1,0 +1,52 @@
+[package]
+name = "lowered-program-to-checked-program"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[lib]
+path = "lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+declaration-contracts = { path = "../../language/declaration-contracts" }
+application-identity = { path = "../../language/application-identity" }
+numeric-literals = { path = "../../language/numeric-literals" }
+source-admission = { path = "../../inputs/source-admission" }
+source-text = { path = "../../../../../foundation/source-text" }
+wire = { path = "../../../../../foundation/wire" }
+arena = { path = "../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+worker-budget = { path = "../../../foundation/worker-budget" }
+language-core = { path = "../../language/source-vocabulary" }
+numerics = { path = "../../language/scalar-values" }
+optimization = { path = "../../../representations/psi/optimization-selections" }
+proof-admission = { path = "../../proof-admission" }
+rayon = "1.11"
+semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+symbols = { path = "../../language/declaration-identity" }
+terminal-check-tables = { path = "../representations/lowered-program" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-interpreter = { path = "../../../interpreter" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+terminal-work = { path = "../../../representations/psi/work" }
+
+[dev-dependencies]
+bignum = { path = "../../../../../foundation/bignum" }
+bundled-declarations = { path = "../../inputs/bundled-declarations" }
+syntax-trees-to-symbol-resolved-trees = { path = "../02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
+symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
+typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees", features = ["test-support"] }
+source-parser = { path = "../01_tokens-to-syntax-trees" }
+source-lexer = { path = "../00_source-files-to-tokens" }
+syntax-trees = { path = "../representations/syntax-trees" }
+tokens = { path = "../representations/tokens" }
+typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program", features = ["test-support"] }
+source-declarations = { path = "../../language/source-declarations" }
+typed-trees = { path = "../representations/typed-trees" }

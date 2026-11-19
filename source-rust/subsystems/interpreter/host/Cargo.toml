@@ -1,0 +1,37 @@
+[package]
+name = "terminal-runtime"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+published-runtime-input = { path = "../../compiler/psi-to-native/installation/published-runtime-input" }
+access-vocabulary = { path = "../../compiler/source-to-psi/language/access-vocabulary" }
+storage-access = { path = "../../../psi/runtime/storage-access" }
+extent-contracts = { path = "../../compiler/source-to-psi/language/extent-contracts" }
+bignum = { path = "../../../foundation/bignum" }
+extents = { path = "../../../psi/runtime/extents" }
+access-admission = { path = "../../../psi/compilation/access-admission" }
+native-provider-runtime = { path = "../native-provider-runtime" }
+terminal-installation = { path = "../../compiler/psi-admission" }
+runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
+numerics = { path = "../../compiler/source-to-psi/language/scalar-values" }
+semantic-vocabulary = { path = "../../compiler/source-to-psi/language/semantic-vocabulary" }
+backend-plan = { path = "../../compiler/psi-to-native/installation/provider-plans" }
+target = { path = "../../compilation/target-description/target" }
+terminal-psi = { path = "../../compiler/representations/psi" }
+terminal-codec = { path = "../../compiler/representations/psi/codec" }
+terminal-semantics = { path = "../../compiler/representations/psi/semantics" }
+terminal-work = { path = "../../compiler/representations/psi/work" }
+terminal-interpreter = { path = "../../../psi/interpreter" }
+target-operations = { path = "../../compiler/psi-to-native/pipeline/representations/target-operations" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+provider-admission = { path = "../../compilation/verification/provider-admission" }
+
+[dev-dependencies]
+native-provider-sponsor = { path = "../../host-support/native-provider-sponsor" }
+application-identity = { path = "../../compiler/source-to-psi/language/application-identity" }
+language-core = { path = "../../compiler/source-to-psi/language/source-vocabulary" }
+declaration-contracts = { path = "../../compiler/source-to-psi/language/declaration-contracts" }
+orchestration = { path = "../../build-system/orchestration" }
+platform-custody = { path = "../../host-support/platform-custody" }

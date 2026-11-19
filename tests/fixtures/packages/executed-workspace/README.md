@@ -27,7 +27,7 @@ The same journey rejects private member access and a requested name absent from
 the executed catalog. Focused path-normalization controls reject escaping the
 registered workspace and selecting its root instead of a member.
 
-Run `cargo run -p compiler --example executed_git_source`. The existing test-owned
+Run `mbx test -p compiler --test executed_git_source`. The existing test-owned
 Git proxy routes the inert HTTPS locator to real local Git objects; production
 acquisition/custody and compiler behavior remain unchanged. This data fixture is
 not a network-dependent generic corpus entry.

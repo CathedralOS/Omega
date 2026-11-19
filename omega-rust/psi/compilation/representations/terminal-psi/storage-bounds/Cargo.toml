@@ -1,8 +1,0 @@
-[package]
-name = "resource-bounds"
-edition.workspace = true
-license.workspace = true
-version.workspace = true
-
-[dependencies]
-extent-contracts = { path = "../../extent-contracts" }

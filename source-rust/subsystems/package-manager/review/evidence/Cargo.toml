@@ -1,0 +1,36 @@
+[package]
+name = "review-evidence"
+autotests = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+
+[dependencies]
+evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
+declaration-contracts = { path = "../../../compiler/source-to-psi/language/declaration-contracts" }
+application-identity = { path = "../../../compiler/source-to-psi/language/application-identity" }
+numeric-literals = { path = "../../../compiler/source-to-psi/language/numeric-literals" }
+source-admission = { path = "../../../compiler/source-to-psi/inputs/source-admission" }
+source-text = { path = "../../../../foundation/source-text" }
+wire = { path = "../../../../foundation/wire" }
+arena = { path = "../../../../foundation/arena" }
+build-settings = { path = "../../build-system/build-settings" }
+backend-plan = { path = "../../../compiler/psi-to-native/installation/provider-plans" }
+layout-plans = { path = "../../../compiler/psi/layout" }
+optimization-core = { path = "../../../compiler/psi-to-native/optimization-contracts" }
+products = { path = "../../compilation/products" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
+terminal-check-tables = { path = "../../../compiler/source-to-psi/pipeline/representations/lowered-program" }
+package-compilation = { path = "../package-compilation" }
+calling-conventions = { path = "../../compilation/target-description/calling-conventions" }
+effects = { path = "../../../compiler/psi-to-native/installation/native-effects" }
+terminal-psi = { path = "../../../compiler/representations/psi" }
+target = { path = "../../compilation/target-description/target" }
+semantic-vocabulary = { path = "../../../compiler/source-to-psi/language/semantic-vocabulary" }
+diagnostics = { path = "../../../../foundation/diagnostics" }
+flow-effects = { path = "../../../compiler/source-to-psi/language/source-effects" }
+language-core = { path = "../../../compiler/source-to-psi/language/source-vocabulary" }
+numerics = { path = "../../../compiler/source-to-psi/language/scalar-values" }
+symbols = { path = "../../../compiler/source-to-psi/language/declaration-identity" }
+

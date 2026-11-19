@@ -1,0 +1,818 @@
+# Source-to-Terminal pipeline
+
+Psi has eight stage directories, from file lexing through publication. The
+lexer and parser compile as independent crates. The source compilation
+coordinator still compiles stages 02 through 07 together and owns the
+resolution and typing loop for deferred bodies. [Connected program route](../../../pipeline.md#connected-program-route)
+
+## Follow the compilation route
+
+| Operation | Input and output |
+| --- | --- |
+| [Lex and parse one file](01_tokens-to-syntax-trees/streaming.rs) | The [lexer](00_source-files-to-tokens/lexer.rs) produces tokens. The [parser](01_tokens-to-syntax-trees/parser.rs) consumes that file's tokens and returns a syntax page before the worker reuses its scratch space. |
+| [Resolve names](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) | Syntax pages become source-owned [resolved trees](representations/symbol-resolved-trees/src/lib.rs). |
+| [Type declarations and bodies](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | The resolved program becomes [typed source](representations/typed-trees/src/lib.rs). |
+| [Prepare typed source](04_typed-trees-to-typed-trees/src/driver.rs) | Preparation and [evaluation](../evaluation/source/README.md) complete the requested work and freeze its input to lowering. |
+| [Lower to Terminal](05_typed-trees-to-lowered-program/src/compilation.rs) | Typed source becomes the [complete checker input](../language/terminal-psi/check-tables/src/compilation.rs), including demanded generic bodies and witnesses. |
+| [Check the program](06_lowered-program-to-checked-program/src/verdict.rs) | The checker issues its verdict and evidence over the lowered input. The [accepted-source factory](07_checked-program-to-psi/src/accepted.rs) binds that judgment to its source. |
+| [Close logical provider demand](07_checked-program-to-psi/src/provider_supply/mod.rs) | The source owner records the reached requirements and selected checked bodies for the requested roots. [Portable publication](../../build/package-compilation/psi-publication/src/lib.rs) carries those choices to native planning. |
+
+The Psi 03 trace identifies typing. The following
+notes describe these operations and their semantic contracts. Fixture names starting with `pass/` or `fail/` without a
+`tests/fixtures/` path refer to the [former corpus](../../../../tests/README.md#the-former-corpus).
+
+## Lexing and parsing
+
+A `match` used as a value, including a bare expression at the end of a
+machine, keeps its subject and its ordered arms, each linked to source, through
+every source representation. It is not another way to write `transition`. For
+scalar computations the compiler evaluates the subject once, tries the
+patterns in order, and passes only the chosen arm's result on to the
+surrounding expression. Source replay separately checks the exact arms and
+coverage; it cannot treat whatever arm is last as a default.
+
+The [dispatch contract](../../../../wiki/spec/language/patterns.md) is broader than
+the current implementation. Wildcards and complete Boolean value alternatives
+close coverage. Runtime scalar lowering currently supports Boolean/integer
+subjects and Boolean/integer/float results, plus f32/f64 subjects through the
+retained floating comparison described below; an anonymous-only numeric subject has no invented default width.
+Structural/domain/payload patterns remain explicit limitations. Conditional joins
+can select whole immutable plain-affine locals alongside fresh scalar-case or
+record constructors. Fresh record children can contain their own dispatch without
+consuming the outer candidates; exact edge transfers and residual disposal remain
+mandatory. The former `pass/expressions/owned_match_record_values` fixture
+recorded independent Terminal replay and native payload observations.
+Source checking permits fresh
+plain-owned constructors, including nested records, sums and arrays, on selected
+result paths. Each child must be fresh or unrestricted; loans, linear contents,
+nominal cleanup and owned call results still require their missing custody join.
+An explicitly initialized affine local retains one whole ownership timeline
+regardless of its initializer shape or mutability. Selection does not make the
+result copyable. The former `pass/expressions/match_fresh_owned` fixture checked
+this; `fail/expressions/match_result_double_move` rejected a second transfer.
+These checked constructors do not by themselves establish native
+aggregate result transport. Checking still validates every arm's
+type, including unreachable arms. Stable comparison facts belong to the exact
+selected branch and are retired by writes to their inputs; they do not escape
+the result join. The interpreter forwards an existing destination into only the
+selected arm, preserving anonymous numeric landing without arithmetic desugaring.
+
+Declared storage, parameter, return, typed-peer and exact-cast destinations flow
+through result arms and array elements. Each complete anonymous arm keeps exact intermediates until
+its own integral, in-range landing; even an unreachable fractional result rejects.
+Width permission follows result edges, never the dispatch subject or patterns,
+and independent call/constructor destinations retain their own custody. The
+shared numeric destination collector drives width admission and fractional-origin
+warnings for both ordinary arithmetic and Match results. A retained typed arm
+fixes the result before an outer cast; otherwise a numeric result must be proven
+anonymous before inheriting the cast destination. The shared result-type query
+reads declarations, nested Match joins and builtin operation signatures after
+checking selected meaning. Comparisons produce Boolean results, and shifts keep
+their left operand's carrier. Typing retains policy-only builtin references so
+computed arithmetic keeps Wrapping/Saturating/Trapping without inheriting input
+range predicates or relying on an incidental result annotation. Cast policy is
+retained until explicit erasure; incompatible Match result policies reject even
+before an outer cast. A typed Match arm supplies its anonymous peers' landing
+at their own result edges, even when no enclosing consumer supplies a destination.
+Policy casts retain a shell over their exact target predicates in the existing
+type table. Numeric Match joins preserve a shared exact reference, or weaken
+ranges to a common carrier and policy; they cannot export the first arm's
+predicate as a promise about another arm. An unknown result joins this numeric
+path only when its expression is genuinely anonymous numeric. Unique direct
+operators supply their exact declared builtin carrier/policy result, including
+a concrete result independent of generic operand binders. Range analysis treats
+the operation as a call with that result carrier, not builtin token arithmetic;
+children still owe their own arithmetic obligations. Semantic-domain,
+predicate-bearing and selected trait results requiring an instantiated reference
+remain unresolved; declaration-local result subjects cannot become caller facts.
+
+Semantic qualification casts retain a result-type handle over the exact authored
+target. Ordinary domain normalization supplies aliases, indexed identities,
+predicates and routes; the cast still owes membership independently. Match joins
+compatible normalized domain results without treating different meanings as one
+bare carrier. An outer erasing cast cannot repair incompatible arms: erasure
+must be explicit in each arm. Static, unrouted scalar domains add no ownership
+join; routed provenance, borrowed results and transfers from existing owners
+retain their separate fences.
+Raw dependent range predicates are not merged by rendered spelling.
+
+The former `pass/expressions/match_domain_results` fixture checked same-domain
+result selection. Its negative `fail/expressions/match_mixed_result_domains` must reject
+kilometres joined with miles before an outer bare-carrier cast. Predicate- and
+route-free scalar casts now retain explicit `Qualification` computation nodes,
+including their exact operands and normalized result types. Source replay checks
+the authored selection, unique checked membership use, declaration obligations,
+alias expansion and canonical indices; a pure payload node cannot replace the
+cast. Terminal declarations retain the full scalar type: canonical domain sets
+are shared across the reachable call closure, and explicit qualification binds
+a fresh successor value without a runtime tag or operation. Every incoming edge,
+ordinary call and result independently preserves that type.
+`psi inspect` published that fixture; `value_dispatch` replays both selections from canonical
+bytes. Explicit same-carrier erasure uses that same computation node and a strict
+subset qualification edge, including a bare destination. Its authored cast must
+survive source replay even when later qualification restores the original tags.
+Pure payload reconstruction cannot silently erase it. Qualified scalar calls and
+Match results retain exact membership grants for compatible formals, including
+closed indices. Predicate/routed evidence and erasure, plus shared structural
+qualification transport, remain separate obligations, not bare-carrier fallbacks.
+
+The former `pass/expressions/explicit_scalar_tag_erasure` fixture published an
+explicitly erased qualified Match/call result and recorded its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
+pattern equality uses the existing comparison and branch machinery.
+
+`omega --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
+checks a wider declared operator result joined with an anonymous numeric arm.
+This is a legacy signature-plus-satisfier fixture, not the settled direct supply
+model. [Declaration-owned machine bodies](../../../../wiki/spec/language/expressions.md#executable-supply)
+are now specified; parser/corpus migration and executable association remain
+unfinished under `OPERATOR-MACHINE-SUPPLY` in `TASKS.md`. Rewrite the fixture into
+a test-owned operator family rather than retaining its unauthorized primitive
+extension. Scalar computation and source replay must retain the exact body
+association; satisfaction alone cannot choose it.
+
+Before asserted predicates may become result facts, each executing cast must prove
+its asserted ranges from the live source environment. The arithmetic validator
+owns that obligation; the expression scanner supplies selected reachability for
+nested casts. Policy qualification cannot repair initial membership, and bounds
+of composed operations describe each node's wrapped or saturated result, not its
+unbounded mathematical intermediate. Float membership uses same-format finite,
+non-NaN source and bound facts; unsupported membership remains a proof failure.
+Matching full-width suffixed integer leaves retain their own
+carrier through the same consumer-edge custody, including bitwise complement.
+
+The former `pass/expressions/anonymous_numeric_match_subject` fixture exercised a Match whose subject and tested patterns are exact anonymous numbers.
+Checking and independent source replay rederive first-match selection with the
+existing exact-number evaluator. Only the chosen result becomes a computation;
+no fixed-width subject or runtime rational carrier is invented. Even a leading
+wildcard must not erase a call, typed value, or undefined subject. All-arm typing,
+coverage and result-destination checks remain separate from selective execution.
+
+The former `pass/expressions/match_float_results` fixture exercised f32 result selection inside ordinary calls. Match carries f32/f64
+results through the same typed continuation as other scalar values, preserving
+format and payload without arithmetic, conversion, or comparison of the result.
+Boolean/integer subjects and exact anonymous selection are supported here;
+floating subjects share the retained `IeeeFloatCompare` operation — the subject
+is evaluated once, each reached pattern once, and NaN and signed-zero behavior
+is preserved through Terminal, interpreter, and native replay. The
+former `pass/expressions/match_float_interpretation` and
+`pass/expressions/match_float_subjects` fixtures recorded named, call, indexed,
+projected and computed subject shapes in both formats. Their source is recovered
+from the former corpus. A floating result does not authorize integer equality on
+a floating subject, and a domain-carried floating subject still needs a
+pattern vocabulary for its constraint surface.
+
+The [lexer](00_source-files-to-tokens/lexer.rs) reads loaded source records
+and keeps each token's source identity and byte span. Numeric metadata and
+decoded literal bytes describe spelling only; they are not typed values or
+proof facts. The lexer accepts a fixed set of characters: explicit whitespace,
+ASCII identifiers and byte escapes. It never asks the host for Unicode
+classification. Decoding a literal copies its source bytes and expands fixed
+escapes; it does not pick a Unicode encoding from the host.
+The Rust lexer has its own behavior tests; the product lexer does not need a
+mirrored serialization format for tokens.
+
+The [parser](01_tokens-to-syntax-trees/parser.rs) builds syntax roots and
+arena tables. Its source loop calls [declarations/items.rs](01_tokens-to-syntax-trees/declarations/items.rs),
+which dispatches to the grammar domains. It preserves spelling, spans and literal
+structure; later stages choose symbols, types, effects and proof evidence.
+
+Follow [the parser map](01_tokens-to-syntax-trees/README.md) from that entry into
+declarations, expressions, types, parameters, contracts, machine bodies,
+transitions and statements. The expression entry contains its actual frame loop;
+[operators](01_tokens-to-syntax-trees/expressions/operators.rs) owns precedence
+and operator policy. Nested expressions, groups, arguments and aggregates use
+explicit frames. Type references and some grammar crossings still call back
+into parsing, so the whole parser is not stackless.
+
+`parser.rs` is the library entry and the coordinator. Domain directories contain
+the implementations; no second grammar facade or `src/lib.rs` hides that flow.
+Behavior tests live under `tests/` and timing harnesses under `benchmarks/`.
+
+Keep each clause as written, separately from its normalized meaning:
+`reaches` with no members differs from no `reaches` at all, and each authored `suspends` or
+`blocks` keyword retains its span on machines and structural signatures.
+Synthesized or omitted clauses must not acquire fictional source coordinates.
+Exact requirement applications retain their authored lifetime/type/const/machine
+arguments. Contracts and mathematical bundles retain logical source structure,
+not an implicitly selected proof producer or runtime aggregate.
+
+Anonymous `%` expressions stay trees so later stages can check that they are
+well formed; the parser must not fold them into integer literals that look valid. Explicit non-returning
+crashes stay distinct from ordinary terminal transitions. Retired grammar gets
+a diagnostic; the parser does not accept it into a compatibility syntax tree. Parser diagnostics
+and the current language specification must agree.
+
+## Value-generic staging
+
+The settled [value-binder contract](../../../../wiki/spec/language/generics.md#value-binders-and-const-requirements)
+separates `Count: u32`, which may be a runtime value, from the static
+`const Count: u32`. Machine signatures already have distinct binder kinds,
+exact substitution of runtime subjects, and ordinary operand lowering with
+checked representation and custody (`monomorphization::runtime_value_bindings`).
+Keep rejecting runtime subjects in const applications; a failed constant
+evaluation must not become a guessed value or a runtime fallback.
+
+Runtime witnesses are not canonical static index bytes. Scope and name
+resolution, parameter modes, contract dependencies and result identity survive
+Terminal and artifact replay. The remaining work, contract and
+domain-qualification support and uses that determine layout, still rejects and
+stays under `RUNTIME-VALUE-GENERICS` on the
+[execution board](../../../../TASKS.md).
+
+The [structural type-equation rules](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
+require inference from exact type/domain applications and their explicit argument
+structure. Matching a declared domain application can determine its index;
+proving a scalar bound cannot invent a generic capacity or recover a missing
+domain argument. Explicit arguments stay fixed, and ordinary compatibility,
+carrier, const, and predicate obligations still apply. Contracts and guards
+retain their ordinary implicit proof facts without creating new type structure.
+
+The current compiler and `declared_range_endpoint_inference` fixtures still use
+scalar range annotations and range-shell inference pending canonical migration.
+Their migration is tracked by `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
+[board](../../../../TASKS.md).
+That implementation is not the accepted structural inference contract, and
+passing tests do not show the replacement syntax works.
+
+Local scalar calls without an outer result-operation owner use the shared
+computation plan even when their arguments are pure; operand purity cannot
+exclude them from ordinary state-local sequencing.
+Whole record copies use the existing owned block edge:
+unrestricted payloads get independent backing, while affine payloads transfer.
+Bounded field reads recover the declared interval on their fresh scalar result;
+they do not need equality with the original constructor's initializer. Field
+bounds remain proof integers until intersected with the signed or unsigned carrier.
+Nested forwarding retains each declaration-local carrier field and the final
+scalar field through canonical bytes, proof equations and original record backing.
+The same route handles same-typed siblings, deeper integer/Boolean observations
+and affine moves. Native bounded field reads use `ScalarStructuralField`, keeping
+the actual local/parameter/block root, complete carrier path and final field ID.
+They are not projected `PrimitiveScalarRead` operations. The verified constructor
+and declared interval justify a fresh observation; the physical load uses the
+exact integer carrier without dropping bounded type identity. This does not
+admit bounded field stores without their own invariant-establishment proof.
+Fresh record locals also participate in the
+scalar graph's ordered statement effects: their field computations finish in
+authored order, and nested guards/selected arguments observe the completed root
+before affine cleanup. Whole-place copies and moves join that sequence through
+ordinary owned block arguments and fresh destination homes; nested affine children
+transfer directly into the parent record. Shared origin reduction preserves a
+common moved-child origin, while distinct child origins establish a new parent
+origin. The selected exit rebinds only final live local owners in declaration
+order before reverse-order disposal, without remapping every survivor at each move.
+`owned_scalar_graphs/record_moves.rs` exercises move chains, authored field reads,
+distinct child origins, affine formals beside locals, resumptions and malformed
+receipt/cleanup rejection through canonical Terminal bytes. The focused
+`owned_scalar_graphs/record_stores.rs` executes local scalar-field writes through
+the same ordered sequence, including nested destinations, RHS calls, independent
+copies, moved homes and captured scalar values. Each write uses the current home
+and the existing `StructuralScalarFieldStore`; it introduces no reference carrier
+or wire operation. Plain `let` permits member writes under existing source rules;
+`mut` gates whole-local rebinding. Bounded leaf stores still need independently
+reconstructed invariant obligations. Native owned/local field stores
+remain explicitly unsupported. Parameter-origin
+moves into local storage still need their formal/local custody join.
+Cyclic record construction remains rejected by
+Terminal's cycle admission until repeated establishment and per-iteration custody
+are independently closed. Connect those shared operations rather than adding a
+generic-specific fallback.
+
+Closed builtin typed arithmetic shares its value query with immutable integer
+analysis and the fixed-width kernels, preserving carrier checks and integer
+division/remainder. Exact constant points survive full-width unsigned
+intermediates independently of the signed compatibility interval; each operand
+still lands and each typed operation must fit before a later cancellation.
+Integer results are decoded using the callee's declared signedness before
+literal formation or proof-integer normalization. Const data arguments and array
+lengths retain their own fit and layout obligations. These numeric rules remain
+independent of the removed scalar annotation syntax.
+
+`STRUCTURAL-GENERIC-MATCHING` tracks exact type/domain application decomposition
+through source, type identity, checking, evaluation, and artifact consumers.
+Preserve unsupported rejections until the corresponding representation and
+evidence are complete.
+
+`FINITE-GENERIC-DISPATCH` implements the
+[explicit family contract](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
+and [runtime callable rows](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
+The legacy implementation pending [machine values and some migration](../../../../wiki/drafts/designs/machine_values_some.md)
+lowers runtime selection through instantiated selector slots
+(`04_typed-trees-to-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
+finite-family selector call keeps its requirement target and declines, so tuple
+expansion, runtime family selection, and indexed result custody are all
+unimplemented. Explicit source disjunctions, not
+integer ranges or current callers, define the roster. Keep const rejection,
+target coverage, and table completeness; no general reflection, implicit boxing,
+or runtime-dependent inline storage is part of this work.
+
+## Resolution and closed-instance normalization
+
+A `module` path creates namespace symbols without moving the root's ordered
+declaration slots. Semantic paths include the namespace; physical member
+ownership and exact package provenance remain separate. Cross-file imports join
+logical paths to the exact loaded source. A certified package alias can qualify
+public declarations in other already-loaded sources of that same direct
+dependency; each import still validates its own exact source. Package aliases do
+not rename nominal identities or grant transitive selection authority. Static namespace calls retain
+the authored `::` distinction from value-member `.` calls through parsing.
+
+Record and case constructors retain their complete authored static name and
+field evaluation order in syntax. Resolution selects either an exact `Data`
+declaration or an actual `Variant` child of the selected owner; competing
+interpretations reject. Path length does not choose the constructor kind.
+Lookup preserves ambiguity separately from absence, with case eligibility
+checked before precedence. Rejection diagnostics name the competing declarations
+and retain the authored source's import context.
+Resolved constructors retain the selected type, case and field symbols, the
+complete constructor occurrence span and the case identifier span. The same
+source-aware selection serves direct structural indices, so equal canonical
+values retain each authored occurrence without bypassing package visibility or
+direct-dependency authority. This follows the
+[construction contract](../../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
+and uses ordinary namespace resolution rather than a separate constructor scope.
+Payload-free qualified case values, including package-qualified paths, normalize to
+the same resolved constructor after lexical value bindings have been selected.
+Scoped fields, named states and conformance binders also select the path head
+before normalization; a failed suffix cannot reopen lookup as a module case.
+They retain the original occurrence and exact case owner and undergo ordinary
+common-field, default, payload and opaque-construction checks. Case membership
+keeps its separate declaration role. The former `pass/modules/package_bare_cases`
+fixture checked the package customer.
+The `module_machine_indices::qualified_case_values` probes cover lexical precedence,
+ambiguity, authority and construction obligations.
+Closed generic sum paths retain the authored carrier and case spans while
+selecting the specialized owner. Both selections survive as evidence that a
+membership test is not payload construction. The former
+`pass/generics/closed_sum_case_membership` fixture checked this route.
+Proof-position case membership uses that same expression and selection route;
+the former `pass/collections/std_option_surface` fixture exercised the bundled
+optional carrier's zero theorem.
+
+Nominal data references, scalar free-machine calls, and literal constants used
+in bodies have namespace coverage. Scalar constants include qualified Terminal
+selection and independently executable artifacts; nominal aggregate body uses
+have checked-source coverage. Constant substitution
+uses exact module/package selection after lexical name assignment and retains
+the selected declaration at the original use. The rest of the
+[module/name contract](../../../../wiki/spec/language/modules.md) rides the same
+law: indexed domain constraints, operator homes and qualified case membership
+in declared-domain proof facts all select through it (`module_machine_indices`
+probes and the `module_normalization` tests pin the boundaries).
+
+Closed integer- and Boolean-indexed constraints on scalar constants replay nested declared
+domain memberships in each fact author's import context. Forwarded indices keep
+their caller telescope until carrier and range checking; they are not anonymous
+integers that may be rebound at another width, and Boolean values never become
+integer 0/1. Private unused declarations owe
+the same domain proof as public declarations, independently of optional public
+value encoding. `module_machine_indices::indexed_domains` covers source-free
+Terminal execution and false, mismatched, private, file-local, transitive,
+ambiguous-import and cyclic controls.
+Scalar constants also admit carrier-polymorphic marker domains and closed
+carrier-independent predicates. Their complete index tuple is checked even
+when unused. Declared integer fact operands retain their carrier through
+intermediate arithmetic and nested membership; comparisons cannot hide an
+earlier Exact overflow or borrow the enclosing subject's width. Anonymous
+peers land against that carrier, while authored operator meanings still need
+ordinary typed selection. Generic `self` and carrier-property bounds remain
+unavailable to this early evaluator. Scalar aliases discharge every
+constituent through the same source-owned membership replay; nested aliases
+retain ordinary Boolean truth, and direct rejection names the failing domain.
+The original alias stays intact for typed expansion and identity normalization.
+The recursion guard uses declaration source custody as well as logical names,
+so equal alias paths in distinct packages do not form a false cycle. Predicates
+alone never discharge routed authority. Generic carrier-alias heads bind in the
+author's telescope before early module admission; repeated preparation keeps
+the selected declaration address, never reinterpreting it as a carrier binder.
+Typed alias validation applies each constituent family to the alias's subject
+under its exact binder scope, without equating unrelated same-named types.
+Alias-owned carrier bounds and indices remain fenced until their application
+evidence survives expansion; compiler-owned alias atoms still need typed evidence.
+Trait-default preparation retains the source
+map and import bindings when it rechecks these declarations, so that later
+pass cannot merge equal logical domain paths from distinct packages.
+The shared symbol selector distinguishes a generic family's carrier qualifier
+from a foreign module qualifier. Validation groups repeated normalized domain
+names within their exact declaring module and checked package; different owners
+may supply different predicates while capacity specializations within one owner
+must agree. Distinct owners must also retain distinct semantic IDs, because
+qualification implication uses ID equality. The producer keys managed domains
+by the reconciled package commitment, build/product scope and logical path.
+Early indexed-family preparation retains the selected declaration rather than
+rejoining a rendered path; qualification casts share annotation selection and
+carry the selected symbol into their derived result type. Ordinary and indexed
+same-path domains from separate packages retain distinct catalog identities and
+execute through source-free Terminal in `module_machine_indices::indexed_domains`.
+Mutable recasts independently reject exchanging their obligations. Unmanaged
+sources have no portable package commitment, so cross-owner name collisions
+remain rejected; host paths and load-order numbers are not replacement identities.
+Generic data fields spelled `T in T::Domain` select an exposed carrier-polymorphic
+family in the template author's scope before substituting `T`. Normalization
+retains the authored occurrence and an address that ordinary lookup verifies
+against the exact selected declaration; colliding logical paths retain their
+certified dependency prefix. Closed scalar constant-record projections reach
+source-free Terminal with these qualified fields, while array specialization
+retains the qualified carrier structurally. Constructor membership, private and
+file-local exposure, lexical shadowing and package collision checks remain
+independent. Runtime record locals still need structural lowering; non-Exact
+arithmetic-policy projections remain rejected until scalar production and source
+replay carry that policy together. Retired source-checker tests do not establish
+current coverage of these obligations. Scalar result annotations must be
+established in the producing body: ordinary exits owe machine and result
+obligations, closed indices retain their declaration binders, and routed
+qualifications require authorized provenance on the lowered form.
+Computed Boolean indices use the existing typed index probe. For remaining
+predicate-constrained and module-qualified applications, its family discovery
+must retain exact source selection, and a provisional `false` must not
+be checked as the real constrained declaration's index. Likewise, a computed
+module constant must be materialized before a dependent declaration selects its
+Boolean value. Untyped fact folding cannot replace that route because it does
+not retain authored numeric operand widths or selected operation custody.
+`module_machine_indices::indexed_domains::computed_boolean_domain_indices_reach_source_free_terminal`
+and `..._do_not_publish_placeholder_membership` pin that route through to
+source-free Terminal; false predicates feeding another constant, foreign private
+selections, mixed carriers and missing unary custody still reject.
+
+Module-owned constants with foreign nominal and closed generic value types
+retain separate declaration, carrier and initializer owners. Name expressions
+carry their complete authored spans even inside aggregate initializers. Closed
+constructors join the constant's declared template/argument tuple before body
+substitution, using the same destination normalization as local construction.
+Declaration finalization checks nominal constructor identity even for unused
+private constants; eligibility for public/index encoding is a separate judgment.
+The `module_machine_indices::constant_attachments` integration tests follow
+scalar field reads through checked compilation and source-free Terminal execution,
+including nested generic records, private initializer imports and same-leaf
+competitors. Wrong carriers, private API exposure, sibling imports and transitive
+package selection reject. These tests do not establish native aggregate result
+transport or generic type-scoped `const Type::NAME` support.
+
+Trait defaults keep two distinct owners: the synthesized implementation and
+its states belong to the conforming package, while copied body operands retain
+the lexical author's source context. Generated state names inherit implementation
+provenance instead of borrowing the foreign requirement's declaration span.
+This preserves private helper/import access inside a default without granting it
+access to the consumer's private names. The
+`module_machine_indices::trait_defaults` integration tests follow ordinary,
+inherited and specialized defaults through checked compilation and independently
+decoded Terminal execution, with same-leaf competitors, local overrides and
+private/file-local/direct-dependency rejection controls.
+Executable case membership and bare case values select the full module/package
+carrier path before retaining the exact data and case symbols. Local bindings
+still shadow value-position paths; a dependency alias is not a runtime value or
+an extra symbol parent. Authored selection retains the complete carrier span.
+The checked interpreter consumes those selected symbols for bare and brace case
+construction, not a fresh lookup by display name. Membership independently
+rejoins the subject's nominal owner; an invalid case test cannot fall back to
+ordinary equality between same-named values. The package-backed
+`module_machine_indices::qualified_cases` tests cover checked evaluation,
+payload-bearing cases, local and projected borrows, private/direct-dependency
+authority and competing same-leaf owners. Ambiguous case selection reports both
+declarations and the importing source's exposure. Declared domains and eligible
+cases use one ambiguity-preserving selection; neither a unique domain nor an
+ambiguous domain roster can hide competing case meaning. A module-owned
+domain's declared carrier-qualified spelling (`u64::Distance` for
+`units::u64::Distance`) resolves through the shared table law: a narrow
+import of the exact declaration or a broad import of its declaring module
+exposes it to constraints, casts, membership, and proof facts, with the
+authored carrier required to select the exact attached carrier. A contested
+spelling keeps the pooled checked-obligation result rather than selecting or
+hiding a declaration. Other module-owned declared domain forms remain a
+separate implementation limit; header-level
+selection tests pin the shared namespace independently of that source fence.
+The former `pass/modules/qualified_case_membership` fixture checked the
+four-source package customer. Additional `case_membership` source
+controls retain common-field tag observation and independently required owner
+and case selection occurrences.
+This does not establish native Boolean membership of a newly constructed case.
+The checked operation sequence still needs intermediate case construction and an
+observing structural membership result; see `STATE-LOCAL-VALUE-FRONTIER` on the
+[execution board](../../../../TASKS.md). Returning a constructed case or replacing
+membership with a consuming dispatch is not that acceptance.
+Later source extensions reuse the selected declaration's detached resolved
+initializer. This keeps constructor selection in the declaring source and
+deep-copies aggregate children at each use without re-reading the base source;
+the [generated-source continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
+retains its exercising compiler command.
+Closed ordinary record and sum applications select their exact module-owned template
+and complete argument tuple. Nominal arguments retain declaration identity,
+including nested applications and arrays; repeated qualification or narrow
+imports of the same declaration share one instance. Each authored use retains
+its own selection authority, and typed lowering independently checks its
+application against the generated carrier's retained origin. Same-leaf templates
+and arguments in different modules remain distinct.
+Constructors rejoin that same template and argument tuple, including copied
+nested applications and common/payload fields. Materialized declaration handles
+carry the instance relationship; generated display names are lookup metadata.
+The statement walk retains parameters and preceding locals before relabeling a
+constructor, and bare paths also retain ordinary constant-prefix precedence.
+Static `::` paths cannot project through runtime bindings; value projections
+remain ordinary `.` expressions. The former `pass/modules/closed_sum_constructors`
+fixture checked the sum customer.
+The `package_compilation_inputs::module_generic_data` probes cover these
+checked-source relationships and rejection of private or transitive-only access.
+Ordinary methods on closed templates retain the selected template attachment
+when synthesized, including methods authored in another module. Their headers
+select the actual closed carrier before publishing inherited fields and states.
+Calls rejoin the static carrier or receiver type and the selected method state.
+Same-leaf methods cannot borrow another carrier's fields, and copied inherited fields retain their
+authored declaration provenance. Method binders must remain within the existing
+carrier-binder synthesis rules; borrowing and per-use package authority still
+apply. The former `pass/modules/closed_template_methods` fixture and
+`package_compilation_inputs::module_template_methods` checked this source boundary. This establishes checked
+source behavior; native receiver storage and execution have their own admission.
+
+Generated-source normalization borrows the retained resolved predecessor for
+nominal argument and domain selection. It does not synthesize retained templates
+or expand the continuation's flat, root-owned nominal declaration boundary.
+Unsupported scoped constants, module-owned specialized templates,
+traits, conformances, domains, and operators still reject
+before their bare-name transforms.
+Closed data applications select named constant indices through the shared
+source-aware resolver before folding. Loader import bindings reach evaluation
+probes too. The normalizer checks the declared carrier, retains exact declaration
+and initializer custody at each argument, and rejoins its canonical value to the
+final symbol. Shared instance derivations do not inherit a caller's occurrence
+exposure; equal values may deduplicate without losing distinct selections.
+Parenthesized structural literal arguments use the same canonical encoder.
+Their normalization retains the authored expression so constructor, case and
+field selections survive atom replacement and syntax copying. A direct value
+has no named-constant declaration; its index eligibility is checked separately
+from named-constant copy and cleanup permission.
+Concrete data fields and payloads also evaluate closed integer expressions in
+data applications and root-owned domain families through a private typed probe.
+Exact primitive carriers, builtin operator meaning and
+package selection are checked before fixed-width arithmetic. Each argument retains
+one canonical result, every selected constant occurrence and its builtin operator
+occurrences. Nongeneric machine parameters, results, locals and casts resolve
+named integer or Boolean indices and compound expressions containing named
+constants in their original lexical scope before using the same probe. Boolean
+destinations also route literal expressions through the probe; parsing retains
+comparisons and logical operations instead of folding them as integers. Fixed-width
+integer comparisons can produce Boolean indices. Runtime bindings cannot be
+captured as constants. Public entry
+signatures retain public exposure independently of body and internal-state uses.
+Root scalar references also use resolved substitution, so locals and explicit
+receiver fields can share a constant's spelling without changing its selection.
+Named aggregate indices in those machine owners also resolve their lexical
+paths before legacy materialization, including fixed-array destinations: a
+runtime-qualified root cannot acquire a same-spelled static aggregate. Destination
+syntax chooses the value route, never permission to skip lexical selection. The
+selection prepass retains declaration custody without materializing aggregate
+values. The former two-file `pass/modules/fixed_array_machine_indices` fixture
+preserved static array identity across root and module machine owners;
+`fail/modules/runtime_fixed_array_index` rejected a runtime qualifier. Module-owned fixed-array constants with integer/Boolean
+literal leaves use the same exact declaration selector and structural encoder.
+Every such declaration validates its extents and element carriers even when
+private and unused; explicit integer landings cannot be erased during encoding.
+The former two-file `pass/modules/module_array_constant_indices` fixture
+covered same-leaf root/module constants with different canonical array values,
+including `settings::Sizes::SIZE` and scalar `settings::Sizes::MAX`. Scoped constants
+select an exact nongeneric data carrier in their declaring module and retain the authored carrier occurrence for
+visibility checks. Relative attached names prefer their local module; narrow
+imports expose only the exact selected leaf. Duplicate declarations, case
+collisions and runtime qualifiers still reject. Scoped numeric/Boolean literals
+also substitute into scalar bodies and computed machine indices; unused private
+initializers still validate their declared carrier. Floating literals retain their
+declared format and round directly to it. Public `f32`/`f64` literals encode
+that format and its exact landed bits for declaration identity, alongside the
+selected declaration's type and package owner. Signed infinities have exact
+format-specific bits, and signed zeros remain distinct;
+equivalent literals that round to the same value share the value encoding.
+These declaration encodings do not admit floating generic/domain indices,
+including an unused machine const binder. The former two-file `pass/modules/public_float_constants` fixture was the
+checked-source customer; package review
+retains the same encoding through serialization. Call-free integer/Boolean
+initializers evaluate at build time, including each leaf of a fixed-array,
+closed record, or case-payload literal. `computed_constant_initializers` selects
+`[SIZE * 2, 3]` as an array index; `computed_nominal_constants` selects computed
+record fields in their declared carriers and executes a direct field read from
+the source-free Terminal artifact. Aggregate identity is the canonical literal
+rebuilt from evaluated leaves, retaining the exact constructor and field owners.
+Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
+scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
+and Boolean-selected results while preserving format and exact bits. These
+floating values remain ineligible as generic/domain indices. The
+[initializer admission owner](../evaluation/source/README.md#admission-and-implementation-limits)
+checks concrete crash discharge before execution and repeats it during receiving
+replay. Closed type- and const-generic helper applications use ordinary checked
+specialization, including nested calls with integer, Boolean and floating results.
+Detached initializer recipes retain the authored target and static argument tuple;
+receiving replay validates that custody before independently specializing and
+evaluating a private probe. Specialization commitments do not authorize replacing
+the recipe with another instance of the same template. The
+`module_machine_indices::machine_initializers` tests carry these results through
+source-free Terminal execution. Selected provider applications,
+aggregate-producing expressions,
+selected floating operations, aggregate floating values and public NaN
+initializers still need their complete evaluation and
+explicit representation contexts. Closed module-owned
+record/case constants, including nested records and fixed arrays, use the existing
+structural encoder after selecting each declared carrier and constructor in its
+own source. Module-local nongeneric attachments use the same scope checks as
+scalar constants. Receiving generic and domain arguments independently rejoin
+the exact nominal carrier before accepting the canonical value; equal layouts
+and encoded labels cannot grant identity. Fields encode in declaration order.
+The `module_machine_indices::nominal` integration probes cover these checked-source
+uses and hostile carrier, import and visibility controls. Module-owned constants
+with closed foreign templates additionally have the `constant_attachments`
+source-free execution coverage above; generic attachment heads remain separate.
+Closed nominal literal constants also substitute into ordinary bodies after
+resolving each initializer in its declaring source. Constructor, case and field
+selections survive each independent deep copy; a caller's same-spelled data
+cannot replace their owners. Receiving locals, calls and results compare exact
+nominal declarations, and selected field owners determine field obligations and
+numeric landing. Root and module constants share this resolved substitution
+path. Every retained named declaration, even unused and private, independently
+requires a recursively copyable type with no cleanup; this includes inactive
+case payloads and empty-array element types. Generic structural atom eligibility
+remains a separate judgment and does not grant named-constant permission.
+The former `pass/modules/nominal_constant_bodies` fixture was the checked-source
+customer. The `package_compilation_inputs` nominal constant
+body probes cover nested records, cases, independent uses, receiving identity,
+privacy and direct-package exposure. The former two-file
+`pass/constants/lexical_aggregate_values` fixture also checked runtime parameter/local shadows and a module consumer whose value
+parameter shares the declaring constructor's name. Its package integration
+tests distinguish the selected constant occurrence from runtime references
+through checked compilation; constructor ownership remains declaration-local.
+The same nominal body customer with `psi inspect
+--machine keep` reported that the machine has no source-independent checked
+scalar control plan; nominal aggregate execution needs that producer dependency.
+Integer/Boolean array body
+references use the same exact selector and deep-copy their literal trees per use.
+Destination checks rejoin their declared dimensions and element identity, including
+empty and nested-empty arrays; scalar leaf landings alone cannot retain that shape.
+The array fixture above included root, module-local and qualified array body uses.
+Literal scalar indexing of these constants retains its declared element type,
+bounds and selected indexing meaning through checking. The checked interpreter
+evaluates the copied value; Terminal production selects its closed literal leaf
+without creating constant storage. Nested scalar integer/Boolean projections execute
+from independently decoded semantic/proof bytes. Integer/Boolean array literals and
+array-valued constant projections construct actual owned Terminal payloads,
+including nested and empty dimensions. Construction and return use the ordinary
+ordered-operation path, including immutable array locals among scalar stores and
+ordinary calls; replay checks their exact source statements, values, and types.
+Runtime scalar operands reuse ordinary scalar expressions and computation graphs.
+Elements finish in index order, preserving earlier values across mutating calls
+and short-circuit control before the constructor commits its payload. Array-valued
+constant projections still require closed unselected siblings; selection cannot
+erase an evaluation or effect.
+Inspecting that fixture's `selected_row` machine published the material row;
+`selected_empty_row` retained its exact empty array type, and `computed_row`
+exercised runtime scalar construction.
+Array argument/result transport through calls and state transfers, and native
+construction remain separate executable dependencies. Dynamic selectors, slicing and
+explicitly borrowed projections still reject pending general value projection
+and view-lifetime support; an ordinary typed-local copy already supports indexing.
+Nominal aggregate body substitution remains separate. The `module_machine_indices` integration target covers distinct
+module values, narrow imports, runtime shadowing, invalid unused declarations,
+and scalar/array landing boundaries.
+The comparisons preserve each operand carrier and use the shared typed integer
+order operation; anonymous operands must land exactly in the selected peer carrier.
+Boolean equality and inequality compose named constants and comparison results
+without losing their separate authored selection occurrences.
+Boolean `&&` and `||` evaluate only the selected right operand, while the probe
+retains admission and authored custody for both operands. The former two-file
+fixtures `pass/modules/boolean_logic_indices` and `pass/modules/literal_boolean_indices`
+covered root and module selection under that schedule, and literal Boolean
+expressions and fixed-integer comparisons in both scopes.
+Comparisons between two anonymous numeric operands consume exact rational values
+without selecting an integer carrier or floating format. The shared evaluator
+rejects undefined rational values even in unselected comparisons; typed operands
+still require ordinary peer landing. The former two-file
+`pass/modules/rational_boolean_indices` fixture covered fractional and decimal comparisons with their canonical Boolean results.
+Scalar `match` indices retain their complete source trees for the
+[typed evaluation owner](../evaluation/source/README.md), including
+coverage and unselected-arm admission. The former
+`pass/modules/match_constant_indices` fixture was their source check.
+Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
+and module-owned domain families remain outside this probe.
+Domain indices retain the declared family's identity; equal results share canonical
+type identity without discarding the original constant or operator occurrences.
+Unrelated root constants and literal or binder-only
+applications remain available.
+Import loading still uses source-path candidates, including enclosing prefixes
+for a module's declarations; it does
+not scan or parse a package-wide source inventory to discover arbitrary files.
+
+The settled [foreign-domain import contract](../../../../wiki/spec/language/modules.md#import-scope-and-exposure)
+requires file-local broad/narrow exposure, no transitive activation, and exact
+declaring-owner-first attached paths. Loading a source cannot expose its sibling
+domains. The current module-domain fence remains until namespace-aware operator
+homes and declaration selection preserve those identities. The
+[establishment contract](../../../../wiki/spec/resources/authority.md#requirement-and-exact-machine-routes)
+also admits exact machine targets; current requirement-only route normalization
+needs a distinct exact-machine identity, not a conversion to a selected satisfier.
+`MODULE-NAMESPACE-RESOLUTION` and `DOMAIN-ISSUER-ROUTES` on the
+[execution board](../../../../TASKS.md) track this work, not an unresolved owner decision.
+
+The former corpus held focused source and Terminal probes for these rules,
+under `pass/modules/`: `qualified_declarations` and `qualified_constants` (both
+also inspected with `--machine combat::damage`), `qualified_constant_indices`,
+`compound_constant_indices`, `domain_constant_indices`,
+`machine_constant_indices`, `boolean_machine_indices`,
+`comparison_machine_indices`, `boolean_equality_indices` and
+`aggregate_machine_indices`.
+
+[Resolution](02_syntax-trees-to-symbol-resolved-trees/resolver.rs) owns declaration
+identity and exact lexical lookup, not type compatibility, borrow legality,
+proof discharge or runtime support. Its private
+[generic-data normalization](02_syntax-trees-to-symbol-resolved-trees/declarations/generic_data/mod.rs)
+closes eligible data applications before stamping names. Templates, pending
+substitutions and evaluation scratch are not new public representations.
+Known-builtin anonymous remainder formation is checked before reduction; an
+authored operator spelling makes that narrow pre-resolution check decline,
+since it has no exact selected-operator authority.
+
+Each rewritten application retains its original base/arguments at the exact use.
+Copies remap these origins; they are not new authored declarations or roots.
+Cloned attached methods retain the exact authored template and closed owner.
+Missing or ambiguous templates cannot acquire derivation custody.
+[Build-time evaluation](../evaluation/source/README.md) owns the
+single-use pre/post-typing continuation and its ordered const/layout/wire work;
+orchestration cannot recombine its retained rows or exchange its authority.
+
+Receiver identity has two coordinates: the lexical storage root and the final
+projected member. Preserve both. Lookup sees current-state parameters and only
+the already-declared local prefix; self-initializers and later declarations
+cannot select a same-spelled field, free machine or type. Projected lookup
+consumes one declared collection layer per index and retains exact case-payload
+and nominal-owner identity. Filter eligible owners before ordinary source
+precedence; a shadowing type must not hide an inherited payload method.
+Unresolved projected or call-result receivers cannot fall back to a free
+same-named callable. Bounds, case reachability, index effects and receiver access
+remain later obligations.
+
+Operator contracts resolve in their own parameter list (telescope), including domain-owned
+operators. Nested conformance applications retain their own argument packs rather
+than borrowing the enclosing telescope or inferring omitted arguments. Exact
+requirement lifetime names settle binder membership/ordinals during typing.
+Measures retain their own declaration and parameter symbols in full and seeded
+resolution. A body name cannot become its parameter merely through matching
+spelling or a missing symbol; ranking classification consumes the resolved binding.
+Proof-only `zero_value<T>()` retains the resolved type graph without deciding
+all-zero validity. Named-transition evidence stays separate from runtime arguments.
+
+Signature-free requirement compatibility is checked before normalization consumes
+authored paths: overloaded exact families receive one declaration diagnostic and
+source-ordered use diagnostics. An explicit boundary requirement retains exact
+package, attached owner/path, telescope, signature, visibility and contract;
+bodylessness, reach or catalog membership cannot synthesize that declaration.
+
+## Typing and source custody
+
+[Typing](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) decides type
+identity and compatibility and builds typed signatures and contracts. Its roots
+and tables keep enough information that checking never has to reconstruct
+syntax. A typed reference is not an active loan, and the cleanup a type
+requires is not a drop schedule. Proof discharge, flow invalidation and ABI
+placement happen later.
+
+The typing coordinator orders declaration lowering and finalization.
+[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
+own header selection, lifetime arguments, realization parameter binding and
+publication; proposition definitions live with declarations, while proposition
+applications remain expressions. Shared
+[type parameters](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+are independent of data and state declaration lowering. Contract facts,
+invocations and parameter-domain obligations have shared owners; type-reference
+normalization owns domain-alias expansion and domain constraints. Both full
+typing and seeded continuation call these same operations without changing
+their distinct publication and rollback requirements.
+
+Missing measure-body field selectors bind through the exact measure parameter's
+declared nominal type. Existing nonzero selectors remain unchanged for checking;
+typing does not replace conflicting identities with a same-spelled field.
+
+[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs)
+selects computed-receiver methods from the producer's exact declared return type
+after receiver children lower, never from its body or a returned-place proof.
+Preserve already-resolved pattern-bound call targets and root/member identity.
+Binary-expression lowering keeps a thin recursive path in both resolution and
+typing, rather than retaining large aggregate/call scratch at every binary node.
+
+Typed reach and operational custody retain exact owner, keyword and target spans
+independently of normalized semantic rows. Copies and specialization preserve
+that separation. Nested evidence applications retain every non-lifetime slot;
+an expected binder supplies a compatibility target, not omitted arguments.
+Erased arrival/bundle subjects do not acquire runtime storage.
+
+Source-authored selections must preserve original lexical owners and exact
+conformance applications through any future copying or specialization. Generated
+fields and signatures cannot invent public exposure, visibility or supply. The
+old capture/finalization and checking owners are removed;
+[typed preparation](04_typed-trees-to-typed-trees/README.md) has no
+specialization pass yet, so those obligations are refused where a program
+demands them. Original template
+contracts and body selections remain obligations; package identity alone cannot
+replace the exact closed conformance owner.
+
+Resolution and typing keep the selections the source made. The lowered-form
+route must settle late calls, operators and evidence before it accepts a program. Public declaration contracts remain
+interface exposure while executable bodies and internal states remain private.
+Lexical locals and source-free synthesis do not receive fictional package owners.
+See [typing](03_symbol-resolved-trees-to-typed-trees/README.md) for the source
+frontier and [lowered-form checking](06_lowered-program-to-checked-program/README.md) for the served
+proof, flow and ownership boundary. Source execution and late obligations it does not
+handle are refused explicitly.

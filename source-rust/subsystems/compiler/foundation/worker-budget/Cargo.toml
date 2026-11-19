@@ -1,0 +1,12 @@
+[package]
+name = "worker-budget"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "worker_budget"
+path = "src/lib.rs"
+
+[dependencies]
+rayon = "1.10"

@@ -1,0 +1,28 @@
+[package]
+name = "installation-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+function-identity = { path = "../../native-vocabulary/function-identity" }
+target-x86_64 = { path = "../../target-description/target-x86_64" }
+native-vocabulary = { path = "../../native-vocabulary" }
+language-core = { path = "../../../source-to-psi/language/source-vocabulary" }
+target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+register-model = { path = "../../target-description/register-model" }
+selected-instructions = { path = "../../pipeline/representations/selected-instructions" }
+bound-installations = { path = "../../installation/bound-installations" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+frame-admission = { path = "../frame-admission" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+machine-code = { path = "../../pipeline/representations/machine-code" }
+post-allocation-machine = { path = "../../pipeline/representations/post-allocation-machine" }
+provider-admission = { path = "../provider-admission" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+
+[dev-dependencies]
+runtime-abi = { path = "../../target-description/runtime-abi" }
+target = { path = "../../target-description/target" }

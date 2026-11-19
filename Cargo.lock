@@ -6,7 +6,7 @@ version = 4
 name = "abstract-operations"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "language-core",
  "native-vocabulary",
  "optimization-core",
@@ -29,7 +29,7 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
+ "target-bound-program-to-abstract-operations",
  "terminal-semantics",
  "terminal-work",
  "verified-optimization-input",
@@ -44,6 +44,7 @@ dependencies = [
  "application-identity",
  "arena",
  "calling-conventions",
+ "compiler-check-site",
  "diagnostics",
  "function-identity",
  "installation-evidence",
@@ -74,7 +75,7 @@ version = "0.1.0"
 dependencies = [
  "access-admission",
  "access-vocabulary",
- "compiler-storage",
+ "record-storage",
  "extent-contracts",
  "language-core",
  "layout-plans",
@@ -89,7 +90,7 @@ dependencies = [
 name = "access-vocabulary"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "extent-contracts",
  "language-core",
 ]
@@ -112,7 +113,7 @@ name = "application-identity"
 version = "0.1.0"
 dependencies = [
  "bignum",
- "compiler-storage",
+ "record-storage",
  "numeric-literals",
  "numerics",
  "semantic-vocabulary",
@@ -134,7 +135,7 @@ name = "arena"
 version = "0.1.0"
 dependencies = [
  "arc-swap",
- "compiler-storage",
+ "record-storage",
 ]
 
 [[package]]
@@ -142,7 +143,7 @@ name = "artifact-evaluation"
 version = "0.1.0"
 dependencies = [
  "build-time-values",
- "compiler-storage",
+ "record-storage",
  "evaluation-accounting",
  "evaluation-contracts",
  "semantic-vocabulary",
@@ -181,7 +182,7 @@ dependencies = [
 name = "bignum"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
 ]
 
 [[package]]
@@ -240,7 +241,7 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "optimization-core",
  "source-compiler",
@@ -251,7 +252,7 @@ dependencies = [
 name = "build-output"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "diagnostics",
  "filesystem-authority",
  "optimization-core",
@@ -305,7 +306,7 @@ dependencies = [
 name = "build-time-values"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "layout-plans",
  "numeric-literals",
  "numerics",
@@ -399,7 +400,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bundled-declarations",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "evaluation-receipts",
@@ -441,7 +442,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compilation-inputs"
+name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
  "backend-plan",
@@ -475,8 +476,8 @@ dependencies = [
  "build-settings",
  "calling-conventions",
  "cap-std",
- "compilation-inputs",
- "compiler-storage",
+ "psi-to-admitted-native-inputs",
+ "record-storage",
  "component-description",
  "declaration-contracts",
  "diagnostics",
@@ -485,7 +486,7 @@ dependencies = [
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
- "execution-admission",
+ "worker-budget",
  "extents",
  "function-layout",
  "image",
@@ -522,7 +523,7 @@ dependencies = [
  "provider-admission",
  "provider-choices",
  "provider-correspondence",
- "provider-demand-to-selected-execution",
+ "admitted-native-inputs-to-target-bound-program",
  "published-object-verification",
  "register-homes",
  "register-model",
@@ -545,7 +546,7 @@ dependencies = [
  "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
+ "target-bound-program-to-abstract-operations",
  "terminal-runtime",
  "terminal-semantics",
  "terminal-work",
@@ -555,14 +556,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "compiler-storage"
+name = "compiler-check-site"
+version = "0.1.0"
+
+[[package]]
+name = "record-storage"
 version = "0.1.0"
 dependencies = [
- "compiler-storage-derive",
+ "record-storage-derive",
 ]
 
 [[package]]
-name = "compiler-storage-derive"
+name = "record-storage-derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -633,7 +638,7 @@ name = "declaration-contracts"
 version = "0.1.0"
 dependencies = [
  "bignum",
- "compiler-storage",
+ "record-storage",
  "language-core",
  "numeric-literals",
  "numerics",
@@ -648,7 +653,7 @@ dependencies = [
 name = "diagnostics"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "source-text",
 ]
 
@@ -667,7 +672,7 @@ name = "effects"
 version = "0.1.0"
 dependencies = [
  "application-identity",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "language-core",
@@ -760,7 +765,7 @@ dependencies = [
 name = "evaluation-accounting"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "evaluation-contracts",
  "semantic-vocabulary",
 ]
@@ -769,7 +774,7 @@ dependencies = [
 name = "evaluation-contracts"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "semantic-vocabulary",
 ]
 
@@ -777,7 +782,7 @@ dependencies = [
 name = "evaluation-receipts"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "evaluation-contracts",
  "semantic-vocabulary",
  "terminal-psi",
@@ -785,7 +790,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "execution-admission"
+name = "worker-budget"
 version = "0.1.0"
 dependencies = [
  "rayon",
@@ -796,7 +801,7 @@ name = "extent-contracts"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
 ]
 
 [[package]]
@@ -812,7 +817,7 @@ dependencies = [
 name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "source-capture",
  "wire",
 ]
@@ -828,7 +833,7 @@ name = "flow-effects"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "semantic-vocabulary",
  "symbols",
@@ -1276,7 +1281,7 @@ dependencies = [
 name = "language-core"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "numeric-literals",
  "numerics",
 ]
@@ -1317,7 +1322,7 @@ dependencies = [
 name = "layout-plans"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "wire",
 ]
 
@@ -1374,7 +1379,7 @@ name = "machine-code"
 version = "0.1.0"
 dependencies = [
  "calling-conventions",
- "compiler-storage",
+ "record-storage",
  "function-identity",
  "installation-evidence",
  "native-vocabulary",
@@ -1508,7 +1513,7 @@ dependencies = [
  "post-allocation-machine-to-framed-machine",
  "program-entry-plan",
  "provider-admission",
- "provider-demand-to-selected-execution",
+ "admitted-native-inputs-to-target-bound-program",
  "published-object-verification",
  "register-environment",
  "register-homes",
@@ -1528,7 +1533,7 @@ dependencies = [
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
+ "target-bound-program-to-abstract-operations",
  "verified-optimization-input",
  "wire",
 ]
@@ -1595,7 +1600,7 @@ name = "native-vocabulary"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
  "optimization-core",
  "semantic-vocabulary",
  "terminal-psi",
@@ -1655,7 +1660,7 @@ name = "numeric-literals"
 version = "0.1.0"
 dependencies = [
  "bignum",
- "compiler-storage",
+ "record-storage",
  "numerics",
 ]
 
@@ -1664,7 +1669,7 @@ name = "numerics"
 version = "0.1.0"
 dependencies = [
  "bignum",
- "compiler-storage",
+ "record-storage",
  "wire",
 ]
 
@@ -1698,7 +1703,7 @@ dependencies = [
  "bounded-process",
  "compiler",
  "diagnostics",
- "execution-admission",
+ "worker-budget",
  "libc",
  "mimalloc",
  "native-provider-sponsor",
@@ -1807,7 +1812,7 @@ dependencies = [
  "build-settings",
  "compiler",
  "diagnostics",
- "execution-admission",
+ "worker-budget",
  "native-artifact",
  "native-compiler",
  "package-compilation",
@@ -1839,7 +1844,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "effects",
@@ -1878,7 +1883,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-std",
  "compiler",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "effects",
@@ -2064,8 +2069,8 @@ dependencies = [
  "build-declarations",
  "build-output",
  "calling-conventions",
- "compilation-inputs",
- "compiler-storage",
+ "psi-to-admitted-native-inputs",
+ "record-storage",
  "component-description",
  "declaration-contracts",
  "diagnostics",
@@ -2123,7 +2128,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "compiler-storage",
+ "record-storage",
  "numerics",
  "semantic-vocabulary",
  "terminal-psi",
@@ -2199,7 +2204,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "provider-demand-to-selected-execution"
+name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
  "application-identity",
@@ -2265,7 +2270,7 @@ version = "0.1.0"
 dependencies = [
  "artifact-evaluation",
  "backend-plan",
- "compilation-inputs",
+ "psi-to-admitted-native-inputs",
  "diagnostics",
  "effects",
  "native-compiler",
@@ -2514,7 +2519,7 @@ name = "schema-reflection"
 version = "0.1.0"
 dependencies = [
  "application-identity",
- "compiler-storage",
+ "record-storage",
  "numerics",
  "symbols",
  "wire",
@@ -2633,7 +2638,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "compiler-storage",
+ "record-storage",
  "language-core",
  "numerics",
  "optimization",
@@ -2738,7 +2743,7 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "compiler-storage",
+ "record-storage",
  "filesystem-authority",
  "nix",
  "optimization-core",
@@ -2755,7 +2760,7 @@ name = "source-admission"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "semantic-vocabulary",
  "source-text",
@@ -2770,7 +2775,7 @@ version = "0.1.0"
 name = "source-capture"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
 ]
 
 [[package]]
@@ -2785,13 +2790,13 @@ dependencies = [
  "bignum",
  "build-time-values",
  "checked-terminal-psi-to-published-psi",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
- "execution-admission",
+ "worker-budget",
  "filesystem-authority",
  "flow-effects",
  "language-core",
@@ -2843,7 +2848,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bundled-declarations",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "language-core",
  "numeric-literals",
@@ -2861,7 +2866,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "diagnostics",
- "execution-admission",
+ "worker-budget",
  "memchr",
  "rayon",
  "source-admission",
@@ -2876,7 +2881,7 @@ dependencies = [
  "arena",
  "declaration-contracts",
  "diagnostics",
- "execution-admission",
+ "worker-budget",
  "language-core",
  "numeric-literals",
  "numerics",
@@ -2903,7 +2908,7 @@ dependencies = [
 name = "source-text"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
 ]
 
 [[package]]
@@ -2937,7 +2942,7 @@ name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "language-core",
@@ -2955,7 +2960,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "language-core",
@@ -2981,7 +2986,7 @@ name = "symbols"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "record-storage",
  "numeric-literals",
  "numerics",
  "source-text",
@@ -3003,12 +3008,13 @@ name = "syntax-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "compiler-storage",
+ "artifacts",
  "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
  "numerics",
+ "record-storage",
  "serde",
  "serde_json",
  "source-admission",
@@ -3033,7 +3039,7 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "language-core",
@@ -3055,7 +3061,7 @@ dependencies = [
 name = "target"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "diagnostics",
  "language-core",
  "layout-plans",
@@ -3107,6 +3113,7 @@ dependencies = [
  "access-vocabulary",
  "bound-installations",
  "calling-conventions",
+ "compiler-check-site",
  "diagnostics",
  "installation-admission",
  "installation-evidence",
@@ -3202,7 +3209,7 @@ dependencies = [
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "optimization",
  "semantic-vocabulary",
  "terminal-psi",
@@ -3216,7 +3223,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "compiler-storage",
+ "record-storage",
  "diagnostics",
  "flow-effects",
  "graphs",
@@ -3237,7 +3244,7 @@ dependencies = [
  "access-admission",
  "access-vocabulary",
  "arena",
- "compiler-storage",
+ "record-storage",
  "evaluation-accounting",
  "evaluation-contracts",
  "extent-contracts",
@@ -3267,7 +3274,7 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "flow-effects",
  "language-core",
@@ -3283,7 +3290,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "terminal-psi-to-abstract-operations"
+name = "target-bound-program-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
@@ -3314,7 +3321,7 @@ dependencies = [
  "bundled-declarations",
  "declaration-contracts",
  "diagnostics",
- "execution-admission",
+ "worker-budget",
  "language-core",
  "numeric-literals",
  "numerics",
@@ -3430,7 +3437,7 @@ dependencies = [
 name = "terminal-work"
 version = "0.1.0"
 dependencies = [
- "compiler-storage",
+ "record-storage",
  "evaluation-accounting",
  "evaluation-contracts",
  "semantic-vocabulary",
@@ -3493,9 +3500,9 @@ dependencies = [
  "access-vocabulary",
  "application-identity",
  "arena",
+ "artifacts",
  "bignum",
  "bundled-declarations",
- "compiler-storage",
  "declaration-contracts",
  "diagnostics",
  "flow-effects",
@@ -3503,6 +3510,7 @@ dependencies = [
  "layout-plans",
  "numeric-literals",
  "numerics",
+ "record-storage",
  "schema-reflection",
  "semantic-vocabulary",
  "serde",
@@ -3548,7 +3556,7 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "compiler-storage",
+ "record-storage",
  "declaration-contracts",
  "diagnostics",
  "language-core",
@@ -3586,7 +3594,7 @@ dependencies = [
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
- "compiler-storage",
+ "record-storage",
  "component-description",
  "declaration-contracts",
  "diagnostics",

@@ -1,0 +1,22 @@
+[package]
+name = "post-handoff-writer-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "post_handoff_writer_plan"
+path = "src/lib.rs"
+
+[features]
+test-support = ["layout-plans/test-support"]
+
+[dependencies]
+storage-materialization = { path = "../../../../../interpreter/memory/materialization" }
+wire = { path = "../../../../../foundation/wire" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+layout-plans = { path = "../../../../psi/layout" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+
+[dev-dependencies]
+layout-plans = { path = "../../../../psi/layout", features = ["test-support"] }

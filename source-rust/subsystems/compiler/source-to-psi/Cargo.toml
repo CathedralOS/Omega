@@ -1,0 +1,210 @@
+[package]
+name = "source-compiler"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "source_to_psi.rs"
+
+[features]
+test-support = [
+    "checked-program-to-psi/test-support",
+    "lowered-program-to-checked-program/test-support",
+    "symbol-resolved-trees/test-support",
+    "syntax-trees-to-symbol-resolved-trees/test-support",
+    "symbol-resolved-trees-to-typed-trees/test-support",
+    "typed-trees-to-typed-trees/test-support",
+    "typed-trees-to-lowered-program/test-support",
+]
+
+[dependencies]
+checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi" }
+lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program" }
+typed-trees-to-lowered-program = { path = "pipeline/05_typed-trees-to-lowered-program" }
+typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees" }
+symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+source-declarations = { path = "language/source-declarations" }
+symbol-resolved-trees = { path = "pipeline/representations/symbol-resolved-trees" }
+typed-trees = { path = "pipeline/representations/typed-trees" }
+source-syntax = { path = "pipeline/01_tokens-to-syntax-trees/source-syntax" }
+source-parser = { path = "pipeline/01_tokens-to-syntax-trees" }
+source-lexer = { path = "pipeline/00_source-files-to-tokens" }
+access-vocabulary = { path = "language/access-vocabulary" }
+declaration-contracts = { path = "language/declaration-contracts" }
+schema-reflection = { path = "language/schema-reflection" }
+application-identity = { path = "language/application-identity" }
+layout-planning = { path = "../psi/layout/integer-defaults" }
+numeric-literals = { path = "language/numeric-literals" }
+evaluation-contracts = { path = "evaluation/evaluation-contracts" }
+evaluation-receipts = { path = "evaluation/evaluation-receipts" }
+source-capture = { path = "../../../../host-support/source-capture" }
+source-admission = { path = "inputs/source-admission" }
+source-text = { path = "../../../foundation/source-text" }
+bignum = { path = "../../../foundation/bignum" }
+sha2 = "0.10.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+provider-choices = { path = "language/provider-choices" }
+wire = { path = "../../../foundation/wire" }
+access-admission = { path = "access-admission" }
+arena = { path = "../../../foundation/arena" }
+artifact-evaluation = { path = "evaluation/artifact-evaluation" }
+build-time-values = { path = "evaluation/build-time-values" }
+record-storage = { path = "../../../foundation/record-storage" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+evaluation-accounting = { path = "evaluation/evaluation-accounting" }
+worker-budget = { path = "../foundation/worker-budget" }
+filesystem-authority = { path = "evaluation/filesystem-authority" }
+flow-effects = { path = "language/source-effects" }
+language-core = { path = "language/source-vocabulary" }
+layout-plans = { path = "../psi/layout" }
+numerics = { path = "language/scalar-values" }
+optimization = { path = "../representations/psi/optimization-selections" }
+proof-admission = { path = "proof-admission" }
+rayon = "1.11"
+semantic-vocabulary = { path = "language/semantic-vocabulary" }
+symbols = { path = "language/declaration-identity" }
+syntax-trees = { path = "pipeline/representations/syntax-trees" }
+terminal-check-tables = { path = "pipeline/representations/lowered-program" }
+terminal-codec = { path = "../representations/psi/codec" }
+terminal-installation = { path = "../psi-admission" }
+terminal-interpreter = { path = "../../interpreter" }
+terminal-psi = { path = "../representations/psi" }
+terminal-semantics = { path = "../representations/psi/semantics" }
+terminal-work = { path = "../representations/psi/work" }
+tokens = { path = "pipeline/representations/tokens" }
+
+[dev-dependencies]
+checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
+lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
+typed-trees-to-lowered-program = { path = "pipeline/05_typed-trees-to-lowered-program", features = ["test-support"] }
+typed-trees-to-typed-trees = { path = "pipeline/04_typed-trees-to-typed-trees", features = ["test-support"] }
+symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }
+syntax-trees-to-symbol-resolved-trees = { path = "pipeline/02_syntax-trees-to-symbol-resolved-trees", features = ["test-support"] }
+mimalloc = { version = "0.1", default-features = false }
+
+[[test]]
+name = "lexing_lexing"
+path = "pipeline/00_source-files-to-tokens/tests/lexing.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lexing_source_batches"
+path = "pipeline/00_source-files-to-tokens/tests/source_batches.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lexing_source_coverage"
+path = "pipeline/00_source-files-to-tokens/tests/source_coverage.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lexing_token_boundaries"
+path = "pipeline/00_source-files-to-tokens/tests/token_boundaries.rs"
+required-features = ["test-support"]
+
+[[bench]]
+name = "lexing_lexer_timing"
+path = "pipeline/00_source-files-to-tokens/benchmarks/lexer_timing.rs"
+harness = false
+required-features = ["test-support"]
+
+[[test]]
+name = "parsing_diagnostics"
+path = "pipeline/01_tokens-to-syntax-trees/tests/diagnostics.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "parsing_sample_files"
+path = "pipeline/01_tokens-to-syntax-trees/tests/sample_files.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "typing_declaration_shapes"
+path = "pipeline/03_symbol-resolved-trees-to-typed-trees/examples/declaration_shapes.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_dominance"
+path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_machine_checks"
+path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_machine_checks_mimalloc"
+path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks_mimalloc.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_proof_preparation"
+path = "pipeline/06_lowered-program-to-checked-program/examples/proof_preparation.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_proof_preparation_timing"
+path = "pipeline/06_lowered-program-to-checked-program/examples/proof_preparation_timing.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "production_build_companions"
+path = "pipeline/07_checked-program-to-psi/tests/build_companions.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "source_state_declaration_lookups"
+path = "pipeline/representations/typed-trees/examples/declaration_lookups.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "source_state_declaration_owner"
+path = "pipeline/representations/typed-trees/examples/declaration_owner.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "source_resolved_authored_declaration_selection_ledger"
+path = "pipeline/representations/symbol-resolved-trees/tests/authored_declaration_selection_ledger.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "source_resolved_diagnostic_name_allocations"
+path = "pipeline/representations/symbol-resolved-trees/examples/diagnostic_name_allocations.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "parsing_stage_contract"
+path = "pipeline/01_tokens-to-syntax-trees/tests/stage_contract.rs"
+required-features = ["test-support"]
+
+[[bench]]
+name = "parsing_parser_timing"
+path = "pipeline/01_tokens-to-syntax-trees/benchmarks/parser_timing.rs"
+harness = false
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_service_correspondence"
+path = "pipeline/06_lowered-program-to-checked-program/examples/service_correspondence.rs"
+required-features = ["test-support"]
+
+[[example]]
+name = "checking_service_correspondence_allocations"
+path = "pipeline/06_lowered-program-to-checked-program/examples/service_correspondence_allocations.rs"
+required-features = ["test-support"]
+
+[[bench]]
+name = "source_parsing"
+path = "pipeline/01_tokens-to-syntax-trees/benchmarks/streaming.rs"
+harness = false
+required-features = ["test-support"]
+
+[[bench]]
+name = "resolver_timing"
+path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/benchmarks/resolver_timing.rs"
+harness = false
+required-features = ["test-support"]

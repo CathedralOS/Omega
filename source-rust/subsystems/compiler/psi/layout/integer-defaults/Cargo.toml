@@ -1,0 +1,12 @@
+[package]
+name = "layout-planning"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "integer_defaults.rs"
+
+[dependencies]
+layout-plans = { path = ".." }
+semantic-vocabulary = { path = "../../../source-to-psi/_recycling/language/semantic-vocabulary" }

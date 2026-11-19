@@ -1,0 +1,22 @@
+[package]
+name = "optimization-unit-semantics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "optimization_unit_semantics"
+path = "src/lib.rs"
+
+[dependencies]
+declaration-contracts = { path = "../../../../../source-to-psi/language/declaration-contracts" }
+arena = { path = "../../../../../../../foundation/arena" }
+native-vocabulary = { path = "../../../../native-vocabulary" }
+optimization-core = { path = "../../../../optimization-contracts" }
+optimization-unit = { path = "../optimization-unit" }
+abstract-operations = { path = ".." }
+semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../representations/psi" }
+terminal-codec = { path = "../../../../../representations/psi/codec" }
+terminal-work = { path = "../../../../../representations/psi/work" }
+terminal-semantics = { path = "../../../../../representations/psi/semantics" }

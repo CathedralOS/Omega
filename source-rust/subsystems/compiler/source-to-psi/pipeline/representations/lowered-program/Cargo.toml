@@ -1,0 +1,21 @@
+[package]
+name = "terminal-check-tables"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "terminal_check_tables"
+path = "src/lib.rs"
+
+# Retained representations. This crate must never depend on pipeline stages:
+# it is the contract the checker on the lowered form is built against.
+[dependencies]
+source-admission = { path = "../../../inputs/source-admission" }
+source-text = { path = "../../../../../../foundation/source-text" }
+arena = { path = "../../../../../../foundation/arena" }
+semantic-vocabulary = { path = "../../../language/semantic-vocabulary" }
+language-core = { path = "../../../language/source-vocabulary" }
+symbols = { path = "../../../language/declaration-identity" }
+diagnostics = { path = "../../../../../../foundation/diagnostics" }
+terminal-psi = { path = "../../../../representations/psi" }

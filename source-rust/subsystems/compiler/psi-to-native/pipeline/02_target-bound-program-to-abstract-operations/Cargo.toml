@@ -1,0 +1,23 @@
+[package]
+name = "target-bound-program-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+abstract-operations = { path = "../representations/abstract-operations" }
+backend-plan = { path = "../../installation/provider-plans" }
+boundary-applications = { path = "../../installation/boundary-applications" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+effects = { path = "../../installation/native-effects" }
+installation-evidence = { path = "../../installation/installation-evidence" }
+optimization-core = { path = "../../optimization-contracts" }
+provider-admission = { path = "../../verification/provider-admission" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+target = { path = "../../target-description/target" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-semantics = { path = "../../../representations/psi/semantics" }
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }

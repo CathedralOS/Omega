@@ -1,0 +1,8 @@
+[package]
+name = "compiler-check-site"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "check_site.rs"

@@ -1,0 +1,17 @@
+[package]
+name = "artifact-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+record-storage = { path = "../../../../../foundation/record-storage" }
+evaluation-contracts = { path = "../evaluation-contracts" }
+build-time-values = { path = "../build-time-values" }
+semantic-vocabulary = { path = "../../language/semantic-vocabulary" }
+terminal-codec = { path = "../../../representations/psi/codec" }
+terminal-psi = { path = "../../../representations/psi" }
+terminal-work = { path = "../../../representations/psi/work" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-interpreter = { path = "../../interpreter" }
+evaluation-accounting = { path = "../evaluation-accounting" }

@@ -1,0 +1,13 @@
+[package]
+name = "diagnostics"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "diagnostics"
+path = "diagnostic.rs"
+
+[dependencies]
+source-text = { path = "../source-text" }
+record-storage = { path = "../record-storage" }
