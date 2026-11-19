@@ -233,7 +233,7 @@ pub(super) fn successor_parameter_function() -> SelectedFunction {
             block: SelectedBlockId(1),
             source_target: BlockId::new(2).unwrap(),
             bindings: vec![selected_instructions::SelectedValueBinding {
-                semantic: native_vocabulary::values::ValueBinding {
+                semantic: operation_operands::values::ValueBinding {
                     parameter: ValueId::new(3).unwrap(),
                     argument: ValueId::new(1).unwrap(),
                     scalar_type,
@@ -1053,7 +1053,7 @@ fn bindings_mut(plan: &mut FixedViewCopyPlan) -> &mut Vec<SelectedValueBinding> 
 fn current_artifact_and_identity_bind_transport_role_and_both_registers() {
     let mut original = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     bindings_mut(&mut original).push(SelectedValueBinding {
-        semantic: native_vocabulary::values::ValueBinding {
+        semantic: operation_operands::values::ValueBinding {
             parameter: ValueId::new(40).unwrap(),
             argument: ValueId::new(41).unwrap(),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),

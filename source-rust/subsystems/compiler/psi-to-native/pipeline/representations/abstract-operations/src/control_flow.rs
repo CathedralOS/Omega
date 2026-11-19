@@ -119,7 +119,7 @@ pub struct AbstractSuccessor {
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>, // Exact Terminal Psi cleanup order for this conditional edge.
 }
 
-pub use native_vocabulary::values::AbstractStructuralBinding;
+pub use operation_operands::values::AbstractStructuralBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AbstractStructuralCaseSuccessor {

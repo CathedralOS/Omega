@@ -10,7 +10,7 @@ use crate::{
     TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance,
 };
 use calling_conventions::CallPlan;
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::TerminalAffineCleanupAction;
 
@@ -110,7 +110,7 @@ pub enum TargetControlTerminator {
         claim_transfers: Vec<terminal_psi::ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<terminal_psi::CrashRouteBucket>,
-        declared_result: native_vocabulary::values::AbstractFunctionResult,
+        declared_result: operation_operands::values::AbstractFunctionResult,
     },
     ExternalCompletion {
         psi_edge: EdgeId,
@@ -235,7 +235,7 @@ pub struct TargetControlCaseSuccessor {
     pub case_tag: i32,
     pub target: BlockId,
     pub payloads: Vec<TargetControlCasePayload>,
-    pub structural_bindings: Vec<native_vocabulary::values::AbstractStructuralBinding>,
+    pub structural_bindings: Vec<operation_operands::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
     pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
@@ -253,7 +253,7 @@ pub struct TargetControlSuccessor {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<ValueBinding>,
-    pub structural_bindings: Vec<native_vocabulary::values::AbstractStructuralBinding>,
+    pub structural_bindings: Vec<operation_operands::values::AbstractStructuralBinding>,
     pub structural_indices: Vec<Vec<crate::TargetStructuralRuntimeIndex>>,
     pub work: Vec<native_vocabulary::provenance::WorkSettlement>,
     pub cleanup_actions: Vec<TerminalAffineCleanupAction>,
@@ -263,7 +263,7 @@ impl TargetControlSuccessor {
     pub fn structural_binding(
         &self,
         parameter: semantic_vocabulary::PlaceId,
-    ) -> Option<&native_vocabulary::values::AbstractStructuralBinding> {
+    ) -> Option<&operation_operands::values::AbstractStructuralBinding> {
         self.structural_bindings
             .iter()
             .find(|binding| binding.parameter == parameter)

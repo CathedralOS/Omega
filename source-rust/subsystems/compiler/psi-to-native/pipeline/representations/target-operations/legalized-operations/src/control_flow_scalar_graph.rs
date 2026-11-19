@@ -15,7 +15,7 @@ use native_vocabulary::provenance::EffectLink;
 use native_vocabulary::provenance::OwnershipEvent;
 use native_vocabulary::provenance::ValueDefinitionSite;
 use native_vocabulary::provenance::WorkSettlement;
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClosedIntegerType, ClosedScalarType, EdgeId, IntegerValue,
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
@@ -681,12 +681,12 @@ pub enum LegalizedScalarInstructionKind {
     },
     EstablishPrimitiveLocal {
         result: terminal_psi::StructuralOperationResult,
-        value: native_vocabulary::values::AbstractResult,
+        value: operation_operands::values::AbstractResult,
         shape: calling_conventions::ValueShape,
     },
     PrimitiveLocalStore {
         destination: semantic_vocabulary::PlaceId,
-        value: native_vocabulary::values::AbstractResult,
+        value: operation_operands::values::AbstractResult,
     },
     PrimitiveScalarRead {
         source: semantic_vocabulary::PlaceId,
@@ -785,7 +785,7 @@ pub enum LegalizedScalarInstructionKind {
     WriteOnlyPrimitiveStore {
         destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
-        value: native_vocabulary::values::AbstractResult,
+        value: operation_operands::values::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -801,7 +801,7 @@ pub enum LegalizedScalarInstructionKind {
         destination: native_vocabulary::structural_stores::StructuralScalarStoreDestination,
         path: Vec<terminal_psi::StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
-        value: native_vocabulary::values::AbstractResult,
+        value: operation_operands::values::AbstractResult,
         byte_offset: u32,
         byte_size: u32, // Physical access envelope, not the semantic register width.
         indices: Vec<LegalizedRuntimeIndexOperand>,
@@ -1259,7 +1259,7 @@ pub enum LegalizedScalarComparison {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalizedStructuralBinding {
-    pub semantic: native_vocabulary::values::AbstractStructuralBinding, // Source custody and destination identity.
+    pub semantic: operation_operands::values::AbstractStructuralBinding, // Source custody and destination identity.
     pub indices: Vec<LegalizedRuntimeIndexOperand>, // Address selectors with accepted facts owned by this exact edge.
 }
 
@@ -1326,7 +1326,7 @@ pub enum LegalizedScalarTerminator {
     InvokeNoNormal {
         psi_edge: EdgeId,
         call: LegalizedScalarCall,
-        declared_result: native_vocabulary::values::AbstractFunctionResult, // Declared ABI result mechanics without a semantic receiving value.
+        declared_result: operation_operands::values::AbstractFunctionResult, // Declared ABI result mechanics without a semantic receiving value.
         work: Vec<WorkSettlement>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
@@ -1540,7 +1540,7 @@ impl LegalizedScalarSuccessor {
     pub fn structural_binding(
         &self,
         parameter: PlaceId,
-    ) -> Option<&native_vocabulary::values::AbstractStructuralBinding> {
+    ) -> Option<&operation_operands::values::AbstractStructuralBinding> {
         self.structural_bindings
             .iter()
             .map(|binding| &binding.semantic)

@@ -4845,7 +4845,7 @@ pub(crate) mod no_normal {
                 operands.push(pointer);
             } else {
                 let scalar_type = match declared_result {
-                    native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
+                    operation_operands::values::AbstractFunctionResult::Scalar(result) => {
                         result.scalar_type
                     }
                     _ => integer,

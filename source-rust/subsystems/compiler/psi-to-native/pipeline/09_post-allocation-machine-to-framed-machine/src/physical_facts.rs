@@ -4,7 +4,7 @@
 pub fn for_emission(
     frame: &crate::PhysicalFrameProgram,
     installations: &installation_admission::PlannedInstallationResources,
-    semantic: &native_vocabulary::emission::EmissionProgramFacts,
+    semantic: &target_vocabulary::publication::EmissionProgramFacts,
 ) -> Result<physical_program::PhysicalEmissionFacts, &'static str> {
     let program = &frame.instructions;
     let layout = frame.frame.plan();

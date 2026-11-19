@@ -1530,13 +1530,13 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
             encode_len(bytes, invocation.len());
             bytes.extend_from_slice(&invocation);
             match declared_result {
-                native_vocabulary::values::AbstractFunctionResult::Unit => bytes.push(0),
-                native_vocabulary::values::AbstractFunctionResult::Scalar(result) => {
+                operation_operands::values::AbstractFunctionResult::Unit => bytes.push(0),
+                operation_operands::values::AbstractFunctionResult::Scalar(result) => {
                     bytes.push(1);
                     crate::codec_bytes::push_encoded(bytes, result.value.get().to_le_bytes());
                     encode_scalar_type(bytes, result.scalar_type);
                 }
-                native_vocabulary::values::AbstractFunctionResult::Structural(result) => {
+                operation_operands::values::AbstractFunctionResult::Structural(result) => {
                     bytes.push(2);
                     super::structural::encode_result(bytes, result);
                 }

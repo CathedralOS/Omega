@@ -62,7 +62,7 @@ fn call_identity_binds_both_runtime_selector_rosters() {
 
     let mut plan = call_aware_plan();
     let index = LegalizedRuntimeIndexOperand {
-        operand: native_vocabulary::values::AbstractResult {
+        operand: operation_operands::values::AbstractResult {
             value: id(21),
             scalar_type: target_vocabulary::selector_carrier_type(),
         },
@@ -613,7 +613,7 @@ fn primitive_store_plan() -> LegalizedOperationPlan {
             additional_input_qualifications: Vec::new(),
         }
         .into(),
-        value: native_vocabulary::values::AbstractResult {
+        value: operation_operands::values::AbstractResult {
             value: id(503),
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
         },
@@ -783,7 +783,7 @@ fn runtime_index(
     stride: u32,
 ) -> crate::LegalizedRuntimeIndexOperand {
     crate::LegalizedRuntimeIndexOperand {
-        operand: native_vocabulary::values::AbstractResult {
+        operand: operation_operands::values::AbstractResult {
             value: operand,
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         },

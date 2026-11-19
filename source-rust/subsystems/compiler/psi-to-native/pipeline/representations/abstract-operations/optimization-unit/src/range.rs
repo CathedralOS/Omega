@@ -82,7 +82,7 @@ pub(crate) fn integer_value_cmp(
     }
 }
 
-pub(crate) use native_vocabulary::identity_encoding::encode_integer_type;
+pub(crate) use semantic_vocabulary::identity_encoding::encode_integer_type;
 
 pub(crate) fn encode_integer_value(canonical: &mut Vec<u8>, value: IntegerValue) {
     match value {

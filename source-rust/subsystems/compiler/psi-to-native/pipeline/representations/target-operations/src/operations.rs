@@ -17,7 +17,7 @@ use crate::{
 };
 use calling_conventions::{CallPlan, ValueShape};
 use native_vocabulary::completion_claims::CompletionClaimSource;
-use native_vocabulary::values::AbstractResult;
+use operation_operands::values::AbstractResult;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClosedIntegerType, EdgeId, IeeeFloatFormat, IeeeFloatValue,
     IntegerType, IntegerValue, MachineId, OperationId, PlaceId, ServiceId, StructuralFieldId,
@@ -541,7 +541,7 @@ pub enum TargetUnitOperation {
         psi_edge: EdgeId,
         source_block: BlockId,
         target_block: BlockId,
-        bindings: Vec<native_vocabulary::values::ValueBinding>,
+        bindings: Vec<operation_operands::values::ValueBinding>,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
     Return {

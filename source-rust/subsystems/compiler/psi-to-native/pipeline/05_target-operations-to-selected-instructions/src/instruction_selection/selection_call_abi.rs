@@ -716,7 +716,7 @@ pub(crate) mod input_site {
         source: &'source crate::instruction_selection::native_geometry::NativeFunction<'source>,
         site: InvocationSite,
         call: &legalized_operations::LegalizedScalarCall,
-    ) -> Option<&'source native_vocabulary::values::AbstractFunctionResult> {
+    ) -> Option<&'source operation_operands::values::AbstractFunctionResult> {
         let InvocationSite::InvokeNoNormal(edge) = site else {
             return None;
         };
@@ -1776,7 +1776,7 @@ pub(crate) fn unit_key(
 
 pub(crate) fn no_normal_key(
     call: &LegalizedScalarCall,
-    declared_result: &native_vocabulary::values::AbstractFunctionResult,
+    declared_result: &operation_operands::values::AbstractFunctionResult,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     invocation_key(call, Some(declared_result), environment)
@@ -1784,7 +1784,7 @@ pub(crate) fn no_normal_key(
 
 fn invocation_key(
     call: &LegalizedScalarCall,
-    declared_no_normal_result: Option<&native_vocabulary::values::AbstractFunctionResult>,
+    declared_no_normal_result: Option<&operation_operands::values::AbstractFunctionResult>,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Option<RegisterConstraintKey> {
     let order = register_argument_order(call);
@@ -1821,7 +1821,7 @@ fn invocation_key(
         declared_no_normal_result.map_or(call.structural_result.is_some(), |result| {
             matches!(
                 result,
-                native_vocabulary::values::AbstractFunctionResult::Structural(_)
+                operation_operands::values::AbstractFunctionResult::Structural(_)
             )
         });
     let empty_result = structural_result
@@ -1969,7 +1969,7 @@ pub(crate) fn validate(
             target_vocabulary::CallSiteOwner::Installation {
                 role: target_vocabulary::InstallationCallRole::Work,
                 ..
-            } => &native_vocabulary::values::AbstractFunctionResult::Unit,
+            } => &operation_operands::values::AbstractFunctionResult::Unit,
             target_vocabulary::CallSiteOwner::InvokeNoNormal(edge) => input_site::no_normal_result(
                 source,
                 semantic_vocabulary::InvocationSite::InvokeNoNormal(edge),

@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+operation-operands = { path = "../representations/operation-operands" }
 compiler-check-site = { path = "../../../foundation/check-site" }
 provider-admission = { path = "../../verification/provider-admission" }
 installation-admission = { path = "../../verification/installation-admission" }

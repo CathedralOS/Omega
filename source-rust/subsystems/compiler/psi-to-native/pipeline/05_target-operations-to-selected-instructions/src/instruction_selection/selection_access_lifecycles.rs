@@ -2477,7 +2477,7 @@ pub(crate) mod resource_profile {
                             };
                             let index = |number, stride, extent| {
                                 legalized_operations::LegalizedRuntimeIndexOperand {
-                                    operand: native_vocabulary::values::AbstractResult {
+                                    operand: operation_operands::values::AbstractResult {
                                         value: semantic_vocabulary::ValueId::new(number).unwrap(),
                                         scalar_type: ScalarType::Integer(
                                             IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

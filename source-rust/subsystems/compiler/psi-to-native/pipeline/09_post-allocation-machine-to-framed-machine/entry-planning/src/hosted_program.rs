@@ -3,9 +3,9 @@ use crate::{PhysicalFrameProgram, hosted_entry::ReceiverStorage};
 use diagnostics::Diagnostic;
 use machine_code::hosted_entry::HostedEntryMode;
 use machine_code::physical_stack::StackDemand;
-use native_vocabulary::emission::EmissionProgramFacts;
 use physical_recipes::hosted_program::{HostedProgram, HostedProgramParts};
 use program_entry_plan::hosted_receiver::HostedReceiverCustody;
+use target_vocabulary::publication::EmissionProgramFacts;
 
 pub struct HostedProgramEntryRequest<'a, Receiver> {
     pub frame: &'a PhysicalFrameProgram,
@@ -46,7 +46,7 @@ pub fn needs_hosted_entry(
             .is_some_and(|function| {
                 matches!(
                     function.result,
-                    native_vocabulary::values::AbstractFunctionResult::Unit
+                    operation_operands::values::AbstractFunctionResult::Unit
                 ) && function.entry_claims.is_empty()
                     && function.parameters.is_empty()
                     && function.structural_parameters.is_empty()

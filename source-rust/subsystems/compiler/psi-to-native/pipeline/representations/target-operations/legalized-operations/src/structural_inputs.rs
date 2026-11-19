@@ -700,7 +700,7 @@ pub mod structural_reference_input {
     }
 
     pub fn parameter_shape<'declaration>(
-        parameter: impl Into<native_vocabulary::calls::StructuralCallFormal<'declaration>>,
+        parameter: impl Into<operation_operands::calls::StructuralCallFormal<'declaration>>,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         use terminal_psi::StructuralAccess;

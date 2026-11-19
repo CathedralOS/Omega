@@ -1211,7 +1211,7 @@ mod ordinary {
             original
                 .structural_bindings
                 .push(crate::SelectedStructuralBinding {
-                    semantic: native_vocabulary::values::AbstractStructuralBinding {
+                    semantic: operation_operands::values::AbstractStructuralBinding {
                         parameter: PlaceId::new(4).unwrap(),
                         argument: terminal_psi::StructuralArgument {
                             place: PlaceId::new(5).unwrap(),
@@ -1221,7 +1221,7 @@ mod ordinary {
                     },
                     transport: crate::SelectedStructuralTransport::Unused,
                     source_indices: vec![target_vocabulary::LegalizedRuntimeIndexOperand {
-                        operand: native_vocabulary::values::AbstractResult {
+                        operand: operation_operands::values::AbstractResult {
                             value: ValueId::new(6).unwrap(),
                             scalar_type: ScalarType::Integer(
                                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),

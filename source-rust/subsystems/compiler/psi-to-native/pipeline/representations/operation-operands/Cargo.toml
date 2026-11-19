@@ -1,0 +1,10 @@
+[package]
+name = "operation-operands"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+record-storage = { path = "../../../../../../foundation/record-storage" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+terminal-psi = { path = "../../../../psi" }

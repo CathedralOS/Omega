@@ -90,7 +90,7 @@ pub use control_flow::{
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
 };
 pub mod values;
-pub use native_vocabulary::integer_arithmetic::{
+pub use operation_operands::integer_arithmetic::{
     IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection,
     IntegerShiftPolicy,
 };

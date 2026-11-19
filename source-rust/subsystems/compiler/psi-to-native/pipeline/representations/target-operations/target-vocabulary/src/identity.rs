@@ -34,7 +34,7 @@ use crate::{MachineRegister, TargetAccessCallAssociation, TargetAccessCallBindin
 use calling_conventions::ConventionalSumLayout;
 use native_vocabulary::provenance::PsiProvenance;
 use native_vocabulary::provenance::WorkSettlement;
-use native_vocabulary::values::ValueBinding;
+use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{BoundaryMachineId, IntegerType, IntegerValue, OperationId};
 use structural_types::{
     encode_entry_claim, encode_structural_parameter, encode_structural_type,

@@ -4,6 +4,13 @@
 //! it owns the current source function; later forms share the sealed roster
 //! rather than reopening that function to recover an ordinal or quoted bytes.
 
+mod emission;
+pub use emission::{
+    DescriptorProducer, DescriptorProducerFact, EmissionFunctionFacts, EmissionOperationProvenance,
+    EmissionProgramFacts, OptimizedProgramProjection, PrimitiveLocalFact, RamObligation, RamSource,
+    ScalarCallOrigin, ScalarCallResultFact,
+};
+
 mod execution_scope;
 pub use execution_scope::{EmittedCallbackOccurrence, EmittedExecutionScope};
 
