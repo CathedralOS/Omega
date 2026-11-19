@@ -15,7 +15,7 @@ path = "lib.rs"
 
 [dependencies]
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
-source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
+source-symbol-table = { path = "../representations/symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 typed-trees = { path = "../representations/typed-trees" }
 application-identity = { path = "../../../psi/application-identity" }
