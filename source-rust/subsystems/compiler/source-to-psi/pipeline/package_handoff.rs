@@ -19,8 +19,7 @@ pub fn package_handoff_declarations(
             "a dependency Build handoff requires a named package",
         )]
     })?;
-    let mut observer = UnmeasuredProduction;
-    let (mut declarations, _) = lex_and_parse(&source, &mut observer)?.prepare(&mut observer)?;
+    let mut declarations = source.resolve()?;
     let (_, admitted) = source
         .selections
         .policy
