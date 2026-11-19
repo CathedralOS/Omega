@@ -28,6 +28,26 @@ pub use product_operands::{
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
 
+/// Prepare the typed program for stage 05 in the order declared in `PASSES`.
+pub fn prepare_typed_trees(
+    mut program: TypedTrees,
+    request: &PreparationRequest<'_>,
+) -> Result<(PreparedTypedTrees, PreparationAdmission), Vec<Diagnostic>> {
+    request.require_served()?;
+    for pass in PASSES {
+        (pass.run)(&mut program).map_err(|refused| {
+            refused
+                .into_iter()
+                .map(|mut diagnostic| {
+                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
+                    diagnostic
+                })
+                .collect::<Vec<_>>()
+        })?;
+    }
+    Ok((PreparedTypedTrees(std::sync::Arc::new(program.into())), request.admission()))
+}
+
 /// One step of typed preparation and the name its refusals carry.
 struct Pass {
     name: &'static str,
@@ -180,25 +200,6 @@ impl std::ops::Deref for PreparedTypedTrees {
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}
-
-pub fn prepare_typed_trees(
-    mut program: TypedTrees,
-    request: &PreparationRequest<'_>,
-) -> Result<(PreparedTypedTrees, PreparationAdmission), Vec<Diagnostic>> {
-    request.require_served()?;
-    for pass in PASSES {
-        (pass.run)(&mut program).map_err(|refused| {
-            refused
-                .into_iter()
-                .map(|mut diagnostic| {
-                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
-                    diagnostic
-                })
-                .collect::<Vec<_>>()
-        })?;
-    }
-    Ok((PreparedTypedTrees(std::sync::Arc::new(program.into())), request.admission()))
 }
 
 #[cfg(test)]
