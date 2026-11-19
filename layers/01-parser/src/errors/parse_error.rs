@@ -1,6 +1,6 @@
 //! The one error a source file can produce in this layer: the first place it left the grammar.
 
-use crate::parse_error_kind::ParseErrorKind;
+use crate::errors::parse_error_kind::ParseErrorKind;
 use omega_lexer::SourceSpan;
 use std::error::Error;
 use std::fmt;

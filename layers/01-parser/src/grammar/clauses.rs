@@ -1,9 +1,10 @@
 //! Header clauses: `requires`, `ensures`, `reaches` and the rest.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parser::{Parsed, Parser};
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
 /// The clause a word introduces, if it is a clause word.
@@ -24,7 +25,7 @@ fn get_clause_kind(word: &[u8]) -> Option<NodeKind> {
     })
 }
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     pub(crate) fn nth_at_clause_keyword(
         &self,
         ahead: usize,

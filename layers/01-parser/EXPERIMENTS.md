@@ -7,6 +7,16 @@ faster, kept or not.
 
     cargo run --release -p omega-parser --example parse_throughput -- --files
 
+To compare two versions, do not time them by hand. From the repository root:
+
+    cargo run --release -p compare-builds -- --package omega-parser --tool parse_throughput -- --files
+
+That builds the last commit and the working tree three ways each, runs them
+interleaved, and ends with one sentence on `parse_min_ms`. It is the answer
+to the warning under "Noise" below; the lexer's experiments 8 to 12 are why
+it exists. `--passes N` sets how many times the tool repeats the measurement
+(it was `--rounds` before the tool moved onto the shared `measure` crate).
+
 **Workload.** There is no large body of V2 source. V1's source tree is in
 V1's syntax, which this grammar refuses on purpose. So the workload is this
 crate's 22 accept fixtures laid end to end, 12,747 bytes, lexed and parsed

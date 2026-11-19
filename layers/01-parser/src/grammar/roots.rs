@@ -1,13 +1,14 @@
 //! The places a parse can start: a whole file, or one of the fragment shapes the spec's examples use.
 
-use crate::fragment_kind::FragmentKind;
-use crate::grammar::statements::TailRule;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parser::{Parsed, Parser};
+use crate::grammar::contexts::tail_rule::TailRule;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::fragment_kind::FragmentKind;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /// `file = item*`
     pub(crate) fn parse_file_root(&mut self) -> Parsed {
         let file = self.open();

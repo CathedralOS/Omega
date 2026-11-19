@@ -1,11 +1,13 @@
 //! Bodies and the statements inside them.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parse_error::ParseError;
-use crate::parse_error_kind::ParseErrorKind;
-use crate::parser::{Parsed, Parser};
+use crate::errors::parse_error::ParseError;
+use crate::errors::parse_error_kind::ParseErrorKind;
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::tail_rule::TailRule;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
 /// How a statement ended, which decides what may come after it in a body.
@@ -21,18 +23,7 @@ pub(crate) enum StatementShape {
     Transition,
 }
 
-/// Where an expression with no `;` after it is accepted as a result.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TailRule {
-    /// Only as the last executable thing in a body. This is the language's rule.
-    LastInBody,
-
-    /// Anywhere. Only fragments use this: the spec lists bare expressions one per line to show
-    /// forms, and each ends where the next token cannot continue it.
-    Anywhere,
-}
-
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /*
         `'{' statement* tail? machine* '}'`
 

@@ -1,4 +1,6 @@
-//! The grammar, one file per part of GRAMMAR.md, each a set of methods on `Parser`.
+//! The grammar, one file per part of GRAMMAR.md, each a set of methods on `SyntaxParser`.
+
+pub mod contexts;
 
 mod assembly;
 mod clauses;

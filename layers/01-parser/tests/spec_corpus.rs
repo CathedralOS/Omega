@@ -3,8 +3,9 @@
 mod support;
 
 use omega_lexer::lex;
-use omega_parser::{FragmentKind, dump_parse_error, parse_fragment};
+use omega_parser::{FragmentKind, parse_fragment};
 use std::path::Path;
+use support::dump_parse_error;
 
 /*
     The spec's examples are V2's nearest thing to a conformance corpus, and

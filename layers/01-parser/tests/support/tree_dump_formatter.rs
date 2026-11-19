@@ -1,9 +1,11 @@
 //! The text form of the parser's output that the golden fixtures compare against.
+//!
+//! This lives with the tests and not in the crate, because the parser has no use for it: the
+//! tests read it, and so does the `parse_spec` tool, which pulls this file in by path. It is
+//! written against the parser's public API alone, so the dump shows what any caller can see.
 
-use crate::event::Event;
-use crate::parse_error::ParseError;
-use crate::syntax_tree::SyntaxTree;
 use omega_lexer::{LineIndex, Token};
+use omega_parser::{ParseError, SyntaxTree, TreeEvent};
 use std::fmt::Write;
 
 /*
@@ -53,7 +55,7 @@ pub fn dump_tree(
 
     for (event_index, event) in events.iter().enumerate() {
         match event {
-            Event::Open(node_kind) => {
+            TreeEvent::Open(node_kind) => {
                 let _ = write!(tree_dump, "{:indent$}{node_kind:?}", "", indent = depth * 2);
 
                 is_inside_token_only_node = holds_only_tokens(events, event_index);
@@ -64,7 +66,7 @@ pub fn dump_tree(
 
                 depth += 1;
             }
-            Event::Close => {
+            TreeEvent::Close => {
                 depth = depth.saturating_sub(1);
 
                 if is_inside_token_only_node {
@@ -72,7 +74,7 @@ pub fn dump_tree(
                     is_inside_token_only_node = false;
                 }
             }
-            Event::Token => {
+            TreeEvent::Token => {
                 if is_inside_token_only_node {
                     tree_dump.push(' ');
                     write_token(&mut tree_dump);
@@ -116,14 +118,14 @@ pub fn dump_parse_error(
 
 /// True if the node opened at `open_event_index` closes before any other node opens inside it.
 fn holds_only_tokens(
-    events: &[Event],
+    events: &[TreeEvent],
     open_event_index: usize,
 ) -> bool {
     events
         .iter()
         .skip(open_event_index + 1)
-        .find(|event| !matches!(event, Event::Token))
-        .is_some_and(|event| matches!(event, Event::Close))
+        .find(|event| !matches!(event, TreeEvent::Token))
+        .is_some_and(|event| matches!(event, TreeEvent::Close))
 }
 
 // @Copypasta: the lexer's dump has the same function and keeps it private. Two dumps that must

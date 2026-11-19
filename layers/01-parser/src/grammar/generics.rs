@@ -1,12 +1,13 @@
 //! Generic parameters on declarations, and generic arguments in both of their spellings.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parser::{Parsed, Parser};
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /// `'<' ( generic_param % ',' ) '>'`
     pub(crate) fn parse_generic_params(&mut self) -> Parsed {
         let generic_params = self.open();

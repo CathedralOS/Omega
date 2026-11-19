@@ -1,12 +1,13 @@
 //! Assembly: `asm machine` declarations and `asm { ... }` blocks.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parser::{Parsed, Parser};
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /// `visibility? 'asm' 'machine' path generic_params? ( '(' params ')' )? result? clause*
     ///  '{' asm_line* asm_machine* '}'`
     pub(crate) fn parse_asm_machine(&mut self) -> Parsed {

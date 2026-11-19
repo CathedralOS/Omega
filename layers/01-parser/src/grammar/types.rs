@@ -1,26 +1,14 @@
 //! Types: references, slices, arrays, machine types, function arrows and paths.
 
-use crate::expression_context::ExpressionContext;
-use crate::node_kind::NodeKind;
-use crate::parser::{ClosedNode, Parsed, Parser};
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::closed_node::ClosedNode;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-/// Where a type sits, which decides two things a type cannot know by itself.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum TypePosition {
-    /// A parameter, a field, a result: nothing around the type competes for its tokens.
-    Plain,
-
-    /// Directly inside `<...>`. A `>` ends the type, even in the middle of a machine type's clause:
-    /// in `<const F: machine(v: u64) -> u64 ensures result >= v>` the last `>` closes the list.
-    InsideAngles,
-
-    /// After `as`. Here `->` is left alone, because in an arm written `x as T -> ...` the arrow
-    /// belongs to the arm. Everywhere else `A -> B` is a function type.
-    Cast,
-}
-
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /// `type`, or `type -> type` except after `as`. The arrow groups to the right.
     pub(crate) fn parse_type(
         &mut self,

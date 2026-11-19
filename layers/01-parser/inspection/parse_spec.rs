@@ -8,9 +8,14 @@
 //!
 //!     cargo run -p omega-parser --example parse_spec -- language/patterns.md
 
+// The dump is the tests' own; see the note at the top of that file for why it is not in the crate.
+#[path = "../tests/support/tree_dump_formatter.rs"]
+mod tree_dump_formatter;
+
 use omega_lexer::lex;
-use omega_parser::{FragmentKind, dump_parse_error, dump_tree, parse_fragment};
+use omega_parser::{FragmentKind, parse_fragment};
 use std::path::Path;
+use tree_dump_formatter::{dump_parse_error, dump_tree};
 
 // @Volatile: must list the same examples as `EXAMPLE_SHAPES` in `tests/spec_corpus.rs`. The test is
 // the authority; this copy only decides how an example is shown.

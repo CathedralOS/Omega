@@ -31,6 +31,7 @@ name = "omega-parser"
 version = "0.0.0"
 dependencies = [
  "golden",
+ "measure",
  "omega-lexer",
  "spec-corpus",
 ]

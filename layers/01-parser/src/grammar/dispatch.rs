@@ -1,12 +1,14 @@
 //! `match` and `transition`, which share one grammar, and the patterns their arms use.
 
-use crate::expression_context::ExpressionContext;
-use crate::node_kind::NodeKind;
-use crate::parse_error_kind::ParseErrorKind;
-use crate::parser::{ClosedNode, Parsed, Parser};
+use crate::errors::parse_error_kind::ParseErrorKind;
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::parsing::closed_node::ClosedNode;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     /*
         :DispatchKeyword
         `match` and `transition` are ordinary words, so we need a rule for when

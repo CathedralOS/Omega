@@ -68,107 +68,99 @@
 /*
     How the code is laid out.
 
-    This file declares the modules, names what the crate exports, and holds the
-    two entry points. `parser.rs` is the machinery: the cursor over the tokens
-    and the event list being built. `grammar/` is the grammar itself, one file
-    per section of GRAMMAR.md, each a set of methods on `Parser`. Each type has
-    a file of its own, named after it.
+    This file only declares the modules and names what the crate exports.
+    Everything else is in four folders, one for each thing a reader might be
+    looking for:
+
+        parsing/    the machinery: the two entry points, the parser that walks
+                    the tokens and builds the tree, and the small types it
+                    hands to the grammar.
+        grammar/    the grammar itself, one file per section of GRAMMAR.md,
+                    each a set of methods on `SyntaxParser`. Its `contexts/`
+                    folder holds what a caller tells a rule about where it
+                    sits.
+        tree/       what comes out: the tree, its events and the node kinds.
+        errors/     what a refusal carries: the error and the reason it names.
+
+    The folders are not numbered, because they are not steps: the parser is
+    one pass. There is still a good order to read them in:
+
+        1. parsing/entry_points.rs
+           `parse_file` and `parse_fragment`, with a narrated example on each.
+           This is all a caller ever touches.
+
+        2. tree/syntax_tree.rs, tree/tree_event.rs, tree/node_kind.rs
+           What comes back. `syntax_tree.rs` says why the tree is a flat list
+           of events and not nodes that point at each other; read that before
+           the code that writes the list.
+
+        3. parsing/syntax_parser.rs
+           The machinery every grammar rule is written in terms of: looking at
+           the next tokens, consuming one, and opening and closing nodes. Read
+           it with `parsing/parse_failed.rs`, which says why a failure carries
+           no error, and `open_node.rs` and `closed_node.rs` beside it.
+
+        4. grammar/roots.rs, grammar/items.rs
+           Where a parse starts, and how the parser decides which declaration
+           begins at the cursor when no word is reserved.
+
+        5. grammar/data.rs, grammar/traits.rs, grammar/assembly.rs,
+           grammar/clauses.rs, grammar/generics.rs, grammar/types.rs
+           The declarations and what their headers are made of. Each file
+           follows its section of GRAMMAR.md, so read the two side by side.
+
+        6. grammar/statements.rs, grammar/dispatch.rs
+           Bodies, then `match` and `transition` and the patterns in their
+           arms.
+
+        7. grammar/expressions.rs
+           The largest file, left until the rest is familiar. Binary operators
+           are the one place that is not one function per rule.
+
+        8. grammar/contexts/
+           Not read in a sitting. Open one when a rule takes it as an argument:
+           each says what the position allows and why the tokens cannot.
+
+        9. errors/parse_error.rs, errors/parse_error_kind.rs
+           What a refusal carries.
+
+       10. parsing/fragment_kind.rs
+           Only for parsing the spec's examples, which are mostly not whole
+           files. The compiler never uses it.
+
+    Each type that more than one file uses has a file of its own, named after
+    it, and keeps its fields private behind `get_` accessors. A type only one
+    grammar file uses stays in that file. A folder's `mod.rs` declares its
+    files and nothing else. Callers do not see the folders: everything public
+    is re-exported from here, so it is `omega_parser::SyntaxTree` and not a
+    path.
+
+    The text dump that the golden fixtures compare is not here. Only the tests
+    and the `parse_spec` tool read it, so it lives with the tests in
+    `tests/support/tree_dump_formatter.rs` and uses nothing but what this crate
+    exports.
 
     Contract: GRAMMAR.md in this crate.
     Tests: `tests/golden_fixtures.rs` (accept and reject fixtures under `fixtures/`),
     `tests/spec_corpus.rs` (every `omega` example in `wiki/spec`), and
-    `tests/random_inputs.rs` (the parser must refuse garbage without crashing or hanging).
+    `tests/hostile_inputs.rs` (the parser must refuse garbage without crashing or hanging).
+    `mutation_check.sh` breaks the grammar one rule at a time and confirms the tests notice.
+    Measurements: `measurements/parse_throughput.rs`, and what it found in EXPERIMENTS.md.
     Reference: Omega V1's parser, `omega-rust/psi/compilation/pipeline/01_source-compilation/
     src/operations/parsing/`. GRAMMAR.md lists where V2 deliberately differs.
 */
 
 #![forbid(unsafe_code)]
 
-mod event;
-mod expression_context;
-mod fragment_kind;
+mod errors;
 mod grammar;
-mod node_kind;
-mod parse_error;
-mod parse_error_kind;
-mod parser;
-mod syntax_tree;
-mod tree_dump;
+mod parsing;
+mod tree;
 
-pub use event::Event;
-pub use fragment_kind::FragmentKind;
-pub use node_kind::NodeKind;
-pub use parse_error::ParseError;
-pub use parse_error_kind::ParseErrorKind;
-pub use syntax_tree::SyntaxTree;
-pub use tree_dump::{dump_parse_error, dump_tree};
-
-use omega_lexer::Token;
-use parser::Parser;
-
-/// Groups one source file's tokens into a syntax tree, or reports the first place they leave the grammar.
-///
-/// `tokens` must be what the lexer produced for `source_bytes`; the parser reads each word's
-/// spelling out of the source. The tree refers to tokens by their position in `tokens`, so the
-/// caller keeps both alive for as long as it uses the tree.
-///
-/// A typical caller lexes a file, parses it, and walks the events:
-///
-/// ```
-/// use omega_lexer::lex;
-/// use omega_parser::{Event, NodeKind, parse_file};
-///
-/// let source_bytes = b"machine double(value: u32) -> u32 { value * 2 }";
-/// let tokens = lex(source_bytes).expect("Expected this source to be lexically valid.");
-/// let syntax_tree = parse_file(source_bytes, &tokens).expect("Expected this source to parse.");
-///
-/// // The walk starts by opening the file, then the machine inside it.
-/// let events = syntax_tree.get_events();
-///
-/// assert_eq!(events[0], Event::Open(NodeKind::File));
-/// assert_eq!(events[1], Event::Open(NodeKind::Machine));
-///
-/// // Every meaningful token is in the tree exactly once. To read one, follow its index back
-/// // into the lexer's list: the first token event here is the word `machine`.
-/// let first_token_index = syntax_tree.get_meaningful_token_indices()[0] as usize;
-///
-/// assert_eq!(tokens[first_token_index].get_span().slice(source_bytes), Some(&b"machine"[..]));
-/// ```
-pub fn parse_file(
-    source_bytes: &[u8],
-    tokens: &[Token],
-) -> Result<SyntaxTree, ParseError> {
-    let mut parser = Parser::new(source_bytes, tokens)?;
-
-    if parser.parse_file_root().is_err() {
-        return Err(parser.get_error());
-    }
-
-    parser.finish("a declaration")
-}
-
-/// Parses a piece of source that is not a whole file. See `FragmentKind` for why this exists.
-///
-/// ```
-/// use omega_lexer::lex;
-/// use omega_parser::{Event, FragmentKind, NodeKind, parse_fragment};
-///
-/// let source_bytes = b"requires count > 0 ensures result >= count";
-/// let tokens = lex(source_bytes).expect("Expected this source to be lexically valid.");
-/// let syntax_tree = parse_fragment(source_bytes, &tokens, FragmentKind::Clauses).expect("Expected these clauses to parse.");
-///
-/// assert_eq!(syntax_tree.get_events()[1], Event::Open(NodeKind::Requires));
-/// ```
-pub fn parse_fragment(
-    source_bytes: &[u8],
-    tokens: &[Token],
-    fragment_kind: FragmentKind,
-) -> Result<SyntaxTree, ParseError> {
-    let mut parser = Parser::new(source_bytes, tokens)?;
-
-    if parser.parse_fragment_root(fragment_kind).is_err() {
-        return Err(parser.get_error());
-    }
-
-    parser.finish("the end of the fragment")
-}
+pub use errors::parse_error::ParseError;
+pub use errors::parse_error_kind::ParseErrorKind;
+pub use parsing::entry_points::{parse_file, parse_fragment};
+pub use parsing::fragment_kind::FragmentKind;
+pub use tree::node_kind::NodeKind;
+pub use tree::syntax_tree::SyntaxTree;
+pub use tree::tree_event::TreeEvent;

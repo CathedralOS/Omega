@@ -10,6 +10,7 @@ omega-lexer = { path = "../00-lexer" }
 
 [dev-dependencies]
 golden = { path = "../../tools/golden" }
+measure = { path = "../../tools/measure" }
 spec-corpus = { path = "../../tools/spec-corpus" }
 
 # The tools that are not tests. Cargo only finds programs like these by itself in a folder called

@@ -1,30 +1,15 @@
 //! The token cursor and the tree builder that the grammar functions drive.
 
-use crate::event::Event;
-use crate::node_kind::NodeKind;
-use crate::parse_error::ParseError;
-use crate::parse_error_kind::ParseErrorKind;
-use crate::syntax_tree::SyntaxTree;
+use crate::errors::parse_error::ParseError;
+use crate::errors::parse_error_kind::ParseErrorKind;
+use crate::parsing::closed_node::ClosedNode;
+use crate::parsing::open_node::OpenNode;
+use crate::parsing::parse_failed::{ParseFailed, Parsed};
+use crate::tree::node_kind::NodeKind;
+use crate::tree::syntax_tree::SyntaxTree;
+use crate::tree::tree_event::TreeEvent;
 use omega_lexer::{Punctuation, SourceSpan, Token, TokenKind};
 use std::cell::Cell;
-
-/*
-    :SmallFailure
-    What every grammar function returns: the thing it parsed, or the fact that
-    it failed. The error itself is not in the result. It is written into the
-    parser when it is found, and `get_error` hands it over once parsing has
-    stopped.
-
-    The reason is size. A `ParseError` is 40 bytes, so a `Result` carrying one
-    is returned through memory: every grammar function would write its answer
-    to the stack and every caller would read it back, on every call, to carry
-    an error that almost never exists. `ParseFailed` has no size, so the common
-    results are one byte or a number, and travel in registers. Experiment 5.
-*/
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ParseFailed;
-
-pub(crate) type Parsed<T = ()> = Result<T, ParseFailed>;
 
 /*
     :NestingLimit
@@ -37,17 +22,6 @@ pub(crate) type Parsed<T = ()> = Result<T, ParseFailed>;
     this one as ours.
 */
 const NESTING_LIMIT: u32 = 128;
-
-/// A node that has been opened and not yet closed.
-pub(crate) struct OpenNode {
-    event_index: usize,
-}
-
-/// A node that is complete. Holding one lets a later rule wrap the node in a new parent.
-#[derive(Clone, Copy)]
-pub(crate) struct ClosedNode {
-    event_index: usize,
-}
 
 /*
     The parser reads the lexer's tokens with whitespace and comments skipped,
@@ -76,17 +50,17 @@ pub(crate) struct ClosedNode {
     fix is the usual one: record a "my parent starts N events back" link
     instead of inserting, and resolve the links in one pass at the end.
 */
-pub(crate) struct Parser<'source> {
+pub(crate) struct SyntaxParser<'source> {
     source_bytes: &'source [u8],
     tokens: &'source [Token],
     meaningful_token_indices: Vec<u32>, // Positions in `tokens` of everything that is not whitespace or a comment.
-    position: usize,                    // Index into `meaningful_token_indices` of the next token to consume.
-    events: Vec<Event>,
+    token_position: usize,              // Index into `meaningful_token_indices` of the next token to consume.
+    events: Vec<TreeEvent>,
     nesting_depth: u32,
     recorded_error: Cell<Option<ParseError>>, // The error behind the most recent `ParseFailed`. See :SmallFailure.
 }
 
-impl<'source> Parser<'source> {
+impl<'source> SyntaxParser<'source> {
     pub(crate) fn new(
         source_bytes: &'source [u8],
         tokens: &'source [Token],
@@ -112,7 +86,7 @@ impl<'source> Parser<'source> {
             source_bytes,
             tokens,
             meaningful_token_indices,
-            position: 0,
+            token_position: 0,
             events: Vec::with_capacity(event_capacity),
             nesting_depth: 0,
             recorded_error: Cell::new(None),
@@ -137,13 +111,13 @@ impl<'source> Parser<'source> {
         &self,
         ahead: usize,
     ) -> Option<Token> {
-        let token_index = *self.meaningful_token_indices.get(self.position + ahead)?;
+        let token_index = *self.meaningful_token_indices.get(self.token_position + ahead)?;
 
         self.tokens.get(token_index as usize).copied()
     }
 
     pub(crate) fn at_end(&self) -> bool {
-        self.position >= self.meaningful_token_indices.len()
+        self.token_position >= self.meaningful_token_indices.len()
     }
 
     /// True if there is a token `ahead` places on.
@@ -151,7 +125,7 @@ impl<'source> Parser<'source> {
         &self,
         ahead: usize,
     ) -> bool {
-        self.position + ahead < self.meaningful_token_indices.len()
+        self.token_position + ahead < self.meaningful_token_indices.len()
     }
 
     pub(crate) fn nth_punctuation(
@@ -261,8 +235,8 @@ impl<'source> Parser<'source> {
             return;
         }
 
-        self.events.push(Event::Token);
-        self.position += 1;
+        self.events.push(TreeEvent::Token);
+        self.token_position += 1;
     }
 
     pub(crate) fn eat(
@@ -394,11 +368,9 @@ impl<'source> Parser<'source> {
     // ---- Building the tree ----
 
     pub(crate) fn open(&mut self) -> OpenNode {
-        let open_node = OpenNode {
-            event_index: self.events.len(),
-        };
+        let open_node = OpenNode::new(self.events.len());
 
-        self.events.push(Event::Open(NodeKind::Unfinished));
+        self.events.push(TreeEvent::Open(NodeKind::Unfinished));
 
         open_node
     }
@@ -408,15 +380,13 @@ impl<'source> Parser<'source> {
         open_node: OpenNode,
         kind: NodeKind,
     ) -> ClosedNode {
-        if let Some(open_event) = self.events.get_mut(open_node.event_index) {
-            *open_event = Event::Open(kind);
+        if let Some(open_event) = self.events.get_mut(open_node.get_event_index()) {
+            *open_event = TreeEvent::Open(kind);
         }
 
-        self.events.push(Event::Close);
+        self.events.push(TreeEvent::Close);
 
-        ClosedNode {
-            event_index: open_node.event_index,
-        }
+        ClosedNode::new(open_node.get_event_index())
     }
 
     /// Opens a node that starts in front of `closed_node`, so `closed_node` becomes its first child.
@@ -425,19 +395,17 @@ impl<'source> Parser<'source> {
         closed_node: ClosedNode,
     ) -> OpenNode {
         self.events
-            .insert(closed_node.event_index, Event::Open(NodeKind::Unfinished));
+            .insert(closed_node.get_event_index(), TreeEvent::Open(NodeKind::Unfinished));
 
-        OpenNode {
-            event_index: closed_node.event_index,
-        }
+        OpenNode::new(closed_node.get_event_index())
     }
 
     pub(crate) fn get_kind(
         &self,
         closed_node: ClosedNode,
     ) -> Option<NodeKind> {
-        match self.events.get(closed_node.event_index) {
-            Some(Event::Open(kind)) => Some(*kind),
+        match self.events.get(closed_node.get_event_index()) {
+            Some(TreeEvent::Open(kind)) => Some(*kind),
             _ => None,
         }
     }
@@ -448,8 +416,8 @@ impl<'source> Parser<'source> {
         closed_node: ClosedNode,
         kind: NodeKind,
     ) {
-        if let Some(open_event) = self.events.get_mut(closed_node.event_index) {
-            *open_event = Event::Open(kind);
+        if let Some(open_event) = self.events.get_mut(closed_node.get_event_index()) {
+            *open_event = TreeEvent::Open(kind);
         }
     }
 
@@ -458,7 +426,7 @@ impl<'source> Parser<'source> {
         &self,
         closed_node: ClosedNode,
     ) -> bool {
-        self.events.len() == closed_node.event_index + 3 && matches!(self.events.get(closed_node.event_index + 1), Some(Event::Token))
+        self.events.len() == closed_node.get_event_index() + 3 && matches!(self.events.get(closed_node.get_event_index() + 1), Some(TreeEvent::Token))
     }
 
     // ---- :NestingLimit ----

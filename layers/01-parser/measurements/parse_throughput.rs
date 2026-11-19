@@ -1,7 +1,7 @@
 //! Measures how fast the parser turns tokens into a tree, next to how fast the lexer made the tokens.
 //!
 //!     cargo run --release -p omega-parser --example parse_throughput
-//!     cargo run --release -p omega-parser --example parse_throughput -- --rounds 15
+//!     cargo run --release -p omega-parser --example parse_throughput -- --passes 15
 //!
 //! There is no large body of V2 source yet: V1's source tree is written in V1's syntax, which this
 //! grammar refuses on purpose. So the workload is this crate's own accept fixtures, laid end to
@@ -25,22 +25,23 @@
 //! and write one event per token that is left. It has no grammar in it, so the gap between the
 //! floor and the parse time is what the grammar costs.
 
+use measure::{Fingerprint, ResultLine};
 use omega_lexer::{Token, lex_into};
-use omega_parser::{Event, SyntaxTree, parse_file};
+use omega_parser::{SyntaxTree, TreeEvent, parse_file};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 const TARGET_BYTE_COUNT: usize = 64 * 1024 * 1024;
-const DEFAULT_ROUND_COUNT: usize = 9;
+const DEFAULT_PASS_COUNT: usize = 9;
 
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
-    let round_count = arguments
+    let pass_count = arguments
         .iter()
-        .position(|argument| argument == "--rounds")
+        .position(|argument| argument == "--passes")
         .and_then(|flag_position| arguments.get(flag_position + 1))
-        .and_then(|round_text| round_text.parse().ok())
-        .unwrap_or(DEFAULT_ROUND_COUNT);
+        .and_then(|pass_count_text| pass_count_text.parse().ok())
+        .unwrap_or(DEFAULT_PASS_COUNT);
 
     // `--files`: the same bytes as many small files instead of one large one. See :TwoWorkloads.
     let is_many_files = arguments.iter().any(|argument| argument == "--files");
@@ -73,7 +74,7 @@ fn main() {
     let mut meaningful_token_count = 0usize;
     let mut fingerprint = 0u64;
 
-    for _ in 0..round_count {
+    for _ in 0..pass_count {
         let mut lex_duration = Duration::ZERO;
         let mut parse_duration = Duration::ZERO;
         let mut floor_duration = Duration::ZERO;
@@ -129,7 +130,7 @@ fn main() {
     let floor_nanoseconds_per_token = floor_minimum.as_nanos() as f64 / meaningful_token_count as f64;
 
     println!(
-        "{megabyte_count:.1} MB as {parse_count} file(s) of {} bytes: {fixture_count} fixtures x {copy_count} copies, {meaningful_token_count} meaningful tokens, {event_count} events, {round_count} rounds",
+        "{megabyte_count:.1} MB as {parse_count} file(s) of {} bytes: {fixture_count} fixtures x {copy_count} copies, {meaningful_token_count} meaningful tokens, {event_count} events, {pass_count} passes",
         source_bytes.len()
     );
     println!(
@@ -156,15 +157,21 @@ fn main() {
     println!(
         "events per meaningful token: {:.2}; tree bytes per source byte: {:.2}",
         event_count as f64 / meaningful_token_count as f64,
-        (event_count * size_of::<Event>() + meaningful_token_count * size_of::<u32>()) as f64 / (source_bytes.len() * parse_count) as f64
+        (event_count * size_of::<TreeEvent>() + meaningful_token_count * size_of::<u32>()) as f64 / (source_bytes.len() * parse_count) as f64
     );
-    println!(
-        "RESULT parse_min_ms={:.1} parse_median_ms={:.1} floor_min_ms={:.1} lex_min_ms={:.1} parse_per_token_ns={nanoseconds_per_token:.2} fingerprint={fingerprint:016x}",
-        to_milliseconds(parse_minimum),
-        to_milliseconds(parse_median),
-        to_milliseconds(floor_minimum),
-        to_milliseconds(lex_minimum)
-    );
+    // :ResultLine
+    // The line `compare-builds` reads. The first number is the headline it gives its verdict on.
+    let mut result_line = ResultLine::new();
+
+    result_line.add_number("parse_min_ms", to_milliseconds(parse_minimum));
+    result_line.add_number("parse_median_ms", to_milliseconds(parse_median));
+    result_line.add_number("floor_min_ms", to_milliseconds(floor_minimum));
+    result_line.add_number("lex_min_ms", to_milliseconds(lex_minimum));
+    result_line.add_precise_number("parse_per_token_ns", nanoseconds_per_token, 2);
+    result_line.add_number("together_min_ms", to_milliseconds(lex_minimum + parse_minimum));
+    result_line.add_text("fingerprint", &format!("{fingerprint:016x}"));
+
+    println!("{}", result_line.to_line());
 }
 
 /// Every accept fixture, end to end: one copy, and how many copies make about `TARGET_BYTE_COUNT`.
@@ -290,7 +297,7 @@ fn run_thread_scaling(
 /// one event for each. No grammar, no lookahead, no nodes.
 fn run_floor(tokens: &[Token]) -> usize {
     let mut meaningful_token_indices: Vec<u32> = Vec::with_capacity(tokens.len() / 2 + 1);
-    let mut events: Vec<Event> = Vec::with_capacity(tokens.len() * 2);
+    let mut events: Vec<TreeEvent> = Vec::with_capacity(tokens.len() * 2);
 
     for (token_index, token) in tokens.iter().enumerate() {
         if token.get_kind().is_trivia() {
@@ -298,7 +305,7 @@ fn run_floor(tokens: &[Token]) -> usize {
         }
 
         meaningful_token_indices.push(token_index as u32);
-        events.push(Event::Token);
+        events.push(TreeEvent::Token);
     }
 
     std::hint::black_box(&meaningful_token_indices);
@@ -306,35 +313,28 @@ fn run_floor(tokens: &[Token]) -> usize {
     events.len()
 }
 
-/// FNV-1a over every event and every token index. Equal fingerprints mean equal trees.
+/// A hash of every event and every token index. Equal fingerprints mean equal trees.
 fn get_fingerprint(syntax_tree: &SyntaxTree) -> u64 {
-    const FNV_OFFSET: u64 = 0xCBF2_9CE4_8422_2325;
-    const FNV_PRIME: u64 = 0x0000_0100_0000_01B3;
+    let mut fingerprint = Fingerprint::new();
 
-    let mut hash = FNV_OFFSET;
-    let mut mix = |byte: u8| {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(FNV_PRIME);
-    };
-
-    for event in syntax_tree.get_events() {
-        match event {
-            Event::Open(node_kind) => {
-                mix(1);
-                mix(*node_kind as u8);
+    for tree_event in syntax_tree.get_events() {
+        match tree_event {
+            TreeEvent::Open(node_kind) => {
+                fingerprint.mix_byte(1);
+                fingerprint.mix_byte(*node_kind as u8);
             }
-            Event::Close => mix(2),
-            Event::Token => mix(3),
+            TreeEvent::Close => fingerprint.mix_byte(2),
+            TreeEvent::Token => fingerprint.mix_byte(3),
         }
     }
 
     for token_index in syntax_tree.get_meaningful_token_indices() {
-        for byte in token_index.to_le_bytes() {
-            mix(byte);
+        for token_index_byte in token_index.to_le_bytes() {
+            fingerprint.mix_byte(token_index_byte);
         }
     }
 
-    hash
+    fingerprint.get_value()
 }
 
 fn get_minimum(durations: &[Duration]) -> Duration {

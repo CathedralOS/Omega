@@ -24,9 +24,18 @@ impl Fingerprint {
         mixed_value: u64,
     ) {
         for mixed_byte in mixed_value.to_le_bytes() {
-            self.hash ^= u64::from(mixed_byte);
-            self.hash = self.hash.wrapping_mul(FNV_PRIME);
+            self.mix_byte(mixed_byte);
         }
+    }
+
+    /// Mixes in one byte. For output that is made of bytes, such as a tree of one-byte events,
+    /// where widening each to eight bytes would hash eight times as much for nothing.
+    pub fn mix_byte(
+        &mut self,
+        mixed_byte: u8,
+    ) {
+        self.hash ^= u64::from(mixed_byte);
+        self.hash = self.hash.wrapping_mul(FNV_PRIME);
     }
 
     pub fn get_value(&self) -> u64 {
@@ -65,6 +74,20 @@ mod tests {
         }
 
         assert_eq!(first_fingerprint.get_value(), second_fingerprint.get_value());
+    }
+
+    #[test]
+    fn a_value_is_its_eight_bytes_low_byte_first() {
+        let mut value_fingerprint = Fingerprint::new();
+        let mut byte_fingerprint = Fingerprint::new();
+
+        value_fingerprint.mix(0x0102_0304_0506_0708);
+
+        for mixed_byte in [8u8, 7, 6, 5, 4, 3, 2, 1] {
+            byte_fingerprint.mix_byte(mixed_byte);
+        }
+
+        assert_eq!(value_fingerprint.get_value(), byte_fingerprint.get_value());
     }
 
     #[test]

@@ -1,9 +1,11 @@
 //! Expressions: binary operators by precedence, casts, prefixes, postfixes and primaries.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parser::{ClosedNode, Parsed, Parser};
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::closed_node::ClosedNode;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
 
 /// A binary operator at the cursor: how tightly it binds, and how many tokens spell it.
@@ -12,7 +14,7 @@ struct BinaryOperator {
     token_count: usize,
 }
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     pub(crate) fn parse_expression(
         &mut self,
         context: ExpressionContext,

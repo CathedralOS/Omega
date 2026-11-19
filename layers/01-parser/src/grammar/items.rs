@@ -1,21 +1,13 @@
 //! Declarations: which one starts at the cursor, and `use`, `const`, machines and mathematical `let`.
 
-use crate::expression_context::ExpressionContext;
-use crate::grammar::types::TypePosition;
-use crate::node_kind::NodeKind;
-use crate::parse_error_kind::ParseErrorKind;
-use crate::parser::{Parsed, Parser};
+use crate::errors::parse_error_kind::ParseErrorKind;
+use crate::grammar::contexts::body_rule::BodyRule;
+use crate::grammar::contexts::expression_context::ExpressionContext;
+use crate::grammar::contexts::type_position::TypePosition;
+use crate::parsing::parse_failed::Parsed;
+use crate::parsing::syntax_parser::SyntaxParser;
+use crate::tree::node_kind::NodeKind;
 use omega_lexer::Punctuation;
-
-/// Whether a machine header may be followed by a body.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum BodyRule {
-    /// A body, or `;` for a declaration with none.
-    Optional,
-
-    /// Always `;`: a requirement inside a trait.
-    Refused,
-}
 
 /// The declarations that begin with a word of their own.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -31,7 +23,7 @@ enum ItemKind {
     Conformance,
 }
 
-impl Parser<'_> {
+impl SyntaxParser<'_> {
     pub(crate) fn parse_item(&mut self) -> Parsed {
         match self.peek_item_kind() {
             Some(ItemKind::Use) => self.parse_use(),

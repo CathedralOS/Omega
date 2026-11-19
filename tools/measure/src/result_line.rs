@@ -21,7 +21,19 @@ impl ResultLine {
         key: &str,
         number: f64,
     ) {
-        self.entries.push((key.to_string(), format!("{number:.1}")));
+        self.add_precise_number(key, number, 1);
+    }
+
+    /// Adds a measured number with a chosen count of decimals, for values small enough that one
+    /// decimal would hide a real change, such as nanoseconds per token.
+    pub fn add_precise_number(
+        &mut self,
+        key: &str,
+        number: f64,
+        decimal_count: usize,
+    ) {
+        self.entries
+            .push((key.to_string(), format!("{number:.decimal_count$}")));
     }
 
     /// Adds a value that is only ever compared for equality, such as a fingerprint.
@@ -103,6 +115,15 @@ mod tests {
 
         assert_eq!(result_line.to_line(), "RESULT per_file_fastest_mbs=735.2 fingerprint=b7778a2e5cd741fb");
         assert_eq!(ResultLine::find_in_output(&result_line.to_line()), Some(result_line));
+    }
+
+    #[test]
+    fn a_precise_number_keeps_the_decimals_asked_for() {
+        let mut result_line = ResultLine::new();
+
+        result_line.add_precise_number("parse_per_token_ns", 9.4567, 2);
+
+        assert_eq!(result_line.to_line(), "RESULT parse_per_token_ns=9.46");
     }
 
     #[test]

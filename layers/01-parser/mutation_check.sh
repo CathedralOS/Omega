@@ -41,8 +41,8 @@ MUTATIONS=(
   "generic argument before a comma is a value|grammar/generics.rs|s/Some(Punctuation::Comma | Punctuation::Greater) => !is_inside_brackets,/Some(Punctuation::Comma | Punctuation::Greater) => false,/"
   "bracketed generic argument is never a type|grammar/generics.rs|s/Some(Punctuation::RightBracket | Punctuation::Semicolon) => is_inside_brackets,/Some(Punctuation::RightBracket | Punctuation::Semicolon) => false,/"
   "every instruction needs a semicolon|grammar/assembly.rs|s/if !self.eat(Punctuation::Semicolon) {/self.expect(Punctuation::Semicolon, \"x\")?; if false {/"
-  "nesting limit removed|parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 4000000;/"
-  "a token is dropped from the tree|parser.rs|s/^        self.events.push(Event::Token);$/        if self.position % 97 != 96 { self.events.push(Event::Token); }/"
+  "nesting limit removed|parsing/syntax_parser.rs|s/const NESTING_LIMIT: u32 = 128;/const NESTING_LIMIT: u32 = 4000000;/"
+  "a token is dropped from the tree|parsing/syntax_parser.rs|s/^        self.events.push(TreeEvent::Token);$/        if self.token_position % 97 != 96 { self.events.push(TreeEvent::Token); }/"
 )
 
 caught=0

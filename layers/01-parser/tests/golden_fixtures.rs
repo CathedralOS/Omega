@@ -3,8 +3,9 @@
 mod support;
 
 use omega_lexer::lex;
-use omega_parser::{dump_parse_error, dump_tree, parse_file};
+use omega_parser::parse_file;
 use std::path::{Path, PathBuf};
+use support::{describe_tree_problem, dump_parse_error, dump_tree};
 
 fn get_fixture_directory(group: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -20,7 +21,7 @@ fn accept_fixtures_parse_to_their_expected_trees() {
         let syntax_tree = parse_file(source_bytes, &tokens)
             .map_err(|parse_error| format!("an accept fixture was rejected:\n{}", dump_parse_error(source_bytes, &parse_error)))?;
 
-        if let Some(problem) = support::describe_tree_problem(source_bytes, &tokens, &syntax_tree) {
+        if let Some(problem) = describe_tree_problem(source_bytes, &tokens, &syntax_tree) {
             return Err(format!("the tree is malformed: {problem}"));
         }
 

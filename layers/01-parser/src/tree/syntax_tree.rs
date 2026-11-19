@@ -1,6 +1,6 @@
 //! The parser's output: a flat list of events that describes a tree over the lexer's tokens.
 
-use crate::event::Event;
+use crate::tree::tree_event::TreeEvent;
 
 /*
     A syntax tree, stored as the list of events you would see walking it.
@@ -26,13 +26,13 @@ use crate::event::Event;
 */
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SyntaxTree {
-    events: Vec<Event>,
+    events: Vec<TreeEvent>,
     meaningful_token_indices: Vec<u32>,
 }
 
 impl SyntaxTree {
     pub(crate) fn new(
-        events: Vec<Event>,
+        events: Vec<TreeEvent>,
         meaningful_token_indices: Vec<u32>,
     ) -> Self {
         Self {
@@ -42,7 +42,7 @@ impl SyntaxTree {
     }
 
     /// The walk over the tree, in source order.
-    pub fn get_events(&self) -> &[Event] {
+    pub fn get_events(&self) -> &[TreeEvent] {
         &self.events
     }
 
@@ -54,10 +54,10 @@ impl SyntaxTree {
 
 #[cfg(test)]
 mod tests {
-    use crate::event::Event;
+    use crate::tree::tree_event::TreeEvent;
 
     #[test]
     fn an_event_is_one_byte() {
-        assert_eq!(size_of::<Event>(), 1);
+        assert_eq!(size_of::<TreeEvent>(), 1);
     }
 }
