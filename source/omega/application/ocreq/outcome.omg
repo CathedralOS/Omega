@@ -188,10 +188,10 @@ public machine malformed_request(offset: u64 in Trapping) -> Outcome {
         space: CoordinateSpace::Request,
         code: code,
         coordinate: offset,
-        limit: 0,
-        requested: 0,
-        package: 0,
-        source_unit: 0
+        limit: 0 as +Trapping,
+        requested: 0 as +Trapping,
+        package: 0 as +Trapping,
+        source_unit: 0 as +Trapping
     }
 }
 
@@ -208,8 +208,8 @@ public machine outcome_incomplete(provision: Provision, coordinate: u64 in Trapp
         coordinate: coordinate,
         limit: limit,
         requested: requested,
-        package: 0,
-        source_unit: 0
+        package: 0 as +Trapping,
+        source_unit: 0 as +Trapping
     }
 }
 
@@ -217,7 +217,7 @@ public machine outcome_incomplete(provision: Provision, coordinate: u64 in Trapp
 // implement yet: the provision covers the whole request, so it carries no
 // coordinate and no requested amount.
 public machine coverage_request_semantics() -> Outcome {
-    outcome_incomplete(Provision::CoverageRequestSemantics, 0, 0)
+    outcome_incomplete(Provision::CoverageRequestSemantics, 0 as +Trapping, 0 as +Trapping)
 }
 
 public machine reject_code_number(code: RejectCode) -> u64 in Trapping {
@@ -321,8 +321,8 @@ public machine reject_code_number(code: RejectCode) -> u64 in Trapping {
         RejectCode::ArithmeticOperandOutOfDomain -> value(97)
     }
 
-    machine value(value: u64 in Trapping) -> u64 in Trapping {
-        value
+    machine value(value: u64) -> u64 in Trapping {
+        value as +Trapping
     }
 }
 
@@ -385,8 +385,8 @@ public machine provision_number(provision: Provision) -> u64 in Trapping {
         Provision::ProofSearchIntegerCertificateWork -> value(35)
     }
 
-    machine value(value: u64 in Trapping) -> u64 in Trapping {
-        value
+    machine value(value: u64) -> u64 in Trapping {
+        value as +Trapping
     }
 }
 
@@ -429,8 +429,8 @@ public machine provision_limit(provision: Provision) -> u64 in Trapping {
         Provision::ProofSearchIntegerCertificateWork -> value(65536)
     }
 
-    machine value(value: u64 in Trapping) -> u64 in Trapping {
-        value
+    machine value(value: u64) -> u64 in Trapping {
+        value as +Trapping
     }
 }
 
@@ -485,8 +485,8 @@ public machine frame_length(outcome: Outcome) -> u64 in Trapping {
         _ -> length(40)
     }
 
-    machine length(value: u64 in Trapping) -> u64 in Trapping {
-        value
+    machine length(value: u64) -> u64 in Trapping {
+        value as +Trapping
     }
 }
 
@@ -582,7 +582,7 @@ machine published(quantity: u64 in Trapping) -> u64 in Trapping {
     }
 
     machine saturated() -> u64 in Trapping {
-        2147483647
+        2147483647 as +Trapping
     }
 
     machine exact(quantity: u64 in Trapping) -> u64 in Trapping {
@@ -634,7 +634,7 @@ crashes Trap
     }
 
     machine low(rest: u64 in Trapping) -> u8 {
-        (rest % 256) as u8
+        ((rest % 256) as -Trapping) as u8
     }
 
     machine invalid() -> u8 {

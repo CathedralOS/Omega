@@ -70,6 +70,53 @@ fn an_entryless_checked_product_publishes_reopenable_psi() {
     assert_eq!(reopened.to_bytes(), bytes);
 }
 
+const OMEGA_REQUEST: &str = include_str!("../../../../../source/omega/application/ocreq/request.omg");
+const OMEGA_OUTCOME: &str = include_str!("../../../../../source/omega/application/ocreq/outcome.omg");
+
+#[test]
+fn omega_compiler_storage_and_outcomes_publish_psi() {
+    // Compile the product declarations directly so a broken hosted Build
+    // cannot hide a regression in their field types or accessors.
+    let sources = include_str!("../../../../../source/psi/foundation/source.omg");
+    let (staging, _) = OMEGA_REQUEST.split_once("machine u32_at(").unwrap();
+    let (storage, _) = sources
+        .split_once("public machine source_set_add(")
+        .unwrap();
+
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    for (name, text) in [
+        ("request staging", staging),
+        ("source storage", storage),
+        ("outcomes", OMEGA_OUTCOME),
+    ] {
+        let (files, root) = captured(package, text);
+        compile(product(files, root, package, &[]))
+            .unwrap_or_else(|errors| panic!("{name} could not publish Psi: {errors:?}"));
+    }
+}
+
+#[test]
+#[ignore = "checks the complete request decoder and encoder together, which takes several minutes"]
+fn complete_omega_request_protocol_publishes_psi() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let (mut files, root) = captured(package, OMEGA_REQUEST);
+    let outcome = files
+        .add_checked_instance(
+            "product/outcome.omg".into(),
+            OMEGA_OUTCOME,
+            "product".into(),
+            Some(package),
+            SourceOrigin::User,
+            SourceResolutionStratum::Base,
+            DependencyScope::Product,
+        )
+        .source_id;
+    let mut stage = product(files, root, package, &[]);
+    stage.roots.push(outcome);
+    let program = compile(stage).unwrap();
+    assert!(!program.to_bytes().is_empty());
+}
+
 #[test]
 fn a_description_for_the_same_name_and_span_in_another_package_is_refused() {
     let text = "machine main() {}";

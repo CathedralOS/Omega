@@ -67,9 +67,9 @@ requires
     type_end: u64 in Trapping;
     // Type stacks: open type constructors and the static arguments staged
     // until their list closes.
-    type_frames: [TypeFrame; 16] in Trapping;
+    type_frames: [TypeFrame; 16];
     type_frame_depth: u64;
-    pending_type_arguments: [u64; 32] in Trapping;
+    pending_type_arguments: [u64 in Trapping; 32];
     pending_type_argument_count: u64;
     // Lifetime arguments staged like the type arguments, and whether the
     // static argument just parsed was one (it leaves no row).
@@ -115,11 +115,11 @@ requires
     // Open callable scopes and their direct rows. Child headers publish before
     // their parent; staging keeps each owner's clause and contract ranges
     // contiguous without mistaking descendant rows for the parent's clauses.
-    header_frames: [CallableHeaderFrame; 257] in Trapping;
+    header_frames: [CallableHeaderFrame; 257];
     header_depth: u64;
-    header_clauses: [Clause; 2048] in Trapping;
+    header_clauses: [Clause; 2048];
     header_clause_count: u64;
-    header_contracts: [Contract; 256] in Trapping;
+    header_contracts: [Contract; 256];
     header_contract_count: u64;
     machine_first_component: u64 in Trapping;
     machine_component_count: u64 in Trapping;
@@ -140,18 +140,18 @@ requires
     binding_erased_start: u64 in Trapping;
     // Expression stacks: operands, pending operators and open brackets, with
     // the arguments and construction fields staged until their bracket closes.
-    expression_operands: [u64; 64] in Trapping;
+    expression_operands: [u64 in Trapping; 64];
     expression_operand_depth: u64;
-    expression_operators: [PendingOperator; 64] in Trapping;
+    expression_operators: [PendingOperator; 64];
     expression_operator_depth: u64;
-    expression_frames: [ExpressionFrame; 32] in Trapping;
+    expression_frames: [ExpressionFrame; 32];
     expression_frame_depth: u64;
-    pending_arguments: [u64; 256] in Trapping;
+    pending_arguments: [u64 in Trapping; 256];
     pending_argument_count: u64;
-    pending_fields: [ConstructField; 64] in Trapping;
+    pending_fields: [ConstructField; 64];
     pending_field_count: u64;
     // A value-position match's arms stage here until its `}`.
-    pending_arms: [TransitionArm; 64] in Trapping;
+    pending_arms: [TransitionArm; 64];
     pending_arm_count: u64;
     expression_result: u64 in Trapping;
     expression_allow_construct: bool;
@@ -185,7 +185,7 @@ requires
     clause_first_argument: u64 in Trapping;
     clause_argument_count: u64 in Trapping;
     // A ranking witness's subjects stage here until its list closes.
-    ranked_subjects: [u64; 8] in Trapping;
+    ranked_subjects: [u64 in Trapping; 8];
     ranked_subject_count: u64;
     // Declaration scratch for the trait, conformance, domain, constant and
     // proposition grammars; one root declaration is under way at a time, and
@@ -625,7 +625,7 @@ crashes Trap
     }
 
     machine use_start(parser: @mut Parser, input: @TokenStream) {
-        parser.use_first_member = parser.output.member_count as u64 in Trapping;
+        parser.use_first_member = parser.output.member_count as +Trapping;
                 parser_advance(parser, input);
         transition parser.cursor < input.token_count {
             true -> first_member(parser, input),
@@ -738,10 +738,10 @@ crashes Trap
     }
 
     machine retain_use_bounded(parser: @mut Parser, input: @TokenStream, item_end: u64 in Trapping) {
-        let use_index: u64 in Trapping = parser.output.use_count as u64 in Trapping;
+        let use_index: u64 in Trapping = parser.output.use_count as +Trapping;
         parser.output.uses[parser.output.use_count] = UseItem {
             first_member: parser.use_first_member,
-            member_count: (parser.output.member_count as u64 in Trapping) - parser.use_first_member,
+            member_count: (parser.output.member_count as +Trapping) - parser.use_first_member,
             source_span: parser_source_span(parser, parser.item_start, item_end)
         };
         parser.output.use_count = parser.output.use_count + 1;

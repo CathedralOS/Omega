@@ -184,7 +184,7 @@ machine take_integer_literal(parser: @mut Parser, input: @TokenStream) -> u64 in
 crashes Trap
 {
     let token: Token = input.tokens[parser.current_index];
-    let handle: u64 in Trapping = parser.output.integer_literal_count as u64 in Trapping;
+    let handle: u64 in Trapping = parser.output.integer_literal_count as +Trapping;
     transition token.kind {
         TokenKind::Integer { empty_digits, magnitude, exact, suffix, .. } -> decoded(parser, input, handle, magnitude, exact, empty_digits, suffix),
         _ -> other(parser, input)
@@ -580,7 +580,7 @@ machine decoded_spells(input: @TokenStream, start: u64 in Trapping, length: u64 
 crashes Trap
 {
     transition length == spelling.len {
-        true -> compare(input, start, spelling, 0),
+        true -> compare(input, start, spelling, 0 as +Trapping),
         _ -> absent()
     }
 
@@ -591,16 +591,20 @@ crashes Trap
         }
     }
 
-    machine byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool {
+    machine byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool
+    requires index < spelling.len
+    {
         transition cursor < 131072 {
             true -> compare_byte(input, cursor, spelling, index),
             _ -> absent()
         }
     }
 
-    machine compare_byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool {
-        let decoded: u8 = input.decoded[cursor] as u8;
-        let expected: u8 = spelling[index];
+    machine compare_byte(input: @TokenStream, cursor: u64 in Trapping, spelling: @[u8], index: u64 in Trapping) -> bool
+    requires cursor < 131072, index < spelling.len
+    {
+        let decoded: u8 = input.decoded[cursor as -Trapping];
+        let expected: u8 = spelling[index as -Trapping];
         transition decoded == expected {
             true -> compare(input, cursor + 1, spelling, index + 1),
             _ -> absent()

@@ -58,7 +58,7 @@ machine write_frame(context: @mut Main, outcome: Outcome)
 reaches Console
 crashes Trap
 {
-    transition { _ -> next(context, outcome, 0) }
+    transition { _ -> next(context, outcome, 0 as +Trapping) }
 
     machine next(context: @mut Main, outcome: Outcome, index: u64 in Trapping) {
         let length: u64 in Trapping = frame_length(outcome);
