@@ -31,7 +31,6 @@ pub(super) struct BuildSourceInvocation {
     package_inputs: Option<PackageCompilationInputs>,
     selected_target_profile: Option<target::TargetProfile>,
     build_execution_profile: Option<target::TargetProfile>,
-    dependency_activation: bool,
     timings: CompileTimings,
     started: std::time::Instant,
 }
@@ -52,7 +51,6 @@ pub(super) fn prepare_build_invocation(
         optimization_rollback: _,
     } = child;
     let build_execution_profile = build.profile;
-    let dependency_activation = build.dependency_activation;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
         preparation,
@@ -100,7 +98,6 @@ pub(super) fn prepare_build_invocation(
         package_inputs: package_inputs.cloned(),
         selected_target_profile,
         build_execution_profile,
-        dependency_activation,
         timings,
         started,
     })
@@ -282,7 +279,6 @@ impl BuildSourceInvocation {
             package_inputs,
             selected_target_profile,
             build_execution_profile,
-            dependency_activation,
             timings,
             started,
         } = self;
@@ -354,7 +350,6 @@ impl BuildSourceInvocation {
             package_inputs: package_inputs.cloned(),
             original_assembly,
             build_execution_profile,
-            dependency_activation,
             timings,
             build_elapsed_micros: started.elapsed().as_micros(),
         })
@@ -403,7 +398,6 @@ fn prepare_settled_source_product(
         settled.evaluated,
         inputs,
         settled.build_execution_profile,
-        settled.dependency_activation,
         inputs_joined_after_build,
         &mut timings,
     )
@@ -426,7 +420,6 @@ pub(super) fn complete_build_source(
     evaluated: build_settings::EvaluatedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
-    dependency_activation: bool,
     inputs_joined_after_build: bool,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
@@ -448,8 +441,10 @@ pub(super) fn complete_build_source(
             restricted_build_requests,
             base_source_consumption_commitment,
             constants: build_constants,
+            subject_validation,
             source_completion_accounting: mut build_accounting,
         } = evaluated;
+        let rejoining_product = product_sources.is_some();
         if let Some(pending) = product_sources {
             let inputs = package_compilation::ProductSourceInputs::new(
                 package_inputs,
@@ -495,30 +490,29 @@ pub(super) fn complete_build_source(
             source_file_count = product.source_file_count;
             generated_source_custody = product.generated_source_custody;
             Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
-            // The fresh Build slice owns a separate actual request and receipt.
-            // Equality of bytes or values cannot transfer Build evidence into
-            // Product; only the additional work joins its cost history.
-            if !build_constants.read.is_empty()
-                || build_constants.folded_under_providers
-                || inputs_joined_after_build
-            {
-                let entry = selected.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "deferred Product lost the Build entry whose constants it must settle",
-                    )]
-                })?;
-                let rejoined_accounting = build_settings::settle_rejoined_build_slice(
-                    &build_constants,
-                    source.typed(),
-                    entry,
-                    package_inputs,
-                    anonymous_source.as_ref(),
-                    dependency_activation,
-                    timings,
-                )?;
-                spent.append(rejoined_accounting.clone());
-                build_accounting.append(rejoined_accounting);
-            }
+        }
+        // Check the whole Build subject once its declarations have an owner.
+        // This check cannot change the Build activation that already ran.
+        if subject_validation == products::BuildSubjectValidation::AwaitingOwner
+            || rejoining_product
+                && (!build_constants.read.is_empty()
+                    || build_constants.folded_under_providers
+                    || inputs_joined_after_build)
+        {
+            let entry = computed_build_config
+                .selected_build_machine_symbol
+                .ok_or_else(|| vec![Diagnostic::error("joined Build source lost its entry")])?;
+            let rejoined_accounting = build_settings::settle_rejoined_build_slice(
+                &build_constants,
+                source.typed(),
+                entry,
+                package_inputs,
+                anonymous_source.as_ref(),
+                subject_validation,
+                timings,
+            )?;
+            spent.append(rejoined_accounting.clone());
+            build_accounting.append(rejoined_accounting);
         }
         if computed_build_config
             .declared_product_selections

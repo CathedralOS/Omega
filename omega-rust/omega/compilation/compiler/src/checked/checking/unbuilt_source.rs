@@ -82,6 +82,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
         restricted_build_requests: Vec::new(),
         base_source_consumption_commitment: None,
         constants: products::BuildConstants::default(),
+        subject_validation: products::BuildSubjectValidation::EntryOnly,
         source_completion_accounting: Default::default(),
     };
     let (mut built, build_sources) = build_continuation::complete_build_source(
@@ -89,7 +90,6 @@ pub(in crate::checked) fn typed_frontier_without_build(
         evaluated,
         package_inputs,
         child.build.profile,
-        child.build.dependency_activation,
         false,
         &mut timings,
     )?;
