@@ -184,16 +184,20 @@ impl BodyTyper<'_, '_> {
                 }
             };
             formals[..explicit_values.len()].clone_from_slice(&explicit_values);
-            let instantiate = |t: &ValueType| capture(t).substitute(id, &formals);
-            if instantiate(&signature.result).domains() != expected.map_or(&[][..], ValueType::domains) {
+            let result = capture(&signature.result).substitute(id, &formals);
+            let wanted = expected.map_or(&[][..], ValueType::domains);
+            // An operand can determine the entire return type or an index in a
+            // declared result domain. Keep that candidate until its operands bind.
+            let domain_destination = expected.filter(|ty| result.can_infer_result_domains(id, ty));
+            if domain_destination.is_none() && result.domains() != wanted {
                 continue;
             }
-            prepared.push((id, signature, formals, explicit_values));
+            prepared.push((id, signature, formals, explicit_values, domain_destination));
         }
         let mut operands = Vec::new();
         let mut subjects = Vec::new();
         for (position, &arg) in source.nodes[args].children.iter().enumerate() {
-            let mut parameters = prepared.iter().map(|(id, signature, formals, explicit)| {
+            let mut parameters = prepared.iter().map(|(id, signature, formals, explicit, _)| {
                 let ty = capture(&signature.params[position].1)
                     .substitute(id, formals)
                     .instantiate_subjects(signature, &subjects);
@@ -215,7 +219,7 @@ impl BodyTyper<'_, '_> {
             operands.push((arg, value));
         }
         let mut matches = Vec::new();
-        for (id, signature, formals, explicit_values) in prepared {
+        for (id, signature, formals, explicit_values, domain_destination) in prepared {
             let arity = formals.len();
             let instantiate = |t: &ValueType| {
                 capture(t)
@@ -232,6 +236,19 @@ impl BodyTyper<'_, '_> {
                 .zip(&operands)
                 .all(|((_, p), (_, v))| Self::infer_argument(&instantiate(p), v, id, &mut bindings))
             {
+                if let Some(destination) = domain_destination {
+                    let result = capture(&signature.result).instantiate_subjects(signature, &subjects);
+                    result.infer(destination, id, &mut bindings);
+                    let mut arguments = formals;
+                    for (argument, bound) in arguments.iter_mut().zip(&bindings) {
+                        if let Some(bound) = bound {
+                            argument.clone_from(bound);
+                        }
+                    }
+                    if result.substitute(id, &arguments).domains() != destination.domains() {
+                        continue;
+                    }
+                }
                 matches.push((id, signature, bindings));
             } else if candidates.len() == 1 {
                 let mut inferred = vec![None; arity];
