@@ -14,7 +14,7 @@
 //! a refusal control. The existing toolchain policy still supplies physical
 //! classification independently, so an unsupported leaf must refuse.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use semantic_vocabulary::{

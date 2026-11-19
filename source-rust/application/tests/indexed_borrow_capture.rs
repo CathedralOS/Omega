@@ -1,12 +1,13 @@
 //! Indexed borrows retain the actual byte address through a block edge.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("generics/indexed_borrow_capture");
     let scratch = TemporaryDirectory::create("indexed-borrow-capture", false).unwrap();

@@ -1,10 +1,11 @@
-use std::path::Path;
+mod support;
+
 use std::process::{Command, Stdio};
 
 #[test]
 fn a_match_with_a_prebound_reference_preserves_the_callers_record() {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/ownership/prebound_reference_match");
+    let project =
+        support::repository_root().join("tests/fixtures/run/ownership/prebound_reference_match");
     let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])

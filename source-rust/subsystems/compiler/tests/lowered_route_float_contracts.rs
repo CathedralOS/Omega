@@ -2,7 +2,7 @@
 //! The negative removes only its upper bound, so private precondition inference
 //! cannot supply the missing fact from the concrete callers.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 fn repository() -> std::path::PathBuf {

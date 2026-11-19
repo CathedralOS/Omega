@@ -1,12 +1,13 @@
 //! Sibling helpers retain their enclosing static arguments.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::path::Path;
 use std::process::{Command, Output, Stdio};
 
 fn invoke(tier: &str) -> (Output, String) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let fixture = support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("calls/inherited_static_siblings");
     let scratch = TemporaryDirectory::create("inherited-static-siblings", false).unwrap();

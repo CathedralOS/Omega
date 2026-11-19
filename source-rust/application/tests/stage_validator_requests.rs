@@ -1,7 +1,10 @@
 //! `--validator` and `--every-validator` run stage-output checks
 //! inside one compilation and report a row for each; default compilation runs
 //! none (wiki/spec/build/command_line.md#independent-stage-validators).
-use std::path::{Path, PathBuf};
+
+mod support;
+
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 const CASE_FIXTURE: &str = "run/calls/indexed_case_discriminator";
@@ -9,8 +12,8 @@ const NAME: &str = "TargetOperationCorrespondence";
 
 // Each test compiles its own copy so concurrent tests never share a build directory.
 fn project(test: &str, fixture: &str) -> PathBuf {
-    let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let source = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let copy = std::env::temp_dir().join(format!(
         "omega-stage-validators-{test}-{}",

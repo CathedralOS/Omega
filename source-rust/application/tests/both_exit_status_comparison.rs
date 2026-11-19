@@ -6,12 +6,14 @@
 //!
 //! The other declined path, a Psi exit status a Unix host shows only as its
 //! low byte, is pinned by the unit tests beside `compare_exit_status`.
-use std::path::{Path, PathBuf};
+
+mod support;
+
+use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
 fn project() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/cli/both_comparison_verdict")
+    support::repository_root().join("tests/fixtures/run/cli/both_comparison_verdict")
 }
 
 fn run_both(extra: &[&str]) -> (Output, String) {

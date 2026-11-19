@@ -5,12 +5,13 @@
 //! lowered-form checker reads its routes: the machine the plan lists may cast,
 //! and the twin whose plan lists another machine is refused for that.
 
-use std::path::Path;
+mod support;
+
 use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let project = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])

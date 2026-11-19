@@ -1,7 +1,7 @@
 //! Indexed reads and length observations share the exact stored or reborrowed
 //! slice descriptor after the published program is reopened.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use std::path::PathBuf;

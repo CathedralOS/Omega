@@ -14,7 +14,7 @@
 // its programs need.
 #![allow(dead_code)]
 
-#[path = "fixture_repository.rs"]
+#[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 #[path = "unbuilt_dependencies.rs"]

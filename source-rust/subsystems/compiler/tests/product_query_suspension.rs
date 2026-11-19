@@ -1,6 +1,6 @@
 //! Product queries pause the real Terminal Build before a description exists.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use compiler::{CheckedCompileRequest, CompilationSession};

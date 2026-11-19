@@ -18,12 +18,13 @@ dependency, so the path names nothing and the Build is refused for it.
 
 */
 
-use std::path::PathBuf;
+mod support;
+
 use std::process::Command;
 
 fn check(fixture: &str) -> (bool, String) {
-    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let directory = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")

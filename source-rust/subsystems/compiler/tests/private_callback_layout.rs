@@ -1,7 +1,7 @@
 //! A 16-byte interrupt gate stores three pieces of a private address beside four public fields.
 //! The native layout must retain the exact three fragments the policy placed.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use diagnostics::Diagnostic;

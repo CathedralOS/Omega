@@ -12,7 +12,7 @@
 //! and its module publishes, the Terminal product is that artifact and its
 //! seals stay beside it for native planning. The shared source roster includes
 //! the Build-selected entry declaration before publication.
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 #[path = "support/artifact_trust.rs"]

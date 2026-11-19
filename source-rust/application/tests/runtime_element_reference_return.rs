@@ -2,12 +2,14 @@
 //! returned and written through in both engines. The array it came from
 //! stays borrowed while that reference is live; the record's other fields
 //! do not.
-use std::path::Path;
+
+mod support;
+
 use std::process::{Command, Stdio};
 
 fn run_both(fixture: &str) -> (bool, String) {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    let project = support::repository_root()
+        .join("tests/fixtures")
         .join(fixture);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])
@@ -47,8 +49,8 @@ fn a_returned_element_reference_leaves_the_other_fields_of_its_argument_free() {
 fn a_returned_runtime_element_reference_keeps_its_array_borrowed() {
     let fixture = "fail/ownership/runtime_element_reference_overlap";
     let expected = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../tests/fixtures")
+        support::repository_root()
+            .join("tests/fixtures")
             .join(fixture)
             .join("expected.txt"),
     )

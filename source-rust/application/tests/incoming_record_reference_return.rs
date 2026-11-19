@@ -1,10 +1,11 @@
-use std::path::Path;
+mod support;
+
 use std::process::{Command, Stdio};
 
 #[test]
 fn a_shared_record_reference_returns_to_the_callers_original_record() {
-    let project = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures/run/ownership/incoming_record_reference_return");
+    let project = support::repository_root()
+        .join("tests/fixtures/run/ownership/incoming_record_reference_return");
     let expected = std::fs::read_to_string(project.join("expected_native_exit.txt")).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(["run", "--both", "main.omg"])

@@ -2,7 +2,7 @@
 //! Receiving authenticates each numeric declaration and its complete IEEE
 //! contract, before target planning gives it an executable realization.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 fn repository() -> std::path::PathBuf {

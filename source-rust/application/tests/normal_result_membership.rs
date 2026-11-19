@@ -1,12 +1,14 @@
 //! Calls retain the domain facts their normal-result contracts promise.
 
+mod support;
+
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../tests/fixtures")
+    support::repository_root()
+        .join("tests/fixtures")
         .join(tier)
         .join("domains/normal_result_membership")
 }

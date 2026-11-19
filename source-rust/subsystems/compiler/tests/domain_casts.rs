@@ -7,7 +7,7 @@
 //! One program pins the accounted forms from source, and five twins each
 //! break one rule and are rejected with a diagnostic that names the domain.
 
-#[path = "support/fixture_repository.rs"]
+#[path = "../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
 
 use source_compiler::source_state::deferred_refusals::DeferredRequest;
