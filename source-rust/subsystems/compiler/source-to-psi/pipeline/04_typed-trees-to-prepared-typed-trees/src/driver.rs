@@ -27,10 +27,7 @@ const PASSES: &[Pass] = &[
     },
     Pass {
         name: "domain applications",
-        run: |program| {
-            program.prepare_domain_applications();
-            Ok(())
-        },
+        run: crate::preparation::passes::domain_applications::prepare,
     },
     Pass {
         name: "record patterns",

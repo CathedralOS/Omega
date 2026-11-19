@@ -1696,11 +1696,7 @@ pub mod domain {
             self.rows.iter()
         }
 
-        pub(crate) fn len(&self) -> usize {
-            self.rows.len()
-        }
-
-        pub(crate) fn get(&self, position: usize) -> Option<&AppliedDomainApplication> {
+        pub fn get(&self, position: usize) -> Option<&AppliedDomainApplication> {
             self.rows.get(position)
         }
 
@@ -1724,7 +1720,7 @@ pub mod domain {
             true
         }
 
-        pub(crate) fn set_theory(
+        pub fn set_theory(
             &mut self,
             position: usize,
             theory: Result<DomainDefinition, String>,
