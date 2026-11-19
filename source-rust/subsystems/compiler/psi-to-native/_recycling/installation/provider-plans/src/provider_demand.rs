@@ -202,35 +202,3 @@ impl<Publisher> IssuedProviderDemand<Publisher> {
         (self.inputs, self.publisher)
     }
 }
-
-/// The receiving host has authorized the very program whose providers are being selected.
-pub struct AdmittedProviderDemand<Publisher> {
-    demand: IssuedProviderDemand<Publisher>,
-    authorization: terminal_installation::AuthorizedTerminalArtifact,
-}
-
-impl<Publisher> AdmittedProviderDemand<Publisher> {
-    pub fn new(
-        demand: IssuedProviderDemand<Publisher>,
-        authorization: terminal_installation::AuthorizedTerminalArtifact,
-    ) -> Result<Self, terminal_installation::ArtifactTrustError> {
-        let artifact = match demand.inputs() {
-            ProviderDemandInputs::Unscoped { artifact, .. } => artifact,
-            ProviderDemandInputs::Target { origins, .. } => &origins.artifact,
-        };
-        authorization.require_artifact(artifact)?;
-        Ok(Self {
-            demand,
-            authorization,
-        })
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        IssuedProviderDemand<Publisher>,
-        terminal_installation::AuthorizedTerminalArtifact,
-    ) {
-        (self.demand, self.authorization)
-    }
-}

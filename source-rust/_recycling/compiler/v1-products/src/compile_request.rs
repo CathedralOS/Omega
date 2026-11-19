@@ -36,7 +36,7 @@ use std::sync::Arc;
 use target::TargetProfile;
 pub use terminal_installation::PrivateEntryRamInitialization;
 
-pub use compilation_inputs::{
+pub use crate::request_admission::{
     CompileOptions, NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
     partition_installation_assumptions, validate_installation_assumption_targets,
 };
@@ -237,7 +237,7 @@ impl CompileRequest {
                 "target package inputs require shared package sources",
             )]),
         };
-        let admitted = compilation_inputs::admit_destinations(
+        let admitted = crate::request_admission::admit_destinations(
             self.destinations
                 .into_iter()
                 .map(|row| row.target_name)

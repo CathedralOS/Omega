@@ -41,6 +41,7 @@ pub use portable_publication::{ExecutablePackageInputs, PublishedProgram};
 pub use published_compilation::{PublishedCompilation, PublishedExecutableProgram};
 mod compilation_products;
 mod compile_outcomes;
+mod request_admission;
 pub mod compile_request;
 mod evaluated_build;
 mod independent_component;

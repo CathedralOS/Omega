@@ -41,7 +41,7 @@ impl<Publisher, Plans> std::ops::Deref for PublishedSelection<Publisher, Plans> 
 }
 
 pub fn select_published_providers<Publisher>(
-    demand: backend_plan::AdmittedProviderDemand<Publisher>,
+    demand: native_inputs::AdmittedProviderDemand<Publisher>,
 ) -> Result<PublishedSelection<Publisher, SelectedExecution>, Vec<Diagnostic>> {
     let (issued, authorization) = demand.into_parts();
     let (facts, publisher) = issued.into_parts();

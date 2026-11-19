@@ -1,28 +1,13 @@
-#![forbid(unsafe_code)]
-//! Admit target names, product options, rollback requests, and installation
-//! assumptions before an individual target starts source or native planning.
+//! V1 project request validation preceding source compilation and native admission.
 
 use diagnostics::Diagnostic;
 use optimization_requests::OptimizationRollback;
-pub use provider_admission::provider_admission::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
+use provider_admission::provider_admission::{
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy,
 };
 use std::path::PathBuf;
 use target::TargetProfile;
-pub use terminal_installation::PrivateEntryRamInitialization;
-
-/// Admit the host's producer decision for the program before its providers are selected.
-pub fn admit_published_provider_demand<Publisher>(
-    program: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    producer: Option<&terminal_installation::HostProducerTrust>,
-    demand: backend_plan::IssuedProviderDemand<Publisher>,
-) -> Result<
-    backend_plan::AdmittedProviderDemand<Publisher>,
-    terminal_installation::ArtifactTrustError,
-> {
-    let authorization = terminal_installation::authorize_terminal_artifact(program, producer)?;
-    backend_plan::AdmittedProviderDemand::new(demand, authorization)
-}
+use terminal_installation::PrivateEntryRamInitialization;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileOptions {
@@ -260,63 +245,4 @@ pub fn admit_destinations(
         })
     });
     Ok(targets)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::admit_published_provider_demand;
-    use backend_plan::{IssuedProviderDemand, ProviderDemandInputs};
-    use std::sync::Arc;
-    use terminal_codec::{
-        CanonicalTerminalArtifact, TerminalDebugMap, build_identity_optimization_execution_record,
-    };
-    use terminal_installation::{ArtifactTrustError, HostProducerTrust};
-
-    #[test]
-    fn provider_admission_binds_host_trust_to_the_exact_published_artifact() {
-        let module = terminal_psi::TerminalModule::declarations();
-        let record = build_identity_optimization_execution_record(&module).unwrap();
-        let original = Arc::new(
-            CanonicalTerminalArtifact::from_parts(module.clone(), record.clone(), None).unwrap(),
-        );
-        let issue = || {
-            IssuedProviderDemand::issue(
-                (),
-                ProviderDemandInputs::Unscoped {
-                    artifact: Arc::clone(&original),
-                    roots: Vec::new(),
-                },
-            )
-        };
-
-        let reopened =
-            Arc::new(CanonicalTerminalArtifact::from_bytes(&original.to_bytes()).unwrap());
-        assert!(matches!(
-            admit_published_provider_demand(Arc::clone(&reopened), None, issue()),
-            Err(ArtifactTrustError::ProducerTrustRequired)
-        ));
-        let host = HostProducerTrust::accept("admission test");
-        let (_, admitted) =
-            admit_published_provider_demand(Arc::clone(&reopened), Some(&host), issue())
-                .unwrap()
-                .into_parts();
-        assert!(Arc::ptr_eq(admitted.shared_artifact(), &reopened));
-
-        let debug = TerminalDebugMap {
-            semantic: original.view().identity(),
-            files: Vec::new(),
-            sites: Vec::new(),
-        };
-        let changed =
-            Arc::new(CanonicalTerminalArtifact::from_parts(module, record, Some(&debug)).unwrap());
-        assert_eq!(changed.view().identity(), original.view().identity());
-        let authorized_identity = changed.manifest().identity();
-        let demanded_identity = original.manifest().identity();
-        assert_ne!(authorized_identity, demanded_identity);
-        assert!(matches!(
-            admit_published_provider_demand(changed, Some(&host), issue()),
-            Err(ArtifactTrustError::ArtifactMismatch { authorized, requested })
-                if authorized == authorized_identity && requested == demanded_identity
-        ));
-    }
 }

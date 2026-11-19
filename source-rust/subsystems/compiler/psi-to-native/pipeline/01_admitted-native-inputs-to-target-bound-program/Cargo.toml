@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-to-admitted-native-inputs" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../source-to-psi/language/application-identity" }
 arena = { path = "../../../../../foundation/arena" }

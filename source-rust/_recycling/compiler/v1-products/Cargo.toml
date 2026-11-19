@@ -5,11 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+optimization-selections = { path = "../../../subsystems/compiler/foundation/optimization-selections" }
 published-program = { path = "../published-program" }
 published-runtime-input = { path = "../representations/published-runtime-input" }
 product-publication = { path = "../../../subsystems/compiler/build/build-output/product-publication" }
 portable-publication = { path = "source-publication" }
-compilation-inputs = { package = "psi-to-admitted-native-inputs", path = "../../../subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
 declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 optimization-requests = { path = "optimization-requests" }
 source-text = { path = "../../../foundation/source-text" }

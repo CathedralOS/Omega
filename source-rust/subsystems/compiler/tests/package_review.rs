@@ -1060,12 +1060,13 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
     );
     let reach = folded_entry.clone().unwrap();
     let producer = terminal_installation::HostProducerTrust::accept("package review fixture");
-    let admitted = compilation_inputs::admit_published_provider_demand(
+    let authorized = terminal_installation::authorize_terminal_artifact(
         std::sync::Arc::clone(source.artifact()),
         Some(&producer),
-        demand,
     )
-    .expect("admit the source publication before provider selection");
+    .expect("authorize the source publication");
+    let admitted = native_inputs::admit(authorized, demand)
+        .expect("admit the source publication before provider selection");
     let planner = provider_realization::select_published_providers(admitted)
         .expect("plan native providers from the published demand");
     let mut selected = planner.clone();
