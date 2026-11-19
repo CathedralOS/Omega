@@ -9,8 +9,8 @@ pub(super) const TEST_SUPPORT: &str = "omega-rust/test-support";
 
 pub(super) const STAGES: [&str; 20] = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs",
-    "omega-rust/psi/compilation/pipeline/source-compilation",
-    "omega-rust/omega/compilation/products/source-publication",
+    "source-rust/subsystems/compiler/source-to-psi",
+    "source-rust/subsystems/compiler/build/package-compilation/psi-publication",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/02_target-bound-program-to-abstract-operations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/03_abstract-operations-to-abstract-operations",
@@ -36,24 +36,24 @@ const RETIRED: [&str; 4] = [
     "omega-rust/omega/foundation",
 ];
 pub(super) const TEXT_READER: &str =
-    "omega-rust/psi/compilation/pipeline/source-compilation/src/operations/source-syntax";
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax";
 
 pub(super) const FRONTEND: [&str; 4] = [
-    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
-    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
-    "omega-rust/psi/compilation/representations/tokens",
-    "omega-rust/psi/compilation/representations/syntax-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/00_source-files-to-tokens",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/tokens",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees",
 ];
 
-const PSI_STAGES: [&str; 8] = [
+pub(super) const PSI_STAGES: [&str; 8] = [
     FRONTEND[0],
     FRONTEND[1],
-    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-    "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi",
-    "omega-rust/psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-typed-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/05_typed-trees-to-lowered-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi",
 ];
 
 fn stage(path: &str) -> Option<(usize, usize)> {
@@ -62,7 +62,7 @@ fn stage(path: &str) -> Option<(usize, usize)> {
     }
     STAGES
         .iter()
-        .position(|root| under(path, &[*root]))
+        .position(|root| path == *root || (*root != STAGES[1] && under(path, &[*root])))
         .map(|position| (position, usize::MAX))
 }
 
@@ -86,9 +86,9 @@ fn forbidden_frontend(start: &str, dependency: &str) -> bool {
                     &[
                         tokens,
                         syntax,
-                        "omega-rust/psi/compilation/representations/source-declarations",
-                        "omega-rust/psi/compilation/representations/symbol-resolved-trees",
-                        "omega-rust/psi/compilation/representations/typed-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees",
+                        "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/typed-trees",
                     ],
                 )
         }
@@ -327,7 +327,7 @@ mod tests {
             "06_selected-instructions-to-selected-instructions -> 08_register-homes-to-post-allocation-machine"
         )));
         assert!(errors.iter().any(|error| error.contains(
-            "06_terminal-psi-to-checked-terminal-psi -> shared -> 00_source-files-to-tokens"
+            "06_lowered-program-to-checked-program -> shared -> 00_source-files-to-tokens"
         )));
         assert!(errors.iter().any(|v| v.contains(
             "07_selected-instructions-to-register-homes -> shared -> 01_admitted-native-inputs-to-target-bound-program"
@@ -352,7 +352,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|v| v.contains("source-syntax -> shared -> source-compilation"))
+                .any(|v| v.contains("source-syntax -> shared -> source-to-psi"))
         );
         assert!(
             errors

@@ -62,7 +62,7 @@ const PSI: &str = "omega-rust/psi";
 const OMEGA: &str = "omega-rust/omega";
 const PSI_PIPELINE: &str = "omega-rust/psi/compilation/pipeline";
 const OMEGA_PIPELINE: &str = "omega-rust/omega/compilation/pipeline";
-const PACKAGE_MANAGER: &str = "omega-rust/omega/packages/package-manager";
+const PACKAGE_MANAGER: &str = "source-rust/subsystems/package-manager";
 const PRODUCT_COORDINATOR: &str = "omega-rust/omega/compilation/compiler";
 const PRODUCTS: &str = "omega-rust/omega/compilation/products";
 const BUILD_EVALUATION: &str = "omega-rust/omega/build-system/build-settings";
@@ -195,18 +195,21 @@ pub fn forbidden_rules() -> Vec<Rule> {
             STAGES[3..].to_vec(),
             "the native driver orders target compilation",
         ),
-        rule(
-            vec![
-                PRODUCT_COORDINATOR,
-                PRODUCTS,
-                BUILD_EVALUATION,
-                PACKAGE_MANAGER,
-                "omega-rust/omega/packages/package-compilation",
-                "omega-rust/omega/packages/build-declarations",
-            ],
-            FRONTEND_OPERATIONS.to_vec(),
-            "source consumers activate checked files through the streaming source owner",
-        ),
+        Rule {
+            forbidden_packages: FRONTEND_OPERATIONS.to_vec(),
+            ..rule(
+                vec![
+                    PRODUCT_COORDINATOR,
+                    PRODUCTS,
+                    BUILD_EVALUATION,
+                    PACKAGE_MANAGER,
+                    "source-rust/subsystems/compiler/build/package-compilation",
+                    "source-rust/subsystems/compiler/build/build-declarations",
+                ],
+                vec![],
+                "source consumers activate checked files through the streaming source owner",
+            )
+        },
         rule(
             vec![REVIEW_EVIDENCE],
             vec![PACKAGE_MANAGER, PRODUCT_COORDINATOR],
@@ -230,16 +233,29 @@ pub fn forbidden_rules() -> Vec<Rule> {
         FRONTEND_OPERATIONS.to_vec(),
         "portable publication takes the accepted source result",
     ));
-    // Dependency edits preserve the spelling and trivia of a single Build
-    // file. The text reader's production closure is checked in linear_pipeline.
+    // Only the source driver runs the full numbered source pipeline. The text reader
+    // preserves authored spelling and trivia. The other readers take stage 07 records.
     rules.push(Rule {
-        allowed: vec![Allowance {
-            owner: PACKAGE_MANAGER,
-            dependency: linear_pipeline::TEXT_READER,
-        }],
+        except_package: Some(STAGES[1]),
+        except_owners: linear_pipeline::PSI_STAGES.to_vec(),
+        allowed: [
+            (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
+            ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
+            ("source-rust/subsystems/compiler/build/build-settings/result", linear_pipeline::PSI_STAGES[7]),
+            (STAGES[2], linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
+        ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
+        ..rule(
+            vec![""],
+            linear_pipeline::PSI_STAGES.to_vec(),
+            "source stages are consumed by the source driver, numbered stages, or an explicitly scoped reader",
+        )
+    });
+    rules.push(Rule {
+        forbidden_packages: vec![STAGES[1], STAGES[2], STAGES[19]],
         ..rule(
             vec![PACKAGE_MANAGER],
-            STAGES.to_vec(),
+            vec![],
             "package management does not execute compiler stages",
         )
     });
@@ -254,16 +270,22 @@ pub fn forbidden_rules() -> Vec<Rule> {
         vec![FRONTEND_OPERATIONS[1], linear_pipeline::FRONTEND[3]],
         "the lexer produces tokens",
     ));
-    rules.push(rule(
-        vec![FRONTEND_OPERATIONS[1]],
-        vec![FRONTEND_OPERATIONS[0]],
-        "the parser consumes token streams",
-    ));
-    rules.push(rule(
-        vec!["omega-rust/psi/compilation/representations/terminal-psi/check-tables"],
-        vec![PSI_PIPELINE],
-        "checker records cannot depend on a source producer",
-    ));
+    rules.push(Rule {
+        except_package: Some(linear_pipeline::TEXT_READER),
+        ..rule(
+            vec![FRONTEND_OPERATIONS[1]],
+            vec![FRONTEND_OPERATIONS[0]],
+            "the parser consumes token streams",
+        )
+    });
+    rules.push(Rule {
+        forbidden_packages: vec![STAGES[1]],
+        ..rule(
+            vec!["source-rust/subsystems/compiler/source-to-psi/pipeline/representations"],
+            vec![],
+            "source records cannot depend on the source driver",
+        )
+    });
     rules
 }
 
@@ -1273,6 +1295,60 @@ mod tests {
     }
 
     #[test]
+    fn an_external_source_reader_only_receives_its_own_named_api() {
+        let stages = linear_pipeline::PSI_STAGES;
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                pkg(
+                    "package-manager",
+                    PACKAGE_MANAGER,
+                    &[
+                        ("read-text", linear_pipeline::TEXT_READER, None),
+                        ("run-parser", stages[1], None),
+                    ],
+                ),
+                pkg(
+                    "neighbor",
+                    "source-rust/subsystems/package-manager/helper",
+                    &[("read-text", linear_pipeline::TEXT_READER, Some("build"))],
+                ),
+                pkg(
+                    "source-driver",
+                    linear_pipeline::STAGES[1],
+                    &[("lower", stages[5], None)],
+                ),
+                pkg(
+                    "source-record",
+                    linear_pipeline::FRONTEND[3],
+                    &[("lower", stages[5], None)],
+                ),
+            ],
+        };
+        let rules: Vec<_> = forbidden_rules()
+            .into_iter()
+            .filter(|rule| rule.reason.starts_with("source stages are consumed"))
+            .collect();
+        let violations = forbidden_dependency_violations(&metadata, &rules).unwrap();
+        assert_eq!(violations.len(), 3, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("package-manager -> 01_tokens-to-syntax-trees"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("neighbor -> source-syntax"))
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|error| error.contains("source-record -> 05_typed-trees-to-lowered-program"))
+        );
+    }
+
+    #[test]
     fn only_the_native_driver_runs_omega_stages() {
         let library = linear_pipeline::STAGES[16];
         let stages = linear_pipeline::STAGES;
@@ -1760,8 +1836,8 @@ mod tests {
                 FRONTEND_OPERATIONS[0],
             ),
             (
-                "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
-                "omega-rust/psi/compilation/representations/semantic-vocabulary",
+                "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/lowered-program",
+                "source-rust/subsystems/compiler/foundation/semantic-records",
                 PSI_FACADE,
             ),
         ] {
