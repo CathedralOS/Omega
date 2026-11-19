@@ -920,6 +920,16 @@ fn retained_publication_violations(root: &Path) -> Vec<String> {
         )],
         "package numeric review demand can only be issued when publishing the accepted provider request",
     );
+    errors.extend(call_violations(
+        root,
+        &["issue_target_provider_demand"],
+        &[
+            "source-rust/subsystems/compiler/product-records/target-providers/publication.rs",
+            "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs",
+        ],
+        &[],
+        "only the accepted source judgment can issue target provider demand for its published artifact",
+    ));
     errors.extend(call_violations(root, &["retain_selected_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/05_target-operations-to-selected-instructions/src/instruction_selection/optimized.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn retain_selected_body_facts(")], "only instruction selection may issue the joined body facts"));
     errors.extend(call_violations(root, &["into_framed_body_facts"], &["source-rust/subsystems/compiler/psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning/src/imports.rs"], &[("source-rust/subsystems/compiler/psi-to-native/representations/post-allocation-machine/body-facts/src/lib.rs", "pub fn into_framed_body_facts(")], "only frame publication may open the carried body facts"));
     errors.extend(call_violations(
@@ -1631,7 +1641,8 @@ mod tests {
             ),
             (
                 "source-rust/subsystems/compiler/psi-to-native/driver.rs".to_owned(),
-                "let pair = SemanticEmissionFacts::retain_target_operations;\n",
+                "let pair = SemanticEmissionFacts::retain_target_operations;\n\
+                 use source_provider_publication::issue_target_provider_demand as forge;\n",
             ),
             (format!("{image}/lib.rs"), "mod retained_working_program;\n"),
             (
@@ -1684,9 +1695,12 @@ mod tests {
         assert_eq!(violations.len(), 6, "{violations:?}");
         assert_eq!(
             publication_violations.len(),
-            5,
+            6,
             "{publication_violations:?}"
         );
+        assert!(publication_violations.iter().any(|row| {
+            row.contains("psi-to-native/driver.rs:2:") && row.contains("target provider demand")
+        }));
         assert_eq!(
             execution_plan_violations.len(),
             5,

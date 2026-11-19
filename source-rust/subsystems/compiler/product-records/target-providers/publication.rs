@@ -34,19 +34,19 @@ pub struct PublishedTargetProviders {
     demand: SourceProviderDemand,
 }
 
-impl PublishedTargetProviders {
-    pub fn new(
-        artifact: &CanonicalTerminalArtifact,
-        target: &str,
-        demand: SourceProviderDemand,
-    ) -> Self {
-        Self {
-            manifest: artifact.manifest().identity(),
-            target: target.to_owned(),
-            demand,
-        }
+pub fn issue_target_provider_demand(
+    artifact: &CanonicalTerminalArtifact,
+    target: &str,
+    demand: SourceProviderDemand,
+) -> PublishedTargetProviders {
+    PublishedTargetProviders {
+        manifest: artifact.manifest().identity(),
+        target: target.to_owned(),
+        demand,
     }
+}
 
+impl PublishedTargetProviders {
     pub fn receive(
         self,
         artifact: &CanonicalTerminalArtifact,
@@ -87,7 +87,7 @@ mod tests {
             psi_provider_selections::logical_reach::close_providers(source.semantic_module(), target, None, &[])
                 .unwrap();
         let publish = || {
-            PublishedTargetProviders::new(
+            issue_target_provider_demand(
                 &source,
                 target,
                 SourceProviderDemand::Target {

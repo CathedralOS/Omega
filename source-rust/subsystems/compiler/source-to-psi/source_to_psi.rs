@@ -168,12 +168,9 @@ fn published_target(
     target: &str,
     subject: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
-    let demand = checked
+    let providers = checked
         .prepare_provider_demand(target)?
-        .receive(checked.terminal_publication(), Some(target))?;
-    let providers = provider_supply::PublishedTargetProviders::new(
-        &artifact, target, demand,
-    );
+        .for_published_target(checked.terminal_publication(), target)?;
     Ok(PublishedTargetProgram {
         subject,
         artifact,
