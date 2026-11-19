@@ -80,8 +80,7 @@ pub(crate) mod component_object {
                         "entry bridge belongs to a different ordinary body ABI",
                     ));
                 }
-                bridge
-                    .validate_published_code(bridge.bytes())
+                crate::published_entry_bytes::verify_entry_bridge_bytes(bridge, bridge.bytes())
                     .map_err(|error| invalid(&error.to_string()))?;
                 let offset = image
                     .memory
@@ -410,8 +409,7 @@ pub(crate) mod component_shared_image {
                 .final_text_bytes()
                 .get(symbol.offset..end)
                 .ok_or_else(|| Diagnostic::error("component entry byte span is stale"))?;
-            bridge
-                .validate_published_code(bytes)
+            crate::published_entry_bytes::verify_entry_bridge_bytes(bridge, bytes)
                 .map_err(|reason| Diagnostic::error(reason.to_string()))?;
             if region.footprint.as_ref() != Some(bridge.adapter_effects().footprint()) {
                 return Err(Diagnostic::error(

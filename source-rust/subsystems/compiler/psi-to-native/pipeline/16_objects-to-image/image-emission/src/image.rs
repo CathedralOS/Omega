@@ -426,8 +426,7 @@ pub(crate) mod entry_effects {
                     .final_text_bytes
                     .get(region.section_offset..end)
                     .ok_or_else(|| Diagnostic::error("final entry state byte span is stale"))?;
-                bridge
-                    .validate_published_code(bytes)
+                crate::published_entry_bytes::verify_entry_bridge_bytes(bridge, bytes)
                     .map_err(|reason| Diagnostic::error(reason.to_string()))?;
                 if region.footprint.as_ref() != Some(bridge.adapter_effects().footprint()) {
                     return Err(Diagnostic::error(
@@ -462,7 +461,7 @@ pub(crate) mod entry_effects {
                 .final_text_bytes
                 .get(offset..end)
                 .ok_or_else(|| Diagnostic::error("physical state span is stale"))?;
-            expected.validate_published_code(bytes)?;
+            crate::published_entry_bytes::verify_stack_switch_bytes(expected, bytes)?;
             if region.entry_effects.as_ref() != Some(effects)
                 || region.footprint.as_ref() != Some(expected.effects.footprint())
             {

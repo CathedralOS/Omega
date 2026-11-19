@@ -113,38 +113,4 @@ impl StackSwitch {
         }
         Ok(())
     }
-
-    pub fn validate_published_code(&self, bytes: &[u8]) -> Result<(), Diagnostic> {
-        let changed = || invalid("physical entry changed outside its declared relocation fields");
-        if bytes.len() != self.bytes.len() {
-            return Err(changed());
-        }
-        let mut cursor = 0;
-        for (_, fixup) in self.fixups.iter() {
-            let end = fixup.field.checked_add(4).ok_or_else(changed)?;
-            if cursor > fixup.field
-                || end > bytes.len()
-                || bytes[cursor..fixup.field] != self.bytes[cursor..fixup.field]
-            {
-                return Err(changed());
-            }
-            cursor = end;
-        }
-        if self.bytes[cursor..] != bytes[cursor..] {
-            return Err(changed());
-        }
-        // Compare decoded control flow as well as the planned state effects.
-        // Relocation may change an address while preserving both.
-        let expected =
-            target_x86_64::decode_x86_64_generated_entry(&self.bytes, Some(self.body_call))
-                .map_err(|error| invalid(&error))?;
-        let actual = target_x86_64::decode_x86_64_generated_entry(bytes, Some(self.body_call))
-            .map_err(|error| invalid(&error))?;
-        if actual != expected || actual.effects != self.effects {
-            return Err(invalid(
-                "physical entry instruction/state evidence fails exact target replay",
-            ));
-        }
-        Ok(())
-    }
 }

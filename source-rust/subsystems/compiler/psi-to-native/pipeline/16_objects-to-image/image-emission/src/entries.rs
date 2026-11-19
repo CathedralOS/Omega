@@ -893,8 +893,7 @@ pub(crate) mod callable_entry_transport {
                     && bridge.installed_interrupt() == installed.map(|(_, plan)| plan)
                     && bridge.complete_effects() == effects =>
             {
-                bridge
-                    .validate_published_code(bridge.bytes())
+                crate::published_entry_bytes::verify_entry_bridge_bytes(bridge, bridge.bytes())
                     .map_err(Error::NativeEntryBridge)
             }
             None if !needs_bridge
@@ -3772,15 +3771,16 @@ pub(crate) mod physical_entry {
                 let (_, wrapper) =
                     super::stack_switch::encode(super::stack_switch::plan(physical).unwrap())
                         .unwrap();
-                wrapper.validate_published_code(&wrapper.bytes).unwrap();
+                crate::published_entry_bytes::verify_stack_switch_bytes(&wrapper, &wrapper.bytes)
+                    .unwrap();
                 let mut relocated = wrapper.bytes.clone();
                 let field = wrapper.fixups.iter().next().unwrap().1.field;
                 relocated[field..field + 4].copy_from_slice(&512_i32.to_le_bytes());
-                wrapper.validate_published_code(&relocated).unwrap();
+                crate::published_entry_bytes::verify_stack_switch_bytes(&wrapper, &relocated)
+                    .unwrap();
                 relocated[0] ^= 1;
                 assert!(
-                    wrapper
-                        .validate_published_code(&relocated)
+                    crate::published_entry_bytes::verify_stack_switch_bytes(&wrapper, &relocated)
                         .unwrap_err()
                         .message
                         .contains("outside its declared relocation fields")
@@ -4016,10 +4016,11 @@ pub(crate) mod physical_entry {
                 "physical plan differs from the retained body transport",
             ));
         }
-        binding
-            .bridge
-            .validate_published_code(binding.bridge.bytes())
-            .map_err(|error| invalid(&error.to_string()))?;
+        crate::published_entry_bytes::verify_entry_bridge_bytes(
+            &binding.bridge,
+            binding.bridge.bytes(),
+        )
+        .map_err(|error| invalid(&error.to_string()))?;
         let demand = derive_body_stack_demand(artifact, artifact.entry)
             .map_err(|error| invalid(&format!("ordinary body stack demand: {error}")))?;
         let installed_reserve = crate::object::object_artifact::installed_stack::root_reserve(
@@ -4049,9 +4050,10 @@ pub(crate) mod physical_entry {
             return Err(invalid("private stack differs from its exact invocation"));
         }
         binding.stack_switch.validate_bridge(&binding.bridge)?;
-        binding
-            .stack_switch
-            .validate_published_code(&binding.stack_switch.bytes)
+        crate::published_entry_bytes::verify_stack_switch_bytes(
+            &binding.stack_switch,
+            &binding.stack_switch.bytes,
+        )
     }
 
     pub(crate) fn prepare(artifact: &ObjectArtifact) -> Result<PreparedEntry, Diagnostic> {
