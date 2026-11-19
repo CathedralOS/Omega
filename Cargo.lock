@@ -2530,11 +2530,18 @@ dependencies = [
 name = "project-build"
 version = "0.1.0"
 dependencies = [
+ "artifacts",
+ "build-declarations",
+ "build-settings",
  "compiler",
  "diagnostics",
+ "package-compilation",
  "platform-custody",
  "product-publication",
  "psi-authorization",
+ "semantic-vocabulary",
+ "source-acquisition",
+ "source-compiler",
  "target",
  "terminal-codec",
  "terminal-interpreter",

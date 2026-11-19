@@ -113,7 +113,7 @@ pub use package_compilation::build_execution::{
 pub use build_evaluation_result::{
     BuildConfig, BuildConstants, BuildSubjectValidation, CompileFailure, ComputedBuildConfig,
 };
-pub use source_compiler::WireCompatibilityDemand;
+pub use source_compiler::{ProducedBuildProvider, WireCompatibilityDemand};
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 mod program_entry_selection;
