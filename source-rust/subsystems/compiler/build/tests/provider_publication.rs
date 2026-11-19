@@ -4,7 +4,9 @@ mod fixture_repository;
 
 use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
 use host_provider_inputs::ProviderInstallationInputs;
-use package_compilation::BuildExecutionInputs;
+use package_compilation::{
+    BuildExecutionInputs, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
+};
 use package_manager::{
     operations::begin_local_project_preparation, resolution::source::ExecutedSourceResolution,
 };
@@ -26,7 +28,14 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
     let project = begin_local_project_preparation(path, targets, true)
         .unwrap()
         .unwrap();
-    let acquired = project.acquire_root().unwrap();
+    let selected = BuildSourceCaptureRequest::new(["main.omg", "build.omg"].map(|name| {
+        (
+            name.as_bytes().to_vec(),
+            BuildSourceCaptureObligation::Required,
+        )
+    }))
+    .unwrap();
+    let acquired = project.acquire_selected_root(&selected).unwrap();
     let prepared = planning::prepare(
         PlanningRequest {
             root: &acquired.entry_path(),
@@ -277,7 +286,13 @@ fn saved_windows_image_requires_the_exact_getpid_binding_and_entry() {
 fn folded_product(path: &Path, profile: TargetProfile) -> product_publication::CompletedProduct {
     let product = open_project(path, &[profile]);
     let stage = product.product_stage(&[profile]).unwrap();
-    let source = source_compiler::compile(stage.source()).unwrap();
+    let source = source_compiler::compile(stage.source()).unwrap_or_else(|reasons| {
+        panic!(
+            "portable publication of {} for {}: {reasons:?}",
+            path.display(),
+            profile.target_name()
+        )
+    });
     let original_bytes = source.to_bytes();
     assert!(
         source
