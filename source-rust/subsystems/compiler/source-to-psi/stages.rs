@@ -51,8 +51,6 @@ pub use typed_trees_to_lowered_program::lowering::source_roster::{
     SourceProgramEntryInput,
 };
 
-#[path = "pipeline/03_symbol-resolved-trees-to-typed-trees/resolve_and_type.rs"]
-pub(crate) mod source_compilation;
 #[path = "pipeline/01_tokens-to-syntax-trees/parsed_files.rs"]
 pub(crate) mod source_syntax;
 pub use source_syntax::{
@@ -75,16 +73,16 @@ pub use crate::source_preparation::{SourceAdmission, SourcePreparationRequest};
 #[cfg(any(test, feature = "test-support"))]
 pub use source_judgment::{FrozenSource, JudgedSource};
 
-pub use source_compilation::{
+pub use crate::source_continuation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,
     SourceContinuation, SourceExtensionRequest, SourceFrontends,
     SourcePreparation,
 };
 
 #[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use source_compilation::ResolveAndTypeRequest;
+pub(crate) use crate::source_continuation::ResolveAndTypeRequest;
 #[cfg(any(test, feature = "test-support"))]
-pub use source_compilation::ResolveAndTypeRequest;
+pub use crate::source_continuation::ResolveAndTypeRequest;
 
 #[cfg(not(any(test, feature = "test-support")))]
 pub(crate) use crate::production::{TerminalProductionCustody, TerminalSourceCompilation};
@@ -114,9 +112,6 @@ pub use checked_program_to_psi::provider_supply;
 
 pub use crate::product::TypedFrontier;
 
-#[path = "pipeline/04_typed-trees-to-typed-trees/unbuilt_source.rs"]
-pub(crate) mod unbuilt_source;
-pub use unbuilt_source::{UnbuiltSourceInputs, prepare_unbuilt_frontier};
 
 /// Inspect preparation in counterexample tests without granting acceptance.
 #[cfg(any(test, feature = "test-support"))]

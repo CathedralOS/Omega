@@ -17,7 +17,7 @@ This note maps its Rust implementation. Limits on which appended cohorts
   [continuation records in the representation](../../representations/symbol-resolved-trees/src/continuations.rs),
   not resolver state. The Psi driver keeps pending syntax and runs resolution,
   source activation and typing; `resolution_handoff_tests` in
-  `source_compilation.rs` tests their exact pairings.
+  The [source continuation tests](../../source_continuation/resolution_handoff_tests.rs) check their exact pairings.
 
 ## One typing route
 
