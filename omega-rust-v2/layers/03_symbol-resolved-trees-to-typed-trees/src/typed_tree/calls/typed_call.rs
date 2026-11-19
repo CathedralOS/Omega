@@ -8,7 +8,7 @@ pub struct TypedCall {
     pub site: Site,
     pub machine: DeclarationId,
     pub type_arguments: Vec<ValueType>,
-    pub operands: Vec<Site>,
+    pub operands: Vec<omega_resolver::TreeNodeId>,
     pub enclosing_arguments: Vec<(DeclarationId, Vec<ValueType>)>,
     pub caller: Option<DeclarationId>,
     pub acknowledgements: PauseEffects,

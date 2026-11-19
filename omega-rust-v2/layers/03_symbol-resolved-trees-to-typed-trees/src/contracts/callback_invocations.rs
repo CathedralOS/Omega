@@ -14,14 +14,14 @@ fn declared(id: &DeclarationId) -> InvocationTarget {
 pub(crate) fn through(
     call: &TypedCall,
     entry: &InvocationTarget,
-    files: &HashMap<(&str, &str), &ResolvedSourceFile<'_>>,
+    units: &[ResolvedSourceFile<'_>],
     catalog: &DeclarationCatalog<'_>,
 ) -> InvocationTarget {
     match entry {
         InvocationTarget::RuntimeParameter { owner, index } if owner == &call.machine => {
-            let site = &call.operands[*index];
-            let unit = files[&(site.package.as_str(), site.file.as_str())];
-            match unit.symbol_at(site.span) {
+            let operand = call.operands[*index];
+            let unit = &units[operand.file];
+            match unit.symbol(operand.node) {
                 Some(Symbol::Binding { span, .. })
                     if let Some(caller) = &call.caller
                         && let Some(i) = catalog.signatures[caller]
@@ -35,7 +35,7 @@ pub(crate) fn through(
                     }
                 }
                 Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine => declared(id),
-                _ => InvocationTarget::StoredCallable(site.clone()),
+                _ => InvocationTarget::StoredCallable(Site::at(unit.file, operand.node)),
             }
         }
         InvocationTarget::StaticParameter { owner, index } if owner == &call.machine => match &call.type_arguments[*index] {
@@ -63,10 +63,6 @@ pub(crate) fn compose_callback_invocations(
     boundary_slots: &[BoundarySlot],
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
-    let files = units
-        .iter()
-        .map(|u| ((u.file.package, u.file.path), u))
-        .collect();
     let mut rows: HashMap<_, HashSet<_>> = catalog
         .signatures
         .keys()
@@ -164,7 +160,7 @@ pub(crate) fn compose_callback_invocations(
             };
             let mut incoming: Vec<_> = rows[&call.machine]
                 .iter()
-                .map(|entry| through(call, entry, &files, catalog))
+                .map(|entry| through(call, entry, units, catalog))
                 .collect();
             incoming.sort_by_cached_key(|entry| format!("{entry:?}"));
             for e in incoming {

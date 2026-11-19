@@ -152,10 +152,7 @@ impl BodyTyper<'_, '_> {
                 .map(|s| (s.declaration, s.trait_arguments))
                 .collect(),
             type_arguments: args,
-            operands: operands
-                .iter()
-                .map(|(site, _)| Site::at(source, *site))
-                .collect(),
+            operands: operands.iter().map(|(node, _)| source.node_id(*node)).collect(),
             result: result.clone(),
         });
         Ok(Some(result))
@@ -185,10 +182,11 @@ impl BodyTyper<'_, '_> {
             let [left, right] = *source.nodes[node_index].children.as_slice() else {
                 return Err(TypeError::unsupported(source, node_index));
             };
-            if source.nodes[node_index].leaves.iter().any(|w| w.text == "==") && self.type_term(left) {
+            let token = self.unit.operator_token(node_index)?;
+            if token == "==" && self.type_term(left) {
                 break;
             }
-            pending.push((node_index, left, right));
+            pending.push((node_index, left, right, token));
             node_index = left;
         }
         let mut left_type = if source.nodes[node_index].kind == NodeKind::Binary {
@@ -196,8 +194,7 @@ impl BodyTyper<'_, '_> {
         } else {
             self.type_expression(node_index)?
         };
-        for (node_index, left, right) in pending.into_iter().rev() {
-            let token: String = source.nodes[node_index].leaves.iter().map(|t| t.text).collect();
+        for (node_index, left, right, token) in pending.into_iter().rev() {
             let ty = if token == "in" {
                 self.membership(node_index, &left_type, right)?
             } else {
@@ -212,7 +209,7 @@ impl BodyTyper<'_, '_> {
                 {
                     self.cases.insert(s, old);
                 }
-                self.binary(node_index, &token, (left, &left_type), (right, &right_type))?
+                self.binary(node_index, token, (left, &left_type), (right, &right_type))?
             };
             self.output.expressions.push(TypedExpression {
                 node: source.node_id(node_index),

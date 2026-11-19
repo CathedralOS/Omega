@@ -1,3 +1,4 @@
+use super::NameRole;
 use super::{Application, Catalog, Context, DeclarationId, NameError, NameUse, Symbol, builtin, callable, qualify, usage};
 use crate::syntax::File;
 use omega_lexer::SourceSpan;
@@ -39,14 +40,14 @@ impl Catalog<'_> {
                         if !self.assembly.instructions.contains(&mnemonic.as_str()) {
                             return Err(file.error(span, format!("unavailable target instruction {mnemonic}")));
                         }
-                        uses.push(usage(file, span, Symbol::TargetInstruction(mnemonic)));
+                        uses.push(usage(file, n, NameRole::Reference, span, Symbol::TargetInstruction(mnemonic)));
                     }
                 } else {
                     for reg in words.skip(1).filter(|w| w.text != "none") {
                         if !self.assembly.registers.contains(&reg.text) {
                             return Err(file.error(reg.span, format!("unavailable target register {}", reg.text)));
                         }
-                        uses.push(usage(file, reg.span, Symbol::TargetRegister(reg.text.into())));
+                        uses.push(usage(file, n, NameRole::Register, reg.span, Symbol::TargetRegister(reg.text.into())));
                     }
                 }
             }
@@ -61,13 +62,13 @@ impl Catalog<'_> {
                 if slots.is_empty() {
                     return Err(file.error(label.span, format!("unresolved assembly block {}", label.text)));
                 }
-                uses.push(usage(file, label.span, self.symbol(file, label.span, &slots)?));
+                uses.push(usage(file, n, NameRole::Reference, label.span, self.symbol(file, label.span, &slots)?));
             }
             // Fields selected through a value become type-directed member selections.
             if matches!(node.kind, FieldAccess | FieldInit | FieldPattern)
                 && let Some(member) = node.words().next()
             {
-                uses.push(usage(file, member.span, Symbol::Member(member.text.into())));
+                uses.push(usage(file, n, NameRole::Member, member.span, Symbol::Member(member.text.into())));
             }
             let shorthand = node.kind == FieldInit && node.children.is_empty();
             let mut pattern_value = false;
@@ -234,7 +235,11 @@ impl Catalog<'_> {
                     let target = if binder.is_none() {
                         None
                     } else if let Some(l) = local {
-                        Some(Symbol::Binding { span: l.span, kind: l.kind })
+                        Some(Symbol::Binding {
+                            binder_node: l.node,
+                            span: l.span,
+                            kind: l.kind,
+                        })
                     } else if is_type && builtin(&path) {
                         Some(Symbol::Builtin(path.clone()))
                     } else {
@@ -257,6 +262,7 @@ impl Catalog<'_> {
                 Symbol::ByOverload(options)
             } else if let Some(local) = visible_local {
                 Symbol::Binding {
+                    binder_node: local.node,
                     span: local.span,
                     kind: local.kind,
                 }
@@ -361,9 +367,20 @@ impl Catalog<'_> {
                             return Err(file.error(prefix[0].span, format!("unresolved application owner {prefix_name}")));
                         }
                         let prefix_span = SourceSpan::new(prefix[0].span.get_start_offset(), prefix[prefix.len() - 1].span.get_end_offset());
-                        let site = usage(file, prefix_span, self.symbol(file, prefix_span, &owners)?);
-                        uses.push(site.clone());
-                        application_bases.insert(arg_list, site);
+                        let role = if node.words().rev().nth(1).map(|word| word.span) == prefix.last().map(|word| word.span) {
+                            NameRole::Qualifier
+                        } else {
+                            NameRole::ApplicationPrefix
+                        };
+                        let site = usage(file, n, role, prefix_span, self.symbol(file, prefix_span, &owners)?);
+                        let index = if uses.last() == Some(&site) {
+                            uses.len() - 1
+                        } else {
+                            let index = uses.len();
+                            uses.push(site);
+                            index
+                        };
+                        application_bases.insert(arg_list, index);
                     }
                     for (position, &argument) in file.nodes[arg_list].children.iter().enumerate() {
                         let role = |i: usize| {
@@ -445,16 +462,16 @@ impl Catalog<'_> {
                     }
                 }
             }
-            let occurrence = usage(file, span, symbol);
+            let reference = uses.len();
+            uses.push(usage(file, n, NameRole::Reference, span, symbol));
             for &arguments in node
                 .children
                 .iter()
                 .filter(|&&i| matches!(file.nodes[i].kind, TypeArgs | ExpressionArgs))
             {
                 applications.push(Application {
-                    site: application_bases
-                        .remove(&arguments)
-                        .unwrap_or_else(|| occurrence.clone()),
+                    section: file.node_id(arguments),
+                    name_use: application_bases.remove(&arguments).unwrap_or(reference),
                     arguments: file.nodes[arguments]
                         .children
                         .iter()
@@ -462,7 +479,6 @@ impl Catalog<'_> {
                         .collect(),
                 });
             }
-            uses.push(occurrence);
         }
         for (n, node) in file
             .nodes

@@ -79,6 +79,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 Some(Symbol::Binding {
                     span,
                     kind: NodeKind::MachineParam | NodeKind::Hypothesis,
+                    ..
                 }) => self
                     .hypotheses
                     .get(span)
@@ -88,17 +89,20 @@ impl<'a> ResolvedSourceFile<'a> {
                 _ => Err(TypeError::at(self.file, node_index, "expected explicitly supplied logical evidence")),
             };
         }
-        if let Some(Symbol::Binding { span, kind: NodeKind::Param }) = symbol
+        if let Some(Symbol::Binding {
+            binder_node,
+            kind: NodeKind::Param,
+            ..
+        }) = symbol
             && self.file.nodes[node_index].kind != NodeKind::Call
         {
             if !types.runtime_indices.contains(&(owner, index)) && !matches!(carrier, ValueType::Function(..)) {
                 return Err(TypeError::at(self.file, node_index, "const index needs a static argument"));
             }
             let annotation = self
-                .binding_annotations
-                .get(span)
+                .parameter_annotation(*binder_node)
                 .ok_or_else(|| TypeError::unsupported(self.file, node_index))?;
-            if &self.raw_type(*annotation, None, types)? != carrier {
+            if &self.raw_type(annotation, None, types)? != carrier {
                 return Err(TypeError::at(self.file, node_index, "index subject has the wrong carrier"));
             }
             return Ok(self.term_subject(node_index, carrier, None));
@@ -118,6 +122,7 @@ impl<'a> ResolvedSourceFile<'a> {
         if let Some(Symbol::Binding {
             span,
             kind: NodeKind::ConstParam | NodeKind::KindedParam,
+            ..
         }) = symbol
         {
             let value = self
@@ -176,7 +181,7 @@ impl<'a> ResolvedSourceFile<'a> {
             )
         });
         if !needs_evaluation {
-            let value = numeric_literals::static_number(source, node_index)?;
+            let value = numeric_literals::static_number(self, node_index)?;
             if source.nodes[node_index].kind != NodeKind::Literal && value.1.is_some() {
                 types
                     .open_indices

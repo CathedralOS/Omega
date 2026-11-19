@@ -32,6 +32,7 @@ impl BodyTyper<'_, '_> {
                     Some(Symbol::Binding {
                         span,
                         kind: ConstParam | KindedParam,
+                        ..
                     }) => self
                         .unit
                         .parameters
@@ -128,7 +129,7 @@ impl BodyTyper<'_, '_> {
             Binary => return self.binary_chain(node_index),
             Unary => {
                 let arg = self.type_expression(self.unit.single_child(node_index)?)?;
-                let token = node.leaves[0].text;
+                let token = self.unit.operator_token(node_index)?;
                 if let Some(ty) = self.declared_operator(node_index, token, &[(self.unit.single_child(node_index)?, &arg)])? {
                     ty
                 } else {

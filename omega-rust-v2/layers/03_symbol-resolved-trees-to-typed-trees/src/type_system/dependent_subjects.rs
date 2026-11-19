@@ -28,12 +28,16 @@ impl ResolvedSourceFile<'_> {
         if f.nodes[n].kind == NodeKind::Paren {
             return self.mathematical_subject(self.single_child(n)?, expected, types, version);
         }
-        if let Some(Symbol::Binding { span, kind: NodeKind::Param }) = self.symbol(n) {
+        if let Some(Symbol::Binding {
+            binder_node,
+            kind: NodeKind::Param,
+            ..
+        }) = self.symbol(n)
+        {
             let annotation = self
-                .binding_annotations
-                .get(span)
+                .parameter_annotation(*binder_node)
                 .ok_or_else(|| TypeError::unsupported(f, n))?;
-            if self.raw_type(*annotation, None, types)? != *expected {
+            if self.raw_type(annotation, None, types)? != *expected {
                 return Err(TypeError::at(f, n, "type-family subject has the wrong type"));
             }
         } else if f.nodes[n].kind == NodeKind::Literal {

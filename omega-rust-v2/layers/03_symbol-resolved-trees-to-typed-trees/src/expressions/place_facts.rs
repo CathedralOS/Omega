@@ -36,7 +36,7 @@ impl BodyTyper<'_, '_> {
         let [subject, target] = *source.nodes[node_index].children.as_slice() else {
             return None;
         };
-        if source.nodes[node_index].kind != NodeKind::Binary || !source.nodes[node_index].leaves.iter().any(|w| w.text == "in") {
+        if source.nodes[node_index].kind != NodeKind::Binary || self.unit.operator(node_index).is_none_or(|op| op.token != "in") {
             return None;
         }
         let Some(Symbol::Declaration(id)) = self.unit.symbol(target) else {
@@ -61,6 +61,7 @@ impl BodyTyper<'_, '_> {
             Some(Symbol::Binding {
                 span,
                 kind: NodeKind::KindedParam | NodeKind::ConstParam,
+                ..
             }) => self
                 .unit
                 .parameters

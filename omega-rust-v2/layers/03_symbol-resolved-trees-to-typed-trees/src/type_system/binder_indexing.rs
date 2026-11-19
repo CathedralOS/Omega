@@ -2,7 +2,6 @@ use crate::declarations::data_properties;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
 use std::collections::HashMap;
@@ -83,18 +82,6 @@ impl<'a> ResolvedSourceFile<'a> {
         }
         Ok(())
     }
-    pub fn application_segment(
-        &self,
-        path: usize,
-        section: usize,
-    ) -> Option<&'a Symbol> {
-        let node = &self.file.nodes[path];
-        let before = self.file.span(section).get_start_offset();
-        let mut prefix = node.words().take_while(|w| w.span.get_start_offset() < before);
-        let first = prefix.next()?;
-        let last = prefix.last().unwrap_or(first);
-        self.symbol_at(SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()))
-    }
     pub fn index_enclosing_scopes(
         &self,
         types: &mut TypeCatalog<'a>,
@@ -137,14 +124,7 @@ impl<'a> ResolvedSourceFile<'a> {
             if !matches!(source.nodes[section].kind, NodeKind::TypeArgs | NodeKind::ExpressionArgs) {
                 return Err(TypeError::unsupported(source, section));
             }
-            let before = source.span(section).get_start_offset();
-            let mut prefix = node.words().take_while(|w| w.span.get_start_offset() < before);
-            let first = prefix
-                .next()
-                .ok_or_else(|| TypeError::unsupported(source, section))?;
-            let last = prefix.last().unwrap_or(first);
-            let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
-            let Some(Symbol::Declaration(owner)) = self.symbol_at(span) else {
+            let Some(Symbol::Declaration(owner)) = self.application_name(section).map(|name| &name.target) else {
                 return Err(TypeError::at(source, section, "unresolved type application owner"));
             };
             if owner.kind == NodeKind::Domain && matches!(self.symbol(node_index),Some(Symbol::Declaration(id)) if id==owner) {
@@ -181,7 +161,7 @@ impl<'a> ResolvedSourceFile<'a> {
             } else if owner != id
                 && source
                     .enclosing_contexts(node_index)
-                    .filter_map(|i| self.declaration_at(source.span(i)))
+                    .filter_map(|i| self.declaration_at(i))
                     .any(|d| d == owner)
             {
                 args.extend(types.formals(owner));
@@ -287,7 +267,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 }
                 let term = self.single_child(clause)?;
                 let predicate = &source.nodes[term];
-                if predicate.kind != NodeKind::Binary || !predicate.leaves.iter().any(|l| l.text == "==") {
+                if predicate.kind != NodeKind::Binary || self.operator_token(term)? != "==" {
                     continue;
                 }
                 let [l, r] = *predicate.children.as_slice() else {
@@ -297,6 +277,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     Some(Symbol::Binding {
                         span,
                         kind: NodeKind::TypeParam,
+                        ..
                     }) => match self.parameters.get(span) {
                         Some(ValueType::Parameter { owner: o, index }) if o.as_ref() == owner => Some(*index),
                         _ => None,

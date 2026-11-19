@@ -29,6 +29,7 @@ pub(super) fn index_file<'a>(
                 ctx.binder_annotations.push((n, locals.len()));
             }
             locals.push(Local {
+                node: n,
                 kind: node.kind,
                 span: leaf.span,
                 owner,

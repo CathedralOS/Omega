@@ -16,6 +16,7 @@ impl<'a> ResolvedSourceFile<'a> {
         if let Some(Symbol::Binding {
             span,
             kind: NodeKind::KindedParam,
+            ..
         }) = self.symbol(node_index)
             && let Some(value) = self.parameters.get(span)
             && types.parameter_carrier(value) == Some(&ValueType::LevelKind)
@@ -99,7 +100,7 @@ impl<'a> ResolvedSourceFile<'a> {
                             .ok_or_else(|| TypeError::at(source, head, "mathematical family signature is unresolved"))?;
                         (ValueType::MathematicalDefinition(Box::new(id.clone())), signature.clone())
                     }
-                    Some(Symbol::Binding { span, .. }) => {
+                    Some(Symbol::Binding { span, binder_node, .. }) => {
                         if let Some(param) = self.parameters.get(span) {
                             (
                                 param.clone(),
@@ -110,12 +111,11 @@ impl<'a> ResolvedSourceFile<'a> {
                             )
                         } else {
                             let annotation = self
-                                .binding_annotations
-                                .get(span)
+                                .parameter_annotation(*binder_node)
                                 .ok_or_else(|| TypeError::unsupported(source, head))?;
                             (
                                 self.term_subject(head, &ValueType::NoResult, None),
-                                self.raw_type(*annotation, candidate, types)?,
+                                self.raw_type(annotation, candidate, types)?,
                             )
                         }
                     }
@@ -184,7 +184,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 })))
             }
             Lifetime => {
-                let Some(Symbol::Binding { span, kind: LifetimeParam }) = self.symbol(node_index) else {
+                let Some(Symbol::Binding { span, kind: LifetimeParam, .. }) = self.symbol(node_index) else {
                     return Err(TypeError::at(source, node_index, "unresolved lifetime"));
                 };
                 self.parameters
@@ -223,7 +223,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 let [element, count] = *node.children.as_slice() else {
                     return Err(TypeError::unsupported(source, node_index));
                 };
-                if let Some(Symbol::Binding { span, kind: ConstParam }) = self.symbol(count) {
+                if let Some(Symbol::Binding { span, kind: ConstParam, .. }) = self.symbol(count) {
                     let parameter = self
                         .parameters
                         .get(span)
@@ -275,6 +275,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     if let Some(Symbol::Binding {
                         span,
                         kind: ConstParam | KindedParam,
+                        ..
                     }) = self.symbol(arg)
                     {
                         let width = self
@@ -358,6 +359,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     Some(Symbol::Binding {
                         span,
                         kind: KindedParam | ConstParam,
+                        ..
                     }) if args.is_empty()
                         && self
                             .parameters
@@ -370,6 +372,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     Some(Symbol::Binding {
                         span,
                         kind: TypeParam | SomeParam,
+                        ..
                     }) if args.is_empty() => self
                         .parameters
                         .get(span)

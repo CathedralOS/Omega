@@ -1,14 +1,15 @@
 //! L2 retains its indexed syntax and binds each file's occurrences to its
 //! declarations or candidates. Only text and file identities borrow from the caller.
-use crate::{DeclarationId, IndexedSource, NameUse, ResolvedStage, Symbol};
+use crate::{DeclarationId, IndexedSource, NameRole, NameUse, OperatorUse, ResolvedStage, Symbol};
 use omega_lexer::SourceSpan;
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
 #[derive(Debug, Eq, PartialEq)]
 struct BoundFile<'text> {
     syntax: IndexedSource<'text>,
-    names: HashMap<SourceSpan, usize>,
-    definitions: HashMap<SourceSpan, usize>,
+    names: Vec<usize>,
+    definitions: Vec<(usize, usize)>,
+    applications: Vec<usize>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -24,26 +25,42 @@ pub struct SymbolResolvedTrees<'text>(Arc<Forest<'text>>);
 impl<'text> SymbolResolvedTrees<'text> {
     pub(crate) fn new(
         files: Vec<IndexedSource<'text>>,
-        names: Vec<HashMap<SourceSpan, usize>>,
-        definitions: Vec<HashMap<SourceSpan, usize>>,
+        definitions: Vec<Vec<(usize, usize)>>,
         resolution: ResolvedStage,
     ) -> Self {
-        let files = files
+        let mut files: Vec<_> = files
             .into_iter()
-            .zip(names)
             .zip(definitions)
-            .map(|((syntax, names), definitions)| BoundFile { syntax, names, definitions })
+            .map(|(syntax, mut definitions)| {
+                definitions.sort_unstable_by_key(|&(node, _)| node);
+                BoundFile {
+                    syntax,
+                    definitions,
+                    names: Vec::new(),
+                    applications: Vec::new(),
+                }
+            })
             .collect();
+        for (index, name) in resolution.uses.iter().enumerate() {
+            let file = &mut files[name.node.file];
+            file.names.push(index);
+        }
+        for (index, application) in resolution.applications.iter().enumerate() {
+            files[application.section.file].applications.push(index);
+        }
+        for file in &mut files {
+            file.names.sort_by_key(|&i| resolution.uses[i].node.node);
+            file.applications
+                .sort_unstable_by_key(|&i| resolution.applications[i].section.node);
+        }
         Self(Arc::new(Forest { files, resolution }))
     }
 
     pub fn trees(&self) -> impl ExactSizeIterator<Item = SymbolResolvedTree<'_>> {
         self.0.files.iter().map(|file| SymbolResolvedTree {
             file: &file.syntax,
-            names: &file.names,
-            definitions: &file.definitions,
-            uses: &self.uses,
-            declarations: &self.declarations,
+            bindings: file,
+            resolution: &self.0.resolution,
         })
     }
 }
@@ -59,28 +76,84 @@ impl Deref for SymbolResolvedTrees<'_> {
 #[derive(Clone, Copy)]
 pub struct SymbolResolvedTree<'a> {
     pub file: &'a IndexedSource<'a>,
-    names: &'a HashMap<SourceSpan, usize>,
-    definitions: &'a HashMap<SourceSpan, usize>,
-    uses: &'a [NameUse],
-    declarations: &'a [DeclarationId],
+    bindings: &'a BoundFile<'a>,
+    resolution: &'a ResolvedStage,
 }
 
 impl<'a> SymbolResolvedTree<'a> {
-    pub fn symbol_at(
+    /// A field shorthand has both a member occurrence and a value reference.
+    pub fn names(
         &self,
-        span: SourceSpan,
+        node: usize,
+    ) -> impl Iterator<Item = &'a NameUse> {
+        let uses = &self.resolution.uses;
+        let indices = &self.bindings.names;
+        let start = indices.partition_point(|&i| uses[i].node.node < node);
+        indices[start..]
+            .iter()
+            .map(|&i| &uses[i])
+            .take_while(move |name| name.node.node == node)
+    }
+    pub fn symbol(
+        &self,
+        node: usize,
     ) -> Option<&'a Symbol> {
-        self.names.get(&span).map(|&i| &self.uses[i].target)
+        self.names(node)
+            .find(|name| name.role == NameRole::Reference)
+            .map(|name| &name.target)
+    }
+    pub fn qualifier(
+        &self,
+        node: usize,
+    ) -> Option<&'a Symbol> {
+        self.names(node)
+            .filter(|name| name.role == NameRole::Qualifier)
+            .last()
+            .map(|name| &name.target)
+    }
+    pub fn member(
+        &self,
+        node: usize,
+    ) -> Option<&'a str> {
+        self.names(node).find_map(|name| match &name.target {
+            Symbol::Member(member) => Some(member.as_str()),
+            _ => None,
+        })
     }
     pub fn declaration_at(
         &self,
-        span: SourceSpan,
+        node: usize,
     ) -> Option<&'a DeclarationId> {
-        self.definitions.get(&span).map(|&i| &self.declarations[i])
+        let defs = &self.bindings.definitions;
+        let i = defs.binary_search_by_key(&node, |&(n, _)| n).ok()?;
+        Some(&self.resolution.declarations[defs[i].1])
     }
     pub fn definitions(&self) -> impl Iterator<Item = (SourceSpan, &'a DeclarationId)> + '_ {
-        self.definitions
+        self.bindings
+            .definitions
             .iter()
-            .map(|(&span, &i)| (span, &self.declarations[i]))
+            .map(|&(node, i)| (self.file.span(node), &self.resolution.declarations[i]))
+    }
+    pub fn operator(
+        &self,
+        node: usize,
+    ) -> Option<&'a OperatorUse> {
+        // The resolver emits operators in sorted file order and tree preorder.
+        let id = self.file.node_id(node);
+        let ops = &self.resolution.operators;
+        ops.binary_search_by_key(&id, |op| op.node)
+            .ok()
+            .map(|i| &ops[i])
+    }
+    pub fn application_name(
+        &self,
+        section: usize,
+    ) -> Option<&'a NameUse> {
+        let indices = &self.bindings.applications;
+        let apps = &self.resolution.applications;
+        let i = indices
+            .binary_search_by_key(&section, |&i| apps[i].section.node)
+            .ok()?;
+        Some(&self.resolution.uses[apps[indices[i]].name_use])
     }
 }

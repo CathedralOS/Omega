@@ -72,9 +72,10 @@ pub fn check_origins(
         }
     }
     for app in &stage.applications {
-        assert!(stage.uses.contains(&app.site));
+        let name = &stage.uses[app.name_use];
+        assert_eq!(name.node.file, app.section.file);
         for &arg in &app.arguments {
-            valid_span(&app.site.package, &app.site.file, arg);
+            valid_span(&name.package, &name.file, arg);
         }
     }
 }

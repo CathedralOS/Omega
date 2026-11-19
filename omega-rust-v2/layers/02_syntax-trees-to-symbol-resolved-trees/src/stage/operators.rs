@@ -30,6 +30,7 @@ impl Catalog<'_> {
                     _ => node.leaves.iter().map(|t| t.text).collect(),
                 };
                 operators.push(OperatorUse {
+                    node: file.node_id(n),
                     package: file.package.into(),
                     file: file.path.into(),
                     span: SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()),
