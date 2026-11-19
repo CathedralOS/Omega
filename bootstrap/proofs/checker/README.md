@@ -28,7 +28,7 @@ is the ordered source authority: repacking it materializes 1,365 lines /
 The manifest itself is 9,046 bytes, SHA-256
 `21ba1a712dd68e3492abb46d435a906fab8bbc49b67557d13910512e2c975f5b`;
 `tools/bootstrap/proofs/sources_env.sh` checks both identities against every
-materialization and `bootstrap/interpreted/tests/proofs-identity.sh` covers the refusals.
+materialization and `tests/bootstrap/interpreted/proofs-identity.sh` covers the refusals.
 A digest is an identity check on the member bytes, not a proof of the checker
 or of any certificate it accepts.
 
@@ -54,8 +54,8 @@ deliberately no artifact-admitting production `main`. The
 [layout](../../../_recycling/tests/gamma/derivation-layout/README.md),
 [formation](../../../_recycling/tests/gamma/derivation-formation/README.md),
 [ground](../../../_recycling/tests/gamma/derivation-ground/README.md),
-[comparison](../tests/derivation-comparison/README.md),
-[substitution](../tests/derivation-substitution/README.md), and
+[comparison](../../../tests/bootstrap/proofs/derivation-comparison/README.md),
+[substitution](../../../tests/bootstrap/proofs/derivation-substitution/README.md), and
 [checking](../../../_recycling/tests/gamma/derivation-checking/README.md) gates supply
 separate diagnostic entries and exercise the actual ordinary-Gamma source.
 

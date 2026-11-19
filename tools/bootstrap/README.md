@@ -8,7 +8,7 @@ These temporary host scripts fall under the
 
 ```sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh bootstrap/interpreted/tests/alpha-beta-edge.sh --edge
+sh tests/bootstrap/interpreted/alpha-beta-edge.sh --edge
 ```
 
 The second command, kept with the cross-rung tests, checks the finished part
@@ -22,7 +22,7 @@ audited Alpha container chosen in `bootstrap/interpreted/0_alpha/README.md`;
 `tools/bootstrap/beta/artifact_env.sh` pins the exact size and SHA-256 of
 `beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses any
 other bytes; these identities are audited in
-`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `bootstrap/interpreted/tests/beta/compiler/root-audit.py`.
+`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `tests/bootstrap/interpreted/beta/compiler/root-audit.py`.
 `tools/bootstrap/gamma/evaluator_env.sh` pins `gamma_evaluator.beta` and
 `gamma_evaluator_bytecode.tape` the same way against
 `bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A matching digest checks
@@ -78,7 +78,7 @@ compiler from reaching past its immediate successor, and checks that
 manifest members and bootstrap step files omit the Rust producer.
 It finds directories from tracked and untracked non-ignored files in a Git
 checkout, or from the files in a source archive. Empty
-directories left by a move do not count. `sh bootstrap/interpreted/tests/chain-hygiene.sh` checks this inventory
+directories left by a move do not count. `sh tests/bootstrap/interpreted/chain-hygiene.sh` checks this inventory
 behavior in disposable archive and checkout fixtures.
 Alpha, Beta and Gamma may not contain subdirectories. Delta, Epsilon and D
 may keep one folder per concept, but not a redundant root `compiler/`

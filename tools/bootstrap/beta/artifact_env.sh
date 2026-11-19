@@ -11,7 +11,7 @@
 
 # Bound Alpha-to-Beta edge subject. These are the same identities audited in
 # bootstrap/interpreted/1_beta/AUDIT.md ("Bound subject") and independently decoded by
-# bootstrap/interpreted/tests/beta/compiler/root-audit.py. A digest here is an identity check that
+# tests/bootstrap/interpreted/beta/compiler/root-audit.py. A digest here is an identity check that
 # the bytes being stamped are the audited ones; it is not a proof of the
 # compiler and does not replace reading that audit. Changing the source or
 # tape invalidates the dependent evidence and must update all three records.

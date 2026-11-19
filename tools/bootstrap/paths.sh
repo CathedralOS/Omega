@@ -1,8 +1,7 @@
 #!/usr/bin/env sh
 # Canonical repository paths for the bootstrap chain.
 #
-# This file is replaceable invocation plumbing. It names source owners only;
-# it does not perform a translation or contribute semantics to a compiler edge.
+# Host commands and tests use these paths to find stage sources and fixtures.
 
 if [ -z "${OMEGA_REPO_ROOT:-}" ] || [ ! -f "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" ]; then
   echo "bootstrap paths: OMEGA_REPO_ROOT is not an Omega repository root" >&2
@@ -27,7 +26,7 @@ OMEGA_PATH_DELTA=$OMEGA_PATH_BOOTSTRAP/interpreted/3_delta
 OMEGA_PATH_DELTA_COMPILER=$OMEGA_PATH_DELTA
 OMEGA_PATH_DELTA_COMPILER_SOURCE=$OMEGA_PATH_DELTA_COMPILER/delta_compiler.gamma
 OMEGA_PATH_DELTA_COMPILER_SOURCES=$OMEGA_PATH_DELTA_COMPILER/implementation/implementation.gamma.sources
-OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/delta/staged-compiler/development_driver.gamma
+OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/delta/staged-compiler/development_driver.gamma
 OMEGA_PATH_DELTA_COMPILER_COMPOSED=$OMEGA_PATH_DELTA_COMPILER/delta_compiler.composed
 OMEGA_PATH_DELTA_COMPILER_SUPPORT=$OMEGA_PATH_DELTA_COMPILER/support
 OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$OMEGA_PATH_DELTA_COMPILER_SUPPORT/support.gamma.sources
@@ -36,40 +35,39 @@ OMEGA_PATH_DELTA_COMPILER_SUPPORT_SOURCES=$OMEGA_PATH_DELTA_COMPILER_SUPPORT/sup
 # lowering-plan and normalization each supply a single-file driver entry as
 # the pack prefix; internal-boundary and emission repack a gate-owned
 # controls closure manifest and prefix the packed bytes instead.
-OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/delta/lowering-plan/height_driver.gamma
-OMEGA_PATH_DELTA_NORMALIZATION_DRIVER=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/delta/normalization/normalization_driver.gamma
-OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/delta/internal-boundary/controls.gamma.sources
-OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/delta/emission/controls/emission.gamma.sources
+OMEGA_PATH_DELTA_LOWERING_PLAN_DRIVER=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/delta/lowering-plan/height_driver.gamma
+OMEGA_PATH_DELTA_NORMALIZATION_DRIVER=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/delta/normalization/normalization_driver.gamma
+OMEGA_PATH_DELTA_INTERNAL_BOUNDARY_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/delta/internal-boundary/controls.gamma.sources
+OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/delta/emission/controls/emission.gamma.sources
 
 OMEGA_PATH_EPSILON=$OMEGA_PATH_BOOTSTRAP/interpreted/4_epsilon
 OMEGA_PATH_EPSILON_COMPILER=$OMEGA_PATH_EPSILON
 OMEGA_PATH_EPSILON_COMPILER_SOURCES=$OMEGA_PATH_EPSILON_COMPILER/epsilon_compiler.delta.sources
 OMEGA_PATH_EPSILON_COMPILER_TAPE=$OMEGA_PATH_EPSILON_COMPILER/epsilon_compiler_bytecode.tape
 OMEGA_PATH_EPSILON_EXECUTION_DRIVER=$OMEGA_REPO_ROOT/bootstrap/interpreted/drivers/execution_driver.delta
-OMEGA_PATH_EPSILON_EVALUATOR_ENTRY=$OMEGA_REPO_ROOT/bootstrap/tests/conformance/epsilon/evaluator_entry.delta
-OMEGA_PATH_EPSILON_REFINEMENT_MODEL=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/refinement/model.py
+OMEGA_PATH_EPSILON_EVALUATOR_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/conformance/epsilon/evaluator_entry.delta
 
 # Gate-local driver entries packed on top of the bound Epsilon member
 # closure: checking and array-storage append a single-file driver after the
 # packed evaluator; checking-invariants, runtime-invariants,
 # runtime-references, and source-views repack a gate-owned controls closure
 # manifest and append the packed bytes instead.
-OMEGA_PATH_EPSILON_CHECKING_DRIVER=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/checking/checking_driver.delta
-OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/array-storage/invariants.delta
-OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/checking-invariants/checking_invariants.delta.sources
-OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/runtime-invariants/runtime_invariants.delta.sources
-OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/runtime-references/runtime_references.delta.sources
-OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/epsilon/source-views/controls/source_views.delta.sources
+OMEGA_PATH_EPSILON_CHECKING_DRIVER=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/checking/checking_driver.delta
+OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/array-storage/invariants.delta
+OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/checking-invariants/checking_invariants.delta.sources
+OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/runtime-invariants/runtime_invariants.delta.sources
+OMEGA_PATH_EPSILON_RUNTIME_REFERENCES_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/runtime-references/runtime_references.delta.sources
+OMEGA_PATH_EPSILON_SOURCE_VIEWS_CONTROLS_SOURCES=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/epsilon/source-views/controls/source_views.delta.sources
 
 OMEGA_PATH_OMEGA=$OMEGA_REPO_ROOT/source/omega
 OMEGA_PATH_OMEGA_D=$OMEGA_PATH_BOOTSTRAP/interpreted/5_omega
 OMEGA_PATH_OMEGA_COMPILER=$OMEGA_PATH_OMEGA_D
 OMEGA_PATH_OMEGA_COMPILER_SOURCES=$OMEGA_PATH_OMEGA_D/omega_compiler.epsilon.sources
-OMEGA_PATH_OMEGA_PARSER_ENTRY=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/omega-parser/main.epsilon
-OMEGA_PATH_OMEGA_OUTCOME_ENTRY=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/omega-outcome/main.epsilon
-OMEGA_PATH_OMEGA_REQUEST_ENTRY=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/omega-request/main.epsilon
-OMEGA_PATH_OMEGA_REQUEST_FIXTURE=$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/omega-request/request.bin
-OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES=$OMEGA_REPO_ROOT/bootstrap/tests/conformance/omega
+OMEGA_PATH_OMEGA_PARSER_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/omega-parser/main.epsilon
+OMEGA_PATH_OMEGA_OUTCOME_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/omega-outcome/main.epsilon
+OMEGA_PATH_OMEGA_REQUEST_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/omega-request/main.epsilon
+OMEGA_PATH_OMEGA_REQUEST_FIXTURE=$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/omega-request/request.bin
+OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/conformance/omega
 # D's OCREQ request entry: the canonical Omega source the request asks D to
 # compile. The executable gate feeds it to the bound customer as sealed input.
 OMEGA_PATH_OMEGA_OCREQ_ENTRY=$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/program.omg
@@ -84,14 +82,14 @@ OMEGA_PATH_BETA_ENCODING_PACKAGE=$OMEGA_PATH_PROOFS/beta_encoding/definition_pac
 # certificate-check gates; each derivation gate supplies its own diagnostic
 # entry; the substitution and comparison paths name the gate directory
 # holding a shared diagnostic prefix and per-vector entry members.
-OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/beta-encoding-theory/main.gamma
-OMEGA_PATH_DERIVATION_ADMISSION_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-admission/main.gamma
-OMEGA_PATH_DERIVATION_CHECKING_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-checking/main.gamma
-OMEGA_PATH_DERIVATION_FORMATION_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-formation/main.gamma
-OMEGA_PATH_DERIVATION_GROUND_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-ground/main.gamma
-OMEGA_PATH_DERIVATION_LAYOUT_ENTRY=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-layout/main.gamma
-OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-substitution
-OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES=$OMEGA_REPO_ROOT/bootstrap/proofs/tests/derivation-comparison
+OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/beta-encoding-theory/main.gamma
+OMEGA_PATH_DERIVATION_ADMISSION_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-admission/main.gamma
+OMEGA_PATH_DERIVATION_CHECKING_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-checking/main.gamma
+OMEGA_PATH_DERIVATION_FORMATION_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-formation/main.gamma
+OMEGA_PATH_DERIVATION_GROUND_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-ground/main.gamma
+OMEGA_PATH_DERIVATION_LAYOUT_ENTRY=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-layout/main.gamma
+OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-substitution
+OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES=$OMEGA_REPO_ROOT/tests/bootstrap/proofs/derivation-comparison
 
 export OMEGA_REPO_ROOT OMEGA_PATH_BOOTSTRAP OMEGA_PATH_ALPHA
 export OMEGA_PATH_BETA OMEGA_PATH_BETA_COMPILER
@@ -109,7 +107,7 @@ export OMEGA_PATH_DELTA_EMISSION_CONTROLS_SOURCES
 export OMEGA_PATH_EPSILON OMEGA_PATH_EPSILON_COMPILER
 export OMEGA_PATH_EPSILON_COMPILER_SOURCES OMEGA_PATH_EPSILON_COMPILER_TAPE
 export OMEGA_PATH_EPSILON_EXECUTION_DRIVER
-export OMEGA_PATH_EPSILON_EVALUATOR_ENTRY OMEGA_PATH_EPSILON_REFINEMENT_MODEL
+export OMEGA_PATH_EPSILON_EVALUATOR_ENTRY
 export OMEGA_PATH_EPSILON_CHECKING_DRIVER OMEGA_PATH_EPSILON_ARRAY_STORAGE_DRIVER
 export OMEGA_PATH_EPSILON_CHECKING_INVARIANTS_CONTROLS_SOURCES
 export OMEGA_PATH_EPSILON_RUNTIME_INVARIANTS_CONTROLS_SOURCES
@@ -126,33 +124,6 @@ export OMEGA_PATH_DERIVATION_ADMISSION_ENTRY OMEGA_PATH_DERIVATION_CHECKING_ENTR
 export OMEGA_PATH_DERIVATION_FORMATION_ENTRY
 export OMEGA_PATH_DERIVATION_GROUND_ENTRY OMEGA_PATH_DERIVATION_LAYOUT_ENTRY
 export OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES
-
-# Install a `python3` PATH shim that rewrites every path-shaped argument to
-# Windows form through cygpath, so a Windows Python on the MINGW/MSYS route
-# consumes the caller's MSYS paths. Callers gate on `command -v cygpath`;
-# POSIX hosts keep native paths untouched.
-install_mingw_python3_shim() {
-    _shim_dir=$1
-    REAL_PYTHON3=$(command -v python3)
-    mkdir -p "$_shim_dir"
-    {
-        printf '%s\n' '#!/usr/bin/env sh'
-        printf '%s\n' 'n=$#'
-        printf '%s\n' 'while [ "$n" -gt 0 ]; do'
-        printf '%s\n' '    arg=$1; shift; n=$((n - 1))'
-        printf '%s\n' '    case $arg in'
-        printf '%s\n' '        -* | "") ;;'
-        printf '%s\n' '        */* | *\\* | ?:*)'
-        printf '%s\n' '            arg=$(cygpath -w "$arg" 2>/dev/null || printf "%s" "$arg") ;;'
-        printf '%s\n' '    esac'
-        printf '%s\n' '    set -- "$@" "$arg"'
-        printf '%s\n' 'done'
-        printf 'exec %s "$@"\n' "'$REAL_PYTHON3'"
-    } > "$_shim_dir/python3"
-    chmod +x "$_shim_dir/python3"
-    PATH=$_shim_dir:$PATH
-    export PATH
-}
 
 # Run one xtask subcommand. The same command is the repository task runner's
 # source-closure, alpha-forge, and gamma-invoke entry. These step files are

@@ -15,6 +15,8 @@ and execute. Humans and LLMs must be able to trace semantics, control flow,
 storage, dependencies and trust assumptions. Source size and stage count are
 measurements, not objectives. Complexity near the seed affects every successor.
 
+Keep host scripts outside `bootstrap/`. Construction uses the documented seed, driver and stage sources. Put Python reference implementations, test runners and their fixtures under `tests/bootstrap/` and run them as separate checks.
+
 ## Architectural authority
 
 Implementers may change stage count, language facilities, representations,

@@ -32,7 +32,7 @@ mkdir -p "$BUILD_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 materialize_beta_compiler "$BUILD_DIR/compiler" >/dev/null
 
-SRC=${1:-$OMEGA_REPO_ROOT/bootstrap/interpreted/tests/beta/compiler/examples/multiply.beta}
+SRC=${1:-$OMEGA_REPO_ROOT/tests/bootstrap/interpreted/beta/compiler/examples/multiply.beta}
 NAME=$(basename "$SRC" .beta)
 OUT="$BUILD_DIR/$NAME.exe"
 TAPE="$BUILD_DIR/$NAME.tape"

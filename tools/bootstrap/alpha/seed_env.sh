@@ -30,7 +30,7 @@ ALPHA_SEED_X64_LINUX_SHA256=39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced27
 # Each container's stamping hole file offset, recorded beside the bound
 # identities so non-host gates can address every container. The hole is the
 # raw extent of the container's tape section (`.tape` in the PE32+ and the
-# ELF64, `__tape` in the Mach-O); bootstrap/interpreted/tests/alpha/container.sh pins that equality,
+# ELF64, `__tape` in the Mach-O); tests/bootstrap/interpreted/alpha/container.sh pins that equality,
 # so a rebuilt or re-signed container that moved the section is refused here
 # rather than stamped into the wrong bytes.
 ALPHA_SEED_ARM64_MACOS_HOLE_OFF=32768
@@ -80,7 +80,7 @@ esac
 # (132), but every other sign-bit-set code — including a halt whose register
 # sign-extends into the DWORD — observes as 127, hiding the authored low byte.
 # Seed-executing gates that pin byte-level exit expectations take the native
-# subprocess route (bootstrap/interpreted/tests/alpha/native_exit.py) when this is 1 instead of
+# subprocess route (tests/bootstrap/interpreted/alpha/native_exit.py) when this is 1 instead of
 # reading $? directly.
 ALPHA_SEED_EXIT_COLLAPSED=0
 case "$(uname -s)" in
@@ -101,17 +101,18 @@ require_seed_execution_host() {
 
 # bootstrap_sha256 FILE : print the lowercase hex SHA-256 of FILE using the
 # host's standard digest tool (sha256sum on Linux and Git Bash, shasum on
-# macOS, python3 as the last route). Returns 2 when no route exists; identity
+# macOS, or openssl). Returns 2 when no route exists; identity
 # then cannot be established and materialization refuses rather than skipping.
 bootstrap_sha256() {
   if command -v sha256sum >/dev/null 2>&1; then
     sha256sum -- "$1" | cut -d' ' -f1
   elif command -v shasum >/dev/null 2>&1; then
     shasum -a 256 -- "$1" | cut -d' ' -f1
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' "$1"
+  elif command -v openssl >/dev/null 2>&1; then
+    digest=$(openssl dgst -sha256 < "$1") || return 2
+    printf '%s\n' "${digest##* }"
   else
-    echo "bootstrap artifact: no SHA-256 tool (sha256sum, shasum, python3) to bind identity" >&2
+    echo "bootstrap artifact: no SHA-256 tool (sha256sum, shasum, openssl) to bind identity" >&2
     return 2
   fi
 }

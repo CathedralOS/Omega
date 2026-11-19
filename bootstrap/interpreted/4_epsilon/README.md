@@ -71,15 +71,15 @@ must then rebuild the same Omega compiler source reproducibly.
   realization.
   The canonical evaluator boundary and `main` are realized by
   [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md): the packed closure plus the bound
-  [`evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta)
+  [`evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta)
   source compiles to the canonical receipt that consumes the EREQ envelope and
   publishes canonical observations or EEOUT refusal frames within the
   evaluator's current construct coverage. Complete-D composition and
   `RunEpsilon` refinement over the exact D closure member sources share
   each base execution in
-  [`bootstrap/interpreted/tests/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md).
+  [`tests/bootstrap/interpreted/epsilon/d-composition/`](../../../_recycling/tests/epsilon/d-composition/README.md).
   The independent model and synthetic language corpus remain in
-  [`bootstrap/interpreted/tests/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
+  [`tests/bootstrap/interpreted/epsilon/refinement/`](../../../_recycling/tests/epsilon/refinement/README.md).
   The
   current fact pass does enforce contextual receiver/result relation and
   separate array-view extra-call rejection.
@@ -126,7 +126,7 @@ Start at [`epsilon_compiler.delta`](epsilon_compiler.delta). Its
 distinguishes rejection from internal failure, and starts the checked entry
 invocation. This library entrance is the evaluator's semantic core, not the
 physical request boundary; the canonical `main` is
-[`evaluator_entry.delta`](../../tests/conformance/epsilon/evaluator_entry.delta)
+[`evaluator_entry.delta`](../../../tests/bootstrap/conformance/epsilon/evaluator_entry.delta)
 and this file still exposes no artifact on its own.
 The [private execution driver](../../../_recycling/tests/epsilon/interpreted-omega-experiment/README.md#private-execution-observations)
 preserves full `i32` exit codes, trap kinds and stdout prefixes, and rejection
@@ -140,7 +140,7 @@ separately: [`EVALUATOR_ENTRY.md`](EVALUATOR_ENTRY.md) defines EREQ v1, the
 canonical observation grammar, the EEOUT refusal frame, the carry of every
 lower-chain refusal status to the outer `Incomplete`, and the bound
 canonical receipt, gated by
-[`bootstrap/interpreted/tests/epsilon/evaluator-entry/`](../../../_recycling/tests/epsilon/evaluator-entry/README.md).
+[`tests/bootstrap/interpreted/epsilon/evaluator-entry/`](../../../_recycling/tests/epsilon/evaluator-entry/README.md).
 
 ## Follow the program
 
@@ -188,7 +188,7 @@ The packed evaluator is 12,096 lines / 616,939 bytes, SHA-256
 The manifest itself is 16,779 bytes, SHA-256
 `d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf95f2de0642b7bc69cc7`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
-materialization and `bootstrap/interpreted/tests/epsilon-identity.sh` covers the refusals.
+materialization and `tests/bootstrap/interpreted/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that
 the evaluator implements Epsilon.
 
@@ -202,7 +202,7 @@ through the bound Delta compiler reconstructs exactly one evaluator receipt:
 719,006 bytes, SHA-256
 `f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
-`bootstrap/interpreted/tests/epsilon-identity.sh` covers the refusals and checks every
+`tests/bootstrap/interpreted/epsilon-identity.sh` covers the refusals and checks every
 consuming gate's record. The receipt identity is an obligation on the
 reconstructed bytes, not a proof that the evaluator implements Epsilon.
 When editing a member, update its manifest length and digest; change membership
@@ -263,19 +263,19 @@ same-start calls, grouped/local value heads, and independent argument errors.
 From the repository root:
 
 ```sh
-sh bootstrap/interpreted/tests/source-closure.sh
+sh tests/bootstrap/interpreted/source-closure.sh
 sh tools/bootstrap/check-chain-hygiene.sh
-sh bootstrap/interpreted/tests/epsilon/checking/run.sh
-sh bootstrap/interpreted/tests/epsilon/checking-invariants/run.sh
-sh bootstrap/interpreted/tests/epsilon/runtime-references/run.sh
-sh bootstrap/interpreted/tests/epsilon/runtime-invariants/run.sh
-sh bootstrap/interpreted/tests/epsilon/array-storage/run.sh
-sh bootstrap/interpreted/tests/epsilon/source-views/run.sh
-sh bootstrap/interpreted/tests/epsilon/interpreted-omega-experiment/run.sh
-sh bootstrap/interpreted/tests/epsilon/evaluator-entry/run.sh
-sh bootstrap/interpreted/tests/epsilon/refinement/run.sh
-sh bootstrap/interpreted/tests/epsilon/d-composition/run.sh
-sh bootstrap/interpreted/tests/delta/staged-compiler/run.sh
+sh tests/bootstrap/interpreted/epsilon/checking/run.sh
+sh tests/bootstrap/interpreted/epsilon/checking-invariants/run.sh
+sh tests/bootstrap/interpreted/epsilon/runtime-references/run.sh
+sh tests/bootstrap/interpreted/epsilon/runtime-invariants/run.sh
+sh tests/bootstrap/interpreted/epsilon/array-storage/run.sh
+sh tests/bootstrap/interpreted/epsilon/source-views/run.sh
+sh tests/bootstrap/interpreted/epsilon/interpreted-omega-experiment/run.sh
+sh tests/bootstrap/interpreted/epsilon/evaluator-entry/run.sh
+sh tests/bootstrap/interpreted/epsilon/refinement/run.sh
+sh tests/bootstrap/interpreted/epsilon/d-composition/run.sh
+sh tests/bootstrap/interpreted/delta/staged-compiler/run.sh
 ```
 
 [Implementation notes](implementation_notes.md) describe the supported checking

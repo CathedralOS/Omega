@@ -13,7 +13,7 @@ Beta compiler
 ```
 
 The first executable customer is the test-owned 85-line `const` augmenter under
-`bootstrap/proofs/tests/self-augmentation-experiment/`. The direct evaluator executes that
+`tests/bootstrap/proofs/self-augmentation-experiment/`. The direct evaluator executes that
 source, produces an exact richer-language receipt, and evaluates the expanded
 program to byte 42.
 Gamma's language-chain customer is the [staged Delta compiler](../3_delta/README.md).

@@ -175,7 +175,7 @@ require_beta_encoding_producer_entry_identity() {
     "$OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY" \
     "$BETA_ENCODING_PRODUCER_ENTRY_SIZE" \
     "$BETA_ENCODING_PRODUCER_ENTRY_SHA256" \
-    "bootstrap/proofs/tests/beta-encoding-theory/README.md"
+    "tests/bootstrap/proofs/beta-encoding-theory/README.md"
 }
 
 # require_derivation_*_entry_identity : the gate's diagnostic prefix entry is
@@ -239,7 +239,7 @@ require_derivation_substitution_prefixes_identity() {
     set -- $DERIVATION_SUBSTITUTION_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_DERIVATION_SUBSTITUTION_ENTRIES/$4/$1" "$2" "$3" \
-      "bootstrap/proofs/tests/derivation-substitution/README.md" || return $?
+      "tests/bootstrap/proofs/derivation-substitution/README.md" || return $?
   done
 }
 
@@ -260,6 +260,6 @@ require_derivation_comparison_prefixes_identity() {
     set -- $DERIVATION_COMPARISON_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_DERIVATION_COMPARISON_ENTRIES/$4/$1" "$2" "$3" \
-      "bootstrap/proofs/tests/derivation-comparison/README.md" || return $?
+      "tests/bootstrap/proofs/derivation-comparison/README.md" || return $?
   done
 }

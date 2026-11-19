@@ -20,41 +20,42 @@ the authored Gamma compiler on its own source to construct `compiler0`.
 tapes must be identical. Beta self-reconstruction is evidence about the admitted
 seed; it does not derive the initial Beta tape from nothing.
 
-[`gamma.py`](gamma.py) remains an explicit development accelerator and
-independent implementation for comparison. Its route trusts Python as an
-additional semantic producer. The normal source construction does not invoke
-it. Generated tapes execute without Python or the Gamma evaluator, and contain
-the customer's actual logic and checks. There are no source recognizers,
-receipt substitutions, or host callbacks. Shell and Python packing/stamping
-helpers remain trusted byte transport and validation dependencies. Hash pins,
-differential observations, and reproducible rebuilds are evidence, not compiler
-correctness proofs.
-
 ## Run
 
-From the repository root, on an executable Alpha seed host with Python 3:
+From the repository root on Linux x86-64, construct the Alpha-tape Gamma compiler in a new output directory:
+
+```sh
+bootstrap/linux_x86_64/bootstrap --alpha . /tmp/omega-gamma-alpha
+/tmp/omega-gamma-alpha/gamma-compiler < source.gamma > program.tape
+```
+
+The native driver feeds the seed and each reconstructed compiler directly. [Linux construction and inputs](../linux_x86_64/README.md)
+
+## Host checks
+
+On an executable Alpha seed host, Python and shell drive the differential tests. The [Python Gamma compiler](../../tests/bootstrap/compiled_vm/gamma.py) supplies an independent implementation for comparison and for the explicit `--accelerated` test mode.
 
 ```sh
 # Seed construction, compiler fixed point, Delta/Epsilon, and an Omega program.
-python3 bootstrap/compiled_vm/tests/source_test.py --omega
+python3 tests/bootstrap/compiled_vm/source_test.py --omega
 
 # Recheck construction/rebuilds/controls without repeating larger customers.
-python3 bootstrap/compiled_vm/tests/source_test.py --compiler-only
+python3 tests/bootstrap/compiled_vm/source_test.py --compiler-only
 
 # Explicit Python-assisted development construction of the same compiler.
-python3 bootstrap/compiled_vm/tests/source_test.py --accelerated --omega
+python3 tests/bootstrap/compiled_vm/source_test.py --accelerated --omega
 
 # Native differential controls and the real Delta Bytes compiler customer.
-python3 bootstrap/compiled_vm/tests/test.py
+python3 tests/bootstrap/compiled_vm/test.py
 
 # Also construct the complete Epsilon evaluator and run its Console boundary.
-python3 bootstrap/compiled_vm/tests/test.py --epsilon
+python3 tests/bootstrap/compiled_vm/test.py --epsilon
 
 # Also feed the complete bootstrap compiler its existing Omega fixture.
-python3 bootstrap/compiled_vm/tests/test.py --omega --omega-timeout 1800
+python3 tests/bootstrap/compiled_vm/test.py --omega --omega-timeout 1800
 
 # Exercise the existing changed-source, rejection, and reset customer too.
-python3 bootstrap/compiled_vm/tests/test.py --omega-controls --omega-timeout 1800
+python3 tests/bootstrap/compiled_vm/test.py --omega-controls --omega-timeout 1800
 ```
 
 Source construction artifacts and the exact source/request bytes go to ignored
@@ -75,13 +76,7 @@ have no watchdog. A timeout makes no language judgment. The Omega allowance is
 adjustable because checking the complete compiler is a materially larger
 workload.
 
-To compile another Gamma source without the test harness:
-
-```sh
-python3 bootstrap/compiled_vm/gamma.py source.gamma build/program.tape
-```
-
-The output is raw Alpha code; stamp it using
+The constructed Gamma compiler writes raw Alpha code. Stamp the tape using
 [`seed_env.sh`](../../tools/bootstrap/alpha/seed_env.sh). The executable accepts
 only the source program's sealed input, without the reference Gamma evaluator's
 four-byte source-length envelope. Invalid source leaves an existing output
@@ -166,7 +161,7 @@ bytes; executing that tape exited 42 with empty stdout and stderr. The first
 95.329 seconds. This demonstrates an accelerated construction through a real
 Omega executable. No Omega compiler self-rebuild has been demonstrated here.
 
-The then-current `bootstrap/tests/conformance/omega/controls_b.epsilon` customer also
+The then-current `tests/bootstrap/conformance/omega/controls_b.epsilon` customer also
 passed through compiled Epsilon with the complete bootstrap compiler (575,227
 source bytes). It then accepted six changed modulo, shift, and bitwise programs,
 rejects the out-of-range literal 256 while asserting an unfinalized empty tape,
@@ -243,7 +238,7 @@ reproducible Omega compiler self-rebuilds remain delivery work. The Gamma
 compiler fixed point does not establish an Omega compiler fixed point.
 
 The parameter/local/call customer can be requested with
-`python3 bootstrap/compiled_vm/tests/source_test.py --omega-values`. It executes the
+`python3 tests/bootstrap/compiled_vm/source_test.py --omega-values`. It executes the
 current manifested bootstrap compiler, verifies source-owned refusals and
 executes the actual emitted tapes. The older modulo/shift/bitwise observation
 above is historical only: those anonymous forms lacked the required carrier
@@ -623,9 +618,9 @@ The extracted Omega source is 12,406 bytes,
 its 31,279-byte decoder tape is
 `ea7052722e423ccd4f6133432482879dd725b6f878d896a649181028dcd92af8`.
 The validation driver retains the selector and request framing in
-[test.py](tests/test.py); all batches use that same compiler and Epsilon customer.
+[test.py](../../tests/bootstrap/compiled_vm/test.py); all batches use that same compiler and Epsilon customer.
 The existing native successor invocation now exposes this customer with
-`python3 bootstrap/independent/tests/successor_test.py --omega-utf8 --seconds 14400`.
+`python3 tests/bootstrap/independent/successor_test.py --omega-utf8 --seconds 14400`.
 Its default route reconstructs predecessors first; the measurements above reused
 the already constructed evaluator and do not claim a new cold invocation.
 

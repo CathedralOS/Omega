@@ -168,7 +168,7 @@ require_omega_executable_entries_identity() {
     set -- $OMEGA_EXECUTABLE_ENTRY
     require_bound_identity "$1" \
       "$OMEGA_PATH_OMEGA_EXECUTABLE_ENTRIES/$1" "$2" "$3" \
-      "bootstrap/interpreted/tests/omega-executable/README.md" || return $?
+      "tests/bootstrap/interpreted/omega-executable/README.md" || return $?
   done
 }
 

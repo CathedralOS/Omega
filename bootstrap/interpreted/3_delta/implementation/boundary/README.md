@@ -497,7 +497,7 @@ inside the 4-MiB request extent and the 1,024 expression-depth profile.
 
 Run through canonical DCREQ profile 1 on macOS arm64 under the unchanged
 selected evaluator tape and the packed closure pinned in
-`bootstrap/interpreted/tests/delta/resource-boundary/compiler.tsv`, compilation ended in 650.7
+`tests/bootstrap/interpreted/delta/resource-boundary/compiler.tsv`, compilation ended in 650.7
 seconds with status 2, empty stderr, and only the 40-byte DCOUT frame:
 `Incomplete` resource 7, Delta-source coordinate 76,595, limit 114,294,752,
 requested 114,294,760. The coordinate is the atom start of the constructor's

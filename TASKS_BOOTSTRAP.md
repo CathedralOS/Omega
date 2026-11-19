@@ -88,7 +88,7 @@ product. Listing them gives that variant no priority over the other routes.
     provenance. V1's named-only rows are not that encoding; validate canonical
     identity inputs and graph sharing in D and C without a compiled-project
     registry or fake lineage.
-  - Continue from the [source-to-executable gate](bootstrap/interpreted/tests/omega-executable/README.md)
+  - Continue from the [source-to-executable gate](tests/bootstrap/interpreted/omega-executable/README.md)
     and `bootstrap/interpreted/5_omega/scalar_compilation.epsilon`: extend parsed
     scalar operations and checked call and state sequencing through the existing
     Alpha emitter. Keep the changed-source, entry-selection, invalid-body and
@@ -116,7 +116,7 @@ product. Listing them gives that variant no priority over the other routes.
   trust assumptions and kept research certificates in edge-owned records and
   shared `tools/bootstrap/` scripts. Source sets, seed and evaluator
   artifacts, request entries and gate drivers already have exact bindings; keep
-  their `*_env.sh` materializers and `bootstrap/interpreted/tests/*-identity.sh` refusal
+  their `*_env.sh` materializers and `tests/bootstrap/interpreted/*-identity.sh` refusal
   controls instead of adding another binding scheme.
 
   Missing: the `omega0` and `omega` tapes from OMEGA-C, and construction
@@ -131,7 +131,7 @@ product. Listing them gives that variant no priority over the other routes.
   [whole-chain minimization](bootstrap/MINIMIZATION.md#retention-test).
   OFFLINE-REBUILD owns complete blank-host reconstruction.
 
-- **OFFLINE-REBUILD.** Close `bootstrap/interpreted/tests/` reconstruction from the audited
+- **OFFLINE-REBUILD.** Close `tests/bootstrap/interpreted/` reconstruction from the audited
   Alpha seed and repository-owned bytes on supported hosts. On this route,
   Rust/Python development compilers and network downloads are not semantic
   stages. Accelerated variants state those dependencies separately and do not
@@ -144,7 +144,7 @@ product. Listing them gives that variant no priority over the other routes.
   Remaining:
   - Execute Gamma, Delta, Epsilon and `omega-*` customer gates on Windows x64
     through the documented Git Bash route, recording exact observations and
-    resource prerequisites. Reuse `bootstrap/interpreted/tests/alpha-beta-edge.sh` for the
+    resource prerequisites. Reuse `tests/bootstrap/interpreted/alpha-beta-edge.sh` for the
     Alpha/Beta prerequisite; it does not close this higher-rung roster.
     Byte-only identity checks do not replace execution.
   - Complete the chain beyond interpreted D once OMEGA-D, OMEGA-C and their
@@ -191,9 +191,9 @@ runnable bootstrap chain.
 
   Remaining:
   - Produce the complete certificate through the selected evaluator chain from
-    the source-owned definitions. `bootstrap/proofs/tests/beta-encoding-theory/run.sh
+    the source-owned definitions. `tests/bootstrap/proofs/beta-encoding-theory/run.sh
     --full-subject` only reproduces and measures host-stepper output.
-  - Run `bootstrap/proofs/tests/beta-encoding-check/run.sh` against the current pinned
+  - Run `tests/bootstrap/proofs/beta-encoding-check/run.sh` against the current pinned
     checker on supported native seeds. Require the exact `Checked` observation
     for 3,182,974 rows within the selected provision, record actual time/storage,
     then execute the full-subject mutation controls. A timeout, reference-VM

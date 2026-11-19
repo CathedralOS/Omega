@@ -256,7 +256,7 @@ Under the former map, region rebalance (moving buffered output out of the
 stack margin) would have admitted about 2,274 contexts, but required a
 rebuilt evaluator tape, re-pinned
 identity records in this profile, `tools/bootstrap/gamma/evaluator_env.sh`,
-`bootstrap/proofs/tests/heap-boundary/evaluator.tsv`, and
+`tests/bootstrap/proofs/heap-boundary/evaluator.tsv`, and
 `bootstrap/interpreted/3_delta/delta_compiler.composed`, re-derived exact/adjacent
 context and environment controls, a new subject for the Beta-encoding
 proof, and a permanent coupling of Delta's `parse_depth` to this profile's
