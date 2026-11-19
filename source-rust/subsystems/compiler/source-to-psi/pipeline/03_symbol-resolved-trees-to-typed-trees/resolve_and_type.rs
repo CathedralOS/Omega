@@ -388,7 +388,7 @@ mod product_policy {
     use crate::evaluation::product_declarations::AdmittedProductDeclarations;
     use crate::evaluation::provider_declarations::ProviderSelection;
     use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
-    use declaration_contracts::selection::AuthoredBehaviorExclusion;
+    use behavior_exclusion_requests::AuthoredBehaviorExclusion;
     use diagnostics::Diagnostic;
     use std::sync::Arc;
     use symbols::SymbolHandle;

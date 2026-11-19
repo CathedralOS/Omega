@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+behavior-exclusion-requests = { path = "../behavior-exclusions" }
 selected-provider-plans = { path = "../providers/selections" }
 psi-authorization = { path = "../../psi/authorization" }
 evaluation-admission = { path = "../evaluation/admission" }
@@ -29,7 +30,6 @@ filesystem-authority = { path = "../evaluation/filesystem" }
 artifacts = { path = "../../foundation/measurements" }
 products = { path = "../../compilation/products" }
 build-output = { path = "../build-output" }
-effects = { path = "../../psi-to-native/installation/native-effects" }
 package-compilation = { path = "../package-compilation" }
 provider-admission = { path = "../../psi-to-native/verification/provider-admission" }
 terminal-runtime = { path = "../../../interpreter/host" }

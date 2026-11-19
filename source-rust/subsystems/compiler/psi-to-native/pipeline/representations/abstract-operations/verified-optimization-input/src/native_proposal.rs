@@ -181,7 +181,7 @@ mod proposal {
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
-        pub behavior_exclusions: &'input [effects::AuthoredBehaviorExclusion],
+        pub behavior_exclusions: &'input [behavior_exclusion_requests::AuthoredBehaviorExclusion],
         pub package_terminal_authority_permissions:
             Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
         pub package_terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,

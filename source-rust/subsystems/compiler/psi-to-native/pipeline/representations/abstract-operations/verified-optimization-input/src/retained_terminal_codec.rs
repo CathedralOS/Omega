@@ -1965,7 +1965,7 @@ struct DerivationInputs {
     application: target::NativeApplicationMetadata,
     optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
     external: Vec<calling_conventions::ExternalBindingRow>,
-    exclusions: Vec<effects::AuthoredBehaviorExclusion>,
+    exclusions: Vec<behavior_exclusion_requests::AuthoredBehaviorExclusion>,
     permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
     permission_identities: terminal_psi::TerminalIdentityTable,
     fma: Option<target::AdmittedX86ScalarFmaProvider>,
