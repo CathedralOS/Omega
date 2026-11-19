@@ -522,7 +522,7 @@ mod product_policy {
                 request.native_bindings,
                 &formations,
             )?;
-            let grants = crate::evaluation::product_policy::collect_product_root_grants(
+            let grants = super::product_declarations::collect_product_root_grants(
                 typed,
                 request.activation,
                 request.declared,
