@@ -7,6 +7,7 @@
 mod driver_calls;
 mod linear_pipeline;
 mod native_stages;
+mod psi_ir;
 
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -1057,6 +1058,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         let rules = forbidden_rules();
         violations.extend(forbidden_dependency_violations(&metadata, &rules)?);
         violations.extend(stale_allowance_violations(&metadata, &rules)?);
+        violations.extend(psi_ir::violations(&root)?);
         violations.extend(pipeline_dependency_violations(&metadata)?);
         if ownership_only {
             return Ok(violations);

@@ -19891,7 +19891,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:calling_custody#1",
       "kind": "carried_record",
       "meaning": "Retain each calling-policy schema owner or the source selection refusal.",
@@ -19903,7 +19903,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:entry_custody#1",
       "kind": "carried_record",
       "meaning": "For each entry schema, its authenticated source declaration owner or the original refusal.",
@@ -19916,7 +19916,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Record whether source publication bound any applications before target folding.",
@@ -19928,7 +19928,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "PublishedEntryMetadata::field:provenance#1",
       "kind": "carried_record",
       "meaning": "Source-attested machine provenance used to attach entry roots to emitted code.",
@@ -19941,7 +19941,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "alias:DeclarationOwner#1",
       "kind": "definition",
       "meaning": "Pair a schema declaration with its source owner or the precise source refusal.",
@@ -19953,7 +19953,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::implementation#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -19966,7 +19966,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:calling_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the source-issued owner of the requested calling-policy declaration.",
@@ -19978,7 +19978,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:entry_schema_custody#1",
       "kind": "checker",
       "meaning": "Read the authenticated custody or original refusal for this exact target entry schema.",
@@ -19991,7 +19991,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:has_bound_applications#1",
       "kind": "carried_record",
       "meaning": "Read the source application-presence flag for entry reach.",
@@ -20003,7 +20003,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:machine_provenance#1",
       "kind": "carried_record",
       "meaning": "Read the original machine provenance for attaching target entry receipts.",
@@ -20015,7 +20015,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:new#1",
       "kind": "definition",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20028,7 +20028,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:owner#1",
       "kind": "checker",
       "meaning": "Find the exact declaration in the sorted custody table and preserve its recorded refusal.",
@@ -20041,7 +20041,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:require_calling_custody#1",
       "kind": "checker",
       "meaning": "Return the original global calling-policy refusal if source selection failed.",
@@ -20054,7 +20054,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::method:validate_declarations#1",
       "kind": "checker",
       "meaning": "Require exactly the declared entry and calling-policy rows in canonical order.",
@@ -20067,7 +20067,7 @@
         "native application planning",
         "native calling-policy selection"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "impl:PublishedEntryMetadata::validate_declarations::function:matches#1",
       "kind": "checker",
       "meaning": "Compare the sorted owner rows with the unique declarations in the module.",
@@ -20079,7 +20079,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "struct:PublishedEntryMetadata#1",
       "kind": "carried_record",
       "meaning": "Carry machine provenance, bound application presence and the entry and calling-policy declaration owners in the portable program.",
@@ -20091,7 +20091,7 @@
         "portable publication",
         "executable entry preparation"
       ],
-      "file": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "file": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "item": "use:semantic_vocabulary :: compiler_evaluation :: DeclarationCustody#1",
       "kind": "definition",
       "meaning": "The nominal declaring authority carried for each entry schema.",
@@ -20816,7 +20816,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi/src/published_entry.rs",
+      "path": "source-rust/subsystems/compiler/psi/machines/published_entry.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
