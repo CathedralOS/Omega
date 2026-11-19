@@ -6,6 +6,7 @@ use super::{PlanningServices, refusal};
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
+    BuildSubjectValidation, settle_rejoined_build_slice,
     BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
     PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
 };
@@ -340,7 +341,7 @@ impl PlanningSource {
 
     pub(super) fn open_product(
         mut self,
-        evaluated: EvaluatedBuild,
+        mut evaluated: EvaluatedBuild,
         inputs: Option<&PackageCompilationInputs>,
     ) -> Result<PlannedProduct, CompileFailure> {
         let source = self
@@ -357,6 +358,38 @@ impl PlanningSource {
                 )
             })?
             .1;
+        if evaluated.subject_validation == BuildSubjectValidation::AwaitingOwner
+            || !evaluated.constants.read.is_empty()
+            || evaluated.constants.folded_under_providers
+        {
+            let authority = inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>);
+            let frontier = stage_source(&mut source.clone())?.prepare_product_query(
+                &self.preparation,
+                self.profile.target_name(),
+                authority,
+            )?;
+            let declaration = evaluated
+                .configuration
+                .selected_build_declaration
+                .as_ref()
+                .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
+            let entry = source_compiler::source_state::source_subjects::rejoin_build_activation(
+                frontier.typed(),
+                inputs.map(|inputs| inputs.root()),
+                declaration,
+            )
+            .map_err(|reason| refusal(reason.to_owned()))?;
+            let spent = settle_rejoined_build_slice(
+                &evaluated.constants,
+                frontier.typed(),
+                entry,
+                inputs,
+                source.anonymous_owner.as_ref(),
+                evaluated.subject_validation,
+                &mut self.timings,
+            )?;
+            evaluated.source_completion_accounting.append(spent);
+        }
         let generated = if evaluated.configuration.generated_sources.is_empty() {
             None
         } else {
