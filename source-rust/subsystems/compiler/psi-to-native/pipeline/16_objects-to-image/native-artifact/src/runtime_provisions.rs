@@ -114,7 +114,9 @@ impl<A> TerminalRuntimeProvisions<A> {
         self.plan.selection_identities()
     }
 
-    pub const fn installation(&self) -> Option<&terminal_installation::AdmittedProviderSelections> {
+    pub const fn installation(
+        &self,
+    ) -> Option<&psi_provider_selections::AdmittedProviderSelections> {
         self.plan.installation()
     }
 

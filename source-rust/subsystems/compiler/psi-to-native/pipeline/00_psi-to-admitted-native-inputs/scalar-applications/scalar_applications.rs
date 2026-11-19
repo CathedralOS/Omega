@@ -113,7 +113,7 @@ pub fn prepare<'scope>(
                 return Ok(artifact_evaluation::scalar_scopes::ScalarScopeEvaluation {
                     application_roots: None,
                     targets: None,
-                    providers: terminal_installation::admit_provider_installation(
+                    providers: psi_provider_selections::admit_provider_installation(
                         artifact.view(),
                         &[],
                         &[],

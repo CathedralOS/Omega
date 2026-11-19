@@ -21,7 +21,7 @@ terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
 
 [dev-dependencies]
-terminal-installation = { path = "psi-admission" }
+psi-provider-selections = { path = "psi/providers" }
 evaluation-accounting = { path = "build/evaluation/accounting" }
 entry-planning = { path = "psi-to-native/pipeline/09_post-allocation-machine-to-framed-machine/entry-planning" }
 native-encoding = { path = "psi-to-native/pipeline/11_bound-framed-machine-to-selected-form-encoding" }

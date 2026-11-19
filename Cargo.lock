@@ -275,6 +275,7 @@ dependencies = [
  "package-compilation",
  "products",
  "provider-admission",
+ "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
@@ -489,6 +490,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-provider-selections"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
 name = "psi-scalar-applications"
 version = "0.1.0"
 dependencies = [
@@ -585,6 +597,7 @@ dependencies = [
  "provider-correspondence",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
  "record-storage",
@@ -608,7 +621,6 @@ dependencies = [
  "task-plans",
  "terminal-check-tables",
  "terminal-codec",
- "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
@@ -1494,6 +1506,7 @@ dependencies = [
  "provider-admission",
  "provider-stack-contribution",
  "psi-entry-memory",
+ "psi-provider-selections",
  "published-runtime-input",
  "runtime-abi",
  "selected-instructions",
@@ -1559,6 +1572,7 @@ dependencies = [
  "provider-stack-contribution",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
  "published-object-verification",
@@ -1650,6 +1664,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "provider-admission",
+ "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2272,6 +2287,7 @@ dependencies = [
  "provider-correspondence",
  "provider-stack-contribution",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
  "semantic-vocabulary",
@@ -2350,6 +2366,7 @@ dependencies = [
  "provider-admission",
  "provider-correspondence",
  "psi-authorization",
+ "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
  "psi-to-admitted-native-inputs",
@@ -2423,6 +2440,7 @@ dependencies = [
  "provider-admission",
  "provider-stack-contribution",
  "psi-entry-memory",
+ "psi-provider-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "target",
@@ -3435,6 +3453,7 @@ dependencies = [
  "layout-plans",
  "numerics",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-target-layouts",
  "record-storage",
  "resource-bounds",
@@ -3559,6 +3578,7 @@ dependencies = [
  "platform-custody",
  "provider-admission",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-target-layouts",
  "published-runtime-input",
  "runtime-abi",
@@ -3568,7 +3588,6 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-codec",
- "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
@@ -3797,6 +3816,7 @@ dependencies = [
  "operation-operands",
  "psi-authorization",
  "psi-entry-memory",
+ "psi-provider-selections",
  "psi-target-layouts",
  "record-storage",
  "component-description",

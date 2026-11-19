@@ -213,7 +213,7 @@ pub struct HostedTerminalProgram<'program> {
     request: TerminalRuntimeRequest<'program>,
     program: TerminalProgram<'program>,
     providers:
-        Option<std::borrow::Cow<'program, terminal_installation::AdmittedProviderSelections>>,
+        Option<std::borrow::Cow<'program, psi_provider_selections::AdmittedProviderSelections>>,
     host_boundaries: host_imports::HostBoundarySelections,
     target_machines: Option<terminal_interpreter::TerminalTargetContext>,
     target_layouts: Option<terminal_interpreter::AdmittedTargetLayouts>,

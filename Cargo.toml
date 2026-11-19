@@ -120,6 +120,7 @@ members = [
     "source-rust/subsystems/compiler/psi/layout/integer-defaults",
     "source-rust/subsystems/compiler/psi/optimization-selections",
     "source-rust/subsystems/compiler/psi/program-identity",
+    "source-rust/subsystems/compiler/psi/providers",
     "source-rust/subsystems/compiler/psi/proof-applications",
     "source-rust/subsystems/compiler/psi/proofs/bounded",
     "source-rust/subsystems/compiler/psi/proofs/mathematical",

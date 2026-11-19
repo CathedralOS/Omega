@@ -42,7 +42,7 @@ pub(super) fn require_helper_associations(
     request: &ProviderAdmissionRequest<'_, '_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
 ) -> Result<Vec<crate::AdmittedInstalledInterruptHelper>, Vec<Diagnostic>> {
     let mut operations: Vec<_> = input
         .plan()
@@ -125,7 +125,7 @@ pub(super) fn admit(
     input: &NativeRealizationInput<'_>,
     artifact: &terminal_codec::CanonicalTerminalArtifact,
     request: &ProviderAdmissionRequest<'_, '_>,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     helpers: Vec<crate::AdmittedInstalledInterruptHelper>,
     entry_custody: &super::callback_entries::PreparedEntries<'_>,
 ) -> Result<AdmittedInstalledInterruptCohort, Vec<Diagnostic>> {

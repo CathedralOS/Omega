@@ -9,6 +9,7 @@ name = "native_artifact"
 path = "src/lib.rs"
 
 [dependencies]
+psi-provider-selections = { path = "../../../../psi/providers" }
 psi-entry-memory = { path = "../../../../psi/access/entry-memory" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 published-runtime-input = { path = "../../../verification/runtime-publication" }

@@ -110,7 +110,7 @@ fn plan_adapter(call: AdmittedRuntimeForeignCall) -> Result<NativeForeignAdapter
 }
 
 pub fn plan_host_provisions(
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     input: AdmittedRuntimeInput<'_>,
     selected: &effects::SelectedProviderPlanFacts,
@@ -131,7 +131,7 @@ pub fn plan_host_provisions(
 pub fn plan_root_provisions(
     program_entry: NativeProgramEntrySettlement<'_>,
     input: AdmittedRuntimeInput<'_>,
-    installation: Option<&terminal_installation::AdmittedProviderSelections>,
+    installation: Option<&psi_provider_selections::AdmittedProviderSelections>,
     host: Vec<TerminalRuntimeHostProvision>,
     execution: &verified_optimization_input::PreparedNativeExecution,
     external_bindings: &[calling_conventions::ExternalBindingRow],
