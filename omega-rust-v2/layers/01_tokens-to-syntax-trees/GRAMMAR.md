@@ -6,6 +6,7 @@ this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
 Building it changed the grammar in seven places and raised two questions;
 both are listed under [What building it found](#what-building-it-found).
+A later review added qualified type arguments; that section records it too.
 
 The spec has no grammar, so this document is one. Its sources, in order of
 authority:
@@ -54,7 +55,7 @@ A file's namespace comes from its directory; there is no `module` header
     path       = word ( '::' word )*
     type_args  = '<' ( generic_arg % ',' ) '>'            in types and declarations
     expr_args  = '::' '<' ( generic_arg % ',' ) '>'       in expressions
-    generic_arg = lifetime | type | expression
+    generic_arg = lifetime | type_in | expression
 
 In a declaration or a type, `<` after a name can only open generic arguments,
 so it is written bare: `Outcome<u32, Never>`, `machine sort<T>(...)`. That
@@ -68,17 +69,25 @@ parser decides by looking ahead:
 1. Skip any `[` the argument opens with.
 2. `@`, `machine(`, or a named function binder such as `(n: u8) ->` there begins a type.
 3. A name there, with any `::name` parts, begins a type if the token after
-   it is `<` or `->`, or ends the argument: `,` or `>` at the top, `]` or `;`
-   inside brackets. So `[u8]` and `[u8; 4]` are types, and `[a, b]` and
-   `[f(x)]` are array literals.
+   it is `<`, `->` or, at the top, `in`, or ends the argument: `,` or `>` at
+   the top, `]` or `;` inside brackets. So `[u8]` and `[u8; 4]` are types,
+   and `[a, b]` and `[f(x)]` are array literals.
 4. Anything else is an expression. In it, `>` ends the argument, so a
    greater-than comparison there is written in parentheses.
 
+A type argument may be qualified, as a type annotation may:
+`Box<u8 in P>`, `Wrapper<[u8; 4] in D>`, `id::<u8 in P>(v)`, and the
+`AccessReturn<Extent in Granted, C>` that resources/access.md:337 writes.
+
 `Buffer<N>` therefore holds a type-shaped `N` that may turn out to name a
-value; the resolver tells which. Two shapes land on the wrong side and are
-written with parentheses: a value that begins with a generic type,
-`Buffer<(Other::<T>::SIZE + 1)>`, and an array literal of one bare name,
-`Routes<[(open_file)]>`.
+value, and `Check<N in D>` holds a qualified type that may turn out to be the
+membership test `N in D`. The resolver reads each argument by the role of the
+binder it fills. Three shapes land on the wrong side and are written with
+parentheses: a value that begins with a generic type,
+`Buffer<(Other::<T>::SIZE + 1)>`, a value that begins with a membership test
+of a name, `Check<(x in D && ready)>`, and an array literal of one bare name,
+`Routes<[(open_file)]>`. A value such as `Check<N + 1 in D>` does not begin
+with a name followed by `in`, so it stays an expression.
 
 In an expression, generic arguments are written with `::` first, and a bare
 `<` after a name is always less-than (decision 7). The parser never looks
@@ -586,7 +595,7 @@ language/generics.md:636), and the many examples that are fragments
 
 Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
-error it must produce. 23 accept, 102 reject.
+error it must produce. 23 accept, 103 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
@@ -598,7 +607,7 @@ error it must produce. 23 accept, 102 reject.
 | machine | `machines` | `missing_machine_params`, `missing_param_type`, `missing_result_type`, `machine_without_body_or_semicolon`, `operator_machine_with_unknown_operator`, `unclosed_params`, `unclosed_body` |
 | mathematical let | `math_let` | `math_let_without_type`, `public_math_let` |
 | generic parameters | `generic_params` | `generic_params_empty`, `generic_params_unclosed`, `const_param_without_type` |
-| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_greater_than`, `turbofish_in_type` |
+| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_value_starting_with_membership`, `generic_arg_greater_than`, `turbofish_in_type` |
 | types | `types`, `reference_to_reference`, `job_queue` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `logical_and_as_type`, `ampersand_reference_type` |
 | header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
 | statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
@@ -670,6 +679,15 @@ answered, and are owner questions 5 and 6 in PLAN.md.
   132 examples was affected.
 - **Reference syntax.** Owner question 6 originally retained prefix `&` and
   required spacing for two layers. Decision 12 supersedes that spelling.
+
+A review after sign-off found one more gap. The rule for generic arguments
+said `type`, which excludes qualification, so `AccessReturn<Extent in Granted, C>`
+(resources/access.md:337) parsed its first argument as a membership test and
+`Wrapper<[u8; 4] in D>` was refused at `in`. The typer already inferred such
+arguments (`let v: u8 in P = pick(x); id(v)` gives `id` the argument
+`u8 in P`), so only the explicit spelling was missing. A generic argument is
+now `type_in`, a name followed by `in` begins one, and the resolver reads it
+as a membership test under a value binder. No decision above is changed.
 
 ## Decisions
 

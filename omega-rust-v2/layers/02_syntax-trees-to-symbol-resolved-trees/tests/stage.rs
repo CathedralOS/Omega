@@ -961,3 +961,64 @@ fn equality_keeps_its_resolved_operand_role_through_grouping() {
         assert_eq!(refusal.span.slice(text.as_bytes()), Some(predicate.as_bytes()));
     }
 }
+
+/// The spelling and binding of every name use that starts inside `region` of `source`.
+fn uses_within(
+    stage: &omega_resolver::SymbolResolvedTrees<'_>,
+    source: &str,
+    region: &str,
+) -> Vec<(String, String)> {
+    let start = source.find(region).unwrap();
+    let end = start + region.len();
+    stage
+        .uses
+        .iter()
+        .filter(|u| (start..end).contains(&u.span.get_start_offset()))
+        .map(|u| {
+            let target = match &u.target {
+                Symbol::Builtin(name) => format!("builtin {name}"),
+                Symbol::Declaration(id) => format!("{:?} {}", id.kind, id.path),
+                Symbol::Binding { kind, .. } => format!("binding {kind:?}"),
+                Symbol::ByOverload(options) => options
+                    .iter()
+                    .map(|o| format!("{:?}->{:?}", o.binder, o.target.as_deref().map(|t| matches!(t, Symbol::Binding { .. }))))
+                    .collect::<Vec<_>>()
+                    .join(" | "),
+                other => format!("{other:?}"),
+            };
+            (String::from_utf8_lossy(u.span.slice(source.as_bytes()).unwrap()).into_owned(), target)
+        })
+        .collect()
+}
+
+// `u8 in P` written as a generic argument is a qualified type when the binder
+// takes a type, in both spellings of generic arguments. Under a value binder the
+// same tree is a membership test, and binds exactly as the parenthesized
+// membership expression does.
+#[test]
+fn a_qualified_generic_argument_takes_the_selected_binders_role() {
+    let typed = "domain u8::P; data Box<T> { v: T; } machine id<T>(v: T) -> T { v } machine c(x: u8, b: Box<u8 in P>) { _ = id::<u8 in P>(x); }";
+    let stage = run(&[("game", "main.omg", typed)], &[]).unwrap();
+    let qualified = [
+        ("u8".to_owned(), "builtin u8".to_owned()),
+        ("P".to_owned(), "Domain u8::P".to_owned()),
+    ];
+    assert_eq!(uses_within(&stage, typed, "<u8 in P>"), qualified);
+    assert_eq!(uses_within(&stage, typed, "::<u8 in P>"), qualified);
+    let valued = "domain u8::P; data Check<const B: bool> {} machine c<const N: u8>(a: Check<N in P>, b: Check<(N in P)>) {}";
+    let stage = run(&[("game", "main.omg", valued)], &[]).unwrap();
+    let membership = [
+        ("N".to_owned(), "binding ConstParam".to_owned()),
+        ("P".to_owned(), "Domain u8::P".to_owned()),
+    ];
+    assert_eq!(uses_within(&stage, valued, "<N in P>"), membership);
+    assert_eq!(uses_within(&stage, valued, "<(N in P)>"), membership);
+    // A type binder does not read a value binder's name as a type.
+    let mismatched = "domain u8::P; data Box<T> {} machine c<const N: u8>(b: Box<N in P>) {}";
+    assert_eq!(
+        run(&[("game", "main.omg", mismatched)], &[])
+            .unwrap_err()
+            .message,
+        "unresolved name N"
+    );
+}

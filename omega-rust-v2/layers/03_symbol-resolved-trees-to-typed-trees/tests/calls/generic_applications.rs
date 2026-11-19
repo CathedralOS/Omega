@@ -394,3 +394,48 @@ fn domain_alias_indices_are_checked_after_substitution_at_each_use() {
         assert_eq!(error.message, "static index 256 exceeds u8");
     }
 }
+
+// `id::<u8 in P>(pick(x))` is the explicit spelling of the type argument that
+// `let v: u8 in P = pick(x); id(v)` infers. Both must select the `u8 in P`
+// overload of `pick` and record the same qualified type argument. The negative
+// twin supplies the bare carrier `u8`, so no `id` returns the qualified result.
+#[test]
+fn an_explicit_qualified_type_argument_selects_the_qualified_result_overload() {
+    let defs = "domain u8::P; data Box<T> { v: T; } machine pick(x: u8) -> u8 { x } machine pick(x: u8) -> u8 in P { x as +P } machine id<T>(v: T) -> T { v }";
+    let qualified = "u8 in game::u8::P";
+    for (caller, id_site) in [
+        ("machine c(x: u8) -> u8 in P { id::<u8 in P>(pick(x)) }", "id::<u8 in P>(pick(x))"),
+        ("machine c(x: u8) -> u8 in P { let v: u8 in P = pick(x); id(v) }", "id(v)"),
+    ] {
+        let stage = check(&[("defs.omg", defs), ("use.omg", caller)]).unwrap();
+        let call = |site: &str| {
+            stage
+                .calls
+                .iter()
+                .find(|c| c.site.file == "use.omg" && c.site.span.slice(caller.as_bytes()) == Some(site.as_bytes()))
+                .unwrap_or_else(|| panic!("{site} in {caller}"))
+        };
+        let pick = call("pick(x)");
+        assert_eq!(pick.result.to_string(), qualified, "{caller}");
+        let id = call(id_site);
+        assert_eq!(id.machine.path, "id");
+        assert_eq!(
+            id.type_arguments
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+            [qualified],
+            "{caller}"
+        );
+        assert_eq!(id.result.to_string(), qualified, "{caller}");
+    }
+    let bare = "machine c(x: u8) -> u8 in P { id::<u8>(pick(x)) }";
+    let error = check(&[("defs.omg", defs), ("use.omg", bare)]).unwrap_err();
+    assert_eq!(error.file, "use.omg");
+    assert_eq!(error.span.slice(bare.as_bytes()), Some(&b"id::<u8>"[..]), "{error:?}");
+    assert_eq!(error.message, "no matching overload for id(u8)");
+    // The same qualified argument in a type: the field reads back qualified.
+    check(&[("defs.omg", defs), ("use.omg", "machine c(b: Box<u8 in P>) -> u8 in P { b.v }")]).unwrap();
+    let error = check(&[("defs.omg", defs), ("use.omg", "machine c(b: Box<u8>) -> u8 in P { b.v }")]).unwrap_err();
+    assert_eq!(error.message, "expected u8 in game::u8::P, found u8");
+}
