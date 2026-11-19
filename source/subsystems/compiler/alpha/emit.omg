@@ -1,11 +1,16 @@
-use psi::ScalarMachine;
-use psi::ScalarOperation;
-use psi::ScalarOperationKind;
-use psi::ScalarProgram;
-use psi::ScalarStatus;
-use psi::ScalarLayout;
-use psi::ScalarLayoutKind;
-use psi::ScalarParameter;
+use psi::representations::lowered_program::ScalarLayout;
+use psi::representations::lowered_program::ScalarLayoutKind;
+use psi::representations::lowered_program::ScalarMachine;
+use psi::representations::lowered_program::ScalarOperation;
+use psi::representations::lowered_program::ScalarOperationKind;
+use psi::representations::lowered_program::ScalarParameter;
+use psi::representations::lowered_program::ScalarProgram;
+use psi::representations::lowered_program::ScalarStatus;
+use psi::representations::lowered_program::scalar_argument_at;
+use psi::representations::lowered_program::scalar_layout_at;
+use psi::representations::lowered_program::scalar_machine_at;
+use psi::representations::lowered_program::scalar_operation;
+use psi::representations::lowered_program::scalar_parameter_at;
 
 // Realize the checked scalar lowering slice on Alpha. Each call owns a frame
 // of value slots; physical registers never carry values across a call. Layout
@@ -411,7 +416,7 @@ crashes Trap
         }
     }
     machine body(emitter: @mut AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping) {
-        let body: ScalarMachine = psi::scalar_machine_at(program, index);
+        let body: ScalarMachine = scalar_machine_at(program, index);
         emitter.labels[index as -Trapping] = emitter.length;
         // Preflight slots, owned bytes and argument scratch together before
         // the first frame write. The maximum components are all bounded by
@@ -446,7 +451,7 @@ crashes Trap
     }
     machine instruction(emitter: @mut AlphaEmitter, program: @ScalarProgram, index: u64 in Trapping, body: ScalarMachine, offset: u64 in Trapping, handle: u64 in Trapping) {
         emitter.operation_labels[handle as -Trapping] = emitter.length;
-        let operation: ScalarOperation = psi::scalar_operation(program, handle);
+        let operation: ScalarOperation = scalar_operation(program, handle);
         alpha_operation(emitter, program, operation, body);
         let value: bool = alpha_keeps_value(operation.kind);
         transition value {
@@ -481,8 +486,8 @@ crashes Trap
         }
     }
     machine parameter(emitter: @mut AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, offset: u64 in Trapping) {
-        let parameter: ScalarParameter = psi::scalar_parameter_at(program, body.first_parameter + offset);
-        let layout: ScalarLayout = psi::scalar_layout_at(program, parameter.type_handle);
+        let parameter: ScalarParameter = scalar_parameter_at(program, body.first_parameter + offset);
+        let layout: ScalarLayout = scalar_layout_at(program, parameter.type_handle);
         alpha_immediate(emitter, 0, offset * 8);
         alpha_registers(emitter, 3, 0, 249);
         alpha_registers(emitter, 10, 0, 0);
@@ -521,7 +526,7 @@ crashes Trap
         }
     }
     machine argument(emitter: @mut AlphaEmitter, program: @ScalarProgram, body: ScalarMachine, operation: ScalarOperation, offset: u64 in Trapping) {
-        let value: u64 in Trapping = psi::scalar_argument_at(program, operation.right + offset);
+        let value: u64 in Trapping = scalar_argument_at(program, operation.right + offset);
         alpha_slot(emitter, value - body.first, 0, false);
         alpha_immediate(emitter, 1, offset * 8);
         alpha_registers(emitter, 3, 1, 249);

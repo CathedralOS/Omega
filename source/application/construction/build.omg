@@ -9,9 +9,16 @@ machine build(builder: @mut Build) {
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, alpha_bootstrap::ProgramEntry, entry_start);
-    let compiler: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../compilation" }));
-    let mut psi: DependencyDescription = dependency::from_source(Source::Path { location: "../../../psi" });
-    dependency::with_alias(@mut psi, "psi");
-    let registered: DependencyRegistration = Build::dependency(builder, psi);
-    let standard: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../library/std" }));
+    let compiler: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../subsystems/compiler/driver"
+    }));
+    let psi: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../subsystems/compiler/source_to_psi"
+    }));
+    let wire: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../foundation/wire"
+    }));
+    let standard: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../library/std"
+    }));
 }

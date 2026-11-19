@@ -1,15 +1,22 @@
 use omega::language::core::ProcessExit;
-use omega_language_std::ByteRead;
-use omega_language_std::Console;
 use omega_compiler::Compilation;
 use omega_compiler::CompilationStatus;
-use psi::DependencyScope;
-use psi::Lexer;
-use psi::ModulePath;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use psi::pipeline::source_files_to_tokens::Lexer;
+use psi::pipeline::source_files_to_tokens::append_source_byte;
+use psi::pipeline::source_files_to_tokens::lexer_initialize;
+use psi::representations::source_files::DependencyScope;
+use psi::representations::source_files::ModulePath;
+use psi::representations::source_files::add_dependency;
+use psi::representations::source_files::add_package;
+use psi::representations::source_files::module_path_append;
+use psi::representations::source_files::module_path_clear;
+use wire::u32_from_le_bytes;
 
-// This internal construction entry consumes an explicitly supplied package
-// graph, not a filesystem or an admitted OCREQ. Every row span addresses the
-// same byte arena. Authored module declarations retain their normal meaning.
+// The construction stream supplies package, dependency and source rows.
+// All spans address its byte arena. Unit rows carry no logical path, so this
+// entry currently admits each unit in its package root namespace.
 data ConstructionInput {
     package_count: u32;
     edge_count: u32;
@@ -43,11 +50,11 @@ machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
 }
 
 machine read_word() -> u32 reaches ProcessExit + Console crashes Trap blocks {
-    let b0: u32 = (block read_byte()) as u32;
-    let b1: u32 = (block read_byte()) as u32;
-    let b2: u32 = (block read_byte()) as u32;
-    let b3: u32 = (block read_byte()) as u32;
-    b0 + b1 * 256 + b2 * 65536 + b3 * 16777216
+    let b0: u8 = block read_byte();
+    let b1: u8 = block read_byte();
+    let b2: u8 = block read_byte();
+    let b3: u8 = block read_byte();
+    u32_from_le_bytes(b0, b1, b2, b3)
 }
 
 machine read_input(input: @mut ConstructionInput)
@@ -130,7 +137,7 @@ reaches ProcessExit + Console crashes Trap
 machine copy_name(input: @ConstructionInput, name: @mut ModulePath, start: u32, end: u32)
 reaches ProcessExit + Console crashes Trap
 {
-    psi::module_path_clear(name);
+    module_path_clear(name);
     transition start <= end && end <= input.buffer_length && end - start <= 256 {
         true -> next(input, name, start as u64, end as u64),
         _ -> malformed()
@@ -144,7 +151,7 @@ reaches ProcessExit + Console crashes Trap
     machine append(input: @ConstructionInput, name: @mut ModulePath, index: u64, end: u64)
     requires index < 4194304
     {
-        let retained: bool = psi::module_path_append(name, input.bytes[index]);
+        let retained: bool = module_path_append(name, input.bytes[index]);
         transition retained {
             true -> next(input, name, index + 1, end),
             _ -> malformed()
@@ -179,7 +186,7 @@ reaches ProcessExit + Console crashes Trap
     {
         let mut name: ModulePath;
         copy_name(input, @mut name, start, end);
-        let retained: bool = psi::add_package(@mut compilation.sources, @name, role == 1);
+        let retained: bool = add_package(@mut compilation.sources, @name, role == 1);
         transition retained {
             true -> next(input, compilation, index + 1),
             _ -> full()
@@ -216,7 +223,7 @@ reaches ProcessExit + Console crashes Trap
     {
         let mut alias: ModulePath;
         copy_name(input, @mut alias, start, end);
-        let retained: bool = psi::add_dependency(@mut compilation.sources,
+        let retained: bool = add_dependency(@mut compilation.sources,
             (requester as u64) as +Trapping, DependencyScope::Product,
             @alias, (target as u64) as +Trapping);
         transition retained {
@@ -268,7 +275,7 @@ reaches ProcessExit + Console crashes Trap
     machine initialize(input: @ConstructionInput, compilation: @mut Compilation, lexer: @mut Lexer, index: u64, package: u32, start: u32, end: u32)
     requires index < 512
     {
-        psi::lexer_initialize(lexer, (index as u32) as +Trapping);
+        lexer_initialize(lexer, (index as u32) as +Trapping);
         transition { _ -> bytes(input, compilation, lexer, index, package, start as u64, end as u64) }
     }
     machine bytes(input: @ConstructionInput, compilation: @mut Compilation, lexer: @mut Lexer, index: u64, package: u32, offset: u64, end: u64)
@@ -282,14 +289,14 @@ reaches ProcessExit + Console crashes Trap
     machine byte(input: @ConstructionInput, compilation: @mut Compilation, lexer: @mut Lexer, index: u64, package: u32, offset: u64, end: u64)
     requires index < 512, offset < 4194304
     {
-        psi::append_source_byte(lexer, input.bytes[offset]);
+        append_source_byte(lexer, input.bytes[offset]);
         transition { _ -> bytes(input, compilation, lexer, index, package, offset + 1, end) }
     }
     machine parse(input: @ConstructionInput, compilation: @mut Compilation, lexer: @mut Lexer, index: u64, package: u32)
     requires index < 512
     {
         let mut module_path: ModulePath;
-        psi::module_path_clear(@mut module_path);
+        module_path_clear(@mut module_path);
         omega_compiler::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }
     }
@@ -297,8 +304,22 @@ reaches ProcessExit + Console crashes Trap
     machine done() {}
 }
 
+machine exit_status(status: CompilationStatus) -> i32 {
+    transition status {
+        CompilationStatus::Complete -> code(0),
+        CompilationStatus::Capacity -> code(252),
+        CompilationStatus::Lexical -> code(251),
+        CompilationStatus::Parsing -> code(250),
+        CompilationStatus::Resolution -> code(248),
+        CompilationStatus::Typing -> code(249),
+        CompilationStatus::Checking -> code(247),
+        _ -> code(246)
+    }
+    machine code(value: i32) -> i32 { value }
+}
+
 machine publish(compilation: @Compilation) reaches ProcessExit + Console crashes Trap {
-    let status: i32 = omega_compiler::compilation_exit_status(compilation);
+    let status: i32 = exit_status(compilation.status);
     transition status == 0 {
         true -> bounded(compilation),
         _ -> refused(status)
