@@ -317,15 +317,16 @@ fn refuse_undeclared_conversion(module: &terminal_psi::TerminalModule) {
         .unwrap()
         .clone();
     declaration.id = semantic_vocabulary::BoundaryMachineId::new(1).unwrap();
-    let module = terminal_psi::TerminalModule {
+    let mut module = terminal_psi::TerminalModule {
         identities: module.identities.clone(),
-        boundary_machines: vec![declaration],
         ..terminal_psi::TerminalModule::declarations()
     };
+    module.interfaces.boundary_machines.push(declaration);
     let baseline = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
     terminal_codec::ClosedTerminalModule::from_semantic_bytes(baseline.semantic_bytes()).unwrap();
     let mut changed = module.clone();
     let boundary = changed
+        .interfaces
         .boundary_machines
         .iter_mut()
         .find(|boundary| boundary.numeric_intrinsic == Some(original))

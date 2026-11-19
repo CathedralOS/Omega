@@ -4700,10 +4700,8 @@ fn qualified_numeric_replay_needs_the_module_and_actual_numeric_meaning() {
         )
         .is_err()
     );
-    let module = TerminalModule {
-        boundary_machines: vec![declaration.clone()],
-        ..TerminalModule::declarations()
-    };
+    let mut module = TerminalModule::declarations();
+    module.interfaces.boundary_machines.push(declaration.clone());
     assert!(
         crate::preparation::legalization_scalar_graph::call_origin::validate_qualified_numeric_executions(
             &target,
