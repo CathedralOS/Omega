@@ -8,10 +8,10 @@
 
 use crate::ClaimCompletionOnlyRealization;
 use crate::ProviderExecutionBinding;
-use native_vocabulary::completion_claims::CompletionClaimSource;
-use native_vocabulary::provenance::EffectLink;
-use native_vocabulary::provenance::OwnershipEvent;
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::completion_claims::CompletionClaimSource;
+use operation_evidence::provenance::EffectLink;
+use operation_evidence::provenance::OwnershipEvent;
+use operation_evidence::provenance::WorkSettlement;
 use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::ServiceId;

@@ -67,6 +67,7 @@ members = [
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/encoding-admission",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/frame-admission",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/machine-code/scalar-encoding",
+    "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/optimization-records",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/post-allocation-machine",

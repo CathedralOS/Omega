@@ -1656,7 +1656,7 @@ mod tests {
     };
     use crate::recovery::structural_declarations::encode_string;
     use calling_conventions::{CallSignature, encode_state_plan_identity};
-    use native_vocabulary::provenance::EffectLink;
+    use operation_evidence::provenance::EffectLink;
     use semantic_vocabulary::{IntegerSign, IntegerType};
     use target::ForeignLocatorCandidate;
     use target_vocabulary::ProviderPlanReportIdentity;
@@ -2029,7 +2029,7 @@ mod tests {
                 output: 12,
             },
             ownership: vec![
-                native_vocabulary::provenance::OwnershipEvent::ClaimTransfer(Vec::new()),
+                operation_evidence::provenance::OwnershipEvent::ClaimTransfer(Vec::new()),
             ],
         }
     }

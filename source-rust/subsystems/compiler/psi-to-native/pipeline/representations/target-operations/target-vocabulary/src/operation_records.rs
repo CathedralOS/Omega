@@ -3,7 +3,7 @@
 
 use crate::{TargetStructuralArgument, TargetUnitScalarArgumentSource};
 use calling_conventions::{CallPlan, ValueShape};
-use native_vocabulary::completion_claims::CompletionClaimSource;
+use operation_evidence::completion_claims::CompletionClaimSource;
 use semantic_vocabulary::{
     BoundaryMachineId, ClosedScalarType, IntegerSign, IntegerType, MachineId, ScalarType,
 };

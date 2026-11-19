@@ -111,9 +111,9 @@ mod v6 {
         SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
         SelectedInstructionPlanIdentity, SelectedInstructionProvenance,
     };
-    use native_vocabulary::provenance::OwnershipEvent;
-    use native_vocabulary::provenance::PsiProvenance;
-    use native_vocabulary::provenance::WorkSettlement;
+    use operation_evidence::provenance::OwnershipEvent;
+    use operation_evidence::provenance::PsiProvenance;
+    use operation_evidence::provenance::WorkSettlement;
     use register_model::{
         RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
         RegisterUnitId, TargetRegisterEnvironmentIdentity,

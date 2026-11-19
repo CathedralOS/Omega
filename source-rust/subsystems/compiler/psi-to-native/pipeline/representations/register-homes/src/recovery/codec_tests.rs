@@ -9,10 +9,10 @@ use access_admission::validate_placement;
 use access_vocabulary::BoundaryReach;
 use calling_conventions::{CallPlan, CallingPolicy, EntryControl, MachineRegister, RegisterSet};
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport};
-use native_vocabulary::provenance::{
+use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
+use operation_evidence::provenance::{
     EffectLink, PsiProvenance, ValueDefinitionSite, WorkSettlement,
 };
-use native_vocabulary::structural_type_catalog::StructuralTypeCatalog;
 use optimization_core::{
     AcceptedObligationFactIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
 };

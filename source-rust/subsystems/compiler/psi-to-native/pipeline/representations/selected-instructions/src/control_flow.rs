@@ -14,7 +14,7 @@
 use super::SelectedInstructionId;
 use super::SelectedMemoryAccessRole::{ReadIndexedPrimitive, ReadPlace};
 use super::{SelectedBlockId, SelectedInstruction, VirtualRegister, VirtualRegisterId};
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::WorkSettlement;
 use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId};
 use target_vocabulary::TerminalPsiProvenance;

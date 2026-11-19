@@ -483,7 +483,7 @@ pub mod structural_reference_input {
     }
 
     pub fn primitive_store(
-        destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
+        destination: &operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
         declarations: &NativeGeometry<'_>,
@@ -496,7 +496,7 @@ pub mod structural_reference_input {
             return None;
         }
         match destination {
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 if !matches!(
                     parameter.access,
                     terminal_psi::StructuralAccess::Owned
@@ -506,14 +506,14 @@ pub mod structural_reference_input {
                     return None;
                 }
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 result, ..
             } => {
                 if !result.qualification_establishments.is_empty() || !result.claims.is_empty() {
                     return None;
                 }
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 parameter,
                 ..
             } => {

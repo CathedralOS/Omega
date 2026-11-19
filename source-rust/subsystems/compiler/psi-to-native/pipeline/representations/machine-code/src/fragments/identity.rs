@@ -20,7 +20,7 @@ use super::{
     FunctionFragmentNormalizedForeignCallFixup, FunctionFragmentNormalizedForeignCallFixupKind,
     FunctionFragmentNormalizedForeignCallFixupState, FunctionFragmentSuccessorProvenance,
 };
-use native_vocabulary::provenance::{PsiProvenance, WorkSettlement};
+use operation_evidence::provenance::{PsiProvenance, WorkSettlement};
 use optimization_core::FunctionFragmentEmissionIdentity;
 use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};

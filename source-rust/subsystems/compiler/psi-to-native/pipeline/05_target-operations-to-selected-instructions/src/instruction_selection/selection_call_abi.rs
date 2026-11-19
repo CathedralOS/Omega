@@ -793,7 +793,7 @@ pub(crate) mod input_site {
                                     edge,
                                     value: LegalizedScalarReturnValue::Unit,
                                     work: Vec::new(),
-                                    effect: native_vocabulary::provenance::EffectLink {
+                                    effect: operation_evidence::provenance::EffectLink {
                                         input: 0,
                                         output: 1,
                                     },

@@ -18,11 +18,11 @@ use super::{
 pub(super) use calling_conventions::{
     CallSignature, CallingPolicy, ValueShape, evaluate_call_plan,
 };
-pub(super) use native_vocabulary::completion_claims::CompletionClaimSource;
-pub(super) use native_vocabulary::provenance::EffectLink;
-use native_vocabulary::provenance::OwnershipEvent;
-use native_vocabulary::provenance::PsiProvenance;
-use native_vocabulary::provenance::WorkSettlement;
+pub(super) use operation_evidence::completion_claims::CompletionClaimSource;
+pub(super) use operation_evidence::provenance::EffectLink;
+use operation_evidence::provenance::OwnershipEvent;
+use operation_evidence::provenance::PsiProvenance;
+use operation_evidence::provenance::WorkSettlement;
 pub(super) use optimization_core::OptimizationUnitIdentity;
 pub(super) use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
@@ -425,7 +425,7 @@ pub(super) fn scalar_call_unit_plan() -> LegalizedOperationPlan {
     let values = [id(110), id(111), id(112), id(113), id(114)];
     let edge = id(115);
     let definition =
-        |node| native_vocabulary::provenance::ValueDefinitionSite::Node { block, node };
+        |node| operation_evidence::provenance::ValueDefinitionSite::Node { block, node };
     let work = |operation| {
         vec![WorkSettlement {
             site: PsiProvenance::Operation(operation),

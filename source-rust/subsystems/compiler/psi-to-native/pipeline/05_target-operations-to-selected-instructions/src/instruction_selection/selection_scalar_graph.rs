@@ -29,7 +29,7 @@ pub(crate) use legalized_operations::{
     LegalizedScalarInstructionKind, SaturatingCarrier, TrappingForm, TrappingOperation,
 };
 #[allow(unused_imports)]
-pub(crate) use native_vocabulary::provenance::ValueDefinitionSite;
+pub(crate) use operation_evidence::provenance::ValueDefinitionSite;
 #[allow(unused_imports)]
 pub(crate) use register_model::{
     PreparedRegisterConstraintCatalog, RegisterClassId, RegisterConstraintKey,
@@ -1542,7 +1542,7 @@ pub(crate) mod boolean_value {
     struct IntegerComparisonSequence<'state, 'catalog> {
         state: &'state mut Builder<'catalog>,
         value: semantic_vocabulary::ValueId,
-        site: native_vocabulary::provenance::ValueDefinitionSite,
+        site: operation_evidence::provenance::ValueDefinitionSite,
         provenance: SelectedInstructionProvenance,
     }
 
@@ -1677,7 +1677,7 @@ pub(crate) mod byte_input {
         };
         if !row.has_valid_hosted_read_byte_shape()
             || row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(row.ownership.as_slice(), [operation_evidence::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         {
             return Err(SelectedInstructionError::custody());
         }
@@ -1766,7 +1766,7 @@ pub(crate) mod byte_output {
             .resolve(source)
             .ok_or_else(|| SelectedInstructionError::custody())?;
         if row.result.is_some()
-            || !matches!(row.ownership.as_slice(), [native_vocabulary::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
+            || !matches!(row.ownership.as_slice(), [operation_evidence::provenance::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
             || !matches!(scalar_type, semantic_vocabulary::ClosedScalarType::Integer(integer)
                 if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
         {
@@ -1834,8 +1834,8 @@ pub(crate) mod call_arguments {
     pub(crate) trait InvocationArgumentSource {
         fn invocation_site(&self) -> semantic_vocabulary::InvocationSite;
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan>;
-        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent];
-        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement];
+        fn invocation_ownership(&self) -> &[operation_evidence::provenance::OwnershipEvent];
+        fn invocation_work(&self) -> &[operation_evidence::provenance::WorkSettlement];
         fn invocation_argument_place(
             &self,
             position: usize,
@@ -1857,10 +1857,10 @@ pub(crate) mod call_arguments {
                 _ => None,
             }
         }
-        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[operation_evidence::provenance::OwnershipEvent] {
             &self.ownership
         }
-        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
+        fn invocation_work(&self) -> &[operation_evidence::provenance::WorkSettlement] {
             &self.work
         }
         fn invocation_argument_place(
@@ -1893,8 +1893,8 @@ pub(crate) mod call_arguments {
     pub(crate) struct TerminalInvocation<'a> {
         pub site: semantic_vocabulary::InvocationSite,
         pub call: &'a LegalizedScalarCall,
-        pub ownership: &'a [native_vocabulary::provenance::OwnershipEvent],
-        pub work: &'a [native_vocabulary::provenance::WorkSettlement],
+        pub ownership: &'a [operation_evidence::provenance::OwnershipEvent],
+        pub work: &'a [operation_evidence::provenance::WorkSettlement],
     }
 
     impl InvocationArgumentSource for TerminalInvocation<'_> {
@@ -1904,10 +1904,10 @@ pub(crate) mod call_arguments {
         fn invocation_call_plan(&self) -> Option<&calling_conventions::CallPlan> {
             Some(&self.call.call_plan)
         }
-        fn invocation_ownership(&self) -> &[native_vocabulary::provenance::OwnershipEvent] {
+        fn invocation_ownership(&self) -> &[operation_evidence::provenance::OwnershipEvent] {
             self.ownership
         }
-        fn invocation_work(&self) -> &[native_vocabulary::provenance::WorkSettlement] {
+        fn invocation_work(&self) -> &[operation_evidence::provenance::WorkSettlement] {
             self.work
         }
         fn invocation_argument_place(
@@ -2492,8 +2492,8 @@ pub(crate) mod call_arguments {
         builder: &mut Builder<'_>,
         owner: target_vocabulary::CallSiteOwner,
         call: &LegalizedScalarCall,
-        effect: native_vocabulary::provenance::EffectLink,
-        ownership: Vec<native_vocabulary::provenance::OwnershipEvent>,
+        effect: operation_evidence::provenance::EffectLink,
+        ownership: Vec<operation_evidence::provenance::OwnershipEvent>,
         kind: SelectedInstructionKind,
         key: RegisterConstraintKey,
         operands: &[VirtualRegisterId],
@@ -2514,7 +2514,7 @@ pub(crate) mod cleanup_call {
     use super::{Builder, SelectedInstructionKind};
     use crate::instruction_selection::SelectedInstructionError;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use native_vocabulary::provenance::EffectLink;
+    use operation_evidence::provenance::EffectLink;
     use semantic_vocabulary::InvocationSite;
     use target_vocabulary::{CallSiteOwner, NativeCallOrigin};
 
@@ -5088,9 +5088,9 @@ pub(crate) mod normalized_foreign {
         Operation(&'source LegalizedScalarInstruction),
         ExternalCompletion {
             edge: semantic_vocabulary::EdgeId,
-            effect: native_vocabulary::provenance::EffectLink,
-            ownership: &'source [native_vocabulary::provenance::OwnershipEvent],
-            work: &'source [native_vocabulary::provenance::WorkSettlement],
+            effect: operation_evidence::provenance::EffectLink,
+            ownership: &'source [operation_evidence::provenance::OwnershipEvent],
+            work: &'source [operation_evidence::provenance::WorkSettlement],
         },
     }
 

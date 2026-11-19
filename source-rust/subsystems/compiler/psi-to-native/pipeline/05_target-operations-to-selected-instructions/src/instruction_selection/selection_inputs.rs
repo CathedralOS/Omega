@@ -2045,7 +2045,7 @@ pub(crate) mod established_view_input {
                     home(function, *source)?.1.structural_type
                 };
                 let (selected, offset, elements, shared_field) = match path {
-                    native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(path) => {
+                    operation_operands::structural_stores::StructuralCopyPath::Ordinary(path) => {
                         let geometry = geometry::leaf_copy_geometry(
                             root,
                             path,
@@ -2068,7 +2068,7 @@ pub(crate) mod established_view_input {
                             shared_field,
                         )
                     }
-                    native_vocabulary::structural_stores::StructuralCopyPath::Case(path) => {
+                    operation_operands::structural_stores::StructuralCopyPath::Case(path) => {
                         let geometry = geometry::case_projection(root, path, types)?;
                         let shared_field = match path.split_last() {
                             Some((
@@ -2307,7 +2307,7 @@ pub(crate) mod established_view_input {
                         if access != A::SharedBorrow {
                             return None;
                         }
-                        if matches!(path, native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(path) if path.is_empty())
+                        if matches!(path, operation_operands::structural_stores::StructuralCopyPath::Ordinary(path) if path.is_empty())
                         {
                             if *byte_offset != 0
                                 || !indices.is_empty()
@@ -4394,26 +4394,26 @@ pub(crate) mod reference_input {
 
     pub(crate) fn store_destination<'path>(
         function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
-        destination: &native_vocabulary::structural_stores::StructuralScalarStoreDestination,
+        destination: &operation_operands::structural_stores::StructuralScalarStoreDestination,
         path: &'path [StructuralPathSegment],
         required_access: StructuralAccess,
     ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
         let admitted = match destination {
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedResult {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedResult {
                 producer,
                 result,
             } => {
                 crate::instruction_selection::selection::aggregate_result_input::home(function, result.place)
                     == Some((*producer, result))
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::OwnedBlockParameter {
                 block,
                 parameter,
             } => {
                 crate::instruction_selection::selection::aggregate_result_input::block_home(function, parameter.place)
                     == Some((*block, parameter))
             }
-            native_vocabulary::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
+            operation_operands::structural_stores::StructuralScalarStoreDestination::Parameter(parameter) => {
                 crate::instruction_selection::selection::arrival_parameter_input::store_destination(function, parameter)
             }
         };
@@ -4520,7 +4520,7 @@ pub(crate) mod reference_input {
 
     #[cfg(test)]
     pub(crate) mod tests {
-        use native_vocabulary::access_references::{
+        use operation_operands::access_references::{
             AccessReferenceBacking, ResidentReferenceBacking,
         };
         use semantic_vocabulary::{
@@ -4649,7 +4649,7 @@ pub(crate) mod reference_input {
                 LegalizedScalarInstruction, LegalizedScalarInstructionKind, LegalizedScalarReturn,
                 LegalizedScalarReturnValue, LegalizedScalarTerminator, LegalizedStructuralContract,
             };
-            use native_vocabulary::provenance::EffectLink;
+            use operation_evidence::provenance::EffectLink;
             use semantic_vocabulary::{
                 AuthoredFieldStorage, AuthoredRecordStorage, BlockId, EdgeId, MachineId,
                 OperationId, StructuralCaseId, StructuralPlaceKind,
@@ -5857,10 +5857,10 @@ pub(crate) mod storage_origin_input {
                         ..
                     } => {
                         let prefix = match path {
-                            native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(
+                            operation_operands::structural_stores::StructuralCopyPath::Ordinary(
                                 path,
                             ) => path.clone(),
-                            native_vocabulary::structural_stores::StructuralCopyPath::Case(
+                            operation_operands::structural_stores::StructuralCopyPath::Case(
                                 path,
                             ) => {
                                 let root = root_type(function, *parent)
@@ -6459,7 +6459,7 @@ pub(crate) mod storage_origin_input {
                         result: None,
                         kind: I::NormalizedForeignCall(call),
                         work: Vec::new(),
-                        effect: native_vocabulary::provenance::EffectLink {
+                        effect: operation_evidence::provenance::EffectLink {
                             input: 0,
                             output: 1,
                         },
@@ -6469,7 +6469,7 @@ pub(crate) mod storage_origin_input {
                         edge: EdgeId::new(1).unwrap(),
                         value: LegalizedScalarReturnValue::Unit,
                         work: Vec::new(),
-                        effect: native_vocabulary::provenance::EffectLink {
+                        effect: operation_evidence::provenance::EffectLink {
                             input: 1,
                             output: 2,
                         },
@@ -6617,7 +6617,9 @@ pub(crate) mod storage_origin_input {
             function.blocks[0].instructions[0].kind = I::StructuralLeafCopy {
                 result: result(),
                 source: result().place,
-                path: native_vocabulary::structural_stores::StructuralCopyPath::Ordinary(Vec::new()),
+                path: operation_operands::structural_stores::StructuralCopyPath::Ordinary(
+                    Vec::new(),
+                ),
                 byte_offset: 0,
                 shape: ValueShape::integer(16, 8),
                 indices: Vec::new(),

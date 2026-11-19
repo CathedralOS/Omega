@@ -9,6 +9,7 @@ name = "target_vocabulary"
 path = "src/lib.rs"
 
 [dependencies]
+operation-evidence = { path = "../../operation-evidence" }
 operation-operands = { path = "../../operation-operands" }
 wire = { path = "../../../../../../../foundation/wire" }
 native-vocabulary = { path = "../../../../native-vocabulary" }

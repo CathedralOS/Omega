@@ -2,7 +2,7 @@
 
 use crate::{LegalizedScalarArgument, LegalizedScalarCall, NativeCallOrigin};
 use calling_conventions::{EntryControl, ValueLocation, ValuePlacement, ValueShape};
-use native_vocabulary::provenance::OwnershipEvent;
+use operation_evidence::provenance::OwnershipEvent;
 use terminal_psi::ClaimTransfer;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -225,7 +225,7 @@ fn validate_call_source(
 fn validate_completion(
     call: &LegalizedScalarCall,
     ownership: &[OwnershipEvent],
-    claim_sources: &[native_vocabulary::completion_claims::CompletionClaimSource],
+    claim_sources: &[operation_evidence::completion_claims::CompletionClaimSource],
     receipts: &[terminal_psi::CompletionReceipt],
 ) -> Result<(), LegalizedCallSourceError> {
     let structural_count = call

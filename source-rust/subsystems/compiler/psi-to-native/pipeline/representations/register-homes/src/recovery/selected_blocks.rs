@@ -798,8 +798,8 @@ mod tests {
                         clobbers: Vec::new(),
                         provenance: SelectedInstructionProvenance {
                             edges: vec![edge],
-                            work: vec![native_vocabulary::provenance::WorkSettlement {
-                                site: native_vocabulary::provenance::PsiProvenance::Edge(edge),
+                            work: vec![operation_evidence::provenance::WorkSettlement {
+                                site: operation_evidence::provenance::PsiProvenance::Edge(edge),
                                 units: 2,
                             }],
                             ..Default::default()
@@ -1058,7 +1058,7 @@ mod tests {
                         value: ValueId::new(9).unwrap(),
                         scalar_type: semantic_vocabulary::ClosedScalarType::Boolean,
                         definition_site:
-                            native_vocabulary::provenance::ValueDefinitionSite::BlockParameter {
+                            operation_evidence::provenance::ValueDefinitionSite::BlockParameter {
                                 block: original.source_target,
                                 position: 1,
                             },
@@ -1126,7 +1126,7 @@ mod tests {
                 }
                 _ => {
                     case.payloads[0].semantic.parameter.definition_site =
-                        native_vocabulary::provenance::ValueDefinitionSite::FunctionParameter(1)
+                        operation_evidence::provenance::ValueDefinitionSite::FunctionParameter(1)
                 }
             }
             let mut encoded = Vec::new();

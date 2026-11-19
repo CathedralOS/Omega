@@ -15,7 +15,7 @@ use super::{
     StructuralPlaceDeclaration, StructuralTypeId, TerminalAffineCleanupAction, ValueBinding,
     ValueId,
 };
-pub use native_vocabulary::provenance::{
+pub use operation_evidence::provenance::{
     EffectLink, OwnershipEvent, PsiProvenance, ValueDefinition, ValueDefinitionSite,
     WorkSettlement, encode_value_definition_site_identity,
 };

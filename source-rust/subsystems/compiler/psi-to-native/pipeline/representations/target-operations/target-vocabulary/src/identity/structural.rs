@@ -13,9 +13,9 @@ use super::structural_types::{
 };
 use super::{encode_ids, encode_len, encode_option, encode_work};
 use crate::{LegalizedBoundarySettlement, NativeCallOrigin};
-use native_vocabulary::completion_claims::CompletionClaimSource;
-use native_vocabulary::provenance::EffectLink;
-use native_vocabulary::provenance::OwnershipEvent;
+use operation_evidence::completion_claims::CompletionClaimSource;
+use operation_evidence::provenance::EffectLink;
+use operation_evidence::provenance::OwnershipEvent;
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
 };

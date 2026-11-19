@@ -32,8 +32,8 @@ pub use structural_types::{encode_authored_field_storage, encode_structural_plac
 use crate::LegalizedStructuralContract;
 use crate::{MachineRegister, TargetAccessCallAssociation, TargetAccessCallBinding};
 use calling_conventions::ConventionalSumLayout;
-use native_vocabulary::provenance::PsiProvenance;
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::PsiProvenance;
+use operation_evidence::provenance::WorkSettlement;
 use operation_operands::values::ValueBinding;
 use semantic_vocabulary::{BoundaryMachineId, IntegerType, IntegerValue, OperationId};
 use structural_types::{

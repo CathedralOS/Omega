@@ -17,14 +17,8 @@ containers. Defined here, below every form, a later stage can name them
 without being able to read an earlier program.
 */
 
-pub mod access_lifecycles;
 pub mod access_reference_validation;
-pub mod access_references;
 pub mod address_joins;
-pub mod completion_claims;
 pub mod owner_loans;
-pub mod ownership_frontier;
-pub mod provenance;
 pub mod storage_projection;
-pub mod structural_stores;
 pub mod structural_type_catalog;

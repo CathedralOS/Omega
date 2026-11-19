@@ -6,7 +6,7 @@ strictly increasing canonical order, and binds that snapshot into both its own
 fact identity and the enclosing `OptimizationUnitIdentity`.
 */
 
-pub use native_vocabulary::ownership_frontier::{
+pub use operation_evidence::ownership_frontier::{
     OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     encode_ownership_frontier_site,

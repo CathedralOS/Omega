@@ -13,8 +13,8 @@
   edited blocks, and digest rosters.
 */
 
-use native_vocabulary::provenance::PsiProvenance;
-use native_vocabulary::provenance::WorkSettlement;
+use operation_evidence::provenance::PsiProvenance;
+use operation_evidence::provenance::WorkSettlement;
 use register_model::encode_constraint_key;
 use semantic_vocabulary::{IntegerSign, ScalarType};
 
@@ -1301,7 +1301,7 @@ mod ordinary {
 mod register {
     use super::{encode_option_u16, encode_scalar_type};
     use crate::VirtualRegister;
-    use native_vocabulary::provenance::encode_value_definition_site_identity;
+    use operation_evidence::provenance::encode_value_definition_site_identity;
 
     pub(super) fn encode(bytes: &mut Vec<u8>, register: &VirtualRegister) {
         crate::codec_bytes::push_encoded(bytes, register.id.0.to_le_bytes());
