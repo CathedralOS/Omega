@@ -174,10 +174,9 @@ mod proposal {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
         pub native_bindings: &'input [native_binding_admission::NativeBindingInput<'input>],
         pub direct_boundary_leaves: Vec<&'input direct_boundary_bindings::DirectBoundaryLeaf>,
-        pub target_profile: Option<target::TargetProfile>,
+        pub target_profile: target::TargetProfile,
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
-        pub native_target: Option<target::NativeTarget>,
-        pub program_entry: Option<crate::NativeProgramEntrySettlement<'input>>,
+        pub program_entry: crate::NativeProgramEntrySettlement<'input>,
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
@@ -193,21 +192,8 @@ mod proposal {
         checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
         request: TerminalNativeProposalRequest<'_>,
     ) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
-        let target_profile = request.target_profile.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Terminal native proposal requires one selected target profile",
-            )]
-        })?;
-        let native_target = request.native_target.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Terminal native proposal requires one selected native target",
-            )]
-        })?;
-        let program_entry = request.program_entry.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Terminal native proposal requires one exact selected ProgramEntry",
-            )]
-        })?;
+        let target_profile = request.target_profile;
+        let program_entry = request.program_entry;
         if program_entry.source().target_slot().owner != target_profile {
             return Err(vec![Diagnostic::error(
                 "Terminal native proposal target, profile, and ProgramEntry disagree",
@@ -217,7 +203,7 @@ mod proposal {
             artifact,
             &checked_program_entry,
             program_entry.with_checked_entry(&checked_program_entry),
-            native_target,
+            target_profile.native_target(),
         )
         .map_err(|error| {
             vec![Diagnostic::error(format!(

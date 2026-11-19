@@ -157,24 +157,21 @@ fn prepare_published_application<Publisher>(
         evaluated_binding_identities: realization.evaluated_binding_identities(),
         native_bindings: &[],
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
-        target_profile: Some(profile),
+        target_profile: profile,
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: realization.plans(),
             selected_provider_provenance: provenance,
             calling_applications: realization.calling_applications().to_vec(),
         },
-        native_target: Some(profile.native_target()),
-        program_entry: Some(
-            NativeProgramEntrySettlement::new(
-                entry.source_signature(),
-                Some((
-                    &plans.semantic_calling_application,
-                    &plans.physical_calling_application,
-                    &plans.storage_entry,
-                )),
-            )
-            .with_checked_entry(&receipt),
-        ),
+        program_entry: NativeProgramEntrySettlement::new(
+            entry.source_signature(),
+            Some((
+                &plans.semantic_calling_application,
+                &plans.physical_calling_application,
+                &plans.storage_entry,
+            )),
+        )
+        .with_checked_entry(&receipt),
         application: inputs.application,
         optimizations: inputs.optimizations.project_post_terminal(),
         external_bindings: realization.external_bindings(),

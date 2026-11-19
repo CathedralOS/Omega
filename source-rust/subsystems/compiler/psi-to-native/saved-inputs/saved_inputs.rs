@@ -1373,6 +1373,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn saved_target_requires_the_two_recorded_coordinates_to_agree() {
+        let profile = target::TargetProfile::LinuxX64;
+        assert_eq!(
+            saved_target(Some(profile), Some(profile.native_target())).unwrap(),
+            profile
+        );
+        assert!(saved_target(Some(profile), None).is_err());
+        assert!(saved_target(None, Some(profile.native_target())).is_err());
+        assert!(
+            saved_target(
+                Some(profile),
+                Some(target::TargetProfile::MacosArm64.native_target())
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
     fn darwin_integer_aggregate_shape_round_trip_preserves_composite_identity() {
         let scalar = calling_conventions::ValueShape::integer(4, 2);
         let record = calling_conventions::ValueShape::integer_aggregate(4, 2);
@@ -1646,7 +1664,6 @@ fn capture(
         direct_boundary_leaves,
         target_profile,
         boundaries,
-        native_target,
         program_entry,
         application,
         optimizations,
@@ -1666,7 +1683,8 @@ fn capture(
     for leaf in direct_boundary_leaves {
         leaf.write(&mut output)?;
     }
-    target_profile.write(&mut output)?;
+    // OMGNTI41 includes presence tags for both target coordinates and the entry.
+    Some(*target_profile).write(&mut output)?;
     boundaries
         .selected_provider_plans
         .clone()
@@ -1689,14 +1707,9 @@ fn capture(
         }
     }
     boundaries.calling_applications.write(&mut output)?;
-    native_target.write(&mut output)?;
-    match program_entry {
-        None => 0u8.write(&mut output)?,
-        Some(entry) => {
-            1u8.write(&mut output)?;
-            EntryRecord::write_borrowed(*entry, &mut output)?;
-        }
-    }
+    Some(target_profile.native_target()).write(&mut output)?;
+    1u8.write(&mut output)?;
+    EntryRecord::write_borrowed(*program_entry, &mut output)?;
     application.write(&mut output)?;
     optimizations.write(&mut output)?;
     write_values(external_bindings, &mut output)?;
@@ -1898,6 +1911,28 @@ impl DerivationInputs {
     }
 }
 
+fn saved_target(
+    profile: Option<target::TargetProfile>,
+    native: Option<target::NativeTarget>,
+) -> Result<target::TargetProfile, Vec<Diagnostic>> {
+    let profile = profile.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one selected target profile",
+        )]
+    })?;
+    let native = native.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one selected native target",
+        )]
+    })?;
+    if native != profile.native_target() {
+        return Err(vec![Diagnostic::error(
+            "saved native target differs from the selected target profile",
+        )]);
+    }
+    Ok(profile)
+}
+
 pub fn recover_native_derivation_inputs(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     bytes: &[u8],
@@ -1962,15 +1997,19 @@ pub fn recover_native_derivation_inputs(
                 "recovered accepted package permission candidates: {reason:?}"
             ))
         })?;
-    let entry_adapter_requested = entry
-        .as_ref()
-        .is_some_and(|entry| entry.physical_adapter_requested);
+    let target_profile = saved_target(profile, native)?;
+    let entry = entry.as_ref().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Terminal native proposal requires one exact selected ProgramEntry",
+        )]
+    })?;
+    let entry_adapter_requested = entry.physical_adapter_requested;
     let native_inputs = native_bindings.inputs();
     let request = TerminalNativeProposalRequest {
         native_bindings: &native_inputs,
         evaluated_binding_identities: &evaluated_binding_identities,
         direct_boundary_leaves: leaves.iter().collect(),
-        target_profile: profile,
+        target_profile,
         boundaries:
             verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement {
                 selected_provider_plans: &selected,
@@ -1986,8 +2025,7 @@ pub fn recover_native_derivation_inputs(
                     .collect(),
                 calling_applications: calling,
             },
-        native_target: native,
-        program_entry: entry.as_ref().map(EntryRecord::borrowed),
+        program_entry: entry.borrowed(),
         application,
         optimizations,
         external_bindings: &external,
