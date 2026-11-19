@@ -253,11 +253,29 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
     let (declarations, intents) = capture(&four);
     assert!(declarations[0].application.is_some());
     let mut receiving = make("Raw::read<4>");
+    // The receiver prepared a different application in the producer's first slot.
+    let mut eight = make("Raw::read<8>");
+    prepare(&mut eight).unwrap();
+    let (other, _) = capture(&eight);
+    let other_selections = collect_captured(&mut receiving, &other, &intents).unwrap();
+    let [other_selection] = other_selections.as_slice() else {
+        panic!("one other closed binding must rejoin")
+    };
+    super::require_canonical_requirement(other_selection, &receiving).unwrap();
     let selections = collect_captured(&mut receiving, &declarations, &intents).unwrap();
     let [selection] = selections.as_slice() else {
         panic!("one binding must rejoin")
     };
     assert!(selection.application.is_some());
+    assert_eq!(
+        prepared.closed_requirement,
+        Some(other_selection.requirement)
+    );
+    assert_ne!(prepared.closed_requirement, Some(selection.requirement));
+    assert_eq!(
+        selection.requirement_identity,
+        declarations[0].requirement_identity
+    );
     super::require_canonical_requirement(selection, &receiving).unwrap();
     let mut missing = selection.clone();
     missing.application = None;
@@ -272,14 +290,6 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
     assert_eq!(closed.portable_local_arguments.len(), 1);
     assert_ne!(selection.requirement, closed.template);
 
-    let mut eight = make("Raw::read<8>");
-    prepare(&mut eight).unwrap();
-    let (other, _) = capture(&eight);
-    let other_selections = collect_captured(&mut receiving, &other, &intents).unwrap();
-    let [other_selection] = other_selections.as_slice() else {
-        panic!("one other closed binding must rejoin")
-    };
-    super::require_canonical_requirement(other_selection, &receiving).unwrap();
     let mut changed_handle = selection.clone();
     changed_handle.application = other_selection.application;
     assert_eq!(
