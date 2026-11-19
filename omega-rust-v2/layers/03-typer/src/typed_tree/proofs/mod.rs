@@ -1,3 +1,4 @@
+pub(crate) mod interface_contract;
 pub(crate) mod logical_hypothesis;
 pub(crate) mod obligation_kind;
 pub(crate) mod ranking_witness;

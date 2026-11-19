@@ -9,7 +9,7 @@ use crate::declarations::resolved_sources::index_resolved_sources;
 use crate::evaluation::check_static_indices::check_static_indices;
 use crate::evaluation::{integer_program, specialized_indices};
 use crate::expressions::check_bodies::check_bodies;
-use crate::toolchain_declarations::source_package::TOOLCHAIN_PACKAGE;
+use crate::toolchain_declarations::core_interface::core_interface;
 use crate::type_system::width_obligations::collect_width_obligations;
 use crate::{TypeError, TypedStage, TypingEnvironment};
 use omega_parser::NodeKind;
@@ -21,7 +21,7 @@ pub(crate) fn type_admitted_stage(
     admits_toolchain_declarations: bool,
     environment: &TypingEnvironment<'_>,
 ) -> Result<TypedStage, TypeError> {
-    let mut units = index_resolved_sources(sources, resolved, admits_toolchain_declarations)?;
+    let mut units = index_resolved_sources(sources, resolved)?;
     let mut catalog = DeclarationCatalog {
         assembly: environment.target,
         ranking_views: environment.ranking_views,
@@ -52,6 +52,9 @@ pub(crate) fn type_admitted_stage(
         unit.index_const_carriers(&mut catalog.types)?;
     }
     let mut output = TypedStage::default();
+    if admits_toolchain_declarations {
+        core_interface().install(&mut catalog, &mut output);
+    }
     collect_width_obligations(&units, &mut catalog, &mut output)?;
     for unit in &units {
         unit.index_aliases(&mut catalog.types)?;
@@ -68,13 +71,21 @@ pub(crate) fn type_admitted_stage(
         logical_hypotheses::index_logical_hypotheses(unit, &mut catalog, &mut output)?;
     }
     for unit in &units {
-        unit.index_declarations(&mut catalog, admits_toolchain_declarations && unit.file.package == TOOLCHAIN_PACKAGE)?;
+        unit.index_declarations(&mut catalog)?;
     }
     logical_hypotheses::record_assumption_dependencies(&units, &mut catalog, &mut output)?;
     callback_bounds::resolve_callback_bounds(&units, &mut catalog)?;
     index_operator_declarations(&units, resolved, &mut catalog)?;
     constants::infer(&units, &mut catalog, &mut output)?;
     check_bodies(&units, &catalog, &mut output)?;
+    if !output.collection_accesses.is_empty() {
+        output.interface_contracts.extend(
+            crate::collection_contracts()
+                .interface_contracts
+                .iter()
+                .cloned(),
+        );
+    }
     check_static_indices(&units, &catalog, &mut output)?;
     machine_effects::check_machine_effects(&catalog, &mut output)?;
     callback_invocations::compose_callback_invocations(&units, &catalog, environment.boundary_slots, &mut output)?;

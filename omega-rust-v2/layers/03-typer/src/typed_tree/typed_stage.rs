@@ -10,6 +10,7 @@ use omega_resolver::DeclarationId;
 
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct TypedStage {
+    pub interface_contracts: Vec<crate::InterfaceContract>,
     pub mathematical_interfaces: Vec<(DeclarationId, ValueType, Vec<DeclarationId>)>,
     pub logical_hypotheses: Vec<LogicalHypothesis>,
     pub expressions: Vec<TypedExpression>,

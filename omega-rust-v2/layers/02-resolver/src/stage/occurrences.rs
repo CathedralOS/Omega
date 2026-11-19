@@ -113,7 +113,7 @@ impl Catalog<'_> {
                                     .get(name.as_str())
                                     .into_iter()
                                     .flatten()
-                                    .find(|l| l.owner == self.entries[*domain].node)
+                                    .find(|l| l.owner == self.entries[*domain].source.expect("source domain").1)
                                 {
                                     argument_roles.insert(arg, matches!(binding.kind, TypeParam | SomeParam));
                                 }
@@ -313,7 +313,9 @@ impl Catalog<'_> {
                             .unwrap_or_default();
                         for (&slot, key) in &self.carriers {
                             let e = &self.entries[slot];
-                            let declared_here = e.id.package == file.package && self.files[e.file].namespace == file.namespace;
+                            let declared_here = e.id.package == file.package
+                                && e.source
+                                    .is_some_and(|(i, _)| self.files[i].namespace == file.namespace);
                             if !declared_here && !ctx.exposed_domains.contains_key(&slot) {
                                 continue;
                             }
@@ -357,7 +359,7 @@ impl Catalog<'_> {
                     && self.entries[*owner].lexical_owner.is_none()
                     && !file
                         .enclosing_contexts(n)
-                        .take_while(|&a| a != self.entries[*owner].node)
+                        .take_while(|&a| a != self.entries[*owner].source.expect("lexical owner").1)
                         .any(|a| matches!(file.nodes[a].kind, Body | Access | SelectionRow))
                     && candidates.iter().any(|&i| !self.entries[i].public)
                 {

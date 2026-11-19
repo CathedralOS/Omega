@@ -54,10 +54,9 @@ fn callable(kind: NodeKind) -> bool {
 
 struct Entry {
     id: DeclarationId,
-    file: usize,
+    source: Option<(usize, usize)>,
     public: bool,
     lexical_owner: Option<usize>,
-    node: usize,
     generic_roles: Vec<NodeKind>,
 }
 type Index = BTreeMap<(String, String), Vec<usize>>;
@@ -94,6 +93,23 @@ pub fn resolve_stage_for_target(
     dependencies: &[Dependency<'_>],
     assembly: &AssemblyVocabulary<'_>,
 ) -> Result<ResolvedStage, NameError> {
+    resolve_stage_with_exports(sources, dependencies, assembly, &[])
+}
+
+/// A public name from a compiled interface. The supported declarations have no
+/// lexical owner, inherited traits, domain carriers or target-specific behavior.
+pub struct InterfaceExport {
+    pub id: DeclarationId,
+    pub generic_roles: Vec<NodeKind>,
+    pub module: &'static str,
+}
+
+pub fn resolve_stage_with_exports(
+    sources: &[StageSource<'_>],
+    dependencies: &[Dependency<'_>],
+    assembly: &AssemblyVocabulary<'_>,
+    exports: &[InterfaceExport],
+) -> Result<ResolvedStage, NameError> {
     let mut files: Vec<_> = sources.iter().map(File::read).collect::<Result<_, _>>()?;
     files.sort_by_key(|f| (f.package, f.path));
     let mut entries = Vec::new();
@@ -116,6 +132,43 @@ pub fn resolve_stage_for_target(
             modules.insert((file.package.to_owned(), parts[..depth].join("::")));
         }
         contexts.push(index_file(file, i, &mut entries, &mut index)?);
+    }
+    let source_count = entries.len();
+    for export in exports {
+        let id = &export.id;
+        let error = |message: &str| NameError::new(&id.package, &id.path, SourceSpan::new(0, 0), message);
+        if files
+            .binary_search_by(|f| f.package.cmp(id.package.as_str()))
+            .is_ok()
+        {
+            return Err(error("source package collides with a compiled interface"));
+        }
+        if !matches!(
+            id.kind,
+            NodeKind::Data | NodeKind::Machine | NodeKind::Case | NodeKind::CaseField | NodeKind::Field | NodeKind::Trait
+        ) {
+            return Err(error("unsupported declaration in compiled interface"));
+        }
+        let slots = index.entry((id.package.clone(), id.path.clone())).or_default();
+        if slots.iter().any(|&slot| entries[slot].id == *id) {
+            return Err(error("duplicate declaration in compiled interface"));
+        }
+        slots.push(entries.len());
+        entries.push(Entry {
+            id: id.clone(),
+            source: None,
+            public: true,
+            lexical_owner: None,
+            generic_roles: export.generic_roles.clone(),
+        });
+        let mut module = export.module;
+        loop {
+            modules.insert((id.package.clone(), module.to_owned()));
+            if module.is_empty() {
+                break;
+            }
+            module = module.rsplit_once("::").map_or("", |(parent, _)| parent);
+        }
     }
     let mut edges = BTreeMap::new();
     for edge in dependencies {
@@ -147,13 +200,14 @@ pub fn resolve_stage_for_target(
         provisional.imports(file, &mut contexts[i], &mut vec![], true)?;
     }
     provisional.index_trait_parents(&contexts)?;
-    let owners: Vec<_> = entries
+    let owners: Vec<_> = entries[..source_count]
         .iter()
         .map(|entry| {
-            let file = &files[entry.file];
-            let ctx = &contexts[entry.file];
+            let (file_number, node) = entry.source.expect("source declaration");
+            let file = &files[file_number];
+            let ctx = &contexts[file_number];
             let mut owners = vec![];
-            for &section in file.nodes[entry.node]
+            for &section in file.nodes[node]
                 .children
                 .iter()
                 .filter(|&&i| matches!(file.nodes[i].kind, NodeKind::Params | NodeKind::Result))
@@ -185,7 +239,7 @@ pub fn resolve_stage_for_target(
                     {
                         continue;
                     }
-                    let mut slots = provisional.lookup(file, entry.file, ctx, n, &name);
+                    let mut slots = provisional.lookup(file, file_number, ctx, n, &name);
                     slots.sort_unstable();
                     slots.dedup();
                     for i in slots {
@@ -202,10 +256,11 @@ pub fn resolve_stage_for_target(
     let trait_parents = provisional.trait_parents;
     for (i, signature_owners) in owners.into_iter().enumerate() {
         entries[i].id.signature_owners = signature_owners;
-        if let Some(owner) = entries[i]
-            .lexical_owner
-            .and_then(|n| contexts[entries[i].file].entries.get(&n))
-        {
+        if let Some(owner) = entries[i].lexical_owner.and_then(|n| {
+            contexts[entries[i].source.expect("source declaration").0]
+                .entries
+                .get(&n)
+        }) {
             let parent = &entries[*owner].id;
             let mut ancestry = parent.enclosing_machines.clone();
             ancestry.push(EnclosingMachine {
@@ -224,8 +279,9 @@ pub fn resolve_stage_for_target(
             .take_while(|&other| other < i)
             .any(|other| entries[other].id == entry.id)
         {
-            let file = &files[entry.file];
-            let name = file.child(entry.node, NodeKind::Path).unwrap_or(entry.node);
+            let (file_number, node) = entry.source.expect("source declaration");
+            let file = &files[file_number];
+            let name = file.child(node, NodeKind::Path).unwrap_or(node);
             return Err(file.error(file.span(name), format!("duplicate declaration {}", entry.id.path)));
         }
     }
@@ -252,25 +308,27 @@ pub fn resolve_stage_for_target(
         catalog.imports(file, &mut contexts[file_number], &mut uses, false)?;
         import_ranges.push(first..uses.len());
     }
-    for entry in entries.iter().filter(|e| callable(e.id.kind)) {
-        let file = &files[entry.file];
-        if let Some(head) = file.child(entry.node, NodeKind::Path)
+    for entry in entries[..source_count].iter().filter(|e| callable(e.id.kind)) {
+        let (file_number, node) = entry.source.expect("source declaration");
+        let file = &files[file_number];
+        if let Some(head) = file.child(node, NodeKind::Path)
             && let Some((owner, _)) = file.nodes[head].path().rsplit_once("::")
         {
-            let owners = catalog.lookup(file, entry.file, &contexts[entry.file], head, owner);
+            let owners = catalog.lookup(file, file_number, &contexts[file_number], head, owner);
             if owners.iter().any(|&i| entries[i].id.kind == NodeKind::Data) {
                 return Err(file.error(file.span(head), "a data carrier cannot own a machine"));
             }
         }
     }
-    for (slot, entry) in entries
+    for (slot, entry) in entries[..source_count]
         .iter()
         .enumerate()
         .filter(|(_, e)| e.id.kind == NodeKind::Domain)
     {
-        let file = &files[entry.file];
-        let context = &contexts[entry.file];
-        let Some(head) = file.child(entry.node, NodeKind::PathType) else { continue };
+        let (file_number, node) = entry.source.expect("source declaration");
+        let file = &files[file_number];
+        let context = &contexts[file_number];
+        let Some(head) = file.child(node, NodeKind::PathType) else { continue };
         let name = file.nodes[head].path();
         let Some((carrier, _)) = name.rsplit_once("::") else { continue };
         let key = if builtin(carrier) {
@@ -280,11 +338,11 @@ pub fn resolve_stage_for_target(
             .get(carrier)
             .into_iter()
             .flatten()
-            .any(|l| l.owner == entry.node && l.kind == NodeKind::TypeParam)
+            .any(|l| l.owner == node && l.kind == NodeKind::TypeParam)
         {
             Carrier::Generic
         } else {
-            let slots = catalog.lookup(file, entry.file, context, head, carrier);
+            let slots = catalog.lookup(file, file_number, context, head, carrier);
             let mut owners = slots
                 .into_iter()
                 .filter(|&i| matches!(entries[i].id.kind, NodeKind::Data | NodeKind::Domain));
@@ -317,9 +375,15 @@ pub fn resolve_stage_for_target(
     Ok(ResolvedStage {
         definition_sites: entries
             .iter()
-            .map(|e| DefinitionSite {
-                file: files[e.file].path.into(),
-                span: files[e.file].span(e.node),
+            .map(|e| match e.source {
+                Some((file, node)) => DefinitionSite {
+                    file: files[file].path.into(),
+                    span: files[file].span(node),
+                },
+                None => DefinitionSite {
+                    file: e.id.path.clone(),
+                    span: SourceSpan::new(0, 0),
+                },
             })
             .collect(),
         declarations: entries.into_iter().map(|entry| entry.id).collect(),

@@ -8,7 +8,6 @@ use std::collections::HashMap;
 pub(crate) fn index_resolved_sources<'a>(
     sources: &[StageSource<'a>],
     resolved: &'a ResolvedStage,
-    admits_toolchain_declarations: bool,
 ) -> Result<Vec<ResolvedSourceFile<'a>>, TypeError> {
     let mut units = Vec::new();
     let mut by_path = HashMap::new();
@@ -19,7 +18,7 @@ pub(crate) fn index_resolved_sources<'a>(
             span: e.span,
             message: e.message,
         })?;
-        if !admits_toolchain_declarations && f.package == TOOLCHAIN_PACKAGE {
+        if f.package == TOOLCHAIN_PACKAGE {
             return Err(TypeError::at(&f, 0, "package identity reserved for the toolchain"));
         }
         by_path.insert((f.package, f.path), units.len());

@@ -10,15 +10,16 @@ impl Catalog<'_> {
     ) -> Result<(), NameError> {
         let mut direct = std::collections::BTreeMap::new();
         for entry in self.entries.iter().filter(|e| e.id.kind == NodeKind::Trait) {
-            let file = &self.files[entry.file];
+            let Some((file_number, node)) = entry.source else { continue };
+            let file = &self.files[file_number];
             let mut parents = vec![];
-            for &base in file.nodes[entry.node]
+            for &base in file.nodes[node]
                 .children
                 .iter()
                 .filter(|&&n| file.nodes[n].kind == NodeKind::PathType)
             {
                 let name = file.nodes[base].path();
-                let ids = self.lookup(file, entry.file, &contexts[entry.file], base, &name);
+                let ids = self.lookup(file, file_number, &contexts[file_number], base, &name);
                 let mut traits = ids
                     .iter()
                     .map(|&i| &self.entries[i])
@@ -30,10 +31,12 @@ impl Catalog<'_> {
                     return Err(file.error(file.span(base), format!("ambiguous trait {name}")));
                 }
                 let boundary = |e: &super::Entry| {
-                    self.files[e.file].nodes[e.node]
-                        .words()
-                        .take_while(|w| w.text != "trait")
-                        .any(|w| w.text == "boundary")
+                    e.source.is_some_and(|(file, node)| {
+                        self.files[file].nodes[node]
+                            .words()
+                            .take_while(|w| w.text != "trait")
+                            .any(|w| w.text == "boundary")
+                    })
                 };
                 if boundary(parent) && !boundary(entry) {
                     return Err(file.error(file.span(base), "ordinary trait inherits a boundary trait"));
@@ -48,7 +51,8 @@ impl Catalog<'_> {
             while let Some(parent) = todo.pop() {
                 if &parent == key {
                     let e = &self.entries[self.index[key][0]];
-                    return Err(self.files[e.file].error(self.files[e.file].span(e.node), "cyclic trait inheritance"));
+                    let (file, node) = e.source.expect("cycle in source trait");
+                    return Err(self.files[file].error(self.files[file].span(node), "cyclic trait inheritance"));
                 }
                 if reached.insert(parent.clone())
                     && let Some(next) = direct.get(&parent)
@@ -179,7 +183,10 @@ impl Catalog<'_> {
                             .copied()
                             .filter(|&i| {
                                 let e = &self.entries[i];
-                                e.id.kind == NodeKind::Domain && self.files[e.file].namespace == address.1 && (e.public || p == file.package)
+                                e.id.kind == NodeKind::Domain
+                                    && e.source
+                                        .is_some_and(|(file, _)| self.files[file].namespace == address.1)
+                                    && (e.public || p == file.package)
                             })
                             .map(|i| (i, span)),
                     );
@@ -294,7 +301,7 @@ impl Catalog<'_> {
                     .copied()
                     .filter(|&i| {
                         let e = &self.entries[i];
-                        e.lexical_owner.is_none() || (e.file == file_number && e.lexical_owner == Some(owner))
+                        e.lexical_owner.is_none() || (e.source.is_some_and(|(file, _)| file == file_number) && e.lexical_owner == Some(owner))
                     })
                     .collect();
                 if !visible.is_empty() {
@@ -306,7 +313,11 @@ impl Catalog<'_> {
         let mut preferred: Vec<_> = local
             .iter()
             .copied()
-            .filter(|&i| self.entries[i].file == file_number)
+            .filter(|&i| {
+                self.entries[i]
+                    .source
+                    .is_some_and(|(file, _)| file == file_number)
+            })
             .collect();
         if let Some(imported) = ctx.imports.get(path) {
             preferred.extend(imported);

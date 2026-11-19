@@ -12,6 +12,12 @@ pub(crate) struct DeclaredPauseBounds {
     pub(super) block: Option<bool>,
 }
 impl DeclaredPauseBounds {
+    pub(crate) fn interface(published: bool) -> Self {
+        Self {
+            block: published.then_some(false),
+            suspend: published.then_some(false),
+        }
+    }
     pub fn declared(self) -> PauseEffects {
         PauseEffects {
             suspend: self.suspend == Some(true),

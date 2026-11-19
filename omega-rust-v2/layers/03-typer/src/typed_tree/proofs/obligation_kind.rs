@@ -24,6 +24,8 @@ pub enum ObligationKind {
     Termination(DeclarationId),
     TotalCrashGuard,
     AdmitMathematicalAssumption(DeclarationId),
+    /// Linking a library machine requires a checked implementation of its published contract.
+    VerifyLibraryImplementation(DeclarationId),
     ProveGuarantee {
         machine: DeclarationId,
         predicate: Site,

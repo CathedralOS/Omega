@@ -47,6 +47,7 @@ pub use typed_tree::effects::invocation_target::InvocationTarget;
 pub use typed_tree::effects::machine_effects::MachineEffects;
 pub use typed_tree::effects::pause_effects::PauseEffects;
 pub use typed_tree::effects::service_application::ServiceApplication;
+pub use typed_tree::proofs::interface_contract::{ContractPredicate, ContractTerm, InterfaceContract};
 pub use typed_tree::proofs::logical_hypothesis::LogicalHypothesis;
 pub use typed_tree::proofs::obligation_kind::ObligationKind;
 pub use typed_tree::proofs::ranking_witness::RankingWitness;

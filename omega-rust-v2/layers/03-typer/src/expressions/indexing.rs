@@ -1,5 +1,5 @@
 use crate::expressions::body_typer::BodyTyper;
-use crate::toolchain_declarations::collection_contracts;
+use crate::toolchain_declarations::collection_contracts::CollectionPrimitive;
 use crate::{Access, CollectionAccess, CollectionSelectors, ObligationKind, Site, TypeError, ValueType};
 use omega_parser::NodeKind;
 
@@ -53,13 +53,13 @@ impl BodyTyper<'_, '_> {
                 return Ok(result);
             }
         };
-        let name = match (&requested, range) {
+        let primitive = match (&requested, range) {
             (Some(Access::Write), _) => return Err(TypeError::at(source, node_index, "no write-only collection adaptation")),
-            (Some(Access::Mut), false) => "element_mut",
-            (Some(Access::Mut), true) => "range_mut",
-            (Some(Access::Shared), false) => "element",
-            (_, true) => "range",
-            (None, false) => "read",
+            (Some(Access::Mut), false) => CollectionPrimitive::ElementMut,
+            (Some(Access::Mut), true) => CollectionPrimitive::RangeMut,
+            (Some(Access::Shared), false) => CollectionPrimitive::Element,
+            (_, true) => CollectionPrimitive::Range,
+            (None, false) => CollectionPrimitive::Read,
         };
         if requested == Some(Access::Mut) {
             match access {
@@ -70,8 +70,8 @@ impl BodyTyper<'_, '_> {
         } else if access == Some(&Access::Write) {
             return Err(TypeError::at(source, base, "cannot read through a write-only collection"));
         }
-        let contract = collection_contracts::signature(name);
-        if name == "read" && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy {
+        let contract = primitive.signature();
+        if primitive.requires_copy() && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy {
             return Err(TypeError::at(source, node_index, "indexed read requires a copy element"));
         }
         let element_args = std::slice::from_ref(element);

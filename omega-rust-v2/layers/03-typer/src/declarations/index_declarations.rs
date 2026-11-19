@@ -13,7 +13,6 @@ impl<'a> ResolvedSourceFile<'a> {
     pub(crate) fn index_declarations(
         &self,
         catalog: &mut DeclarationCatalog<'a>,
-        admits_toolchain_declarations: bool,
     ) -> Result<(), TypeError> {
         use NodeKind::*;
         let source = &self.file;
@@ -218,11 +217,7 @@ impl<'a> ResolvedSourceFile<'a> {
                         }
                     }
                     family.push(id);
-                    if node.kind != AsmMachine
-                        && !admits_toolchain_declarations
-                        && source.child(node_index, Body).is_none()
-                        && !node.parent.is_some_and(|p| source.nodes[p].kind == Trait)
-                    {
+                    if node.kind != AsmMachine && source.child(node_index, Body).is_none() && !node.parent.is_some_and(|p| source.nodes[p].kind == Trait) {
                         return Err(TypeError::at(source, node_index, "bodyless machine has no authorized supply"));
                     }
                     catalog.signatures.insert(

@@ -205,10 +205,9 @@ pub(super) fn index_file<'a>(
         ctx.entries.insert(n, slot);
         entries.push(Entry {
             id,
-            file: file_number,
+            source: Some((file_number, n)),
             public,
             lexical_owner,
-            node: n,
             generic_roles: generic_parameters.into_iter().map(|(_, kind)| kind).collect(),
         });
     }
