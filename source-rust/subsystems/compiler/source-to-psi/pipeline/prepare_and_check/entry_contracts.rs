@@ -67,7 +67,7 @@ pub fn select_program_entry_contract(
         .source_map()
         .ok_or_else(|| refuse("entry contract selection has no source inventory".into()))?;
     let mut matches = sources.selected_files().filter(|file| {
-        file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Product
+        file.dependency_scope == source_provenance::DependencyScope::Product
             && file.path.strip_prefix(&file.package_root).ok()
                 == Some(std::path::Path::new(contract.relative_source))
             && match selection {
@@ -139,7 +139,7 @@ pub fn selected_program_entry_boundary(
     use diagnostics::Diagnostic;
     let failure = |message| vec![Diagnostic::error(message)];
     let context = catalog.context();
-    if context.scope != declaration_contracts::source_identity::DependencyScope::Product {
+    if context.scope != source_provenance::DependencyScope::Product {
         return Err(failure(
             "selected entry boundary requires the Product service catalog",
         ));

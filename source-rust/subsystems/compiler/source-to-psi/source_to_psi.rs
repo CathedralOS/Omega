@@ -26,7 +26,7 @@ pub struct StageSource<'a> {
     pub selections: ProductSourceInputs<'a>,
     pub declaration_authority:
         Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
-    pub build_host: target::TargetProfile,
+    pub build_host: semantic_vocabulary::source_selections::ProductTarget,
 }
 
 pub fn compile(source: StageSource<'_>) -> Result<PublishedPsi, Vec<Diagnostic>> {
@@ -84,7 +84,7 @@ fn lex_and_parse(
         sources: Arc::clone(&source.files),
         top_level_bindings: source.imports.clone(),
         selection_authority: source.selections.layout_selection_authority.clone(),
-        build_helper_identity: source.build_host.target_name(),
+        build_helper_identity: source.build_host.canonical_name(),
         build_sources: Default::default(),
         build_stage: None,
         frontends: Default::default(),
