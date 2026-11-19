@@ -3536,7 +3536,7 @@ pub(crate) mod wrapping_equality {
 
     #[cfg(test)]
     mod tests {
-        use crate::mathematical_core::{assert_refused, verify_and_assert_forged};
+        use crate::bounded_denotation::test_utilities::{assert_refused, verify_and_assert_forged};
         use crate::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
         use semantic_vocabulary::{
             IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm,

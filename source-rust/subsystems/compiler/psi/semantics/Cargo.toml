@@ -28,4 +28,4 @@ optimization = { path = "../optimization-selections" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 numerics = { path = "numeric" }
 terminal-psi = { path = ".." }
-proof-admission = { path = "../../../source-to-psi/proof-admission" }
+proof-admission = { path = "../proofs/bounded" }

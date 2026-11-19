@@ -111,6 +111,8 @@ members = [
     "source-rust/subsystems/compiler/psi/optimization-selections",
     "source-rust/subsystems/compiler/psi/program-identity",
     "source-rust/subsystems/compiler/psi/proof-applications",
+    "source-rust/subsystems/compiler/psi/proofs/bounded",
+    "source-rust/subsystems/compiler/psi/proofs/mathematical",
     "source-rust/subsystems/compiler/psi/schema",
     "source-rust/subsystems/compiler/psi/semantics",
     "source-rust/subsystems/compiler/psi/semantics/numeric",

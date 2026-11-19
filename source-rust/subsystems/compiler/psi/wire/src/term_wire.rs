@@ -497,7 +497,7 @@ pub(crate) mod mathematical_certificate_wire {
 
     use std::collections::HashMap;
 
-    use proof_admission::{
+    use mathematical_kernel::{
         Declaration, Level, MathematicalCertificate, Sort, Term, TermArena, TermHandle,
     };
 
@@ -1712,7 +1712,7 @@ pub(crate) mod proof_term_wire {
         use super::super::mathematical_certificate_wire::encode_mathematical_certificate;
 
         use super::*;
-        use proof_admission::{Declaration, MathematicalCertificate, Term, TermArena};
+        use mathematical_kernel::{Declaration, MathematicalCertificate, Term, TermArena};
 
         #[test]
         fn mixed_application_wire_tags_and_argument_roster_are_explicit() {

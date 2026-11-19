@@ -1,44 +1,12 @@
-/*
-    Search-free proof and admission checker for Terminal Psi and the common
-    predicative mathematical core (`sMLTT` with `Two`, `Id`, and `W`).
-
-    We re-decide closed primitive judgments (`kernel`), check explicit bounded
-    `ProofNode` certificates (`proof`), verify integer affine, cast, shift, and
-    forbidden-root witnesses (`integer_rules` and `integer_affine`), check
-    predicate and value-equality denotations (`predicate_denotation`), decide a
-    closed crash guard once (`closed_proposition`), and
-    denote accepted bounded certificates into our dependent term calculus
-    (`mathematical_core`, `mathematical_typing`, and `bounded_denotation`) so
-    the kernel independently re-decides every judgment.
-*/
-
-/*
-    Separating this small, deterministic, search-free verification kernel from
-    the proof-search and obligation-collection machinery in `proof` ensures that
-    neither Terminal Psi verification nor proof admission ever trusts a
-    producer's derivation flags, and that bounded proof nodes and universe-
-    polymorphic mathematical declarations share one predicative kernel.
-*/
-
-/*
-    Start at `admission` (in this file) for `verify_obligation`, `proof` for
-    `accept_certificate` and bounded `ProofNode` traversal, and
-    `mathematical_core` for `verify_mathematical_certificate` and `Signature`
-    checking. `mathematical_typing` implements dependent typing and conversion
-    judgments; `bounded_denotation` denotes bounded certificates into core
-    terms; `integer_rules` and `integer_affine` replay integer normalizations
-    and witnesses; `predicate_denotation` checks boolean predicate denotations;
-    `kernel` decides closed primitive judgments; `closed_proposition` decides a
-    closed crash guard for build-time admission and the interpreter and is not
-    the predicate-denotation conversion; and `classicality` classifies
-    proof-rule foundations.
-*/
+//! Check bounded Psi obligations from their supplied evidence. The mathematical
+//! kernel checks the translated judgment when a rule family has a denotation.
 
 #![forbid(unsafe_code)]
 
 mod bounded_denotation;
 mod integer_affine;
-mod mathematical_typing;
+#[cfg(test)]
+mod bounded_observations;
 pub(crate) mod admission {
     pub(crate) mod evidence {
         use std::collections::BTreeSet;
@@ -376,7 +344,6 @@ mod float_meaning;
 mod ieee_float_rules;
 mod integer_rules;
 mod kernel;
-mod mathematical_core;
 mod predicate_denotation;
 mod proof;
 pub(crate) mod term_matchers {
@@ -458,8 +425,12 @@ pub use integer_rules::integer_shift::{
     check_integer_shift_chain_witness,
 };
 pub use kernel::{KernelError, PrimitiveJudgment, decide_primitive};
-pub use mathematical_core::{
-    BoundedDenotation, BoundedDenotationError, Budget, Context, CoreError,
+pub use bounded_denotation::{
+    BoundedDenotation, BoundedDenotationError, SourceContentTheory, denote_bounded_certificate,
+    verify_bounded_certificate,
+};
+pub use mathematical_kernel::{
+    argument_error_pair_pattern, Budget, Context, CoreError,
     DEFAULT_CONVERSION_STEPS, Declaration, EquivalenceProofs, INDEXED_AT, INDEXED_IND,
     INDEXED_PACK, INDEXED_SUP, INDEXED_W, IndexedFamily, Level, MathematicalCertificate,
     MathematicalCertificateBatchError, QUOTIENT, QUOTIENT_BETA, QUOTIENT_BOX_PROP,
@@ -467,12 +438,12 @@ pub use mathematical_core::{
     QUOTIENT_ID_TRANS, QUOTIENT_IND_PROP, QUOTIENT_IS_SET, QUOTIENT_LIFT, QUOTIENT_PROJECT,
     QUOTIENT_PROP_IS_SET, QUOTIENT_SET, QUOTIENT_SOUND, QUOTIENT_TRANSPORT,
     QUOTIENT_TRANSPORT_CONST, QUOTIENT_UNIQUE, QuotientFamily, Signature, SignatureCheckError,
-    Sort, SourceContentTheory, Term, TermArena, TermHandle, assumption_closure,
+    Sort, Term, TermArena, TermHandle, assumption_closure,
     certificate_assumption_closure, check_signature, check_signature_with_attribution, check_type,
-    convertible, convertible_retaining, denote_bounded_certificate, identity_substitution,
+    convertible, convertible_retaining, identity_substitution,
     indexed_correctness, indexed_scheme, infer_sort, infer_type, instantiate_levels,
     judgment_assumption_closure, quotient_scheme, shift, substitute, universe_parameter_arity,
-    verify_bounded_certificate, verify_mathematical_certificate, verify_mathematical_certificates,
+    verify_mathematical_certificate, verify_mathematical_certificates,
     weak_head_normalize, weak_head_normalize_retaining,
 };
 pub use predicate_denotation::{

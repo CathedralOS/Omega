@@ -40,7 +40,6 @@ arena = { path = "../../foundation/arena" }
 semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../foundation/diagnostics" }
-proof-admission = { path = "../../../psi/compilation/proof-admission" }
 source-syntax = { path = "../compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/source-syntax" }
 syntax-trees = { path = "../compiler/source-to-psi/pipeline/representations/syntax-trees" }
 terminal-psi = { path = "../compiler/psi" }

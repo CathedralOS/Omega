@@ -5,7 +5,7 @@ applications, and slots, along with `IndexedTheoremRootTable` theorem-root looku
 
 pub(crate) mod applications {
 
-    use proof_admission::{Budget, Context, Signature, Term, infer_sort, weak_head_normalize};
+    use mathematical_kernel::{Budget, Context, Signature, Term, infer_sort, weak_head_normalize};
     use semantic_vocabulary::{MathematicalArgument, ScalarTerm};
     use terminal_psi::{ErasedProofFormal, TerminalModule};
 
@@ -122,7 +122,7 @@ pub(crate) mod applications {
             .map_err(Error::Kernel)?;
             let key = mathematical_carrier_key(
                 &decoded.arena,
-                &proof_admission::MathematicalCertificate {
+                &mathematical_kernel::MathematicalCertificate {
                     term: domain,
                     expected: domain,
                     ..decoded.certificate.clone()
@@ -143,7 +143,7 @@ pub(crate) mod applications {
         .map_err(Error::Kernel)?;
         let key = mathematical_carrier_key(
             &decoded.arena,
-            &proof_admission::MathematicalCertificate {
+            &mathematical_kernel::MathematicalCertificate {
                 term: result,
                 expected: result,
                 ..decoded.certificate.clone()
@@ -565,7 +565,7 @@ pub(crate) mod slots {
 
 use std::collections::BTreeSet;
 
-use proof_admission::{
+use mathematical_kernel::{
     Budget, CoreError, MathematicalCertificate, MathematicalCertificateBatchError, TermArena,
     certificate_assumption_closure, verify_mathematical_certificate,
     verify_mathematical_certificates,
@@ -839,7 +839,7 @@ pub(crate) mod indexed_theorem_roots {
 
     use std::collections::BTreeSet;
 
-    use proof_admission::{
+    use mathematical_kernel::{
         Budget, certificate_assumption_closure, verify_mathematical_certificates,
     };
     use terminal_psi::{TerminalIndexedTheorem, TerminalModule};

@@ -18,14 +18,14 @@ use semantic_vocabulary::{
 
 use crate::ClosedIntegerEvaluator;
 use crate::kernel::{KernelError, decide_primitive};
-use crate::mathematical_core::certificate::{
+use mathematical_kernel::{
     MathematicalCertificate, certificate_assumption_closure, verify_mathematical_certificate,
 };
-use crate::mathematical_core::conversion::Budget;
-use crate::mathematical_core::scheme_dsl::{self, Syntax};
-use crate::mathematical_core::signature::Declaration;
-use crate::mathematical_core::term::{Level, Sort, Term, TermArena, TermHandle};
-use crate::mathematical_core::typing::CoreError;
+use mathematical_kernel::Budget;
+use mathematical_kernel::scheme_dsl::{self, Syntax};
+use mathematical_kernel::Declaration;
+use mathematical_kernel::{Level, Sort, Term, TermArena, TermHandle};
+use mathematical_kernel::CoreError;
 use crate::proof::integer_math_normalization::{
     lift_fixed_integer_relation, propositions_match_under_integer_math_normalization,
 };
@@ -54,7 +54,7 @@ mod addition {
         affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
         unbounded_integer,
     };
-    use crate::mathematical_core::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
+    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
     use crate::term_matchers::is_math_add;
     use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 
@@ -1270,7 +1270,7 @@ mod binary_numerals {
     use semantic_vocabulary::{IntegerValue, Proposition, ScalarTerm};
 
     use super::{BoundedDenotationError, Declaration, Denotation, IntegerLaw, Term, TermHandle};
-    use crate::mathematical_core::scheme_dsl::{Syntax, apps, id, pi, scheme_at, v};
+    use mathematical_kernel::scheme_dsl::{Syntax, apps, id, pi, scheme_at, v};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Constructor {
@@ -1876,7 +1876,7 @@ mod booleans {
         BoundedDenotationError, Denotation, MAX_ELABORATION_NODES, ScalarTerm, Term, TermArena,
         TermHandle,
     };
-    use crate::mathematical_core::substitution::{shift, substitute};
+    use mathematical_kernel::{shift, substitute};
 
     pub(super) mod scalar_denotation {
         use super::*;
@@ -5490,7 +5490,7 @@ mod equality_transport {
         integer_value_of,
     };
     use super::{ProofNode, Proposition, Term, TermHandle};
-    use crate::mathematical_core::substitution::shift;
+    use mathematical_kernel::shift;
 
     mod coercion {
         use super::*;
@@ -6876,7 +6876,7 @@ mod equality_transport {
         fn deep_oriented_refutation_uses_default_stack_and_keeps_true_premises_open() {
             std::thread::spawn(|| {
         use super::Denotation;
-        use crate::mathematical_core::{Context, Term, infer_sort};
+        use mathematical_kernel::{Context, Term, infer_sort};
         for (depth, refutable) in [(8192, true), (32, true), (32, false)] {
             let mut d = Denotation::new();
             let truth = d.denote(&Proposition::Truth).unwrap();
@@ -6914,7 +6914,7 @@ mod equality_transport {
                     if matches!(node, Term::Fst { .. }) {
                         projections += 1;
                     }
-                    pending.extend(node.subterms().iter().map(|(child, _)| child));
+                    pending.extend(node.children());
                 }
                 assert_eq!(
                     projections, depth,
@@ -6949,7 +6949,7 @@ mod equality_transport {
         #[test]
         fn oriented_search_shares_allowance_across_failed_alternatives() {
             use super::Denotation;
-            use crate::mathematical_core::Term;
+            use mathematical_kernel::Term;
             for allowance in 0..=3 {
                 let mut d = Denotation::new();
                 let first = equal_value(1, 2);
@@ -8737,11 +8737,11 @@ mod forbidden_roots {
     use super::{
         BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, Term, TermHandle,
     };
-    use crate::mathematical_core::scheme_dsl::{
+    use mathematical_kernel::scheme_dsl::{
         self, apps, case_two, id, lam, pi, pis, scheme_at, sigma, sort, two, v,
     };
-    use crate::mathematical_core::substitution::shift;
-    use crate::mathematical_core::term::Level;
+    use mathematical_kernel::shift;
+    use mathematical_kernel::Level;
     use crate::{
         CheckedIntegerCorrelatedForbiddenRoots, CorrelatedAffineBranchWitness,
         IntegerCorrelatedForbiddenRootWitness,
@@ -10243,7 +10243,7 @@ mod forbidden_roots {
 
         use super::super::{Elaboration, verify_bounded_certificate_with_machine_parameters};
         use super::Law;
-        use crate::mathematical_core::Term;
+        use mathematical_kernel::Term;
         use crate::{
             Budget, CorrelatedAffineBranchWitness, IntegerCorrelatedForbiddenRootWitness,
             ProofError, ProofNode, ProofRule, correlated_step, proof_node, value_context,
@@ -11145,7 +11145,7 @@ mod multiplication {
         BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
         affine_witness_root_expression, unbounded_integer,
     };
-    use crate::mathematical_core::scheme_dsl::{self, apps, pi, pis, scheme_at, v};
+    use mathematical_kernel::scheme_dsl::{self, apps, pi, pis, scheme_at, v};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
     enum Law {
@@ -11643,7 +11643,7 @@ mod multiplication {
         use super::super::Elaboration;
         use super::super::test_utilities::{assert_refused, mathematical};
         use super::Law;
-        use crate::mathematical_core::Term;
+        use mathematical_kernel::Term;
         use crate::proof::assumption_proof;
         use crate::{
             Budget, IntegerAffineWitness, ProofNode, ProofRule, value_context,
@@ -12293,7 +12293,7 @@ mod source_content {
     */
 
     use super::{BoundedDenotationError, Denotation};
-    use crate::mathematical_core::{Declaration, Level, TermArena, TermHandle};
+    use mathematical_kernel::{Declaration, Level, TermArena, TermHandle};
     use semantic_vocabulary::ContentAlgebraKind;
 
     /// One arena's append-only content vocabulary. Stored handles belong to that
@@ -12442,7 +12442,7 @@ mod subtraction {
         BoundedDenotationError, Denotation, IntegerLaw, Term, TermHandle,
         affine_carrier_endpoint_equality, affine_root_premise, affine_witness_root_expression,
     };
-    use crate::mathematical_core::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
+    use mathematical_kernel::scheme_dsl::{self, apps, id, pi, pis, scheme_at, v};
     use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -14377,7 +14377,7 @@ fn denote_bounded_certificate_with_machine_parameters(
     proof: &ProofNode,
 ) -> Result<BoundedDenotation, BoundedDenotationError> {
     #[cfg(test)]
-    crate::mathematical_core::bounded_observations::record_denotation();
+    crate::bounded_observations::record_denotation();
     let mut elaboration = Elaboration::new(
         context,
         goal,
@@ -14731,7 +14731,7 @@ mod tests {
         ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm, Term,
         denote_bounded_certificate, verify_bounded_certificate,
     };
-    use crate::mathematical_core::{
+    use mathematical_kernel::{
         Budget, DEFAULT_CONVERSION_STEPS, certificate_assumption_closure,
         verify_mathematical_certificate,
     };
@@ -16015,7 +16015,7 @@ mod tests {
         fn wide_connective_denotation_uses_default_stack_and_preserves_order() {
             std::thread::spawn(|| {
         use super::super::Denotation;
-        use crate::mathematical_core::{Context, infer_sort};
+        use mathematical_kernel::{Context, infer_sort};
         for disjunctive in [false, true] {
             let mut parts = vec![Proposition::Truth; 16_384];
             parts.push(Proposition::Falsehood);
@@ -16043,7 +16043,7 @@ mod tests {
             };
             let actual = infer_sort(&mut denotation.arena, &Context::empty(), term, &mut Budget::new(2_000_000))
                 .expect("the complete connective denotes a type under its exact binders");
-            assert!(crate::mathematical_core::term::sorts_equal(&actual, &expected_sort));
+            assert!(mathematical_kernel::sorts_equal(&actual, &expected_sort));
             let mut tail = term;
             for _ in 0..16_384 {
                 let Term::Sigma { domain, codomain } = denotation.arena.get(tail) else {
@@ -16383,7 +16383,7 @@ mod tests {
         fn deep_closed_inhabitants_use_default_stack_and_refuse_false_tail() {
             std::thread::spawn(|| {
                 use super::super::Denotation;
-                use crate::mathematical_core::{Context, infer_sort};
+                use mathematical_kernel::{Context, infer_sort};
                 for (depth, valid) in [(8192, false), (8192, true), (64, true)] {
                     let mut denotation = Denotation::new();
                     let truth = denotation.denote(&Proposition::Truth).unwrap();
@@ -16477,9 +16477,9 @@ mod tests {
                 (dependent, dependent, None),
             ] {
                 let goal = d.tagged_sum(zero, one);
-                crate::mathematical_core::infer_sort(
+                mathematical_kernel::infer_sort(
                     &mut d.arena,
-                    &crate::mathematical_core::Context::empty(),
+                    &mathematical_kernel::Context::empty(),
                     goal,
                     &mut budget(),
                 )
@@ -16605,7 +16605,7 @@ mod tests {
         fn nested_logical_denotation_and_exact_cache_identity_use_default_stack() {
             std::thread::spawn(|| {
                 use super::super::Denotation;
-                use crate::mathematical_core::{Context, infer_sort};
+                use mathematical_kernel::{Context, infer_sort};
                 fn nested(last: Proposition) -> Proposition {
                     let mut proposition = last;
                     for depth in 0..8192 {
@@ -16773,7 +16773,7 @@ mod tests {
     }
     mod content_algebra {
         use super::*;
-        use crate::mathematical_core::{Level, Sort};
+        use mathematical_kernel::{Level, Sort};
         use crate::proof_node;
 
         fn content_algebra() -> ContentAlgebra {

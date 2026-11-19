@@ -14,9 +14,8 @@ pub use terminal_psi::{ProofNode, ProofRule};
 
 use semantic_vocabulary::{IntegerMathTerm, Proposition, PropositionContext, ScalarTerm, ValueId};
 
-use crate::mathematical_core::{
-    BoundedDenotationError, Budget, verify_bounded_certificate_with_machine_parameters,
-};
+use crate::bounded_denotation::{BoundedDenotationError, verify_bounded_certificate_with_machine_parameters};
+use mathematical_kernel::Budget;
 use crate::{
     IntegerAffineBoundConversionError, IntegerAffineWitnessError, IntegerCastBoundConversionError,
     IntegerCastChainWitnessError, IntegerCorrelatedForbiddenRootConversionError,
@@ -197,7 +196,7 @@ pub fn accept_certificate_with_machine_parameters(
     proof: &ProofNode,
 ) -> Result<CertificateAcceptance, ProofError> {
     #[cfg(test)]
-    crate::mathematical_core::bounded_observations::record_admission();
+    crate::bounded_observations::record_admission();
     context
         .validate(goal)
         .map_err(ProofError::MalformedProposition)?;
@@ -3586,7 +3585,7 @@ mod order_substitution_tests {
 
 #[cfg(test)]
 mod tests {
-    use crate::mathematical_core::bounded_verification_entries;
+    use crate::bounded_observations::bounded_verification_entries;
     use crate::proof::{assumption_proof, semantic_axiom_proof};
     use semantic_vocabulary::{
         IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, ScalarTerm, ScalarType,
