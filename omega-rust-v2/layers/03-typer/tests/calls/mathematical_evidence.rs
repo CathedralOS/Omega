@@ -315,3 +315,34 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
         }
     }
 }
+
+#[test]
+fn generated_alias_compositions_select_the_expected_binding() {
+    // Both meanings of X are in scope. First and Last can nest, so two wrong
+    // selections can cancel each other. Compare each tree to its selected leaf.
+    let leaves = [("core::Type<0>".to_owned(), true), ("u8".to_owned(), false)];
+    let mut kinds = leaves.to_vec();
+    for _ in 0..2 {
+        let children = kinds;
+        kinds = leaves.to_vec();
+        for (left, left_is_type) in &children {
+            for (right, right_is_type) in &children {
+                kinds.push((format!("First<{left},{right}>"), *left_is_type));
+                kinds.push((format!("Last<{left},{right}>"), *right_is_type));
+            }
+        }
+    }
+    kinds.sort_by_key(|(bound, _)| bound.len());
+    for (bound, takes_type) in kinds {
+        let source = format!("data X{{}} data First<A,B> = A; data Last<A,B> = B; machine pick<T:{bound}>(){{}} machine caller<X:u8>(){{pick::<X>()}}");
+        let stage = check(&[("rule.omg", &source)]).unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+        let [call] = stage.calls.as_slice() else { panic!("{source}\nexpected one call") };
+        let [argument] = call.type_arguments.as_slice() else { panic!("{source}\nexpected one argument") };
+        let correct = if takes_type {
+            matches!(argument, ValueType::Nominal(id) if id.path == "X")
+        } else {
+            matches!(argument, ValueType::Parameter {owner, index:0} if owner.path == "caller")
+        };
+        assert!(correct, "{source}\nexpected type role = {takes_type}, selected {argument:?}");
+    }
+}
