@@ -75,6 +75,22 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Native stage 01 constructs provider plans inside an abstract-operations representation
+
+- Category: Knowledge crossing a boundary.
+- Where: [Native stage 01](source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/native_execution.rs#L13) and [provider demand preparation](source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution.rs#L229).
+- Saw: The normal program and export paths derive an execution scope in stage 01. The representation then walks the program boundaries, combines providers and constructs the selected plan.
+- Cost: The numbered stage hides the decisions that bind a program to providers. Someone following the stage has to look under abstract operations to find them.
+- Reported: 2026-11-19, Codex, while tracing stage transformations into their input records.
+
+### Several source stages perform generic data preparation in the typed-tree representation
+
+- Category: Knowledge crossing a boundary.
+- Where: [Generic data preparation](source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/src/data_applications.rs#L60), [typing](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1892), [specialization](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/src/passes/specialization.rs#L189) and [compile-time argument evaluation](source-rust/subsystems/compiler/source-to-psi/compile_time/calls/arguments.rs#L58).
+- Saw: Typing, specialization and compile-time argument evaluation ask the representation to substitute constants and rebuild generic member payloads. The operation also invalidates applications affected by the substitutions.
+- Cost: Changing the timing or meaning of these substitutions requires tracing three callers through a file presented as data storage. Give the shared transformation an explicit owner and keep the stored rows with the representation.
+- Reported: 2026-11-19, Codex, while moving domain preparation into stage 04.
+
 ### Stage 05 accepts frozen trees that can skip the stage 04 passes
 
 - Category: The documents disagree.
