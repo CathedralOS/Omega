@@ -9,8 +9,8 @@ name: Post-merge check
 # reports (without failing) std portable-call differences across targets that
 # the reviewed baseline lacks and calling-plan placements that disagree with
 # clang;
-# `sample` runs one sample and one program that imports `std`, each natively
-# and in the interpreter; `tests` runs every Rust test in the workspace, only
+# `sample` runs a language sample, a libc provider fixture and a program that
+# imports `std` in both engines. `tests` runs every Rust test in the workspace, only
 # when a run is started by hand with `full` set. `report` writes the verdict
 # and the batch's commits to the run summary.
 #
@@ -27,6 +27,10 @@ on:
           wave of merges.
         type: boolean
         default: false
+      sample_only:
+        description: Run helper argument formation checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,11 +39,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: post-merge-check
+  group: ${{ github.ref == 'refs/heads/main' && 'post-merge-check' || format('post-merge-check-{0}', github.ref) }}
   cancel-in-progress: false
 
 jobs:
   post-merge-check:
+    if: ${{ !inputs.sample_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -113,7 +118,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # One sample and one `std` program, natively and in the interpreter. It
+  # Run a language sample, a libc fixture and a `std` program in both engines. It
   # builds `omega` from main's restored warm build, beside the other jobs, so
   # the compile holds up none of them.
   sample:
@@ -128,7 +133,7 @@ jobs:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -148,28 +153,73 @@ jobs:
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
-      - name: Run a sample natively and in the interpreter
+      - name: Build the optimized compiler for this revision
+        working-directory: /workspace/Omega
+        shell: bash
         run: |
-          cd /workspace/Omega
+          set -euo pipefail
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
-            mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
-      # The sample above imports no `std`, so a change that breaks the
-      # standard library would pass it. This fixture writes `K` through
-      # `std`'s Console and its Build's provider choices. It reuses the
-      # compiler the sample gate just built and takes about three minutes.
-      - name: Run a program that imports std natively and in the interpreter
+            mbx build --locked -p omega --bin omega --message-format=json > "$RUNNER_TEMP/omega-artifacts.json"
+          jq -es --arg compiler "$PWD/target/debug/omega" '[.[] | select(.reason=="compiler-artifact" and .target.name=="omega" and .executable==$compiler)] |
+            length == 1 and (.[] | (.profile.opt_level=="1" or .profile.opt_level=="2" or .profile.opt_level=="3"))' \
+            "$RUNNER_TEMP/omega-artifacts.json"
+          jq -c --arg compiler "$PWD/target/debug/omega" 'select(.reason=="compiler-artifact" and .target.name=="omega" and .executable==$compiler)' "$RUNNER_TEMP/omega-artifacts.json"
+          sha256sum target/debug/omega
+      - name: Run the valid helper domain in both engines
+        working-directory: /workspace/Omega/tests/fixtures/pass/domains/eager_helper_arguments
+        shell: bash
         run: |
-          cd /workspace/Omega/tests/fixtures/run/providers/default_console_provider_reached
+          set -euo pipefail
           omega=/workspace/Omega/target/debug/omega
-          [ -x "$omega" ] || { echo "the sample gate left no compiler at $omega" >&2; exit 1; }
-          env -u CI -u GITHUB_ACTIONS "$omega" run --both \
-            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/stdout.txt"
-          diff expected_stdout.txt "$RUNNER_TEMP/stdout.txt"
+          git -C /workspace/Omega rev-parse HEAD HEAD^{tree}
+          sha256sum main.omg build.omg
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both --keep --verbose \
+            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/helper-valid.stdout" 2> "$RUNNER_TEMP/helper-valid.stderr"
+          cat "$RUNNER_TEMP/helper-valid.stdout" "$RUNNER_TEMP/helper-valid.stderr"
+          grep -F 'native exit 0' "$RUNNER_TEMP/helper-valid.stderr"
+          grep -F 'interp exit: 0' "$RUNNER_TEMP/helper-valid.stderr"
+          kept=$(sed -n 's/^build dir kept: //p' "$RUNNER_TEMP/helper-valid.stderr" | tail -n 1)
+          case "$kept" in /*) ;; *) kept="$PWD/$kept";; esac
+          cp "$kept/program.oterm" "$RUNNER_TEMP/helper-program.oterm"
+          sha256sum "$RUNNER_TEMP/helper-program.oterm"
+          mkdir "$RUNNER_TEMP/helper-receiver"
+          cd "$RUNNER_TEMP/helper-receiver"
+          "$omega" psi inspect --artifact "$RUNNER_TEMP/helper-program.oterm"
+      - name: Reject the helper domain without its independent bound
+        working-directory: /workspace/Omega/tests/fixtures/fail/domains/eager_helper_arguments
+        shell: bash
+        run: |
+          set -euo pipefail
+          omega=/workspace/Omega/target/debug/omega
+          sha256sum main.omg build.omg
+          exit_code=0
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both --verbose \
+            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/helper-invalid.stdout" 2> "$RUNNER_TEMP/helper-invalid.stderr" || exit_code=$?
+          cat "$RUNNER_TEMP/helper-invalid.stdout" "$RUNNER_TEMP/helper-invalid.stderr"
+          test "$exit_code" = 200
+          grep -F 'contract arithmetic is not proved total before its condition' "$RUNNER_TEMP/helper-invalid.stderr"
+      - name: Reject the original zero case accepted by the baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          omega=/workspace/Omega/target/debug/omega
+          scratch=$(mktemp -d "$RUNNER_TEMP/helper-original-zero.XXXXXX")
+          cd "$scratch"
+          echo 'Ly8gRXhwZWN0ZWQgZXhpdDogMAptYWNoaW5lIGFsd2F5cyhpbnB1dDogdTY0KSAtPiBib29sIHsgdHJ1ZSB9CmRvbWFpbiB1NjQ6OlNhZmUgcmVxdWlyZXMgYWx3YXlzKDF1NjQgLyBzZWxmKTsKbWFjaGluZSBtYWluKCkgewogICAgbGV0IHZhbHVlOiB1NjQgaW4gU2FmZSA9IDB1NjQgYXMgK1NhZmU7Cn0K' | base64 -d > main.omg
+          echo 'bWFjaGluZSBidWlsZChidWlsZGVyOiAmbXV0IEJ1aWxkKSB7CiAgICBCdWlsZDo6YXBwbGljYXRpb24oYnVpbGRlciwgInF1YWxpZmllZF9ib3VuZGFyeV9pbnB1dCIpOwogICAgQnVpbGQ6OmJpbmQoYnVpbGRlciwgd2luZG93c194ODZfNjQ6OlByb2dyYW1FbnRyeSwgbWFpbik7CiAgICBCdWlsZDo6YmluZChidWlsZGVyLCBsaW51eF94ODZfNjQ6OlByb2dyYW1FbnRyeSwgbWFpbik7CiAgICBCdWlsZDo6YmluZChidWlsZGVyLCBtYWNvc19hcm02NDo6UHJvZ3JhbUVudHJ5LCBtYWluKTsKICAgIEJ1aWxkOjpiaW5kKGJ1aWxkZXIsIGxpbnV4X2FybTY0OjpQcm9ncmFtRW50cnksIG1haW4pOwp9Cg==' | base64 -d > build.omg
+          echo '9fcabbae1aea7120736a237729544c4c5943851051a22be5d4b01ce7b3a9b4a3  main.omg' | sha256sum -c -
+          sha256sum main.omg build.omg
+          exit_code=0
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both --verbose \
+            --build-input build.omg --build-input main.omg main.omg < /dev/null > "$RUNNER_TEMP/helper-zero.stdout" 2> "$RUNNER_TEMP/helper-zero.stderr" || exit_code=$?
+          cat "$RUNNER_TEMP/helper-zero.stdout" "$RUNNER_TEMP/helper-zero.stderr"
+          test "$exit_code" = 200
+          grep -F 'contract arithmetic is not proved total before its condition' "$RUNNER_TEMP/helper-zero.stderr"
 
   # Every Rust test in the workspace, only for a run started by hand with
   # `full` set: it adds most of an hour.
   tests:
-    if: inputs.full
+    if: inputs.full && !inputs.sample_only
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     # The container, user and path of a cloud session and of the warm-build
@@ -213,7 +263,7 @@ jobs:
 
   report:
     needs: [post-merge-check, sample, tests]
-    if: always()
+    if: ${{ always() && !inputs.sample_only }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -268,7 +318,7 @@ jobs:
             bad "the \`post-merge-check\` job failed or did not finish ($CHECKS); its log names the step."
           fi
           if [ "$SAMPLE" = success ]; then
-            ok "The sample and the std program run natively and in the interpreter."
+            ok "The language sample, libc fixture, and std program run in both engines."
           else
             bad "the \`sample\` job failed or did not finish ($SAMPLE)."
           fi
