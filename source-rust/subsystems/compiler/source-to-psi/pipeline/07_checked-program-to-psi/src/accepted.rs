@@ -903,7 +903,7 @@ mod tests {
         publication: terminal_codec::TerminalPublication,
     ) -> AcceptedTerminalSource {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../../tests/fixtures/pass/contracts")
+            .join("../../../../../../tests/fixtures/pass/contracts")
             .join(name)
             .join("main.omg");
         let text = std::fs::read_to_string(path).unwrap();

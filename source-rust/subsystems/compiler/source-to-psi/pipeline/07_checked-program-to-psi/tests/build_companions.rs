@@ -741,7 +741,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
             build,
             &native_binding_prelude(),
             Some(include_str!(
-                "../../../../../../source/library/core/external_binding.omg"
+                "../../../../../../../source/library/core/external_binding.omg"
             )),
         ),
         terminal_codec::TerminalPublication::Invocation,
@@ -794,7 +794,7 @@ machine build(builder: @mut Build) {
     // Identical syntax and storage do not authorize an edited core source.
     let lookalike = format!(
         "{}\n",
-        include_str!("../../../../../../source/library/core/external_binding.omg")
+        include_str!("../../../../../../../source/library/core/external_binding.omg")
     );
     // Explicit widths keep this control focused on publication custody;
     // inactive-width inference itself belongs only to the real core type.
@@ -839,7 +839,7 @@ fn a_selection_row_keeps_the_exact_operation_typing_recorded() {
             build,
             &native_binding_prelude(),
             Some(include_str!(
-                "../../../../../../source/library/core/external_binding.omg"
+                "../../../../../../../source/library/core/external_binding.omg"
             )),
         )
     };
@@ -1165,7 +1165,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
         "machine build(builder: @mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
-            "../../../../../../source/library/core/external_binding.omg"
+            "../../../../../../../source/library/core/external_binding.omg"
         )),
     );
     let (matched_handle, mut matched) = typed
@@ -1380,11 +1380,11 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
     let core = [
         (
             "never.omg",
-            include_str!("../../../../../../source/library/core/never.omg"),
+            include_str!("../../../../../../../source/library/core/never.omg"),
         ),
         (
             "process_exit.omg",
-            include_str!("../../../../../../source/library/core/process_exit.omg"),
+            include_str!("../../../../../../../source/library/core/process_exit.omg"),
         ),
     ];
     for (build, reason, external_completion) in [

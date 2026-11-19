@@ -62,7 +62,6 @@ symbols = { path = "../foundation/declaration-identity" }
 syntax-trees = { path = "pipeline/representations/syntax-trees" }
 terminal-check-tables = { path = "pipeline/representations/lowered-program" }
 terminal-codec = { path = "../psi/codec" }
-terminal-installation = { path = "../psi-admission" }
 terminal-interpreter = { path = "../../interpreter" }
 terminal-psi = { path = "../psi" }
 terminal-semantics = { path = "../psi/semantics" }
