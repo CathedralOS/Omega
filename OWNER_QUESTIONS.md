@@ -78,7 +78,7 @@ The V2 typer treats the copy read as settled at a destination with a declared ty
 
 [Establishment, transport and helper calls](omega-rust-v2/wiki/spec/language/domains.md#establishment-transport-and-helper-calls) says that reading a copyable primitive through a readable reference needs no reference-to-value cast, but not whether passing the reference to a by-value parameter counts as that read. [Calls, places and temporaries](omega-rust-v2/wiki/spec/language/expressions.md#calls-places-and-temporaries) allows implicit shared lending at a shared-reference parameter. [Operator declarations](omega-rust-v2/wiki/spec/language/expressions.md#operator-declarations) refuses a general search for borrowed variants and requires ambiguity, not a preference, when adaptations leave competing candidates. Both cover only the owned-to-borrowed direction. [Owned local mutability](omega-rust-v2/wiki/spec/language/ownership.md#owned-local-mutability) says copyable values may be copied by value, without naming argument admission.
 
-### 2. Does a bare word in an arm pattern compare against a parameter or local of that name?
+### 3. Does a bare word in an arm pattern compare against a parameter or local of that name?
 
 In `machine f(x: u32, v: u32) -> u32 { match v { x -> x, _ -> 0 } }`, should the arm compare `v` with the parameter `x`, or bind a new name `x` that holds `v`? The same question applies to a local from `let x = 3;` and to a generic value binder such as `<const N: u32>`. The answer decides whether adding a parameter can silently turn a catch-all arm into an equality test.
 
