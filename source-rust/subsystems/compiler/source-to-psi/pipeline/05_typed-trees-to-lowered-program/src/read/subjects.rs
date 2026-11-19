@@ -383,13 +383,24 @@ impl Program<'_> {
                 // are not additional authored subject declarations.
                 // Synthesized visitor helpers are also demand-only. Rooting a
                 // case helper here would bypass its dispatcher's coverage proof.
-                if machine.active_case_visitor.is_some()
-                    || typed
-                        .machine_instantiation(machine.symbol)
-                        .map_err(|reason| {
-                            refuse(entry, Construct::Machine, Unserved::Machine(reason))
-                        })?
-                        .is_some()
+                if machine.purpose.is_active_case_visitor() {
+                    if !typed.symbols.symbols().nodes().is_valid(machine.symbol)
+                        || typed.symbols.authored_origin(machine.symbol) == machine.symbol
+                    {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Machine(
+                                "active-case helper without its generating declaration",
+                            ),
+                        ));
+                    }
+                    return Ok(());
+                }
+                if typed
+                    .machine_instantiation(machine.symbol)
+                    .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Machine(reason)))?
+                    .is_some()
                 {
                     return Ok(());
                 }

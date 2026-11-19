@@ -240,8 +240,8 @@ impl Program<'_> {
             .get(id)
             .and_then(|&symbol| self.typed.machine_by_symbol(symbol))
             .is_some_and(|machine| {
-                machine.active_case_visitor
-                    == Some(crate::source_state::machine::ActiveCaseVisitor::Dispatcher)
+                machine.purpose
+                    == crate::source_state::machine::MachinePurpose::ActiveCaseDispatcher
             });
         let mut reflected_coverage = None;
         for statement in statements {

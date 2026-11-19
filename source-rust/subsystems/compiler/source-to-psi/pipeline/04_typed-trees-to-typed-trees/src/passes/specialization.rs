@@ -92,8 +92,8 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
-        let conditional = program.machines()[position].active_case_visitor
-            == Some(crate::source_state::machine::ActiveCaseVisitor::Case)
+        let conditional = program.machines()[position].purpose
+            == crate::source_state::machine::MachinePurpose::ActiveCaseBranch
             || case_branches.contains(&holder);
         let first_child = program.machines().len();
         match reflected_fields::elaborate(program, position) {

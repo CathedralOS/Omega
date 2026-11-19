@@ -574,6 +574,16 @@ pub mod control_flow {
             #[default]
             Runtime,
             ProviderDefaults,
+            /// Private dispatch for a reflected sum. Its arms determine which callbacks are needed.
+            ActiveCaseDispatcher,
+            /// Private callback helper reached only by its dispatcher's active arm.
+            ActiveCaseBranch,
+        }
+
+        impl MachinePurpose {
+            pub fn is_active_case_visitor(self) -> bool {
+                matches!(self, Self::ActiveCaseDispatcher | Self::ActiveCaseBranch)
+            }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -583,17 +593,8 @@ pub mod control_flow {
             pub arguments: HandleSpan<ExpressionHandle>,
         }
 
-        /// Private helpers synthesized for a sum visitor. They enter the checked
-        /// program only through the call or case arm that demands them.
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-        pub enum ActiveCaseVisitor {
-            Dispatcher,
-            Case,
-        }
-
         #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
         pub struct Machine {
-            pub active_case_visitor: Option<ActiveCaseVisitor>,
             pub lexical_region_origin: Option<LexicalRegionOrigin>,
             pub assembly_target_requirement: language_core::inline_assembly::AsmTargetApplicability,
             pub symbol: SymbolHandle,
@@ -700,7 +701,6 @@ pub mod control_flow {
         impl Default for Machine {
             fn default() -> Self {
                 Self {
-                    active_case_visitor: None,
                     lexical_region_origin: None,
                     assembly_target_requirement:
                         language_core::inline_assembly::AsmTargetApplicability::Any,

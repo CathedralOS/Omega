@@ -15,7 +15,7 @@ use crate::source_state::expression::{
     StaticSymbolApplication, TableBinaryExpression, TableCallExpression, TableDestructurePattern,
     TableStructLiteral, TableStructLiteralField,
 };
-use crate::source_state::machine::{ActiveCaseVisitor, Machine};
+use crate::source_state::machine::{Machine, MachinePurpose};
 use crate::source_state::name::Identifier;
 use crate::source_state::reflection::construction::{
     construct_semantic_schema_graph_for_type, schema_query_authority,
@@ -258,7 +258,7 @@ pub(super) fn expand(
         }
         let entry = branch.entry;
         let branch_name = branch.name.clone();
-        branch.install(program, ActiveCaseVisitor::Case, body);
+        branch.install(program, MachinePurpose::ActiveCaseBranch, body);
         let arguments = program.expression_table.insert_expression_handles(actuals);
         let visit = expression(
             program,
@@ -278,7 +278,7 @@ pub(super) fn expand(
     }
     let entry = dispatcher.entry;
     let target = dispatcher.name.clone();
-    dispatcher.install(program, ActiveCaseVisitor::Dispatcher, arms);
+    dispatcher.install(program, MachinePurpose::ActiveCaseDispatcher, arms);
     // Ordinary call arguments evaluate both operands once, in source order.
     // The application's two callback interfaces have already been checked.
     Ok(vec![StatementNode::Call(TableCall {
@@ -524,7 +524,7 @@ impl GeneratedMachine {
         }
     }
 
-    fn install(self, program: &mut TypedTrees, role: ActiveCaseVisitor, body: Vec<StatementNode>) {
+    fn install(self, program: &mut TypedTrees, purpose: MachinePurpose, body: Vec<StatementNode>) {
         let mut statement_nodes = arena::HandleSpan::empty();
         for statement in body {
             program
@@ -542,7 +542,7 @@ impl GeneratedMachine {
         }
         let states = program.machine_states.insert_many([entry]);
         program.push_machine(Machine {
-            active_case_visitor: Some(role),
+            purpose,
             symbol: self.symbol,
             name: self.name,
             states,
