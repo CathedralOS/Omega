@@ -133,7 +133,7 @@ jobs:
       - name: Install build tools
         run: |
           apt-get update -qq
-          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq
+          apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd jq python3
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
           echo "/root/.cargo/bin" >> "$GITHUB_PATH"
       - name: Check out the commit at the session path
@@ -168,9 +168,7 @@ jobs:
           RUST_TEST_THREADS: '2'
           RUST_MIN_STACK: '67108864'
         run: |
-          env -u CI -u GITHUB_ACTIONS python3 tools/build_slot.py \
-            --repository /workspace/Omega --slots 1 --timeout 1800 -- \
-            python3 .github/diagnostics/correlated-address-bounds/qualify.py
+          env -u CI -u GITHUB_ACTIONS python3 .github/diagnostics/correlated-address-bounds/qualify.py
       - name: Preserve the exact qualification
         if: always()
         uses: actions/upload-artifact@v4
