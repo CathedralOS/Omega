@@ -1,5 +1,6 @@
 //! Canonical sets of physical terminal-authority classes and their filesystem facets.
 use crate::TerminalAuthorityClass;
+use record_storage::{Record, RecordError, RecordReader, RecordWriter};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -40,9 +41,23 @@ impl From<PortableFilesystemAuthorityFacet> for TerminalAuthorityClass {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityDisposition {
     classes: Vec<TerminalAuthorityClass>,
+}
+
+impl Record for TerminalAuthorityDisposition {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        output.record(|output| self.classes.write(output))
+    }
+
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+        input.record(|input| {
+            let classes = Vec::<TerminalAuthorityClass>::read(input)?;
+            Self::try_from_canonical_classes(classes)
+                .map_err(|_| input.error("authority classes are not strictly ordered"))
+        })
+    }
 }
 
 impl TerminalAuthorityDisposition {
@@ -85,5 +100,39 @@ impl TerminalAuthorityDisposition {
             .iter()
             .find(|class| self.classes.binary_search(class).is_err())
             .copied()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use record_storage::{RecordLimits, decode, encode};
+
+    #[test]
+    fn stored_dispositions_require_the_canonical_class_order() {
+        // The stored record contains one vector of class tags.
+        #[derive(Record)]
+        struct StoredDisposition {
+            classes: Vec<TerminalAuthorityClass>,
+        }
+
+        use TerminalAuthorityClass::{MachineControl, PortIo};
+        let bytes =
+            |classes| encode(&StoredDisposition { classes }, RecordLimits::default()).unwrap();
+        for classes in [vec![], vec![MachineControl, PortIo]] {
+            let value = TerminalAuthorityDisposition::from_classes(classes.clone());
+            let stored = bytes(classes);
+            assert_eq!(encode(&value, RecordLimits::default()).unwrap(), stored);
+            assert_eq!(
+                decode::<TerminalAuthorityDisposition>(&stored, RecordLimits::default()).unwrap(),
+                value
+            );
+        }
+        for classes in [vec![PortIo, MachineControl], vec![PortIo, PortIo]] {
+            assert!(
+                decode::<TerminalAuthorityDisposition>(&bytes(classes), RecordLimits::default())
+                    .is_err()
+            );
+        }
     }
 }
