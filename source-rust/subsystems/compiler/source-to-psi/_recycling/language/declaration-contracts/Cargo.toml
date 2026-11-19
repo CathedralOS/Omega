@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+source-declarations = { path = "../../../pipeline/representations/symbol-resolved-trees/declarations" }
 behavior-exclusion-requests = { path = "../../../../build/behavior-exclusions" }
 service-surface = { path = "../../../../psi/service-surface" }
 psi-effect-contracts = { path = "../../../../psi/effect-contracts" }

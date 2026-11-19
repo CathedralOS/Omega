@@ -10,13 +10,7 @@ pub use semantic_vocabulary::source_selections::{
     CompositionMode, NativeBindingProducer, ProductTarget,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AssumedBindingContract {
-    pub required: SymbolHandle,
-    pub supplied: SymbolHandle,
-    pub selecting_machine: SymbolHandle,
-    pub source_span: SourceSpan,
-}
+pub use source_declarations::source_selections::AssumedBindingContract;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {

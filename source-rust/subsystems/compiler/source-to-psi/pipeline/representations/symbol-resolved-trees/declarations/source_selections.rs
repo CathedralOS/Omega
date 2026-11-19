@@ -10,6 +10,35 @@ use crate::declaration_selection::ResolvedAuthoredDeclarationSelection;
 use source_text::SourceSpan;
 use symbols::SymbolHandle;
 
+/// An explicit contract assumption attributed to the selecting Build declaration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssumedBindingContract {
+    pub required: SymbolHandle,
+    pub supplied: SymbolHandle,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceAuditRegistration {
+    pub declaration: source_admission::RetainedDeclaration,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestGroupRegistration {
+    pub requirement: SymbolHandle,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: SourceSpan,
+    /// Selected service slots in the order the group runner binds them.
+    pub services: Vec<TestGroupService>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestGroupService {
+    pub slot: SymbolHandle,
+    pub source_span: SourceSpan,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub struct AuthoredDeclarationSelectionOccurrenceId(u64);
 
