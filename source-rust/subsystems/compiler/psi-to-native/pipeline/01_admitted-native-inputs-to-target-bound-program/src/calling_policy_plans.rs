@@ -129,7 +129,7 @@ pub(super) mod scalar_completion {
                         commitment: model.commitment(),
                     }
                 });
-            let conditions = artifact_evaluation::scalar_applications::evaluate_scalar_applications_with_address_model(
+            let conditions = build_scalar_evaluation::evaluate_scalar_applications(
                 &mut observations,
                 primary.target_name(),
                 demand,

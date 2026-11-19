@@ -297,6 +297,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-scalar-evaluation"
+version = "0.1.0"
+dependencies = [
+ "build-time-values",
+ "evaluation-accounting",
+ "evaluation-contracts",
+ "proof-applications",
+ "psi-provider-selections",
+ "psi-scalar-applications",
+ "psi-target-layouts",
+ "record-storage",
+ "semantic-vocabulary",
+ "terminal-codec",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-semantics",
+ "terminal-work",
+]
+
+[[package]]
 name = "build-time-values"
 version = "0.1.0"
 dependencies = [
@@ -1699,8 +1719,8 @@ dependencies = [
 name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
- "artifact-evaluation",
  "backend-plan",
+ "build-scalar-evaluation",
  "diagnostics",
  "effects",
  "provider-admission",
@@ -2387,6 +2407,7 @@ name = "admitted-native-inputs-to-target-bound-program"
 version = "0.1.0"
 dependencies = [
  "evaluation-admission",
+ "build-scalar-evaluation",
  "provider-demand",
  "host-provider-inputs",
  "application-identity",
@@ -2981,7 +3002,6 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "artifact-evaluation",
  "bignum",
  "checked-terminal-psi-to-published-psi",
  "declaration-contracts",

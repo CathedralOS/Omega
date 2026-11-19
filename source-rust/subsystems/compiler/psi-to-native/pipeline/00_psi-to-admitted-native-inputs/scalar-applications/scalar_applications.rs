@@ -15,7 +15,7 @@ target selected. An unscoped request supplies only portable facts; demands for
 target-dependent operations must still resolve a deployment.
 */
 
-pub use artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
+pub use build_scalar_evaluation::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
 use backend_plan::TerminalTargetProviderProposal;
 use psi_target_layouts::terminal_target_context;
 use runtime_abi::target_carrier_layout;
@@ -25,7 +25,7 @@ use std::sync::Arc;
 /// Native completion adds application roots and demanded values to this owner.
 /// It is never encoded in saved native inputs.
 pub struct ProductScalarCompletion {
-    pub completed: artifact_evaluation::scalar_scopes::ScalarApplicationCompletion,
+    pub completed: build_scalar_evaluation::ScalarApplicationCompletion,
     pub proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
 }
 
@@ -33,7 +33,7 @@ pub struct ProductScalarCompletion {
 /// evaluated for its deployment, or `None` when it needs none.
 pub fn complete_native(
     retained: &verified_optimization_input::RetainedTerminalArtifact,
-    accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
@@ -50,7 +50,7 @@ pub fn complete_native_demand(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
     proposal: &verified_optimization_input::TerminalNativeRealizationProposal,
     demand: Option<Vec<semantic_vocabulary::ScalarApplicationId>>,
-    accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let Some(demand) = demand else {
         return Ok(None);
@@ -78,7 +78,7 @@ pub fn complete<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
-    accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<psi_scalar_applications::AdmittedScalarApplications, String> {
     prepare(artifact, primary, demand, proposals, accounting)
         .map(|completion| completion.completed.into_admitted())
@@ -91,7 +91,7 @@ pub fn prepare<'scope>(
     primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
-    accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<ProductScalarCompletion, String> {
     let deployed = proposals
         .iter()
@@ -101,7 +101,7 @@ pub fn prepare<'scope>(
         .filter(|proposal| proposal.application_required)
         .map(|proposal| proposal.target.clone())
         .collect::<Vec<_>>();
-    artifact_evaluation::scalar_scopes::prepare_scalar_applications(
+    build_scalar_evaluation::prepare_scalar_applications(
         artifact,
         primary,
         deployed.then_some(scopes.as_slice()),
@@ -110,7 +110,7 @@ pub fn prepare<'scope>(
         accounting,
         |scope| {
             let Some(scope) = scope else {
-                return Ok(artifact_evaluation::scalar_scopes::ScalarScopeEvaluation {
+                return Ok(build_scalar_evaluation::ScalarScopeEvaluation {
                     application_roots: None,
                     targets: None,
                     providers: psi_provider_selections::admit_provider_installation(
@@ -149,7 +149,7 @@ pub fn prepare<'scope>(
                         commitment: model.commitment(),
                     }
                 });
-            Ok(artifact_evaluation::scalar_scopes::ScalarScopeEvaluation {
+            Ok(build_scalar_evaluation::ScalarScopeEvaluation {
                 application_roots: proposal.application_roots.clone(),
                 layout_target: Some(
                     profile
@@ -175,7 +175,7 @@ pub fn prepare<'scope>(
 pub fn extend_native(
     retained: &verified_optimization_input::RetainedTerminalArtifact,
     completion: ProductScalarCompletion,
-    accounting: &mut impl Extend<artifact_evaluation::scalar_receipts::CanonicalScalarEvaluationReceipt>,
+    accounting: &mut impl Extend<build_scalar_evaluation::CanonicalScalarEvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, String> {
     let proposal = retained
         .native_realization_proposal()
@@ -262,13 +262,13 @@ impl TargetRealizedIntrinsics {
     }
 }
 
-impl artifact_evaluation::scalar_applications::TargetImportRealizations
+impl build_scalar_evaluation::TargetImportRealizations
     for TargetRealizedIntrinsics
 {
     fn admit(
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
-    ) -> Result<Box<dyn artifact_evaluation::scalar_applications::AdmittedImportRealizations>, String>
+    ) -> Result<Box<dyn build_scalar_evaluation::AdmittedImportRealizations>, String>
     {
         use provider_admission::provider_admission as admission;
         let module = self.artifact.view().module();
@@ -325,7 +325,7 @@ impl artifact_evaluation::scalar_applications::TargetImportRealizations
 
 struct AdmittedIntrinsics(provider_admission::provider_admission::AdmittedTerminalIntrinsics);
 
-impl artifact_evaluation::scalar_applications::AdmittedImportRealizations for AdmittedIntrinsics {
+impl build_scalar_evaluation::AdmittedImportRealizations for AdmittedIntrinsics {
     fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {
         self.0.realizes(boundary)
     }
