@@ -16,6 +16,7 @@ path = "lib.rs"
 [dependencies]
 bundled-declarations = { path = "bundled-declarations" }
 source-declarations = { path = "../../language/source-declarations" }
+source-symbol-table = { path = "symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }

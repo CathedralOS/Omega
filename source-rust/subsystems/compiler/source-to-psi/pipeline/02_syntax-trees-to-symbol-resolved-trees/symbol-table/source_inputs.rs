@@ -1,9 +1,9 @@
 //! Source settlement owns activation, visibility and the mutable source catalogue.
-use declaration_contracts::source_identity::DependencyScope;
-use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
+use source_provenance::DependencyScope;
+use source_provenance::PackageKeyIdentity;
 use source_text::{SourceId, SourceSpan};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -655,7 +655,7 @@ mod tests {
         DependencyScope, SourceFile, SourceId, SourceMap, SourceOrigin, SourceResolutionStratum,
         SourceSpan,
     };
-    use semantic_vocabulary::PackageKeyIdentity;
+    use source_provenance::PackageKeyIdentity;
 
     #[test]
     fn source_span_carries_source_identity() {
@@ -863,8 +863,8 @@ mod tests {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
-    use declaration_contracts::source_identity::{ConsumedSourceUnit, ConsumedSourceUnitKind};
     use source_admission::source_identity::*;
+    use source_provenance::{ConsumedSourceUnit, ConsumedSourceUnitKind};
 
     fn toolchain(root: &str) -> SourceFile {
         let mut sources = SourceMap::default();
@@ -975,10 +975,10 @@ mod identity_tests {
     fn generated_coordinates_retain_checked_scope_but_authored_bytes_share() {
         let mut file = toolchain("package");
         file.origin = SourceOrigin::User;
-        file.package_identity = semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]);
+        file.package_identity = source_provenance::PackageKeyIdentity::from_digest([1; 32]);
         let authored = consumed_source_unit(&file, false).expect("authored");
         let generated = consumed_source_unit(&file, true).expect("generated");
-        file.dependency_scope = declaration_contracts::source_identity::DependencyScope::Build;
+        file.dependency_scope = source_provenance::DependencyScope::Build;
         assert_eq!(
             authored,
             consumed_source_unit(&file, false).expect("authored Build")

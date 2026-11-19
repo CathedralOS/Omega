@@ -18,6 +18,7 @@ declaration-scope = { path = "../../../foundation/declaration-scope" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program" }
 source-declarations = { path = "../../language/source-declarations" }
+source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }

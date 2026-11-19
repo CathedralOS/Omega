@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+source-symbol-table = { path = "../../../pipeline/02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 bundled-declarations = { path = "../../inputs/bundled-declarations" }
 declaration-contracts = { path = "../declaration-contracts" }
 application-identity = { path = "../application-identity" }

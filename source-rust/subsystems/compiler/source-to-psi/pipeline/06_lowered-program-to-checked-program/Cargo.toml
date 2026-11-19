@@ -49,4 +49,5 @@ syntax-trees = { path = "../representations/syntax-trees" }
 tokens = { path = "../representations/tokens" }
 typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program", features = ["test-support"] }
 source-declarations = { path = "../../language/source-declarations" }
+source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }

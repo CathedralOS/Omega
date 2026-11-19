@@ -8,9 +8,9 @@ use std::sync::Arc;
 use crate::source_inputs::SourceMap;
 use crate::source_symbols::storage::{SymbolHierarchy, SymbolRows};
 use arena::{HandleSpan, RetainedArena, SpanHandles};
-use semantic_vocabulary::PackageKeyIdentity;
 use source_admission::SourceFile;
 use source_admission::SourceOrigin;
+use source_provenance::PackageKeyIdentity;
 use source_text::{SourceId, SourceSpan};
 
 use numerics::integer_carrier::{FixedInteger, IntegerSign};
@@ -370,8 +370,8 @@ mod indices {
 
     #[derive(Clone, Default)]
     pub(super) struct RootNameIndex {
-        pub(super) by_name: crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
-        pub(super) by_leaf: crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) by_name: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) by_leaf: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     }
 
     /*
@@ -380,7 +380,7 @@ mod indices {
     */
     #[derive(Clone, Default)]
     pub(super) struct BindingSourceIndex {
-        pub(super) by_source: crate::source_symbols::SymbolKeyMap<SourceId, SourceLookupScope>,
+        pub(super) by_source: arena::HandleKeyMap<SourceId, SourceLookupScope>,
         pub(super) has_selected_module: bool,
     }
 
@@ -405,7 +405,7 @@ mod indices {
 
     #[derive(Clone, Default)]
     pub(super) struct ModulePathIndex {
-        pub(super) paths: crate::source_symbols::SymbolKeyMap<SymbolHandle, Arc<str>>,
+        pub(super) paths: arena::HandleKeyMap<SymbolHandle, Arc<str>>,
     }
 
     /*
@@ -418,15 +418,14 @@ mod indices {
     #[derive(Clone, Default)]
     pub(super) struct ModuleScopeIndex {
         /* `name` → (order, handle). */
-        pub(super) by_name: crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) by_name: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
         /* `display_path("::")` → (order, handle). */
-        pub(super) by_path: crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) by_path: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
         /*
             Declared leaf name → (order, handle), for Domain-kind candidates
             only: the carrier-qualified arm is the sole leaf-shaped selector.
         */
-        pub(super) domain_leaves:
-            crate::source_symbols::SymbolKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
+        pub(super) domain_leaves: arena::HandleKeyMap<Box<str>, Vec<(u32, SymbolHandle)>>,
     }
 
     /*
@@ -1889,7 +1888,7 @@ mod source_queries {
         pub fn symbol_is_in_dependency_scope(
             &self,
             symbol: crate::source_symbols::SymbolHandle,
-            scope: declaration_contracts::source_identity::DependencyScope,
+            scope: source_provenance::DependencyScope,
         ) -> bool {
             self.symbol_provenance_source_span(symbol)
                 .and_then(|span| self.source_file(span))
@@ -2187,7 +2186,7 @@ mod source_queries {
                                         .is_some_and(|file| {
                                             file.origin == SourceOrigin::Toolchain
                                                 && file.dependency_scope
-                                                    == declaration_contracts::source_identity::DependencyScope::Product
+                                                    == source_provenance::DependencyScope::Product
                                         }))
                                 || !self.has_source_metadata()
                         }
@@ -2276,7 +2275,7 @@ mod source_queries {
             sources.same_package(reference, declaration)
                 && sources.file_at(declaration).is_none_or(|file| {
                     file.dependency_scope
-                        == declaration_contracts::source_identity::DependencyScope::Product
+                        == source_provenance::DependencyScope::Product
                 })
         }
 
@@ -2348,7 +2347,7 @@ mod source_queries {
             let source_span = self.provenance_source_span(symbol)?;
             let source_file = self.source_file(source_span)?;
             (source_file.dependency_scope
-                == declaration_contracts::source_identity::DependencyScope::Product)
+                == source_provenance::DependencyScope::Product)
                 .then(|| self.symbol_package_identity(symbol))
                 .flatten()
         }
@@ -4207,7 +4206,7 @@ impl SymbolTable {
     */
     pub(super) fn indexed_display_path(&self, symbol: SymbolHandle) -> std::borrow::Cow<'_, str> {
         let index = self.module_path_index.0.get_or_init(|| {
-            let mut paths = crate::source_symbols::SymbolKeyMap::default();
+            let mut paths = arena::HandleKeyMap::default();
             for candidate in self
                 .child_handles(self.root)
                 .into_iter()
