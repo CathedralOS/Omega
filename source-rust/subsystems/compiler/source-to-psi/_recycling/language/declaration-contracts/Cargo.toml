@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-effect-contracts = { path = "../../../../psi/effect-contracts" }
 source-provenance = { path = "../../../../foundation/source-provenance" }
 numeric-literals = { path = "../numeric-literals" }
 source-text = { path = "../../../../../../foundation/source-text" }

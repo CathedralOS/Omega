@@ -459,6 +459,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "psi-effect-contracts"
+version = "0.1.0"
+dependencies = [
+ "record-storage",
+ "wire",
+]
+
+[[package]]
 name = "psi-to-admitted-native-inputs"
 version = "0.1.0"
 dependencies = [
@@ -3352,7 +3360,7 @@ dependencies = [
  "arena",
  "bignum",
  "declaration-contracts",
- "flow-effects",
+ "psi-effect-contracts",
  "language-core",
  "layout-plans",
  "numerics",

@@ -10,6 +10,7 @@ name = "terminal_wire"
 path = "src/lib.rs"
 
 [dependencies]
+psi-effect-contracts = { path = "../effect-contracts" }
 proof-applications = { path = "../proof-applications" }
 access-vocabulary = { path = "../access" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }

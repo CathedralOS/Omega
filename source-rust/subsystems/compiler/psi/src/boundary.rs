@@ -1900,7 +1900,7 @@ pub(crate) mod reach_applications {
 
     use crate::digest_encoder::DomainDigestEncoder;
     use crate::terminal_module::TerminalIdentityIndex;
-    use flow_effects::{ConditionalCarryRequirement, ContractDependency};
+    use psi_effect_contracts::{ConditionalCarryRequirement, ContractDependency};
     use semantic_vocabulary::{MachineId, ServiceId};
 
     /// The template publishes each binder's admissible reach, independently of
@@ -1949,7 +1949,7 @@ pub(crate) mod reach_applications {
                 }
             }
         }
-        flow_effects::template_contract_commitment(
+        psi_effect_contracts::template_contract_commitment(
             bounds.map_or(base, DomainDigestEncoder::finish),
             parameter_count,
             suspension,
@@ -1963,9 +1963,9 @@ pub(crate) mod reach_applications {
         pub template_identity: TerminalIdentityIndex,
         pub template_base_commitment: [u8; 32],
         pub template_commitment: [u8; 32],
-        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
-        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
-        pub conditional_carry: Vec<flow_effects::ConditionalCarryRequirement>,
+        pub suspension_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Vec<psi_effect_contracts::ConditionalCarryRequirement>,
         pub specialization_commitment: [u8; 32],
         pub parameter_kinds: Vec<u8>,
         pub telescope: Vec<ClosedReachParameter>,
@@ -1980,9 +1980,9 @@ pub(crate) mod reach_applications {
         pub template_identity: TerminalIdentityIndex,
         pub template_base_commitment: [u8; 32],
         pub template_commitment: [u8; 32],
-        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
-        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
-        pub conditional_carry: Vec<flow_effects::ConditionalCarryRequirement>,
+        pub suspension_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Vec<psi_effect_contracts::ConditionalCarryRequirement>,
         pub specialization_commitment: [u8; 32],
         pub parameter_kinds: Vec<u8>,
         pub telescope: Vec<ClosedReachParameter>,
