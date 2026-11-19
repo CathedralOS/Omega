@@ -234,10 +234,6 @@ fn parse_declared_item<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Item> {
-    if input.at_contextual("module") {
-        return Err(input.error_here("`module` headers are not valid; the source directory relative to its package root defines its namespace"));
-    }
-
     if input.at_contextual("package") {
         let input = input.take_contextual("package")?;
         let (item, rest) = parse_package_declaration(syntax_trees, input)?;
@@ -406,6 +402,12 @@ fn parse_declared_item<'tokens, 'source>(
         ));
     }
 
+    if input.at_contextual_then_name("module") {
+        return Err(input.error_here(
+            "`module` headers are not valid; the source directory relative to its package root defines its namespace",
+        ));
+    }
+
     Err(input.expected_one_of_here(&[
         "`use`",
         "`data`",
@@ -417,7 +419,6 @@ fn parse_declared_item<'tokens, 'source>(
         "`library`",
         "`measure`",
         "`host`",
-        "`module`",
         "`operator`",
         "`package`",
         "`platform`",

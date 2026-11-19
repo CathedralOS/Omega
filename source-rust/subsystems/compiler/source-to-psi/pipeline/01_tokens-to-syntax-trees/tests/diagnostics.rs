@@ -108,3 +108,11 @@ fn authored_module_headers_cannot_replace_a_directory_namespace() {
         assert!(parse_error_message(source).contains("`module` headers are not valid"));
     }
 }
+
+#[test]
+fn module_remains_an_identifier_after_retiring_the_header() {
+    let source = "trait Evidence {} module satisfies Evidence {}";
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    parse_syntax_trees(&tokens).expect("a conformance can be named module");
+    assert!(!parse_error_message("123").contains("`module`"));
+}
