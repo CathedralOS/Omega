@@ -7,8 +7,9 @@ streams. The [streaming parser](../01_tokens-to-syntax-trees/streaming.rs) calls
 The [source-files representation](../../representations/source-files/source_files.rs) carries the captured text, origin and scope.
 
 Run the scanner and batch tests with `mbx test --locked -p source-lexer`.
-The private scanner publishes each token, and `lex_next_token` dispatches its spelling. The cursor, small lexical
-error type, comments, identifiers and punctuation scanning stay with that flow.
+Inside `lexer.rs`, `ByteScanner::scan_token` dispatches on the first byte.
+The scanner writes each token directly into the parser’s reusable stream. Its
+offsets refer to the original UTF-8 file.
 
 Follow the two substantial spelling domains under `literals/`:
 
