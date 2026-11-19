@@ -154,7 +154,7 @@ fn main() {
     );
 }
 
-/// Every accept fixture, end to end, repeated to about `TARGET_BYTE_COUNT`.
+/// Every accept fixture, end to end: one copy, and how many copies make about `TARGET_BYTE_COUNT`.
 fn build_workload() -> (Vec<u8>, usize, usize) {
     let fixture_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/accept");
 
@@ -194,7 +194,7 @@ fn build_workload() -> (Vec<u8>, usize, usize) {
 
     let copy_count = TARGET_BYTE_COUNT.div_ceil(one_copy.len());
 
-    (one_copy.repeat(copy_count), fixture_paths.len(), copy_count)
+    (one_copy, fixture_paths.len(), copy_count)
 }
 
 /// The least a parser over these tokens could do: drop the trivia, number what is left, and write
