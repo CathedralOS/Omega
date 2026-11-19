@@ -7,6 +7,7 @@
 // file.
 
 use super::{option_value, parse_build_input};
+use compiler::stage_validators::StageValidatorRequest;
 use optimization_requests::OptimizationRollback;
 use package_compilation::BuildSourceCaptureRequest;
 use std::path::PathBuf;
@@ -25,7 +26,7 @@ pub(crate) struct CompileArguments {
     pub(crate) root_path: PathBuf,
     pub(crate) target_names: Vec<String>, // Every --target named, in first-seen order, repeats removed; empty means host default.
     pub(crate) optimization_rollback: OptimizationRollback,
-    pub(crate) stage_validators: orchestration::StageValidatorRequest, // Empty unless --validator or --every-validator.
+    pub(crate) stage_validators: StageValidatorRequest, // Empty unless --validator or --every-validator.
 }
 
 pub(super) const USAGE: &str = concat!(
@@ -239,7 +240,7 @@ pub(super) fn parse_arguments(
     if check_only && (bootstrap_assumptions.is_some() || delivery_assumptions.is_some()) {
         return Err("installation assumptions apply only to native compilation".into());
     }
-    let stage_validators = orchestration::StageValidatorRequest::from_exact_names(
+    let stage_validators = StageValidatorRequest::from_exact_names(
         validator_names.iter().map(String::as_str),
         every_validator,
     )?;

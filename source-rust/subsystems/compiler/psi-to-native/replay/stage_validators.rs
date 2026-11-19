@@ -143,6 +143,39 @@ impl StageValidatorRequest {
         self.named.is_empty() && !self.every
     }
 
+    /// Record that this product stops before the requested stages. An explicitly
+    /// named check must apply even when the caller also enumerates the roster.
+    pub fn stages_not_produced(
+        &self,
+        targets: &[&str],
+        reason: impl Fn(StageValidator) -> &'static str,
+    ) -> Result<Vec<StageValidationRow>, NativeValidationError> {
+        if let Some(&validator) = self.named.first() {
+            return Err(NativeValidationError::Unavailable(Diagnostic::error(
+                format!(
+                    "stage validator `{}` cannot run in this compilation: {}",
+                    validator.name(),
+                    reason(validator),
+                ),
+            )));
+        }
+        let mut rows = Vec::new();
+        if self.every {
+            // A target-independent Psi publication has one set of rows with no deployment.
+            let deployments = targets.iter().copied().map(Some);
+            for target in deployments.chain(targets.is_empty().then_some(None)) {
+                for &validator in StageValidator::ROSTER {
+                    rows.push(StageValidationRow {
+                        validator,
+                        target: target.map(str::to_owned),
+                        result: StageValidationResult::Inapplicable(reason(validator)),
+                    });
+                }
+            }
+        }
+        Ok(rows)
+    }
+
     pub(super) fn check(
         &self,
         target: target::TargetProfile,
@@ -163,7 +196,7 @@ impl StageValidatorRequest {
             };
             rows.push(StageValidationRow {
                 validator,
-                target: target.target_name(),
+                target: Some(target.target_name().to_owned()),
                 result,
             });
         }
@@ -182,7 +215,7 @@ impl StageValidatorRequest {
                     format!(
                         "stage validator `{}` cannot run for target {}: {reason}",
                         row.validator.name(),
-                        row.target
+                        target.target_name()
                     ),
                 )));
             }
@@ -200,6 +233,12 @@ pub enum NativeValidationError {
     Failed(Vec<StageValidationRow>),
 }
 
+impl From<Vec<Diagnostic>> for NativeValidationError {
+    fn from(diagnostics: Vec<Diagnostic>) -> Self {
+        Self::Compilation(diagnostics)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StageValidationResult {
     Passed,
@@ -211,19 +250,18 @@ pub enum StageValidationResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StageValidationRow {
     pub validator: StageValidator,
-    pub target: &'static str,
+    /// Absent for a portable Psi publication with no selected deployment.
+    pub target: Option<String>,
     pub result: StageValidationResult,
 }
 
 impl std::fmt::Display for StageValidationRow {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "stage validator {} (target {}, stage {}): ",
-            self.validator.name(),
-            self.target,
-            self.validator.stage()
-        )?;
+        write!(formatter, "stage validator {} (", self.validator.name())?;
+        if let Some(target) = &self.target {
+            write!(formatter, "target {target}, ")?;
+        }
+        write!(formatter, "stage {}): ", self.validator.stage())?;
         match &self.result {
             StageValidationResult::Passed => {
                 write!(formatter, "passed")?;

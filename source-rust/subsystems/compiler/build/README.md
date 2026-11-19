@@ -2,7 +2,7 @@
 
 [`build`](build.rs) starts with the core plan. Each plan either asks for an artifact or describes a program to compile and run for its next plan.
 
-The host admits each plan against the current grants and binds its reflected declarations in the next stage. The driver compiles that stage to Psi and gives it to the interpreter with the admitted services. The next plan can include newly discovered or generated source. When a plan requests an artifact, the driver returns the compiler's result directly.
+The host admits each plan against the current grants and binds its reflected declarations in the next stage. The driver compiles that stage to Psi and gives it to the interpreter with the admitted services. The next plan can include newly discovered or generated source. When a plan requests an artifact, the driver returns the compiler's result directly. With explicit stage validators, it checks that final product and returns the per-target rows with it. Intermediate planning stages run with ordinary compilation.
 
 The [evaluated value](evaluation/values/value.rs) carries the fields, case payloads and arrays consumed by Build settings and native calling policies.
 

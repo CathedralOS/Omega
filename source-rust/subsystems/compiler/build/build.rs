@@ -43,15 +43,42 @@ pub trait BuildHost {
 
 pub fn build<H: BuildHost>(
     host: &mut H,
-    mut grants: H::Grants,
+    grants: H::Grants,
     max_planning_stages: usize,
 ) -> Result<Artifact, Vec<Diagnostic>> {
+    run_stages(host, grants, max_planning_stages, compile)
+}
+
+/// Run the requested validators on the final product of this build.
+pub fn build_with_validators<H: BuildHost>(
+    host: &mut H,
+    grants: H::Grants,
+    max_planning_stages: usize,
+    validators: &compiler::stage_validators::StageValidatorRequest,
+) -> Result<
+    (
+        Artifact,
+        Vec<compiler::stage_validators::StageValidationRow>,
+    ),
+    compiler::stage_validators::NativeValidationError,
+> {
+    run_stages(host, grants, max_planning_stages, |request| {
+        compiler::compile_with_validators(request, validators)
+    })
+}
+
+fn run_stages<H: BuildHost, T, E: From<Vec<Diagnostic>>>(
+    host: &mut H,
+    mut grants: H::Grants,
+    max_planning_stages: usize,
+    emit: impl FnOnce(CompileRequest<'_>) -> Result<T, E>,
+) -> Result<T, E> {
     let mut plan = host.core_plan()?;
     let mut stages = Vec::new();
 
     loop {
         match host.admit(plan, grants)? {
-            NextStage::Emit(request) => return compile(request),
+            NextStage::Emit(request) => return emit(request),
             NextStage::Run {
                 name,
                 source,
@@ -63,12 +90,14 @@ pub fn build<H: BuildHost>(
                     return Err(vec![Diagnostic::error(format!(
                         "build exceeded its limit of {max_planning_stages} planning stages: {}",
                         stages.join(" -> "),
-                    ))]);
+                    ))]
+                    .into());
                 }
                 let Artifact::Psi(program) = compile(CompileRequest::Psi(source))? else {
                     return Err(vec![Diagnostic::error(
                         "build stage requested Psi and received a native artifact",
-                    )]);
+                    )]
+                    .into());
                 };
                 plan = host.interpret_plan(program, services)?;
                 grants = next_grants;
