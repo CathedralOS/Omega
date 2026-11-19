@@ -3839,7 +3839,6 @@ dependencies = [
  "language-core",
  "native-provider-runtime",
  "native-provider-sponsor",
- "orchestration",
  "platform-custody",
  "psi-entry-memory",
  "psi-provider-selections",

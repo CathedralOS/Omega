@@ -3,18 +3,8 @@
 
 #![cfg(target_os = "linux")]
 
-use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use platform_custody::temporary_directory::TemporaryDirectory;
-use std::process::{Command, Stdio};
-use terminal_runtime::{
-    TerminalDomainExitDelegation, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalRuntimeRequest,
-};
-
-#[test]
-fn internal_native_provider_worker() {
-    terminal_runtime::run_native_provider_worker_if_requested();
-}
+use std::process::Command;
 
 fn compile(command: &mut Command) {
     let result = command.output().unwrap();
@@ -26,9 +16,15 @@ fn compile(command: &mut Command) {
     );
 }
 
-fn execute_provider_fixture(
-    forward: bool,
-) -> Result<terminal_runtime::TerminalRuntimeObservation, terminal_runtime::TerminalRuntimeError> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fixture {
+    Scalar,
+    Forwarded,
+    Pair,
+}
+
+fn execute_provider_fixture(fixture: Fixture) {
+    let forward = fixture == Fixture::Forwarded;
     let directory = TemporaryDirectory::create("provider-reference", false).unwrap();
     let root = directory.path().join("source");
     std::fs::create_dir(&root).unwrap();
@@ -39,6 +35,8 @@ fn execute_provider_fixture(
         &provider,
         if forward {
             "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\nint32_t omega_reference_read(const int32_t *value) { return *value; }\n"
+        } else if fixture == Fixture::Pair {
+            "#include <stdint.h>\nstruct Pair { int32_t left; int32_t right; };\nstatic const struct Pair cell = { 37, 91 };\nconst struct Pair *omega_reference_cell(void) { return &cell; }\n"
         } else {
             "#include <stdint.h>\nstatic int32_t cell = 37;\nconst int32_t *omega_reference_cell(void) { return &cell; }\n"
         },
@@ -72,6 +70,18 @@ boundary trait Sink { machine read(cell: @i32) -> i32 reaches none crashes none;
 machine main() reaches Source + Sink invokes Source invokes Sink crashes Trap {
     let observed: i32 = Sink::read(Source::cell());
     transition observed == 37i32 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#
+        } else if fixture == Fixture::Pair {
+            r#"
+data Pair { left: i32; right: i32; }
+boundary trait Source { machine cell() -> @Pair reaches none crashes none; }
+machine matches(pair: @Pair) -> bool { pair.left == 37i32 && pair.right == 91i32 }
+machine main() reaches Source invokes Source crashes Trap {
+    let observed: bool = matches(Source::cell());
+    transition observed { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
 }
@@ -125,37 +135,34 @@ machine build(builder: @mut Build) {{
         ),
     )
     .unwrap();
-    let outcomes = orchestration::build(BuildRequest {
-        stage_validators: Default::default(),
-        root_path: root.join("main.omg"),
-        build_directory: Some(directory.path().join("build")),
-        targets: BuildTargets::Single(profile),
-        product: ProjectProduct::Native {
-            installation_assumptions: Vec::new(),
-            destination: NativeDestination::Retained,
-            private_entry_ram: Vec::new(),
-        },
-        timings: false,
-        offline: true,
-        verify: false,
-        require_package_project: true,
-        optimization_rollback: Default::default(),
-        build_snapshot: None,
-    })
-    .unwrap();
-    assert_eq!(outcomes.len(), 1);
-    let report = outcomes
-        .into_iter()
-        .next()
-        .unwrap()
-        .result
-        .unwrap()
-        .into_report()
-        .unwrap()
-        .report;
-    let artifact = report.retained_native_program().unwrap().psi_artifact();
-    let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "--keep", "main.omg"])
+        .current_dir(&root)
+        .env(
+            "OMEGA_LIBRARY_ROOT",
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library"),
+        )
+        .env("TMPDIR", directory.path())
+        .env_remove("OMEGA_HOST_PACKAGE_LOCK")
+        .env_remove("OMEGA_HOST_PACKAGE_LOCK_SHA256")
+        .output()
+        .unwrap();
+    let report = String::from_utf8(output.stderr).unwrap();
+    assert!(output.stdout.is_empty(), "{:?}", output.stdout);
+    assert!(
+        report.lines().any(|line| line == "native exit 0"),
+        "{report}"
+    );
+    let retained = report
+        .lines()
+        .find_map(|line| line.strip_prefix("build dir kept: "))
+        .unwrap();
+    let retained = std::path::Path::new(retained);
+    assert!(retained.starts_with(directory.path()), "{retained:?}");
+    let bytes = std::fs::read(retained.join("program.oterm")).unwrap();
+    let program = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
     let boundary = program
+        .view()
         .module()
         .boundary_machines
         .iter()
@@ -171,71 +178,42 @@ machine build(builder: @mut Build) {{
     assert_eq!(groups.len(), 1);
     assert!(groups[0].inputs.is_empty());
     assert_eq!(groups[0].results, vec![Vec::new()]);
-    let mut worker = Command::new(std::env::current_exe().unwrap());
-    worker.args(["--exact", "internal_native_provider_worker", "--nocapture"]);
-    let worker = native_provider_sponsor::for_adapters(
-        worker,
-        report
-            .published_runtime_provisions()
-            .into_iter()
-            .flat_map(|runtime| runtime.published_native_adapters()),
-    );
-    let observed = terminal_runtime::execute(TerminalRuntimeRequest {
-        entry: None,
-        filesystem: Default::default(),
-        native_services: Default::default(),
-        native_provider: Some(worker),
-        artifact,
-        target: Some(profile.target_name()),
-        provisions: report.runtime_provisions(),
-        provider_proposal: None,
-        x86_flags: terminal_runtime::capture_host_x86_flags(profile.target_name()).unwrap(),
-        memory_ordering: None,
-        work_budget: 100_000,
-        domain_exit: TerminalDomainExitDelegation::Unprovided,
-        standard_input: None,
-        clock: None,
-    });
-    // Publish and execute this same retained product before requiring the Psi
-    // completion, so a runtime refusal does not hide native descriptor custody.
-    let (_published, executable) = orchestration::publication::publish_compilation(
-        report,
-        &directory.path().join("native-output"),
-    )
-    .expect("publish the same checked native product");
-    let native = Command::new(executable.expect("checked native executable publication"))
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
-    assert_eq!(native.status.code(), Some(0), "{native:?}");
-    assert!(native.stdout.is_empty());
-    assert!(native.stderr.is_empty());
-    observed
+    if forward {
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("resident scalar belongs to a different original allocation"),
+            "{report}"
+        );
+    } else {
+        assert!(output.status.success(), "{report}");
+        assert!(
+            report.lines().any(|line| line == "interp exit: 0"),
+            "{report}"
+        );
+        assert!(
+            std::fs::read(retained.join("terminal.stdout"))
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            std::fs::read(retained.join("terminal.stderr"))
+                .unwrap()
+                .is_empty()
+        );
+    }
 }
 
 #[test]
 fn canonical_provider_reference_reads_its_live_cell() {
-    let observed = execute_provider_fixture(false)
-        .expect("the exact admitted provider reference should execute through its live backing");
-    assert_eq!(
-        observed.status,
-        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
-    );
-    assert!(observed.stdout.is_empty());
-    assert!(observed.stderr.is_empty());
+    execute_provider_fixture(Fixture::Scalar);
 }
 
 #[test]
 fn provider_reference_forwarding_requires_actual_pointer_authority() {
-    let refusal = match execute_provider_fixture(true) {
-        Err(refusal) => format!("{refusal:?}"),
-        Ok(observed) => panic!(
-            "unknown resident forwarding must refuse: {:?}",
-            observed.status
-        ),
-    };
-    assert!(
-        refusal.contains("resident scalar belongs to a different original allocation"),
-        "{refusal}"
-    );
+    execute_provider_fixture(Fixture::Forwarded);
+}
+
+#[test]
+fn canonical_provider_reference_reads_both_fields_of_its_live_pair() {
+    execute_provider_fixture(Fixture::Pair);
 }

@@ -6,12 +6,14 @@ version.workspace = true
 publish = false
 
 [features]
-test-support = []
+test-support = ["dep:native-compiler", "dep:target"]
 
 [lib]
 path = "sponsor.rs"
 
 [dependencies]
+native-compiler = { path = "../../../compiler/psi-to-native", features = ["test-support"], optional = true }
+target = { path = "../../../compiler/psi-to-native/targets/target", optional = true }
 bounded-process = { path = "../../../../foundation/bounded-process" }
 calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-conventions" }
 image-emission = { path = "../../../compiler/psi-to-native/pipeline/16_objects-to-image/image-emission" }

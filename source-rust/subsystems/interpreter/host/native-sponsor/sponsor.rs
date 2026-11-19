@@ -183,6 +183,54 @@ fn spawn_worker(
 pub mod test_support {
     use super::*;
 
+    use calling_conventions::{
+        CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
+        evaluate_ordinary_boundary_entry_plan,
+    };
+    use std::path::Path;
+    use target::{ForeignLocatorCandidate, TargetProfile, normalize_foreign_locator};
+
+    /// Compile a real adapter for a test worker's versioned ELF pointer-returning symbol.
+    pub fn pointer_result_worker(
+        command: Command,
+        library: &Path,
+        symbol: &[u8],
+        version: &[u8],
+    ) -> (NativeProviderCommand, PublishedForeignAdapterIdentity) {
+        let profile = TargetProfile::host();
+        let target = profile.native_target();
+        let foreign = evaluate_ordinary_boundary_entry_plan(
+            CallingPolicy::native_for_target(target),
+            &CallSignature {
+                parameters: vec![],
+                result: Some(ValueShape::integer(8, 8)),
+            },
+        )
+        .unwrap();
+        let locator = normalize_foreign_locator(
+            ForeignLocatorCandidate::ElfVersioned {
+                object: library.to_str().unwrap().as_bytes().to_vec(),
+                symbol: symbol.to_vec(),
+                version: version.to_vec(),
+            },
+            profile,
+        )
+        .unwrap();
+        let object = native_compiler::test_support::compile_runtime_foreign_adapter(
+            NativeForeignBridgeRequest {
+                target,
+                foreign,
+                scalar_parameters: vec![],
+            },
+            locator,
+            [37; 32],
+        )
+        .unwrap();
+        let adapter = Arc::new(image_emission::emit_native_foreign_adapter(object).unwrap());
+        let identity = adapter.runtime_identity();
+        (super::for_adapters(command, [&adapter]), identity)
+    }
+
     pub struct FixtureWorker {
         channel: Box<dyn Duplex>,
         directory: std::path::PathBuf,
