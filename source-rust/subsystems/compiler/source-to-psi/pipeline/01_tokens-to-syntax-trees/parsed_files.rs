@@ -5,10 +5,7 @@ use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
 use source_files::{DependencyScope, LoadedSource, LoadedSources, SourceOrigin};
 use source_text::{SourceId, SourceSpan};
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::PathBuf, sync::Arc};
 use syntax_trees::{SyntaxTrees, item::Item};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, record_storage::Record)]
