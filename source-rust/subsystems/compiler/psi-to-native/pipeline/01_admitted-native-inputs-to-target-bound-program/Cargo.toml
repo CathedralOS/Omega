@@ -8,6 +8,7 @@ version.workspace = true
 test-support = []
 
 [dependencies]
+provider-acceptance = { path = "../../../build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
@@ -26,7 +27,6 @@ arena = { path = "../../../../../foundation/arena" }
 build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-effects = { path = "../../installation/native-effects" }
 evaluation-accounting = { path = "../../../build/evaluation/accounting" }
 evaluation-contracts = { path = "../../../build/evaluation/usage" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }

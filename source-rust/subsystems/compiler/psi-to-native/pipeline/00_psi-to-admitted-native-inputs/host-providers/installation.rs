@@ -1,11 +1,8 @@
 //! Receiving-host provider inputs for one authorized portable artifact and target.
 #![forbid(unsafe_code)]
-mod permissions;
-mod semantic_bindings;
-
-pub use permissions::ServiceTerminalAuthorityPermission;
-pub use semantic_bindings::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, program_entry_semantic_binding_role,
+pub use provider_acceptance::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
+    program_entry_semantic_binding_role,
 };
 pub use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,

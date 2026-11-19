@@ -7,6 +7,7 @@ version.workspace = true
 
 
 [dependencies]
+provider-acceptance = { path = "../../../compiler/build/providers/acceptance" }
 direct-boundary-bindings = { path = "../../../compiler/psi-to-native/verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }
 selected-provider-plans = { path = "../../../compiler/build/providers/selections" }
@@ -28,7 +29,6 @@ source-compiler = { path = "../../../compiler/source-to-psi" }
 terminal-check-tables = { path = "../../../compiler/source-to-psi/pipeline/representations/lowered-program" }
 package-compilation = { path = "../../../compiler/build/package-compilation" }
 calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-conventions" }
-effects = { path = "../../../compiler/psi-to-native/installation/native-effects" }
 terminal-psi = { path = "../../../compiler/psi" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }
 semantic-vocabulary = { path = "../../../compiler/foundation/semantic-records" }

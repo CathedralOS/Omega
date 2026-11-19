@@ -1,8 +1,6 @@
-// Native binding declarations, evaluated locators, and Terminal evaluation
-// custody (`NativeBuildOutputs`, `NativeBindingProduction`,
-// `PackageNativeBindingOrigin`) carried inside `PackageBuildHandoff`. Admitting
-// native declarations into a receiving compilation uses the same immutable
-// source admission as retained provider selections.
+// Package build handoffs carry native declarations, evaluated locators and their
+// Terminal evaluation custody. The receiving compilation rejoins each declaration
+// to its retained product source before using it.
 
 use super::PackageBuildHandoff;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -10,8 +8,6 @@ pub use semantic_vocabulary::source_selections::NativeBindingProducer;
 use source_compiler::declaration_selection::CapturedNativeIntent;
 use source_compiler::evaluation::native_bindings::CapturedNativeDeclaration;
 use std::sync::Arc;
-
-pub use effects::semantic_bindings::{NativeBindingProduction, PackageNativeBindingOrigin};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(super) struct NativeBuildOutputs {

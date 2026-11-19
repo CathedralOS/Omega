@@ -24,7 +24,7 @@ use provider_plans::{
     ServiceReceiverApplication, ServiceResultClaim, ServiceSchema, ServiceSchemaDigest,
     ServiceSurface,
 };
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::TerminalAuthorityDisposition;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use package_compilation::build_execution::build_record_codec;
@@ -36,10 +36,15 @@ use package_compilation::review_record_encoding::{
     recover_semantic_binding_role, semantic_binding_role_tag,
 };
 use package_compilation::{
-    AcceptedSemanticBinding, ConsumedSourceUnit, ConsumedSourceUnitKind,
-    IndependentComponentDescription, PackageBuildHandoff, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceConsumptionCommitment, accepted_service_schema_digest,
+    ConsumedSourceUnit,
+    ConsumedSourceUnitKind,
+    IndependentComponentDescription,
+    PackageBuildHandoff,
+    PackageDependencyBinding,
+    PackageDependencyClosure,
+    PackageSourceConsumptionCommitment,
 };
+use provider_acceptance::{AcceptedSemanticBinding, accepted_service_schema_digest};
 use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 

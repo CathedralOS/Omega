@@ -12,6 +12,7 @@ test-support = []
 
 [dependencies]
 native-behavior-exclusions = { path = "verification/behavior-exclusions" }
+provider-acceptance = { path = "../build/providers/acceptance" }
 behavior-exclusion-requests = { path = "../build/behavior-exclusions" }
 selected-provider-plans = { path = "../build/providers/selections" }
 target-provider-admission = { path = "verification/target-providers" }

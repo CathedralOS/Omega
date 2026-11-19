@@ -17,9 +17,8 @@ use crate::resolution::source::PackageSourceSelectionEvidenceError;
 use crate::review::restricted_build_grants::UngrantedRestrictedBuildRequest;
 use diagnostics::Diagnostic;
 use filesystem_authority::FilesystemSponsorError;
-use package_compilation::{
-    AcceptedSemanticBindingRole, BuildDeclarationKind, PackageCompilationInputError,
-};
+use package_compilation::{BuildDeclarationKind, PackageCompilationInputError};
+use provider_acceptance::AcceptedSemanticBindingRole;
 use products::CompileFailure;
 use review_evidence::encoding::PackageReviewEncodingError;
 use source_acquisition::SourceResolveError;

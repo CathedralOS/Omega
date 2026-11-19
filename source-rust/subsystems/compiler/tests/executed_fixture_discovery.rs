@@ -77,7 +77,7 @@ fn fixture_accepts_the_entry_schema_from_its_checked_supplier() {
         .packages()
         .find(|(_, root)| *root == standard_library)
         .expect("exact standard-library package");
-    let role = package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
+    let role = provider_acceptance::AcceptedSemanticBindingRole::MacosArm64ProgramEntry;
     let accepted = inputs.accepted_semantic_binding(role).unwrap();
     assert_eq!(accepted.package(), supplier);
     assert_eq!(accepted.declaration_path(), "MacosApplication");

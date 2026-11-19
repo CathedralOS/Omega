@@ -11,7 +11,7 @@ refuse unconstrained mechanism rows until an occurrence-specific release
 contract is established.
 */
 
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet,
     TerminalAuthorityClass,

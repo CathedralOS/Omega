@@ -3,7 +3,7 @@
 use crate::record::SemanticBindingReviewCandidate;
 use diagnostics::Diagnostic;
 use provider_plans::ServiceSchema;
-use package_compilation::{
+use provider_acceptance::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
 };
 use products::CheckedCompilation;
@@ -33,7 +33,7 @@ pub fn candidate_target_entry_binding(
     else {
         return Ok(None);
     };
-    let role = package_compilation::program_entry_semantic_binding_role(contract);
+    let role = provider_acceptance::program_entry_semantic_binding_role(contract);
     let program = checked.source_inspection().program();
     let provenance = |symbol| {
         program

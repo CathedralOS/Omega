@@ -1,5 +1,8 @@
 //! Host acceptance of an exact service declaration and its allowed terminal operations.
-use crate::ServiceTerminalAuthorityPermission;
+#![forbid(unsafe_code)]
+
+mod permissions;
+pub use permissions::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{
     PackageKeyIdentity,
     provider_identity::{ProviderPlanDigest, ServiceSchemaDigest},
@@ -42,6 +45,26 @@ pub enum AcceptedSemanticBindingRole {
     LinuxX86_64ProgramEntry, // Exact package-owned Linux x86-64 application schema.
     LinuxArm64ProgramEntry, // Exact package-owned Linux ARM64 application schema.
     WindowsX64ProgramEntry, // Exact package-owned Windows x86-64 application schema.
+}
+
+/// Exact schema accepted by the receiver for this compiler-recognized role.
+/// Entry slots identify the declared service independently of its selected calling plan.
+pub fn accepted_service_schema_digest(
+    role: AcceptedSemanticBindingRole,
+    schema: &provider_plans::ServiceSchema,
+) -> ServiceSchemaDigest {
+    use AcceptedSemanticBindingRole::*;
+    match role {
+        UefiX64ProgramEntry
+        | MacosArm64ProgramEntry
+        | MacosX64ProgramEntry
+        | LinuxX86_64ProgramEntry
+        | LinuxArm64ProgramEntry
+        | WindowsX64ProgramEntry => schema.declaration_identity_digest(),
+        ConsoleIo | ProcessExitExitProcessI32 | FilesystemHostService | TimeHostService => {
+            schema.identity_digest()
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
@@ -131,8 +154,8 @@ impl AcceptedSemanticBinding {
                 permission.permitted().classes().iter().any(|class| {
                     !matches!(
                         class,
-                        crate::TerminalAuthorityClass::ProcessInput
-                            | crate::TerminalAuthorityClass::ProcessOutput
+                        semantic_vocabulary::TerminalAuthorityClass::ProcessInput
+                            | semantic_vocabulary::TerminalAuthorityClass::ProcessOutput
                     )
                 })
             })
@@ -221,7 +244,52 @@ impl AcceptedSemanticBinding {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+    use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+
+    #[test]
+    fn entry_acceptance_compares_the_declaration_and_host_services_compare_the_full_schema() {
+        use AcceptedSemanticBindingRole::*;
+        use provider_plans::{ServiceMethod, ServiceSchema, ServiceSurface};
+
+        let mut declaration = ServiceSurface::default();
+        declaration.trait_name = declaration.identities.intern("Entry");
+        let requirement = declaration.identities.intern("Entry::enter");
+        declaration.methods.push(ServiceMethod {
+            name: "enter".into(),
+            requirement_owner: "Entry".into(),
+            requirement_identity: requirement,
+            ..Default::default()
+        });
+        let schema = ServiceSchema::from_declaration(std::sync::Arc::new(declaration));
+        assert_ne!(
+            schema.identity_digest(),
+            schema.declaration_identity_digest()
+        );
+        for role in [
+            UefiX64ProgramEntry,
+            MacosArm64ProgramEntry,
+            MacosX64ProgramEntry,
+            LinuxX86_64ProgramEntry,
+            LinuxArm64ProgramEntry,
+            WindowsX64ProgramEntry,
+        ] {
+            assert_eq!(
+                accepted_service_schema_digest(role, &schema),
+                schema.declaration_identity_digest()
+            );
+        }
+        for role in [
+            ConsoleIo,
+            ProcessExitExitProcessI32,
+            FilesystemHostService,
+            TimeHostService,
+        ] {
+            assert_eq!(
+                accepted_service_schema_digest(role, &schema),
+                schema.identity_digest()
+            );
+        }
+    }
 
     #[test]
     fn console_io_permission_cannot_grant_process_exit() {

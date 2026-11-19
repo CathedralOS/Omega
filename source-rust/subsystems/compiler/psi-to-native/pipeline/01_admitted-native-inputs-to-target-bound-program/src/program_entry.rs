@@ -5,7 +5,7 @@ use diagnostics::Diagnostic;
 mod calling_plans;
 mod published;
 pub use calling_plans::{ProgramEntryCallingPlanRequest, entry_calling_policy};
-pub use host_provider_inputs::program_entry_semantic_binding_role;
+pub use provider_acceptance::program_entry_semantic_binding_role;
 pub use program_entry_contracts::ProgramEntryPhysicalContractPackageSourceDigest;
 pub use published::{PublishedEntryNomination, plan_published_entry_calling_conventions};
 

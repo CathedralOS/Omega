@@ -9,13 +9,11 @@ use super::{
 use crate::hex_digest;
 use crate::lock::{AcceptedPackageCompilation, PackageCheckedContext, PackageLockError as Error};
 use semantic_vocabulary::provider_identity::{ProviderPlanDigest, ServiceSchemaDigest};
-use host_provider_inputs::ServiceTerminalAuthorityPermission;
+use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use filesystem_authority::observation_codec::ObservationCursor;
-use package_compilation::{
-    AcceptedSemanticBinding,
-    review_record_encoding::{recover_semantic_binding_role, semantic_binding_role_tag},
-};
+use package_compilation::review_record_encoding::{recover_semantic_binding_role, semantic_binding_role_tag};
+use provider_acceptance::AcceptedSemanticBinding;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) fn write(
@@ -231,7 +229,7 @@ mod tests {
     use super::*;
     use crate::declarations::DependencyPurpose;
     use crate::lock::PackageLockRecoveryLimits;
-    use package_compilation::AcceptedSemanticBindingRole;
+    use provider_acceptance::AcceptedSemanticBindingRole;
     use target::TargetProfile;
 
     fn package() -> PackageKeyIdentity {

@@ -53,9 +53,9 @@ pub use reuse::review_record_encoding;
 mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use effects::semantic_bindings::accepted_service_schema_digest;
-pub use host_provider_inputs::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, program_entry_semantic_binding_role,
+pub use provider_acceptance::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+    program_entry_semantic_binding_role,
 };
 pub use package_compilation::{
     IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
@@ -123,6 +123,4 @@ pub fn capture_selected_anonymous_compilation_source(
     }
     Ok(captured)
 }
-pub use package_compilation::{
-    NativeBindingProducer, NativeBindingProduction, PackageNativeBindingOrigin,
-};
+pub use package_compilation::NativeBindingProducer;

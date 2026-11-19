@@ -24,7 +24,7 @@ pub struct TargetSupplyExecutionInputs {
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     pub evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    pub terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    pub terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     pub terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 
@@ -37,7 +37,7 @@ pub struct TargetSupplyRealizationRequest<'a> {
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     evaluated_native_bindings: Vec<provider_plans::EvaluatedNativeBinding>,
     evaluated_binding_identities: terminal_psi::TerminalIdentityTable,
-    terminal_authority_permissions: Vec<host_provider_inputs::ServiceTerminalAuthorityPermission>,
+    terminal_authority_permissions: Vec<provider_acceptance::ServiceTerminalAuthorityPermission>,
     terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable,
 }
 

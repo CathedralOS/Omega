@@ -29,9 +29,12 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageS
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    AcceptedSemanticBinding, IndependentComponentDescription, PackageCompilationInputError,
-    PackageCompilationInputs, derive_source_consumption_commitment,
+    IndependentComponentDescription,
+    PackageCompilationInputError,
+    PackageCompilationInputs,
+    derive_source_consumption_commitment,
 };
+use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::PackageReviewProjectionError;
 use review_evidence::record::PackageReviewEvidence;
 use review_evidence::record::SemanticBindingReviewCandidate;
