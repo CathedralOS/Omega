@@ -1,6 +1,7 @@
 //! Drive a project build. Each plan describes a whole new compilation.
 
 pub mod output_directory;
+pub mod published_terminal;
 
 use compiler::{Artifact, CompileRequest, PublishedPsi, StageSource, compile};
 use diagnostics::Diagnostic;

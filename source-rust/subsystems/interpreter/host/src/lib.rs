@@ -33,7 +33,7 @@ mod runtime_boundary;
 /// Low-level host bindings and entry storage for embedders of the PSI interpreter.
 pub mod embedding {
     pub use crate::execution::{
-        HostContext, HostedTerminalProgram, bind_numeric_import_slot, establish_host_entry,
+        HostContext, HostedTerminalProgram, bind_numeric_import_slot, establish_host_entry, execute_with_image_installation,
     };
 }
 pub use execution::{

@@ -595,6 +595,7 @@ dependencies = [
 name = "compiler"
 version = "0.1.0"
 dependencies = [
+ "project-build",
  "provider-demand",
  "host-provider-inputs",
  "abstract-operations",
@@ -2374,6 +2375,11 @@ dependencies = [
  "compiler",
  "diagnostics",
  "platform-custody",
+ "product-publication",
+ "target",
+ "terminal-interpreter",
+ "terminal-psi",
+ "terminal-runtime",
 ]
 
 [[package]]
@@ -3692,6 +3698,7 @@ dependencies = [
  "numerics",
  "orchestration",
  "platform-custody",
+ "project-build",
  "psi-entry-memory",
  "psi-provider-selections",
  "psi-target-layouts",

@@ -6,13 +6,10 @@
 use terminal_interpreter::{
     TerminalNativeCodeLayout, TerminalNativeCodeLayoutEnvironment, TerminalNativeCodeRegion,
 };
-use terminal_runtime::embedding::{HostContext, HostedTerminalProgram, establish_host_entry};
-use terminal_runtime::{
-    TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
-    TerminalRuntimeRequest,
-};
+use terminal_runtime::embedding::{HostedTerminalProgram, execute_with_image_installation};
+use terminal_runtime::{TerminalRuntimeError, TerminalRuntimeObservation, TerminalRuntimeRequest};
 
-type Image = products::RetainedNativeArtifact;
+use product_publication::RetainedNativeArtifact;
 
 /// Run the portable program with metadata from the optional completed product.
 /// Observations of addresses or regions cannot be used as a native product.
@@ -20,41 +17,46 @@ type Image = products::RetainedNativeArtifact;
 /// ```compile_fail
 /// fn run_with_host_addresses(request: terminal_runtime::TerminalRuntimeRequest<'_>,
 ///                            addresses: Vec<(u64, u64)>) {
-///     orchestration::execute_published_terminal(request, Some(&addresses)).unwrap();
+///     project_build::published_terminal::execute_published_terminal(request, Some(&addresses)).unwrap();
 /// }
 /// ```
 pub fn execute_published_terminal(
     request: TerminalRuntimeRequest<'_>,
-    image: Option<&products::RetainedNativeArtifact>,
+    image: Option<&RetainedNativeArtifact>,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
     execute_published_terminal_sliced(request, image, std::num::NonZeroU64::MAX)
 }
 
 pub fn execute_published_terminal_sliced(
     request: TerminalRuntimeRequest<'_>,
-    image: Option<&products::RetainedNativeArtifact>,
+    image: Option<&RetainedNativeArtifact>,
     quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    invocation::execute(request, image, quantum)
-}
-
-mod invocation {
-    include!("../../../interpreter/terminal-runtime/src/execution/hosted_invocation.rs");
+    let Some(image) = image else {
+        return terminal_runtime::execute_sliced(request, quantum);
+    };
+    let host = HostedTerminalProgram::prepare(request)?;
+    let layouts = inspect(image, host.request())?;
+    let installation = host
+        .program()
+        .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+            native_code_layouts: Some(&layouts),
+            ..host.supplies()
+        })
+        .map_err(TerminalRuntimeError::Requirements)?;
+    execute_with_image_installation(host, &installation, quantum)
 }
 
 fn inspect(
-    image: Option<&Image>,
+    image: &RetainedNativeArtifact,
     request: &TerminalRuntimeRequest<'_>,
-) -> Result<Option<TerminalNativeCodeLayoutEnvironment>, TerminalRuntimeError> {
+) -> Result<TerminalNativeCodeLayoutEnvironment, TerminalRuntimeError> {
     let artifact = request.artifact;
     let execution_target = request.target.or_else(|| {
         request
             .provisions
             .map(|provisions| provisions.target_slot().owner.target_name())
     });
-    let Some(image) = image else {
-        return Ok(None);
-    };
     let Some(target) = execution_target else {
         return Err(TerminalRuntimeError::InvalidProvision(
             "native layout inspection requires the completed image's target",
@@ -89,7 +91,6 @@ fn inspect(
         *image.identity().as_bytes(),
         layouts,
     ))
-    .map(Some)
 }
 
 // A supplied image that fails inspection is invalid, not an absent host capability.

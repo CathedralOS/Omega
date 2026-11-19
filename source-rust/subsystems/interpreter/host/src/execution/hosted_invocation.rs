@@ -1,28 +1,20 @@
-// Private to each host. The portable host has no image, while Build takes
-// its concrete retained native artifact. Neither entrance accepts host-supplied
-// layout rows or an interpreter installation.
+//! Enter the checked program with the host and supplies admitted for this invocation.
 use super::{
-    HostContext, HostedTerminalProgram, Image, TerminalDomainExitDelegation, TerminalRuntimeError,
-    TerminalRuntimeObservation, TerminalRuntimeRequest, establish_host_entry, inspect,
+    HostContext, HostedTerminalProgram, TerminalDomainExitDelegation, TerminalRuntimeError,
+    TerminalRuntimeObservation, establish_host_entry,
 };
 use terminal_interpreter::{
-    TerminalExecutionStatus, TerminalProcessExitAdmission, TerminalRuntimeSupplyRequest,
+    TerminalExecutionStatus, TerminalProcessExitAdmission, TerminalRuntimeSupplies,
 };
 
-pub(crate) fn execute(
-    request: TerminalRuntimeRequest<'_>,
-    image: Option<&Image>,
+/// Run an embedded program with supplies checked by its interpreter instance.
+/// The installed entry and all runtime provisions are checked before guest effects.
+pub(super) fn execute_installed(
+    host: HostedTerminalProgram<'_>,
+    mut installation: TerminalRuntimeSupplies,
     quantum: std::num::NonZeroU64,
 ) -> Result<TerminalRuntimeObservation, TerminalRuntimeError> {
-    let host = HostedTerminalProgram::prepare(request)?;
-    let native_code_layouts = inspect(image, host.request())?;
     let program = host.program().clone();
-    let mut installation = program
-        .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
-            native_code_layouts: native_code_layouts.as_ref(),
-            ..host.supplies()
-        })
-        .map_err(TerminalRuntimeError::Requirements)?;
     let request = host.into_request();
     let component_products = request
         .provisions
