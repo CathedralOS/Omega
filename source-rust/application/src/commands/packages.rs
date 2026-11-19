@@ -2,7 +2,7 @@
 
 Console adapter for `omega packages install`, `omega packages update`, and `omega packages audit`.
 
-Package installation and update run inside a single retained `BuildSession` at
+Package installation and update run inside a single retained `PackageBuildSession` at
 `<project_root>/build/package-manager`. That session owns the temporary work
 directory and resource grant across every requested target and across any
 automatic review rounds triggered by `--dangerously-accept-all`. A subsequent
@@ -27,10 +27,11 @@ from spinning forever.
 
 use crate::arguments::USAGE_ERROR_EXIT;
 use crate::arguments::audit::SourceArguments;
-use orchestration::{BuildSession, execute_package_command, inspect_packages};
+mod transaction;
+use transaction::{execute_package_command, inspect_packages};
 use package_manager::operations::PackageInspectionOptions;
 use package_manager::{
-    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
+    PackageBuildSession, PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
     PackageCommandOutcome, PackageCommandStatus, discard_package_review,
 };
 use source_acquisition::PrimaryGitChoices;
@@ -49,7 +50,7 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                 PackageCommand::Resume { kind } => *kind,
                 _ => PackageCommandKind::Update,
             };
-            let mut session = match BuildSession::create_retained(
+            let mut session = match PackageBuildSession::create(
                 &options.project_root.join("build/package-manager"),
             ) {
                 Ok(session) => session,
@@ -84,7 +85,7 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                 }
                 Ok(outcome)
             })();
-            session.dispose_command(result)
+            session.dispose(result)
         }
     };
     let outcome = match result {
