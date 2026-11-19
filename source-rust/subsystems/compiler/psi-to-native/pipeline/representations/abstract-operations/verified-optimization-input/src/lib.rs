@@ -246,6 +246,37 @@ impl VerifiedPsiOptimizationInput {
         Ok(())
     }
 
+    pub fn validate_behavior_exclusions(
+        &self,
+        exclusions: &native_behavior_exclusions::BehaviorExclusions,
+        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        profile: target::TargetProfile,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
+        if !exclusions.has_semantic_exclusions() {
+            return Ok(());
+        }
+        let machines = match self.native_execution_scope.as_deref() {
+            Some(scope) => {
+                if scope.selected_provider_closure() != *providers.identity_digest().as_bytes()
+                    || scope.target_context().target() != profile.target_name()
+                {
+                    return Err(vec![diagnostics::Diagnostic::error(
+                        "behavior exclusions belong to another target or selected provider closure",
+                    )]);
+                }
+                Some(scope.machines())
+            }
+            None => None,
+        };
+        exclusions.validate_semantic_scope(
+            self.context.module(),
+            self.plan.entry,
+            machines,
+            providers,
+            profile.target_name(),
+        )
+    }
+
     pub fn retain_admitted_assumed_bindings(
         &mut self,
         calls: Vec<InstalledAssumedBindingEvidence>,

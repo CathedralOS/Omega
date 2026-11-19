@@ -2,6 +2,7 @@
 //! provider plans. Keep a prohibited behavior distinct from a gap in retained evidence.
 
 use crate::{BehaviorExclusion, BehaviorExclusions};
+use diagnostics::Diagnostic;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, InvocationSite, MachineId, OperationId, ServiceId,
 };
@@ -161,6 +162,89 @@ impl BehaviorExclusionReport {
     }
 }
 
+impl BehaviorExclusions {
+    pub fn has_semantic_exclusions(&self) -> bool {
+        !self.crash_causes().is_empty() || !self.services().is_empty()
+    }
+
+    /// Check every admitted machine, including dynamically reached private
+    /// entries. Without that roster a clean whole module is sufficient evidence.
+    pub fn validate_semantic_scope(
+        &self,
+        module: &TerminalModule,
+        entry: MachineId,
+        selected_machines: Option<&[MachineId]>,
+        providers: &selected_provider_plans::SelectedProviderPlanFacts,
+        deployment_target: &str,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if !self.has_semantic_exclusions() {
+            return Ok(());
+        }
+        let check = |entries: &[MachineId]| {
+            establish_behavior_exclusions(module, entries, self, providers, deployment_target)
+        };
+        if let Some(machines) = selected_machines {
+            if machines.binary_search(&entry).is_err() {
+                return Err(vec![Diagnostic::error(
+                    "selected behavior scope does not cover its entry",
+                )]);
+            }
+            return check(machines).require_satisfied(module);
+        }
+        check(&[entry]).require_satisfied(module)?;
+        let remaining = module
+            .machines
+            .iter()
+            .map(|machine| machine.id)
+            .filter(|machine| *machine != entry)
+            .collect::<Vec<_>>();
+        let report = check(&remaining);
+        if report.verdict() != BehaviorExclusionVerdict::Satisfied {
+            return Err(vec![Diagnostic::error(
+                "behavior exclusions need the selected execution scope because the whole module cannot establish their absence",
+            )]);
+        }
+        Ok(())
+    }
+}
+
+impl BehaviorExclusionReport {
+    fn require_satisfied(self, module: &TerminalModule) -> Result<(), Vec<Diagnostic>> {
+        if self.verdict() == BehaviorExclusionVerdict::Satisfied {
+            return Ok(());
+        }
+        let mut diagnostics = Vec::new();
+        for finding in self.prohibited {
+            let mut exclusion = finding.exclusion.describe(module);
+            let mut qualified_service = String::new();
+            if let BehaviorExclusion::Service(id) = finding.exclusion
+                && let Some(identity) = module
+                    .service(id)
+                    .and_then(|row| module.identities.text(row.identity))
+                && let Some((_, name)) = identity.rsplit_once("::")
+            {
+                // The short label is only for display. Always report the complete
+                // declaration identity when two services could share that label.
+                exclusion = format!("service `{name}`");
+                qualified_service = format!(" (declaration `{identity}`)");
+            }
+            diagnostics.push(Diagnostic::error(format!(
+                "behavior exclusion violated: {exclusion} is reachable in Terminal machine {} from entry {} at {}{qualified_service}",
+                finding.machine, finding.entry, finding.site.describe(module)
+            )));
+        }
+        for gap in self.gaps {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot establish behavior exclusions for entry {} in machine {}: {}",
+                gap.entry,
+                gap.machine,
+                gap.kind.describe()
+            )));
+        }
+        Err(diagnostics)
+    }
+}
+
 pub fn establish_behavior_exclusions(
     module: &TerminalModule,
     entries: &[MachineId],
@@ -169,10 +253,14 @@ pub fn establish_behavior_exclusions(
     deployment_target: &str,
 ) -> BehaviorExclusionReport {
     let mut report = BehaviorExclusionReport::default();
-    if exclusions.is_empty() {
+    if !exclusions.has_semantic_exclusions() {
         return report;
     }
+    let mut visited = std::collections::BTreeSet::new();
     for &entry in entries {
+        if visited.contains(&entry) {
+            continue;
+        }
         if module.machine(entry).is_none() {
             report.gaps.push(EvidenceGap {
                 entry,
@@ -193,13 +281,11 @@ pub fn establish_behavior_exclusions(
             });
             continue;
         };
-        let mut visited = Vec::new();
         let mut pending = VecDeque::from([machine]);
         while let Some(machine) = pending.pop_front() {
-            if visited.contains(&machine.machine) {
+            if !visited.insert(machine.machine) {
                 continue;
             }
-            visited.push(machine.machine);
             inspect_machine(
                 module,
                 entry,
@@ -656,6 +742,104 @@ mod boundary_reach_tests {
         duplicate.id = ServiceId::new(4).unwrap();
         module.services.push(duplicate);
         assert!(crate::service_for_exclusion(&module, identity).is_err());
+    }
+
+    #[test]
+    fn native_admission_checks_selected_preoptimization_bodies_and_missing_evidence() {
+        use semantic_vocabulary::{ContractId, CrashCause, EdgeId};
+        use terminal_psi::{
+            Block, MachineContract, TerminalMachine, Terminator, UnoptimizedMachineBehavior,
+        };
+
+        let entry = MachineId::new(1).unwrap();
+        let private = MachineId::new(2).unwrap();
+        let block = BlockId::new(1).unwrap();
+        let edge = EdgeId::new(1).unwrap();
+        let machine = |id, terminator| TerminalMachine {
+            call_formations: Vec::new(),
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            id,
+            attachment: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block,
+            blocks: vec![Block::plain(block, Vec::new(), terminator)],
+            contract: MachineContract::empty(ContractId::new(1).unwrap()),
+        };
+        let mut module = TerminalModule::for_entry(entry);
+        module.machines = vec![
+            machine(
+                entry,
+                Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ),
+            machine(
+                private,
+                Terminator::Crash {
+                    edge,
+                    cause: CrashCause::Trap,
+                    site_guard: Vec::new(),
+                    frontier_lower_bound: Vec::new(),
+                },
+            ),
+        ];
+        module.unoptimized_behavior = module
+            .machines
+            .iter()
+            .map(UnoptimizedMachineBehavior::capture)
+            .collect();
+        // Native optimization has removed the Trap. The selected composition must
+        // still answer for the original operation retained in the published input.
+        module.machines[1].blocks[0].terminator = Terminator::ReturnUnit {
+            edge,
+            cleanup_actions: Vec::new(),
+        };
+        let exclusions =
+            BehaviorExclusions::from_selections([BehaviorExclusion::CrashCause(CrashCause::Trap)]);
+        let providers = selected_provider_plans::SelectedProviderPlanFacts::default();
+        let check = |module: &TerminalModule, scope: Option<&[MachineId]>| {
+            exclusions.validate_semantic_scope(module, entry, scope, &providers, "linux_x86_64")
+        };
+        assert!(check(&module, Some(&[entry])).is_ok());
+        let diagnostic = check(&module, Some(&[entry, private])).unwrap_err();
+        assert!(
+            diagnostic[0]
+                .message
+                .contains("behavior exclusion violated: crash cause Trap is reachable")
+        );
+        assert!(
+            check(&module, None).unwrap_err()[0]
+                .message
+                .contains("need the selected execution scope")
+        );
+
+        // A direct invocation brings the private body into even the single-entry scope.
+        module.unoptimized_behavior[0]
+            .operations
+            .push(UnoptimizedBehaviorOperation::Invocation {
+                block,
+                site: InvocationSite::Operation(OperationId::new(1).unwrap()),
+                callee: private,
+            });
+        assert!(
+            check(&module, Some(&[entry])).unwrap_err()[0]
+                .message
+                .contains("behavior exclusion violated")
+        );
+        module.unoptimized_behavior[1].operations.clear();
+        assert!(check(&module, None).is_ok());
+        module.unoptimized_behavior.pop();
+        assert!(
+            check(&module, Some(&[entry])).unwrap_err()[0]
+                .message
+                .contains("cannot establish behavior exclusions")
+        );
     }
 
     fn inspect(module: &TerminalModule, excluded: ServiceId) -> BehaviorExclusionReport {
