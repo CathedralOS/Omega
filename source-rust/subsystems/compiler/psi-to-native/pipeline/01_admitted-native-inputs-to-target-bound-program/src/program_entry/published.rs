@@ -2,10 +2,10 @@
 use super::{
     ProgramEntryCallingPlanRequest, SelectedCompilerProgramEntry, SelectedProgramEntryCallingPlans,
 };
+use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use diagnostics::Diagnostic;
 use host_provider_inputs::AcceptedSemanticBinding;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
-use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -41,7 +41,7 @@ impl PublishedEntryNomination {
     pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
         self.program
     }
-    pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+    pub fn source_signature(&self) -> &program_entry_contracts::SelectedProgramEntrySignature {
         self.selected.source_signature()
     }
     pub fn nominal_root(&self) -> Result<terminal_psi::PreparedNominalRoot, Vec<Diagnostic>> {

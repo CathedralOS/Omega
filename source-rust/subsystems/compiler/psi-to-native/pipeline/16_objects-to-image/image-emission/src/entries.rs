@@ -1839,7 +1839,7 @@ pub(crate) mod hosted_receiver {
 
     use super::hosted_entry_storage::HostedEntryPartitions;
     use diagnostics::Diagnostic;
-    use program_entry_plan::SelectedProgramEntrySignature;
+    use program_entry_contracts::SelectedProgramEntrySignature;
     use verified_optimization_input::hosted_receiver::AdmittedHostedReceiver;
     use verified_optimization_input::hosted_receiver::{
         ReceiverArgumentInput, physical_contract_matches,
@@ -3282,7 +3282,7 @@ pub(crate) mod physical_entry {
         use crate::{ObjectArtifact, StackDemand};
         use calling_conventions::BoundaryEntryPlan;
         use diagnostics::Diagnostic;
-        use program_entry_plan::ProgramEntryPhysicalContractPlan;
+        use program_entry_contracts::ProgramEntryPhysicalContractPlan;
         use semantic_vocabulary::{MachineId, OperationId};
 
         mod cpu {
@@ -3427,7 +3427,9 @@ pub(crate) mod physical_entry {
         }
 
         pub(super) fn place(
-            plan: program_entry_plan::physical_selection::PlannedRequirements,
+            plan: physical_recipes::physical_entry::PlannedRequirements<
+                program_entry_contracts::ProgramEntryPhysicalContractPlan,
+            >,
             existing_bss: u64,
         ) -> Result<PhysicalEntryRequirements, Diagnostic> {
             let retained_storage = PhysicalEntryPartitions::derive(
@@ -3803,8 +3805,9 @@ pub(crate) mod physical_entry {
     }
 
     pub type EncodedPhysicalEntry = object_file::program_entry_object::PhysicalProgramObject<
-        program_entry_plan::physical_selection::PhysicalEntryContext<
+        physical_recipes::physical_entry::PhysicalEntryContext<
             verified_optimization_input::AdmittedPhysicalEntry,
+            program_entry_contracts::ProgramEntryPhysicalContractPlan,
         >,
     >;
 

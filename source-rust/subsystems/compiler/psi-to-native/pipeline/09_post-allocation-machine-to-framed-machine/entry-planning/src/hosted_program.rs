@@ -7,7 +7,7 @@ use physical_recipes::hosted_program::{
     HostedProgram, HostedProgramContext, HostedProgramParts, HostedStackBacking, HostedStackLayout,
     PrivateRamExtent,
 };
-use program_entry_plan::hosted_receiver::HostedReceiverCustody;
+use program_entry_contracts::HostedReceiverCustody;
 use target_vocabulary::publication::EmissionProgramFacts;
 
 pub struct HostedProgramEntryRequest<'a, Receiver> {

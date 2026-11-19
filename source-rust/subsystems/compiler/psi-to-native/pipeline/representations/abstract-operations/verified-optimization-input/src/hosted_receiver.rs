@@ -1,7 +1,7 @@
 //! Join a hosted receiver's sealed semantic entry and private RAM to its physical ABI.
 use diagnostics::Diagnostic;
-use program_entry_plan::hosted_receiver::HostedReceiverCustody;
-use program_entry_plan::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
+use program_entry_contracts::HostedReceiverCustody;
+use program_entry_contracts::{ProgramEntryPhysicalContractPlan, SelectedProgramEntrySignature};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedHostedReceiver {
@@ -88,7 +88,7 @@ struct PhysicalContractRow {
 }
 
 fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContractRow> {
-    use program_entry_plan::{
+    use program_entry_contracts::{
         LINUX_ARM64_I32_TYPE_IDENTITY, LINUX_ARM64_U64_TYPE_IDENTITY,
         LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
         MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
@@ -151,7 +151,8 @@ pub fn physical_contract_matches(
     let Some(package) = slot.physical_contract_package else {
         return false;
     };
-    let Some(expected) = program_entry_plan::exact_hosted_physical_boundary_entry_plan(package)
+    let Some(expected) =
+        program_entry_contracts::exact_hosted_physical_boundary_entry_plan(package)
     else {
         return false;
     };
@@ -159,7 +160,7 @@ pub fn physical_contract_matches(
     physical.target_slot() == slot
         && physical.target_package() == package
         && physical.target_package_source_digest()
-            == program_entry_plan::exact_physical_contract_package_source_digest(package)
+            == program_entry_contracts::exact_physical_contract_package_source_digest(package)
         && !physical.requirement_identity().is_absent()
         && physical.parameter_type_identities().len() == row.parameter_type_identities.len()
         && physical
