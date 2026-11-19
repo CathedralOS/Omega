@@ -4,6 +4,7 @@
 //! target-specific edges, excluding dev-dependencies for production boundaries)
 //! to enforce the Psi/Omega firewall and stage boundaries.
 
+mod build_invocations;
 mod linear_pipeline;
 mod native_stages;
 
@@ -241,7 +242,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         allowed: [
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER),
             ("source-rust/subsystems/compiler/build/build-declarations", linear_pipeline::TEXT_READER),
-            ("source-rust/subsystems/compiler/build/build-settings/result", linear_pipeline::PSI_STAGES[7]),
+            ("source-rust/subsystems/compiler/build/execution/result", linear_pipeline::PSI_STAGES[7]),
             (STAGES[2], linear_pipeline::PSI_STAGES[7]),
             ("source-rust/subsystems/compiler/source-to-psi/pipeline/prepare_and_check/accounting", linear_pipeline::PSI_STAGES[7]),
         ].into_iter().map(|(owner, dependency)| Allowance { owner, dependency }).collect(),
@@ -1119,6 +1120,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let check_all = || -> Result<Vec<String>, String> {
         let mut violations = linear_pipeline::violations(&metadata)?;
+        violations.extend(build_invocations::violations(&root)?);
         violations.extend(representation_spelling_violations(&root));
         violations.extend(crate::boundary_contracts::violations(
             &root,

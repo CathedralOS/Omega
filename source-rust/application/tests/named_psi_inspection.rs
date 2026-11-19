@@ -398,3 +398,50 @@ fn reopened_program_uses_the_host_pinned_package_lock() {
         "{compared:?}"
     );
 }
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn authored_getpid_build_runs_and_reopens_its_published_psi() {
+    let library = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library");
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/run/providers/native_boundary_supply");
+    let scratch = TemporaryDirectory::create("authored-getpid", false).unwrap();
+    for file in ["build.omg", "main.omg"] {
+        std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
+    }
+    let build = |flags: &[&str]| {
+        let output = omega(scratch.path())
+            .env("OMEGA_LIBRARY_ROOT", &library)
+            .args(flags)
+            .args([
+                "--target", "linux_x86_64", "--build-input", "build.omg",
+                "--build-input", "main.omg", "main.omg",
+            ])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let stdout = build(&["--build-dir", "native"]);
+    let executable = stdout.lines()
+        .find_map(|line| line.strip_prefix("published native output to "))
+        .unwrap_or_else(|| panic!("build did not report a native executable: {stdout}"));
+    // The fixture traps unless the selected syscall returns a positive process ID.
+    let guest = Command::new(scratch.path().join(executable))
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert_eq!(guest.status.code(), Some(0), "{guest:?}");
+
+    build(&["--emit-psi", "getpid.psi"]);
+    let reopened = omega(scratch.path())
+        .args(["psi", "inspect", "--artifact", "getpid.psi"])
+        .output()
+        .unwrap();
+    assert!(reopened.status.success(), "{reopened:?}");
+    let stdout = String::from_utf8(reopened.stdout).unwrap();
+    assert!(
+        stdout.lines().any(|line| line.starts_with("boundary ") && line.contains("HostProcessId::get")),
+        "{stdout}"
+    );
+}
