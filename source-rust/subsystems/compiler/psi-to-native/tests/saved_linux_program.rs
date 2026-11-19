@@ -125,6 +125,33 @@ fn published_target_entry_emits_linux_image() {
 }
 
 #[test]
+fn selected_entry_requires_its_checked_declaration() {
+    use provider_realization::program_entry::SelectedCompilerProgramEntry;
+
+    let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
+    let profile = TargetProfile::LinuxX64;
+    let slot = profile.program_entry_slot();
+    let mut module = artifact.semantic_module().clone();
+    let entry = module
+        .program_entry_contract(profile.target_name())
+        .unwrap()
+        .entry;
+    SelectedCompilerProgramEntry::from_terminal(&module, entry, slot).unwrap();
+
+    let machine = module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .unwrap();
+    assert!(machine.declaration.take().is_some());
+    let refusal = SelectedCompilerProgramEntry::from_terminal(&module, entry, slot).unwrap_err();
+    assert!(
+        refusal.iter().any(|diagnostic| diagnostic.message == "the selected entry has no checked declaration"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn same_program_without_publication_refuses_native_emit() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     let debug = artifact
