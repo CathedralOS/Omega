@@ -1169,3 +1169,64 @@ fn a_bare_arm_word_compares_only_against_a_constant_that_no_local_hides() {
     let stage = run(&[consts, ("app", "main.omg", text)], &[]).unwrap();
     assert_eq!(word_targets(&stage, "main.omg", text, "x"), ["Const app::x"]);
 }
+
+#[test]
+fn a_top_level_qualified_machine_head_needs_a_module_trait_or_implementation_owner() {
+    // `machine f::helper` outside `f` would add a helper to f's nested scope from
+    // another file, and an owner that names nothing qualifies nothing.
+    let caller = ("app", "main.omg", "machine f() { helper(1u32) }");
+    for (files, head, message) in [
+        (
+            vec![("app", "side.omg", "machine f::helper(v: u32) {}"), caller],
+            "f::helper",
+            "machine f cannot qualify a declaration outside its body",
+        ),
+        (
+            vec![
+                ("app", "side.omg", "machine f::helper() {}"),
+                ("app", "main.omg", "machine f() { helper() machine helper() {} }"),
+            ],
+            "f::helper",
+            "machine f cannot qualify a declaration outside its body",
+        ),
+        (
+            vec![("app", "main.omg", "machine f::helper() {} machine g() { f::helper() }")],
+            "f::helper",
+            "unresolved machine owner f",
+        ),
+        (
+            vec![("app", "main.omg", "data Counter {} machine Counter::increment(x: Counter) {}")],
+            "Counter::increment",
+            "a data carrier cannot own a machine",
+        ),
+    ] {
+        let error = run(&files, &[])
+            .err()
+            .unwrap_or_else(|| panic!("{files:?} was accepted"));
+        let text = files.iter().find(|f| f.1 == error.file).unwrap().2;
+        assert_eq!(
+            (text.get(error.span.get_start_offset()..error.span.get_end_offset()), error.message.as_str()),
+            (Some(head), message),
+            "{files:?}"
+        );
+    }
+    // A named implementation, a domain and a module can each own a top-level machine.
+    for files in [
+        vec![(
+            "app",
+            "main.omg",
+            "domain i32::Km; machine + Km::add(x: i32 in Km, y: i32 in Km) -> i32 in Km { x }",
+        )],
+        vec![(
+            "app",
+            "main.omg",
+            "trait Logger { machine write(); } Sink satisfies Logger { Logger::write = Sink::write; } machine Sink::write() {}",
+        )],
+        vec![
+            ("app", "combat/x.omg", "machine other() {}"),
+            ("app", "main.omg", "machine combat::score() {} machine g() { combat::score() }"),
+        ],
+    ] {
+        run(&files, &[]).unwrap_or_else(|e| panic!("{files:?}: {e:?}"));
+    }
+}

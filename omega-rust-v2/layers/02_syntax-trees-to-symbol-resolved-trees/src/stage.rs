@@ -366,18 +366,6 @@ pub fn resolve_stage_with_exports<'text>(
         catalog.imports(file, &mut contexts[file_number], &mut uses, false)?;
         import_ranges.push(first..uses.len());
     }
-    for entry in entries[..source_count].iter().filter(|e| callable(e.id.kind)) {
-        let (file_number, node) = entry.source.expect("source declaration");
-        let file = &files[file_number];
-        if let Some(head) = file.child(node, NodeKind::Path)
-            && let Some((owner, _)) = file.nodes[head].path().rsplit_once("::")
-        {
-            let owners = catalog.lookup(file, file_number, &contexts[file_number], head, owner)?;
-            if owners.iter().any(|&i| entries[i].id.kind == NodeKind::Data) {
-                return Err(file.error(file.span(head), "a data carrier cannot own a machine"));
-            }
-        }
-    }
     for (slot, entry) in entries[..source_count]
         .iter()
         .enumerate()
@@ -413,6 +401,33 @@ pub fn resolve_stage_with_exports<'text>(
             Carrier::Named(first)
         };
         catalog.carriers.insert(slot, key);
+    }
+    for entry in entries[..source_count].iter().filter(|e| callable(e.id.kind)) {
+        let (file_number, node) = entry.source.expect("source declaration");
+        let file = &files[file_number];
+        // Qualification identifies a module, trait requirement, named implementation
+        // or lexically visible nested declaration. A helper of machine `f` is
+        // declared inside f's body; `machine f::helper` elsewhere would reach
+        // into that scope from outside it.
+        if let Some(head) = file.child(node, NodeKind::Path)
+            && let Some((owner, _)) = file.nodes[head].path().rsplit_once("::")
+        {
+            let context = &contexts[file_number];
+            // An operator such as `machine + Km::add` can be owned by a domain
+            // that the file declares or imports, found by its attached name.
+            let mut owners = catalog.lookup(file, file_number, context, head, owner)?;
+            owners.extend(catalog.attached_domains(file, file_number, context, head, owner, true)?);
+            if owners.iter().any(|&i| entries[i].id.kind == NodeKind::Data) {
+                return Err(file.error(file.span(head), "a data carrier cannot own a machine"));
+            }
+            if owners.iter().any(|&i| callable(entries[i].id.kind)) {
+                return Err(file.error(file.span(head), format!("machine {owner} cannot qualify a declaration outside its body")));
+            }
+            let module = modules.contains(&(file.package.to_owned(), qualify(&file.namespace, owner)));
+            if owners.is_empty() && !module {
+                return Err(file.error(file.span(head), format!("unresolved machine owner {owner}")));
+            }
+        }
     }
     for (file_number, file) in files.iter().enumerate() {
         let context = &contexts[file_number];
