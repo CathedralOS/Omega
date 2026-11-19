@@ -1,7 +1,11 @@
 #[test]
 fn boundary_mathematics_retains_assumption_closure_through_private_helpers() {
     let definitions = "boundary let trusted(x:u8):u8; let wrap(x:u8):u8=trusted(x);";
-    let stage = check(&[("math.omg", &format!("{definitions} machine proof(x:u8) ensures wrap(x)==x {{}}"))]).unwrap();
+    let source = format!("{definitions} machine proof(x:u8) ensures wrap(x)==x {{}}");
+    let stage = check(&[("math.omg", &source)]).unwrap();
+    assert!(stage.obligations.iter().any(|o| o.site.file == "math.omg"
+        && o.site.span.slice(source.as_bytes()) == Some(b"wrap(x)")
+        && matches!(&o.kind, omega_typer::ObligationKind::AdmitMathematicalAssumption(id) if id.path=="trusted")));
     let row = stage
         .mathematical_interfaces
         .iter()
@@ -251,13 +255,20 @@ fn type_applications_require_the_same_universe_membership_as_machine_calls() {
                 if bound_level == subject_level + 1 {
                     result.unwrap_or_else(|error| panic!("{source}: {error:?}"));
                 } else {
-                    assert_eq!(result.unwrap_err().message, "universe argument requires its exact successor universe", "{source}");
+                    assert_eq!(
+                        result.unwrap_err().message,
+                        "universe argument requires its exact successor universe",
+                        "{source}"
+                    );
                 }
             }
         }
     }
     let strict = "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}";
-    assert_eq!(check(&[("universe.omg", strict)]).unwrap_err().message, "universe argument requires its exact successor universe");
+    assert_eq!(
+        check(&[("universe.omg", strict)]).unwrap_err().message,
+        "universe argument requires its exact successor universe"
+    );
 }
 
 #[test]
@@ -288,7 +299,10 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
     let family = "data Family = u8::D::Child->core::Type<0>; domain u8::D; machine ready(x:u8 in D)->bool{true} domain u8::D::Child requires ready(self); machine f<F:Family>(){}";
     check(&[("family.omg", family)]).unwrap();
     let wrong_carrier = format!("{family} machine wrong(x:u16)->bool{{x in u8::D::Child}}");
-    assert_eq!(check(&[("family.omg", &wrong_carrier)]).unwrap_err().message, "membership subject has the wrong carrier");
+    assert_eq!(
+        check(&[("family.omg", &wrong_carrier)]).unwrap_err().message,
+        "membership subject has the wrong carrier"
+    );
     let cyclic = "data A=B; data B=A; machine f<T:A>(){}";
     assert!(
         check(&[("cycle.omg", cyclic)])

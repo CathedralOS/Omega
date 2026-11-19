@@ -75,6 +75,15 @@ fn cleanup_is_an_exact_owned_call_and_conflicting_domain_plans_reject() {
     let source = "data R dropped by end {v:u8;} machine end(r:R){} domain R::Live dropped by end; machine read(r:R in Live){}";
     let stage = check(&[("resource.omg", source)]).unwrap();
     assert_eq!(stage.cleanups.len(), 2);
+    for hook in &stage.cleanups {
+        assert_eq!(hook.site.span.slice(source.as_bytes()), Some(b"dropped by end".as_slice()));
+        assert!(
+            stage
+                .obligations
+                .iter()
+                .any(|o| o.site == hook.site && matches!(&o.kind, omega_typer::ObligationKind::CleanupContract(machine) if machine == &hook.machine))
+        );
+    }
     let conflicting = source.replace("::Live dropped by end", "::Live dropped by other") + " machine other(r:R){}";
     assert!(
         check(&[("resource.omg", &conflicting)])
@@ -173,6 +182,14 @@ fn admitted_ranking_views_check_the_subject_arguments_and_rank_bounds() {
     let source = "data Down{} machine f(x:u8) terminates by x -> Down in 0..=255 {} machine g(x:u8) terminates by x {}";
     let stage = run(source).unwrap();
     assert_eq!(stage.ranking_witnesses.len(), 2);
+    for (machine_name, clause) in [
+        ("f", "terminates by x -> Down in 0..=255"),
+        ("g", "terminates by x"),
+    ] {
+        assert!(stage.obligations.iter().any(|o| o.site.file == "rank.omg"
+            && o.site.span.slice(source.as_bytes()) == Some(clause.as_bytes())
+            && matches!(&o.kind, omega_typer::ObligationKind::Termination(machine) if machine.path==machine_name)));
+    }
     assert_eq!(stage.ranking_witnesses[0].bounds.len(), 2);
     assert!(stage.ranking_witnesses[0].inclusive_upper);
     assert!(
@@ -194,6 +211,12 @@ fn v1_crash_route_guards_type_as_total_facts_about_the_entry_value() {
     let source = "machine forward(value:i64)->i64 crashes Trap value == 0 {value}";
     let stage = check(&[("route.omg", source)]).unwrap();
     assert_eq!(stage.crash_routes[0].cause, omega_typer::CrashCause::Trap);
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| Some(&o.site) == stage.crash_routes[0].guard.as_ref() && matches!(o.kind, omega_typer::ObligationKind::TotalCrashGuard))
+    );
     assert_eq!(
         stage.crash_routes[0]
             .guard
@@ -265,6 +288,10 @@ fn governed_domains_require_the_admitted_policy_requirement() {
     };
     let stage = run("AccessPolicy::plan").unwrap();
     assert_eq!(stage.access_policies[0].plan_machine.path, "Rule::plan");
+    assert!(stage.obligations.iter().any(|o| o.site.file == "policy.omg"
+        && o.site.span.slice(code.as_bytes()) == Some(b"access Rule")
+        && matches!(&o.kind, omega_typer::ObligationKind::EvaluateAccessPlan { domain,machine }
+            if domain.path=="C::Locked" && machine.path=="Rule::plan")));
     assert!(
         run("OtherPolicy::plan")
             .unwrap_err()

@@ -1,4 +1,4 @@
-use super::{Application, Carrier, Catalog, Context, DeclarationId, NameError, NameUse, Symbol, builtin, callable, qualify, usage};
+use super::{Application, Catalog, Context, DeclarationId, NameError, NameUse, Symbol, builtin, callable, qualify, usage};
 use crate::syntax::File;
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
@@ -304,40 +304,7 @@ impl Catalog<'_> {
             } else {
                 let mut candidates = self.lookup(file, file_number, ctx, n, &path);
                 if (ty || membership_target) && !ctx.heads.contains(&n) {
-                    let (carrier, short) = path
-                        .rsplit_once("::")
-                        .map_or((None, path.as_str()), |(c, s)| (Some(c), s));
-                    let implicit_carrier = node.parent.and_then(|p| {
-                        (file.nodes[p].kind == QualifiedType && file.nodes[p].children.first() != Some(&n))
-                            .then(|| file.nodes[file.nodes[p].children[0]].path())
-                    });
-                    let carrier = carrier.or(implicit_carrier.as_deref());
-                    if carrier.is_some() || parent == Some(CastEntry) || membership_target {
-                        let visible_carriers = carrier
-                            .map(|c| self.lookup(file, file_number, ctx, n, c))
-                            .unwrap_or_default();
-                        for (&slot, key) in &self.carriers {
-                            let e = &self.entries[slot];
-                            let declared_here = e.id.package == file.package
-                                && e.source
-                                    .is_some_and(|(i, _)| self.files[i].namespace == file.namespace);
-                            if !declared_here && !ctx.exposed_domains.contains_key(&slot) {
-                                continue;
-                            }
-                            if e.id.path.rsplit("::").next() != Some(short) {
-                                continue;
-                            }
-                            let matches = match (key, carrier) {
-                                (_, None) => true,
-                                (Carrier::Generic, Some(c)) => builtin(c) || !visible_carriers.is_empty(),
-                                (Carrier::Builtin(name), Some(c)) => name == c,
-                                (Carrier::Named(owner), Some(_)) => visible_carriers.contains(owner),
-                            };
-                            if matches {
-                                candidates.push(slot)
-                            }
-                        }
-                    }
+                    candidates.extend(self.attached_domains(file, file_number, ctx, n, &path, membership_target));
                 }
                 candidates.retain(|&i| {
                     let kind = self.entries[i].id.kind;

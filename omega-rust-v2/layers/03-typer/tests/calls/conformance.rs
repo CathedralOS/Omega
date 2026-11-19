@@ -6,6 +6,10 @@ fn selected_operation_and_conformance_rows_retain_machine_identity() {
     let row = &stage.conformance_rows[0];
     assert_eq!(row.requirement.path, "Logger::write");
     assert_eq!(row.implementation.path, "log");
+    assert!(stage.obligations.iter().any(|o| o.site.file == "a.omg"
+        && o.site.span.slice(code.as_bytes()) == Some(b"Logger::write = log;")
+        && matches!(&o.kind, omega_typer::ObligationKind::RefineRequirement { requirement, implementation }
+            if requirement == &row.requirement && implementation == &row.implementation)));
     for (code, message) in [
         ("trait T{machine f(x:u8);} C satisfies T{}", "missing conformance row"),
         ("trait T{machine f(x:u8);} machine g(x:u32){} C satisfies T{T::f=g;}", "no matching signature"),
@@ -91,6 +95,10 @@ fn transparent_restrictions_check_the_selected_base_rows() {
     let fine = format!("{base} machine f(){{use_it::<Quiet>()}}");
     let stage = check(&[("refine.omg", &fine)]).unwrap();
     assert!(stage.refinements[0].terminates);
+    assert!(stage.obligations.iter().any(|o| o.site.file == "refine.omg"
+        && o.site.span.slice(fine.as_bytes()) == Some(b"use_it::<Quiet>()")
+        && matches!(&o.kind, omega_typer::ObligationKind::RefineEvidence {binder,implementation}
+            if binder.declaration.path == "Local" && implementation.path == "Quiet")));
     let e = check(&[("refine.omg", &fine.replace("::<Quiet>", "::<Busy>"))]).unwrap_err();
     assert!(e.message.contains("exceeds the refined contract"), "{e:?}");
     let false_target = "trait Base{} trait Refined=Base{machine * reaches none;} Wrong satisfies Refined{}";
