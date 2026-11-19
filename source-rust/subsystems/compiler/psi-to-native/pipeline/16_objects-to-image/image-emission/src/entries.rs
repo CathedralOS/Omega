@@ -1088,171 +1088,7 @@ pub(crate) mod foreign_adapter {
     }
 }
 
-pub(crate) mod hosted_entry_storage {
-    use diagnostics::Diagnostic;
-
-    pub use program_entry_plan::hosted_receiver::HostedEntryPartitions;
-    use program_entry_plan::hosted_receiver::{align, invalid, partitions};
-
-    pub(crate) struct HostedEntryStorage {
-        pub(crate) scratch: object_file::ObjectSymbolHandle,
-        pub(crate) stack_top: object_file::ObjectSymbolHandle,
-        pub(crate) private_ram: Vec<object_file::ObjectSymbolHandle>,
-        pub(crate) observation_headers: Vec<object_file::ObjectSymbolHandle>,
-    }
-
-    pub(crate) fn provision(
-        artifact: &crate::ObjectArtifact,
-        demand: &crate::StackDemand,
-        recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
-        call_overhead: u64,
-    ) -> Result<
-        (
-            object_file::ObjectPlan,
-            HostedEntryPartitions,
-            HostedEntryStorage,
-        ),
-        Diagnostic,
-    > {
-        use object_file::{SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection};
-        let invalid = || invalid(artifact.target);
-        let mut object = artifact.object.clone();
-        let existing = object
-            .layout
-            .sections
-            .iter()
-            .filter(|(_, section)| section.kind == SectionKind::Bss)
-            .map(|(handle, section)| (handle, section.size, section.alignment))
-            .collect::<Vec<_>>();
-        if existing.len() > 1 {
-            return Err(invalid());
-        }
-        let partitions = partitions(
-            artifact.target,
-            demand.ceiling_bytes(),
-            recipes,
-            call_overhead,
-            existing.first().map_or(0, |(_, size, _)| *size as u64),
-        )?;
-        let end = usize::try_from(partitions.end_offset).map_err(|_| invalid())?;
-        let alignment = usize::try_from(
-            recipes
-                .iter()
-                .map(|recipe| recipe.alignment())
-                .fold(16, u64::max),
-        )
-        .map_err(|_| invalid())?;
-        if let Some((handle, _, previous_alignment)) = existing.first() {
-            let section = object.layout.sections.get_mut(*handle);
-            section.size = end;
-            section.alignment = alignment.max(*previous_alignment);
-        } else {
-            object.layout.sections.insert(SectionPlan {
-                kind: SectionKind::Bss,
-                size: end,
-                alignment,
-            });
-        }
-        let mut symbol_at = |name: &str, offset: u64, size: u64| -> Result<_, Diagnostic> {
-            Ok(object.layout.symbols.insert(SymbolPlan {
-                name: name.into(),
-                section: SymbolSection::Section(SectionKind::Bss),
-                offset: usize::try_from(offset).map_err(|_| invalid())?,
-                size: usize::try_from(size).map_err(|_| invalid())?,
-                kind: SymbolKind::Object,
-                import_library: String::new(),
-            }))
-        };
-        let scratch = symbol_at(
-            "omega_hosted_saved_continuation",
-            partitions.saved_continuation_offset,
-            16,
-        )?;
-        let stack_top = symbol_at(
-            "omega_hosted_stack_top",
-            partitions.stack_offset + partitions.stack_byte_count,
-            0,
-        )?;
-        let mut private_ram = Vec::new();
-        let mut observation_headers = Vec::new();
-        let mut private_end = partitions.allocation_offset;
-        for (index, recipe) in recipes.iter().enumerate() {
-            let offset = align(private_end, recipe.alignment(), &invalid)?;
-            private_ram.push(symbol_at(
-                &format!("omega_hosted_private_entry_ram_{index}"),
-                offset,
-                recipe.contents().len() as u64,
-            )?);
-            let header_offset = offset + recipe.contents().len() as u64;
-            observation_headers.push(symbol_at(
-                &format!("omega_hosted_private_ram_observation_header_{index}"),
-                header_offset,
-                recipe.observation_header().len() as u64,
-            )?);
-            private_end = header_offset + recipe.observation_header().len() as u64;
-        }
-        Ok((
-            object,
-            partitions,
-            HostedEntryStorage {
-                scratch,
-                stack_top,
-                private_ram,
-                observation_headers,
-            },
-        ))
-    }
-
-    pub(crate) fn validate_partitions(
-        target: target::NativeTarget,
-        demand: &crate::StackDemand,
-        partitions: HostedEntryPartitions,
-        original_bss_bytes: u64,
-        output: &image::EmittedImageOutput,
-    ) -> Result<(), Diagnostic> {
-        let invalid = || invalid(target);
-        let continuation_end = partitions
-            .saved_continuation_offset
-            .checked_add(16)
-            .ok_or_else(invalid)?;
-        let stack_end = partitions
-            .stack_offset
-            .checked_add(partitions.stack_byte_count)
-            .ok_or_else(invalid)?;
-        if partitions.saved_continuation_offset < original_bss_bytes
-            || continuation_end > partitions.stack_offset
-            || partitions.stack_byte_count
-                < demand.ceiling_bytes().ok_or_else(|| {
-                    Diagnostic::error(
-                        "fixed hosted stack cannot replay an unknown foreign-stack demand",
-                    )
-                })?
-            || stack_end != partitions.allocation_offset
-            || partitions.allocation_offset > partitions.end_offset
-            || partitions.end_offset != output.bss_bytes as u64
-        {
-            return Err(invalid());
-        }
-        let bss = output.final_image_layout.bss_address;
-        for (offset, alignment) in [
-            (partitions.saved_continuation_offset, 16u64),
-            (partitions.stack_offset, 16),
-            (stack_end, 16),
-            (partitions.allocation_offset, 16),
-        ] {
-            if !alignment.is_power_of_two()
-                || !bss
-                    .checked_add(offset)
-                    .ok_or_else(invalid)?
-                    .is_multiple_of(alignment)
-            {
-                return Err(invalid());
-            }
-        }
-        bss.checked_add(partitions.end_offset).ok_or_else(invalid)?;
-        Ok(())
-    }
-}
+pub(crate) mod hosted_entry_storage;
 
 pub(crate) mod hosted_receiver {
     pub(crate) mod instructions {
@@ -2001,23 +1837,20 @@ pub(crate) mod hosted_receiver {
 
     pub(crate) use instructions::validate_aarch64 as validate_aarch64_entry;
 
+    use super::hosted_entry_storage::HostedEntryPartitions;
     use diagnostics::Diagnostic;
     use program_entry_plan::SelectedProgramEntrySignature;
+    use verified_optimization_input::hosted_receiver::AdmittedHostedReceiver;
     use verified_optimization_input::hosted_receiver::{
         ReceiverArgumentInput, physical_contract_matches,
     };
     pub use verified_optimization_input::hosted_receiver::{
         invalid, recipe_index_for_runtime_position,
     };
-    pub type HostedReceiverBinding = program_entry_plan::hosted_receiver::HostedReceiverBinding<
-        verified_optimization_input::hosted_receiver::AdmittedHostedReceiver,
-    >;
-    pub use program_entry_plan::hosted_receiver::HostedEntryPartitions as HostedReceiverPartitions;
-    type HostedEntryPartitions = HostedReceiverPartitions;
 
     pub(crate) fn validate_binding(
         artifact: &crate::ObjectArtifact,
-        binding: &HostedReceiverBinding,
+        binding: &AdmittedHostedReceiver,
     ) -> Result<(), Diagnostic> {
         let invalid = || invalid(artifact.target);
         if !physical_contract_matches(binding.physical_contract(), artifact.target)
@@ -2030,7 +1863,12 @@ pub(crate) mod hosted_receiver {
                 .native_target()
                 != artifact.target
             || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
-                != *binding.stack_demand()
+                != artifact
+                    .hosted_entry
+                    .as_ref()
+                    .ok_or_else(invalid)?
+                    .context()
+                    .demand
         {
             return Err(invalid());
         }
@@ -2123,10 +1961,21 @@ pub(crate) mod hosted_receiver {
         if original_bss.next().is_some() {
             return Err(invalid());
         }
-        let partitions = binding.partitions(original_bss_bytes)?;
+        let context = artifact
+            .hosted_entry
+            .as_ref()
+            .ok_or_else(invalid)?
+            .context();
+        let physical_recipes::hosted_program::HostedStackBacking::Receiver { layout, .. } =
+            &context.backing
+        else {
+            return Err(invalid());
+        };
+        let partitions =
+            super::hosted_entry_storage::partitions(artifact.target, layout, original_bss_bytes)?;
         crate::entries::hosted_entry_storage::validate_partitions(
             artifact.target,
-            binding.stack_demand(),
+            &context.demand,
             partitions,
             original_bss_bytes,
             output,
@@ -2340,14 +2189,27 @@ pub(crate) mod hosted_unit_entry {
                     }
                 })?
                 .unwrap_or(0);
-            let partitions = program_entry_plan::hosted_receiver::partitions(
-                target,
-                demand.ceiling_bytes(),
-                &[],
-                call_overhead(target),
-                original_bss,
-            )?;
-            if partitions != plan.partitions {
+            let context = artifact
+                .hosted_entry
+                .as_ref()
+                .ok_or_else(invalid)?
+                .context();
+            let physical_recipes::hosted_program::HostedStackBacking::Owned(layout) =
+                &context.backing
+            else {
+                return Err(invalid());
+            };
+            let partitions =
+                crate::entries::hosted_entry_storage::partitions(target, layout, original_bss)?;
+            // The byte verifier checks the target calling convention independently
+            // of the stack dimensions selected by the physical planner.
+            let expected_stack_bytes = demand
+                .ceiling_bytes()
+                .and_then(|bytes| bytes.max(16).checked_add(call_overhead(target)))
+                .and_then(|bytes| bytes.checked_next_multiple_of(16))
+                .ok_or_else(invalid)?;
+            if partitions != plan.partitions || partitions.stack_byte_count != expected_stack_bytes
+            {
                 return Err(invalid());
             }
             crate::entries::hosted_entry_storage::validate_partitions(

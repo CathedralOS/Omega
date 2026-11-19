@@ -51,18 +51,33 @@ impl AdmittedHostedReceiver {
     }
 }
 
-impl HostedReceiverCustody for AdmittedHostedReceiver {
-    fn source(&self) -> &SelectedProgramEntrySignature {
+impl AdmittedHostedReceiver {
+    pub fn source(&self) -> &SelectedProgramEntrySignature {
         &self.source
     }
-    fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
+    pub fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
         &self.checked_entry
     }
-    fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
+    pub fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
         &self.physical
     }
-    fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
+    pub fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
         &self.private_entry_ram
+    }
+}
+
+impl HostedReceiverCustody for AdmittedHostedReceiver {
+    fn source(&self) -> &SelectedProgramEntrySignature {
+        self.source()
+    }
+    fn checked_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
+        self.checked_entry()
+    }
+    fn physical_contract(&self) -> &ProgramEntryPhysicalContractPlan {
+        self.physical_contract()
+    }
+    fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
+        self.private_entry_ram()
     }
 }
 

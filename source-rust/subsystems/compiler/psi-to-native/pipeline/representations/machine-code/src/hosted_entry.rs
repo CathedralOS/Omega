@@ -42,5 +42,4 @@ pub struct EncodedHostedEntry {
     pub fixups: Vec<EntryFixup>,
     pub imports: Vec<target::NormalizedForeignLocator>,
     pub effects: StateEffectsEvidence,
-    pub call_overhead: u64,
 }

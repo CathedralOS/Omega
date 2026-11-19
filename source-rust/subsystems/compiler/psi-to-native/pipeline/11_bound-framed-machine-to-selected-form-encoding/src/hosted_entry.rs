@@ -158,7 +158,6 @@ pub fn encode_hosted_entry<Origin>(
         fixups,
         imports: contract.imports,
         effects: contract.effects,
-        call_overhead: contract.call_overhead,
     })
 }
 
