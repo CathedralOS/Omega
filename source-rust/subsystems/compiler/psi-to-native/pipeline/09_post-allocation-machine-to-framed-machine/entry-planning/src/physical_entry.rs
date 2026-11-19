@@ -168,7 +168,7 @@ pub fn plan_physical_entry<S: AsRef<PhysicalEntrySelection>>(
     let bridge = crate::native_entry_bridge::plan_native_entry_bridge(request)
         .map_err(|error| invalid(&error.to_string()))?;
     let stack_switch = crate::physical_stack_switch::plan(bridge)?;
-    let root = installation_evidence::InstalledPhysicalStackRoot {
+    let root = installation_conditions::InstalledPhysicalStackRoot {
         semantic_entry: input.selection.as_ref().semantic_entry,
         adapter: program.entry,
     };

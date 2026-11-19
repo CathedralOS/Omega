@@ -2,7 +2,7 @@
 //! Source settlement and native admission use this same declaration query;
 //! no calling convention or native instruction participates in the choice.
 
-use declaration_contracts::service_surface::ServiceSurface;
+use service_surface::ServiceSurface;
 use semantic_vocabulary::PackageKeyIdentity;
 use terminal_psi::{TerminalIdentityIndex, TerminalModule};
 

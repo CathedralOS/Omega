@@ -325,7 +325,7 @@ fn published_service_signature(elaboration: &crate::lowering::Elaboration) -> [u
         .parameter_types
         .iter()
         .map(|identity| elaboration.module.identities.text(*identity).unwrap());
-    declaration_contracts::service_surface::declared_type_signature(
+    service_surface::declared_type_signature(
         parameters,
         elaboration
             .module
@@ -591,7 +591,7 @@ machine entry() {}
     assert!(parameters[0].contains("region(owner(schema),ordinal(0))"));
     assert!(parameters[1].contains("region(owner(schema),ordinal(1))"));
     let expected =
-        declaration_contracts::service_surface::declared_type_signature(parameters.iter(), &result)
+        service_surface::declared_type_signature(parameters.iter(), &result)
             .unwrap();
     assert_eq!(
         surface.declaration.methods[0].declared_type_signature,

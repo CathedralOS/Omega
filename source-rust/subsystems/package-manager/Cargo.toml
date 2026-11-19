@@ -10,6 +10,7 @@ path = "package_manager.rs"
 
 [dependencies]
 host-provider-inputs = { path = "../compiler/psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
+service-surface = { path = "../compiler/psi/service-surface" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }

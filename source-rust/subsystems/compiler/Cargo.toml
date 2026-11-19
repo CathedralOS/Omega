@@ -21,11 +21,12 @@ psi-authorization = { path = "psi/authorization" }
 terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
-numerics = { path = "psi/semantics/numeric" }
+service-surface = { path = "psi/service-surface" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs" }
 native-compiler = { path = "psi-to-native", features = ["test-support"] }
+numerics = { path = "psi/semantics/numeric" }
 optimization-selections = { path = "foundation/optimization-selections" }
 provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 

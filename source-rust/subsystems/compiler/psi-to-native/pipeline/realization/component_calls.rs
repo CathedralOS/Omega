@@ -7,9 +7,11 @@
 use ::wire::digest_encoder::DomainDigestEncoder;
 use artifact_lowering::AdmittedNativeComponentCall;
 use diagnostics::Diagnostic;
-use installation_evidence::ProviderExecutionEvidence;
+use provider_admission::ProviderExecutionEvidence;
 use provider_admission::provider_admission::{NativeBoundaryRealization, NativeProviderSettlement};
-use provider_stack_contribution::{SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment};
+use provider_stack_contribution::{
+    SameStackContributionAdmissionReceiptId, SameStackProviderPlanCommitment,
+};
 
 use super::component_exports::{ComponentExportImage, component_export_slot};
 

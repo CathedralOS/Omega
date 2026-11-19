@@ -468,8 +468,8 @@ pub mod provider_declarations {
 pub mod projection {
     pub(crate) mod applied_receivers {
         use crate::source_state::trait_definition::AppliedTraitScope;
-        use declaration_contracts::service_surface::ServiceReceiverApplication;
-        use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+        use service_surface::ServiceReceiverApplication;
+        use service_surface::identities::ProviderIdentityTable;
         use diagnostics::Diagnostic;
 
         pub fn collect_scopes<'program>(
@@ -822,7 +822,7 @@ pub mod projection {
     use crate::source_state::boundary_completions::boundary_requirement_completion;
     use crate::source_state::operator::boundary_operator_requirement_identity;
     use crate::source_state::types::DomainConstraint;
-    use declaration_contracts::service_surface::identities::ProviderIdentityTable;
+    use service_surface::identities::ProviderIdentityTable;
     use std::sync::Arc;
 
     pub struct ProjectedServiceSurface<'program> {
@@ -847,15 +847,15 @@ pub mod projection {
 
     use crate::source_state::provider_declarations::ProviderPlanningContext;
     use crate::source_state::trait_definition::{AppliedTraitScope, AppliedTypeReference};
-    use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
-    use declaration_contracts::service_surface::ServiceEntryClaim;
-    use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
-    use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
-    use declaration_contracts::service_surface::ServiceProgressPremise;
-    use declaration_contracts::service_surface::ServiceProgressSubject;
-    use declaration_contracts::service_surface::ServiceResultClaim;
-    use declaration_contracts::service_surface::ServiceSurface;
-    use declaration_contracts::service_surface::{ServiceMethod, ServiceSynchronousInvocation};
+    use service_surface::ServiceEntryAuthorityFlow;
+    use service_surface::ServiceEntryClaim;
+    use service_surface::ServiceProgressEstablishmentRoute;
+    use service_surface::ServiceProgressEstablishmentRouteKind;
+    use service_surface::ServiceProgressPremise;
+    use service_surface::ServiceProgressSubject;
+    use service_surface::ServiceResultClaim;
+    use service_surface::ServiceSurface;
+    use service_surface::{ServiceMethod, ServiceSynchronousInvocation};
 
     pub(super) fn projection_failure(
         program: &crate::source_state::TypedTrees,
@@ -980,7 +980,7 @@ pub mod projection {
                     requirement_identity,
                     parameter_count: program.operator_parameters(operator).len(),
                     declared_type_signature:
-                        declaration_contracts::service_surface::declared_type_signature(
+                        service_surface::declared_type_signature(
                             program
                                 .operator_parameters(operator)
                                 .iter()
@@ -1148,7 +1148,7 @@ pub mod projection {
                     requirement_identity: requirement_identity_id,
                     parameter_count: parameters.len(),
                     declared_type_signature:
-                        declaration_contracts::service_surface::declared_type_signature(
+                        service_surface::declared_type_signature(
                             parameter_types.iter(),
                             &result_type,
                         )
@@ -1238,7 +1238,7 @@ pub mod projection {
                 requirement_identity,
                 parameter_count: program.state_signature_parameters(signature).iter().count(),
                 declared_type_signature:
-                    declaration_contracts::service_surface::declared_type_signature(
+                    service_surface::declared_type_signature(
                         parameter_types.iter(),
                         &result_type,
                     )
@@ -1696,7 +1696,7 @@ pub(crate) mod catalog {
     use crate::source_state::type_identity::TypeIdentityId;
     use crate::source_state::types::TypeReferenceHandle;
     use arena::{Arena, Handle, HandleSpan};
-    use declaration_contracts::service_surface::ServiceSurface;
+    use service_surface::ServiceSurface;
     use diagnostics::Diagnostic;
     use semantic_vocabulary::PackageKeyIdentity;
     use std::sync::Arc;
@@ -3748,4 +3748,22 @@ pub use catalog::{
     PreparedServiceSurface, RetainedServiceSurface, ServiceCatalog, exact_identity,
 };
 
-pub use declaration_contracts::service_surface::ProviderSchemaDeclaration;
+// Nominal declaration coordinates only; this carries no source tree or proof.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderSchemaDeclaration {
+    BoundaryTrait(symbols::SymbolHandle),
+    BoundaryRequirement(symbols::SymbolHandle),
+    BoundaryOperator(symbols::SymbolHandle),
+    SealedAccessor(symbols::SymbolHandle),
+}
+
+impl ProviderSchemaDeclaration {
+    pub const fn symbol(self) -> symbols::SymbolHandle {
+        match self {
+            Self::BoundaryTrait(symbol)
+            | Self::BoundaryRequirement(symbol)
+            | Self::BoundaryOperator(symbol)
+            | Self::SealedAccessor(symbol) => symbol,
+        }
+    }
+}

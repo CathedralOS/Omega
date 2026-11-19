@@ -103,7 +103,7 @@ pub(crate) struct SourceCallingInstance {
     pub(crate) declaring_application: String,
     pub(crate) policy: MachineId,
     pub(crate) signatures: Vec<CallingSignatureId>,
-    pub(crate) schema: std::sync::Arc<declaration_contracts::service_surface::ServiceSurface>,
+    pub(crate) schema: std::sync::Arc<service_surface::ServiceSurface>,
 }
 
 fn application_identity(typed: &TypedTrees, scope: &AppliedTraitScope<'_>) -> Option<String> {

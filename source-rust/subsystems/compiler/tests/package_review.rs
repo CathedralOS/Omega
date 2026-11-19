@@ -641,7 +641,7 @@ fn selected_affine_provider_reopens_with_its_published_authority() {
     assert_eq!(
         method.synchronous_invocations(),
         [
-            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+            service_surface::ServiceSynchronousInvocation::Service(
                 "AffineTransforms".into(),
             )
         ]

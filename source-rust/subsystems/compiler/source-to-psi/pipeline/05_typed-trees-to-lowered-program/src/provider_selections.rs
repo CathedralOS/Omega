@@ -35,7 +35,7 @@ pub(crate) struct SourceProviderSelection {
     pub(crate) target: String,
     pub(crate) schema_declaration: String,
     pub(crate) schema_application: String,
-    pub(crate) surface: std::sync::Arc<declaration_contracts::service_surface::ServiceSurface>,
+    pub(crate) surface: std::sync::Arc<service_surface::ServiceSurface>,
     pub(crate) provider_declaration: SymbolHandle,
     pub(crate) provider_identity: String,
     pub(crate) provider_application: Option<String>,

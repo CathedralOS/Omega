@@ -13,7 +13,7 @@ machine-code = { path = "../representations/machine-code" }
 physical-program = { path = "../representations/post-allocation-machine/body-facts" }
 selected-instructions = { path = "../representations/selected-instructions" }
 installation-admission = { path = "../../verification/installation-admission" }
-installation-evidence = { path = "../../installation/installation-evidence" }
+installation-conditions = { path = "../../verification/installation-admission/conditions" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 [dev-dependencies]

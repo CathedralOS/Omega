@@ -2,7 +2,7 @@
 use crate::{PlannedInstallationResources, arrival};
 use bound_installations::BoundInstalledEntry;
 use frame_admission::frame_layout::ValidatedTargetFrameLayout;
-use installation_evidence::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
+use installation_conditions::{InstalledInterruptStackRequirement, InstalledPhysicalStackRoot};
 use machine_code::TargetFrameLayoutIdentity;
 use post_allocation_machine::PostAllocationMachineProgram;
 use std::sync::Arc;

@@ -17,7 +17,7 @@ use effects::{
     TerminalAuthorityPolicyIdentity,
 };
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
-use installation_evidence::ProviderExecutionEvidence;
+use provider_admission::ProviderExecutionEvidence;
 use provider_admission::provider_admission::AdmittedNativeProviders;
 use terminal_psi::{TerminalIdentityTable, TerminalModule};
 
@@ -1079,7 +1079,7 @@ impl NativeSelectedProviderPlan {
         &self,
         module: &TerminalModule,
         required: &str,
-        evidence: &installation_evidence::InstalledAssumedBindingEvidence,
+        evidence: &operation_evidence::provider_calls::InstalledAssumedBindingEvidence,
     ) -> bool {
         let identity = |id| {
             module

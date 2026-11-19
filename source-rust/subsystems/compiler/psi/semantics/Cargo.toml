@@ -9,6 +9,7 @@ name = "terminal_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+service-surface = { path = "../service-surface" }
 source-provenance = { path = "../../foundation/source-provenance" }
 access-vocabulary = { path = "../access" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }

@@ -13,7 +13,7 @@ use crate::digest_encoder::content_identity;
 use build_record_codec::{recover_observation_summary, recover_restricted_build_request};
 use declaration_contracts::CarryPolicy;
 use declaration_contracts::DomainPredicatePresence;
-use declaration_contracts::service_surface::{
+use service_surface::{
     ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
 };
 use effects::provider_plan::{
