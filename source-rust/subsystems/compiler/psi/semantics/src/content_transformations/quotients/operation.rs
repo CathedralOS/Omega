@@ -42,7 +42,7 @@ pub(crate) fn validate_operation(
         match relation {
             Relation::Quotient(relation) => {
                 let mut adaptations =
-                    module.quotients.adaptations.iter().filter(|adaptation| {
+                    module.types.quotients.adaptations.iter().filter(|adaptation| {
                         adaptation.license
                             == TerminalQuotientAdaptationLicense::Input {
                                 operation: index as u32,
@@ -61,7 +61,7 @@ pub(crate) fn validate_operation(
                     );
                 }
                 let representation = module
-                    .quotients
+                    .types.quotients
                     .representations
                     .get(adaptation.representation as usize)
                     .ok_or("quotient input representation is absent")?;
@@ -74,7 +74,7 @@ pub(crate) fn validate_operation(
                     );
                 }
                 if module
-                    .quotients
+                    .types.quotients
                     .representations
                     .get(adaptation.representation as usize)
                     .map(|row| &row.formation)
@@ -158,7 +158,7 @@ pub(crate) fn validate_operation(
                 match &contract.result_relation {
                     Relation::Quotient(relation) => {
                         let mut adaptations =
-                            module.quotients.adaptations.iter().filter(|adaptation| {
+                            module.types.quotients.adaptations.iter().filter(|adaptation| {
                                 adaptation.license
                                     == TerminalQuotientAdaptationLicense::Result {
                                         operation: index as u32,
@@ -173,7 +173,7 @@ pub(crate) fn validate_operation(
                             || call.result.structural().map(|result| result.place)
                                 != Some(adaptation.source)
                             || module
-                                .quotients
+                                .types.quotients
                                 .representations
                                 .get(adaptation.representation as usize)
                                 .map(|row| &row.formation)

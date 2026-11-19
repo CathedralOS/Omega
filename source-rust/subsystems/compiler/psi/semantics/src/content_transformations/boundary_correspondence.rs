@@ -117,13 +117,13 @@ pub(crate) fn validate_authority(
     };
     for requirement in requirements {
         let boundary = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|boundary| boundary.id == requirement.boundary)
             .ok_or("boundary body custody requirement is absent")?;
         if !boundary.content_guarantees.iter().any(|guarantee| matches!(guarantee,
             terminal_psi::BoundaryContentGuarantee::Conservation(guarantee) if guarantee == &requirement.guarantee)) || !module
-            .provider_candidates
+            .interfaces.provider_candidates
             .iter()
             .any(|candidate| candidate.boundary == boundary.id && candidate.candidate == machine.id)
         {
@@ -155,7 +155,7 @@ pub(crate) fn validate_authority(
                         .position(|parameter| parameter.position == position)
                         .ok_or("boundary body public subject is not a structural formal")?;
                     let anchored = module
-                        .provider_candidates
+                        .interfaces.provider_candidates
                         .iter()
                         .filter(|candidate| {
                             candidate.boundary == boundary.id
@@ -225,7 +225,7 @@ pub(crate) fn validate_authority(
         }
         for output in &derived.outputs {
             let domain = module
-                .structural_domains
+                .types.structural_domains
                 .iter()
                 .find(|domain| {
                     domain

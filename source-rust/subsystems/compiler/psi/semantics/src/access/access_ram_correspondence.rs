@@ -53,15 +53,15 @@ pub fn access_ram_correspondence(
         format!("RAM interpretation has an invalid placement catalog: {reason:?}")
     })?;
     let mut plans = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .filter(|plan| plan.carrier == carrier);
     let (Some(plan), None) = (plans.next(), plans.next()) else {
         return Err("RAM interpretation requires one exact retained placement".to_owned());
     };
     access_ram_plan_correspondence(
-        &module.structural_types,
-        &module.access_view_plans,
+        &module.types.structural_types,
+        &module.access.access_view_plans,
         plan,
         source_schema,
     )

@@ -1184,10 +1184,10 @@ impl crate::substitution::clauses::ClauseBindings for DefaultBindings {
 
 fn domain(module: &TerminalModule, id: StructuralDomainId) -> Option<&StructuralDomainDeclaration> {
     module
-        .structural_domains
+        .types.structural_domains
         .binary_search_by_key(&id, |domain| domain.id)
         .ok()
-        .map(|index| &module.structural_domains[index])
+        .map(|index| &module.types.structural_domains[index])
 }
 
 /// The path segment that names `field` beneath a value of `structural_type`,
@@ -1279,7 +1279,7 @@ fn validate_declared(module: &TerminalModule, places: &Declared<'_>) -> Judged<(
             // Byte and content judgments check their predicates separately.
             // Every qualification must still name a valid storage path.
             let Some(carrier) =
-                crate::qualification_path_carrier(module.structural_types.iter(), root, path)
+                crate::qualification_path_carrier(module.types.structural_types.iter(), root, path)
             else {
                 return malformed(
                     places.machine(),
@@ -1517,7 +1517,7 @@ fn validate_change(
                     "a structural cast's domain predicate cannot be restated",
                 );
             };
-            let retained = module.scalar_block_invariants.iter().any(|invariant| {
+            let retained = module.proofs.scalar_block_invariants.iter().any(|invariant| {
                 Some(invariant.machine) == machine
                     && invariant.header == target
                     && crate::scalar_qualifications::retains_conjunct(
@@ -1533,7 +1533,7 @@ fn validate_change(
             }
         }
         let missing = declared
-            .missing_membership_requirements(&module.structural_domains, &held)
+            .missing_membership_requirements(&module.types.structural_domains, &held)
             .is_none_or(|missing| missing.iter().any(|node| node.id != declared.id));
         let forwarded = facts.structural_on_edge(module, change, *referent, *id);
         if missing && !forwarded {
@@ -1652,20 +1652,20 @@ fn byte_change_judgment(
             &[][..]
         };
         let carrier =
-            crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
                 .ok_or(StructuralQualificationError {
                     machine,
                     detail: "a byte qualification change has no declared displayed carrier",
                 })?
                 .id;
-        if !crate::byte_predicate_carrier(module.structural_types.iter(), carrier) {
+        if !crate::byte_predicate_carrier(module.types.structural_types.iter(), carrier) {
             return malformed(
                 machine,
                 "a byte qualification change has a non-byte carrier",
             );
         }
         let predicates = crate::byte_qualification_predicates_in(
-            module.structural_domains.iter(),
+            module.types.structural_domains.iter(),
             carrier,
             std::slice::from_ref(id),
         )
@@ -1711,7 +1711,7 @@ fn validate_machine(
     let id = Some(machine.id);
     validate_declared(module, &places)?;
     let changes: Vec<_> = module
-        .structural_qualification_changes
+        .types.structural_qualification_changes
         .iter()
         .filter(|change| change.machine == machine.id)
         .collect();
@@ -1998,8 +1998,8 @@ fn validate_machine(
                     });
                     let byte_defaults_hold =
                         crate::structural::zeroed_structural::zeroed_byte_qualifications_hold(
-                            module.structural_types.iter(),
-                            module.structural_domains.iter(),
+                            module.types.structural_types.iter(),
+                            module.types.structural_domains.iter(),
                             carrier,
                             produced
                                 .whole
@@ -2062,7 +2062,7 @@ fn selected_field(
         return malformed(id, "a structural field access has no declared root");
     };
     let Some(owner) =
-        crate::qualification_path_carrier(module.structural_types.iter(), root_type, path)
+        crate::qualification_path_carrier(module.types.structural_types.iter(), root_type, path)
     else {
         return malformed(id, "a structural field access has no declared owner");
     };
@@ -2769,7 +2769,7 @@ pub fn same_access_policy(
 mod operation_permissions;
 
 fn validate_access_policies(module: &TerminalModule) -> Judged<()> {
-    for domain in &module.structural_domains {
+    for domain in &module.types.structural_domains {
         validate_access_policy(module, domain)?;
         // A received program can already hold a qualified input. Source
         // formation refusal alone cannot protect its operations. Caller
@@ -2820,7 +2820,7 @@ pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) 
 
 fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     if module
-        .structural_qualification_changes
+        .types.structural_qualification_changes
         .iter()
         .any(|change| module.machine(change.machine).is_none())
     {
@@ -2843,7 +2843,7 @@ pub fn byte_qualification_change_judgments_in(
     let places = Declared::new(machine)?;
     let mut changes = std::collections::BTreeMap::new();
     for change in module
-        .structural_qualification_changes
+        .types.structural_qualification_changes
         .iter()
         .filter(|change| change.machine == machine.id)
     {
@@ -2931,13 +2931,13 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
     // Prepare one shared closure for actual cast roots. An unsupported body
     // remains absent and cannot add evidence; it must not erase independent
     // supported rows. Modules without casts need no descriptor preparation.
-    let graph = if module.structural_qualification_changes.is_empty() {
+    let graph = if module.types.structural_qualification_changes.is_empty() {
         Vec::new()
     } else {
         crate::descriptor_results::terminal_graph_rows(
             module,
             module
-                .structural_qualification_changes
+                .types.structural_qualification_changes
                 .iter()
                 .map(|change| change.machine),
             crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
@@ -2948,7 +2948,7 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
         .collect()
     };
     let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-        &module.structural_types,
+        &module.types.structural_types,
         &graph,
     );
     for machine in &module.machines {

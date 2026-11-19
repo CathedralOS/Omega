@@ -153,7 +153,7 @@ fn advance_owned_frontier(
                             "nominal retirement transformation lacks its current carrier",
                         )?;
                     let path = super::super::structural_path(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         &module.identities,
                         root,
                         &input.subject.segments,
@@ -309,7 +309,7 @@ fn apply_nominal_disposals(
                 let root = super::super::place_type(machine, cleanup.subject.place)
                     .ok_or("owned cleanup current root has no structural type")?;
                 if crate::runtime_structural_path_tip(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     root,
                     &cleanup.subject.path,
                 )
@@ -319,7 +319,7 @@ fn apply_nominal_disposals(
                     return Err("owned cleanup changes its current typed subject");
                 }
                 let callee = crate::nominal_cleanup::owned_target(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     module.machines.iter(),
                     cleanup,
                 )?;

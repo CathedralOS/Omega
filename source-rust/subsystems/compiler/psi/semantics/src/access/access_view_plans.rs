@@ -404,19 +404,19 @@ pub fn validate_access_view_catalog(
 
 pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessViewPlanError> {
     validate_access_view_catalog(
-        &module.structural_types,
+        &module.types.structural_types,
         &module.identities,
-        &module.access_view_plans,
-        &module.boundary_machines,
+        &module.access.access_view_plans,
+        &module.interfaces.boundary_machines,
     )?;
     let carriers = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .map(|plan| plan.carrier)
         .collect::<BTreeSet<_>>();
     // The encoding page fixes one canonical order for this roster; strict
     // order also rejects a second row for the same structural formal.
-    if let Some(pair) = module.access_view_inputs.windows(2).find(|pair| {
+    if let Some(pair) = module.access.access_view_inputs.windows(2).find(|pair| {
         (pair[0].machine, pair[0].runtime_position)
             >= (pair[1].machine, pair[1].runtime_position)
     }) {
@@ -425,11 +425,11 @@ pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessV
             runtime_position: pair[1].runtime_position,
         });
     }
-    for input in &module.access_view_inputs {
+    for input in &module.access.access_view_inputs {
         let parameter = crate::access_view_input_parameter(module, input)
             .map_err(|_| AccessViewPlanError::InputPlanMismatch)?;
         let plan = module
-            .access_view_plans
+            .access.access_view_plans
             .iter()
             .find(|plan| plan.carrier == parameter.structural_type)
             .ok_or(AccessViewPlanError::InputPlanMismatch)?;
@@ -459,7 +459,7 @@ pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessV
                     .ok()
                     .is_some_and(|position| {
                         module
-                            .access_view_inputs
+                            .access.access_view_inputs
                             .binary_search_by_key(&(machine.id, position), |input| {
                                 (input.machine, input.runtime_position)
                             })
@@ -478,8 +478,8 @@ pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessV
 
 pub fn contains_access_carrier(module: &TerminalModule, root: StructuralTypeId) -> bool {
     contains_access_carrier_in_catalog(
-        &module.structural_types,
-        &module.access_view_plans,
+        &module.types.structural_types,
+        &module.access.access_view_plans,
         root,
     )
 }

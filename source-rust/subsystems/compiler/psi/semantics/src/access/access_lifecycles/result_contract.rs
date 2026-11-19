@@ -104,7 +104,7 @@ pub fn access_result_contract<'module>(
                 .ok_or("borrowed placement lost its exact storage parameter")?;
             if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
                 || *access != storage.access
-                || !module.access_view_plans.iter().any(|view| {
+                || !module.access.access_view_plans.iter().any(|view| {
                     view.carrier == *referent
                         && view.schema == plan.schema
                         && view.policy_identity == plan.policy_identity
@@ -290,7 +290,7 @@ pub fn access_result_contract<'module>(
             );
             let backing_path = plan
                 .storage
-                .owner_storage_path(&module.structural_types)
+                .owner_storage_path(&module.types.structural_types)
                 .ok_or("run relocation lost its backing projection")?;
             let (backing, nested) =
                 StructuralPathQualification::select(&whole, &descendants, &backing_path);

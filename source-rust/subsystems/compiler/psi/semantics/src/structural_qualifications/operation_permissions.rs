@@ -133,7 +133,7 @@ impl<'a> Permissions<'a> {
             )
         })?;
         query
-            .validate(&self.module.structural_types, contract.carrier)
+            .validate(&self.module.types.structural_types, contract.carrier)
             .ok_or_else(|| {
                 failure(
                     machine,
@@ -160,7 +160,7 @@ impl<'a> Permissions<'a> {
                 });
             if empty
                 && require_unchanged_produced_payload_in(
-                    &self.module.structural_types,
+                    &self.module.types.structural_types,
                     self.graph,
                     &mut self.analysis,
                     machine,
@@ -174,7 +174,7 @@ impl<'a> Permissions<'a> {
             }
         }
         let selected = contents_membership_path(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             contract.carrier,
             &query.steps,
         )
@@ -248,7 +248,7 @@ impl<'a> Permissions<'a> {
                         )
                     })?;
                 query
-                    .projected(&self.module.structural_types, root, projection)
+                    .projected(&self.module.types.structural_types, root, projection)
                     .ok_or_else(|| {
                         failure(
                             machine,
@@ -272,7 +272,7 @@ impl<'a> Permissions<'a> {
                         failure(machine, "memory access backing has no declared carrier")
                     })?;
                 crate::descriptor_results::descriptor_contents_query(
-                    &self.module.structural_types,
+                    &self.module.types.structural_types,
                     *source,
                     root,
                     &projection.path,
@@ -336,7 +336,7 @@ impl<'a> Permissions<'a> {
         }
         let current = self.machine(subject.machine)?;
         Ok(current.declaration.as_ref().is_some_and(|declaration| {
-            self.module.callback_applications.iter().any(|application| {
+            self.module.interfaces.callback_applications.iter().any(|application| {
                 declaration.same_identity_as(
                     &self.module.identities,
                     &application.body,
@@ -536,7 +536,7 @@ impl<'a> Permissions<'a> {
                 } => {
                     let path = self
                         .descriptor(machine)?
-                        .location_path(&self.module.structural_types, &location, None)
+                        .location_path(&self.module.types.structural_types, &location, None)
                         .ok_or_else(|| {
                             failure(machine, "memory access storage has no typed path")
                         })?;
@@ -634,7 +634,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
         module,
         graph: &graph,
         analysis: DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &graph,
         ),
         declarations,

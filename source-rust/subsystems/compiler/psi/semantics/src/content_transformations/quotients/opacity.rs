@@ -7,7 +7,7 @@ fn quotient_path_tip(
     use terminal_psi::{StructuralPathSegment as P, StructuralTypeShape as S};
     let opaque = |ty| {
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .any(|row| row.id == ty && row.quotient_carrier.is_some())
     };
@@ -16,7 +16,7 @@ fn quotient_path_tip(
         _ => (path, false),
     };
     let tip = crate::structural::primitive_place::projection_tip_with_policy(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         ty,
         path,
         |source, segment| {
@@ -36,7 +36,7 @@ fn quotient_path_tip(
     .ok_or("structural projection is malformed or crosses an opaque quotient")?;
     if window {
         let selected = tip
-            .and_then(|id| module.structural_types.iter().find(|row| row.id == id))
+            .and_then(|id| module.types.structural_types.iter().find(|row| row.id == id))
             .ok_or("quotient window has no declared backing")?;
         if opaque(selected.id) || !matches!(selected.shape, S::FixedArray { .. }) {
             return Err("quotient window does not select ordinary array backing");
@@ -67,7 +67,7 @@ fn contains_quotient_storage(module: &TerminalModule, root: StructuralTypeId) ->
             continue;
         }
         seen.push(id);
-        let Some(declaration) = module.structural_types.iter().find(|row| row.id == id)
+        let Some(declaration) = module.types.structural_types.iter().find(|row| row.id == id)
         else {
             return true;
         };
@@ -102,13 +102,13 @@ fn contains_quotient_storage(module: &TerminalModule, root: StructuralTypeId) ->
 pub(crate) fn validate_quotient_opacity(
     module: &TerminalModule,
 ) -> Result<(), &'static str> {
-    if module.quotients.representations.is_empty() {
+    if module.types.quotients.representations.is_empty() {
         return Ok(());
     }
     for machine in &module.machines {
         for operation in machine.operations() {
             if let Some(result) = operation.result.structural()
-                && module.structural_types.iter().any(|ty| {
+                && module.types.structural_types.iter().any(|ty| {
                     ty.id == result.structural_type && ty.quotient_carrier.is_some()
                 })
             {
@@ -135,7 +135,7 @@ pub(crate) fn validate_quotient_opacity(
                     .structural()
                     .ok_or("quotient copy result is absent")?;
                 if tip != Some(result.structural_type)
-                    && module.structural_types.iter().any(|ty| {
+                    && module.types.structural_types.iter().any(|ty| {
                         ty.quotient_carrier.is_some()
                             && (Some(ty.id) == tip || ty.id == result.structural_type)
                     })
@@ -162,7 +162,7 @@ pub(crate) fn validate_quotient_opacity(
                 let root = quotient_place_type(machine, *source)
                     .ok_or("quotient case-copy source is absent")?;
                 let path = crate::canonical_structural_storage_path(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     root,
                     path,
                 )
@@ -175,7 +175,7 @@ pub(crate) fn validate_quotient_opacity(
                     .ok_or("quotient projection has no declared source")?;
                 let tip = quotient_path_tip(module, root, projection.path)?;
                 if !module
-                    .quotients
+                    .types.quotients
                     .representations
                     .iter()
                     .any(|row| Some(row.quotient) == tip)
@@ -207,7 +207,7 @@ pub(crate) fn validate_quotient_opacity(
                     .ok_or("quotient case source is absent")?;
                 let tip = quotient_path_tip(module, root, path)?;
                 if module
-                    .structural_types
+                    .types.structural_types
                     .iter()
                     .any(|ty| Some(ty.id) == tip && ty.quotient_carrier.is_some())
                 {

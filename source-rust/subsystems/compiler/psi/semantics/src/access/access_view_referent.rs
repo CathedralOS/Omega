@@ -46,7 +46,7 @@ fn declared_structural_type(
     structural_type: StructuralTypeId,
 ) -> Option<&StructuralTypeDeclaration> {
     let mut matching = module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter(|declaration| declaration.id == structural_type);
     let declaration = matching.next()?;
@@ -73,7 +73,7 @@ fn resolve_referent_place(
                     StructuralFieldType::Structural(next) => *next,
                     leaf => {
                         leaf.canonical_leaf_type()?
-                            .leaf_declaration(module.structural_types.iter())?
+                            .leaf_declaration(module.types.structural_types.iter())?
                             .id
                     }
                 }
@@ -122,7 +122,7 @@ pub fn access_view_input_parameter<'module>(
         return Err(AccessViewInputError::MachineIdentityMismatch);
     }
     if !module
-        .structural_types
+        .types.structural_types
         .iter()
         .any(|carrier| carrier.identity == row.carrier_identity)
     {
@@ -136,7 +136,7 @@ pub fn access_view_input_parameter<'module>(
         .get(row.runtime_position as usize)
         .ok_or(AccessViewInputError::ParameterMissing)?;
     let carrier = module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|carrier| carrier.id == parameter.structural_type)
         .ok_or(AccessViewInputError::CarrierIdentityMissing)?;

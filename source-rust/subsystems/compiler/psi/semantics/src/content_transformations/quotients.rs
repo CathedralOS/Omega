@@ -38,7 +38,7 @@ pub fn quotient_copy_adaptation<'a>(
     let result = operation.result.structural()?;
     let source_type = quotient_place_type(machine, *source)?;
     let mut rows = module
-        .quotients
+        .types.quotients
         .adaptations
         .iter()
         .filter(|row| row.machine == machine.id && row.copy == operation.id);
@@ -57,7 +57,7 @@ pub fn quotient_copy_adaptation<'a>(
         return None;
     }
     let representation = module
-        .quotients
+        .types.quotients
         .representations
         .get(row.representation as usize)?;
     match row.license {
@@ -73,7 +73,7 @@ pub fn quotient_copy_adaptation<'a>(
         } if source_type == representation.quotient
             && result.structural_type == representation.carrier =>
         {
-            let owner = module.quotients.operations.get(operation as usize)?;
+            let owner = module.types.quotients.operations.get(operation as usize)?;
             let call = machine.operation(owner.call)?;
             (owner.public_machine == machine.id
                     && call.kind.direct_callee() == Some(owner.representative_machine)
@@ -87,7 +87,7 @@ pub fn quotient_copy_adaptation<'a>(
             if source_type == representation.carrier
                 && result.structural_type == representation.quotient =>
         {
-            let owner = module.quotients.operations.get(operation as usize)?;
+            let owner = module.types.quotients.operations.get(operation as usize)?;
             let call = machine.operation(owner.call)?;
             (owner.public_machine == machine.id
                     && call.kind.direct_callee() == Some(owner.representative_machine)
@@ -101,14 +101,14 @@ pub fn quotient_copy_adaptation<'a>(
 }
 
 pub fn validate_quotient_catalog(module: &TerminalModule) -> Result<(), &'static str> {
-    validate_quotient_representations(&module.structural_types, &module.quotients)?;
+    validate_quotient_representations(&module.types.structural_types, &module.types.quotients)?;
     validate_quotient_representation_identities(
-        &module.structural_types,
-        &module.quotients,
+        &module.types.structural_types,
+        &module.types.quotients,
         &module.identities,
     )?;
-    for (index, operation) in module.quotients.operations.iter().enumerate() {
-        if module.quotients.operations[..index].iter().any(|prior| {
+    for (index, operation) in module.types.quotients.operations.iter().enumerate() {
+        if module.types.quotients.operations[..index].iter().any(|prior| {
             prior.public_machine == operation.public_machine && prior.call == operation.call
         }) {
             return Err("duplicate quotient call correspondence");
@@ -116,7 +116,7 @@ pub fn validate_quotient_catalog(module: &TerminalModule) -> Result<(), &'static
         validate_operation(module, index, operation)?;
     }
     validate_quotient_opacity(module)?;
-    for row in &module.quotients.adaptations {
+    for row in &module.types.quotients.adaptations {
         let machine = module
             .machines
             .iter()

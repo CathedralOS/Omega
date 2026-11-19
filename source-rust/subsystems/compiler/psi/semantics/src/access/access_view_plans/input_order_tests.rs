@@ -28,7 +28,7 @@ fn input(machine: u64, runtime_position: u32) -> TerminalAccessViewInput {
 
 fn order_refusal(inputs: Vec<TerminalAccessViewInput>) -> Option<AccessViewPlanError> {
     let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
-    module.access_view_inputs = inputs;
+    module.access.access_view_inputs = inputs;
     validate_access_view_plans(&module)
         .err()
         .filter(|error| matches!(error, AccessViewPlanError::InputOutOfOrder { .. }))

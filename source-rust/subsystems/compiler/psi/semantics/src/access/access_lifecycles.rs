@@ -13,12 +13,12 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::find_structural_type;
 
 pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'static str> {
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         if let Some(operation) = boundary
             .declaration
             .as_ref()
             .and_then(|declaration| declaration.execution.placement_operation())
-            && !module.access_lifecycle_plans.iter().any(|plan| {
+            && !module.access.access_lifecycle_plans.iter().any(|plan| {
                 plan.boundary == boundary.id
                     && plan.operation == operation
                     && matches!(
@@ -31,7 +31,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
         }
     }
     let mut previous = None;
-    for (position, plan) in module.access_lifecycle_plans.iter().enumerate() {
+    for (position, plan) in module.access.access_lifecycle_plans.iter().enumerate() {
         let key = (
             plan.boundary,
             plan.target.as_ref().map(|target| target.target.as_str()),
@@ -57,7 +57,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
         if boundary.role != BoundaryDeclarationRole::Callable {
             return Err("access lifecycle names non-callable contract evidence");
         }
-        let schema = find_structural_type(&module.structural_types, plan.schema)
+        let schema = find_structural_type(&module.types.structural_types, plan.schema)
             .ok_or("access lifecycle schema is absent")?;
         if !matches!(schema.shape, StructuralTypeShape::Record { .. }) {
             return Err("access lifecycle schema is not a record");
@@ -139,7 +139,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                                 );
                             }
                         }
-                        if find_structural_type(&module.structural_types, *profile_type)
+                        if find_structural_type(&module.types.structural_types, *profile_type)
                             .is_none_or(|declaration| {
                                 !matches!(declaration.shape, StructuralTypeShape::Record { .. })
                             })
@@ -243,7 +243,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
         }
         access_result_contract(module, plan)?;
         validate_image_fields(module, plan)?;
-        for view in module.access_view_plans.iter().filter(|view| {
+        for view in module.access.access_view_plans.iter().filter(|view| {
             view.policy_identity == plan.policy_identity
                 && view.schema_identity == plan.schema_identity
         }) {
@@ -269,7 +269,7 @@ pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'
                 }
             }
         }
-        for earlier in module.access_lifecycle_plans[..position]
+        for earlier in module.access.access_lifecycle_plans[..position]
             .iter()
             .filter(|earlier| {
                 earlier.policy_identity == plan.policy_identity
@@ -392,7 +392,7 @@ fn validate_image_fields(
         })
         .transpose()?;
     let mut geometry =
-        crate::ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
+        crate::ReferenceStorageGeometry::new(module.types.structural_types.iter(), |application| {
             Err(crate::StorageGeometryError::UnresolvedExtent(application))
         })
         .with_target_carriers(carriers);
@@ -499,7 +499,7 @@ fn validate_storage(
             }
             if let Some(singleton) = singleton
                 && !module
-                    .structural_domains
+                    .types.structural_domains
                     .iter()
                     .any(|domain| domain.id == singleton && domain.carrier == carrier)
             {
@@ -539,7 +539,7 @@ fn validate_storage(
             .any(|(previous, _)| previous == identity)
     }) || domains.iter().any(|(identity, carrier)| {
         !module
-            .structural_domains
+            .types.structural_domains
             .iter()
             .any(|domain| domain.id == *identity && domain.carrier == *carrier)
     }) {

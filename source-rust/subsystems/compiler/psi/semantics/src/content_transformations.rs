@@ -106,8 +106,8 @@ pub fn validate_shape(
         .as_structural()
         .ok_or("content transformation requires a structural result")?;
     validate_contract(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &module.identities,
         &|place| place_type(machine, place),
         source,
@@ -136,8 +136,8 @@ pub fn validate_shape(
         .ok_or("content transformation position is absent")?;
     let graph = crate::descriptors::descriptor_results::terminal_graph(module);
     let contract = crate::descriptors::descriptor_results::current_selected_payload_contract(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &graph,
         machine.id,
         position,
@@ -146,8 +146,8 @@ pub fn validate_shape(
         &|place| crate::descriptors::descriptor_results::terminal_payload_contract(machine, place),
     )?;
     validate_memberships(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &module.identities,
         result,
         derivations,

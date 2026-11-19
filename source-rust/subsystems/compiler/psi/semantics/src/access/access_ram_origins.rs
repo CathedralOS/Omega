@@ -67,7 +67,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
         Self {
             module,
             graph,
-            analysis: DescriptorAnalysis::with_access_origins(&module.structural_types, graph),
+            analysis: DescriptorAnalysis::with_access_origins(&module.types.structural_types, graph),
             reachable,
             entry,
             private_entry_roots: Vec::new(),
@@ -91,7 +91,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
         let [argument] = arguments else {
             return None;
         };
-        let mut accesses = self.module.access_view_plans.iter().flat_map(|plan| {
+        let mut accesses = self.module.access.access_view_plans.iter().flat_map(|plan| {
             plan.fields.iter().flat_map(move |field| {
                 field
                     .operations
@@ -136,14 +136,14 @@ impl<'a> AccessRamOriginAnalysis<'a> {
         let mut descriptor_prefix = argument.path.as_slice();
         for prefix_length in 0..=argument.path.len() {
             let selected = crate::structural_window_projection(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 root_type,
                 &argument.path[..prefix_length],
                 None,
             )?;
             if selected.structural_type == field.accessor {
                 let leaf = crate::structural_window_projection(
-                    self.module.structural_types.iter(),
+                    self.module.types.structural_types.iter(),
                     field.accessor,
                     &argument.path[prefix_length..],
                     None,
@@ -159,7 +159,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
             }
         }
         let location = descriptor_location(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             argument.place,
             root_type,
             descriptor_prefix,
@@ -171,8 +171,8 @@ impl<'a> AccessRamOriginAnalysis<'a> {
             .any(|origin| !matches!(origin, AccessRamOrigin::ProviderFormation(_)))
         {
             crate::access_ram_plan_correspondence(
-                &self.module.structural_types,
-                &self.module.access_view_plans,
+                &self.module.types.structural_types,
+                &self.module.access.access_view_plans,
                 plan,
                 plan.schema,
             )
@@ -245,7 +245,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
                         OperationKind::BoundaryCall { boundary, .. } => {
                             let plan = self
                                 .module
-                                .access_lifecycle_plans
+                                .access.access_lifecycle_plans
                                 .iter()
                                 .find(|plan| plan.boundary == boundary)?;
                             let crate::AccessResultContract::View {
@@ -286,7 +286,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
                         .declaration
                         .as_ref()
                         .is_some_and(|declaration| {
-                            self.module.callback_applications.iter().any(|application| {
+                            self.module.interfaces.callback_applications.iter().any(|application| {
                                 declaration.same_identity_as(
                                     &self.module.identities,
                                     &application.body,
@@ -303,7 +303,7 @@ impl<'a> AccessRamOriginAnalysis<'a> {
                                 && crate::access_view_input_parameter(self.module, row)
                                     .is_ok_and(|parameter| parameter.place == incoming_root)
                         })?;
-                        if !self.module.access_view_inputs.contains(row) {
+                        if !self.module.access.access_view_inputs.contains(row) {
                             return None;
                         }
                         let parameter =
