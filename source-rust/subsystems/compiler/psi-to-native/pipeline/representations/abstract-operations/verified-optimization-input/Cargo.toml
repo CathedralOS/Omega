@@ -22,7 +22,6 @@ psi-scalar-applications = { path = "../../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../../psi/providers" }
 psi-entry-memory = { path = "../../../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../../../psi/layout/admission" }
-service-surface = { path = "../../../../../psi/service-surface" }
 operation-operands = { path = "../../operation-operands" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
 legalized-operations = { path = "../../target-operations/legalized-operations" }
@@ -30,17 +29,12 @@ optimization-unit = { path = "../optimization-unit" }
 runtime-abi = { path = "../../../../targets/runtime-abi" }
 application-identity = { path = "../../../../../psi/application-identity" }
 numeric-literals = { path = "../../../../../foundation/numeric-literals" }
-source-text = { path = "../../../../../../../foundation/source-text" }
 abstract-operations = { path = ".." }
 target-operations = { path = "../../target-operations" }
-installation-conditions = { path = "../../../../verification/installation-admission/conditions" }
 operation-evidence = { path = "../../operation-evidence" }
 provider-admission = { path = "../../../../verification/provider-admission" }
 semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 arena = { path = "../../../../../../../foundation/arena" }
-record-storage = { path = "../../../../../../../foundation/record-storage" }
-language-core = { path = "../../../../../foundation/language-core" }
-layout-plans = { path = "../../../../../psi/layout" }
 terminal-codec = { path = "../../../../../psi/codec" }
 psi-authorization = { path = "../../../../../psi/authorization" }
 terminal-psi = { path = "../../../../../psi" }

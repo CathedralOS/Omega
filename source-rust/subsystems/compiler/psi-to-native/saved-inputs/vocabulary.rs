@@ -354,7 +354,7 @@ mod providers {
 
     #[cfg(test)]
     mod execution_tag_tests {
-        use crate::retained_terminal_codec::value::{
+        use crate::value::{
             RecordLimits, RecordReader, RecordValue, RecordWriter,
         };
         use language_core::static_interrupts::StaticInterruptOperation as Interrupt;

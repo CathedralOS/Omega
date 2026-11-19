@@ -58,10 +58,6 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 
 // Saved native inputs are read and written beside the retained artifact they
 // rebuild, so a saved product is recovered without running an Omega stage.
-mod retained_terminal_codec;
-pub use retained_terminal_codec::{
-    recover_native_derivation_inputs, retain_native_derivation_inputs,
-};
 
 mod entry_call;
 pub use entry_call::SelectedProgramEntryCall;

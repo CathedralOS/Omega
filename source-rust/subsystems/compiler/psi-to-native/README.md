@@ -13,6 +13,8 @@ The ELF, Mach-O and PE writer tests start from [fixed encoded imports](pipeline/
 
 Production stage consumers are the native entry, packages within the same stage, and the next numbered stage. Other readers have exact package-to-package permissions in the [Cargo boundary check](../../../../tools/xtask/src/boundary/native_stages.rs). For example, file publication reads the finished artifact and its companions. Published-object replay reopens the stages that issued the evidence it verifies.
 
+[Saved native derivation inputs](saved-inputs/saved_inputs.rs) use the OMGNTI41 format. Reopening a record requires the corresponding authorized Psi artifact and reconstructs its proposal with the ordinary validation rules. The compiler can lower in-memory programs without linking this transport. [Record format](../../../../wiki/spec/terminal-psi/encoding.md)
+
 ## Placement during the repair
 
 | Code | Owner |
