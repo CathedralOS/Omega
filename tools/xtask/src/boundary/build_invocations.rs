@@ -45,7 +45,13 @@ pub(super) fn violations(root: &Path) -> Result<Vec<String>, String> {
         "source-rust/subsystems/compiler/build",
         "source-rust/subsystems/package-manager",
     ] {
+        let previous_count = files.len();
         collect_rs_files(&root.join(scope), &mut files);
+        if previous_count == files.len() {
+            return Err(format!(
+                "{scope}: Build invocation audit found no Rust implementation"
+            ));
+        }
     }
     for path in files {
         let relative = path.strip_prefix(root).map_err(|error| error.to_string())?;
