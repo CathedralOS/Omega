@@ -562,8 +562,7 @@ impl Program<'_> {
                 .expect("u64 is valid");
         // A fixed array's length is its declared extent. A generic check
         // reads the exact constant input; a closed array supplies its literal.
-        // Keep the existing pure field-path restriction: erasing an effectful
-        // base or an unestablished case projection would lose its obligations.
+        // A temporary still evaluates before returning the extent.
         if measure == CollectionMeasure::Length
             && let Some(length) = self.data_type(machine, record)?.shape.fixed_array_extent()
         {
@@ -573,11 +572,21 @@ impl Program<'_> {
             {
                 place = base;
             }
-            if !matches!(place.kind, ExpressionKind::Slot(_)) {
+            let static_place = matches!(place.kind, ExpressionKind::Slot(_));
+            if !static_place
+                && !matches!(
+                    place.kind,
+                    ExpressionKind::Array { .. }
+                        | ExpressionKind::Call { .. }
+                        | ExpressionKind::Match { .. }
+                        | ExpressionKind::Record { .. }
+                        | ExpressionKind::Zero
+                )
+            {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Expression("length of a fixed array that is not a field path"),
+                    Unserved::Expression("fixed-array length through an unchecked projection"),
                 ));
             }
             let result = ValueType::plain(semantic_vocabulary::ScalarType::Integer(integer));
@@ -635,11 +644,25 @@ impl Program<'_> {
                     ));
                 }
             };
-            return Ok(Expression {
+            let extent = Expression {
                 call_context: None,
                 kind,
                 result: Some(result),
                 source,
+            };
+            return Ok(if static_place {
+                extent
+            } else {
+                Expression {
+                    call_context: None,
+                    kind: ExpressionKind::CollectionMeasure {
+                        base: Box::new(base),
+                        measure,
+                        fixed_length: Some(Box::new(extent)),
+                    },
+                    result: Some(result),
+                    source,
+                }
             });
         }
         if measure != CollectionMeasure::Length
@@ -660,6 +683,7 @@ impl Program<'_> {
             kind: ExpressionKind::CollectionMeasure {
                 base: Box::new(base),
                 measure,
+                fixed_length: None,
             },
             result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
                 integer,

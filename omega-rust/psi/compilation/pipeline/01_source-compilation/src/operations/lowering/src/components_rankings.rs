@@ -179,6 +179,7 @@ fn substitute(
         ExpressionKind::CollectionMeasure {
             base,
             measure: crate::source_state::expression::CollectionMeasure::Length,
+            fixed_length: None,
         } => {
             let ExpressionKind::Slot(slot) = base.kind else {
                 return None;
@@ -196,6 +197,7 @@ fn substitute(
             ExpressionKind::CollectionMeasure {
                 base: Box::new(actual),
                 measure: crate::source_state::expression::CollectionMeasure::Length,
+                fixed_length: None,
             }
         }
         _ => return None,

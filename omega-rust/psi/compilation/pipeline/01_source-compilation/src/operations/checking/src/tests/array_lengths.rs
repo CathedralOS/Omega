@@ -60,17 +60,43 @@ machine build_entry() { let holder: Holder; let seen: u64 = held(&holder); }",
     assert!(rejected.starts_with("rejected"), "{rejected}");
 }
 
+const COMPUTED_LENGTH: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/arrays/computed_fixed_array_length/main.omg"
+));
+
 #[test]
-fn the_length_of_an_array_that_must_be_evaluated_first_is_refused() {
-    // A call result is no place: the call would have to run for its length
-    // to be read, and nothing is lowered for a length.
-    assert_eq!(
-        verdict(
-            "machine make() -> [u8; 4] { [0, 0, 0, 0] }
-machine build_entry() -> u64 { make().len }"
+fn reading_a_fixed_array_length_evaluates_the_call_once() {
+    let source = COMPUTED_LENGTH.replace("machine main()", "machine build_entry()");
+    let RouteVerdict::Accepted(accepted) = judge_build(&source).unwrap() else {
+        panic!("reading the length must allow an ordinary call");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
         ),
-        "expression length of a fixed array that is not a field path while reading the body of \
-         `build_entry`"
+        "{status:?}"
+    );
+}
+
+#[test]
+fn reading_a_fixed_array_length_still_checks_the_call_contract() {
+    let source = COMPUTED_LENGTH
+        .replace("machine main()", "machine build_entry()")
+        .replace("Counter { called: false }", "Counter { called: true }");
+    let verdict = judge_build(&source).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. } if !unproved.is_empty()),
+        "{verdict:?}"
     );
 }
 

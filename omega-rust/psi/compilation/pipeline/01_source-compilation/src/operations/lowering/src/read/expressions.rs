@@ -1699,7 +1699,14 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::MachineValue { contract: b, descriptor: b_selected },
             ) => a == b && a_selected == b_selected,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
-            (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
+            (
+                ExpressionKind::CollectionMeasure { base: a, measure: am, fixed_length: al },
+                ExpressionKind::CollectionMeasure { base: b, measure: bm, fixed_length: bl },
+            ) => am == bm && both(a, b) && match (al, bl) {
+                (Some(a), Some(b)) => both(a, b),
+                (None, None) => true,
+                _ => false,
+            },
             (ExpressionKind::ByteSequencePredicate { base: a, predicate: ap }, ExpressionKind::ByteSequencePredicate { base: b, predicate: bp }) => ap == bp && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,

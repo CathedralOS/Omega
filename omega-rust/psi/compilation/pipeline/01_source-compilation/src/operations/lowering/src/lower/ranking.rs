@@ -164,6 +164,7 @@ impl Lowering<'_> {
             ExpressionKind::CollectionMeasure {
                 base,
                 measure: crate::source_state::expression::CollectionMeasure::Length,
+                fixed_length: None,
             } => {
                 let ExpressionKind::Slot(slot) = base.kind else {
                     return Err(

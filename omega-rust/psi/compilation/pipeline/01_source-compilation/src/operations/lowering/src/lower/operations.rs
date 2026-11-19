@@ -294,9 +294,11 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
-            ExpressionKind::CollectionMeasure { base, measure } => {
-                self.measure_collection(base, *measure, source)
-            }
+            ExpressionKind::CollectionMeasure {
+                base,
+                measure,
+                fixed_length,
+            } => self.measure_collection(base, *measure, fixed_length.as_deref(), source),
             ExpressionKind::ByteSequencePredicate { base, predicate } => {
                 self.byte_sequence_predicate(base, *predicate, source)
             }

@@ -1090,6 +1090,8 @@ pub enum ExpressionKind {
     CollectionMeasure {
         base: Box<Expression>,
         measure: crate::source_state::expression::CollectionMeasure,
+        /// Literal or immutable constant input, converted to the count carrier.
+        fixed_length: Option<Box<Expression>>,
     },
     /// Observe the current bytes through the already formed shared loan.
     /// The Boolean result is tied to that exact view, not its whole backing.

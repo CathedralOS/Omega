@@ -4421,13 +4421,21 @@ impl<'a> Lowering<'a> {
         &mut self,
         base: &Expression,
         measure: crate::source_state::expression::CollectionMeasure,
+        fixed_length: Option<&Expression>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         if measure != crate::source_state::expression::CollectionMeasure::Length {
             return Err(self.internal("a collection measure has no canonical operation"));
         }
-        // Locate a call or constructor once, then measure its actual descriptor.
         let at = continuing!(self.located(base));
+        if let Some(extent) = fixed_length {
+            if !at.fresh {
+                return Err(self.internal("a computed fixed-array length has no temporary"));
+            }
+            let length = continuing!(self.scalar(extent));
+            self.retire_homes(&[at.root], source)?;
+            return Ok(Reached::Value(Value::Scalar(length)));
+        }
         let (_, _, length) = self.measured_view(&at, source)?;
         Ok(Reached::Value(Value::Scalar(length)))
     }

@@ -1,0 +1,15 @@
+// Expected exit: 0
+data Counter { called: bool; }
+machine make(counter: &mut Counter) -> [u8; 4]
+requires !counter.called
+{
+    counter.called = !counter.called;
+    [2, 3, 5, 7]
+}
+machine main() crashes Trap {
+    let mut counter: Counter = Counter { called: false };
+    let seen: u64 = make(&mut counter).len;
+    transition counter.called && seen == 4u64 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
