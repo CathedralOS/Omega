@@ -158,15 +158,15 @@ impl SourceStorage {
     pub(crate) fn logical_siblings(
         &mut self,
         path: &Path,
-        scope: declaration_contracts::source_identity::DependencyScope,
+        scope: source_provenance::DependencyScope,
     ) -> Result<
         Vec<(
             PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         Vec<Diagnostic>,
     > {
-        if scope != declaration_contracts::source_identity::DependencyScope::Product {
+        if scope != source_provenance::DependencyScope::Product {
             return Ok(Vec::new());
         }
         let (root, _, origin) = self.source_metadata(path, None);
@@ -747,14 +747,14 @@ pub(crate) struct SourceRoots {
 pub(crate) fn validate_package_source_frontier(
     frontier: Vec<(
         PathBuf,
-        declaration_contracts::source_identity::DependencyScope,
+        source_provenance::DependencyScope,
     )>,
     package_inputs: &crate::PackageCompilationInputs,
     source_storage: &SourceStorage,
 ) -> Result<
     Vec<(
         PathBuf,
-        declaration_contracts::source_identity::DependencyScope,
+        source_provenance::DependencyScope,
     )>,
     Vec<Diagnostic>,
 > {
@@ -809,7 +809,7 @@ pub(crate) fn validate_package_source_frontier(
 #[cfg(test)]
 mod tests {
     use super::SourceStorage;
-    use declaration_contracts::source_identity::DependencyScope;
+    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
     use source_admission::SourceResolutionStratum;
     use source_compiler::{ParsedSourceBatch, ParsedSourceSummary};

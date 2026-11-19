@@ -68,7 +68,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
                 Some(package()),
                 origin,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .source_id;
         let tokens = crate::frontend_fixture::Lexer::new(text)
@@ -93,7 +93,7 @@ fn try_typed(supplied: &str, program: &str) -> Result<Fixture, Vec<diagnostics::
         source_compiler::typing::lower_symbol_resolved_trees(&resolved).expect("type source");
     let defaults = retain_provider_defaults(ProviderPlanningContext::new(
         &typed,
-        declaration_contracts::source_identity::DependencyScope::Product,
+        source_provenance::DependencyScope::Product,
     ))?;
     let entry = typed
         .machines()
@@ -125,7 +125,7 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
 
             entries: &[fixture.entry],
             subjects: &[Some(package())],
-            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            purpose: source_provenance::DependencyScope::Product,
             selected: &choices.declaration_roots,
             calling: Some(source_compiler::lowering::CallingPolicySelections {
                 source: &fixture.source,

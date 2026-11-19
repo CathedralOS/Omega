@@ -1111,7 +1111,7 @@ fn initial_build_source_isolation() {
             .files()
             .any(|file| file.path == root.with_file_name("naming.omg")
                 && file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Build)
+                    == source_provenance::DependencyScope::Build)
     );
     assert!(
         syntax
@@ -1141,7 +1141,7 @@ fn initial_build_source_isolation() {
             .files()
             .any(|file| file.path == root.with_file_name("result.omg")
                 && file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Product)
+                    == source_provenance::DependencyScope::Product)
     );
     let retained = product.sources.get(original.source_id).unwrap();
     assert_eq!(retained.path, original.path);
@@ -1153,7 +1153,7 @@ fn initial_build_source_isolation() {
                 .files()
                 .any(|file| file.path.ends_with("float_operations.omg")
                     && file.dependency_scope
-                        == declaration_contracts::source_identity::DependencyScope::Build)
+                        == source_provenance::DependencyScope::Build)
         );
     }
     println!("product_preparation_retained_the_exact_build_source_bytes");

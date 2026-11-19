@@ -120,7 +120,7 @@ impl CompletedProviderDefaults {
             }
             let subject_loaded = source.typed().symbols.source_files().any(|file| {
                 file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Product
+                    == source_provenance::DependencyScope::Product
                     && source
                         .typed()
                         .symbols

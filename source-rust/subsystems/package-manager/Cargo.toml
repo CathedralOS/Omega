@@ -16,7 +16,7 @@ service-surface = { path = "../compiler/psi/service-surface" }
 declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../compiler/build/evaluation/receipts" }
-declaration-contracts = { path = "../compiler/source-to-psi/language/declaration-contracts" }
+source-provenance = { path = "../compiler/foundation/source-provenance" }
 evaluation-contracts = { path = "../compiler/build/evaluation/usage" }
 source-capture = { path = "source-acquisition/capture" }
 source-admission = { path = "../compiler/source-to-psi/pipeline/representations/source-files/custody" }

@@ -69,7 +69,7 @@ pub use project::project_roots;
 
 use crate::PackageCompilationInputs;
 use bindings::ImportOccurrence;
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
 use paths::{identifier_path_text, is_bundled_omega_path};
 use source_compiler::ParsedSourceBatch;

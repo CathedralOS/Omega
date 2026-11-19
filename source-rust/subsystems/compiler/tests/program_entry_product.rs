@@ -95,7 +95,7 @@ fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
             Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
             source_admission::SourceOrigin::User,
             source_admission::SourceResolutionStratum::Base,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         )
         .source_id;
     let tokens = crate::frontend_fixture::Lexer::new(source_text)
@@ -467,7 +467,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 let mut rows = catalog.abi_signatures().iter().filter(|row| {
                     row.projections_in_context(
                         typed,
-                        declaration_contracts::source_identity::DependencyScope::Product,
+                        source_provenance::DependencyScope::Product,
                     )
                     .any(|projection| {
                         typed

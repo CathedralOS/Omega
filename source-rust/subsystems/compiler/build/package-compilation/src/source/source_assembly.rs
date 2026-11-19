@@ -121,7 +121,7 @@ impl DeferredProductSources {
         {
             imports.seed(
                 root.clone(),
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             );
         }
         load_source_frontiers(
@@ -135,11 +135,11 @@ impl DeferredProductSources {
         seed_core_vocabulary(
             &mut imports,
             &core_root,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         );
         for scope in [
-            declaration_contracts::source_identity::DependencyScope::Build,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
         ] {
             if sources_mention_floats(&storage, scope) {
                 imports.seed(core_root.join("float_operations.omg"), scope);
@@ -148,7 +148,7 @@ impl DeferredProductSources {
         for seed in inputs.entry_contract_seeds(&storage)? {
             imports.seed(
                 seed.register_custody(&mut storage)?,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             );
         }
         load_source_frontiers(
@@ -178,7 +178,7 @@ impl DeferredProductSources {
             .selected_files()
             .filter(|file| {
                 file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Build
+                    == source_provenance::DependencyScope::Build
             })
             .map(|file| file.source_id)
             .collect();
@@ -259,15 +259,15 @@ impl DeferredProductSources {
         seed_core_vocabulary(
             &mut imports,
             &core_root,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         );
         if sources_mention_floats(
             &storage,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ) {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             );
         }
         load_source_frontiers(
@@ -301,7 +301,7 @@ impl DeferredProductSources {
             .selected_files()
             .filter(|file| {
                 file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Build
+                    == source_provenance::DependencyScope::Build
             })
             .map(|file| file.source_id)
             .collect();
@@ -358,7 +358,7 @@ impl DeferredProductSources {
         for root in roots.iter() {
             imports.seed(
                 root.clone(),
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             );
         }
         let mut package_imports = checkpoint.package_imports.to_vec();
@@ -549,7 +549,7 @@ impl ImmutableSourceParseCheckpoint {
         let mut imports = ImportQueue::default();
         let mut product_roots = Vec::new();
         for (path, scope) in project.sources() {
-            if *scope == declaration_contracts::source_identity::DependencyScope::Product {
+            if *scope == source_provenance::DependencyScope::Product {
                 product_roots.push(path.clone());
             } else {
                 imports.seed(path.clone(), *scope);
@@ -587,9 +587,9 @@ impl ImmutableSourceParseCheckpoint {
         self.validate_child(package_inputs)?;
         let deferred_product = self.product_roots.is_some().then(|| self.fork());
         let source_scope = if deferred_product.is_some() {
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         } else {
-            declaration_contracts::source_identity::DependencyScope::Product
+            source_provenance::DependencyScope::Product
         };
         let mut source_storage = Arc::unwrap_or_clone(self.source_storage);
         let mut imports = ImportQueue::default();
@@ -640,7 +640,7 @@ impl ImmutableSourceParseCheckpoint {
             for seed in seeds {
                 imports.seed(
                     seed.register_custody(&mut source_storage)?,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 );
             }
             load_phase!(PackageImportPhase::ExactTarget(None))?;
@@ -654,13 +654,13 @@ impl ImmutableSourceParseCheckpoint {
                 for seed in seeds {
                     let already_selected = source_storage.sources.selected_files().any(|file| {
                         file.dependency_scope
-                            == declaration_contracts::source_identity::DependencyScope::Product
+                            == source_provenance::DependencyScope::Product
                             && file.path == seed
                     });
                     if !already_selected {
                         imports.seed(
                             seed,
-                            declaration_contracts::source_identity::DependencyScope::Product,
+                            source_provenance::DependencyScope::Product,
                         );
                         added = true;
                     }
@@ -675,25 +675,25 @@ impl ImmutableSourceParseCheckpoint {
         seed_core_vocabulary(&mut imports, &core_root, source_scope);
         if sources_mention_floats(
             &source_storage,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         ) {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             );
         }
         if sources_mention_floats(
             &source_storage,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         ) || (deferred_product.is_none()
             && sources_mention_floats(
                 &source_storage,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ))
         {
             imports.seed(
                 core_root.join("float_operations.omg"),
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             );
         }
         load_phase!(PackageImportPhase::ExactTarget(None))?;
@@ -784,7 +784,7 @@ impl ImmutableSourceParseCheckpoint {
             .selected_files()
             .filter(|file| {
                 file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Build
+                    == source_provenance::DependencyScope::Build
             })
             .map(|file| file.source_id)
             .collect();
@@ -967,7 +967,7 @@ fn append_dependency_build_handoffs_to_storage(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
     package_inputs: &PackageCompilationInputs,
-    source_scope: declaration_contracts::source_identity::DependencyScope,
+    source_scope: source_provenance::DependencyScope,
     timings: &mut CompileTimings,
     catalogue: &mut source_compiler::source_inputs::SourceCatalogue,
 ) -> Result<Vec<(source_text::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
@@ -1077,13 +1077,13 @@ fn append_stage_generated_sources(
             })?;
             imports.mark_loaded(
                 &logical_path,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             );
             let unit = storage.admit_source(
                 SourceContents {
                     path: logical_path,
                     source: Arc::from(text),
-                    scope: declaration_contracts::source_identity::DependencyScope::Build,
+                    scope: source_provenance::DependencyScope::Build,
                 },
                 Some(SourceOrigin::User),
                 SourceResolutionStratum::DependencyActivationExtension,
@@ -1115,7 +1115,7 @@ fn append_stage_generated_sources(
                 .map(|path| {
                     (
                         path,
-                        declaration_contracts::source_identity::DependencyScope::Build,
+                        source_provenance::DependencyScope::Build,
                     )
                 })
                 .collect(),
@@ -1219,7 +1219,7 @@ impl SourceRouting<'_> {
     ) -> Result<
         Vec<(
             PathBuf,
-            declaration_contracts::source_identity::DependencyScope,
+            source_provenance::DependencyScope,
         )>,
         Vec<Diagnostic>,
     > {
@@ -1266,7 +1266,7 @@ fn append_default_build(
         SourceContents {
             path: PathBuf::from("<default-build>"),
             source: Arc::from(build_declarations::default_build_source()),
-            scope: declaration_contracts::source_identity::DependencyScope::Build,
+            scope: source_provenance::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
@@ -1314,7 +1314,7 @@ fn append_build_prelude(
         SourceContents {
             path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
             source: Arc::from(prelude.source.declarations),
-            scope: declaration_contracts::source_identity::DependencyScope::Build,
+            scope: source_provenance::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
@@ -1338,7 +1338,7 @@ fn append_build_prelude(
             SourceContents {
                 path: PathBuf::from(format!("<build-prelude:{namespace}>")),
                 source: Arc::from(text),
-                scope: declaration_contracts::source_identity::DependencyScope::Build,
+                scope: source_provenance::DependencyScope::Build,
             },
             Some(SourceOrigin::Toolchain),
             SourceResolutionStratum::Base,
@@ -1365,7 +1365,7 @@ fn append_build_prelude(
     // Import their admitted source identities just as the loader does for an
     // authored module, rather than making a same-spelled data type own helpers.
     for file in storage.sources.selected_files().filter(|file| {
-        file.dependency_scope == declaration_contracts::source_identity::DependencyScope::Build
+        file.dependency_scope == source_provenance::DependencyScope::Build
     }) {
         for &(namespace, declaration_source) in &namespaces {
             bindings.push(
@@ -1406,7 +1406,7 @@ fn parse_admitted(
 fn seed_core_vocabulary(
     imports: &mut ImportQueue,
     core_root: &Path,
-    scope: declaration_contracts::source_identity::DependencyScope,
+    scope: source_provenance::DependencyScope,
 ) {
     for file in ["code_layout.omg", "indexing.omg"] {
         imports.seed(core_root.join(file), scope);
@@ -1415,7 +1415,7 @@ fn seed_core_vocabulary(
 
 fn sources_mention_floats(
     source_storage: &crate::source::source_imports::SourceStorage,
-    scope: declaration_contracts::source_identity::DependencyScope,
+    scope: source_provenance::DependencyScope,
 ) -> bool {
     source_storage
         .sources
@@ -1500,12 +1500,12 @@ mod requirement_preparation_tests {
             .expect("the initial Build source assembly");
         let build_source = collection_source(
             &build,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Build,
         );
         assert!(!build.sources.selected_files().any(|file| {
             file.path == indexing
                 && file.dependency_scope
-                    == declaration_contracts::source_identity::DependencyScope::Product
+                    == source_provenance::DependencyScope::Product
         }));
         let continuation = build
             .product_sources
@@ -1520,7 +1520,7 @@ mod requirement_preparation_tests {
             .expect("a paused Build's query uses its captured Product sources");
         let query_source = collection_source(
             &query,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         );
         assert_ne!(build_source, query_source);
         let (_, product) = continuation
@@ -1528,7 +1528,7 @@ mod requirement_preparation_tests {
             .expect("the final Product source assembly");
         let product_source = collection_source(
             &product,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         );
         assert_ne!(build_source, product_source);
         // An exact immutable dependency may retain its Product coordinate;
@@ -1542,7 +1542,7 @@ mod requirement_preparation_tests {
                     file.path == root
                         && file.origin == SourceOrigin::User
                         && file.dependency_scope
-                            == declaration_contracts::source_identity::DependencyScope::Product
+                            == source_provenance::DependencyScope::Product
                 })
                 .map(|file| file.source_id)
                 .collect::<Vec<_>>();

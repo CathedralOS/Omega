@@ -7,7 +7,7 @@
 use std::collections::{HashMap, VecDeque, hash_map::Entry};
 use std::path::{Path, PathBuf};
 
-use declaration_contracts::source_identity::DependencyScope;
+use source_provenance::DependencyScope;
 
 #[derive(Debug, Default)]
 pub struct ImportQueue {

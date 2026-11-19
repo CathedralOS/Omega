@@ -24,9 +24,9 @@ pub use checked_sources::{BuildSourceCustody, CheckedSourceCustody};
 
 const SOURCE_CONSUMPTION_DOMAIN: &[u8] = b"OMEGA-PACKAGE-SOURCE-CONSUMPTION-V4\0";
 
-pub use declaration_contracts::source_identity::ConsumedSourceUnit;
-pub use declaration_contracts::source_identity::ConsumedSourceUnitKind;
-use declaration_contracts::source_identity::append_canonical_consumed_unit;
+pub use source_provenance::ConsumedSourceUnit;
+pub use source_provenance::ConsumedSourceUnitKind;
+use source_provenance::append_canonical_consumed_unit;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PackageSourceConsumptionCommitment {

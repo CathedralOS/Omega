@@ -61,11 +61,11 @@ impl source_compiler::evaluation::InvocationSourceConsent for AnonymousSourceCap
         sources: &Arc<source_compiler::source_inputs::SourceMap>,
         requester: source_text::SourceSpan,
         declaration: source_text::SourceSpan,
-        purpose: declaration_contracts::source_identity::DependencyScope,
+        purpose: source_provenance::DependencyScope,
     ) -> bool {
         // This is the retained live Build input, not an anonymous package key.
         // A later Product cohort or another capture cannot borrow its consent.
-        if purpose != declaration_contracts::source_identity::DependencyScope::Build
+        if purpose != source_provenance::DependencyScope::Build
             || !Arc::ptr_eq(sources, &self.sources)
         {
             return false;
@@ -181,7 +181,7 @@ mod tests {
                 None,
                 source_admission::SourceOrigin::User,
                 source_admission::SourceResolutionStratum::Base,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             )
             .source_id;
         let sources = Arc::new(sources);
@@ -198,35 +198,35 @@ mod tests {
             &sources,
             span,
             span,
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         ));
         assert!(sources.get(id).unwrap().package_identity.is_none());
         assert!(!capture.allows_selection(
             &sources,
             span,
             span,
-            declaration_contracts::source_identity::DependencyScope::Product
+            source_provenance::DependencyScope::Product
         ));
         let foreign = Arc::new(sources.as_ref().clone());
         assert!(!capture.allows_selection(
             &foreign,
             span,
             span,
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         ));
         let outside = source_text::SourceSpan::new(id, source_text::Span::new(0, text.len() + 1));
         assert!(!capture.allows_selection(
             &sources,
             span,
             outside,
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         ));
         let missing = source_text::SourceSpan::new(source_text::SourceId(usize::MAX), span.span);
         assert!(!capture.allows_selection(
             &sources,
             span,
             missing,
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         ));
         let mut another_root = capture;
         another_root.root = PathBuf::from("/another-root");
@@ -234,7 +234,7 @@ mod tests {
             &sources,
             span,
             span,
-            declaration_contracts::source_identity::DependencyScope::Build
+            source_provenance::DependencyScope::Build
         ));
     }
 
@@ -328,8 +328,8 @@ mod tests {
         let root = PathBuf::from("/anonymous");
         let mut sources = source_compiler::source_inputs::SourceMap::default();
         for scope in [
-            declaration_contracts::source_identity::DependencyScope::Product,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
         ] {
             sources.add_checked_instance(
                 root.join("library.omg"),
