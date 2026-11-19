@@ -2060,7 +2060,7 @@ machine entry() -> u64 crashes none {
         let mut syntax =
             crate::production::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../../source/library/core");
+            .join("../../../../../../source/library/core");
         let mut bindings = Vec::new();
         for &(file, declaration, bytes) in core {
             let text = std::str::from_utf8(bytes).unwrap();
@@ -3047,7 +3047,7 @@ machine entry() reaches Input {}
         use semantic_vocabulary::source_selections::SelectionCallTarget;
 
         let text = include_str!(
-            "../../../../../../tests/fixtures/run/calls/record_callback_loop/main.omg"
+            "../../../../../../../tests/fixtures/run/calls/record_callback_loop/main.omg"
         )
         .replace("machine main()", "machine entry()");
         let source = accepted_source(&text, &[]);
