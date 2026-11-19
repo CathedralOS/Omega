@@ -252,6 +252,82 @@ impl Catalog<'_> {
             )),
         }
     }
+    /// In `i32 in Positive::Small`, Positive names an attached domain and
+    /// Small names its child. Start at the longest directly visible qualifier
+    /// and follow the remaining segments by owner identity. At each step the
+    /// caller must have authority to name that attachment.
+    pub(super) fn attached_domains(
+        &self,
+        file: &File<'_>,
+        file_number: usize,
+        ctx: &Context<'_>,
+        node: usize,
+        path: &str,
+        membership_target: bool,
+    ) -> Vec<usize> {
+        let parent = file.nodes[node].parent.map(|p| &file.nodes[p]);
+        let implicit_carrier = parent
+            .filter(|p| p.kind == NodeKind::QualifiedType && p.children.first() != Some(&node))
+            .map(|p| file.nodes[p.children[0]].path());
+        let domain_position = implicit_carrier.is_some() || parent.is_some_and(|p| p.kind == NodeKind::CastEntry) || membership_target;
+        if !domain_position && !path.contains("::") {
+            return Vec::new();
+        }
+
+        fn split(name: &str) -> (Option<&str>, &str) {
+            name.rsplit_once("::")
+                .map_or((None, name), |(prefix, leaf)| (Some(prefix), leaf))
+        }
+        let (mut qualifier, leaf) = split(path);
+        let mut unresolved_parents = Vec::new();
+        let mut owners = loop {
+            let Some(prefix) = qualifier else {
+                qualifier = implicit_carrier.as_deref();
+                break qualifier.map_or_else(Vec::new, |name| self.lookup(file, file_number, ctx, node, name));
+            };
+            let direct = self.lookup(file, file_number, ctx, node, prefix);
+            if !domain_position || super::builtin(prefix) || !direct.is_empty() {
+                break direct;
+            }
+            let (outer, segment) = split(prefix);
+            unresolved_parents.push(segment);
+            qualifier = outer;
+        };
+        for segment in unresolved_parents.into_iter().rev().chain([leaf]) {
+            owners = self
+                .carriers
+                .iter()
+                .filter_map(|(&slot, carrier)| {
+                    let entry = &self.entries[slot];
+                    let declared_here = entry.id.package == file.package
+                        && entry
+                            .source
+                            .is_some_and(|(number, _)| self.files[number].namespace == file.namespace);
+                    if (!declared_here && !ctx.exposed_domains.contains_key(&slot)) || entry.id.path.rsplit("::").next() != Some(segment) {
+                        return None;
+                    }
+                    let matches = match (carrier, qualifier) {
+                        (_, None) => true,
+                        (Carrier::Generic, Some(name)) => {
+                            super::builtin(name)
+                                || owners
+                                    .iter()
+                                    .any(|&owner| self.entries[owner].id.kind == NodeKind::Data)
+                        }
+                        (Carrier::Builtin(carrier), Some(name)) => carrier == name,
+                        (Carrier::Named(owner), Some(_)) => owners.contains(owner),
+                    };
+                    matches.then_some(slot)
+                })
+                .collect();
+            if owners.is_empty() {
+                break;
+            }
+            qualifier = Some(segment);
+        }
+        owners
+    }
+
     pub(super) fn occurrence_symbol(
         &self,
         file: &File<'_>,

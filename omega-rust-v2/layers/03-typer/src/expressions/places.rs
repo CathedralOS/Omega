@@ -25,7 +25,7 @@ impl BodyTyper<'_, '_> {
                 let d = self.unit.domain(self.unit.single_child(rest[0])?)?;
                 expected
                     .map(ValueType::carrier)
-                    .unwrap_or_else(|| self.catalog.types.domains.carrier(d))
+                    .unwrap_or_else(|| self.catalog.types.domains.carrier(d).carrier())
                     .clone()
             } else {
                 source.carrier().clone()

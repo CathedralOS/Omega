@@ -823,3 +823,50 @@ fn imported_overloads_come_only_from_the_requesters_selected_package() {
         assert_eq!(error.span.slice(bare.as_bytes()), Some("score".as_bytes()));
     }
 }
+
+#[test]
+fn child_domains_follow_the_visible_parent_on_the_annotated_carrier() {
+    let declarations = "domain i32::Positive; domain i32::Positive::Small; domain i32::Positive::Small::Tiny; domain u8::Positive; domain u8::Positive::Small; domain<T> T::Small;";
+    let caller = "machine inspect(x:i32 in Positive::Small::Tiny,y:u8 in Positive::Small) {}";
+    let stage = run(
+        &[
+            ("pkg", "domains.omg", declarations),
+            ("pkg", "caller.omg", caller),
+        ],
+        &[],
+    )
+    .unwrap();
+    for (spelling, want) in [
+        ("Positive::Small::Tiny", "i32::Positive::Small::Tiny"),
+        ("Positive::Small", "u8::Positive::Small"),
+    ] {
+        let uses: Vec<_> = stage
+            .uses
+            .iter()
+            .filter(|u| u.file == "caller.omg" && u.span.slice(caller.as_bytes()) == Some(spelling.as_bytes()))
+            .collect();
+        assert!(matches!(uses.as_slice(), [u] if matches!(&u.target,Symbol::Declaration(id) if id.path==want)));
+    }
+    for (decls, path) in [
+        (declarations, "Bogus::i32::Positive"),
+        ("domain u8::Positive; domain u8::Positive::Small;", "Positive::Small"),
+        ("domain i32::Other; domain i32::Other::Small;", "Positive::Small"),
+    ] {
+        let source = format!("machine inspect(x:i32 in {path}) {{}}");
+        let err = run(&[("pkg", "domains.omg", decls), ("pkg", "caller.omg", &source)], &[]).unwrap_err();
+        assert_eq!(err.message, format!("unresolved name {path}"));
+        assert_eq!(err.span.slice(source.as_bytes()), Some(path.as_bytes()));
+    }
+
+    let domains = ("lib", "units/limits.omg", "public domain i32::Positive; public domain i32::Positive::Small;");
+    let edge = Dependency {
+        requester: "app",
+        alias: "limits",
+        package: "lib",
+    };
+    let body = "machine inspect(x:i32 in Positive::Small) {}";
+    let imported = format!("use limits::units; {body}");
+    run(&[domains, ("app", "caller.omg", &imported)], &[edge]).unwrap();
+    let err = run(&[domains, ("app", "caller.omg", body)], &[edge]).unwrap_err();
+    assert_eq!(err.message, "unresolved name Positive::Small");
+}
