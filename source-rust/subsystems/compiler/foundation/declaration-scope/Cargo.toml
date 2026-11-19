@@ -1,0 +1,11 @@
+[package]
+name = "declaration-scope"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "declaration_scope.rs"
+
+[dependencies]
+semantic-vocabulary = { path = "../semantic-records" }

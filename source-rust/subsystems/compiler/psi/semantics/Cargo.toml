@@ -24,7 +24,7 @@ language-core = { path = "../../foundation/language-core" }
 layout-plans = { path = "../layout" }
 access-admission = { path = "../../../source-to-psi/access-admission" }
 optimization = { path = "../optimization-selections" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 numerics = { path = "numeric" }
 terminal-psi = { path = ".." }
 proof-admission = { path = "../../../source-to-psi/proof-admission" }

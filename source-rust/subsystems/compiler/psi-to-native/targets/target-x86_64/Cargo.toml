@@ -6,7 +6,7 @@ version.workspace = true
 
 [dependencies]
 optimization-selections = { path = "../../../foundation/optimization-selections" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 normalized-foreign-call-plan = { path = "../../pipeline/representations/selected-instructions/foreign-calls" }
 layout-plans = { path = "../../../psi/layout" }
 calling-conventions = { path = "../calling-conventions" }

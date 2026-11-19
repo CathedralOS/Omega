@@ -9,7 +9,7 @@ relaxation = { package = "resolved-layout-to-resolved-layout", path = "../../pip
 function-identity = { path = "../../pipeline/representations/function-identity" }
 selected-rewrites = { package = "selected-instructions-to-selected-instructions", path = "../../pipeline/06_selected-instructions-to-selected-instructions" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../../pipeline/08_register-homes-to-post-allocation-machine" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 register-model = { path = "../../targets/register-model" }
 register-environment = { path = "../../targets/register-environment" }
 selected-instruction-analyses = { path = "../../pipeline/06_selected-instructions-to-selected-instructions/analyses" }

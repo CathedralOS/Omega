@@ -3697,7 +3697,7 @@ pub(crate) mod proof_scope_wire {
     use super::boundary_application_wire::{decode_requirement, encode_requirement};
     use crate::term_table::{decode_rows, encode_rows};
     use arena::{Arena, HandleSpan};
-    use semantic_vocabulary::proof_applications::{
+    use proof_applications::{
         ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember,
         ProofCallGraph, ProofCallMachine, ProofDeclarationDependencies, ProofStaticBinding,
     };

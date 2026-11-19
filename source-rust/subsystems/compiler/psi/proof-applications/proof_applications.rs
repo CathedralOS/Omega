@@ -1,8 +1,5 @@
-/*
-We validate and canonicalize proof applications, checking formal-to-actual
-argument bindings, scope isolation, and premise satisfaction across mathematical
-and scalar proof terms.
-*/
+//! Queries proof applications from the declarations and calls carried in one scope.
+#![forbid(unsafe_code)]
 
 use arena::{Arena, HandleSpan};
 

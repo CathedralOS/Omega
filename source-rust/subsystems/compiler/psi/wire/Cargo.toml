@@ -10,6 +10,7 @@ name = "terminal_wire"
 path = "src/lib.rs"
 
 [dependencies]
+proof-applications = { path = "../proof-applications" }
 access-vocabulary = { path = "../../../source-to-psi/language/access-vocabulary" }
 declaration-contracts = { path = "../../../source-to-psi/language/declaration-contracts" }
 schema-reflection = { path = "../../../source-to-psi/language/schema-reflection" }
@@ -19,7 +20,7 @@ bignum = { path = "../../../../foundation/bignum" }
 wire = { path = "../../../../foundation/wire" }
 language-core = { path = "../../foundation/language-core" }
 arena = { path = "../../../../foundation/arena" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 optimization = { path = "../optimization-selections" }
 numerics = { path = "../semantics/numeric" }
 proof-admission = { path = "../../../source-to-psi/proof-admission" }

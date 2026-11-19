@@ -36,7 +36,7 @@ machine-code = { path = "../../representations/machine-code" }
 object-file = { path = "../../15_placed-functions-to-objects" }
 optimization-core = { path = "../../representations/optimization-records" }
 target-operations = { path = "../../representations/target-operations" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-codec = { path = "../../../../psi/codec" }

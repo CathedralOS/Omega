@@ -38,7 +38,6 @@ impl From<MachineId> for TargetMachineCallable {
     }
 }
 
-mod product_declaration_scope;
 mod source_review;
 pub mod source_selections;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
@@ -811,25 +810,6 @@ pub mod byte_predicates {
 pub mod compiler_evaluation {
     use crate::PackageKeyIdentity;
 
-    pub trait DeclarationSelectionAuthority: Send + Sync {
-        fn allows_declaration_selection(
-            &self,
-            requester: PackageKeyIdentity,
-            owner: PackageKeyIdentity,
-        ) -> bool;
-
-        fn package_label(&self, identity: PackageKeyIdentity) -> String;
-
-        fn declaration_selection_scope(
-            &self,
-        ) -> Option<std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>>
-        {
-            None
-        }
-    }
-
-    pub use crate::product_declaration_scope::ProductDeclarationScope;
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
     pub enum DeclarationCustody {
         Package(PackageKeyIdentity),
@@ -891,46 +871,9 @@ pub mod compiler_evaluation {
             }
         }
     }
-
-    pub fn require_compiler_evaluation_floor(
-        machine: &str,
-        effects: &CompilerEvaluationEffects,
-        closure_violation: Option<&str>,
-        selection_violation: Option<&str>,
-    ) -> Result<(), String> {
-        let mut violations = Vec::new();
-        if !effects.services.is_empty() {
-            violations.push(format!("service reach [{}]", effects.services.join(", ")));
-        }
-        if effects.may_suspend {
-            violations.push("may suspend".to_owned());
-        }
-        if effects.may_block {
-            violations.push("may block".to_owned());
-        }
-        violations.extend(closure_violation.map(str::to_owned));
-        violations.extend(selection_violation.map(str::to_owned));
-        if violations.is_empty() {
-            return Ok(());
-        }
-        Err(format!(
-            "machine `{machine}` is not build-time admissible: {}; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure",
-            violations.join("; ")
-        ))
-    }
-
-    pub fn require_compiler_evaluation_failures(
-        machine: &str,
-        failures: Result<(), &str>,
-    ) -> Result<(), String> {
-        failures.map_err(|reason| format!(
-            "machine `{machine}` is not build-time admissible: {reason}; constant evaluation requires proof that no crash route can occur before execution"
-        ))
-    }
 }
 mod closed_integers;
 mod identity;
-pub mod proof_applications;
 mod proposition;
 pub use boundary::program_entry::{
     ProgramEntrySchema, ProgramEntrySourceCatalog, ProgramEntrySourceContract,

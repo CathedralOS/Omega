@@ -21,7 +21,7 @@ function-identity = { path = "../representations/function-identity" }
 optimization-core = { path = "../representations/optimization-records" }
 selected-instructions = { path = "../representations/selected-instructions" }
 arena = { path = "../../../../../foundation/arena" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 target = { path = "../../targets/target" }
 target-operations = { path = "../representations/target-operations" }

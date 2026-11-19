@@ -21,7 +21,7 @@ isa-x86_64 = { path = "../../../11_bound-framed-machine-to-selected-form-encodin
 register-model = { path = "../../../../targets/register-model" }
 selected-instructions = { path = "../../selected-instructions" }
 target = { path = "../../../../targets/target" }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 
 [dev-dependencies]
 register-homes = { path = "../../register-homes" }

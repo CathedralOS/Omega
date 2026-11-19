@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+declaration-scope = { path = "../foundation/declaration-scope" }
 native-scalar-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 published-object-verification = { path = "replay/published-objects" }
 abstract-optimization = { package = "abstract-operations-to-abstract-operations", path = "pipeline/03_abstract-operations-to-abstract-operations" }
@@ -62,7 +63,7 @@ terminal-codec = { path = "../psi/codec" }
 terminal-psi = { path = "../psi" }
 terminal-installation = { path = "../psi-admission" }
 verified-optimization-input = { path = "pipeline/representations/abstract-operations/verified-optimization-input" }
-semantic-vocabulary = { path = "../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../foundation/semantic-records" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }

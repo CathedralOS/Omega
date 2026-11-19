@@ -47,7 +47,7 @@ pub struct SourceAdmission<'request> {
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
     pub wire_demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
     pub declarations: Option<
-        &'request dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+        &'request dyn declaration_scope::DeclarationSelectionAuthority,
     >,
 }
 

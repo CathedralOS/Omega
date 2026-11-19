@@ -51,7 +51,7 @@ target-operations = { path = "../../representations/target-operations" }
 task-plans = { path = "../../../installation/task-plans" }
 target-aarch64 = { path = "../../../targets/target-aarch64" }
 target-x86_64 = { path = "../../../targets/target-x86_64" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 terminal-semantics = { path = "../../../../psi/semantics" }
 terminal-installation = { path = "../../../../psi-admission" }

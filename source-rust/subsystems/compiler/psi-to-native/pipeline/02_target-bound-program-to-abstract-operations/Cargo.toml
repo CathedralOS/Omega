@@ -14,7 +14,7 @@ installation-evidence = { path = "../../installation/installation-evidence" }
 optimization-selections = { path = "../../../foundation/optimization-selections" }
 provider-admission = { path = "../../verification/provider-admission" }
 runtime-abi = { path = "../../targets/runtime-abi" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }

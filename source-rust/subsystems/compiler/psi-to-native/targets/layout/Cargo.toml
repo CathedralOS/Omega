@@ -13,7 +13,7 @@ arena = { path = "../../../../../foundation/arena" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 layout-plans = { path = "../../../psi/layout" }
 runtime-abi = { path = "../runtime-abi" }
 target = { path = "../target" }

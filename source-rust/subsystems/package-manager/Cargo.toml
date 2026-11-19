@@ -9,6 +9,7 @@ version.workspace = true
 path = "package_manager.rs"
 
 [dependencies]
+declaration-scope = { path = "../compiler/foundation/declaration-scope" }
 backend-plan = { path = "../compiler/psi-to-native/installation/provider-plans" }
 record-storage = { path = "../../foundation/record-storage" }
 evaluation-receipts = { path = "../../../psi/evaluation/evaluation-receipts" }
@@ -36,7 +37,7 @@ platform-custody = { path = "../../foundation/filesystem" }
 target = { path = "../compiler/psi-to-native/targets/target" }
 provider-admission = { path = "../compiler/psi-to-native/verification/provider-admission" }
 arena = { path = "../../foundation/arena" }
-semantic-vocabulary = { path = "../compiler/source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 diagnostics = { path = "../../foundation/diagnostics" }
 proof-admission = { path = "../../../psi/compilation/proof-admission" }

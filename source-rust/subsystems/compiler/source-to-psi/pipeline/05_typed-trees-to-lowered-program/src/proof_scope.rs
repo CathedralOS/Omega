@@ -7,7 +7,7 @@ use semantic_vocabulary::MachineId;
 use semantic_vocabulary::compiler_evaluation::{
     CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
 };
-use semantic_vocabulary::proof_applications::{
+use proof_applications::{
     ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
 };
 use terminal_check_tables::{Checked, Construct};

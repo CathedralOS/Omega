@@ -15,7 +15,7 @@ terminal-psi = { path = "../../../psi" }
 effects = { path = "../../installation/native-effects" }
 target = { path = "../../targets/target" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 symbols = { path = "../../../source-to-psi/language/declaration-identity" }
 terminal-codec = { path = "../../../psi/codec" }

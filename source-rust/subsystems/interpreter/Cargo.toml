@@ -22,7 +22,7 @@ arena = { path = "../../foundation/arena" }
 extents = { path = "memory/extents" }
 evaluation-accounting = { path = "../evaluation/evaluation-accounting" }
 layout-plans = { path = "../compiler/psi/layout" }
-semantic-vocabulary = { path = "../compiler/source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../compiler/foundation/semantic-records" }
 numerics = { path = "../compiler/psi/semantics/numeric" }
 terminal-psi = { path = "../compiler/psi" }
 terminal-codec = { path = "../compiler/psi/codec" }

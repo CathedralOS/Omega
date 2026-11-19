@@ -15,7 +15,7 @@ language-core = { path = "../../../../foundation/language-core" }
 calling-conventions = { path = "../../../targets/calling-conventions" }
 target = { path = "../../../targets/target" }
 task-plans = { path = "../../../installation/task-plans" }
-semantic-vocabulary = { path = "../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../../psi" }
 
 installation-evidence = { path = "../../../installation/installation-evidence" }

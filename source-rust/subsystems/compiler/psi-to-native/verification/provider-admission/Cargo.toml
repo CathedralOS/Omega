@@ -25,7 +25,7 @@ diagnostics = { path = "../../../../../foundation/diagnostics" }
 abstract-operations = { path = "../../pipeline/representations/abstract-operations" }
 installation-evidence = { path = "../../installation/installation-evidence" }
 bound-installations = { path = "../../installation/bound-installations" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../../../psi" }
 terminal-codec = { path = "../../../psi/codec" }
 terminal-installation = { path = "../../../psi-admission" }

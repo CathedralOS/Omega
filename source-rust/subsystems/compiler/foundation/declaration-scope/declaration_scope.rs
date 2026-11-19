@@ -1,5 +1,24 @@
-use crate::{PackageKeyIdentity, compiler_evaluation::DeclarationSelectionAuthority};
+//! Package selection permissions presented to a compilation.
+#![forbid(unsafe_code)]
+
+use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
+
+pub trait DeclarationSelectionAuthority: Send + Sync {
+    fn allows_declaration_selection(
+        &self,
+        requester: PackageKeyIdentity,
+        owner: PackageKeyIdentity,
+    ) -> bool;
+
+    fn package_label(&self, identity: PackageKeyIdentity) -> String;
+
+    fn declaration_selection_scope(
+        &self,
+    ) -> Option<std::collections::BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
+        None
+    }
+}
 
 /// The direct Product dependencies available to calling-policy invocations.
 /// There are no package resolvers or source files in this projection.
@@ -59,5 +78,26 @@ impl DeclarationSelectionAuthority for ProductDeclarationScope {
         &self,
     ) -> Option<BTreeMap<PackageKeyIdentity, Vec<PackageKeyIdentity>>> {
         Some(self.0.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scope_grants_only_listed_packages_and_their_direct_dependencies() {
+        let package = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let (a, b, c, outsider) = (package(1), package(2), package(3), package(4));
+        let scope = ProductDeclarationScope::from_direct_dependencies(
+            &[a, b, c],
+            [(a, b), (a, b), (b, c), (a, outsider), (outsider, b)],
+        );
+        assert!(scope.allows_declaration_selection(a, a));
+        assert!(scope.allows_declaration_selection(a, b));
+        assert!(!scope.allows_declaration_selection(a, c));
+        assert!(!scope.allows_declaration_selection(a, outsider));
+        assert!(!scope.allows_declaration_selection(outsider, b));
+        assert_eq!(scope.into_requesters()[&a], [a, b]);
     }
 }

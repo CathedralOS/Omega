@@ -1,0 +1,12 @@
+[package]
+name = "proof-applications"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "proof_applications.rs"
+
+[dependencies]
+arena = { path = "../../../../foundation/arena" }
+record-storage = { path = "../../../../foundation/record-storage" }

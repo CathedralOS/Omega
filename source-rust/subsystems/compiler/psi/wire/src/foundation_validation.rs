@@ -4667,7 +4667,7 @@ pub(crate) mod proof_scope {
 
         use super::*;
         use arena::HandleSpan;
-        use semantic_vocabulary::proof_applications::{
+        use proof_applications::{
             ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember,
             ProofStaticBinding,
         };

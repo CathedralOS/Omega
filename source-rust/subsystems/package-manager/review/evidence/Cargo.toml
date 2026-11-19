@@ -26,7 +26,7 @@ calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-
 effects = { path = "../../../compiler/psi-to-native/installation/native-effects" }
 terminal-psi = { path = "../../../compiler/psi" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }
-semantic-vocabulary = { path = "../../../compiler/source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../compiler/foundation/semantic-records" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 flow-effects = { path = "../../../compiler/source-to-psi/language/source-effects" }
 language-core = { path = "../../../compiler/foundation/language-core" }

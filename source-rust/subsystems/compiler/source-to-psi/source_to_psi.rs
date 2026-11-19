@@ -25,7 +25,7 @@ pub struct StageSource<'a> {
     pub imports: Vec<SourceScopedTopLevelBinding>,
     pub selections: ProductSourceInputs<'a>,
     pub declaration_authority:
-        Option<&'a dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
+        Option<&'a dyn declaration_scope::DeclarationSelectionAuthority>,
     pub build_host: target::TargetProfile,
 }
 

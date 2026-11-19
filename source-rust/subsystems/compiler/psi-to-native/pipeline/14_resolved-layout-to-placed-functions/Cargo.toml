@@ -23,7 +23,7 @@ optimization-core = { path = "../representations/optimization-records" }
 target = { path = "../../targets/target" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 machine-code = { path = "../representations/machine-code" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 terminal-psi = { path = "../../../psi" }
 

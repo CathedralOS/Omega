@@ -16,7 +16,7 @@ post-allocation-machine = { path = "../representations/post-allocation-machine" 
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../targets/target" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 encoding-admission = { path = "../representations/machine-code/encoding-admission" }
 
 [dev-dependencies]

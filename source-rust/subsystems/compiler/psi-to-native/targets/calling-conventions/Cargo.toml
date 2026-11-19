@@ -16,5 +16,5 @@ terminal-psi = { path = "../../../psi" }
 runtime-abi = { path = "../runtime-abi" }
 layout-plans = { path = "../../../psi/layout" }
 arena = { path = "../../../../../foundation/arena" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../target" }

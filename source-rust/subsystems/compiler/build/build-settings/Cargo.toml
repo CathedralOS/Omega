@@ -6,6 +6,7 @@ version.workspace = true
 
 
 [dependencies]
+declaration-scope = { path = "../../foundation/declaration-scope" }
 native-scalar-inputs = { path = "../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 optimization-requests = { path = "../optimization-policy/requests" }
@@ -36,7 +37,7 @@ terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 target = { path = "../../compilation/target-description/target" }
 runtime-abi = { path = "../../compilation/target-description/runtime-abi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
-semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../representations/psi" }
 layout-plans = { path = "../../psi/layout" }
 symbols = { path = "../../source-to-psi/language/declaration-identity" }

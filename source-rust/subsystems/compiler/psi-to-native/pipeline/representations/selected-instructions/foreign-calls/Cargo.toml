@@ -23,7 +23,7 @@ test-support = [
 layout-plans = { path = "../../../../../psi/layout", optional = true }
 register-model = { path = "../../../../targets/register-model" }
 selected-instructions = { path = ".." }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 target = { path = "../../../../targets/target" }
 calling-conventions = { path = "../../../../targets/calling-conventions", optional = true }
 function-identity = { path = "../../function-identity", optional = true }

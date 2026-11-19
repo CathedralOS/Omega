@@ -23,7 +23,7 @@ target-operations = { path = "../../target-operations" }
 effects = { path = "../../../../installation/native-effects" }
 installation-evidence = { path = "../../../../installation/installation-evidence" }
 provider-admission = { path = "../../../../verification/provider-admission" }
-semantic-vocabulary = { path = "../../../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../../../foundation/semantic-records" }
 arena = { path = "../../../../../../../foundation/arena" }
 record-storage = { path = "../../../../../../../foundation/record-storage" }
 language-core = { path = "../../../../../foundation/language-core" }

@@ -17,7 +17,7 @@ path = "generic_certificate_carry.rs"
 compiler = { path = "../../source-rust/subsystems/compiler" }
 declaration-contracts = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-contracts" }
 package-compilation = { path = "../../source-rust/subsystems/compiler/build/package-compilation" }
-semantic-vocabulary = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../source-rust/subsystems/compiler/foundation/semantic-records" }
 source-admission = { path = "../../source-rust/subsystems/compiler/source-to-psi/inputs/source-admission" }
 source-compiler = { path = "../../source-rust/subsystems/compiler/source-to-psi", features = ["test-support"] }
 symbols = { path = "../../source-rust/subsystems/compiler/source-to-psi/language/declaration-identity" }

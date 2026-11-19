@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+declaration-scope = { path = "../../../foundation/declaration-scope" }
 schema-reflection = { path = "../source-to-psi/language/schema-reflection" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 graphs = { path = "../foundation/graphs" }

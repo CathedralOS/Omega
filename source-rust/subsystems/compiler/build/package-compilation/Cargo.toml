@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+declaration-scope = { path = "../../foundation/declaration-scope" }
 declaration-contracts = { path = "../../source-to-psi/language/declaration-contracts" }
 optimization-requests = { path = "../optimization-policy/requests" }
 evaluation-contracts = { path = "../../../psi/evaluation/evaluation-contracts" }
@@ -30,7 +31,7 @@ platform-custody = { path = "../../../../foundation/filesystem" }
 effects = { path = "../../psi-to-native/installation/native-effects" }
 target = { path = "../../psi-to-native/targets/target" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
-semantic-vocabulary = { path = "../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = "../../psi" }
 diagnostics = { path = "../../../../foundation/diagnostics" }
 sha2 = "0.10.9"

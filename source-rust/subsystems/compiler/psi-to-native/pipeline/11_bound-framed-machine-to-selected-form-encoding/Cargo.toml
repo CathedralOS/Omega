@@ -27,7 +27,7 @@ isa-x86_64 = { path = "isa-x86_64" }
 register-model = { path = "../../targets/register-model" }
 selected-instructions = { path = "../representations/selected-instructions" }
 target = { path = "../../targets/target" }
-semantic-vocabulary = { path = "../../../source-to-psi/language/semantic-vocabulary" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 
 [dev-dependencies]
 entry-planning = { path = "../09_post-allocation-machine-to-framed-machine/entry-planning" }
