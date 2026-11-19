@@ -9,6 +9,7 @@ name = "flow_effects"
 path = "src/lib.rs"
 
 [dependencies]
+psi-effect-contracts = { path = "../../../../psi/effect-contracts" }
 declaration-contracts = { path = "../declaration-contracts" }
 wire = { path = "../../../../../foundation/wire" }
 record-storage = { path = "../../../../../foundation/record-storage" }

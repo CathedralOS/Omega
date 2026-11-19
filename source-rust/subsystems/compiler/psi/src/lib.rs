@@ -1061,7 +1061,7 @@ pub use direct_calls::{
 
 pub use language_core::descriptor_tables::{SegmentRegister, SegmentReload};
 
-pub use flow_effects::{
+pub use psi_effect_contracts::{
     ConditionalCarryRequirement, ContractDependency, template_contract_commitment,
     validate_published_dependency,
 };

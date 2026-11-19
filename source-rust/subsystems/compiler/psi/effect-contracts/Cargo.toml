@@ -1,0 +1,12 @@
+[package]
+name = "psi-effect-contracts"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "effect_contracts.rs"
+
+[dependencies]
+record-storage = { path = "../../../../foundation/record-storage" }
+wire = { path = "../../../../foundation/wire" }

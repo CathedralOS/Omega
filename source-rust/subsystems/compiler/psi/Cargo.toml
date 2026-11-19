@@ -25,7 +25,7 @@ optimization = { path = "optimization-selections" }
 numerics = { path = "semantics/numeric" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
 language-core = { path = "../foundation/language-core" }
-flow-effects = { path = "../../source-to-psi/language/source-effects" }
+psi-effect-contracts = { path = "effect-contracts" }
 
 access-admission = { path = "access/admission" }
 layout-plans = { path = "layout" }

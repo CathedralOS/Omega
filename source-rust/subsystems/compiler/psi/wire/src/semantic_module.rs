@@ -2605,9 +2605,9 @@ pub(crate) mod reach_application_wire {
         writer: &mut Writer,
         machine: &str,
         state: &str,
-        source: &declaration_contracts::ScopedPermissionEventSource<String>,
+        source: &psi_effect_contracts::ScopedPermissionEventSource<String>,
     ) -> Result<(), CodecError> {
-        use declaration_contracts::ScopedPermissionEventSource as Source;
+        use psi_effect_contracts::ScopedPermissionEventSource as Source;
         writer.string("carry acquisition machine", machine)?;
         writer.string("carry acquisition state", state)?;
         match source {
@@ -2644,11 +2644,11 @@ pub(crate) mod reach_application_wire {
         (
             String,
             String,
-            declaration_contracts::ScopedPermissionEventSource<String>,
+            psi_effect_contracts::ScopedPermissionEventSource<String>,
         ),
         CodecError,
     > {
-        use declaration_contracts::ScopedPermissionEventSource as Source;
+        use psi_effect_contracts::ScopedPermissionEventSource as Source;
         let machine = reader.string("carry acquisition machine")?;
         let state = reader.string("carry acquisition state")?;
         let source = match reader.u8()? {
@@ -2680,7 +2680,7 @@ pub(crate) mod reach_application_wire {
         blocking: &Dependency,
         carry: &[Carry],
     ) -> Result<(), CodecError> {
-        use declaration_contracts::SuspensionValueOrigin;
+        use psi_effect_contracts::SuspensionValueOrigin;
         writer.bytes(&base);
         encode_term(writer, suspension)?;
         encode_term(writer, blocking)?;
@@ -2713,7 +2713,7 @@ pub(crate) mod reach_application_wire {
             writer.string("carry type", &row.value_type)?;
             writer.len("carry acquisitions", row.claims.len())?;
             for arrival in &row.claims {
-                let declaration_contracts::ScopedPermissionClaimIdentity::Established {
+                let psi_effect_contracts::ScopedPermissionClaimIdentity::Established {
                     machine_symbol,
                     state_symbol,
                     source,
@@ -2727,12 +2727,12 @@ pub(crate) mod reach_application_wire {
                 encode_acquisition(writer, machine_symbol, state_symbol, source)?;
                 writer.u32(*ordinal);
                 match &arrival.provenance {
-                    declaration_contracts::ScopedPermissionProvenance::Unknown => {
+                    psi_effect_contracts::ScopedPermissionProvenance::Unknown => {
                         return Err(CodecError::MalformedStructuralFoundation(
                             "conditional carry acquisition join is unknown",
                         ));
                     }
-                    declaration_contracts::ScopedPermissionProvenance::Established {
+                    psi_effect_contracts::ScopedPermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2740,7 +2740,7 @@ pub(crate) mod reach_application_wire {
                         writer.u8(1);
                         encode_acquisition(writer, machine_symbol, state_symbol, source)?;
                     }
-                    declaration_contracts::ScopedPermissionProvenance::Joined {
+                    psi_effect_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2760,7 +2760,7 @@ pub(crate) mod reach_application_wire {
     fn decode_operational(
         reader: &mut Reader<'_>,
     ) -> Result<([u8; 32], Dependency, Dependency, Vec<Carry>), CodecError> {
-        use declaration_contracts::SuspensionValueOrigin;
+        use psi_effect_contracts::SuspensionValueOrigin;
         let base = reader.array()?;
         let suspension = decode_term(reader)?;
         let blocking = decode_term(reader)?;
@@ -2787,7 +2787,7 @@ pub(crate) mod reach_application_wire {
             let claims = decode_counted(reader, |reader| {
                 let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
                 let claim_identity =
-                    declaration_contracts::ScopedPermissionClaimIdentity::Established {
+                    psi_effect_contracts::ScopedPermissionClaimIdentity::Established {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2796,12 +2796,12 @@ pub(crate) mod reach_application_wire {
                 let tag = reader.u8()?;
                 let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
                 let provenance = match tag {
-                    1 => declaration_contracts::ScopedPermissionProvenance::Established {
+                    1 => psi_effect_contracts::ScopedPermissionProvenance::Established {
                         machine_symbol,
                         state_symbol,
                         source,
                     },
-                    2 => declaration_contracts::ScopedPermissionProvenance::Joined {
+                    2 => psi_effect_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol,
                         state_symbol,
                         source,
@@ -2809,7 +2809,7 @@ pub(crate) mod reach_application_wire {
                     },
                     tag => return Err(CodecError::InvalidTag("carry acquisition join", tag)),
                 };
-                Ok(declaration_contracts::PermissionArrival {
+                Ok(psi_effect_contracts::PermissionArrival {
                     claim_identity,
                     provenance,
                 })
@@ -4670,9 +4670,9 @@ mod routed_scalar_tests {
             ))
         );
         {
-            use declaration_contracts::ScopedPermissionClaimIdentity;
-            use declaration_contracts::ScopedPermissionEventSource;
-            use declaration_contracts::SuspensionValueOrigin;
+            use psi_effect_contracts::ScopedPermissionClaimIdentity;
+            use psi_effect_contracts::ScopedPermissionEventSource;
+            use psi_effect_contracts::SuspensionValueOrigin;
             let application = module.machines[0]
                 .closed_reach_application
                 .as_mut()
@@ -4711,14 +4711,14 @@ mod routed_scalar_tests {
                     environment_position: 0,
                 },
                 value_type: "Kept".into(),
-                claims: vec![declaration_contracts::PermissionArrival {
+                claims: vec![psi_effect_contracts::PermissionArrival {
                     claim_identity: ScopedPermissionClaimIdentity::Established {
                         machine_symbol: "helper".into(),
                         state_symbol: "helper::entry".into(),
                         source: ScopedPermissionEventSource::Statement { statement_index: 0 },
                         ordinal: 0,
                     },
-                    provenance: declaration_contracts::ScopedPermissionProvenance::Joined {
+                    provenance: psi_effect_contracts::ScopedPermissionProvenance::Joined {
                         machine_symbol: "helper".into(),
                         state_symbol: "helper::entry".into(),
                         source: ScopedPermissionEventSource::Call {
@@ -4883,7 +4883,7 @@ mod routed_scalar_tests {
             .as_mut()
             .unwrap()
             .conditional_carry[0]
-            .subject = declaration_contracts::SuspensionValueOrigin::CallArgument { position: 0 };
+            .subject = psi_effect_contracts::SuspensionValueOrigin::CallArgument { position: 0 };
         assert_eq!(
             decode_module(&encode_raw(&module).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
