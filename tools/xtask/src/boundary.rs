@@ -372,7 +372,7 @@ const STAGE_02_WORKING_FORM: &str =
 /// from the prepared plan onward. None of them is handed stage 02's working
 /// program, so none may be able to name it.
 const AFTER_PREPARATION: &[&str] = &[
-    "omega-rust/omega/compilation/representations/bound-installations",
+    "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
     "omega-rust/omega/compilation/representations/target-operations/target-vocabulary",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
@@ -418,7 +418,7 @@ const PREPARED_EXECUTION_PLAN: &str =
 /// crates may reach an earlier program form. The check follows every
 /// production edge, so a new path through a helper crate is caught too.
 const SELECTION_REPRESENTATIONS: &[&str] = &[
-    "omega-rust/omega/compilation/representations/bound-installations",
+    "source-rust/subsystems/compiler/psi-to-native/verification/installation-admission/bound-installations",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-operands",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/operation-evidence",
     "source-rust/subsystems/compiler/psi-to-native/pipeline/representations/structural-storage",

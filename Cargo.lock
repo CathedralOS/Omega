@@ -202,6 +202,7 @@ version = "0.1.0"
 dependencies = [
  "calling-conventions",
  "function-identity",
+ "installation-conditions",
  "language-core",
  "semantic-vocabulary",
  "target",

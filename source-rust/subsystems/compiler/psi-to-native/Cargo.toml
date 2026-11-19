@@ -37,7 +37,7 @@ function-identity = { path = "pipeline/representations/function-identity" }
 selected-instructions = { path = "pipeline/representations/selected-instructions" }
 abstract-operations = { path = "pipeline/representations/abstract-operations" }
 wire = { path = "../../../foundation/wire" }
-bound-installations = { path = "installation/bound-installations" }
+bound-installations = { path = "verification/installation-admission/bound-installations" }
 installation-conditions = { path = "verification/installation-admission/conditions" }
 provider-stack-contribution = { path = "verification/provider-admission/same-stack" }
 component-description = { path = "components/description" }

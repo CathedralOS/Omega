@@ -1,0 +1,18 @@
+[package]
+name = "bound-installations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "bound_installations"
+path = "src/lib.rs"
+
+[dependencies]
+calling-conventions = { path = "../../../targets/calling-conventions" }
+function-identity = { path = "../../../pipeline/representations/function-identity" }
+installation-conditions = { path = "../conditions" }
+language-core = { path = "../../../../foundation/language-core" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+target = { path = "../../../targets/target" }
+terminal-psi = { path = "../../../../psi" }

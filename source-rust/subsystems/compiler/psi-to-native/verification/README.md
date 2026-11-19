@@ -21,6 +21,9 @@ install a handler. Their callers need the checked records during compilation.
   retain the caller's platform assumptions and each handler's measured stack
   requirements. Build and publication can carry these records without running
   provider or installation admission.
+  [Bound installations](installation-admission/bound-installations/src/lib.rs)
+  carry the installed interrupt and callback entries, helper associations and
+  measured stacks read by instruction selection and frame binding.
 
 [Machine-code checks](../pipeline/representations/machine-code/) compare a
 frame, instruction encoding or layout with its contract. [Object replay](../replay/)
