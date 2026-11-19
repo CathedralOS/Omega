@@ -23,7 +23,7 @@ pub(super) fn replay_provider_executions(
     foreign_calls: &[ObjectForeignCall],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
-    native_bindings: &provider_admission::RetainedNativeBindings,
+    native_bindings: &native_binding_admission::RetainedNativeBindings,
     native_calling: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<(), ProviderExecutionReplayError> {
     let mut required_executions = BTreeSet::new();
@@ -261,7 +261,7 @@ pub(crate) fn rejoin_native_foreign_execution(
     module: &terminal_psi::TerminalModule,
     boundary: semantic_vocabulary::BoundaryMachineId,
     foreign: &ObjectForeignCall,
-    retained: &provider_admission::RetainedNativeBindings,
+    retained: &native_binding_admission::RetainedNativeBindings,
     calling: &[calling_conventions::BoundaryCallingApplication],
 ) -> Result<target_operations::NativeBindingExecution, &'static str> {
     let machine_code::ExternalExecutionRecord::NativeBinding(execution) =
@@ -282,7 +282,7 @@ pub(crate) fn rejoin_native_foreign_execution(
         .next()
         .filter(|_| applications.next().is_none())
         .ok_or("native call has no unique retained calling application")?;
-    let checked = provider_admission::native_bindings::validate_native_binding_realization(
+    let checked = native_binding_admission::validate_native_binding_realization(
         row,
         &retained.identities,
         module,

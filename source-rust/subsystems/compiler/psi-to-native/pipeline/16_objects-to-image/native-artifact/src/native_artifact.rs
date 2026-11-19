@@ -259,7 +259,7 @@ pub struct NativeImageProviders {
     selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     provider_executions: Vec<NativeProviderExecution>,
-    native_bindings: provider_admission::RetainedNativeBindings,
+    native_bindings: native_binding_admission::RetainedNativeBindings,
     native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     terminal_authority_permission_policy_identity:
@@ -448,7 +448,7 @@ pub struct NativeArtifactParts<Image = image_emission::ExecutableImage> {
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
-    pub native_bindings: provider_admission::RetainedNativeBindings,
+    pub native_bindings: native_binding_admission::RetainedNativeBindings,
     pub native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
@@ -470,7 +470,7 @@ pub struct NativeArtifactEmissionParts<Image = image_emission::ExecutableImage> 
     pub selected_provider_closure_digest: NativeSelectedProviderClosureDigest,
     pub selected_provider_plans: Vec<NativeSelectedProviderPlan>,
     pub provider_executions: Vec<NativeProviderExecution>,
-    pub native_bindings: provider_admission::RetainedNativeBindings,
+    pub native_bindings: native_binding_admission::RetainedNativeBindings,
     pub native_calling: Vec<calling_conventions::BoundaryCallingApplication>,
     pub terminal_authority_policy_identity: TerminalAuthorityPolicyIdentity,
     pub terminal_authority_permission_policy_identity:
@@ -1282,7 +1282,7 @@ fn validate_ieee_float_fma_occurrences(
 }
 
 fn native_supply_identity(
-    bindings: &provider_admission::RetainedNativeBindings,
+    bindings: &native_binding_admission::RetainedNativeBindings,
     calling: &[calling_conventions::BoundaryCallingApplication],
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(

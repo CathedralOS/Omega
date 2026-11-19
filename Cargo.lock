@@ -1650,6 +1650,7 @@ dependencies = [
  "installation-conditions",
  "legalized-operations",
  "machine-code",
+ "native-binding-admission",
  "native-intrinsics",
  "object-file",
  "operation-evidence",
@@ -1677,6 +1678,22 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "verified-optimization-input",
+ "wire",
+]
+
+[[package]]
+name = "native-binding-admission"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "layout",
+ "provider-plans",
+ "semantic-vocabulary",
+ "service-surface",
+ "target",
+ "target-vocabulary",
+ "terminal-psi",
+ "terminal-semantics",
  "wire",
 ]
 
@@ -2460,6 +2477,7 @@ dependencies = [
  "language-core",
  "layout",
  "layout-plans",
+ "native-binding-admission",
  "native-intrinsics",
  "numeric-literals",
  "numerics",
@@ -3959,6 +3977,7 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "installation-conditions",
+ "native-binding-admission",
  "native-intrinsics",
  "operation-evidence",
  "operation-operands",

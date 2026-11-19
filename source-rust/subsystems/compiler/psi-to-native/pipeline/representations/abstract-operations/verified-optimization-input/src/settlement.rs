@@ -29,7 +29,7 @@ pub mod boundary_application_settlement {
                 self.selected_provider_plans,
                 &self.selected_provider_provenance,
                 &self.calling_applications,
-                &provider_admission::RetainedNativeBindings::default(),
+                &native_binding_admission::RetainedNativeBindings::default(),
                 None,
                 scope,
             )
@@ -43,7 +43,7 @@ pub mod boundary_application_settlement {
             '_,
         >],
         calling: &[calling_conventions::BoundaryCallingApplication],
-        native_bindings: &provider_admission::RetainedNativeBindings,
+        native_bindings: &native_binding_admission::RetainedNativeBindings,
         profile: Option<target::TargetProfile>,
         scope: &crate::NativeExecutionScope,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
@@ -112,7 +112,7 @@ pub mod boundary_application_settlement {
                     "native boundary application has no target",
                 )]
             })?;
-            let execution = provider_admission::validate_native_binding_execution(
+            let execution = native_binding_admission::validate_native_binding_execution(
                 row,
                 &native_bindings.identities,
                 module,

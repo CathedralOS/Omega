@@ -1833,7 +1833,7 @@ fn capture(
         .identities()
         .write(&mut output)?;
     write_values(installation_assumptions, &mut output)?;
-    let retained = provider_admission::RetainedNativeBindings::retain(native_bindings)
+    let retained = native_binding_admission::RetainedNativeBindings::retain(native_bindings)
         .map_err(|reason| output.error(reason))?;
     retained.write(&mut output)?;
     let operation_evidence = operation_evidence
@@ -1887,7 +1887,7 @@ impl RecordValue for provider_plans::EvaluatedNativeBinding {
         }
     }
 }
-impl RecordValue for provider_admission::RetainedNativeBindings {
+impl RecordValue for native_binding_admission::RetainedNativeBindings {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         self.identities.write(output)?;
         let mut schemas = Vec::<&provider_plans::ServiceSchema>::new();
@@ -1933,7 +1933,7 @@ impl RecordValue for provider_admission::RetainedNativeBindings {
                         .get(row.schema)
                         .cloned()
                         .ok_or_else(|| input.error("native binding has no retained schema"))?;
-                    Ok(provider_admission::RetainedNativeBinding {
+                    Ok(native_binding_admission::RetainedNativeBinding {
                         boundary: row.boundary,
                         binding: row.binding,
                         schema,
@@ -1950,7 +1950,7 @@ impl RecordValue for provider_admission::RetainedNativeBindings {
 }
 
 struct DerivationInputs {
-    native_bindings: provider_admission::RetainedNativeBindings,
+    native_bindings: native_binding_admission::RetainedNativeBindings,
     evaluated_binding_identities: Arc<terminal_psi::TerminalIdentityTable>,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
