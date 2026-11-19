@@ -298,8 +298,7 @@ evidence are complete.
 [explicit family contract](../../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
 and [runtime callable rows](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 The legacy implementation pending [machine values and some migration](../../../../../wiki/drafts/designs/machine_values_some.md)
-lowers runtime selection through instantiated selector slots
-(`04_typed-trees-to-prepared-typed-trees/src/monomorphization/dynamic_slots.rs`), but a
+used instantiated slots for runtime selection. A
 finite-family selector call keeps its requirement target and declines, so tuple
 expansion, runtime family selection, and indexed result custody are all
 unimplemented. Explicit source disjunctions, not
