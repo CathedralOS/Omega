@@ -574,7 +574,7 @@ Development tests compare
 native execution with the Psi interpreter using `omega run --both`.
 The compiler's transformations are still trusted; native/Psi agreement covers
 only the tested inputs and observations.
-[Follow the pipeline →](omega-rust/pipeline.md#verification-placement)
+[Follow the pipeline →](source-rust/subsystems/compiler/README.md)
 
 The separate [bootstrap chain](bootstrap/README.md) aims to build the compiler
 from a small auditable starting point. You do not need it to work on the Rust
@@ -587,7 +587,7 @@ implementation.
 | Learn the language | [Language guide](wiki/language_guide/language_guide.md) |
 | Look up an exact rule | [Language and toolchain specification](wiki/README.md) |
 | Explore programs and library code | [Samples](samples) · [Bundled library](source/library) |
-| Work on the current compiler | [Rust implementation](omega-rust/README.md) |
+| Work on the current compiler | [Rust implementation](source-rust/README.md) |
 | Read the self-hosted compiler sources | [Product source](source/README.md) |
 | Understand bootstrap and trust | [Bootstrap](bootstrap/README.md) |
 | Discuss a language change | [Proposals](wiki/proposals/README.md) · [Open decisions](OWNER_QUESTIONS.md) |
