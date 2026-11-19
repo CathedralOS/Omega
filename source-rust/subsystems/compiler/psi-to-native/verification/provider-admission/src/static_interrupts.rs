@@ -57,7 +57,7 @@ pub(super) fn require_helper_associations(
         .collect();
     operations.sort();
     operations.dedup();
-    let uses = if input.module().installed_interrupt_registrations.is_empty() {
+    let uses = if input.module().interfaces.installed_interrupt_registrations.is_empty() {
         Vec::new()
     } else {
         let calls = super::selected_synchronous_call_graph(
@@ -155,7 +155,7 @@ pub(super) fn admit(
     if helpers.is_empty()
         && request.installed_interrupts.is_empty()
         && !module
-            .installed_interrupt_registrations
+            .interfaces.installed_interrupt_registrations
             .iter()
             .any(|row| reached.contains(&(row.machine, row.operation)))
     {
@@ -176,7 +176,7 @@ pub(super) fn admit(
     }
     let mut registrations = BTreeMap::new();
     let mut callbacks = BTreeMap::new();
-    for registration in &module.installed_interrupt_registrations {
+    for registration in &module.interfaces.installed_interrupt_registrations {
         if registrations
             .insert((registration.machine, registration.operation), registration)
             .is_some()
@@ -322,7 +322,7 @@ pub(super) fn admit(
             admitted_entry,
         ));
     }
-    for registration in &module.installed_interrupt_registrations {
+    for registration in &module.interfaces.installed_interrupt_registrations {
         if reached.contains(&(registration.machine, registration.operation))
             && registration
                 .callbacks

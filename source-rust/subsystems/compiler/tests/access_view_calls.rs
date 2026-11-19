@@ -40,7 +40,7 @@ fn accessor_writes(
     boundary: semantic_vocabulary::BoundaryMachineId,
 ) -> bool {
     let mut operations = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .flat_map(|plan| &plan.fields)
         .flat_map(|field| &field.operations)
@@ -216,7 +216,7 @@ fn qualify_helper(machine: &str, writes: bool) {
     assert_eq!(imports.len(), if writes { 2 } else { 1 });
     for boundary in imports {
         let declaration = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|declaration| declaration.id == boundary)
             .unwrap();
@@ -330,7 +330,7 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
     for boundary in instance.unbound_imports().collect::<Vec<_>>() {
         let declaration = artifact
             .semantic_module()
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|row| row.id == boundary)
             .unwrap();
@@ -393,7 +393,7 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
     for corruption in [0, 1, 2] {
         let mut module = artifact.semantic_module().clone();
         let row = module
-            .access_view_inputs
+            .access.access_view_inputs
             .iter_mut()
             .find(|row| row.machine == rows[0].machine)
             .unwrap();
@@ -472,7 +472,7 @@ fn mixed_parameters_rejoin_checked_dense_coordinate() {
         .collect::<Vec<_>>();
     let plain_type = artifact
         .semantic_module()
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|item| item.id == views[0].structural_type)
         .unwrap();
@@ -510,7 +510,7 @@ fn mixed_parameters_rejoin_checked_dense_coordinate() {
     for boundary in instance.unbound_imports().collect::<Vec<_>>() {
         let declaration = artifact
             .semantic_module()
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|row| row.id == boundary)
             .unwrap();

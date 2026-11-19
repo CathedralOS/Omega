@@ -527,14 +527,14 @@ pub fn callback_destination_slot<'module>(
     let mut expected_identity = layout.root.identity.as_str();
     for field in layout.fields()? {
         let record = module
-            .native_layouts
+            .layouts.native_layouts
             .record(record_id)
             .ok_or("installed callback field lost its native record")?;
         if module.identities.text(record.data_identity) != Some(expected_identity) {
             return Err("installed callback path changed its owning record application".into());
         }
         let mut matching = module
-            .native_layouts
+            .layouts.native_layouts
             .fields(record)?
             .iter()
             .filter(|candidate| {
@@ -553,14 +553,14 @@ pub fn callback_destination_slot<'module>(
         expected_identity = &field.child.identity;
     }
     let record = module
-        .native_layouts
+        .layouts.native_layouts
         .record(record_id)
         .ok_or("installed callback slot lost its containing native record")?;
     if module.identities.text(record.data_identity) != Some(expected_identity) {
         return Err("installed callback slot changed its containing record application".into());
     }
     let realization = module
-        .native_layouts
+        .layouts.native_layouts
         .for_target(record, target_profile.target_name())?
         .ok_or("installed callback slot has no selected authored layout")?;
     let mut demands = realization

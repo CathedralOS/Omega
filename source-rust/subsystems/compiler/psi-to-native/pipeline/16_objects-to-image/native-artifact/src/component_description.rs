@@ -53,7 +53,7 @@ fn component_references_requirement(
         .called_requirement_identities
         .iter()
         .any(|called| called == requirement)
-        || module.provider_candidates.iter().any(|candidate| {
+        || module.interfaces.provider_candidates.iter().any(|candidate| {
             module
                 .identities
                 .text(candidate.source_requirement_identity)

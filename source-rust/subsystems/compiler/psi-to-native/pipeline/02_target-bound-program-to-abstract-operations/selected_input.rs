@@ -100,7 +100,7 @@ mod establishment {
         establishments: &[TerminalAccessViewEstablishment],
     ) -> Result<Vec<TerminalAccessViewEstablishment>, ArtifactLoweringError> {
         let entry_rows = module
-            .access_view_inputs
+            .access.access_view_inputs
             .iter()
             .filter(|row| row.machine == entry)
             .collect::<Vec<_>>();
@@ -346,7 +346,7 @@ mod native {
                 })
                 .transpose()
                 .map_err(ArtifactLoweringError::TargetContext)?;
-            let mut structural_types = module.structural_types.clone();
+            let mut structural_types = module.types.structural_types.clone();
             let geometry = scalar_applications.map_or_else(
                 || layouts.resolved_records(),
                 |closed| closed.geometry().as_ref(),
@@ -639,7 +639,7 @@ mod native {
             };
             let row = artifact
                 .semantic_module()
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")
@@ -828,7 +828,7 @@ mod native {
         fn graph() -> TerminalModule {
             let mut module = TerminalModule::for_entry(machine_id(1));
             let application = module
-                .scalar_applications
+                .scalars.scalar_applications
                 .insert(terminal_psi::ScalarApplication::Evaluate {
                     entry: terminal_psi::TargetMachineCallable::Machine(machine_id(1)),
                     scalar_type: scalar_type(),

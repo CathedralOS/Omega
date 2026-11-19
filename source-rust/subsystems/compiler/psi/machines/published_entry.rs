@@ -47,14 +47,14 @@ impl PublishedEntryMetadata {
         matches(
             &self.entry_custody,
             module
-                .program_entry_contracts
+                .interfaces.program_entry_contracts
                 .iter()
                 .map(|entry| entry.schema_declaration),
         ) && self.calling_custody.as_ref().map_or(true, |rows| {
             matches(
                 rows,
                 module
-                    .calling_policy_requests
+                    .interfaces.calling_policy_requests
                     .iter()
                     .filter_map(|request| request.declaration.as_ref().ok().copied()),
             )

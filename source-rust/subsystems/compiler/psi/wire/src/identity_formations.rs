@@ -27,7 +27,7 @@ fn receive_catalog(
     module: &TerminalModule,
     mut kernel: Option<&mut Budget>,
 ) -> Result<Option<crate::DecodedMathematicalCertificate>, CodecError> {
-    let catalog = &module.identity_formations;
+    let catalog = &module.types.identity_formations;
     let fail = |reason: &str| CodecError::InvalidIdentityFormation(reason.to_owned());
     if catalog.rows.is_empty() {
         return if catalog.certificate.is_empty() {
@@ -133,13 +133,13 @@ pub fn verify_identity_formations(
     budget: &mut Budget,
 ) -> Result<(), CodecError> {
     let fail = |reason: &str| CodecError::InvalidIdentityFormation(reason.to_owned());
-    if module.identity_formations.rows.len() != expected.rows.len() {
+    if module.types.identity_formations.rows.len() != expected.rows.len() {
         return Err(fail("Id formation source roster differs from the receiver"));
     }
     let Some(decoded) = receive_catalog(module, Some(budget))? else {
         return Ok(());
     };
-    let rows = &module.identity_formations.rows;
+    let rows = &module.types.identity_formations.rows;
     let prefix = rows[0].declaration as usize;
     if prefix.checked_add(rows.len()) != Some(decoded.certificate.signature.len()) {
         return Err(fail("Id formation signature has unassociated declarations"));
@@ -285,7 +285,7 @@ mod tests {
         let source_carrier = names.intern("sample::Carrier");
         let mut module = TerminalModule::declarations();
         module.identities = names.build();
-        module.identity_formations = TerminalIdentityFormations {
+        module.types.identity_formations = TerminalIdentityFormations {
             rows: vec![TerminalIdentityFormation {
                 source_owner,
                 source_carrier,

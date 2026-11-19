@@ -37,7 +37,7 @@ pub(super) fn replay_provider_executions(
             ));
         }
         let boundary =
-            find_boundary_machine(&module.boundary_machines, installed.settlement.boundary)
+            find_boundary_machine(&module.interfaces.boundary_machines, installed.settlement.boundary)
                 .ok_or(ProviderExecutionReplayError::AbsentSettlementBoundary)?;
         let image_emission::BoundaryExecutionRecord::AdmittedProvider(execution) =
             installed.settlement.execution
@@ -98,7 +98,7 @@ pub(super) fn replay_provider_executions(
                 return Err(ProviderExecutionReplayError::MissingForeignOperationOwner);
             }
         };
-        let boundary = find_boundary_machine(&module.boundary_machines, boundary_id)
+        let boundary = find_boundary_machine(&module.interfaces.boundary_machines, boundary_id)
             .ok_or(ProviderExecutionReplayError::AbsentForeignBoundary)?;
         if boundary.completion != completion {
             return Err(ProviderExecutionReplayError::Shared(

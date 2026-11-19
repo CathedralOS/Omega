@@ -123,8 +123,8 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
         "boundary-trait machine requirement `Probe::read` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach"
     );
     let elaboration = boundary("reaches none", 7).unwrap();
-    assert_eq!(elaboration.module.boundary_machines.len(), 1);
-    let boundary = &elaboration.module.boundary_machines[0];
+    assert_eq!(elaboration.module.interfaces.boundary_machines.len(), 1);
+    let boundary = &elaboration.module.interfaces.boundary_machines[0];
     assert!(boundary.owning_service.is_some());
     assert!(boundary.fixed_service_reach.is_empty());
     assert!(boundary.published_service_ceiling.is_empty());
@@ -168,7 +168,7 @@ fn structural_boundary() -> crate::lowering::Elaboration {
 fn boundary_formal_domains_reuse_the_exact_input_type() {
     for projected in [false, true] {
         let mut elaboration = structural_boundary();
-        let [boundary] = elaboration.module.boundary_machines.as_mut_slice() else {
+        let [boundary] = elaboration.module.interfaces.boundary_machines.as_mut_slice() else {
             panic!("the source calls one boundary");
         };
         let [formal] = boundary.structural_parameters.as_slice() else {
@@ -267,7 +267,7 @@ fn boundary_formal_domains_cannot_cover_extra_requirements() {
                     .then(|| machine.structural_parameters[2].qualifications[0])
             })
             .unwrap();
-        let boundary = &mut elaboration.module.boundary_machines[0];
+        let boundary = &mut elaboration.module.interfaces.boundary_machines[0];
         match fault {
             0 => boundary.requires[0].domain = other,
             1 => {
@@ -317,7 +317,7 @@ fn source_service_signature(typed: &crate::source_state::TypedTrees, owner: &str
 }
 
 fn published_service_signature(elaboration: &crate::lowering::Elaboration) -> [u8; 32] {
-    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
         panic!("one requirement is called");
     };
     let source = &boundary.declaration.as_ref().unwrap().source;
@@ -638,7 +638,7 @@ machine entry() {
     let expected = source_service_signature(&typed, "Write");
     let elaboration = invocation(typed).unwrap();
     assert_eq!(published_service_signature(&elaboration), expected);
-    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
         panic!("one requirement is called");
     };
     let declaration = boundary.declaration.as_ref().unwrap();
@@ -743,7 +743,7 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
     let elaboration = applied_boundary(10).unwrap();
     // `take` at `u32` and at `Reading` are two declarations of one
     // requirement; the two calls at `u32` name one of them.
-    let boundaries = &elaboration.module.boundary_machines;
+    let boundaries = &elaboration.module.interfaces.boundary_machines;
     assert_eq!(boundaries.len(), 2);
     let declared: Vec<_> = boundaries
         .iter()
@@ -903,7 +903,7 @@ machine entry() -> u32 crashes none {
     .0;
     let elaboration = read_applied_boundary(&prepared).unwrap();
     let module = &elaboration.module;
-    let [first, second] = module.boundary_machines.as_slice() else {
+    let [first, second] = module.interfaces.boundary_machines.as_slice() else {
         panic!("two requirements of the same trait");
     };
     let a = first.declaration.as_ref().unwrap();
@@ -1053,7 +1053,7 @@ machine entry() -> u32 crashes none { 3 }
     )
     .unwrap();
     let module = &elaboration.module;
-    let [first, second] = module.boundary_machines.as_slice() else {
+    let [first, second] = module.interfaces.boundary_machines.as_slice() else {
         panic!("two exact closed headers");
     };
     let a = first.declaration.as_ref().unwrap();
@@ -1167,7 +1167,7 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     let requirement = sink_requirement(&applied);
     let elaboration = claimed(&applied, requirement).unwrap();
     // The claim and the call name the one closed application.
-    assert_eq!(elaboration.module.boundary_machines.len(), 1);
+    assert_eq!(elaboration.module.interfaces.boundary_machines.len(), 1);
     let verdict = judge(Ok(elaboration)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 
@@ -1187,7 +1187,7 @@ fn a_value_generic_boundary_is_claimed_and_judged_at_each_application() {
     // publishes no boundary; a consumer's call would close its own.
     let unapplied = value_generic_boundary("7u32");
     let elaboration = claimed(&unapplied, sink_requirement(&unapplied)).unwrap();
-    assert!(elaboration.module.boundary_machines.is_empty());
+    assert!(elaboration.module.interfaces.boundary_machines.is_empty());
 }
 
 #[test]
@@ -1269,7 +1269,7 @@ machine entry() -> u32 crashes none {
     .0;
     let elaboration = read_applied_boundary(&prepared).unwrap();
     let module = &elaboration.module;
-    assert_eq!(module.boundary_machines.len(), 2);
+    assert_eq!(module.interfaces.boundary_machines.len(), 2);
     let owner = prepared
         .traits()
         .iter()
@@ -1288,10 +1288,10 @@ machine entry() -> u32 crashes none {
         1,
         "closed occurrences must not add universal provider obligations"
     );
-    assert_eq!(module.service_schemas.len(), 1);
-    for boundary in &module.boundary_machines {
+    assert_eq!(module.interfaces.service_schemas.len(), 1);
+    for boundary in &module.interfaces.boundary_machines {
         let service = module
-            .services
+            .interfaces.services
             .iter()
             .find(|service| Some(service.id) == boundary.owning_service)
             .unwrap();
@@ -1320,7 +1320,7 @@ machine entry() -> u32 crashes none {
             )
         );
     }
-    let first = module.calling_signatures[0].clone();
+    let first = module.interfaces.calling_signatures[0].clone();
     let mut duplicate = module.clone();
     duplicate.calling_signatures.insert(0, first.clone());
     assert_eq!(
@@ -1336,11 +1336,11 @@ machine entry() -> u32 crashes none {
         "boundary has no unique Terminal calling declaration"
     );
     let abis = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| module.calling_abi_identity(boundary.id).unwrap())
         .collect::<Vec<_>>();
-    for (ordinal, boundary) in module.boundary_machines.iter().enumerate() {
+    for (ordinal, boundary) in module.interfaces.boundary_machines.iter().enumerate() {
         let declaration = boundary.declaration.as_ref().unwrap();
         let abi = &abis[ordinal];
         assert!(
@@ -1377,7 +1377,7 @@ machine entry() -> u32 crashes none {
                 "another argument, kind, template, owner or tuple must not share calling authority: {mutation}"
             );
         }
-        let other = module.boundary_machines[1 - ordinal]
+        let other = module.interfaces.boundary_machines[1 - ordinal]
             .declaration
             .as_ref()
             .unwrap();
@@ -1658,7 +1658,7 @@ machine entry() -> u32 crashes none {
 fn changed_boundary_effects_must_match_the_published_call_envelope() {
     for blocks in [false, true] {
         let mut elaboration = boundary("reaches none", 7).unwrap();
-        let declaration = &mut elaboration.module.boundary_machines[0]
+        let declaration = &mut elaboration.module.interfaces.boundary_machines[0]
             .declaration
             .as_mut()
             .unwrap()
@@ -1686,7 +1686,7 @@ fn source_boundary_effects_still_require_their_invocation_proof() {
         let text = boundary_source(&format!("reaches none {effect}"), 7);
         let mut elaboration = invocation(typed(&text))
             .expect("the declared boundary contract reaches invocation checking");
-        let published = &elaboration.module.boundary_machines[0]
+        let published = &elaboration.module.interfaces.boundary_machines[0]
             .declaration
             .as_ref()
             .unwrap()

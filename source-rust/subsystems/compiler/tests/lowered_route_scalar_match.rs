@@ -522,7 +522,7 @@ fn assert_direct_process_exit_consent(checked: &compiler::CheckedCompilation) {
     let accepted = checked.terminal_publication().accepted().unwrap();
     let module = accepted.module();
     let realization = checked.execution().realization();
-    let mut boundaries = module.boundary_machines.iter().filter(|boundary| {
+    let mut boundaries = module.interfaces.boundary_machines.iter().filter(|boundary| {
         boundary.completion
             == semantic_vocabulary::BoundaryCompletion::External(
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit,

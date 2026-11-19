@@ -1620,7 +1620,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
     let accepted = elaborate_over(vec![caller(false), takes_a_point()], &affine_records());
     let plan = terminal_semantics::plain_affine::plan(
         &accepted.module.machines[0],
-        &accepted.module.structural_types,
+        &accepted.module.types.structural_types,
     )
     .unwrap();
     assert!(plan.unavailable.is_empty());
@@ -1717,10 +1717,10 @@ fn affine_cleanup_replay_rejects_order_type_and_custody_drift() {
     ));
 
     let mut drift = elaborate_over(vec![caller()], &affine_records());
-    drift.module.structural_types[0].multiplicity =
+    drift.module.types.structural_types[0].multiplicity =
         terminal_psi::StructuralMultiplicity::Unrestricted;
     // A parent must not become copyable by hiding an affine child either.
-    drift.module.structural_types[1].multiplicity =
+    drift.module.types.structural_types[1].multiplicity =
         terminal_psi::StructuralMultiplicity::Unrestricted;
     assert!(matches!(
         judge(Ok(drift)),
@@ -1731,7 +1731,7 @@ fn affine_cleanup_replay_rejects_order_type_and_custody_drift() {
     ));
 
     let mut parent = elaborate_over(vec![caller()], &affine_records());
-    parent.module.structural_types[1].multiplicity =
+    parent.module.types.structural_types[1].multiplicity =
         terminal_psi::StructuralMultiplicity::Unrestricted;
     assert!(matches!(
         judge(Ok(parent)),
@@ -1868,7 +1868,7 @@ fn affine_cleanup_does_not_allocate_up_to_an_untrusted_edge_identity() {
     assert!(
         terminal_semantics::plain_affine::plan(
             &elaboration.module.machines[0],
-            &elaboration.module.structural_types
+            &elaboration.module.types.structural_types
         )
         .is_ok()
     );
@@ -1904,7 +1904,7 @@ fn affine_terminal_boundaries_transfer_custody_once() {
     };
     let plan = terminal_semantics::plain_affine::plan(
         &exiting.module.machines[0],
-        &exiting.module.structural_types,
+        &exiting.module.types.structural_types,
     )
     .unwrap();
     assert_eq!(
@@ -1937,7 +1937,7 @@ fn affine_terminal_boundaries_transfer_custody_once() {
         cleanup_actions: Vec::new(),
     };
     assert!(
-        matches!(terminal_semantics::plain_affine::plan(machine, &borrowed.module.structural_types),
+        matches!(terminal_semantics::plain_affine::plan(machine, &borrowed.module.types.structural_types),
         Err(terminal_semantics::plain_affine::Error::Unsupported { detail, .. }) if detail.contains("borrowed storage")),
         "a borrowed affine referent cannot escape as an owned result"
     );
@@ -1992,7 +1992,7 @@ fn declare_body_models(
     };
 
     let module = &mut elaboration.module;
-    assert!(module.callables.machine_envelopes.is_empty());
+    assert!(module.execution.callables.machine_envelopes.is_empty());
     let mut identities = std::mem::take(&mut module.identities).into_builder();
     for machine in &mut module.machines {
         let signature = signatures.get(machine.id).unwrap();
@@ -2023,7 +2023,7 @@ fn declare_body_models(
             specialization: None,
         });
         module
-            .callables
+            .execution.callables
             .machine_envelopes
             .push(Some(TerminalMachineEnvelope {
                 machine: machine.id,

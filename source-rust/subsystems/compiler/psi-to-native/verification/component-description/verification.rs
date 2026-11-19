@@ -292,7 +292,7 @@ impl VerifiedComponent {
     /// Match a candidate from this module to its verified, fully qualified export.
     pub fn exports_candidate_at(&self, position: usize) -> bool {
         let module = self.module();
-        let Some(candidate) = module.provider_candidates.get(position) else {
+        let Some(candidate) = module.interfaces.provider_candidates.get(position) else {
             return false;
         };
         let export = requirement_export_identity(
@@ -714,7 +714,7 @@ fn is_checked_export(
     {
         return false;
     }
-    let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+    let mut candidates = module.interfaces.provider_candidates.iter().filter(|candidate| {
         module
             .identities
             .text(candidate.source_requirement_identity)

@@ -460,7 +460,7 @@ fn a_last_reference_use_does_not_authorize_parent_use_before_actual_release() {
     // at that observation; actual permission custody is not.
     let delayed = block.operations.remove(release);
     block.operations.insert(observation, delayed);
-    elaboration.module.unoptimized_behavior = elaboration
+    elaboration.module.execution.unoptimized_behavior = elaboration
         .module
         .machines
         .iter()
@@ -717,7 +717,7 @@ fn an_untracked_copyable_carrier_does_not_erase_an_explicit_window() {
         field: None,
     };
     assert!(matches!(
-        terminal_semantics::plain_affine::plan(machine, &module.structural_types),
+        terminal_semantics::plain_affine::plan(machine, &module.types.structural_types),
         Err(terminal_semantics::plain_affine::Error::Unsupported {
             detail: "a borrowed move requires tracked storage contents",
             ..
@@ -877,7 +877,7 @@ fn a_dead_borrowed_block_address_still_owes_its_missing_field() {
     for machine in &form.module.machines {
         let names = terminal_semantics::plain_affine::borrowed_address_liveness(
             machine,
-            &form.module.structural_types,
+            &form.module.types.structural_types,
         )
         .unwrap();
         for source in machine

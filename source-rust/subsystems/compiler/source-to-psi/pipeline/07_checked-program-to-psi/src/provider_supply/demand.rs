@@ -93,7 +93,7 @@ impl SourcePublication {
         let entry = match target {
             Some(target)
                 if !(self.roster()?.entries.is_empty()
-                    && module.program_entry_contracts.is_empty()) =>
+                    && module.interfaces.program_entry_contracts.is_empty()) =>
             {
                 let contract = module
                     .program_entry_contract(target)

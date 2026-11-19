@@ -143,12 +143,12 @@ fn borrowed_descriptor_shape(
     path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
 ) -> Option<StructuralTypeShape> {
     let path = crate::descriptor_lifetimes::descriptor_path(
-        &module.structural_types,
+        &module.types.structural_types,
         root_type,
         path,
     )?;
     let shape = if let Some(tip) =
-        crate::runtime_structural_path_tip(module.structural_types.iter(), root_type, &path)
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root_type, &path)
     {
         match &tip.shape {
             StructuralTypeShape::ByteSequence(carrier) => {
@@ -164,7 +164,7 @@ fn borrowed_descriptor_shape(
         }
     } else {
         StructuralTypeShape::ByteSequence(
-            crate::runtime_structural_field(module.structural_types.iter(), root_type, &path)?
+            crate::runtime_structural_field(module.types.structural_types.iter(), root_type, &path)?
                 .field_type
                 .byte_sequence_carrier()?,
         )
@@ -200,7 +200,7 @@ pub fn incoming_view_occurrence(
                     .original_descriptor_path()
                     .ok_or("the view's original borrowed field cannot be identified")?;
                 descriptor_location(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     *source,
                     parameter.structural_type,
                     path,
@@ -227,13 +227,13 @@ pub fn incoming_view_occurrence(
         )
         .ok_or("the view's original incoming borrow cannot be identified")?;
         let path = descriptor_path(
-            &module.structural_types,
+            &module.types.structural_types,
             parameter.structural_type,
             &location.path,
         )
         .ok_or("the view's original borrowed field cannot be identified")?;
         if !crate::projection_stays_in_inline_storage(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             parameter.structural_type,
             &path,
         ) || borrowed_descriptor_shape(module, parameter.structural_type, &location.path)
@@ -274,11 +274,11 @@ fn joined_incoming_loans(
         .structural_place_type(descriptor.root)
         .and_then(|ty| {
             let path = crate::descriptor_lifetimes::descriptor_path(
-                &module.structural_types,
+                &module.types.structural_types,
                 ty,
                 &descriptor.path,
             )?;
-            crate::runtime_structural_path_tip(module.structural_types.iter(), ty, &path)
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), ty, &path)
         })
         .is_some_and(|row| {
             matches!(
@@ -313,7 +313,7 @@ fn joined_incoming_loans(
             .enclosing_storage()
             .is_none_or(|storage| storage.path != path)
         || !crate::projection_stays_in_inline_storage(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             parameter.structural_type,
             path,
         )
@@ -533,26 +533,26 @@ pub fn borrowed_loan_sources<'a>(
                 .captured_storage_path()
                 .ok_or("borrowed successor has no exact captured original input path")?;
             if !crate::projection_stays_in_inline_storage(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 parameter.structural_type,
                 &path,
             ) {
                 break 'incoming_storage;
             }
             let current_path = crate::descriptor_lifetimes::descriptor_path(
-                &module.structural_types,
+                &module.types.structural_types,
                 arrival.structural_type,
                 &descriptor.path,
             )
             .ok_or("borrowed successor has no exact current referent path")?;
             let original = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 parameter.structural_type,
                 &path,
             )
             .ok_or("borrowed successor has no exact original referent type")?;
             let current = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 arrival.structural_type,
                 &current_path,
             )
@@ -561,7 +561,7 @@ pub fn borrowed_loan_sources<'a>(
                 return Err("borrowed successor changes its original incoming referent type");
             }
             if !crate::reference_source_projection_accessible(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 parameter.structural_type,
                 parameter.multiplicity,
                 parameter.access,
@@ -607,13 +607,13 @@ pub fn borrowed_loan_sources<'a>(
             .structural_place_type(descriptor.root)
             .ok_or("provider borrow has no exact descriptor type")?;
         let mut path = crate::descriptor_lifetimes::descriptor_path(
-            &module.structural_types,
+            &module.types.structural_types,
             root,
             &descriptor.path,
         )
         .ok_or("provider borrow has no exact descriptor path")?;
         let shared_reference =
-            crate::runtime_structural_path_tip(module.structural_types.iter(), root, &path)
+            crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &path)
                 .is_some_and(|row| {
                     matches!(
                         row.shape,
@@ -631,7 +631,7 @@ pub fn borrowed_loan_sources<'a>(
         if !(view || shared_reference)
             || crate::structural_projection_authority(
                 machine,
-                &module.structural_types,
+                &module.types.structural_types,
                 &terminal_psi::StructuralArgument {
                     place: descriptor.root,
                     path,
@@ -659,17 +659,17 @@ pub fn borrowed_loan_sources<'a>(
         .find(|parameter| parameter.place == original.root)
         .ok_or("incoming reference occurrence names no declared input")?;
     let path = crate::descriptor_lifetimes::descriptor_path(
-        &module.structural_types,
+        &module.types.structural_types,
         parameter.structural_type,
         &original.path,
     )
     .ok_or("incoming reference occurrence has no exact declared path")?;
     if !crate::projection_stays_in_inline_storage(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         parameter.structural_type,
         &path,
     ) || !crate::runtime_structural_path_tip(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         parameter.structural_type,
         &path,
     )
@@ -677,7 +677,7 @@ pub fn borrowed_loan_sources<'a>(
         matches!(row.shape, StructuralTypeShape::Reference { .. })
             || view
                 && crate::descriptor_results::is_descriptor(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     row.id,
                 )
     }) {
@@ -800,7 +800,7 @@ fn retain_provider_inputs(
             &mut Vec::new(),
             &mut |path, containing_type, slot| {
                 let declared = crate::descriptor_lifetimes::descriptor_location_type(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     containing_type,
                     &slot.path,
                 )
@@ -916,7 +916,7 @@ fn retain_result_dependencies(
         }
         if stored
             && !crate::descriptor_results::is_descriptor(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 formal.structural_type,
             )
         {
@@ -996,7 +996,7 @@ pub fn reference_call_lifetimes(
         result.structural_type,
     );
     let result_inventory = crate::reference_inventory(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         result.structural_type,
         usize::MAX,
     )
@@ -1007,10 +1007,10 @@ pub fn reference_call_lifetimes(
     let arguments = operation.kind.structural_arguments();
     let (declared_parameters, slots, actual, public) = if let Some(call) = runtime {
         let contract = module
-            .callables
+            .execution.callables
             .contract(call.contract)
             .ok_or_else(|| refuse("returned runtime value has no exact public contract"))?;
-        let declared = super::callable_reference_result(&module.structural_types, contract)
+        let declared = super::callable_reference_result(&module.types.structural_types, contract)
             .map_err(refuse)?;
         if !contract.result.matches_machine_result(
             &terminal_psi::TerminalMachineResult::Structural(
@@ -1029,7 +1029,7 @@ pub fn reference_call_lifetimes(
             ));
         }
         let slots = crate::descriptor_results::public_result_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             crate::descriptor_results::DescriptorSlotKind::Views,
             &declared,
             result.place,
@@ -1067,7 +1067,7 @@ pub fn reference_call_lifetimes(
                     ));
                 }
                 let slots = crate::boundary_result_slots(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     declaration,
                     crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
                     result,
@@ -1116,7 +1116,7 @@ pub fn reference_call_lifetimes(
                 })?;
                     let actual = if has_reference_contents {
                         super::reference_origins::reference_result_contents(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             &callee.structural_parameters,
                             signature,
                             &contents,
@@ -1171,14 +1171,14 @@ pub fn reference_call_lifetimes(
         Vec::new()
     } else if let Some(public) = &public {
         super::reference_origins::bind_public_reference_call_results(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             public,
             arguments,
         )
         .map_err(refuse)?
     } else {
         bind_reference_call_results(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             ReferenceCallContract::Machine {
                 parameters,
                 sources: &actual,
@@ -1252,7 +1252,7 @@ pub fn reference_call_lifetimes(
             ));
         }
         let descriptor = descriptor_location(
-            &module.structural_types,
+            &module.types.structural_types,
             result.place,
             result.structural_type,
             &binding.path,
@@ -1359,7 +1359,7 @@ pub fn reference_call_lifetimes(
             result.structural_type,
             &mut Vec::new(),
             &mut |path, containing_type, slot| {
-                descriptor_path(&module.structural_types, containing_type, &slot.path)
+                descriptor_path(&module.types.structural_types, containing_type, &slot.path)
                     .ok_or_else(|| refuse("returned view slot has no typed result leaf"))?;
                 if borrowed_descriptor_shape(module, containing_type, &slot.path).is_none() {
                     return Ok(());

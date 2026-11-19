@@ -62,7 +62,7 @@ pub fn admit_terminal_intrinsics<'selection>(
         |requirement, row, boundary, callable| {
             let plan = &selected.plans()[row.plan_index];
             let identity = provider_correspondence::selected_external_execution(
-                &module.external_providers,
+                &module.interfaces.external_providers,
                 &module.identities,
                 &callable.source.machine,
                 plan,

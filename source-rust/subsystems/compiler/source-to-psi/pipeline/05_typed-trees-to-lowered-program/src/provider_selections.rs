@@ -50,7 +50,7 @@ pub(crate) fn publish(
     elaboration: &mut crate::lowering::Elaboration,
 ) -> Checked<()> {
     use crate::lowering::read::services::unavailable;
-    if !elaboration.module.provider_selections.is_empty() {
+    if !elaboration.module.interfaces.provider_selections.is_empty() {
         return Err(unavailable(
             context,
             "competing source provider-selection publication",
@@ -126,9 +126,9 @@ pub(crate) fn publish(
     })();
     elaboration.module.identities = identities.build();
     prepared?;
-    elaboration.module.service_schemas =
-        terminal_psi::TerminalServiceSchema::join(&elaboration.module.service_schemas, &schemas)
+    elaboration.module.interfaces.service_schemas =
+        terminal_psi::TerminalServiceSchema::join(&elaboration.module.interfaces.service_schemas, &schemas)
             .map_err(|reason| unavailable(context, reason))?;
-    elaboration.module.provider_selections = rows;
+    elaboration.module.interfaces.provider_selections = rows;
     Ok(())
 }

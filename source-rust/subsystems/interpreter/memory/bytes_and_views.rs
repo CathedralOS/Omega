@@ -5490,7 +5490,7 @@ pub(crate) mod element_views {
                 let unserved_identity = identities.intern("unserved-wide");
                 let mut module = TerminalModule::declarations();
                 module.identities = identities.build();
-                module.structural_types.push(StructuralTypeDeclaration {
+                module.types.structural_types.push(StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     quotient_carrier: None,
                     id: root,
@@ -5509,7 +5509,7 @@ pub(crate) mod element_views {
                 });
                 let unserved =
                     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 128).unwrap());
-                module.structural_types.push(StructuralTypeDeclaration {
+                module.types.structural_types.push(StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     quotient_carrier: None,
                     id: StructuralTypeId::new(2).unwrap(),
@@ -5525,7 +5525,7 @@ pub(crate) mod element_views {
                 });
                 let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
                 let layout = terminal_semantics::representation_element_layout(
-                    closed.module().structural_types.iter(),
+                    closed.module().types.structural_types.iter(),
                     root,
                 )
                 .expect("real packed u32/u8 record has a representation layout");

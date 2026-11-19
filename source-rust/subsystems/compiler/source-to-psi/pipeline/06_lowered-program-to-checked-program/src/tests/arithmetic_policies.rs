@@ -168,7 +168,7 @@ fn a_policy_result_uses_an_explicit_membership_edge() {
             assert!(result.qualifications.is_empty());
             let primitive = result.id;
             let edge = module
-                .scalar_qualifications
+                .types.scalar_qualifications
                 .coercions
                 .iter()
                 .find(|edge| edge.machine == machine.id && edge.source == primitive)

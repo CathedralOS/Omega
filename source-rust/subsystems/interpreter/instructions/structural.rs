@@ -1016,7 +1016,7 @@ impl TerminalExecution<'_> {
         let preserves = |root, whole: &[_], projected: &[_]| {
             terminal_semantics::scalar_field_store_preserves_domain_content(
                 self.structural_types().values(),
-                module.structural_domains.iter(),
+                module.types.structural_domains.iter(),
                 &module.identities,
                 root,
                 whole,
@@ -1025,7 +1025,7 @@ impl TerminalExecution<'_> {
                 field,
             ) && terminal_semantics::scalar_field_store_preserves_content(
                 self.structural_types().values(),
-                module.structural_domains.iter(),
+                module.types.structural_domains.iter(),
                 &module.identities,
                 root,
                 destination,

@@ -186,7 +186,7 @@ fn a_data_only_subject_needs_no_placeholder_machine() {
     };
     assert_eq!(accepted.elaboration.module.entry, None);
     assert!(accepted.elaboration.module.machines.is_empty());
-    assert_eq!(accepted.elaboration.module.structural_types.len(), 1);
+    assert_eq!(accepted.elaboration.module.types.structural_types.len(), 1);
 }
 
 #[test]

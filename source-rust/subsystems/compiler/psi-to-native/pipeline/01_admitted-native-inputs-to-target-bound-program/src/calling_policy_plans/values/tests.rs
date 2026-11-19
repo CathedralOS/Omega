@@ -80,7 +80,7 @@ fn machine() -> TerminalMachine {
 fn echo_record() -> terminal_codec::CanonicalTerminalArtifact {
     let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
     let mut labels = terminal_psi::TerminalIdentityTableBuilder::default();
-    module.structural_types.push(StructuralTypeDeclaration {
+    module.types.structural_types.push(StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         id: type_id(),
         identity: labels.intern("PolicySignature"),

@@ -16,7 +16,7 @@ struct OpaqueStorageShape {
 impl OpaqueStorageShapes {
     pub fn restore(self, module: &mut TerminalModule) -> Result<(), &'static str> {
         if self.0.iter().any(|saved| {
-            module.structural_types.get(saved.index).is_none_or(|row| {
+            module.types.structural_types.get(saved.index).is_none_or(|row| {
                 row.id != saved.id
                     || row.shape != crate::StructuralTypeShape::Opaque
                     || row.scalar_restriction.is_some()
@@ -25,7 +25,7 @@ impl OpaqueStorageShapes {
             return Err("opaque declaration changed while checking guest operations");
         }
         for saved in self.0 {
-            let row = &mut module.structural_types[saved.index];
+            let row = &mut module.types.structural_types[saved.index];
             row.shape = saved.shape;
             row.scalar_restriction = saved.restriction;
         }
@@ -40,13 +40,13 @@ impl TerminalModule {
     /// checking guest code so every constructor, projection and proof sees
     /// the nominal declaration, including through nested aggregates.
     pub fn take_opaque_storage_shapes(&mut self) -> Result<OpaqueStorageShapes, &'static str> {
-        let mut shapes = Vec::with_capacity(self.opaque_representations.len());
-        for relation in &self.opaque_representations {
+        let mut shapes = Vec::with_capacity(self.types.opaque_representations.len());
+        for relation in &self.types.opaque_representations {
             let index = self
-                .structural_types
+                .types.structural_types
                 .binary_search_by_key(&relation.opaque, |row| row.id)
                 .map_err(|_| "opaque representation lost its storage declaration")?;
-            let row = &self.structural_types[index];
+            let row = &self.types.structural_types[index];
             if shapes
                 .last()
                 .is_some_and(|previous: &OpaqueStorageShape| previous.index >= index)
@@ -66,7 +66,7 @@ impl TerminalModule {
             });
         }
         for saved in &mut shapes {
-            let row = &mut self.structural_types[saved.index];
+            let row = &mut self.types.structural_types[saved.index];
             std::mem::swap(&mut row.shape, &mut saved.shape);
             saved.restriction = row.scalar_restriction.take();
         }
@@ -74,12 +74,12 @@ impl TerminalModule {
     }
 
     pub fn callback_application(&self, index: u32) -> Option<&crate::TerminalCallbackApplication> {
-        self.callback_applications
+        self.interfaces.callback_applications
             .binary_search_by_key(&index, |row| row.application_index)
             .ok()
-            .map(|ordinal| &self.callback_applications[ordinal])
+            .map(|ordinal| &self.interfaces.callback_applications[ordinal])
             .or_else(|| {
-                self.installed_interrupt_registrations
+                self.interfaces.installed_interrupt_registrations
                     .iter()
                     .find_map(|registration| {
                         registration
@@ -101,18 +101,18 @@ impl TerminalModule {
         // requires increasing boundary IDs. Reuse that order for each demand.
         let missing = "boundary has no unique Terminal calling declaration";
         let position = self
-            .calling_signatures
+            .interfaces.calling_signatures
             .binary_search_by_key(&boundary, |row| row.boundary)
             .map_err(|_| missing.to_owned())?;
-        if (position != 0 && self.calling_signatures[position - 1].boundary == boundary)
+        if (position != 0 && self.interfaces.calling_signatures[position - 1].boundary == boundary)
             || self
-                .calling_signatures
+                .interfaces.calling_signatures
                 .get(position + 1)
                 .is_some_and(|row| row.boundary == boundary)
         {
             return Err(missing.into());
         }
-        let declaration = &self.calling_signatures[position];
+        let declaration = &self.interfaces.calling_signatures[position];
         self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
             .ok_or_else(|| "boundary lost its exact declaration ABI".into())
     }
@@ -154,10 +154,10 @@ impl TerminalModule {
         &self,
         id: semantic_vocabulary::ContractId,
     ) -> Option<&crate::MachineContract> {
-        self.declaration_contracts
+        self.execution.declaration_contracts
             .binary_search_by_key(&id, |contract| contract.id)
             .ok()
-            .map(|position| &self.declaration_contracts[position])
+            .map(|position| &self.execution.declaration_contracts[position])
     }
 
     /// Read the public contract of this call without changing the body being
@@ -198,11 +198,11 @@ impl TerminalModule {
         machine: &TerminalMachine,
     ) -> Result<Vec<(semantic_vocabulary::ObligationId, ScalarPredicateCondition)>, &'static str>
     {
-        if self.scalar_applications.declarations().is_empty() {
+        if self.scalars.scalar_applications.declarations().is_empty() {
             return Ok(Vec::new());
         }
         let owner = self
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_declaration(crate::TargetMachineCallable::Machine(machine.id));
         let calls = machine
@@ -228,7 +228,7 @@ impl TerminalModule {
                 continue;
             };
             for (clause, obligation) in clauses.iter().zip(obligations) {
-                let condition = self.scalar_applications.layout_predicate(
+                let condition = self.scalars.scalar_applications.layout_predicate(
                     owner,
                     || {
                         format!(
@@ -358,30 +358,30 @@ impl TerminalModule {
         &self,
         id: semantic_vocabulary::CallingSignatureId,
     ) -> Option<&crate::CallingAbiDeclaration> {
-        self.calling_abi_signatures
+        self.interfaces.calling_abi_signatures
             .binary_search_by_key(&id, |row| row.id)
             .ok()
-            .map(|position| &self.calling_abi_signatures[position])
+            .map(|position| &self.interfaces.calling_abi_signatures[position])
     }
 
     pub fn unoptimized_machine_behavior(
         &self,
         id: MachineId,
     ) -> Option<&crate::UnoptimizedMachineBehavior> {
-        self.unoptimized_behavior
+        self.execution.unoptimized_behavior
             .iter()
             .find(|body| body.machine == id)
     }
 
     pub fn service(&self, id: ServiceId) -> Option<&ServiceDeclaration> {
-        self.services.iter().find(|service| service.id == id)
+        self.interfaces.services.iter().find(|service| service.id == id)
     }
 
     pub fn structural_type(
         &self,
         id: semantic_vocabulary::StructuralTypeId,
     ) -> Option<&StructuralTypeDeclaration> {
-        find_structural_type(&self.structural_types, id)
+        find_structural_type(&self.types.structural_types, id)
     }
 
     pub fn foreign_reference_descriptor(
@@ -394,7 +394,7 @@ impl TerminalModule {
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. }
             ));
         }
-        self.structural_referents
+        self.types.structural_referents
             .iter()
             .find(|row| row.id == referent)
             .map(|row| row.foreign_descriptor)
@@ -404,7 +404,7 @@ impl TerminalModule {
         &self,
         id: semantic_vocabulary::StructuralDomainId,
     ) -> Option<&StructuralDomainDeclaration> {
-        self.structural_domains
+        self.types.structural_domains
             .iter()
             .find(|declaration| declaration.id == id)
     }
@@ -413,7 +413,7 @@ impl TerminalModule {
         &self,
         id: semantic_vocabulary::BoundaryMachineId,
     ) -> Option<&BoundaryMachineDeclaration> {
-        self.boundary_machines
+        self.interfaces.boundary_machines
             .iter()
             .find(|declaration| declaration.id == id)
     }
@@ -421,7 +421,7 @@ impl TerminalModule {
     /// Exact requirements whose selected service rows remain to be supplied.
     /// Keep the declaration's bound distinct from an ordinary pinned row.
     pub fn installation_reach_requirements(&self) -> Vec<semantic_vocabulary::BoundaryMachineId> {
-        self.boundary_machines
+        self.interfaces.boundary_machines
             .iter()
             .filter(|boundary| boundary.service_reach_is_installation_bound)
             .map(|boundary| boundary.id)

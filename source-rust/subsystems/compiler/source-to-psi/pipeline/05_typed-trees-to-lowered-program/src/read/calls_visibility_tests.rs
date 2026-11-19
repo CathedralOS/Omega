@@ -684,8 +684,8 @@ fn selected_native_declarations_preserve_each_operational_flag() {
             },
         )
         .expect("the selected boundary retains its declared operational contract");
-        assert_eq!(elaboration.module.boundary_machines.len(), 1);
-        let published = &elaboration.module.boundary_machines[0]
+        assert_eq!(elaboration.module.interfaces.boundary_machines.len(), 1);
+        let published = &elaboration.module.interfaces.boundary_machines[0]
             .declaration
             .as_ref()
             .expect("ordinary publication retains the checked boundary declaration")
@@ -784,7 +784,7 @@ fn a_build_boundary_publishes_its_own_complete_service_contract() {
         },
     )
     .expect("ordinary declaration publication keeps the Build contract");
-    let [boundary] = elaboration.module.boundary_machines.as_slice() else {
+    let [boundary] = elaboration.module.interfaces.boundary_machines.as_slice() else {
         panic!("one selected requirement");
     };
     let published = boundary

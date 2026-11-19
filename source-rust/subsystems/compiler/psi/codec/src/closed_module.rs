@@ -94,7 +94,7 @@ mod tests {
         let identity = identities.intern("closed_width_test");
         let mut module = TerminalModule::declarations();
         module.identities = identities.build();
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             quotient_carrier: None,
             id: StructuralTypeId::new(1).unwrap(),
@@ -127,7 +127,7 @@ mod tests {
         identities.intern("closed_width_test");
         let identity = identities.intern("closed_callable_unit");
         module.identities = identities.build();
-        module.callables.contracts.push(TerminalCallableContract {
+        module.execution.callables.contracts.push(TerminalCallableContract {
             id: contract,
             identity,
             scalar_parameters: Vec::new(),
@@ -153,7 +153,7 @@ mod tests {
         assert_eq!(closed.identity(), decoded.identity());
         assert_eq!(closed.semantic_bytes(), decoded.semantic_bytes());
         for publication in [&closed, &decoded] {
-            assert!(publication.module().callables.contract(contract).is_some());
+            assert!(publication.module().execution.callables.contract(contract).is_some());
             assert_eq!(
                 publication
                     .closed_types()
@@ -197,11 +197,11 @@ mod tests {
     fn closing_and_retaining_keep_the_original_module_storage_and_bytes() {
         let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
         let module = module(integer);
-        let storage = module.structural_types.as_ptr();
+        let storage = module.types.structural_types.as_ptr();
         let closed = ClosedTerminalModule::new(module).unwrap();
         let retained = closed.clone();
-        assert_eq!(closed.module().structural_types.as_ptr(), storage);
-        assert_eq!(retained.module().structural_types.as_ptr(), storage);
+        assert_eq!(closed.module().types.structural_types.as_ptr(), storage);
+        assert_eq!(retained.module().types.structural_types.as_ptr(), storage);
         assert!(std::ptr::eq(
             closed.semantic_bytes(),
             retained.semantic_bytes()

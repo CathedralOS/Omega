@@ -82,7 +82,7 @@ fn call(callee: u64) -> OperationKind {
 fn graph() -> TerminalModule {
     let mut module = TerminalModule::for_entry(machine_id(1));
     let application = module
-        .scalar_applications
+        .scalars.scalar_applications
         .insert(terminal_psi::ScalarApplication::Evaluate {
             entry: terminal_psi::TargetMachineCallable::Machine(machine_id(1)),
             scalar_type: scalar_type(),
@@ -194,7 +194,7 @@ fn boundary_demands_require_one_owner_across_reached_and_dormant_machines() {
         .unwrap(),
         terminal_psi::BoundaryApplication::Empty,
     );
-    module.boundary_application_demands.push(demand.clone());
+    module.interfaces.boundary_application_demands.push(demand.clone());
     let reached = [machine_id(1)];
     assert_eq!(
         module.boundary_application_demands_for_machines(&reached),
@@ -250,7 +250,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
     };
     let boundary = BoundaryMachineId::new(1).unwrap();
     module
-        .boundary_machines
+        .interfaces.boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
             id: boundary,
             identity: name,
@@ -285,11 +285,11 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
             published_service_ceiling: Vec::new(),
         });
     let inbound_boundary = BoundaryMachineId::new(2).unwrap();
-    let mut inbound_requirement = module.boundary_machines[0].clone();
+    let mut inbound_requirement = module.interfaces.boundary_machines[0].clone();
     inbound_requirement.id = inbound_boundary;
     inbound_requirement.identity = callback;
     inbound_requirement.result = terminal_psi::BoundaryMachineResult::Unit;
-    module.boundary_machines.push(inbound_requirement);
+    module.interfaces.boundary_machines.push(inbound_requirement);
     let registrar = OperationId::new(2).unwrap();
     let demand = terminal_psi::TerminalBoundaryApplicationDemand::new(
         registrar,
@@ -301,7 +301,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
         .unwrap(),
         terminal_psi::BoundaryApplication::Empty,
     );
-    module.boundary_application_demands.push(demand.clone());
+    module.interfaces.boundary_application_demands.push(demand.clone());
     module.machines[1].blocks[0].operations[0].id = registrar;
     module.machines[1].blocks[0].operations[0].kind = OperationKind::BoundaryCall {
         boundary,
@@ -318,7 +318,7 @@ fn emission_records_a_callback_only_when_its_registrar_runs() {
     module.machines[2].contract.result = TerminalMachineResult::Unit;
     module.machines[2].contract.declaration = Some(declaration.clone());
     module
-        .callback_applications
+        .interfaces.callback_applications
         .push(TerminalCallbackApplication {
             application_index: 0,
             registrar_machine: machine_id(2),

@@ -99,7 +99,7 @@ fn installed_module() -> TerminalModule {
         body.declaration = Some(declaration.clone());
         module.machines.push(body);
         module
-            .callback_applications
+            .interfaces.callback_applications
             .push(terminal_psi::TerminalCallbackApplication {
                 application_index: ordinal,
                 registrar_machine: machine_id(1),
@@ -120,7 +120,7 @@ fn installed_module() -> TerminalModule {
             value: IntegerValue::Unsigned(0),
         },
     ));
-    module.installed_interrupt_registrations.push(
+    module.interfaces.installed_interrupt_registrations.push(
         terminal_psi::TerminalInstalledInterruptRegistration {
             machine: machine_id(1),
             operation,
@@ -186,7 +186,7 @@ fn installed_helpers_rejoin_exact_bodies_and_refuse_missing_or_substituted_evide
     let mut duplicate_registration = module.clone();
     duplicate_registration
         .installed_interrupt_registrations
-        .push(module.installed_interrupt_registrations[0].clone());
+        .push(module.interfaces.installed_interrupt_registrations[0].clone());
     assert!(
         CallbackProviderDeclarations::installed_helper_roots(&duplicate_registration)[0]
             .1
@@ -197,11 +197,11 @@ fn installed_helpers_rejoin_exact_bodies_and_refuse_missing_or_substituted_evide
 #[test]
 fn equal_local_installation_operations_in_different_machines_keep_distinct_helpers() {
     let mut module = installed_module();
-    let mut second = module.installed_interrupt_registrations[0].clone();
+    let mut second = module.interfaces.installed_interrupt_registrations[0].clone();
     second.machine = machine_id(4);
-    module.installed_interrupt_registrations.push(second);
+    module.interfaces.installed_interrupt_registrations.push(second);
     let extra: Vec<_> = module
-        .callback_applications
+        .interfaces.callback_applications
         .iter()
         .cloned()
         .map(|mut callback| {
@@ -210,7 +210,7 @@ fn equal_local_installation_operations_in_different_machines_keep_distinct_helpe
             callback
         })
         .collect();
-    module.callback_applications.extend(extra);
+    module.interfaces.callback_applications.extend(extra);
     let roots = CallbackProviderDeclarations::installed_helper_roots(&module);
     assert_eq!(
         roots.len(),

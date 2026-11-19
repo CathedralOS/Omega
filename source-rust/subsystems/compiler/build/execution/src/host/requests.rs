@@ -239,7 +239,7 @@ pub(crate) fn build_facet(
 ) -> Result<TerminalStructuralValue, String> {
     let module = artifact.module();
     let declaration = module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|declaration| declaration.id == original.structural_type)
         .ok_or("Build receiver lost its declaration")?;

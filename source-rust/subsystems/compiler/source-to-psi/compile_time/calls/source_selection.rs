@@ -36,7 +36,7 @@ impl<'a> InvocationSelection<'a> {
             .symbols
             .symbol_provenance_source_span(entry.requester)?;
         let elaboration = &entry.accepted.closure().elaboration();
-        let scope = &artifact.module().scalar_applications.proof_scope;
+        let scope = &artifact.module().scalars.scalar_applications.proof_scope;
         let mut declarations = scope
             .callables
             .iter()

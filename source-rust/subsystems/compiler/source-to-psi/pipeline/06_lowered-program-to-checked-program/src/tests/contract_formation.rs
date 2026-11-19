@@ -98,7 +98,7 @@ fn a_bodyless_contract_is_not_exempt_from_formation() {
         lower(vec![machine(vec![u32_type()], vec![returns(unsigned(0))])]).unwrap();
     let mut declared = elaboration.module.machines[0].contract.clone();
     declared.requires = vec![nonnegative(subtract(formal(1, u32_type()), number(1)))];
-    elaboration.module.declaration_contracts.push(declared);
+    elaboration.module.execution.declaration_contracts.push(declared);
     let mut activity = crate::checking::ProofSearchActivity::default();
     assert_eq!(
         crate::checking::prepare_replay(&mut elaboration, &mut activity)
@@ -117,7 +117,7 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
     module.identities = identities.build();
     let input = formal(1, u32_type());
     module
-        .scalar_predicate_definitions
+        .scalars.scalar_predicate_definitions
         .push(terminal_psi::ScalarPredicateDefinition {
             declaration,
             parameters: vec![terminal_psi::ValueDeclaration {
@@ -138,7 +138,7 @@ fn predicate_definitions_form_without_assuming_their_bodies() {
             .detail
             .contains("mathematical definition: contract arithmetic is not proved total")
     );
-    module.scalar_predicate_definitions[0].body =
+    module.scalars.scalar_predicate_definitions[0].body =
         nonnegative(subtract(number(u32::MAX.into()), input));
     crate::checking::formation::module(&module, &[], &mut activity).unwrap();
 }
@@ -201,7 +201,7 @@ machine build_entry() {
                 change(&mut machine.contract);
             }
         }
-        for contract in &mut module.declaration_contracts {
+        for contract in &mut module.execution.declaration_contracts {
             if contract.id == contract_id {
                 change(contract);
             }
@@ -438,7 +438,7 @@ machine build_entry() {}
 "#,
     );
     let module = &mut accepted.elaboration.module;
-    let predicate = module.structural_domains[0].predicate.as_mut().unwrap();
+    let predicate = module.types.structural_domains[0].predicate.as_mut().unwrap();
     let number_field = ScalarTerm::integer_field_path(
         id(7),
         vec![CanonicalStructuralPathSegment::Field(id(1))],
@@ -450,7 +450,7 @@ machine build_entry() {}
     let mut activity = crate::checking::ProofSearchActivity::default();
     crate::checking::formation::module(module, &[], &mut activity).unwrap();
 
-    module.structural_domains[0]
+    module.types.structural_domains[0]
         .predicate
         .as_mut()
         .unwrap()
@@ -714,12 +714,12 @@ machine build_entry() {
 "#;
     let accepted = accepted_source(SOURCE);
     let module = &accepted.elaboration.module;
-    let [record_domain] = module.structural_domains.as_slice() else {
+    let [record_domain] = module.types.structural_domains.as_slice() else {
         panic!("the exact named record domain must remain in the catalog");
     };
     let predicate = record_domain.predicate.as_ref().unwrap();
     let reading = module
-        .structural_types
+        .types.structural_types
         .iter()
         .find(|row| row.id == record_domain.carrier)
         .unwrap();
@@ -747,7 +747,7 @@ machine build_entry() {
             limit(8)
         )],
     );
-    let [scalar_domain] = module.scalar_qualifications.domains.as_slice() else {
+    let [scalar_domain] = module.types.scalar_qualifications.domains.as_slice() else {
         panic!("the exact named scalar domain must remain in the catalog");
     };
     let predicate = scalar_domain.predicate.as_ref().unwrap();

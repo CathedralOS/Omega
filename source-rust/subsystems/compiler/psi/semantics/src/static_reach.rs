@@ -219,7 +219,7 @@ pub fn derive<'bounds>(
             })
         } else {
             module
-                .callables
+                .execution.callables
                 .machine_envelope(machine.id)
                 .map(|envelope| StaticReachTerm {
                     concrete: envelope.service_reach.clone(),
@@ -308,7 +308,7 @@ pub fn derive<'bounds>(
         }
         for invocation in machine.callable_invocations() {
             let contract = module
-                .callables
+                .execution.callables
                 .contract(invocation.inputs.contract)
                 .ok_or("static reach call has no exact runtime callable contract")?;
             calls.push(Contribution::Fixed(contract.envelope.service_reach.clone()));
@@ -322,11 +322,11 @@ pub fn derive<'bounds>(
                         continue;
                     }
                     let index = module
-                        .services
+                        .interfaces.services
                         .binary_search_by_key(&service, |row| row.id)
                         .map_err(|_| "static reach instruction names an absent service")?;
                     union(&mut reach, &[service]);
-                    pending.extend_from_slice(&module.services[index].parents);
+                    pending.extend_from_slice(&module.interfaces.services[index].parents);
                 }
                 calls.push(Contribution::Fixed(reach));
             }

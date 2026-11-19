@@ -80,7 +80,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
         ),
         Result<[semantic_vocabulary::MachineId; 3], String>,
     )> {
-        if module.installed_interrupt_registrations.is_empty() {
+        if module.interfaces.installed_interrupt_registrations.is_empty() {
             return Vec::new();
         }
         let mut bodies = module
@@ -97,7 +97,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             })
             .collect::<Vec<_>>();
         bodies.sort_unstable_by_key(|(contract, _, _)| *contract);
-        let mut applications = module.callback_applications.iter().collect::<Vec<_>>();
+        let mut applications = module.interfaces.callback_applications.iter().collect::<Vec<_>>();
         applications.sort_unstable_by_key(|application| {
             (
                 application.registrar_machine,
@@ -106,7 +106,7 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             )
         });
         let mut result = Vec::new();
-        for registration in &module.installed_interrupt_registrations {
+        for registration in &module.interfaces.installed_interrupt_registrations {
             let roots = (|| {
                 let mut roots = Vec::with_capacity(3);
                 for ordinal in [1, 2, 3] {

@@ -57,7 +57,7 @@ fn declaration_only_checking_preserves_role_and_requires_an_entry_for_execution(
                         .accepted()
                         .unwrap()
                         .module()
-                        .program_entry_contracts
+                        .interfaces.program_entry_contracts
                         .is_empty()
                 );
                 let refusal =

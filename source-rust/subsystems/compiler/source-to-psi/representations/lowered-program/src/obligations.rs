@@ -300,7 +300,7 @@ fn parameter_inputs(
         .first()
         .map(|machine| machine.id)
         .unwrap_or_else(|| MachineId::new(1).expect("one is an identity"));
-    let mut catalog = module.structural_types.iter().collect::<Vec<_>>();
+    let mut catalog = module.types.structural_types.iter().collect::<Vec<_>>();
     catalog.sort_unstable_by_key(|declaration| declaration.id);
     if catalog.windows(2).any(|pair| pair[0].id == pair[1].id) {
         return Err((
@@ -309,7 +309,7 @@ fn parameter_inputs(
         ));
     }
     let mut referents = module
-        .structural_referents
+        .types.structural_referents
         .iter()
         .map(|row| row.id)
         .collect::<Vec<_>>();
@@ -725,7 +725,7 @@ mod width_inventory_tests {
     #[test]
     fn an_unread_local_still_owes_its_width_formation() {
         let mut module = TerminalModule::declarations();
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             1_000_000,
             StructuralTypeShape::PrimitiveScalar(symbolic()),
         ));
@@ -748,14 +748,14 @@ mod width_inventory_tests {
     #[test]
     fn shared_closed_graphs_remain_empty_and_dangling_edges_are_not_pruned() {
         let mut module = TerminalModule::declarations();
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             1,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
             )),
         ));
         for index in 2..=256 {
-            module.structural_types.push(declaration(
+            module.types.structural_types.push(declaration(
                 index,
                 StructuralTypeShape::Reference {
                     referent: id(index - 1),
@@ -769,7 +769,7 @@ mod width_inventory_tests {
         let result = integer_width_parameters(&module).unwrap();
         assert_eq!(result.len(), 512);
         assert!(result.iter().all(|(_, widths)| widths.is_empty()));
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             1_000_000,
             StructuralTypeShape::Reference {
                 referent: id(2_000_000),
@@ -782,18 +782,18 @@ mod width_inventory_tests {
     #[test]
     fn zero_array_headers_retain_the_width_owner_through_shared_types() {
         let mut module = TerminalModule::declarations();
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             1_000_000,
             StructuralTypeShape::PrimitiveScalar(symbolic()),
         ));
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             2_000_000,
             StructuralTypeShape::FixedArray {
                 element: id(1_000_000),
                 length: terminal_psi::ArrayExtent::Literal(0),
             },
         ));
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             3_000_000,
             StructuralTypeShape::Reference {
                 referent: id(2_000_000),

@@ -35,7 +35,7 @@ pub fn foreign_record_storage<'module>(
     let selected = match storage {
         StructuralRecordStorage::TargetLayout(application) => {
             let application = module
-                .target_layout_applications
+                .layouts.target_layout_applications
                 .iter()
                 .find(|candidate| candidate.id == application && candidate.record == record)
                 .ok_or("boundary record has no exact target layout application")?;
@@ -67,7 +67,7 @@ pub fn foreign_opaque_carrier<'module>(
     declaration: &terminal_psi::StructuralTypeDeclaration,
 ) -> Result<Option<(usize, &'module terminal_psi::TerminalOpaqueRepresentation)>, String> {
     let selected = module
-        .opaque_representations
+        .types.opaque_representations
         .iter()
         .enumerate()
         .find(|(_, row)| row.opaque == declaration.id);
@@ -221,11 +221,11 @@ fn storage_has_slots(
         return Ok(false);
     };
     let native = module
-        .native_layouts
+        .layouts.native_layouts
         .record(record)
         .ok_or("callback backing record lost its native layout association")?;
     if module
-        .native_layouts
+        .layouts.native_layouts
         .for_target(native, target)?
         .is_some_and(|row| !row.report.private_callback_demands.is_empty())
     {

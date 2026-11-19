@@ -338,7 +338,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
         !publication
             .artifact
             .semantic_module()
-            .calling_abi_signatures
+            .interfaces.calling_abi_signatures
             .is_empty()
     );
     assert_eq!(

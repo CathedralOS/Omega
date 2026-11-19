@@ -208,7 +208,7 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter lost its selecting owner",
                     )]
                 })?;
-                let mut choices = module.provider_selections.iter().filter(|choice| {
+                let mut choices = module.interfaces.provider_selections.iter().filter(|choice| {
                     choice.target == plans.storage_entry.target_slot().owner.target_name()
                         && module.identities.text(choice.provider_declaration) == Some(owner)
                         && module
@@ -253,7 +253,7 @@ impl SelectedCompilerProgramEntry {
                         candidates.candidate_positions.len(),
                     ))]);
                 };
-                let candidate = &module.provider_candidates[*position];
+                let candidate = &module.interfaces.provider_candidates[*position];
                 let machine = module.machine(candidate.candidate).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "selected physical entry adapter is absent",

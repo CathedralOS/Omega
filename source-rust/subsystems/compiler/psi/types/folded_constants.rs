@@ -86,7 +86,7 @@ impl FoldedConstantClosure {
                 continue;
             };
             let count = module
-                .provider_candidates
+                .interfaces.provider_candidates
                 .iter()
                 .filter(|candidate| {
                     candidate.boundary == association.boundary

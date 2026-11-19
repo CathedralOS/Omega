@@ -61,7 +61,7 @@ impl<'a> Storage<'a> {
             terminal_semantics::byte_predicate_equation(
                 &observation,
                 root_type,
-                &self.module.structural_types,
+                &self.module.types.structural_types,
             )
         else {
             return Ok(None);
@@ -262,7 +262,7 @@ impl<'a> Storage<'a> {
             self.collection_backing_source(argument, parameter.position, *element, concerns)?;
         if terminal_semantics::fixed_byte_array_loan(
             self.types.iter(),
-            self.module.structural_domains.iter(),
+            self.module.types.structural_domains.iter(),
             &backing,
             argument,
             parameter,
@@ -463,10 +463,10 @@ impl<'a> Storage<'a> {
             && !typed
             && whole.iter().all(|id| {
                 self.module
-                    .structural_domains
+                    .types.structural_domains
                     .binary_search_by_key(id, |domain| domain.id)
                     .ok()
-                    .and_then(|index| self.module.structural_domains.get(index))
+                    .and_then(|index| self.module.types.structural_domains.get(index))
                     .is_some_and(|domain| {
                         domain.carrier == selected.id && domain.is_pure_predicate()
                     })

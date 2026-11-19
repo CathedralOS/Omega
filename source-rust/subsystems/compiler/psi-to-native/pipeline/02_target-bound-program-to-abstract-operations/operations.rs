@@ -1783,7 +1783,7 @@ mod machine {
                     module,
                     structural_types,
                     scalar_applications,
-                    &module.access_view_plans,
+                    &module.access.access_view_plans,
                     &value_types,
                     &byte_sequence_literals,
                     &unit_affine_locals,
@@ -1850,7 +1850,7 @@ pub(crate) fn lower_selected_module(
     scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
-    if !module.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {
+    if !module.scalars.scalar_applications.conditions.is_empty() && scalar_applications.is_none() {
         return Err(LoweringError::UnclosedScalarConditions);
     }
     if !module.machine(entry).is_some() {
@@ -1858,7 +1858,7 @@ pub(crate) fn lower_selected_module(
     }
     if layouts.is_none()
         && module
-            .access_lifecycle_plans
+            .access.access_lifecycle_plans
             .iter()
             .any(|plan| plan.target.is_some())
     {
@@ -1868,11 +1868,11 @@ pub(crate) fn lower_selected_module(
             ),
         ));
     }
-    let lifecycles = layouts.map_or(module.access_lifecycle_plans.as_slice(), |layouts| {
+    let lifecycles = layouts.map_or(module.access.access_lifecycle_plans.as_slice(), |layouts| {
         layouts.resolved_lifecycles()
     });
     for boundary in module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .filter(|boundary| scope.is_some_and(|scope| scope.contains_boundary(boundary.id)))
     {
@@ -1912,23 +1912,23 @@ pub(crate) fn lower_selected_module(
         entry,
         structural_types: abstract_operations::StructuralTypeCatalog::new(
             structural_types,
-            module.structural_referents.clone(),
+            module.types.structural_referents.clone(),
         )
-        .with_access_views(module.access_view_plans.clone())
-        .with_access_view_inputs(module.access_view_inputs.clone())
+        .with_access_views(module.access.access_view_plans.clone())
+        .with_access_view_inputs(module.access.access_view_inputs.clone())
         .with_access_lifecycles(lifecycles.to_vec())
         .map_err(LoweringError::SemanticIdentity)?
-        .with_quotients(module.quotients.clone())
+        .with_quotients(module.types.quotients.clone())
         .map_err(LoweringError::SemanticIdentity)?
         .with_owned_sequence_bounds(owned_sequence_bounds),
         boundary_machines: module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| scope.is_none_or(|scope| scope.contains_boundary(boundary.id)))
             .cloned()
             .collect(),
         provider_candidates: module
-            .provider_candidates
+            .interfaces.provider_candidates
             .iter()
             .enumerate()
             .filter(|(position, _)| {
@@ -1936,8 +1936,8 @@ pub(crate) fn lower_selected_module(
             })
             .map(|(_, candidate)| candidate.clone())
             .collect(),
-        callables: module.callables.clone(),
-        dynamic_dispatch: module.dynamic_dispatch.clone(),
+        callables: module.execution.callables.clone(),
+        dynamic_dispatch: module.execution.dynamic_dispatch.clone(),
         identities: module.identities.clone(),
         functions,
     })

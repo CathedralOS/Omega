@@ -771,7 +771,7 @@ machine entry<'a>(holder: @mut Holder<'a>, replacement: @'a [u8]) -> u64 {{
             crate::checking::places::reference_graph(&reference_module, lowered.id).unwrap();
         let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
-                &elaboration.module.structural_types,
+                &elaboration.module.types.structural_types,
                 &reference_graph,
             );
         let storage = crate::checking::places::Storage::new(

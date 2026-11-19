@@ -402,7 +402,7 @@ impl AcceptedTerminalSource {
                 "cannot determine executable boundary supply: {detail}"
             ))
         };
-        if elaboration.module.boundary_machines.len() != elaboration.boundaries.len() {
+        if elaboration.module.interfaces.boundary_machines.len() != elaboration.boundaries.len() {
             return Err(lost(
                 "differ from the requirements the module was lowered from",
             ));

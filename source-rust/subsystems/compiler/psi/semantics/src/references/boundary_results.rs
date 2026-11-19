@@ -74,7 +74,7 @@ pub fn validate_provider_reference_outputs(
     use terminal_psi::{BoundaryReferenceDestination, StructuralAccess};
 
     let candidates = module
-        .provider_candidates
+        .interfaces.provider_candidates
         .iter()
         .filter_map(|candidate| {
             let boundary = module.boundary_machine(candidate.boundary)?;
@@ -84,7 +84,7 @@ pub fn validate_provider_reference_outputs(
     if candidates.is_empty() {
         return Ok(());
     }
-    let types = &module.structural_types;
+    let types = &module.types.structural_types;
     let graph =
         terminal_borrowed_storage_graph_from(module, candidates.iter().map(|(body, _)| *body), &[])
             .map_err(|_| "checked provider output has no complete descriptor graph")?;
@@ -462,7 +462,7 @@ pub fn boundary_result_lifetimes_match(
                 StructuralPathSegment::Field(identity) => (0, Some(*identity), 0),
                 StructuralPathSegment::Case(case) => {
                     let selected = crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         root,
                         &path[..position],
                     )
@@ -497,7 +497,7 @@ pub fn boundary_result_lifetimes_match(
         module: &'a terminal_psi::TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<Vec<Group<'a>>, &'static str> {
-        let declared = boundary_result_lifetimes(&module.structural_types, boundary)?;
+        let declared = boundary_result_lifetimes(&module.types.structural_types, boundary)?;
         let mut groups = Vec::with_capacity(declared.len());
         for group in declared {
             let mut inputs = Vec::with_capacity(group.inputs.len());

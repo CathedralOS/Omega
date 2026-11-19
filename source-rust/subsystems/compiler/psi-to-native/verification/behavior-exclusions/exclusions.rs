@@ -143,7 +143,7 @@ fn service_for_exclusion(
     identity: &str,
 ) -> Result<ServiceId, &'static str> {
     let mut matches = module
-        .services
+        .interfaces.services
         .iter()
         .filter(|service| module.identities.text(service.identity) == Some(identity));
     let service = matches

@@ -80,7 +80,7 @@ pub(crate) fn check_envelope(
         match invocation {
             terminal_psi::TerminalCallableInvocation::Service(service)
                 if module
-                    .services
+                    .interfaces.services
                     .iter()
                     .all(|declaration| declaration.id != *service) =>
             {
@@ -318,7 +318,7 @@ fn schema_context(
                 .scalar()
                 .ok_or_else(|| fault(machine, "static value formal has no exact scalar type"))?;
             module
-                .callables
+                .execution.callables
                 .validate_scalar_type(scalar)
                 .map_err(|detail| fault(machine, detail))?;
             scalars.push((
@@ -333,7 +333,7 @@ fn schema_context(
         }
         if let ValueType::Record(record) = value_type
             && module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .all(|declared| declared.id != *record)
         {
@@ -346,7 +346,7 @@ fn schema_context(
     match signature.result {
         Some(ValueType::Scalar(scalar)) => {
             module
-                .callables
+                .execution.callables
                 .validate_scalar_type(scalar)
                 .map_err(|detail| fault(machine, detail))?;
             let relevant = signature
@@ -373,7 +373,7 @@ fn schema_context(
         }
         Some(ValueType::Record(record)) => {
             if module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .all(|declared| declared.id != record)
             {
@@ -531,7 +531,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     .ok_or_else(|| {
                         fault(machine, "static conformance names no genuine checked body")
                     })?;
-                let envelope = module.callables.machine_envelope(id).ok_or_else(|| {
+                let envelope = module.execution.callables.machine_envelope(id).ok_or_else(|| {
                     fault(
                         machine,
                         "static implementation lost its published operational contract",
@@ -556,7 +556,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     .get(candidate)
                     .filter(|candidate| {
                         candidate.source == source
-                            && module.external_providers.contains(&candidate.conformance)
+                            && module.interfaces.external_providers.contains(&candidate.conformance)
                     })
                     .ok_or_else(|| {
                         fault(
@@ -637,7 +637,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
 pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     admit(elaboration)?;
     let module = &mut elaboration.module;
-    if !module.provider_candidates.is_empty() {
+    if !module.interfaces.provider_candidates.is_empty() {
         let context = module.machines.first().map(|row| row.id).ok_or_else(|| {
             fault(
                 MachineId::new(1).expect("one is nonzero"),
@@ -789,7 +789,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     }
     order_provider_candidates(&identities, &mut candidates)?;
     module.identities = identities.build();
-    module.provider_candidates = candidates;
+    module.interfaces.provider_candidates = candidates;
     Ok(())
 }
 

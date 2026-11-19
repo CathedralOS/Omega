@@ -80,11 +80,11 @@ fn prepare_published_application<Publisher>(
             })
     };
     if module
-        .callback_applications
+        .interfaces.callback_applications
         .iter()
         .any(|callback| active_operation(callback.registrar_machine, callback.registrar))
         || module
-            .installed_interrupt_registrations
+            .interfaces.installed_interrupt_registrations
             .iter()
             .any(|registration| active_operation(registration.machine, registration.operation))
     {
@@ -116,7 +116,7 @@ fn prepare_published_application<Publisher>(
         let root = root?;
         roots.push(
             module
-                .scalar_applications
+                .scalars.scalar_applications
                 .proof_scope
                 .callable_declaration(terminal_psi::TargetMachineCallable::Machine(root.machine))
                 .ok_or_else(|| {
@@ -241,7 +241,7 @@ fn checked_provider_calls(
             target_provider_admission::selected_provider_candidate_rows(declaration, module).map_err(refuse)?
         {
             for position in row.candidate_positions {
-                let candidate = &module.provider_candidates[position];
+                let candidate = &module.interfaces.provider_candidates[position];
                 calls.push((candidate.boundary, candidate.candidate));
             }
         }

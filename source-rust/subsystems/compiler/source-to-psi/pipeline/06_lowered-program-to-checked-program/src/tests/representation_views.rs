@@ -341,7 +341,7 @@ machine take(bytes: @[u8]) { }";
     )
     .validate_all()
     .expect("the original element owns its count evidence");
-    let mut wrappers = changed.module.structural_types.iter().filter_map(|row| {
+    let mut wrappers = changed.module.types.structural_types.iter().filter_map(|row| {
         let terminal_psi::StructuralTypeShape::Record { fields, .. } = &row.shape else {
             return None;
         };

@@ -14,7 +14,7 @@ pub fn activation_claim_shape(
     module: &TerminalModule,
     operation: &Operation,
 ) -> Result<ActivationClaimShape, &'static str> {
-    activation_claim_shape_in(&module.structural_types, operation)
+    activation_claim_shape_in(&module.types.structural_types, operation)
 }
 
 pub fn activation_claim_shape_in(

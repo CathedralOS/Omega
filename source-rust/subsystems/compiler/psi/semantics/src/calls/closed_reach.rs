@@ -143,11 +143,11 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
         return Err("closed reach machine identities are ambiguous");
     }
     let services = module
-        .services
+        .interfaces.services
         .iter()
         .map(|service| (service.id, service))
         .collect::<BTreeMap<_, _>>();
-    if services.len() != module.services.len() {
+    if services.len() != module.interfaces.services.len() {
         return Err("closed reach service identities are ambiguous");
     }
     let identity = |coordinate: TerminalIdentityIndex| {

@@ -650,7 +650,7 @@ mod tests {
                 .unwrap();
         }
         let mut module = TerminalModule::declarations();
-        module.structural_types = types.to_vec();
+        module.types.structural_types = types.to_vec();
         module.machines.push(machine);
         assert_eq!(
             crate::control_graph::normal_completion_possible(&module, module.machines[0].id),

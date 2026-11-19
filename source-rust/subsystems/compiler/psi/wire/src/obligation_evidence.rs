@@ -621,7 +621,7 @@ impl<'module, 'seals> EvidenceSealValidator<'module, 'seals> {
             .iter()
             .filter(|machine| selected.binary_search(&machine.id).is_ok())
             .map(|machine| {
-                MachineEvidenceGoals::new(machine, &module.structural_types, &mut indexed_types)
+                MachineEvidenceGoals::new(machine, &module.types.structural_types, &mut indexed_types)
             })
             .collect::<Vec<_>>();
         machines.sort_unstable_by_key(|row| row.machine.id);
@@ -2156,7 +2156,7 @@ mod projection_tests {
             qualifications: Default::default(),
         };
         body.parameters = vec![scalar(1, unsigned), scalar(2, signed)];
-        module.structural_types = [
+        module.types.structural_types = [
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(unsigned)),
             StructuralTypeShape::FixedArray {
                 element: ty(1),

@@ -71,7 +71,7 @@ pub(super) fn validate(
     reached_operations: &[super::OperationSite],
 ) -> Result<Vec<ArrivalHelperUse>, String> {
     let module = input.module();
-    if module.installed_interrupt_registrations.is_empty() {
+    if module.interfaces.installed_interrupt_registrations.is_empty() {
         return Ok(Vec::new());
     }
     let bodies = flat_rows(module.machines.iter().map(|body| (body.id, body)).collect())?;
@@ -94,7 +94,7 @@ pub(super) fn validate(
         .map(|occurrence| (occurrence.application_index(), occurrence))
         .collect();
     let registrations: Vec<_> = module
-        .installed_interrupt_registrations
+        .interfaces.installed_interrupt_registrations
         .iter()
         .filter(|registration| {
             reached_operations.contains(&(registration.machine, registration.operation))
@@ -677,7 +677,7 @@ pub(super) fn selected_body(
     operation: OperationId,
     ordinal: u32,
 ) -> Result<MachineId, String> {
-    let mut selections = module.callback_applications.iter().filter(|row| {
+    let mut selections = module.interfaces.callback_applications.iter().filter(|row| {
         row.registrar_machine == machine
             && row.registrar == operation
             && row.static_machine_ordinal == ordinal

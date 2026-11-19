@@ -3,7 +3,7 @@ use semantic_vocabulary::InvocationSite;
 use terminal_psi::OperationResult;
 
 pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
-    for invocation in &module.proof_output_calls {
+    for invocation in &module.proofs.proof_output_calls {
         if invocation
             .runtime_call
             .is_some_and(|call| matches!(call.site, InvocationSite::ExternalCompletion(_)))
@@ -41,15 +41,15 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
         }
     }
     let consumes_snapshots = module
-        .proof_output_calls
+        .proofs.proof_output_calls
         .iter()
         .any(|call| call.runtime_call.is_some());
-    if module.evidence_contract_lanes.is_empty() && !consumes_snapshots {
+    if module.proofs.evidence_contract_lanes.is_empty() && !consumes_snapshots {
         return Ok(());
     }
     let checks_calls = consumes_snapshots
         || module
-            .evidence_contract_lanes
+            .proofs.evidence_contract_lanes
             .iter()
             .any(|lane| lane.kind == EvidenceContractLaneKind::Requires);
     let graph = if consumes_snapshots {
@@ -60,7 +60,7 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
     let mut bodies = Vec::with_capacity(module.machines.len());
     for machine in &module.machines {
         let observes = module
-            .proof_output_calls
+            .proofs.proof_output_calls
             .iter()
             .any(|call| call.caller == machine.id && call.runtime_call.is_some());
         let mut calls = Vec::new();
@@ -187,14 +187,14 @@ pub(crate) fn validate(module: &TerminalModule) -> Result<(), &'static str> {
     }
     validate_runtime_evidence_inputs_in(&RuntimeEvidenceInputs {
         identities: &module.identities,
-        callables: &module.callables,
-        structural_types: &module.structural_types,
-        structural_domains: &module.structural_domains,
-        proposition_declarations: &module.proposition_declarations,
-        proposition_applications: &module.proposition_applications,
-        evidence_terms: &module.evidence_terms,
-        evidence_contract_lanes: &module.evidence_contract_lanes,
-        proof_output_calls: &module.proof_output_calls,
+        callables: &module.execution.callables,
+        structural_types: &module.types.structural_types,
+        structural_domains: &module.types.structural_domains,
+        proposition_declarations: &module.proofs.proposition_declarations,
+        proposition_applications: &module.proofs.proposition_applications,
+        evidence_terms: &module.proofs.evidence_terms,
+        evidence_contract_lanes: &module.proofs.evidence_contract_lanes,
+        proof_output_calls: &module.proofs.proof_output_calls,
         machines: &bodies,
         graph: &graph,
     })

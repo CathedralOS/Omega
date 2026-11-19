@@ -531,7 +531,7 @@ mod physical_adapter {
             selected: &[provider_admission::SelectedProviderAdapter],
         ) -> Result<Self, &'static str> {
             let module = artifact.semantic_module();
-            let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+            let mut candidates = module.interfaces.provider_candidates.iter().filter(|candidate| {
                 module.identities.text(candidate.requirement_identity)
                     == Some(application.requirement_identity.as_str())
                     && module.calling_abi_identity(candidate.boundary).as_ref()

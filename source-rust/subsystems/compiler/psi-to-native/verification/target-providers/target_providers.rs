@@ -59,7 +59,7 @@ pub fn selected_checked_adapter_header<'module>(
     }
     let target = selected_plan_target(plan)?;
     let mut matches = module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_headers
         .iter()
@@ -106,7 +106,7 @@ pub fn selected_checked_invocation_rows<'plan, 'module>(
     plans: &'plan [ProviderPlan],
     module: &'module terminal_psi::TerminalModule,
 ) -> Result<Vec<SelectedCheckedInvocationRow<'plan, 'module>>, String> {
-    let scope = &module.scalar_applications.proof_scope;
+    let scope = &module.scalars.scalar_applications.proof_scope;
     let mut rows = Vec::new();
     for selected in selected_checked_candidates(plans, module)? {
         let plan = selected.selected;
@@ -247,7 +247,7 @@ fn admit_checked_roster(
     )
     .map_err(|error| format!("catalog admission rejected: {error:?}"))?;
     validate_synchronous_calls(artifact, selected)?;
-    if artifact.module().folded_constants.target.is_some() {
+    if artifact.module().scalars.folded_constants.target.is_some() {
         installation.admit_folded_constant_closure(artifact, target, &dependencies)
     } else {
         Ok(installation)
@@ -336,7 +336,7 @@ pub fn matching_folded_constant_dependencies<'plan>(
     plans: impl IntoIterator<Item = &'plan provider_plans::ProviderPlan>,
 ) -> Result<Vec<Vec<u8>>, String> {
     let module = artifact.module();
-    let closure = &module.folded_constants;
+    let closure = &module.scalars.folded_constants;
     closure.validate(module).map_err(str::to_owned)?;
     let Some(required_target) = &closure.target else {
         return Ok(Vec::new());
@@ -374,7 +374,7 @@ pub fn matching_folded_constant_dependencies<'plan>(
                             machine_identity,
                             machine_package_identity,
                         },
-                    ) => module.provider_candidates.iter().any(|candidate| {
+                    ) => module.interfaces.provider_candidates.iter().any(|candidate| {
                         candidate.boundary == association.boundary
                             && candidate.candidate == association.machine
                             && candidate.provider_declaration == association.declaration
@@ -415,7 +415,7 @@ fn validate_selected_service_schemas(
 ) -> Result<(), String> {
     for selected in plans {
         let plan = selected;
-        let mut choices = module.provider_selections.iter().filter(|choice| {
+        let mut choices = module.interfaces.provider_selections.iter().filter(|choice| {
             choice.target == plan.target
                 && module.identities.text(choice.provider_declaration)
                     == selected.provider_declaration.as_deref()
@@ -577,7 +577,7 @@ fn selected_checked_candidates<'plan, 'terminal>(
                 candidates: projected
                     .candidate_positions
                     .into_iter()
-                    .map(|position| &module.provider_candidates[position])
+                    .map(|position| &module.interfaces.provider_candidates[position])
                     .collect(),
             });
         }
@@ -732,7 +732,7 @@ mod tests {
         .enumerate()
         {
             module
-                .provider_candidates
+                .interfaces.provider_candidates
                 .push(ProviderCandidateConformance {
                     boundary: semantic_vocabulary::BoundaryMachineId::new((ordinal % 2 + 1) as u64)
                         .unwrap(),
@@ -758,9 +758,9 @@ mod tests {
 
     fn invocation_fixture() -> (ProviderPlan, TerminalModule) {
         let (selected, mut module) = fixture();
-        let candidates = module.provider_candidates[..2].to_vec();
+        let candidates = module.interfaces.provider_candidates[..2].to_vec();
         module
-            .provider_instance_requirements
+            .interfaces.provider_instance_requirements
             .push(terminal_psi::ProviderInstanceRequirements {
                 template: candidates[0].source_requirement_identity,
                 package: None,
@@ -777,7 +777,7 @@ mod tests {
                     })
                     .collect(),
             });
-        let scope = &mut module.scalar_applications.proof_scope;
+        let scope = &mut module.scalars.scalar_applications.proof_scope;
         for (index, candidate) in candidates.iter().enumerate() {
             let declaration = terminal_psi::ProofDeclarationId(index as u32 + 1);
             scope
@@ -840,7 +840,7 @@ mod tests {
     #[test]
     fn selected_provider_roster_does_not_treat_a_missing_target_as_a_wildcard() {
         let (mut declaration, mut module) = invocation_fixture();
-        module.provider_candidates.sort_by_key(|candidate| {
+        module.interfaces.provider_candidates.sort_by_key(|candidate| {
             (
                 candidate.boundary,
                 module.identities.text(candidate.provider_identity),
@@ -882,7 +882,7 @@ mod tests {
         );
         assert!(std::ptr::eq(
             closed.conformance,
-            &module.provider_candidates[1]
+            &module.interfaces.provider_candidates[1]
         ));
         assert_eq!(
             closed.header.callable,
@@ -893,7 +893,7 @@ mod tests {
         )
         .unwrap();
         let handle = module
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_headers
             .iter()
@@ -902,7 +902,7 @@ mod tests {
             })
             .unwrap();
         module
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_headers
             .get_mut(handle)
@@ -926,7 +926,7 @@ mod tests {
         let declaration = identities.intern("Parent");
         let application = identities.intern("Parent<u64>");
         module.identities = identities.build();
-        let headers = &mut module.scalar_applications.proof_scope.callable_headers;
+        let headers = &mut module.scalars.scalar_applications.proof_scope.callable_headers;
         let handle = headers
             .iter()
             .find_map(|(handle, header)| {
@@ -1151,9 +1151,9 @@ mod tests {
     #[test]
     fn canonical_projection_rejects_duplicate_coordinates_on_every_target() {
         let (mut declaration, mut module) = fixture();
-        let mut alternate = module.provider_candidates[0].clone();
+        let mut alternate = module.interfaces.provider_candidates[0].clone();
         alternate.candidate = semantic_vocabulary::MachineId::new(5).unwrap();
-        module.provider_candidates.push(alternate);
+        module.interfaces.provider_candidates.push(alternate);
         for target in ["macos_arm64", "windows_x86_64", "linux_arm64"] {
             declaration.target = target.into();
             assert!(
@@ -1257,11 +1257,11 @@ mod tests {
         {
             assert_eq!(
                 installation.boundary,
-                module.provider_candidates[*position].boundary
+                module.interfaces.provider_candidates[*position].boundary
             );
             assert_eq!(
                 installation.candidate,
-                module.provider_candidates[*position].candidate
+                module.interfaces.provider_candidates[*position].candidate
             );
             assert_eq!(installation.provider_declaration, "FirstMap");
         }
@@ -1279,7 +1279,7 @@ mod tests {
         surface.receiver_applications[0].argument_identities = vec![argument];
         surface.receiver_applications[1].application = surface.receiver_applications[1].trait_name;
         surface.receiver_applications[1].argument_identities.clear();
-        for candidate in &mut module.provider_candidates {
+        for candidate in &mut module.interfaces.provider_candidates {
             candidate.declaration_application = TerminalIdentityIndex::ABSENT;
             candidate.receiving_application = TerminalIdentityIndex::ABSENT;
         }
@@ -1293,7 +1293,7 @@ mod tests {
         let mut identities = module.identities.clone().into_builder();
         let substituted_child = identities.intern("Child<u8>");
         module.identities = identities.build();
-        for candidate in &mut module.provider_candidates {
+        for candidate in &mut module.interfaces.provider_candidates {
             candidate.declaration_application = substituted_child;
             candidate.receiving_application = substituted_child;
         }

@@ -180,18 +180,18 @@ fn a_call_that_may_suspend_is_a_crossing_with_its_live_frontier() {
         .filter_map(|operation| operation.suspension_crossing)
         .collect();
     assert_eq!(crossings.len(), 2);
-    assert_eq!(module.suspension_call_sites.len(), 2);
-    assert_eq!(module.suspension_call_plans.len(), 2);
-    assert_eq!(module.suspension_call_plan_count, 2);
+    assert_eq!(module.execution.suspension_call_sites.len(), 2);
+    assert_eq!(module.execution.suspension_call_plans.len(), 2);
+    assert_eq!(module.execution.suspension_call_plan_count, 2);
     let frontiers: Vec<usize> = module
-        .suspension_call_plans
+        .execution.suspension_call_plans
         .iter()
         .map(|plan| plan.live_values.len())
         .collect();
     assert!(frontiers.contains(&0), "{frontiers:?}");
     assert!(frontiers.contains(&1), "{frontiers:?}");
     let kept = module
-        .suspension_call_plans
+        .execution.suspension_call_plans
         .iter()
         .flat_map(|plan| &plan.live_values)
         .next()
@@ -232,9 +232,9 @@ fn a_missing_or_altered_crossing_is_not_accepted() {
     assert_eq!(
         refusal(&|elaboration| {
             let module = &mut elaboration.module;
-            module.suspension_call_sites.clear();
-            module.suspension_call_plans.clear();
-            module.suspension_call_plan_count = 0;
+            module.execution.suspension_call_sites.clear();
+            module.execution.suspension_call_plans.clear();
+            module.execution.suspension_call_plan_count = 0;
             for machine in &mut module.machines {
                 for block in &mut machine.blocks {
                     for operation in &mut block.operations {
@@ -248,7 +248,7 @@ fn a_missing_or_altered_crossing_is_not_accepted() {
     // A live value is left out of a plan.
     assert_eq!(
         refusal(&|elaboration| {
-            for plan in &mut elaboration.module.suspension_call_plans {
+            for plan in &mut elaboration.module.execution.suspension_call_plans {
                 plan.live_values.clear();
                 plan.live_value_count = 0;
             }
@@ -258,14 +258,14 @@ fn a_missing_or_altered_crossing_is_not_accepted() {
     // A site commits to another frontier.
     assert_eq!(
         refusal(&|elaboration| {
-            elaboration.module.suspension_call_sites[0].frontier_commitment = [0; 32];
+            elaboration.module.execution.suspension_call_sites[0].frontier_commitment = [0; 32];
         }),
         "a suspension site does not commit to the live frontier of its call"
     );
     // An operation that cannot suspend claims a crossing.
     assert_eq!(
         refusal(&|elaboration| {
-            let crossing = elaboration.module.suspension_call_plans[0].crossing;
+            let crossing = elaboration.module.execution.suspension_call_plans[0].crossing;
             let operation = elaboration
                 .module
                 .machines

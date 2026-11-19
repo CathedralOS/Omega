@@ -107,7 +107,7 @@ fn selected_boundary_implementations(
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for row in selected {
             for position in row.candidate_positions {
-                let candidate = module.provider_candidates.get(position).ok_or_else(|| {
+                let candidate = module.interfaces.provider_candidates.get(position).ok_or_else(|| {
                     vec![Diagnostic::error(
                         "chosen provider lost its authenticated candidate coordinate",
                     )]

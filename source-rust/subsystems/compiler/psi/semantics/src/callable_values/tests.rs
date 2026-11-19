@@ -71,7 +71,7 @@ fn machine(id: u64) -> TerminalMachine {
 }
 fn module() -> TerminalModule {
     let mut module = TerminalModule::for_entry(machine_id(1));
-    module.callables.contracts.push(TerminalCallableContract {
+    module.execution.callables.contracts.push(TerminalCallableContract {
         id: contract_id(),
         identity: TerminalIdentityIndex(1),
         scalar_parameters: Vec::new(),
@@ -94,7 +94,7 @@ fn module() -> TerminalModule {
     });
     for (descriptor, selected) in [(1, 3), (2, 4), (3, 5)] {
         module
-            .callables
+            .execution.callables
             .descriptors
             .push(TerminalMachineDescriptor {
                 id: descriptor_id(descriptor),
@@ -347,7 +347,7 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
     // A chosen body is also an ordinary callable. The direct call above
     // supplies its real code argument without invoking the associated boundary;
     // retain the machine summary so admission does not root that body again.
-    module.boundary_machines = vec![boundary(1, true)];
+    module.interfaces.boundary_machines = vec![boundary(1, true)];
     let direct_binding = CallableBoundaryImplementation {
         boundary: BoundaryMachineId::new(1).unwrap(),
         machine: machine_id(6),
@@ -364,7 +364,7 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
 
     // The same returned value and formal substitution must survive a chosen
     // provider. Its terminal call is reached; an unused descriptor's is not.
-    module.boundary_machines = vec![boundary(1, true), boundary(2, false), boundary(3, false)];
+    module.interfaces.boundary_machines = vec![boundary(1, true), boundary(2, false), boundary(3, false)];
     module.machines[0].blocks[0].operations[3].kind = O::BoundaryCall {
         boundary: BoundaryMachineId::new(1).unwrap(),
         arguments: vec![value(1).id],
@@ -436,7 +436,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
     let mut module = module();
     let carrier = StructuralTypeId::new(1).unwrap();
     let home = PlaceId::new(1).unwrap();
-    module.structural_types.push(StructuralTypeDeclaration {
+    module.types.structural_types.push(StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         id: carrier,
         identity: TerminalIdentityIndex(10),
@@ -573,13 +573,13 @@ fn stale_descriptor_contract_and_missing_callee_ssa_are_errors() {
     let mut entry = machine(1);
     entry.blocks[0].operations = vec![select(1, 1, 1), indirect_call(2, value(1).id)];
     module.machines = vec![entry, machine(3), machine(4), machine(5)];
-    module.callables.descriptors[0].contract = CallableContractId::new(2).unwrap();
+    module.execution.callables.descriptors[0].contract = CallableContractId::new(2).unwrap();
     let projected = terminal_callable_values(&module).unwrap();
     assert_eq!(
         resolve_callable_value(&projected, query(1, 1)),
         Err("constructed callable descriptor has the wrong exact contract")
     );
-    module.callables.descriptors[0].contract = contract_id();
+    module.execution.callables.descriptors[0].contract = contract_id();
     module.machines[0].blocks[0].operations[1] = indirect_call(2, value(99).id);
     let projected = terminal_callable_values(&module).unwrap();
     assert_eq!(
@@ -590,7 +590,7 @@ fn stale_descriptor_contract_and_missing_callee_ssa_are_errors() {
 
 fn service_summary_module() -> TerminalModule {
     let mut module = module();
-    module.services = vec![
+    module.interfaces.services = vec![
         terminal_psi::ServiceDeclaration {
             id: ServiceId::new(1).unwrap(),
             identity: TerminalIdentityIndex(1),
@@ -615,7 +615,7 @@ fn service_summary_module() -> TerminalModule {
 fn body_service_summary_closes_cycles_without_counting_unused_constructed_code() {
     let mut module = service_summary_module();
     module.machines[0].published_service_ceiling =
-        module.services.iter().map(|row| row.id).collect();
+        module.interfaces.services.iter().map(|row| row.id).collect();
     module.machines[0].blocks[0].operations = vec![select(1, 1, 1), direct_call(2, 2, Vec::new())];
     module.machines[1].blocks[0].operations = vec![
         direct_call(1, 1, Vec::new()),
@@ -652,7 +652,7 @@ fn body_service_summary_closes_cycles_without_counting_unused_constructed_code()
 #[test]
 fn body_service_summary_retains_the_full_unknown_callable_ceiling() {
     let mut module = service_summary_module();
-    module.callables.contracts[0].envelope.service_reach =
+    module.execution.callables.contracts[0].envelope.service_reach =
         vec![ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()];
     module.machines[0].parameters.push(value(1));
     module.machines[0]
@@ -666,7 +666,7 @@ fn body_service_summary_retains_the_full_unknown_callable_ceiling() {
         summaries.get(machine_id(1)).unwrap(),
         &[ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()]
     );
-    module.callables.contracts.clear();
+    module.execution.callables.contracts.clear();
     assert!(crate::body_services::body_service_reaches(&module).is_err());
 }
 
@@ -711,7 +711,7 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
         shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }),
         scalar_restriction: None,
     };
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         descriptor(10, None),
         descriptor(20, Some(MutableBorrow)),
         descriptor(30, Some(SharedBorrow)),
@@ -720,8 +720,8 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
     let id = |n: u64| StructuralTypeId::new(n * 10).unwrap();
     let accepts = |actual, formal| {
         let program = CallableValueProgram {
-            catalog: &module.callables,
-            structural_types: &module.structural_types,
+            catalog: &module.execution.callables,
+            structural_types: &module.types.structural_types,
             graph: Vec::new(),
             bodies: Vec::new(),
         };
@@ -735,30 +735,30 @@ fn callable_arguments_preserve_descriptor_reborrow_authority_and_identity() {
     assert!(!accepts((id(2), Owned), (id(1), Owned)));
     assert!(!accepts((id(4), MutableBorrow), (id(1), MutableBorrow)));
 
-    module.structural_types[2].multiplicity = StructuralMultiplicity::Affine;
-    module.structural_types[1].multiplicity = StructuralMultiplicity::Unrestricted;
-    module.structural_types[2].shape = StructuralTypeShape::ElementView {
+    module.types.structural_types[2].multiplicity = StructuralMultiplicity::Affine;
+    module.types.structural_types[1].multiplicity = StructuralMultiplicity::Unrestricted;
+    module.types.structural_types[2].shape = StructuralTypeShape::ElementView {
         element: id(1),
         access: Some(MutableBorrow),
     };
-    module.structural_types[1].shape = StructuralTypeShape::ElementView {
+    module.types.structural_types[1].shape = StructuralTypeShape::ElementView {
         element: id(1),
         access: None,
     };
     let program = CallableValueProgram {
-        catalog: &module.callables,
-        structural_types: &module.structural_types,
+        catalog: &module.execution.callables,
+        structural_types: &module.types.structural_types,
         graph: Vec::new(),
         bodies: Vec::new(),
     };
     assert!(program.structural_actual_matches((id(3), MutableBorrow), (id(2), MutableBorrow)));
-    module.structural_types[2].shape = StructuralTypeShape::ElementView {
+    module.types.structural_types[2].shape = StructuralTypeShape::ElementView {
         element: id(2),
         access: Some(MutableBorrow),
     };
     let program = CallableValueProgram {
-        catalog: &module.callables,
-        structural_types: &module.structural_types,
+        catalog: &module.execution.callables,
+        structural_types: &module.types.structural_types,
         graph: Vec::new(),
         bodies: Vec::new(),
     };
@@ -789,10 +789,10 @@ fn callable_reborrows_do_not_erase_declaration_requirements() {
     second.id = StructuralTypeId::new(2).unwrap();
     second.identity = TerminalIdentityIndex(2);
     second.declaration_identity = TerminalIdentityIndex(2);
-    module.structural_types = vec![first.clone(), second.clone()];
+    module.types.structural_types = vec![first.clone(), second.clone()];
     let refuses = |types: &[StructuralTypeDeclaration]| {
         let program = CallableValueProgram {
-            catalog: &module.callables,
+            catalog: &module.execution.callables,
             structural_types: types,
             graph: Vec::new(),
             bodies: Vec::new(),
@@ -808,7 +808,7 @@ fn callable_reborrows_do_not_erase_declaration_requirements() {
             ),
         )
     };
-    assert!(refuses(&module.structural_types));
+    assert!(refuses(&module.types.structural_types));
     second.declaration_identity = first.declaration_identity;
     second.owns_linear_claim = true;
     assert!(refuses(&[first.clone(), second.clone()]));
@@ -869,7 +869,7 @@ fn missing_boundary_context_uses_the_guarded_point_without_redirecting_duplicate
         diagnostic_boundary_call(present),
     ];
     module.machines.push(entry);
-    module.boundary_machines.push(boundary(1, false));
+    module.interfaces.boundary_machines.push(boundary(1, false));
     let failure = |index| {
         CallableValuePreparationError::StorageFlow(DescriptorGraphError::IncompleteMachine {
             machine: machine_id(1),

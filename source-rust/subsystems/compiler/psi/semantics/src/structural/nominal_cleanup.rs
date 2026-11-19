@@ -12,7 +12,7 @@ pub fn validate_selections(module: &terminal_psi::TerminalModule) -> Result<(), 
     if machines.len() != module.machines.len() {
         return Err("nominal cleanup has duplicate machine identities");
     }
-    for declaration in &module.structural_types {
+    for declaration in &module.types.structural_types {
         let Some(selection) = &declaration.nominal_cleanup else {
             continue;
         };
@@ -57,7 +57,7 @@ pub fn validate_normal_returns(
     }
     let mut visited = vec![0u8; module.machines.len()];
     for selection in module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter_map(|ty| ty.nominal_cleanup.as_ref())
     {
@@ -266,7 +266,7 @@ pub fn decomposition(
         .structural_place_type(subject.place)
         .ok_or("decomposition subject has no exact declared type")?;
     let declaration =
-        crate::runtime_structural_path_tip(module.structural_types.iter(), root, &subject.path)
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, &subject.path)
             .ok_or("decomposition subject has no exact component shape")?;
     let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
         return Err("nominal decomposition of a non-record is not served");

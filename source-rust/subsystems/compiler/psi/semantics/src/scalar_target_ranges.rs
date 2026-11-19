@@ -51,7 +51,7 @@ pub fn application_sized_storage(
     module: &TerminalModule,
 ) -> Result<Vec<StructuralTypeId>, &'static str> {
     let roots = module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter_map(|declaration| {
             matches!(
@@ -67,7 +67,7 @@ pub fn application_sized_storage(
     if roots.is_empty() {
         return Ok(Vec::new());
     }
-    crate::storage::type_graph::StorageTypeGraph::new(module.structural_types.iter())
+    crate::storage::type_graph::StorageTypeGraph::new(module.types.structural_types.iter())
         .and_then(|graph| graph.storage_dependents(roots))
         .map_err(|_| "scalar application storage has malformed ownership")
 }
@@ -78,11 +78,11 @@ pub fn target_scalar_ranges(
     types: &dyn ValueTypes,
     application_sized_storage: &[StructuralTypeId],
 ) -> Result<Vec<TargetScalarRange>, &'static str> {
-    if module.scalar_applications.declarations().is_empty() {
+    if module.scalars.scalar_applications.declarations().is_empty() {
         return Ok(Vec::new());
     }
     let owner = module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_declaration(TargetMachineCallable::Machine(machine.id));
     let mut ranges = Vec::new();
@@ -181,7 +181,7 @@ impl GroundRange<'_> {
                     ),
                     OperationKind::ReadScalarApplication { application } => {
                         let declaration =
-                            self.module.scalar_applications.declaration(application)?;
+                            self.module.scalars.scalar_applications.declaration(application)?;
                         if declaration.scalar_type() != Some(*scalar_type) {
                             return None;
                         }

@@ -130,7 +130,7 @@ pub(crate) fn terminal_postconditions(
     {
         let root_type = machine.structural_place_type(actual.place)?;
         let selected = runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root_type,
             &actual.path,
         );
@@ -160,7 +160,7 @@ pub(crate) fn terminal_postconditions(
                         formal.structural_type,
                     )
             }) && crate::borrowed_primitive_projection_declaration(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 root_type,
                 &actual.path,
                 Some(formal.structural_type),
@@ -173,7 +173,7 @@ pub(crate) fn terminal_postconditions(
         }
         if let Some(location) =
             crate::descriptors::descriptor_lifetimes::descriptor_location(
-                &module.structural_types,
+                &module.types.structural_types,
                 actual.place,
                 root_type,
                 &actual.path,
@@ -259,7 +259,7 @@ pub(crate) fn terminal_postconditions(
             };
             let Some(selected) =
                 crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     root,
                     *carrier,
                     path,
@@ -268,7 +268,7 @@ pub(crate) fn terminal_postconditions(
                 continue;
             };
             if super::payload_predicates::observation_type(
-                &module.structural_types,
+                &module.types.structural_types,
                 *carrier,
                 &selected.path,
             ) != Some(value.scalar_type())

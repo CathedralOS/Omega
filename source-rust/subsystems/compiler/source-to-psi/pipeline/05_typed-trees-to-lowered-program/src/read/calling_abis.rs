@@ -549,12 +549,12 @@ impl PreparedCallingAbis {
             })
             .collect::<Vec<_>>();
         module.identities = identities.build();
-        module.calling_abi_signatures =
+        module.interfaces.calling_abi_signatures =
             crate::lowering::calling_publication::join_abi_declarations(
                 self.entry,
                 &module.identities,
-                &module.structural_types,
-                &module.calling_abi_signatures,
+                &module.types.structural_types,
+                &module.interfaces.calling_abi_signatures,
                 &rows,
             )?;
         for application in self.boundary_applications {
@@ -565,7 +565,7 @@ impl PreparedCallingAbis {
                 ));
             }
             if let Some(existing) = module
-                .calling_signatures
+                .interfaces.calling_signatures
                 .iter()
                 .find(|row| row.boundary == application.boundary)
             {
@@ -576,10 +576,10 @@ impl PreparedCallingAbis {
                     ));
                 }
             } else {
-                module.calling_signatures.push(application);
+                module.interfaces.calling_signatures.push(application);
             }
         }
-        module.calling_signatures.sort_by_key(|row| row.boundary);
+        module.interfaces.calling_signatures.sort_by_key(|row| row.boundary);
         Ok(())
     }
 }

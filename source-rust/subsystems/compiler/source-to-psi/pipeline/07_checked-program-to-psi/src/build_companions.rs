@@ -408,14 +408,14 @@ fn binding(
             .ok_or_else(|| refused("Build provider readiness lost its requirement declaration"))?;
         let application = elaboration
             .module
-            .services
+            .interfaces.services
             .iter()
             .find(|row| row.id == service)
             .map(|row| row.identity)
             .ok_or_else(|| refused("Build provider readiness names an unpublished service"))?;
         let mut boundaries = elaboration
             .module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| boundary.owning_service == Some(service))
             .map(|boundary| boundary.id)
@@ -623,7 +623,7 @@ fn native_locator(
 ) -> Result<TerminalBuildNativeLocator, Diagnostic> {
     let publication = source.correspondence();
     let declaration = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .find(|row| row.id == boundary)
         .ok_or_else(|| refused("native binding lost its published boundary signature"))?;
@@ -680,7 +680,7 @@ struct NativeLocatorShapes {
 impl NativeLocatorShapes {
     fn new(module: &TerminalModule) -> Result<Self, Diagnostic> {
         let mut rows = module
-            .structural_types
+            .types.structural_types
             .iter()
             .map(|row| (row.id, LocatorShapeState::Unread))
             .collect::<Vec<_>>();

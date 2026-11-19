@@ -71,7 +71,7 @@ mod canonical_scalar {
             let module = artifact.semantic_module();
             let mut selections = Vec::new();
             for candidate in module
-                .provider_candidates
+                .interfaces.provider_candidates
                 .iter()
                 .filter(|candidate| providers.contains_candidate(candidate))
             {
@@ -177,7 +177,7 @@ mod canonical_scalar {
             if !matches!(
                 self.artifact()
                     .semantic_module()
-                    .scalar_applications
+                    .scalars.scalar_applications
                     .declaration(self.application),
                 Some(terminal_psi::ScalarApplication::Evaluate { .. })
             ) {

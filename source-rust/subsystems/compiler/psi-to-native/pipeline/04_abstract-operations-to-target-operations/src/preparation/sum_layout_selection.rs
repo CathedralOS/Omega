@@ -4747,7 +4747,7 @@ fn module_retaining(scalars: &[ScalarType]) -> terminal_codec::ClosedTerminalMod
         .collect::<Vec<_>>();
     module.identities = identities.build();
     for (position, (identity, scalar)) in rows.into_iter().enumerate() {
-        module.structural_types.push(StructuralTypeDeclaration {
+        module.types.structural_types.push(StructuralTypeDeclaration {
             declaration_identity: Default::default(),
             id: StructuralTypeId::new(u64::try_from(position).unwrap() + 1).unwrap(),
             identity,

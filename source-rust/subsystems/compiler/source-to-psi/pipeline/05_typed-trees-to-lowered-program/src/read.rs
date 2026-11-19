@@ -1046,7 +1046,7 @@ mod tests {
             Some(&program),
         )
         .unwrap();
-        let domains = &elaboration.program.module.structural_domains;
+        let domains = &elaboration.program.module.types.structural_domains;
         let predicates = domains
             .iter()
             .map(|domain| {

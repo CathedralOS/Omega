@@ -122,7 +122,7 @@ impl CallableNamespace {
             concerns: Construct::Machine,
             detail: reason.to_owned(),
         };
-        if module.callables != TerminalCallableCatalog::default() {
+        if module.execution.callables != TerminalCallableCatalog::default() {
             return Err(refuse("callable catalog was already published"));
         }
         let mut next_obligation = tables
@@ -164,7 +164,7 @@ impl CallableNamespace {
                     .declared_result_lifetimes(
                         context,
                         &contract.signature,
-                        &module.structural_types,
+                        &module.types.structural_types,
                     )
                     .map_err(refuse)?
                     .ok_or_else(|| {
@@ -260,10 +260,10 @@ impl CallableNamespace {
             });
         }
         module.identities = std::mem::take(&mut qualifications.identities).build();
-        module.callables = catalog;
+        module.execution.callables = catalog;
         for (id, _) in self.descriptors.iter() {
             let selected = module
-                .callables
+                .execution.callables
                 .descriptor(id)
                 .ok_or_else(|| refuse("selected machine descriptor disappeared"))?;
             let goals =
@@ -278,7 +278,7 @@ impl CallableNamespace {
                 .map(|_| obligation())
                 .collect::<Checked<Vec<_>>>()?;
             let row = module
-                .callables
+                .execution.callables
                 .descriptors
                 .get_mut((id.get() - 1) as usize)
                 .ok_or_else(|| refuse("selected machine descriptor lost its coordinate"))?;

@@ -445,7 +445,7 @@ impl<'a> HandleValueReader<'a> {
                         .structural_place_type(argument.place)
                         .ok_or("native output storage has no canonical carrier")?;
                     let location = descriptor_location(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         argument.place,
                         root_type,
                         &argument.path,
@@ -483,7 +483,7 @@ impl<'a> HandleValueReader<'a> {
             resident_transfers,
             histories,
             analysis: DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 graph,
             ),
         })
@@ -624,7 +624,7 @@ impl<'a> HandleValueReader<'a> {
             .structural_place_type(place)
             .ok_or("captured handle actual has no declared storage carrier")?;
         let mut location =
-            descriptor_location(&self.module.structural_types, place, root_type, path, None)
+            descriptor_location(&self.module.types.structural_types, place, root_type, path, None)
                 .ok_or("captured handle actual has no exact supported storage projection")?;
         location.path.extend_from_slice(&entry.path);
         Ok(location)
@@ -746,8 +746,8 @@ impl<'a> HandleValueReader<'a> {
             .ok_or("handle storage history has no prepared machine coordinate")?
             .get_or_insert_with(|| {
                 PayloadMembershipHistory::new(
-                    &self.module.structural_types,
-                    &self.module.structural_domains,
+                    &self.module.types.structural_types,
+                    &self.module.types.structural_domains,
                     self.graph,
                     machine,
                 )
@@ -777,7 +777,7 @@ impl<'a> HandleValueReader<'a> {
             .and_then(Option::as_ref)
             .ok_or("handle storage has no canonical resident captures")?;
         let sources = projected_stored_sources_in(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             self.graph,
             &mut self.analysis,
             identity,
@@ -872,7 +872,7 @@ impl<'a> HandleValueReader<'a> {
                     .structural_place_type(observed.root)
                     .ok_or("borrowed handle observation has no declared carrier")?;
                 query
-                    .validate(&self.module.structural_types, root_type)
+                    .validate(&self.module.types.structural_types, root_type)
                     .ok_or("borrowed handle observation has no valid typed projection")?;
                 let targets = self.analysis.payload_targets(identity, position, &query)
                     .ok_or_else(|| format!("handle storage {identity:?}/{observed:?} has no current backing at {position:?}: {snapshot_detail}"))?;
@@ -881,7 +881,7 @@ impl<'a> HandleValueReader<'a> {
                         "handle storage {identity:?}/{observed:?} has no unchanged producing event or unique captured entry referent at {position:?}: {snapshot_detail}"
                     ));
                 };
-                require_unchanged_entry_storage(&self.module.structural_types, self.graph,
+                require_unchanged_entry_storage(&self.module.types.structural_types, self.graph,
                     &mut self.analysis, identity, position, target)
                     .map_err(|reason| format!("borrowed handle contents changed before {identity:?}/{position:?}: {reason}"))?;
                 Ok(ScalarDefinition::BorrowedEntry(

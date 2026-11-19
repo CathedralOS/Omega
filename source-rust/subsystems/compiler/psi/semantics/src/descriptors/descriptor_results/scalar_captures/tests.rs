@@ -78,7 +78,7 @@ fn sequence_capture_module() -> TerminalModule {
         scalar_restriction: None,
     };
     let mut module = TerminalModule::declarations();
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         declaration(
             bytes,
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
@@ -228,7 +228,7 @@ fn reference_flow_module(record: bool) -> TerminalModule {
         storage: None,
     };
     let mut module = TerminalModule::declarations();
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         declaration(
             scalar,
             true,
@@ -396,11 +396,11 @@ fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
         };
         let mut module = reference_flow_module(false);
         let scalar = StructuralTypeId::new(1).unwrap();
-        module.structural_types[1].shape = StructuralTypeShape::Reference {
+        module.types.structural_types[1].shape = StructuralTypeShape::Reference {
             referent: scalar,
             access: StructuralAccess::MutableBorrow,
         };
-        module.structural_types[1].multiplicity = StructuralMultiplicity::Affine;
+        module.types.structural_types[1].multiplicity = StructuralMultiplicity::Affine;
         let actual = PlaceId::new(1).unwrap();
         let formal = PlaceId::new(7).unwrap();
         let mut caller = module.machines.remove(0);
@@ -496,7 +496,7 @@ fn nonreturning_local_calls_retain_write_effects_and_actual_backing() {
         assert_eq!(call.callee(), Some(helper));
         assert!(!body.unresolved_contents_writes.contains(&cut));
         let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &graph,
         );
         assert_eq!(
@@ -582,11 +582,11 @@ fn borrowing_a_carrier_slot_does_not_copy_its_existing_permission() {
     let mut module = reference_flow_module(false);
     let reference = StructuralTypeId::new(2).unwrap();
     let child_type = StructuralTypeId::new(3).unwrap();
-    module.structural_types[2].shape = StructuralTypeShape::Reference {
+    module.types.structural_types[2].shape = StructuralTypeShape::Reference {
         referent: reference,
         access: StructuralAccess::SharedBorrow,
     };
-    module.structural_types[2].multiplicity =
+    module.types.structural_types[2].multiplicity =
         terminal_psi::StructuralMultiplicity::Unrestricted;
     let body = &mut module.machines[0];
     let source = PlaceId::new(1).unwrap();
@@ -846,7 +846,7 @@ fn constructing_with_fresh_permission_uses_its_retained_custody() {
     );
     let mut analysis =
         crate::descriptor_results::DescriptorAnalysis::with_reference_slots(
-            &module.structural_types,
+            &module.types.structural_types,
             &graph,
         );
     let original = analysis.symbolic_source_origins(id, constructor, &source);
@@ -890,7 +890,7 @@ fn stored_sequence_ordinals_keep_the_completed_constructor_cut() {
     .unwrap();
     let row = &graph[0];
     let mut replay = Replay::with_slot_kind(
-        &module.structural_types,
+        &module.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -950,7 +950,7 @@ fn stored_sequence_ordinals_keep_the_completed_constructor_cut() {
     assert!(replay.read_contents(row, current, &outside).is_none());
     assert!(
         crate::descriptor_lifetimes::descriptor_location(
-            &module.structural_types,
+            &module.types.structural_types,
             PlaceId::new(3).unwrap(),
             StructuralTypeId::new(2).unwrap(),
             &[StructuralPathSegment::FixedIndex(0)],
@@ -1027,14 +1027,14 @@ fn stored_sequence_reference_capture_keeps_the_referent_live() {
     let bytes = StructuralTypeId::new(1).unwrap();
     let sequence = StructuralTypeId::new(2).unwrap();
     let reference = StructuralTypeId::new(3).unwrap();
-    let mut pointer = module.structural_types[0].clone();
+    let mut pointer = module.types.structural_types[0].clone();
     pointer.id = reference;
     pointer.shape = StructuralTypeShape::Reference {
         referent: bytes,
         access: StructuralAccess::MutableBorrow,
     };
-    module.structural_types.push(pointer);
-    module.structural_types[1].shape = StructuralTypeShape::ElementView {
+    module.types.structural_types.push(pointer);
+    module.types.structural_types[1].shape = StructuralTypeShape::ElementView {
         element: reference,
         access: None,
     };
@@ -1078,7 +1078,7 @@ fn stored_sequence_reference_capture_keeps_the_referent_live() {
     )
     .unwrap();
     let mut replay = Replay::with_slot_kind(
-        &module.structural_types,
+        &module.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -1380,7 +1380,7 @@ fn stored_sequence_call_inputs_keep_the_callers_capture() {
         "captured constructor operands preserve order and duplicate elements"
     );
     let mut replay = Replay::with_slot_kind(
-        &module.structural_types,
+        &module.types.structural_types,
         &graph,
         crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
     );
@@ -2140,7 +2140,7 @@ fn decomposition_observes_contained_descriptors_without_consuming_them() {
         cleanup_machine: body.id,
     });
     let mut module = TerminalModule::declarations();
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         declaration(
             view,
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
@@ -2200,7 +2200,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
         }),
     ] {
         let mut module = TerminalModule::declarations();
-        module.structural_types = vec![
+        module.types.structural_types = vec![
             declaration(
                 element,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
@@ -2272,7 +2272,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
                 "moving a whole descriptor does not read its backing"
             );
             if matches!(
-                module.structural_types[1].shape,
+                module.types.structural_types[1].shape,
                 StructuralTypeShape::ByteSequence(_)
             ) {
                 let length = OperationKind::ByteSequenceLength {
@@ -2285,7 +2285,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
                 assert!(
                     matches!(
                         crate::descriptor_results::descriptor_storage_use_source(
-                            &module.structural_types, graph[0].place_types.get(&source).copied(), &length, uses[0].0, |_| None,
+                            &module.types.structural_types, graph[0].place_types.get(&source).copied(), &length, uses[0].0, |_| None,
                         ),
                         crate::descriptor_lifetimes::DescriptorFlowSource::Unavailable(root) if root == source
                     ),
@@ -2299,7 +2299,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
                 ))]
             );
             let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types, &graph,
+                &module.types.structural_types, &graph,
             );
             assert_eq!(
                 analysis.storage_writes(body.id, position).unwrap(),
@@ -2329,7 +2329,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
                 field_type,
                 storage: None,
             };
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             record,
             StructuralTypeShape::Record {
                 fields: vec![
@@ -2385,7 +2385,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
             "the moved field cannot become its disjoint sibling"
         );
         if matches!(
-            module.structural_types[1].shape,
+            module.types.structural_types[1].shape,
             StructuralTypeShape::ByteSequence(_)
         ) {
             assert!(
@@ -2404,7 +2404,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
         assert_eq!(frames.get(field_body.id), Some(&Some(Vec::new())));
         let mut analysis =
             crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 &graph,
             );
         assert_eq!(
@@ -2436,7 +2436,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
             );
             assert_eq!(
                 crate::descriptor_results::require_unchanged_entry_storage(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     &graph,
                     &mut analysis,
                     field_body.id,
@@ -2452,7 +2452,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
         // Use the real element-write operation, not a forged
         // summary, to retain the conservative effect boundary.
         body.structural_places.retain(|place| place.id == source);
-        module.structural_types[1].shape = StructuralTypeShape::ElementView {
+        module.types.structural_types[1].shape = StructuralTypeShape::ElementView {
             element,
             access: Some(StructuralAccess::MutableBorrow),
         };
@@ -2534,7 +2534,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
         // A variable array selection must not hide the later
         // view-backing write when it is widened to the array.
         let array = StructuralTypeId::new(4).unwrap();
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             array,
             StructuralTypeShape::FixedArray {
                 element: sequence,
@@ -2572,7 +2572,7 @@ fn moving_sequence_values_does_not_write_their_backing() {
 fn stored_and_forwarded_scalars_keep_evaluated_binders_and_both_edge_cuts() {
     let mut module = TerminalModule::declarations();
     let carrier = StructuralTypeId::new(1).unwrap();
-    module.structural_types.push(StructuralTypeDeclaration {
+    module.types.structural_types.push(StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         requires: Vec::new(),
         quotient_carrier: None,

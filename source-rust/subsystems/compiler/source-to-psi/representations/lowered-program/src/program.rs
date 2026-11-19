@@ -410,10 +410,10 @@ impl Elaboration {
         use crate::edges::Callee;
         use semantic_vocabulary::TargetMachineCallable;
         let module = &self.module;
-        if !module.callback_applications.is_empty()
-            || !module.installed_interrupt_registrations.is_empty()
-            || module.dynamic_dispatch != Default::default()
-            || module.task_activation_demands != Default::default()
+        if !module.interfaces.callback_applications.is_empty()
+            || !module.interfaces.installed_interrupt_registrations.is_empty()
+            || module.execution.dynamic_dispatch != Default::default()
+            || module.execution.task_activation_demands != Default::default()
         {
             return None;
         }

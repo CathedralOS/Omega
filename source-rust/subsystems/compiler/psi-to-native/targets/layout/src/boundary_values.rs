@@ -720,7 +720,7 @@ mod tests {
                 },
             ),
         ] {
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 requires: Vec::new(),
                 quotient_carrier: None,
@@ -767,7 +767,7 @@ mod tests {
             let referent = semantic_vocabulary::StructuralTypeId::new(1).unwrap();
             let mut module = terminal_psi::TerminalModule::declarations();
             module
-                .structural_referents
+                .types.structural_referents
                 .push(terminal_psi::StructuralReferentIdentity {
                     id: referent,
                     identity: terminal_psi::TerminalIdentityIndex::ABSENT,
@@ -827,10 +827,10 @@ mod tests {
         }
 
         fn insert(&mut self, name: &str, shape: StructuralTypeShape) -> StructuralTypeId {
-            let id = StructuralTypeId::new(self.module.structural_types.len() as u64 + 1)
+            let id = StructuralTypeId::new(self.module.types.structural_types.len() as u64 + 1)
                 .expect("fixture type");
             self.module
-                .structural_types
+                .types.structural_types
                 .push(StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     requires: Vec::new(),

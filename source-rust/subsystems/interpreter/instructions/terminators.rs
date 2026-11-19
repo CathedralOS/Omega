@@ -1169,7 +1169,7 @@ pub(crate) mod block_bindings {
                 projected_qualifications: Vec::new(),
                 additional_input_qualifications: Vec::new(),
             };
-            module.structural_types.push(StructuralTypeDeclaration {
+            module.types.structural_types.push(StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 quotient_carrier: None,
                 id: structural_type,
@@ -1185,7 +1185,7 @@ pub(crate) mod block_bindings {
                 scalar_restriction: None,
                 requires: Vec::new(),
             });
-            module.structural_domains.push(StructuralDomainDeclaration {
+            module.types.structural_domains.push(StructuralDomainDeclaration {
                 required_memberships: Some(Vec::new()),
                 complete_predicate_theory: true,
                 predicate: None,
@@ -1237,7 +1237,7 @@ pub(crate) mod block_bindings {
             block.structural_parameters.push(parameter.clone());
             machine.blocks.push(block);
             module
-                .structural_qualification_changes
+                .types.structural_qualification_changes
                 .push(StructuralQualificationChange {
                     machine: machine.id,
                     edge,
@@ -1329,7 +1329,7 @@ pub(crate) mod block_bindings {
                 .unwrap()
                 .fixture_module_mut();
             let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
-            let domain = &mut module.structural_domains[0];
+            let domain = &mut module.types.structural_domains[0];
             domain.byte_predicate = None;
             domain.predicate = Some(terminal_psi::StructuralDomainPredicate {
                 subject: PlaceId::new(1).unwrap(),
@@ -1420,7 +1420,7 @@ pub(crate) mod block_bindings {
                 let module = std::sync::Arc::get_mut(&mut execution.program)
                     .unwrap()
                     .fixture_module_mut();
-                let changes = &mut module.structural_qualification_changes;
+                let changes = &mut module.types.structural_qualification_changes;
                 match invalid {
                     0 => changes[0].argument_ordinal = 1,
                     1 => changes[0].source = PlaceId::new(3).unwrap(),

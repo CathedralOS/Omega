@@ -116,7 +116,7 @@ pub fn reference_view_compatible(
             StructuralTypeShape::Record { fields, storage } => {
                 if let StructuralRecordStorage::TargetLayout(id) = storage {
                     let application = module
-                        .target_layout_applications
+                        .layouts.target_layout_applications
                         .iter()
                         .find(|row| row.id == *id && row.record == carrier)
                         .ok_or("reference geometry lost its exact layout application")?;
@@ -134,7 +134,7 @@ pub fn reference_view_compatible(
     }
     let Some(first) = applications.first() else {
         return Ok(
-            ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
+            ReferenceStorageGeometry::new(module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .view_source_compatible(source, path, reference, stored),
@@ -154,7 +154,7 @@ pub fn reference_view_compatible(
         let carriers =
             target_carriers(input).ok_or("reference geometry descriptor footprint overflows")?;
         let mut geometry =
-            ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
+            ReferenceStorageGeometry::new(module.types.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(Some(carriers))
@@ -178,7 +178,7 @@ impl RecordStorageResolver for RetainedLayout<'_> {
         application: LayoutApplicationId,
     ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
         self.module
-            .target_layout_applications
+            .layouts.target_layout_applications
             .iter()
             .find(|row| row.id == application && row.record == record)
             .and_then(|application| {
@@ -238,7 +238,7 @@ fn total_representation(
         }
     }
     fields.sort_unstable();
-    Ok(!module.scalar_qualifications.fields.iter().any(|row| {
+    Ok(!module.types.scalar_qualifications.fields.iter().any(|row| {
         fields.binary_search(&row.field).is_ok()
             && row.value_type.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO
     }))
@@ -294,7 +294,7 @@ mod tests {
         use semantic_vocabulary::{BlockId, ContractId, MachineId, PlaceId};
         let place = PlaceId::new(1).unwrap();
         let mut module = TerminalModule::declarations();
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             1,
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                 IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -351,7 +351,7 @@ mod tests {
             Ok(())
         );
         machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
-        module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(
+        module.types.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(
             ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
         );
         assert_eq!(
@@ -376,7 +376,7 @@ mod tests {
         let field = TerminalIdentityIndex(7);
         for (element_stride, expected) in [(1, true), (2, false)] {
             let mut module = TerminalModule::declarations();
-            module.structural_types = vec![
+            module.types.structural_types = vec![
                 declaration(1, StructuralTypeShape::PrimitiveScalar(unsigned(8))),
                 declaration(2, array(1, 8)),
                 declaration(
@@ -436,7 +436,7 @@ mod tests {
             relevance: BindingRelevance::Relevant,
         };
         let mut module = TerminalModule::declarations();
-        module.structural_types = vec![
+        module.types.structural_types = vec![
             declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(8))),
             declaration(2, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
             declaration(
@@ -501,7 +501,7 @@ mod tests {
             })
             .collect();
         module
-            .target_layout_applications
+            .layouts.target_layout_applications
             .push(TargetLayoutApplication {
                 id: LayoutApplicationId(1),
                 record: ty(3),
@@ -533,17 +533,17 @@ mod tests {
             ),
             Err("reference view crossing requires its captured physical storage correspondence"),
         );
-        module.target_layout_applications[0].realizations[1]
+        module.layouts.target_layout_applications[0].realizations[1]
             .storage
             .byte_size = 32;
         assert_eq!(
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Ok(false)
         );
-        module.target_layout_applications[0].realizations[1]
+        module.layouts.target_layout_applications[0].realizations[1]
             .storage
             .byte_size = 16;
-        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+        module.types.structural_types[3].shape = StructuralTypeShape::FixedArray {
             element: ty(1),
             length: ArrayExtent::Literal(15),
         };
@@ -551,7 +551,7 @@ mod tests {
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Ok(false)
         );
-        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+        module.types.structural_types[3].shape = StructuralTypeShape::FixedArray {
             element: ty(2),
             length: ArrayExtent::Literal(16),
         };
@@ -578,8 +578,8 @@ mod tests {
             relevance: BindingRelevance::Relevant,
         };
         let mut module = two_target_record_module();
-        let selected = module.structural_types[2].shape.clone();
-        module.structural_types[2].shape = StructuralTypeShape::Record {
+        let selected = module.types.structural_types[2].shape.clone();
+        module.types.structural_types[2].shape = StructuralTypeShape::Record {
             fields: vec![
                 field(3, StructuralFieldType::Structural(ty(6))),
                 field(5, StructuralFieldType::Structural(ty(4))),
@@ -587,11 +587,11 @@ mod tests {
             ],
             storage: StructuralRecordStorage::Packed,
         };
-        module.structural_types[4].shape = StructuralTypeShape::Reference {
+        module.types.structural_types[4].shape = StructuralTypeShape::Reference {
             referent: ty(7),
             access: StructuralAccess::SharedBorrow,
         };
-        module.structural_types.extend([
+        module.types.structural_types.extend([
             declaration(
                 6,
                 StructuralTypeShape::Sum {
@@ -605,7 +605,7 @@ mod tests {
             ),
             declaration(7, selected),
         ]);
-        let application = &mut module.target_layout_applications[0];
+        let application = &mut module.layouts.target_layout_applications[0];
         application.record = ty(7);
         application.schema = ty(7);
         let compatible = |module: &TerminalModule| {
@@ -622,13 +622,13 @@ mod tests {
         // A four-byte tag moves the same window to an unaligned offset on
         // one retained target. The other target's eight-byte tag cannot
         // stand in for it.
-        let application = &mut module.target_layout_applications[0];
+        let application = &mut module.layouts.target_layout_applications[0];
         application.target_inputs[0].case_tag_size = 4;
         application.target_inputs[0].case_tag_alignment = 4;
         application.realizations[0].case_tag_size = 4;
         application.realizations[0].case_tag_alignment = 4;
         assert_eq!(compatible(&module), Ok(false));
-        let application = &mut module.target_layout_applications[0];
+        let application = &mut module.layouts.target_layout_applications[0];
         application.target_inputs[0].case_tag_size = 8;
         application.target_inputs[0].case_tag_alignment = 8;
         application.realizations[0].case_tag_size = 8;
@@ -636,16 +636,16 @@ mod tests {
 
         // Target carriers cannot enlarge a short field or supply alignment
         // that its actual position lacks.
-        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+        module.types.structural_types[3].shape = StructuralTypeShape::FixedArray {
             element: ty(1),
             length: ArrayExtent::Literal(15),
         };
         assert_eq!(compatible(&module), Ok(false));
-        module.structural_types[3].shape = StructuralTypeShape::FixedArray {
+        module.types.structural_types[3].shape = StructuralTypeShape::FixedArray {
             element: ty(1),
             length: ArrayExtent::Literal(16),
         };
-        let StructuralTypeShape::Record { fields, .. } = &mut module.structural_types[2].shape
+        let StructuralTypeShape::Record { fields, .. } = &mut module.types.structural_types[2].shape
         else {
             unreachable!();
         };

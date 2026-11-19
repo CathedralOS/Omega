@@ -106,7 +106,7 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
         .expect("checked installation closure");
     let module = checked.terminal_publication().accepted().unwrap().module();
     let [dependency] = module
-        .root_service_reach
+        .interfaces.root_service_reach
         .installation_dependencies
         .as_slice()
     else {
@@ -120,7 +120,7 @@ fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     assert_eq!(dependency.upper_bound.len(), 2);
     let abstract_requirements = module.installation_reach_requirements();
     assert_eq!(abstract_requirements.len(), 4);
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         if boundary.service_reach_is_installation_bound {
             assert!(boundary.fixed_service_reach.is_empty());
             assert_eq!(boundary.published_service_ceiling.len(), 2);

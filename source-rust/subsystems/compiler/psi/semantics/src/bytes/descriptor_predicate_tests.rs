@@ -78,7 +78,7 @@ fn required(root: u64) -> Vec<Proposition> {
 fn fixture(second_arrival: u64) -> TerminalModule {
     let byte_type = StructuralTypeId::new(1).unwrap();
     let mut module = TerminalModule::declarations();
-    module.structural_types.push(StructuralTypeDeclaration {
+    module.types.structural_types.push(StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         quotient_carrier: None,
         id: byte_type,
@@ -236,7 +236,7 @@ fn observe(
     before: u32,
 ) -> Option<ByteSequencePredicateSet> {
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, graph);
     incoming_byte_sequence_argument_predicates(
         module,
         &module.machines[0],
@@ -255,7 +255,7 @@ fn established(
     observe(module, graph, source, before).unwrap_or_else(|| {
         let identity = module.machines[0].id;
         let position = (block(4), before);
-        let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, graph);
+        let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, graph);
         let origins = analysis.try_symbolic_source_origins(identity, position, &DescriptorLocation::whole(place(source)));
         let guards = origins.as_ref().ok().map(|origins| origins.iter().map(|origin| {
             let query = match origin {
@@ -264,7 +264,7 @@ fn established(
                         DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument { source, .. }) => DescriptorContentsQuery::from_location(&DescriptorLocation::whole(*source)),
                 _ => return Err("not incoming entry contents"),
             };
-            require_unchanged_entry_storage(&module.structural_types, graph, &mut analysis, identity, position, &DescriptorPayloadTarget::Incoming(query))
+            require_unchanged_entry_storage(&module.types.structural_types, graph, &mut analysis, identity, position, &DescriptorPayloadTarget::Incoming(query))
         }).collect::<Vec<_>>());
         panic!("no incoming byte facts for {source} at {position:?}; origins={origins:?}; version guards={guards:?}")
     })
@@ -276,7 +276,7 @@ fn current_payload_facts_lose_byte_membership_after_a_write() {
     let carrier = module.machines[0].structural_parameters[0].structural_type;
     let ascii = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
     module
-        .structural_domains
+        .types.structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
             id: ascii,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
@@ -301,7 +301,7 @@ fn current_payload_facts_lose_byte_membership_after_a_write() {
         .insert((block(2), 0), vec![None]);
     let machine = &module.machines[0];
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     let mut history = analysis.payload_history(&module, machine);
     let entry = history
         .current_selected_payload_facts_in(&mut analysis, (block(1), 0), place(1), &[])

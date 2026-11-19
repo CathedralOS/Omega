@@ -1597,7 +1597,7 @@ pub(crate) mod structural_scalar_fields {
         };
         if !terminal_semantics::scalar_field_store_preserves_domain_content(
             structural_types.iter(),
-            module.structural_domains.iter(),
+            module.types.structural_domains.iter(),
             &module.identities,
             destination.structural_type(),
             destination.qualifications(),
@@ -1611,7 +1611,7 @@ pub(crate) mod structural_scalar_fields {
         }
         if !terminal_semantics::scalar_field_store_preserves_content(
             structural_types.iter(),
-            module.structural_domains.iter(),
+            module.types.structural_domains.iter(),
             &module.identities,
             destination.structural_type(),
             destination.place(),

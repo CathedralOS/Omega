@@ -185,7 +185,7 @@ impl CallingProgram {
                         .artifact
                         .view()
                         .module()
-                        .scalar_applications
+                        .scalars.scalar_applications
                         .proof_scope
                         .callable_declaration(terminal_psi::TargetMachineCallable::Machine(entry))
                         .ok_or("calling policy entry has no exact checked proof declaration")?;

@@ -26,7 +26,7 @@ impl TerminalMachineProvenance {
         let mut visited = std::collections::BTreeSet::from([entry]);
         while let Some(current) = pending.pop_front() {
             let Some(body) = module
-                .unoptimized_behavior
+                .execution.unoptimized_behavior
                 .iter()
                 .find(|body| body.machine == current)
             else {
@@ -49,7 +49,7 @@ impl TerminalMachineProvenance {
                         ..
                     } => {
                         for candidate in module
-                            .provider_candidates
+                            .interfaces.provider_candidates
                             .iter()
                             .filter(|candidate| candidate.boundary == *boundary)
                         {
@@ -118,7 +118,7 @@ mod tests {
         let block = BlockId::new(1).unwrap();
         let site = InvocationSite::Operation(OperationId::new(1).unwrap());
         let mut module = TerminalModule::declarations();
-        module.unoptimized_behavior = vec![
+        module.execution.unoptimized_behavior = vec![
             UnoptimizedMachineBehavior {
                 machine: entry,
                 operations: vec![UnoptimizedBehaviorOperation::Invocation {

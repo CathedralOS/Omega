@@ -42,7 +42,7 @@ pub fn nominal_argument_matches(
         return false;
     }
     let constructor = |mut ty| {
-        let mut remaining = module.structural_types.len();
+        let mut remaining = module.types.structural_types.len();
         while remaining > 0 {
             remaining -= 1;
             let declaration = module.structural_type(ty)?;
@@ -129,7 +129,7 @@ fn dependent_argument_matches(
         ) else {
             if identical
                 && module
-                    .structural_referents
+                    .types.structural_referents
                     .iter()
                     .any(|referent| referent.id == expected && referent.abstract_opaque)
             {

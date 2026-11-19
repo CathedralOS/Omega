@@ -56,7 +56,7 @@ pub(crate) mod applications {
                         .find(|row| row.type_identity == trusted.type_identity)
                         .ok_or(Error::KernelCarrierMismatch)?;
                     let actual_carrier = module
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| row.type_identity == source.type_identity)
                         .ok_or(Error::KernelCarrierMismatch)?;
@@ -95,7 +95,7 @@ pub(crate) mod applications {
                         })
                         .ok_or(Error::KernelCarrierMismatch)?;
                     let actual_carrier = module
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| {
                             module.identities.text(row.type_identity)
@@ -213,7 +213,7 @@ pub(crate) mod slots {
     fn has_mathematical(module: &TerminalModule, formals: &[ErasedProofFormal]) -> bool {
         formals.iter().any(|formal| {
             module
-                .mathematical_carriers
+                .types.mathematical_carriers
                 .iter()
                 .any(|carrier| carrier.type_identity == formal.type_identity)
         })
@@ -293,7 +293,7 @@ pub(crate) mod slots {
     pub(crate) fn collect(module: &TerminalModule) -> Result<Vec<Slot<'_>>, Error> {
         let mut identities = BTreeSet::new();
         let mut texts = BTreeSet::new();
-        for row in &module.mathematical_carriers {
+        for row in &module.types.mathematical_carriers {
             if !identities.insert(row.type_identity) {
                 return Err(Error::KernelCarrierMismatch);
             }
@@ -708,7 +708,7 @@ pub fn verify_module_mathematical_actuals(
                         .text(formal.type_identity)
                         .ok_or(Error::SourceCarrierMismatch)?;
                     let actual_carrier = module
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| module.identities.text(row.type_identity) == Some(identity))
                         .ok_or(Error::KernelCarrierMismatch)?;
@@ -736,7 +736,7 @@ pub fn verify_module_mathematical_actuals(
                         return Err(Error::SourceCarrierMismatch);
                     }
                     let actual_carrier = module
-                        .mathematical_carriers
+                        .types.mathematical_carriers
                         .iter()
                         .find(|row| module.identities.text(row.type_identity) == Some(identity))
                         .ok_or(Error::KernelCarrierMismatch)?;
@@ -855,12 +855,12 @@ pub(crate) mod indexed_theorem_roots {
         mut grants: impl FnMut(&TerminalIndexedTheorem) -> Result<BTreeSet<u32>, Error>,
         budget: &mut Budget,
     ) -> Result<(), Error> {
-        if module.indexed_theorems.len() != expected.indexed_theorems.len() {
+        if module.proofs.indexed_theorems.len() != expected.indexed_theorems.len() {
             return Err(Error::KernelCarrierMismatch);
         }
         let mut matched = vec![false; expected.indexed_theorems.len()];
         let mut pending = Vec::new();
-        for actual in &module.indexed_theorems {
+        for actual in &module.proofs.indexed_theorems {
             if actual.evidence_source_position as usize
                 >= actual.source_contract.parameter_types.len()
                 || module

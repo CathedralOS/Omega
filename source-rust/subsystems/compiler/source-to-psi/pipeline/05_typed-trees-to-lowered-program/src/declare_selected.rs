@@ -309,7 +309,7 @@ pub(super) fn publish(
                     identities.text(right.public_requirement_identity),
                 ))
         });
-        let application_index = module.closed_conformance_applications.len();
+        let application_index = module.proofs.closed_conformance_applications.len();
         for (_, required, original, body, _, _) in group {
             let (_, _, dispatch, _, _) = program
                 .declaration_selections
@@ -388,7 +388,7 @@ pub(super) fn publish(
             let result_lifetimes = program.declared_result_lifetimes(
                 *body,
                 public_signature,
-                &module.structural_types,
+                &module.types.structural_types,
             )?;
             let result = match &machine.result {
                 TerminalMachineResult::Unit => ClosedConformanceCallableResult::Unit,
@@ -480,7 +480,7 @@ pub(super) fn publish(
                 identities.as_table(),
                 &application,
             );
-        module.closed_conformance_applications.push(application);
+        module.proofs.closed_conformance_applications.push(application);
         start = end;
     }
     Ok(links)

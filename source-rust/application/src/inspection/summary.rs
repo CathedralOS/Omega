@@ -18,7 +18,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
         "terminal selected_machine={} entry={:?}",
         selected_machine, module.entry
     );
-    for candidate in &module.provider_candidates {
+    for candidate in &module.interfaces.provider_candidates {
         let _ = writeln!(
             output,
             "provider_candidate boundary=boundary:{} requirement={} provider={} candidate={} callable=machine:{}",
@@ -38,10 +38,10 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
             candidate.candidate.get(),
         );
     }
-    for input in &module.access_view_inputs {
+    for input in &module.access.access_view_inputs {
         let _ = writeln!(output, "access_input {input:?}");
     }
-    for declaration in &module.structural_types {
+    for declaration in &module.types.structural_types {
         let _ = writeln!(
             output,
             "type id=type:{} identity={} shape={} copyable={}",
@@ -54,7 +54,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
             declaration.is_copyable()
         );
     }
-    for declaration in &module.structural_domains {
+    for declaration in &module.types.structural_domains {
         let _ = writeln!(
             output,
             "domain id=domain:{} identity={} carrier=type:{} content_projection={:?}",
@@ -67,7 +67,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
             declaration.content_projection
         );
     }
-    for declaration in &module.services {
+    for declaration in &module.interfaces.services {
         let _ = writeln!(
             output,
             "service id=service:{} identity={} parents={}",
@@ -84,7 +84,7 @@ pub fn terminal_summary(selected_machine: &str, module: &TerminalModule) -> Stri
             )
         );
     }
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         let _ = writeln!(
             output,
             "boundary id=boundary:{} identity={} attachment={} services={} requirements={}",
@@ -314,7 +314,7 @@ fn write_operation_summary(
             ..
         } => {
             let identity =
-                terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+                terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
                     .map(|boundary| {
                         module
                             .identities

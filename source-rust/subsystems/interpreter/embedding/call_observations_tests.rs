@@ -33,7 +33,7 @@ fn structural_observations_read_only_the_active_case_at_the_selected_call() {
             })
             .collect(),
     };
-    module.structural_types.push(StructuralTypeDeclaration {
+    module.types.structural_types.push(StructuralTypeDeclaration {
         declaration_identity: Default::default(),
         quotient_carrier: None,
         id: ty,

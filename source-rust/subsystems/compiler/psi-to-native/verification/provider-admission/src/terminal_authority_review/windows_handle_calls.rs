@@ -242,7 +242,7 @@ impl<'a> HandleCallGraph<'a> {
                     for action in actions {
                         if let TerminalAffineCleanupAction::InvokeOwned(cleanup) = action {
                             terminal_semantics::nominal_cleanup::owned_target(
-                                context.input.module().structural_types.iter(),
+                                context.input.module().types.structural_types.iter(),
                                 context.input.module().machines.iter(),
                                 cleanup,
                             ).map_err(|reason| format!("native handle cleanup call has no canonical owned contract: {reason}"))?;

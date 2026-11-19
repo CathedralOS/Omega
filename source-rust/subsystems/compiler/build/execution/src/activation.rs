@@ -150,7 +150,7 @@ impl OriginalOutput {
         let home = crate::host::requests::build_facet(artifact, original, "output")?;
         let declaration = artifact
             .module()
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|declaration| declaration.id == home.structural_type)
             .ok_or("Build output facet lost its declaration")?;
@@ -467,7 +467,7 @@ impl TerminalBuildHost {
             }
             let declaration = artifact
                 .module()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == boundary)
                 .ok_or("Build import has no Terminal declaration")?;

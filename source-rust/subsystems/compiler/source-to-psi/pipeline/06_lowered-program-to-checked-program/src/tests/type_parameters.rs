@@ -48,7 +48,7 @@ fn a_borrowed_parameter_retains_unknown_contents_without_owning_them() {
     assert_eq!(form.generic_storage.len(), 1);
     let storage = form.generic_storage[0].storage;
     let claims =
-        terminal_semantics::owned_structure::ClaimTypes::new(&form.module.structural_types)
+        terminal_semantics::owned_structure::ClaimTypes::new(&form.module.types.structural_types)
             .unwrap();
     assert_eq!(
         terminal_semantics::owned_structure::claim_catalogue(&claims, storage, 1).unwrap(),
@@ -67,7 +67,7 @@ fn parameter_storage_cannot_drop_or_change_its_source_bound() {
             0 => form.generic_storage.clear(),
             1 => {
                 form.module
-                    .structural_types
+                    .types.structural_types
                     .iter_mut()
                     .find(|row| row.id == storage)
                     .unwrap()
@@ -75,7 +75,7 @@ fn parameter_storage_cannot_drop_or_change_its_source_bound() {
             }
             2 => {
                 form.module
-                    .structural_types
+                    .types.structural_types
                     .iter_mut()
                     .find(|row| row.id == storage)
                     .unwrap()
@@ -234,7 +234,7 @@ fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
     ));
     let inventory = terminal_semantics::descriptor_results::DescriptorSlotKind::References
         .owned_inventory(
-            &form.module.structural_types,
+            &form.module.types.structural_types,
             form.module.machines[0].structural_parameters[0].place,
             storage,
         )
@@ -1674,20 +1674,20 @@ fn a_generic_empty_case_has_no_live_payload_contents() {
     .unwrap();
     let mut analysis =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
-            &form.module.structural_types,
+            &form.module.types.structural_types,
             &graph,
         );
     let contents = analysis.result_contents(machine.id).unwrap();
     assert!(
         terminal_semantics::reference_result_contents(
-            &form.module.structural_types,
+            &form.module.types.structural_types,
             &machine.structural_parameters,
             result,
             &contents,
         )
         .is_ok()
     );
-    let mut types = form.module.structural_types.clone();
+    let mut types = form.module.types.structural_types.clone();
     let mut foreign = types
         .iter()
         .find(|row| row.id == result.structural_type)

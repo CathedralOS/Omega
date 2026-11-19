@@ -286,7 +286,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         return Err("installed provider internal call changed its selection or completion custody");
     }
     let conformances = module
-        .provider_candidates
+        .interfaces.provider_candidates
         .iter()
         .filter(|conformance| *conformance == provider)
         .collect::<Vec<_>>();

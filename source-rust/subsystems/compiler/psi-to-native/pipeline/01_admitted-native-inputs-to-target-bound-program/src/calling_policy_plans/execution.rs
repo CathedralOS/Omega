@@ -87,7 +87,7 @@ pub(super) fn evaluate_terminal_calling_policy(
         .map_err(|error| format!("calling policy work: {error:?}"))?;
     let declaration = artifact
         .semantic_module()
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_declaration(TargetMachineCallable::Machine(selected_entry))
         .ok_or("calling policy entry has no exact checked proof declaration")?;

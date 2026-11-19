@@ -524,10 +524,10 @@ impl Program<'_> {
         let result = (|| {
             for source in records {
                 let position = module
-                    .structural_types
+                    .types.structural_types
                     .binary_search_by_key(&source.record, |row| row.id)
                     .map_err(|_| malformed(machine, "source fields lost their canonical record"))?;
-                let declaration = &mut module.structural_types[position];
+                let declaration = &mut module.types.structural_types[position];
                 let (identity, _) =
                     crate::source_state::reflection::construction::exact_symbol_identity(
                         self.typed,

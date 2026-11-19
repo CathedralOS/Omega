@@ -818,7 +818,7 @@ machine entry() crashes none {
         terminal_semantics::selected_reference_result(module, caller, callee, required).is_ok()
     );
     let header = module
-        .declaration_contracts
+        .execution.declaration_contracts
         .iter_mut()
         .find(|contract| contract.id == required)
         .expect("the selected call has its public header");
@@ -1088,7 +1088,7 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
         accepted
             .elaboration
             .module
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|declaration| declaration.id == result.structural_type)
             .unwrap()
@@ -1205,7 +1205,7 @@ fn a_shared_reference_copy_keeps_the_original_formation_owned() {
     };
     result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
     assert!(matches!(terminal_semantics::plain_affine::plan(&retagged,
-        &accepted.elaboration.module.structural_types),
+        &accepted.elaboration.module.types.structural_types),
         Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
             if detail == "place custody disagrees with its exact type declaration"));
     let publication = accepted.publish_invocation().unwrap();
@@ -1304,7 +1304,7 @@ fn canonical_reference_creation_rejects_an_unowned_carrier() {
     };
     // A receiving type cannot stand in for the field's actual primitive
     // declaration. Keep the exact producer-published carrier independently.
-    let mut wrong_carrier_types = accepted.elaboration.module.structural_types.clone();
+    let mut wrong_carrier_types = accepted.elaboration.module.types.structural_types.clone();
     let owner = wrong_carrier_types
         .iter()
         .position(|declaration| {
@@ -1380,7 +1380,7 @@ fn canonical_reference_creation_rejects_an_unowned_carrier() {
     *producer = wrong_producer;
     assert!(
         matches!(terminal_semantics::plain_affine::plan(&foreign_producer,
-        &accepted.elaboration.module.structural_types),
+        &accepted.elaboration.module.types.structural_types),
         Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
             if detail == "permission result has no exact reference producer declaration")
     );

@@ -69,10 +69,10 @@ machine start() {{}}
                 assert_ne!(choices[0].selected_application_commitment(), [0; 32]);
                 let module = product.terminal_publication().accepted().unwrap().module();
                 assert_eq!(
-                    module.opaque_representations.len(),
+                    module.types.opaque_representations.len(),
                     usize::from(use_by_value)
                 );
-                if let Some(row) = module.opaque_representations.first() {
+                if let Some(row) = module.types.opaque_representations.first() {
                     assert_eq!(
                         row.application.selected_application_commitment,
                         choices[0].selected_application_commitment()

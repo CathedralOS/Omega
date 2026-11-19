@@ -501,7 +501,7 @@ impl<'module> ModuleActivation<'module> {
             .map(|operation| operation.id)
             .collect();
         validate_flow(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             &machine.structural_parameters,
             &machine.block_entry_claims,
             machine.entry,

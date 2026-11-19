@@ -50,7 +50,7 @@ impl TerminalCallingTelescope {
         application: &BoundaryCallingApplication,
     ) -> Result<Self, String> {
         let declaration = module
-            .calling_signatures
+            .interfaces.calling_signatures
             .iter()
             .find(|declaration| declaration.boundary == boundary)
             .ok_or("callback boundary has no Terminal calling declaration")?;
@@ -293,7 +293,7 @@ mod tests {
         let boundary = BoundaryMachineId::new(1).unwrap();
         let mut module = TerminalModule::declarations();
         module.identities = identities.build();
-        module.calling_abi_signatures = [(first, first_actual), (second, second_actual)]
+        module.interfaces.calling_abi_signatures = [(first, first_actual), (second, second_actual)]
             .into_iter()
             .map(|(id, actual)| terminal_psi::CallingAbiDeclaration {
                 id,
@@ -322,15 +322,15 @@ mod tests {
                 }),
             })
             .collect();
-        module.calling_abi_signatures.sort_by_key(|row| row.id);
+        module.interfaces.calling_abi_signatures.sort_by_key(|row| row.id);
         module
-            .calling_signatures
+            .interfaces.calling_signatures
             .push(terminal_psi::CallingSignatureDeclaration {
                 boundary,
                 application: Ok(first),
             });
         module
-            .boundary_machines
+            .interfaces.boundary_machines
             .push(terminal_psi::BoundaryMachineDeclaration {
                 id: boundary,
                 declaration: None,
@@ -367,7 +367,7 @@ mod tests {
         let application = application();
 
         assert!(TerminalCallingTelescope::for_application(&module, boundary, &application).is_ok());
-        module.calling_signatures[0].application = Ok(second);
+        module.interfaces.calling_signatures[0].application = Ok(second);
         assert!(
             TerminalCallingTelescope::for_application(&module, boundary, &application).is_err(),
             "equal geometry must not authorize another phantom actual"

@@ -87,7 +87,7 @@ fn contains_parameter_extent(
             // An authenticated abstract referent exposes no storage shape or
             // extent. A missing declaration without that authority refuses.
             if module
-                .structural_referents
+                .types.structural_referents
                 .iter()
                 .any(|referent| referent.id == id && referent.abstract_opaque)
             {
@@ -204,7 +204,7 @@ pub(crate) fn width_questions_are_minted(
                 }
                 let selected = caller.structural_place_type(actual.place).and_then(|root| {
                     terminal_semantics::runtime_structural_path_tip(
-                        elaboration.module.structural_types.iter(),
+                        elaboration.module.types.structural_types.iter(),
                         root,
                         &actual.path,
                     )
@@ -853,7 +853,7 @@ pub(crate) fn follow_the_lowered_form(
             }
             before_operation[slot] = Some(before);
             if let OperationKind::SelectMachine { descriptor } = operation.kind {
-                let descriptor = module.callables.descriptor(descriptor).ok_or_else(|| {
+                let descriptor = module.execution.callables.descriptor(descriptor).ok_or_else(|| {
                     minted.foreign(
                         Construct::Operation(operation.id),
                         "machine construction names no descriptor",
@@ -870,7 +870,7 @@ pub(crate) fn follow_the_lowered_form(
                         "machine construction changes its retained callable type",
                     ));
                 }
-                if module.callables.contract(descriptor.contract).is_none()
+                if module.execution.callables.contract(descriptor.contract).is_none()
                     || module.machine(descriptor.machine).is_none()
                 {
                     return Err(minted.foreign(
@@ -1367,7 +1367,7 @@ mod opaque_extent_tests {
             "a missing declaration cannot bypass the dependent-call check"
         );
         module
-            .structural_referents
+            .types.structural_referents
             .push(terminal_psi::StructuralReferentIdentity {
                 id,
                 identity,
@@ -1378,10 +1378,10 @@ mod opaque_extent_tests {
             contains_parameter_extent(&module, id),
             "a referent row alone grants no opacity authority"
         );
-        module.structural_referents[0].abstract_opaque = true;
+        module.types.structural_referents[0].abstract_opaque = true;
         assert!(!contains_parameter_extent(&module, id));
         module
-            .structural_types
+            .types.structural_types
             .push(terminal_psi::StructuralTypeDeclaration {
                 declaration_identity: Default::default(),
                 quotient_carrier: None,

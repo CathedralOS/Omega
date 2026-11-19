@@ -51,7 +51,7 @@ fn record_owned_consumption(
 ) -> Option<()> {
     let mut consume = |argument: &StructuralArgument| {
         let consumed = descriptor_location(
-            &module.structural_types,
+            &module.types.structural_types,
             argument.place,
             machine.structural_place_type(argument.place)?,
             &argument.path,
@@ -123,7 +123,7 @@ fn record_owned_consumption(
     } = &operation.kind
     {
         let parameters = &module
-            .dynamic_dispatch
+            .execution.dynamic_dispatch
             .interface(*interface)?
             .slots
             .get(usize::try_from(*slot).ok()?)?
@@ -153,7 +153,7 @@ pub(crate) fn residence_rules(
                 | OperationKind::EstablishAccessReference { source, .. }
                 | OperationKind::EstablishReference { source, .. } => {
                     let (source, _, capture) = captured_storage_source(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         source.place,
                         &source.path,
                         machine.structural_place_type(source.place)?,
@@ -243,7 +243,7 @@ fn adapt_flow(
             .structural()
             .filter(|result| {
                 slot_kind.tracks_returned_value(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     result.place,
                     result.structural_type,
                 )
@@ -308,7 +308,7 @@ fn adapt_flow(
     }
     let location = |root, path: &[StructuralPathSegment], field| {
         descriptor_location(
-            &module.structural_types,
+            &module.types.structural_types,
             root,
             *graph.place_types.get(&root)?,
             path,
@@ -393,7 +393,7 @@ fn adapt_flow(
                 ));
                 if let Some(location) =
                     crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         *source,
                         *graph.place_types.get(source)?,
                         &path,
@@ -441,7 +441,7 @@ fn adapt_flow(
                     StructuralStorageUse::Canonical { root, path } => (
                         root,
                         crate::descriptor_lifetimes::canonical_descriptor_location(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             root,
                             *graph.place_types.get(&root)?,
                             path,
@@ -457,7 +457,7 @@ fn adapt_flow(
                         (
                             root,
                             crate::descriptor_lifetimes::canonical_descriptor_location(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 root,
                                 *graph.place_types.get(&root)?,
                                 &selected,
@@ -471,7 +471,7 @@ fn adapt_flow(
                         (
                             access,
                             descriptor_storage_use_source(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 graph.place_types.get(&root).copied(),
                                 &operation.kind,
                                 used,
@@ -490,7 +490,7 @@ fn adapt_flow(
                         && match used {
                             StructuralStorageUse::Projection(projection) => {
                                 crate::primitive_operation_projection_type(
-                                    module.structural_types.iter(),
+                                    module.types.structural_types.iter(),
                                     *graph.place_types.get(&root)?,
                                     projection,
                                 )
@@ -504,7 +504,7 @@ fn adapt_flow(
                         (
                             access,
                             descriptor_storage_use_source(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 graph.place_types.get(&root).copied(),
                                 &operation.kind,
                                 used,
@@ -540,8 +540,8 @@ fn adapt_flow(
                 }
                 step.definitions
                     .push(DescriptorLocation::whole(result.place));
-                if !is_descriptor(module.structural_types.iter(), result.structural_type)
-                    && !slot_kind.is_slot(&module.structural_types, result.structural_type)
+                if !is_descriptor(module.types.structural_types.iter(), result.structural_type)
+                    && !slot_kind.is_slot(&module.types.structural_types, result.structural_type)
                 {
                     graph.originations.entry(position).or_default().push((
                         DescriptorLocation::whole(result.place),
@@ -554,7 +554,7 @@ fn adapt_flow(
             }
             let value_query = |root, path: &[StructuralPathSegment], field| {
                 descriptor_contents_query(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     root,
                     *graph.place_types.get(&root)?,
                     path,
@@ -567,7 +567,7 @@ fn adapt_flow(
                     matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
                 }) {
                     let collection = crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         *graph.place_types.get(&root)?,
                         &path[..index],
                     )?;
@@ -577,7 +577,7 @@ fn adapt_flow(
                         // rather than turning it into an array write.
                         if query
                             .inline_steps(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 *graph.place_types.get(&root)?,
                             )
                             .is_none_or(|inline| inline[index..].contains(&false))
@@ -588,7 +588,7 @@ fn adapt_flow(
                         // region rather than enumerating its extent;
                         // the complete destination was checked above.
                         return descriptor_contents_query(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             root,
                             *graph.place_types.get(&root)?,
                             &path[..index],
@@ -598,7 +598,7 @@ fn adapt_flow(
                 }
                 if field.is_none() {
                     let selected = crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         *graph.place_types.get(&root)?,
                         path,
                     )?;
@@ -610,7 +610,7 @@ fn adapt_flow(
                         }
                         StructuralTypeShape::ByteSequence(_)
                             if is_descriptor(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 selected.id,
                             ) =>
                         {
@@ -726,14 +726,14 @@ fn adapt_flow(
                 terminal_psi::call_structural_argument_variants!(arguments) => {
                     for argument in arguments {
                         let selected = crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             *graph.place_types.get(&argument.place)?,
                             &argument.path,
                         );
                         let mutation = selected
                             .map(|selected| {
                                 crate::shared_mutation(
-                                    module.structural_types.iter(),
+                                    module.types.structural_types.iter(),
                                     selected.id,
                                     &[],
                                 )
@@ -835,7 +835,7 @@ fn adapt_flow(
                 terminal_psi::find_structural_case(cases, *result_case)?;
                 for slot in slot_kind
                     .inventory(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         result?.place,
                         result?.structural_type,
                     )?
@@ -869,7 +869,7 @@ fn adapt_flow(
                 OperationKind::ByteSequenceLength { source }
                 | OperationKind::ElementViewLength { source } => {
                     let query = descriptor_contents_query(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         source.place,
                         *graph.place_types.get(&source.place)?,
                         &source.path,
@@ -882,7 +882,7 @@ fn adapt_flow(
                 {
                     let result = result?;
                     let destination =
-                        native_code_layout_regions(&module.structural_types, result)?;
+                        native_code_layout_regions(&module.types.structural_types, result)?;
                     step.definitions.push(destination.clone());
                     graph.originations.entry(position).or_default().push((
                         destination,
@@ -897,14 +897,14 @@ fn adapt_flow(
                     graph.case_constructors.insert(
                         position,
                         zeroed_case_predicates(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             result.place,
                             result.structural_type,
                         ),
                     );
                     for slot in slot_kind
                         .inventory(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             result.place,
                             result.structural_type,
                         )?
@@ -936,7 +936,7 @@ fn adapt_flow(
                     let StructuralTypeShape::Reference {
                         referent: carrier, ..
                     } = find_structural_type(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         result.structural_type,
                     )?
                     .shape
@@ -960,7 +960,7 @@ fn adapt_flow(
                     let destination = DescriptorLocation::whole(result?.place);
                     let (source_location, mut backing_projection, capture) =
                         captured_storage_source(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             source.place,
                             &source.path,
                             *graph.place_types.get(&source.place)?,
@@ -973,7 +973,7 @@ fn adapt_flow(
                     {
                         let StructuralTypeShape::Reference { referent, .. } =
                             find_structural_type(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 result?.structural_type,
                             )?
                             .shape
@@ -1003,13 +1003,13 @@ fn adapt_flow(
                     let captures_storage = match &operation.kind {
                         element_view_establish_pair_pattern!(source, element, ..) => {
                             crate::runtime_structural_path_tip(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 *graph.place_types.get(&source.place)?,
                                 &source.path,
                             )
                             .and_then(|collection| {
                                 crate::collection_backing(
-                                    module.structural_types.iter(),
+                                    module.types.structural_types.iter(),
                                     collection.id,
                                     *element,
                                 )
@@ -1034,13 +1034,13 @@ fn adapt_flow(
                             region,
                             ..
                         ) => crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             *graph.place_types.get(&source.place)?,
                             &source.path,
                         )
                         .is_some_and(|collection| {
                             crate::collection_view_preserves_coordinates(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 collection.id,
                                 *element,
                                 *region,
@@ -1070,7 +1070,7 @@ fn adapt_flow(
                     source, start, end, ..
                 } => {
                     let query = descriptor_contents_query(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         source.place,
                         *graph.place_types.get(&source.place)?,
                         &source.path,
@@ -1102,7 +1102,7 @@ fn adapt_flow(
                         }
                         OperationKind::StructuralCaseLeafCopy { source, path } => {
                             crate::descriptors::descriptor_lifetimes::canonical_descriptor_location(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 *source,
                                 *graph.place_types.get(source)?,
                                 path,
@@ -1122,9 +1122,9 @@ fn adapt_flow(
                         step.may_escape = true;
                     }
                     if (is_descriptor(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         result?.structural_type,
-                    ) || module.structural_types.iter().any(|ty| {
+                    ) || module.types.structural_types.iter().any(|ty| {
                         ty.id == result.unwrap().structural_type
                             && matches!(ty.shape, StructuralTypeShape::Reference { .. })
                     })) && let Some(origins) = graph.originations.get_mut(&position)
@@ -1159,7 +1159,7 @@ fn adapt_flow(
                     graph.contents_transfers.insert(
                         position,
                         descriptor_contents_transfers(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             slot_kind,
                             DescriptorContentsOperand {
                                 root: *source,
@@ -1194,7 +1194,7 @@ fn adapt_flow(
                     ..
                 } => {
                     let value_type = crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         *graph.place_types.get(&value.place)?,
                         &value.path,
                     )?
@@ -1202,7 +1202,7 @@ fn adapt_flow(
                     graph.contents_transfers.insert(
                         position,
                         descriptor_contents_transfers(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             slot_kind,
                             DescriptorContentsOperand {
                                 root: value.place,
@@ -1228,11 +1228,11 @@ fn adapt_flow(
                         step.copy_value(source, destination.clone());
                         if destination.path.is_empty()
                             && !is_descriptor(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 *graph.place_types.get(&destination.root)?,
                             )
                             && !slot_kind.is_slot(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 *graph.place_types.get(&destination.root)?,
                             )
                         {
@@ -1246,7 +1246,7 @@ fn adapt_flow(
                         }
                     } else {
                         step.definitions.extend(slot_kind.overwritten_slots(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             *destination,
                             *graph.place_types.get(destination)?,
                             path,
@@ -1270,7 +1270,7 @@ fn adapt_flow(
                             unresolved: &mut graph.unresolved_contents_writes,
                         },
                         &mut step,
-                        &module.structural_types,
+                        &module.types.structural_types,
                         slot_kind,
                         super::DescriptorContentsOperand {
                             root: *destination,
@@ -1297,7 +1297,7 @@ fn adapt_flow(
                     let result = result?;
                     for (ordinal, value) in elements.iter().enumerate() {
                         let path = crate::scalar_array_leaf_path(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             result.structural_type,
                             u64::try_from(ordinal).ok()?,
                         )?;
@@ -1344,7 +1344,7 @@ fn adapt_flow(
                         if source.access != StructuralAccess::Owned
                             || source.place == result.place
                             || crate::runtime_structural_path_tip(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 *graph.place_types.get(&source.place)?,
                                 &source.path,
                             )?
@@ -1386,7 +1386,7 @@ fn adapt_flow(
                         graph.contents_transfers.insert(
                             position,
                             descriptor_contents_transfers(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 slot_kind,
                                 DescriptorContentsOperand {
                                     root: source.place,
@@ -1453,8 +1453,8 @@ fn adapt_flow(
                     ..
                 } => {
                     let contract = crate::references::callable_reference_result(
-                        &module.structural_types,
-                        module.callables.contract(*contract)?,
+                        &module.types.structural_types,
+                        module.execution.callables.contract(*contract)?,
                     )
                     .inspect_err(|detail| *failure_detail = Some(*detail))
                     .ok()?;
@@ -1463,7 +1463,7 @@ fn adapt_flow(
                     // only writable argument paths, retaining unrelated storage.
                     let call = public_invocation(
                         operation.id,
-                        &module.structural_types,
+                        &module.types.structural_types,
                         slot_kind,
                         &contract,
                         Vec::new(),
@@ -1476,7 +1476,7 @@ fn adapt_flow(
                         .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
                     {
                         step.definitions.extend(writable_descriptor_slots(
-                            &module.structural_types,
+                            &module.types.structural_types,
                             &graph.place_types,
                             actual,
                             slot_kind,
@@ -1510,15 +1510,15 @@ fn adapt_flow(
                         *slot,
                     );
                     let realizations =
-                        public_realizations(&module.dynamic_dispatch, *interface, *slot)?;
+                        public_realizations(&module.execution.dynamic_dispatch, *interface, *slot)?;
                     let slot = module
-                        .dynamic_dispatch
+                        .execution.dynamic_dispatch
                         .interface(*interface)?
                         .slots
                         .get(usize::try_from(*slot).ok()?)?;
                     let mut call = public_invocation(
                         operation.id,
-                        &module.structural_types,
+                        &module.types.structural_types,
                         slot_kind,
                         slot,
                         realizations.clone(),
@@ -1543,7 +1543,7 @@ fn adapt_flow(
                             actual.access != StructuralAccess::SharedBorrow
                         }) {
                             step.definitions.extend(writable_descriptor_slots(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 &graph.place_types,
                                 actual,
                                 slot_kind,
@@ -1593,7 +1593,7 @@ fn adapt_flow(
                     if let Some(public) = public {
                         let mut call = public_invocation(
                             operation.id,
-                            &module.structural_types,
+                            &module.types.structural_types,
                             slot_kind,
                             &public,
                             if implemented {
@@ -1614,7 +1614,7 @@ fn adapt_flow(
                                 &mut graph.unresolved_contents_writes,
                                 &mut step,
                                 slot_kind,
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 position,
                                 structural_arguments,
                             )?;
@@ -1641,7 +1641,7 @@ fn adapt_flow(
                                 && let Some(result) = result
                             {
                                 let inventory = slot_kind.owned_inventory(
-                                    &module.structural_types,
+                                    &module.types.structural_types,
                                     result.place,
                                     result.structural_type,
                                 )?;
@@ -1673,7 +1673,7 @@ fn adapt_flow(
                                         }
                                         let inputs = DescriptorSlotKind::BorrowedStorage
                                             .owned_inventory(
-                                                &module.structural_types,
+                                                &module.types.structural_types,
                                                 formal.place,
                                                 formal.structural_type,
                                             )?;
@@ -1703,7 +1703,7 @@ fn adapt_flow(
                                         return None;
                                     }
                                     let structural_type = descriptor_location_type(
-                                        &module.structural_types,
+                                        &module.types.structural_types,
                                         result.structural_type,
                                         prefix,
                                     )?;
@@ -1757,7 +1757,7 @@ fn adapt_flow(
                                 &mut graph.unresolved_contents_writes,
                                 &mut step,
                                 slot_kind,
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 position,
                                 structural_arguments,
                             )?;
@@ -1772,7 +1772,7 @@ fn adapt_flow(
                 } => {
                     if slot_kind == DescriptorSlotKind::AccessOrigins
                         && let Some(plan) =
-                            module.access_lifecycle_plans.iter().find(|plan| {
+                            module.access.access_lifecycle_plans.iter().find(|plan| {
                                 plan.boundary == *boundary
                                 && plan.operation
                                     == terminal_psi::TerminalAccessLifecycleOperation::View
@@ -1803,16 +1803,16 @@ fn adapt_flow(
                         ));
                     }
                     let preserves_access_token = slot_kind == DescriptorSlotKind::AccessOrigins
-                        && module.access_view_plans.iter().any(|plan| {
+                        && module.access.access_view_plans.iter().any(|plan| {
                             module
-                                .access_view_plans
+                                .access.access_view_plans
                                 .iter()
                                 .filter(|other| other.carrier == plan.carrier)
                                 .count()
                                 == 1
                                 && crate::access_ram_plan_correspondence(
-                                    &module.structural_types,
-                                    &module.access_view_plans,
+                                    &module.types.structural_types,
+                                    &module.access.access_view_plans,
                                     plan,
                                     plan.schema,
                                 )
@@ -1838,13 +1838,13 @@ fn adapt_flow(
                             &mut graph.unresolved_contents_writes,
                             &mut step,
                             slot_kind,
-                            &module.structural_types,
+                            &module.types.structural_types,
                             position,
                             structural_arguments,
                         )?;
                     }
                     let mut declarations = module
-                        .boundary_machines
+                        .interfaces.boundary_machines
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) =
@@ -1856,7 +1856,7 @@ fn adapt_flow(
                             position,
                             provider_invocation(
                                 operation.id,
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 slot_kind,
                                 declaration,
                                 structural_arguments,
@@ -1949,7 +1949,7 @@ fn adapt_flow(
                             "descriptor arrival case payload has no declared source type",
                         )?;
                         let captured = super::scalar_contracts::case_payload_scalar_types(
-                            &module.structural_types, root, path, case, fields,
+                            &module.types.structural_types, root, path, case, fields,
                         ).ok_or("descriptor arrival case payload fields have no exact scalar types")?;
                         if captured
                             .iter()
@@ -1992,7 +1992,7 @@ fn adapt_flow(
                         DescriptorFlowSource::from_query(
                             argument.place,
                             descriptor_contents_query(
-                                &module.structural_types, argument.place,
+                                &module.types.structural_types, argument.place,
                                 *graph.place_types.get(&argument.place)
                                     .ok_or("descriptor arrival structural source has no declared type")?,
                                 &argument.path, None,
@@ -2026,7 +2026,7 @@ fn adapt_flow(
                         ));
                     }
                     binding.source_access = crate::structural_projection_authority(
-                        machine, &module.structural_types, argument,
+                        machine, &module.types.structural_types, argument,
                     ).ok_or("descriptor arrival structural source has no exact projection authority")?;
                     bindings.push(binding);
                 }
@@ -2190,7 +2190,7 @@ fn adapt_flow(
                     action
                 {
                     let callee = crate::nominal_cleanup::owned_target(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         module.machines.iter(),
                         cleanup,
                     )
@@ -2204,7 +2204,7 @@ fn adapt_flow(
                         "descriptor terminal cleanup subject has no exact projected type",
                     );
                     if crate::runtime_structural_path_tip(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         root,
                         &cleanup.subject.path,
                     )?
@@ -2226,7 +2226,7 @@ fn adapt_flow(
                             edge,
                             action_ordinal,
                         },
-                        &module.structural_types,
+                        &module.types.structural_types,
                         slot_kind,
                         callee,
                         std::slice::from_ref(&cleanup.subject),
@@ -2305,7 +2305,7 @@ fn adapt_flow(
                 Some(location) => DescriptorFlowSource::Location(location),
                 None => DescriptorFlowSource::Contents(
                     super::contents::descriptor_contents_query_with(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         *source,
                         *graph.place_types.get(source)?,
                         path,
@@ -2356,7 +2356,7 @@ fn adapt_flow(
                         "descriptor normal exit has no complete borrowed parameter slots",
                     );
                     let inventory = slot_kind.inventory(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         parameter.place,
                         parameter.structural_type,
                     )?;
@@ -2516,7 +2516,7 @@ fn selected_effects_machine(
             let selector_machine =
                 selector_graph?.iter().find(|row| row.id == machine.id)?;
             let sources = super::unchanged_stored_scalar_sources(
-                &module.structural_types,
+                &module.types.structural_types,
                 selector_graph?,
                 machine.id,
                 value,
@@ -2566,13 +2566,13 @@ fn selected_effects_machine(
     })?
     .0;
     let target = super::selected_stored_effects_row(
-        &module.dynamic_dispatch,
+        &module.execution.dynamic_dispatch,
         table,
         interface,
         slot,
     )?;
     let signature = module
-        .dynamic_dispatch
+        .execution.dynamic_dispatch
         .interface(interface)?
         .slots
         .get(usize::try_from(slot).ok()?)?;

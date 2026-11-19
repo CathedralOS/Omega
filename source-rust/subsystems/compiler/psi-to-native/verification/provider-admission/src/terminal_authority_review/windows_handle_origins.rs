@@ -453,7 +453,7 @@ fn expression_equation(
                 machine,
                 position,
                 location: canonical_descriptor_location(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     *root,
                     root_type,
                     path,
@@ -487,7 +487,7 @@ fn expression_equation(
                 machine,
                 position,
                 location: canonical_descriptor_location(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     *root,
                     root_type,
                     &path,

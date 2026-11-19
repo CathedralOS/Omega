@@ -84,21 +84,21 @@ impl AdmittedProviderSelections {
         }
         let module = artifact.module();
         module
-            .folded_constants
+            .scalars.folded_constants
             .validate(module)
             .map_err(str::to_owned)?;
-        if module.folded_constants.target.as_deref() != Some(target) {
+        if module.scalars.folded_constants.target.as_deref() != Some(target) {
             return Err("folded constant closure belongs to another target".into());
         }
         let expected: Vec<_> = module
-            .folded_constants
+            .scalars.folded_constants
             .dependencies
             .iter()
             .filter(|dependency| dependency.target == target)
             .cloned()
             .collect();
         module
-            .folded_constants
+            .scalars.folded_constants
             .validate_plan_inputs(target, plan_preimages)
             .map_err(str::to_owned)?;
         let mut historical = Vec::new();
@@ -107,7 +107,7 @@ impl AdmittedProviderSelections {
                 continue;
             };
             let candidate = module
-                .provider_candidates
+                .interfaces.provider_candidates
                 .iter()
                 .find(|candidate| {
                     candidate.boundary == association.boundary
@@ -301,14 +301,14 @@ fn admit_provider_selections(
             BoundaryMachineId,
             Vec<&terminal_psi::ProviderCandidateConformance>,
         >::new();
-        for candidate in &module.provider_candidates {
+        for candidate in &module.interfaces.provider_candidates {
             candidates_by_boundary
                 .entry(candidate.boundary)
                 .or_default()
                 .push(candidate);
         }
         let callable_boundaries: BTreeSet<BoundaryMachineId> = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
             .map(|boundary| boundary.id)
@@ -406,7 +406,7 @@ fn admit_assumed_bindings(
     assumptions: &[AssumedBindingSelection],
 ) -> Result<Vec<AdmittedAssumedBinding>, ProviderInstallationError> {
     let boundary_ids: BTreeSet<BoundaryMachineId> = module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .filter(|boundary| boundary.role == terminal_psi::BoundaryDeclarationRole::Callable)
         .map(|boundary| boundary.id)
@@ -434,10 +434,10 @@ fn admit_assumed_bindings(
             return Err(reject(AssumedBindingRejection::UnknownSuppliedRequirement));
         }
         let required =
-            terminal_psi::find_boundary_machine(&module.boundary_machines, assumption.required)
+            terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, assumption.required)
                 .unwrap();
         let supplied = terminal_psi::find_boundary_machine(
-            &module.boundary_machines,
+            &module.interfaces.boundary_machines,
             assumption.supplied_requirement,
         )
         .unwrap();

@@ -17,11 +17,11 @@ impl SynchronousCallGraph<'_> {
         use std::collections::{BTreeSet, VecDeque};
         use terminal_psi::{ArrayExtent, OperationKind, StructuralTypeShape};
 
-        if module.scalar_applications.declarations().is_empty() {
+        if module.scalars.scalar_applications.declarations().is_empty() {
             return Ok(Vec::new());
         }
-        let scope = &module.scalar_applications.proof_scope;
-        let conditions = &module.scalar_applications.conditions;
+        let scope = &module.scalars.scalar_applications.proof_scope;
+        let conditions = &module.scalars.scalar_applications.conditions;
         let mut condition_demand = ScalarConditionDemand::new(conditions)?;
         let mut proof_entries = Vec::new();
         let mut proof_providers = Vec::new();
@@ -56,7 +56,7 @@ impl SynchronousCallGraph<'_> {
         let mut evaluated = BTreeSet::new();
         let mut visited_callables = BTreeSet::new();
         let storage =
-            crate::storage::type_graph::StorageTypeGraph::new(module.structural_types.iter())
+            crate::storage::type_graph::StorageTypeGraph::new(module.types.structural_types.iter())
                 .map_err(|error| format!("scalar demand storage declarations: {error:?}"))?;
         let mut storage = storage.reachability();
         loop {
@@ -131,7 +131,7 @@ impl SynchronousCallGraph<'_> {
                 condition_demand.include_application(application, |dependency| {
                     enqueue(&mut pending, &mut discovered, dependency);
                 })?;
-                match module.scalar_applications.declaration(application).copied() {
+                match module.scalars.scalar_applications.declaration(application).copied() {
                     Some(ScalarApplication::LayoutObservation { subject, .. }) => storage
                         .visit([subject], |declaration| {
                             if let StructuralTypeShape::FixedArray {

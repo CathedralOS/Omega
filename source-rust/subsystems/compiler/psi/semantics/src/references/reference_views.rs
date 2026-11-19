@@ -763,9 +763,9 @@ pub fn shared_direct_byte_descriptor_source(
     }
     let root = machine.structural_place_type(source.place)?;
     let path =
-        reference_source_storage_path(module.structural_types.iter(), root, &source.path);
+        reference_source_storage_path(module.types.structural_types.iter(), root, &source.path);
     let actual =
-        crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)?;
+        crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)?;
     if actual.shape != direct_byte_view {
         return None;
     }

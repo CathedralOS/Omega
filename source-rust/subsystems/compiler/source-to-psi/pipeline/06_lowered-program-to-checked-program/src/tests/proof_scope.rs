@@ -26,7 +26,7 @@ fn declared_body() -> crate::lowering::Elaboration {
     };
     elaboration.module.identities = identities.build();
     elaboration.module.machines[0].declaration = Some(declaration.clone());
-    let scope = &mut elaboration.module.scalar_applications.proof_scope;
+    let scope = &mut elaboration.module.scalars.scalar_applications.proof_scope;
     scope
         .declarations
         .insert(ProofScopeDeclaration::Callable(declaration));
@@ -52,7 +52,7 @@ fn accepted_body_status_keeps_its_input_premises_and_exact_owner() {
     assert!(
         !elaboration
             .module
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_headers
             .iter()
@@ -68,7 +68,7 @@ fn accepted_body_status_keeps_its_input_premises_and_exact_owner() {
         accepted.elaboration.module.machines[0].contract.requires,
         requires
     );
-    let scope = &accepted.elaboration.module.scalar_applications.proof_scope;
+    let scope = &accepted.elaboration.module.scalars.scalar_applications.proof_scope;
     let header = scope.callable_headers.iter().next().unwrap().1;
     assert!(header.supplies_checked_body);
     assert!(header.compiler_evaluation.is_err());
@@ -76,7 +76,7 @@ fn accepted_body_status_keeps_its_input_premises_and_exact_owner() {
     let mut forged = declared_body();
     forged
         .module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .declarations
         .for_each_mut(|_, row| {
@@ -93,7 +93,7 @@ fn accepted_body_status_keeps_its_input_premises_and_exact_owner() {
         })
     ));
     let mut orphan = declared_body();
-    let scope = &mut orphan.module.scalar_applications.proof_scope;
+    let scope = &mut orphan.module.scalars.scalar_applications.proof_scope;
     scope.callables = Default::default();
     scope
         .callable_headers
@@ -109,7 +109,7 @@ fn accepted_body_status_keeps_its_input_premises_and_exact_owner() {
     let mut missing_header = declared_body();
     missing_header
         .module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_headers = Default::default();
     assert!(matches!(

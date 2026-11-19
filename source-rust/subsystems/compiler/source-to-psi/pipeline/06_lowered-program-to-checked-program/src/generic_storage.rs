@@ -16,7 +16,7 @@ pub(crate) fn declared(elaboration: &crate::checking::Elaboration) -> Checked<()
             detail,
         )
     };
-    let types = &elaboration.module.structural_types;
+    let types = &elaboration.module.types.structural_types;
     if types.windows(2).any(|pair| pair[0].id >= pair[1].id) {
         return Err(fault(
             "symbolic storage requires the ordered type declaration roster",

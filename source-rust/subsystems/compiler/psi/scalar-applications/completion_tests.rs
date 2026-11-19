@@ -25,7 +25,7 @@ fn fixture(
             declaring_application: receiver.into(),
             operands: Vec::new(),
         };
-        module.calling_abi_signatures.push(CallingAbiDeclaration {
+        module.interfaces.calling_abi_signatures.push(CallingAbiDeclaration {
             id: key.id(),
             requirement_identity: identities.intern(&key.requirement_identity),
             declaring_application: identities.intern(&key.declaring_application),
@@ -65,7 +65,7 @@ fn fixture(
         .enumerate()
         {
             module
-                .structural_types
+                .types.structural_types
                 .push(terminal_psi::StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     requires: Vec::new(),
@@ -83,7 +83,7 @@ fn fixture(
         }
         for measurement in [LayoutMeasurement::Size, LayoutMeasurement::Alignment] {
             module
-                .scalar_applications
+                .scalars.scalar_applications
                 .insert(ScalarApplication::LayoutObservation {
                     subject: StructuralTypeId::new(1).unwrap(),
                     measurement,
@@ -97,7 +97,7 @@ fn fixture(
         let helper = MachineId::new(1).unwrap();
         let declaration = terminal_psi::ProofDeclarationId(1);
         let identity = identities.intern("extent-helper");
-        module.scalar_applications.proof_scope.declarations.insert(
+        module.scalars.scalar_applications.proof_scope.declarations.insert(
             terminal_psi::ProofScopeDeclaration::Callable(
                 terminal_psi::CheckedMachineDeclaration {
                     machine: terminal_psi::NominalDeclarationIdentity::new(identity),
@@ -113,13 +113,13 @@ fn fixture(
                 },
             ),
         );
-        module.scalar_applications.proof_scope.callables.insert(
+        module.scalars.scalar_applications.proof_scope.callables.insert(
             terminal_psi::ProofCallableAssociation::Callable {
                 declaration,
                 callable: terminal_psi::TargetMachineCallable::Machine(helper),
             },
         );
-        module.scalar_applications.proof_scope.plan.machines.insert(
+        module.scalars.scalar_applications.proof_scope.plan.machines.insert(
             proof_applications::ProofApplicationMachine {
                 machine: declaration,
                 product_selected: true,
@@ -131,7 +131,7 @@ fn fixture(
             numerics::scalar_predicates::PredicateNode::Value(ScalarValue::Boolean(false)),
         ));
         module
-            .scalar_applications
+            .scalars.scalar_applications
             .conditions
             .retain_predicate(
                 terminal_psi::ScalarConditionSubject::Declaration(declaration),
@@ -143,7 +143,7 @@ fn fixture(
             .unwrap();
     }
     module.identities = identities.build();
-    module.calling_abi_signatures.sort_by_key(|row| row.id);
+    module.interfaces.calling_abi_signatures.sort_by_key(|row| row.id);
     let optimization =
         terminal_codec::build_identity_optimization_execution_record(&module).unwrap();
     (

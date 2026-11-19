@@ -961,13 +961,13 @@ mod tests {
                 prepared
                     .program
                     .module
-                    .callables
+                    .execution.callables
                     .machine_envelope(caller)
                     .is_some()
             );
             assert!(!entry.published_service_ceiling.is_empty());
             assert!(
-                !prepared.program.module.declaration_contracts.is_empty(),
+                !prepared.program.module.execution.declaration_contracts.is_empty(),
                 "the requirement must follow a nonempty declaration-contract prefix"
             );
             for requirement in [ordinary, record] {
@@ -987,7 +987,7 @@ mod tests {
                     prepared
                         .program
                         .module
-                        .callables
+                        .execution.callables
                         .machine_envelope(requirement)
                         .is_none(),
                     "retaining a source bound does not publish an executable requirement"

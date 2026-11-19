@@ -57,11 +57,11 @@ impl ScalarScopeInputs {
             ScalarEntryMembership::None => return false,
             ScalarEntryMembership::Selected(members) => members,
         };
-        if module.scalar_applications.conditions.is_empty() {
+        if module.scalars.scalar_applications.conditions.is_empty() {
             return true;
         }
         module
-            .scalar_applications
+            .scalars.scalar_applications
             .proof_scope
             .callable_declaration(terminal_psi::TargetMachineCallable::Machine(machine))
             .is_some_and(|owner| members.contains(&owner))
@@ -196,7 +196,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         artifact: terminal_codec::TerminalExecutionView<'artifact>,
         primary: Option<&str>,
     ) -> Self {
-        let catalog = &artifact.module().scalar_applications;
+        let catalog = &artifact.module().scalars.scalar_applications;
         let applications = catalog.proof_scope.applications();
         let mut owners = Vec::new();
         let mut unscoped = false;
@@ -244,7 +244,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         scopes: Vec<(Option<String>, bool)>,
         kind: ScalarClosureKind,
     ) -> Self {
-        let conditions = &artifact.module().scalar_applications.conditions;
+        let conditions = &artifact.module().scalars.scalar_applications.conditions;
         Self {
             artifact,
             primary: primary.map(str::to_owned),
@@ -361,7 +361,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         if self.scopes[scope].1 {
             return Err("scalar closure scope completed more than once".into());
         }
-        let catalog = &self.artifact.module().scalar_applications.conditions;
+        let catalog = &self.artifact.module().scalars.scalar_applications.conditions;
         for (position, condition) in catalog.completions().iter().enumerate() {
             if let ScalarCompletionCondition::Complete {
                 subject: ScalarConditionSubject::Application(application),
@@ -436,7 +436,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         let mut geometry = observations
             .layouts()
             .map_or_else(Vec::new, |layouts| layouts.resolved_records().to_vec());
-        for declaration in &observations.artifact().module().structural_types {
+        for declaration in &observations.artifact().module().types.structural_types {
             if let terminal_psi::StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Application(application),
@@ -495,7 +495,7 @@ impl<'artifact> ScalarApplicationClosure<'artifact> {
         if self.scopes.iter().any(|(_, complete)| !complete) {
             return Err("scalar closure has an unfinished authored scope".into());
         }
-        let conditions = &self.artifact.module().scalar_applications.conditions;
+        let conditions = &self.artifact.module().scalars.scalar_applications.conditions;
         for (position, condition) in conditions.completions().iter().enumerate() {
             let ScalarCompletionCondition::Complete { subject, .. } = condition else {
                 return Err("scalar closure has an absent completion condition".into());

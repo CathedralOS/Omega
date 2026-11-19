@@ -279,7 +279,7 @@ pub fn derive_component_inventory(
 
     let declarations: BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration> =
         module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .map(|declaration| (declaration.id, declaration))
             .collect();
@@ -315,7 +315,7 @@ pub fn derive_component_inventory(
     called_requirement_identities.sort();
     called_requirement_identities.dedup();
 
-    for input in &module.access_view_inputs {
+    for input in &module.access.access_view_inputs {
         custody.push(CustodyConstraint {
             kind: CustodyKind::AccessViewInput,
             identity: format!(
@@ -327,7 +327,7 @@ pub fn derive_component_inventory(
             evidence: CustodyEvidence::ModuleDerived,
         });
     }
-    for restored in &module.reborrow_restored_call_uses {
+    for restored in &module.access.reborrow_restored_call_uses {
         custody.push(CustodyConstraint {
             kind: CustodyKind::ReborrowRestoredCall,
             identity: format!(
@@ -347,7 +347,7 @@ pub fn derive_component_inventory(
             evidence: EntryEvidence::ModuleDerived,
         });
     }
-    for site in &module.suspension_call_sites {
+    for site in &module.execution.suspension_call_sites {
         entries.push(ComponentEntry {
             kind: ComponentEntryKind::SuspensionResumption,
             identity: format!(
@@ -370,9 +370,9 @@ pub fn derive_component_inventory(
     }
 
     let concrete_service_reach: BTreeSet<ServiceId> =
-        module.root_service_reach.concrete.iter().copied().collect();
+        module.interfaces.root_service_reach.concrete.iter().copied().collect();
     let mut service_bounds: Vec<InstallationServiceBound> = module
-        .root_service_reach
+        .interfaces.root_service_reach
         .installation_dependencies
         .iter()
         .map(|dependency| {
@@ -396,7 +396,7 @@ pub fn derive_component_inventory(
             contract_identity: canonical_entry_contract_identity(entry),
         });
     }
-    for candidate in &module.provider_candidates {
+    for candidate in &module.interfaces.provider_candidates {
         export_contracts.push(ExportContract {
             identity: requirement_export_identity(
                 identity_text(module, candidate.requirement_identity),

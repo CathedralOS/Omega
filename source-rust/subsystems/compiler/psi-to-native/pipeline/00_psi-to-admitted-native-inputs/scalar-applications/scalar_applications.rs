@@ -151,7 +151,7 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
             .iter()
             .filter_map(|slot| {
                 let boundary =
-                    terminal_psi::find_boundary_machine(&module.boundary_machines, *slot)?;
+                    terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *slot)?;
                 module
                     .identities
                     .text(boundary.identity)

@@ -369,7 +369,7 @@ pub fn schema_field_layout_source(
     };
     // Each step follows one array child. A chain longer than the
     // declaration roster repeats a type, without whole-module scratch.
-    let mut remaining = module.structural_types.len();
+    let mut remaining = module.types.structural_types.len();
     loop {
         let declaration = module
             .structural_type(identity)

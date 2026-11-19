@@ -126,7 +126,7 @@ impl DescriptorMachine {
         };
         let mut call = machine_invocation(
             owner,
-            &module.structural_types,
+            &module.types.structural_types,
             slot_kind,
             callee,
             inputs.structural_arguments,

@@ -54,7 +54,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         {
             return Err("scalar observations name a different Terminal artifact".into());
         }
-        if let Some(target) = artifact.module().folded_constants.target.as_deref()
+        if let Some(target) = artifact.module().scalars.folded_constants.target.as_deref()
             && (targets.map(TerminalTargetContext::target) != Some(target)
                 || providers.folded_constant_target() != Some(target))
         {
@@ -74,7 +74,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         applications.insert_many(
             artifact
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .declarations()
                 .iter()
                 .map(|_| ApplicationObservations::default()),
@@ -209,7 +209,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let Some(roots) = roots else {
             return Ok(self);
         };
-        let scope = &self.artifact.module().scalar_applications.proof_scope;
+        let scope = &self.artifact.module().scalars.scalar_applications.proof_scope;
         let mut declarations = Vec::with_capacity(roots.len());
         for &root in roots {
             if !matches!(
@@ -253,7 +253,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         if roots.is_empty() {
             return Err("scalar invocation has no checked entry root".into());
         }
-        let scope = &self.artifact.module().scalar_applications.proof_scope;
+        let scope = &self.artifact.module().scalars.scalar_applications.proof_scope;
         let mut declarations = Vec::with_capacity(roots.len());
         for &root in roots {
             if !matches!(
@@ -297,7 +297,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         {
             return Err("ABI scalar request differs from its canonical extent roster".into());
         }
-        let catalog = &self.artifact.module().scalar_applications;
+        let catalog = &self.artifact.module().scalars.scalar_applications;
         let mut selected = ScalarConditionSelection::select(
             &catalog.proof_scope,
             &catalog.conditions,
@@ -338,7 +338,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let Some(ScalarApplication::Evaluate { entry, scalar_type }) = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .declaration(application)
         else {
             return Err("scalar application is not a complete evaluation entry".into());
@@ -384,7 +384,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let expected = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .declaration(application)
             .and_then(|row| row.scalar_type())
             .ok_or("scalar application has no carrier")?;
@@ -427,7 +427,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let expected = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .conditions
             .observations()
             .find_map(|row| match row {
@@ -510,7 +510,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let Some(ScalarApplication::LayoutObservation { subject, .. }) = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .declaration(application)
         else {
             return Err("application is not a layout observation".into());
@@ -536,7 +536,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         }) = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .declaration(application)
             .copied()
         else {
@@ -616,7 +616,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
                 let scalar_type = self
                     .artifact
                     .module()
-                    .scalar_applications
+                    .scalars.scalar_applications
                     .declaration(*application)
                     .and_then(|row| row.scalar_type())
                     .ok_or("scalar condition application has no carrier")?;
@@ -694,7 +694,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         {
             return Ok(());
         }
-        let conditions = &self.artifact.module().scalar_applications.conditions;
+        let conditions = &self.artifact.module().scalars.scalar_applications.conditions;
         let condition = conditions
             .ranges()
             .get(position)
@@ -734,7 +734,7 @@ impl<'artifact> ScalarApplicationObservations<'artifact> {
         let condition = self
             .artifact
             .module()
-            .scalar_applications
+            .scalars.scalar_applications
             .conditions
             .predicates()
             .get(position)

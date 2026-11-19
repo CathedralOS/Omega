@@ -345,7 +345,7 @@ impl AcceptedClosure {
             || self
                 .elaboration
                 .module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .any(|row| matches!(row.shape, terminal_psi::StructuralTypeShape::TypeParameter))
             || self
@@ -416,7 +416,7 @@ fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) 
     use terminal_psi::{ProofCallableAssociation, ProofScopeDeclaration, TargetMachineCallable};
 
     let bodies_source = &elaboration.module.machines;
-    let scope = &mut elaboration.module.scalar_applications.proof_scope;
+    let scope = &mut elaboration.module.scalars.scalar_applications.proof_scope;
     let invalid = |machine, detail: &str| {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -755,7 +755,7 @@ fn exceeded_reach(
                 crate::checking::ceilings::Permission::Entry(
                     terminal_psi::TerminalCallableInvocation::Service(service),
                 ) => module
-                    .services
+                    .interfaces.services
                     .iter()
                     .find(|declaration| declaration.id == *service)
                     .and_then(|declaration| module.identities.text(declaration.identity))
@@ -1466,7 +1466,7 @@ fn conclude(
     if let Err(refused) = crate::checking::static_contracts::publish(&mut elaboration) {
         return fall_back_or_defect(refused);
     }
-    let applications = &mut elaboration.module.scalar_applications;
+    let applications = &mut elaboration.module.scalars.scalar_applications;
     let mut pending = Vec::new();
     for (machine, result) in discharged.machines.iter() {
         for (obligation, verdict) in result.verdicts.iter() {

@@ -168,7 +168,7 @@ fn describe_calls(
         inhabitation,
     )?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
-    let mut references = prepared.references(&elaboration.module.structural_types);
+    let mut references = prepared.references(&elaboration.module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         id,
         lowered,
@@ -185,7 +185,7 @@ fn describe_calls(
         &mut tables,
         &prepared.graph,
         &prepared.context,
-        &elaboration.module.scalar_block_invariants,
+        &elaboration.module.proofs.scalar_block_invariants,
         &storage,
         &mut references,
         activity,
@@ -1553,7 +1553,7 @@ pub(super) fn require(
     if heads.is_empty() {
         return Ok(());
     }
-    let invariants = &mut elaboration.module.scalar_block_invariants;
+    let invariants = &mut elaboration.module.proofs.scalar_block_invariants;
     invariants.sort_by_key(|row| (row.machine, row.header));
     let mut added = Vec::new();
     for head in heads {

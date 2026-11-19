@@ -334,7 +334,7 @@ fn summarize(
         &mut scratch,
         inhabitation,
     )?;
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         id,
         lowered,
@@ -351,7 +351,7 @@ fn summarize(
         &mut scratch,
         &prepared.graph,
         &prepared.context,
-        &module.scalar_block_invariants,
+        &module.proofs.scalar_block_invariants,
         &storage,
         &mut references,
         activity,

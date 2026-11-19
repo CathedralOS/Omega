@@ -10,8 +10,8 @@ pub fn bounded_byte_owner_capacity(
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
     bounded_byte_owner_capacity_from_catalogs(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         actual,
         argument,
         expected,

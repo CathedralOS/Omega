@@ -117,7 +117,7 @@ pub(crate) mod access_lifecycles {
                         .ok_or("borrowed placement lost its exact storage parameter")?;
                     if !matches!(access, terminal_psi::reading_borrow_pair_pattern!())
                         || *access != storage.access
-                        || !module.access_view_plans.iter().any(|view| {
+                        || !module.access.access_view_plans.iter().any(|view| {
                             view.carrier == *referent
                                 && view.schema == plan.schema
                                 && view.policy_identity == plan.policy_identity
@@ -303,7 +303,7 @@ pub(crate) mod access_lifecycles {
                     );
                     let backing_path = plan
                         .storage
-                        .owner_storage_path(&module.structural_types)
+                        .owner_storage_path(&module.types.structural_types)
                         .ok_or("run relocation lost its backing projection")?;
                     let (backing, nested) =
                         StructuralPathQualification::select(&whole, &descendants, &backing_path);
@@ -501,12 +501,12 @@ pub(crate) mod access_lifecycles {
     use terminal_psi::find_structural_type;
 
     pub fn validate_access_lifecycle_plans(module: &TerminalModule) -> Result<(), &'static str> {
-        for boundary in &module.boundary_machines {
+        for boundary in &module.interfaces.boundary_machines {
             if let Some(operation) = boundary
                 .declaration
                 .as_ref()
                 .and_then(|declaration| declaration.execution.placement_operation())
-                && !module.access_lifecycle_plans.iter().any(|plan| {
+                && !module.access.access_lifecycle_plans.iter().any(|plan| {
                     plan.boundary == boundary.id
                         && plan.operation == operation
                         && matches!(
@@ -519,7 +519,7 @@ pub(crate) mod access_lifecycles {
             }
         }
         let mut previous = None;
-        for (position, plan) in module.access_lifecycle_plans.iter().enumerate() {
+        for (position, plan) in module.access.access_lifecycle_plans.iter().enumerate() {
             let key = (
                 plan.boundary,
                 plan.target.as_ref().map(|target| target.target.as_str()),
@@ -545,7 +545,7 @@ pub(crate) mod access_lifecycles {
             if boundary.role != BoundaryDeclarationRole::Callable {
                 return Err("access lifecycle names non-callable contract evidence");
             }
-            let schema = find_structural_type(&module.structural_types, plan.schema)
+            let schema = find_structural_type(&module.types.structural_types, plan.schema)
                 .ok_or("access lifecycle schema is absent")?;
             if !matches!(schema.shape, StructuralTypeShape::Record { .. }) {
                 return Err("access lifecycle schema is not a record");
@@ -627,7 +627,7 @@ pub(crate) mod access_lifecycles {
                                     );
                                 }
                             }
-                            if find_structural_type(&module.structural_types, *profile_type)
+                            if find_structural_type(&module.types.structural_types, *profile_type)
                                 .is_none_or(|declaration| {
                                     !matches!(declaration.shape, StructuralTypeShape::Record { .. })
                                 })
@@ -731,7 +731,7 @@ pub(crate) mod access_lifecycles {
             }
             access_result_contract(module, plan)?;
             validate_image_fields(module, plan)?;
-            for view in module.access_view_plans.iter().filter(|view| {
+            for view in module.access.access_view_plans.iter().filter(|view| {
                 view.policy_identity == plan.policy_identity
                     && view.schema_identity == plan.schema_identity
             }) {
@@ -757,7 +757,7 @@ pub(crate) mod access_lifecycles {
                     }
                 }
             }
-            for earlier in module.access_lifecycle_plans[..position]
+            for earlier in module.access.access_lifecycle_plans[..position]
                 .iter()
                 .filter(|earlier| {
                     earlier.policy_identity == plan.policy_identity
@@ -880,7 +880,7 @@ pub(crate) mod access_lifecycles {
             })
             .transpose()?;
         let mut geometry =
-            crate::ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
+            crate::ReferenceStorageGeometry::new(module.types.structural_types.iter(), |application| {
                 Err(crate::StorageGeometryError::UnresolvedExtent(application))
             })
             .with_target_carriers(carriers);
@@ -987,7 +987,7 @@ pub(crate) mod access_lifecycles {
                 }
                 if let Some(singleton) = singleton
                     && !module
-                        .structural_domains
+                        .types.structural_domains
                         .iter()
                         .any(|domain| domain.id == singleton && domain.carrier == carrier)
                 {
@@ -1027,7 +1027,7 @@ pub(crate) mod access_lifecycles {
                 .any(|(previous, _)| previous == identity)
         }) || domains.iter().any(|(identity, carrier)| {
             !module
-                .structural_domains
+                .types.structural_domains
                 .iter()
                 .any(|domain| domain.id == *identity && domain.carrier == *carrier)
         }) {
@@ -1126,15 +1126,15 @@ pub(crate) mod access_ram_correspondence {
             format!("RAM interpretation has an invalid placement catalog: {reason:?}")
         })?;
         let mut plans = module
-            .access_view_plans
+            .access.access_view_plans
             .iter()
             .filter(|plan| plan.carrier == carrier);
         let (Some(plan), None) = (plans.next(), plans.next()) else {
             return Err("RAM interpretation requires one exact retained placement".to_owned());
         };
         access_ram_plan_correspondence(
-            &module.structural_types,
-            &module.access_view_plans,
+            &module.types.structural_types,
+            &module.access.access_view_plans,
             plan,
             source_schema,
         )
@@ -1361,7 +1361,7 @@ pub(crate) mod access_ram_origins {
             Self {
                 module,
                 graph,
-                analysis: DescriptorAnalysis::with_access_origins(&module.structural_types, graph),
+                analysis: DescriptorAnalysis::with_access_origins(&module.types.structural_types, graph),
                 reachable,
                 entry,
                 private_entry_roots: Vec::new(),
@@ -1385,7 +1385,7 @@ pub(crate) mod access_ram_origins {
             let [argument] = arguments else {
                 return None;
             };
-            let mut accesses = self.module.access_view_plans.iter().flat_map(|plan| {
+            let mut accesses = self.module.access.access_view_plans.iter().flat_map(|plan| {
                 plan.fields.iter().flat_map(move |field| {
                     field
                         .operations
@@ -1430,14 +1430,14 @@ pub(crate) mod access_ram_origins {
             let mut descriptor_prefix = argument.path.as_slice();
             for prefix_length in 0..=argument.path.len() {
                 let selected = crate::structural_window_projection(
-                    self.module.structural_types.iter(),
+                    self.module.types.structural_types.iter(),
                     root_type,
                     &argument.path[..prefix_length],
                     None,
                 )?;
                 if selected.structural_type == field.accessor {
                     let leaf = crate::structural_window_projection(
-                        self.module.structural_types.iter(),
+                        self.module.types.structural_types.iter(),
                         field.accessor,
                         &argument.path[prefix_length..],
                         None,
@@ -1453,7 +1453,7 @@ pub(crate) mod access_ram_origins {
                 }
             }
             let location = descriptor_location(
-                &self.module.structural_types,
+                &self.module.types.structural_types,
                 argument.place,
                 root_type,
                 descriptor_prefix,
@@ -1465,8 +1465,8 @@ pub(crate) mod access_ram_origins {
                 .any(|origin| !matches!(origin, AccessRamOrigin::ProviderFormation(_)))
             {
                 crate::access_ram_plan_correspondence(
-                    &self.module.structural_types,
-                    &self.module.access_view_plans,
+                    &self.module.types.structural_types,
+                    &self.module.access.access_view_plans,
                     plan,
                     plan.schema,
                 )
@@ -1539,7 +1539,7 @@ pub(crate) mod access_ram_origins {
                             OperationKind::BoundaryCall { boundary, .. } => {
                                 let plan = self
                                     .module
-                                    .access_lifecycle_plans
+                                    .access.access_lifecycle_plans
                                     .iter()
                                     .find(|plan| plan.boundary == boundary)?;
                                 let crate::AccessResultContract::View {
@@ -1580,7 +1580,7 @@ pub(crate) mod access_ram_origins {
                             .declaration
                             .as_ref()
                             .is_some_and(|declaration| {
-                                self.module.callback_applications.iter().any(|application| {
+                                self.module.interfaces.callback_applications.iter().any(|application| {
                                     declaration.same_identity_as(
                                         &self.module.identities,
                                         &application.body,
@@ -1597,7 +1597,7 @@ pub(crate) mod access_ram_origins {
                                     && crate::access_view_input_parameter(self.module, row)
                                         .is_ok_and(|parameter| parameter.place == incoming_root)
                             })?;
-                            if !self.module.access_view_inputs.contains(row) {
+                            if !self.module.access.access_view_inputs.contains(row) {
                                 return None;
                             }
                             let parameter =
@@ -2063,19 +2063,19 @@ pub(crate) mod access_view_plans {
 
     pub fn validate_access_view_plans(module: &TerminalModule) -> Result<(), AccessViewPlanError> {
         validate_access_view_catalog(
-            &module.structural_types,
+            &module.types.structural_types,
             &module.identities,
-            &module.access_view_plans,
-            &module.boundary_machines,
+            &module.access.access_view_plans,
+            &module.interfaces.boundary_machines,
         )?;
         let carriers = module
-            .access_view_plans
+            .access.access_view_plans
             .iter()
             .map(|plan| plan.carrier)
             .collect::<BTreeSet<_>>();
         // The encoding page fixes one canonical order for this roster; strict
         // order also rejects a second row for the same structural formal.
-        if let Some(pair) = module.access_view_inputs.windows(2).find(|pair| {
+        if let Some(pair) = module.access.access_view_inputs.windows(2).find(|pair| {
             (pair[0].machine, pair[0].runtime_position)
                 >= (pair[1].machine, pair[1].runtime_position)
         }) {
@@ -2084,11 +2084,11 @@ pub(crate) mod access_view_plans {
                 runtime_position: pair[1].runtime_position,
             });
         }
-        for input in &module.access_view_inputs {
+        for input in &module.access.access_view_inputs {
             let parameter = crate::access_view_input_parameter(module, input)
                 .map_err(|_| AccessViewPlanError::InputPlanMismatch)?;
             let plan = module
-                .access_view_plans
+                .access.access_view_plans
                 .iter()
                 .find(|plan| plan.carrier == parameter.structural_type)
                 .ok_or(AccessViewPlanError::InputPlanMismatch)?;
@@ -2118,7 +2118,7 @@ pub(crate) mod access_view_plans {
                         .ok()
                         .is_some_and(|position| {
                             module
-                                .access_view_inputs
+                                .access.access_view_inputs
                                 .binary_search_by_key(&(machine.id, position), |input| {
                                     (input.machine, input.runtime_position)
                                 })
@@ -2137,8 +2137,8 @@ pub(crate) mod access_view_plans {
 
     pub fn contains_access_carrier(module: &TerminalModule, root: StructuralTypeId) -> bool {
         contains_access_carrier_in_catalog(
-            &module.structural_types,
-            &module.access_view_plans,
+            &module.types.structural_types,
+            &module.access.access_view_plans,
             root,
         )
     }
@@ -2237,7 +2237,7 @@ pub(crate) mod access_view_plans {
 
         fn order_refusal(inputs: Vec<TerminalAccessViewInput>) -> Option<AccessViewPlanError> {
             let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
-            module.access_view_inputs = inputs;
+            module.access.access_view_inputs = inputs;
             validate_access_view_plans(&module)
                 .err()
                 .filter(|error| matches!(error, AccessViewPlanError::InputOutOfOrder { .. }))
@@ -2320,7 +2320,7 @@ pub(crate) mod access_view_referent {
         structural_type: StructuralTypeId,
     ) -> Option<&StructuralTypeDeclaration> {
         let mut matching = module
-            .structural_types
+            .types.structural_types
             .iter()
             .filter(|declaration| declaration.id == structural_type);
         let declaration = matching.next()?;
@@ -2347,7 +2347,7 @@ pub(crate) mod access_view_referent {
                         StructuralFieldType::Structural(next) => *next,
                         leaf => {
                             leaf.canonical_leaf_type()?
-                                .leaf_declaration(module.structural_types.iter())?
+                                .leaf_declaration(module.types.structural_types.iter())?
                                 .id
                         }
                     }
@@ -2396,7 +2396,7 @@ pub(crate) mod access_view_referent {
             return Err(AccessViewInputError::MachineIdentityMismatch);
         }
         if !module
-            .structural_types
+            .types.structural_types
             .iter()
             .any(|carrier| carrier.identity == row.carrier_identity)
         {
@@ -2410,7 +2410,7 @@ pub(crate) mod access_view_referent {
             .get(row.runtime_position as usize)
             .ok_or(AccessViewInputError::ParameterMissing)?;
         let carrier = module
-            .structural_types
+            .types.structural_types
             .iter()
             .find(|carrier| carrier.id == parameter.structural_type)
             .ok_or(AccessViewInputError::CarrierIdentityMissing)?;

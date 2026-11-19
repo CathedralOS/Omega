@@ -1346,7 +1346,7 @@ fn a_program_that_ends_through_process_exit_is_judged() {
         })
         .count();
     assert_eq!(exits, 2, "`require_success` and `main` each exit once");
-    assert!(module.boundary_machines.iter().all(|boundary| {
+    assert!(module.interfaces.boundary_machines.iter().all(|boundary| {
         boundary.completion
             == semantic_vocabulary::BoundaryCompletion::External(
                 semantic_vocabulary::ExternalCompletionKind::ProcessExit,

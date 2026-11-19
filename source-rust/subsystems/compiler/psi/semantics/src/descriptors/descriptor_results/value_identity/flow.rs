@@ -127,7 +127,7 @@ pub(crate) fn location_type(
     location: &DescriptorLocation,
 ) -> Result<StructuralTypeId, &'static str> {
     descriptor_location_type(
-        &module.structural_types,
+        &module.types.structural_types,
         *machine
             .place_types
             .get(&location.root)

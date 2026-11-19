@@ -166,7 +166,7 @@ impl TerminalScalarCaptures {
                         .flatten()
                         .ok_or("scalar case source has no declared carrier")?;
                     let captured_types = super::case_payload_scalar_types(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         root,
                         path,
                         edge.case,
@@ -187,7 +187,7 @@ impl TerminalScalarCaptures {
                                 );
                             }
                             let location = descriptor_location(
-                                &module.structural_types,
+                                &module.types.structural_types,
                                 *source,
                                 root,
                                 &selected,
@@ -407,7 +407,7 @@ pub(crate) fn scalar_storage_writes(
         let root_type =
             place_type(root).ok_or("scalar writer has no declared destination carrier")?;
         let location =
-            descriptor_location(&module.structural_types, root, root_type, path, field)
+            descriptor_location(&module.types.structural_types, root, root_type, path, field)
                 .ok_or("scalar writer has no exact supported destination projection")?;
         writes.push((location, value));
         Ok::<_, &'static str>(())
@@ -441,7 +441,7 @@ pub(crate) fn scalar_storage_writes(
                     .ok_or("scalar array initializer has no structural result")?;
                 for (ordinal, value) in elements.iter().enumerate() {
                     let path = crate::scalar_array_leaf_path(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         result.structural_type,
                         u64::try_from(ordinal)
                             .map_err(|_| "scalar array initializer ordinal is too large")?,

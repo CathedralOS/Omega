@@ -72,7 +72,7 @@ pub fn reverify(
         Construct::Obligation(obligation),
     )?;
     let lowered = crate::checking::terminal_machine(&module.machines, machine, machine)?;
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         machine,
         lowered,
@@ -831,7 +831,7 @@ pub fn reverify_specialization(
     let tables = &*tables;
     let lowered =
         crate::checking::terminal_machine(&module.machines, specialization, specialization)?;
-    let mut references = prepared.references(&module.structural_types);
+    let mut references = prepared.references(&module.types.structural_types);
     let storage = crate::checking::places::Storage::new(
         specialization,
         lowered,

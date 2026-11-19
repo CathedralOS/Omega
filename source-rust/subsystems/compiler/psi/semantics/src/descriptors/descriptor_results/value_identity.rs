@@ -123,7 +123,7 @@ impl<'a> ValueIdentityAnalysis<'a> {
             incoming: payload_reachability::incoming_flow(&machine.flow)
                 .ok_or("value identity has incomplete incoming control flow"),
             analysis: DescriptorAnalysis::with_reference_slots(
-                &module.structural_types,
+                &module.types.structural_types,
                 reference_graph,
             ),
             cuts: BTreeMap::new(),
@@ -267,7 +267,7 @@ impl<'a> ValueIdentityAnalysis<'a> {
         actual: &StructuralArgument,
     ) -> QueryResult<DescriptorLocation> {
         let observed = descriptor_location(
-            &self.module.structural_types,
+            &self.module.types.structural_types,
             actual.place,
             *self
                 .machine

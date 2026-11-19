@@ -90,7 +90,7 @@ fn lane_proposition(
     lane: &EvidenceContractLane,
 ) -> Result<PropositionId, &'static str> {
     let mut terms = module
-        .evidence_terms
+        .proofs.evidence_terms
         .iter()
         .filter(|term| term.id == lane.term);
     let term = terms.next().ok_or("refinement evidence lane has no term")?;
@@ -110,7 +110,7 @@ fn same_evidence_meaning(
     }
     let term = |lane: &EvidenceContractLane| {
         module
-            .evidence_terms
+            .proofs.evidence_terms
             .iter()
             .find(|term| term.id == lane.term)
             .ok_or("refinement evidence term is absent")
@@ -122,7 +122,7 @@ fn same_evidence_meaning(
     }
     let application = |id| {
         module
-            .proposition_applications
+            .proofs.proposition_applications
             .iter()
             .find(|row| row.id == id)
             .ok_or("refinement evidence application is absent")
@@ -191,14 +191,14 @@ pub fn validate_callable_result_refinements(
         machine,
         detail: detail.to_owned(),
     };
-    for contract in &module.callables.contracts {
-        crate::references::callable_reference_result(&module.structural_types, contract)
+    for contract in &module.execution.callables.contracts {
+        crate::references::callable_reference_result(&module.types.structural_types, contract)
             .map_err(|detail| refuse(None, detail))?;
     }
     let mut roots = Vec::new();
-    for descriptor in &module.callables.descriptors {
+    for descriptor in &module.execution.callables.descriptors {
         let contract = module
-            .callables
+            .execution.callables
             .contract(descriptor.contract)
             .ok_or_else(|| {
                 refuse(
@@ -230,10 +230,10 @@ pub fn validate_callable_result_refinements(
         detail: error.in_module(module),
     })?;
     let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-        &module.structural_types,
+        &module.types.structural_types,
         &graph,
     );
-    for descriptor in &module.callables.descriptors {
+    for descriptor in &module.execution.callables.descriptors {
         if roots.binary_search(&descriptor.machine).is_err() {
             continue;
         }
@@ -244,9 +244,9 @@ pub fn validate_callable_result_refinements(
             )
         })?;
         let declared = crate::references::callable_reference_result(
-            &module.structural_types,
+            &module.types.structural_types,
             module
-                .callables
+                .execution.callables
                 .contract(descriptor.contract)
                 .ok_or_else(|| refuse(Some(body.id), "runtime value has no callable contract"))?,
         )
@@ -281,7 +281,7 @@ pub fn callable_contract_refinement_goals(
     selected: MachineId,
 ) -> Result<Vec<CallableRefinementGoal>, &'static str> {
     let required = module
-        .callables
+        .execution.callables
         .contract(required)
         .ok_or("refinement has no required callable contract")?;
     let selected = module
@@ -448,12 +448,12 @@ pub fn contract_refinement_goals(
     let required_owner = required.evidence_owner;
     let selected_owner = selected.evidence_owner;
     let required_lanes = module
-        .evidence_contract_lanes
+        .proofs.evidence_contract_lanes
         .iter()
         .filter(|lane| Some(lane.owner) == required_owner)
         .collect::<Vec<_>>();
     let selected_lanes = module
-        .evidence_contract_lanes
+        .proofs.evidence_contract_lanes
         .iter()
         .filter(|lane| Some(lane.owner) == selected_owner)
         .collect::<Vec<_>>();
@@ -656,7 +656,7 @@ pub fn callable_refinement_context(
     contract: CallableContractId,
 ) -> Result<semantic_vocabulary::PropositionContext, &'static str> {
     let contract = module
-        .callables
+        .execution.callables
         .contract(contract)
         .ok_or("refinement context has no callable contract")?;
     contract_refinement_context(CallableContractView {
@@ -707,7 +707,7 @@ pub fn descriptor_refinement_goals(
     descriptor: semantic_vocabulary::MachineDescriptorId,
 ) -> Result<Vec<(semantic_vocabulary::ObligationId, CallableRefinementGoal)>, &'static str> {
     let descriptor = module
-        .callables
+        .execution.callables
         .descriptor(descriptor)
         .ok_or("refinement descriptor is absent")?;
     let goals =
@@ -735,15 +735,15 @@ pub fn validate_descriptor_refinement_evidence(
     module: &TerminalModule,
 ) -> Result<Vec<proof_admission::AcceptedFact>, &'static str> {
     validate_callable_evidence_contracts_in(
-        &module.callables,
-        &module.proposition_declarations,
-        &module.proposition_applications,
-        &module.evidence_terms,
-        &module.evidence_contract_lanes,
+        &module.execution.callables,
+        &module.proofs.proposition_declarations,
+        &module.proofs.proposition_applications,
+        &module.proofs.evidence_terms,
+        &module.proofs.evidence_contract_lanes,
     )?;
     let mut accepted = Vec::new();
     let mut retained_ids = Vec::new();
-    for descriptor in &module.callables.descriptors {
+    for descriptor in &module.execution.callables.descriptors {
         let goals = descriptor_refinement_goals(module, descriptor.id)?;
         if goals.len() != descriptor.refinement_evidence.len() {
             return Err("descriptor refinement has missing or extra proof certificates");

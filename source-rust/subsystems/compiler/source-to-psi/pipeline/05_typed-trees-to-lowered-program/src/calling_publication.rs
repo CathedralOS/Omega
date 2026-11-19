@@ -266,8 +266,8 @@ pub(crate) fn publish(
     elaboration: &mut Elaboration,
 ) -> Checked<()> {
     let storage = &descriptions.signatures;
-    if !elaboration.module.calling_policy_requests.is_empty()
-        || !elaboration.module.program_entry_contracts.is_empty()
+    if !elaboration.module.interfaces.calling_policy_requests.is_empty()
+        || !elaboration.module.interfaces.program_entry_contracts.is_empty()
     {
         return Err(services::unavailable(
             context,
@@ -299,7 +299,7 @@ pub(crate) fn publish(
             ));
         }
     }
-    let scope = &elaboration.module.scalar_applications.proof_scope;
+    let scope = &elaboration.module.scalars.scalar_applications.proof_scope;
     let mut requests = Vec::with_capacity(source.requests.len());
     let mut schemas = Vec::new();
     let mut entries = Vec::with_capacity(source.entries.len());
@@ -461,16 +461,16 @@ pub(crate) fn publish(
     let declarations = join_abi_declarations(
         context,
         &elaboration.module.identities,
-        &elaboration.module.structural_types,
-        &elaboration.module.calling_abi_signatures,
+        &elaboration.module.types.structural_types,
+        &elaboration.module.interfaces.calling_abi_signatures,
         &prepared?,
     )?;
-    elaboration.module.calling_abi_signatures = declarations;
-    elaboration.module.calling_policy_requests = requests;
-    elaboration.module.service_schemas =
-        terminal_psi::TerminalServiceSchema::join(&elaboration.module.service_schemas, &schemas)
+    elaboration.module.interfaces.calling_abi_signatures = declarations;
+    elaboration.module.interfaces.calling_policy_requests = requests;
+    elaboration.module.interfaces.service_schemas =
+        terminal_psi::TerminalServiceSchema::join(&elaboration.module.interfaces.service_schemas, &schemas)
             .map_err(|reason| services::unavailable(context, reason))?;
-    elaboration.module.program_entry_contracts = entries;
+    elaboration.module.interfaces.program_entry_contracts = entries;
     Ok(())
 }
 

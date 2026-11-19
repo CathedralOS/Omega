@@ -87,13 +87,13 @@ impl<'module> ReferenceResultMemberships<'module> {
         );
         let mappings = if let Some(public) = &public {
             super::bind_public_reference_call_results(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 public,
                 structural_arguments,
             )?
         } else {
             super::bind_reference_call_results(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 ReferenceCallContract::Machine {
                     parameters: &contract.structural_parameters,
                     sources: &signature.reference_sources,
@@ -102,8 +102,8 @@ impl<'module> ReferenceResultMemberships<'module> {
             )?
         };
         preserve_call_memberships(
-            &self.module.structural_types,
-            &self.module.structural_domains,
+            &self.module.types.structural_types,
+            &self.module.types.structural_domains,
             || {
                 self.graph
                     .get_or_init(|| {

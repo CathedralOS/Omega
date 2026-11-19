@@ -325,7 +325,7 @@ pub(crate) mod ancestry {
                                     "nominal retirement transformation lacks its current carrier",
                                 )?;
                             let path = super::super::structural_path(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 &module.identities,
                                 root,
                                 &input.subject.segments,
@@ -481,7 +481,7 @@ pub(crate) mod ancestry {
                         let root = super::super::place_type(machine, cleanup.subject.place)
                             .ok_or("owned cleanup current root has no structural type")?;
                         if crate::runtime_structural_path_tip(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             root,
                             &cleanup.subject.path,
                         )
@@ -491,7 +491,7 @@ pub(crate) mod ancestry {
                             return Err("owned cleanup changes its current typed subject");
                         }
                         let callee = crate::nominal_cleanup::owned_target(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             module.machines.iter(),
                             cleanup,
                         )?;
@@ -1261,13 +1261,13 @@ pub(crate) mod boundary_correspondence {
         };
         for requirement in requirements {
             let boundary = module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .find(|boundary| boundary.id == requirement.boundary)
                 .ok_or("boundary body custody requirement is absent")?;
             if !boundary.content_guarantees.iter().any(|guarantee| matches!(guarantee,
                 terminal_psi::BoundaryContentGuarantee::Conservation(guarantee) if guarantee == &requirement.guarantee)) || !module
-                .provider_candidates
+                .interfaces.provider_candidates
                 .iter()
                 .any(|candidate| candidate.boundary == boundary.id && candidate.candidate == machine.id)
             {
@@ -1299,7 +1299,7 @@ pub(crate) mod boundary_correspondence {
                             .position(|parameter| parameter.position == position)
                             .ok_or("boundary body public subject is not a structural formal")?;
                         let anchored = module
-                            .provider_candidates
+                            .interfaces.provider_candidates
                             .iter()
                             .filter(|candidate| {
                                 candidate.boundary == boundary.id
@@ -1369,7 +1369,7 @@ pub(crate) mod boundary_correspondence {
             }
             for output in &derived.outputs {
                 let domain = module
-                    .structural_domains
+                    .types.structural_domains
                     .iter()
                     .find(|domain| {
                         domain
@@ -1732,8 +1732,8 @@ pub fn validate_shape(
         .as_structural()
         .ok_or("content transformation requires a structural result")?;
     validate_contract(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &module.identities,
         &|place| place_type(machine, place),
         source,
@@ -1762,8 +1762,8 @@ pub fn validate_shape(
         .ok_or("content transformation position is absent")?;
     let graph = crate::descriptors::descriptor_results::terminal_graph(module);
     let contract = crate::descriptors::descriptor_results::current_selected_payload_contract(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &graph,
         machine.id,
         position,
@@ -1772,8 +1772,8 @@ pub fn validate_shape(
         &|place| crate::descriptors::descriptor_results::terminal_payload_contract(machine, place),
     )?;
     validate_memberships(
-        &module.structural_types,
-        &module.structural_domains,
+        &module.types.structural_types,
+        &module.types.structural_domains,
         &module.identities,
         result,
         derivations,
@@ -2834,7 +2834,7 @@ pub mod quotients {
             use terminal_psi::{StructuralPathSegment as P, StructuralTypeShape as S};
             let opaque = |ty| {
                 module
-                    .structural_types
+                    .types.structural_types
                     .iter()
                     .any(|row| row.id == ty && row.quotient_carrier.is_some())
             };
@@ -2843,7 +2843,7 @@ pub mod quotients {
                 _ => (path, false),
             };
             let tip = crate::structural::primitive_place::projection_tip_with_policy(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 ty,
                 path,
                 |source, segment| {
@@ -2863,7 +2863,7 @@ pub mod quotients {
             .ok_or("structural projection is malformed or crosses an opaque quotient")?;
             if window {
                 let selected = tip
-                    .and_then(|id| module.structural_types.iter().find(|row| row.id == id))
+                    .and_then(|id| module.types.structural_types.iter().find(|row| row.id == id))
                     .ok_or("quotient window has no declared backing")?;
                 if opaque(selected.id) || !matches!(selected.shape, S::FixedArray { .. }) {
                     return Err("quotient window does not select ordinary array backing");
@@ -2894,7 +2894,7 @@ pub mod quotients {
                     continue;
                 }
                 seen.push(id);
-                let Some(declaration) = module.structural_types.iter().find(|row| row.id == id)
+                let Some(declaration) = module.types.structural_types.iter().find(|row| row.id == id)
                 else {
                     return true;
                 };
@@ -2929,13 +2929,13 @@ pub mod quotients {
         pub(crate) fn validate_quotient_opacity(
             module: &TerminalModule,
         ) -> Result<(), &'static str> {
-            if module.quotients.representations.is_empty() {
+            if module.types.quotients.representations.is_empty() {
                 return Ok(());
             }
             for machine in &module.machines {
                 for operation in machine.operations() {
                     if let Some(result) = operation.result.structural()
-                        && module.structural_types.iter().any(|ty| {
+                        && module.types.structural_types.iter().any(|ty| {
                             ty.id == result.structural_type && ty.quotient_carrier.is_some()
                         })
                     {
@@ -2962,7 +2962,7 @@ pub mod quotients {
                             .structural()
                             .ok_or("quotient copy result is absent")?;
                         if tip != Some(result.structural_type)
-                            && module.structural_types.iter().any(|ty| {
+                            && module.types.structural_types.iter().any(|ty| {
                                 ty.quotient_carrier.is_some()
                                     && (Some(ty.id) == tip || ty.id == result.structural_type)
                             })
@@ -2989,7 +2989,7 @@ pub mod quotients {
                         let root = quotient_place_type(machine, *source)
                             .ok_or("quotient case-copy source is absent")?;
                         let path = crate::canonical_structural_storage_path(
-                            module.structural_types.iter(),
+                            module.types.structural_types.iter(),
                             root,
                             path,
                         )
@@ -3002,7 +3002,7 @@ pub mod quotients {
                             .ok_or("quotient projection has no declared source")?;
                         let tip = quotient_path_tip(module, root, projection.path)?;
                         if !module
-                            .quotients
+                            .types.quotients
                             .representations
                             .iter()
                             .any(|row| Some(row.quotient) == tip)
@@ -3034,7 +3034,7 @@ pub mod quotients {
                             .ok_or("quotient case source is absent")?;
                         let tip = quotient_path_tip(module, root, path)?;
                         if module
-                            .structural_types
+                            .types.structural_types
                             .iter()
                             .any(|ty| Some(ty.id) == tip && ty.quotient_carrier.is_some())
                         {
@@ -3091,7 +3091,7 @@ pub mod quotients {
                 match relation {
                     Relation::Quotient(relation) => {
                         let mut adaptations =
-                            module.quotients.adaptations.iter().filter(|adaptation| {
+                            module.types.quotients.adaptations.iter().filter(|adaptation| {
                                 adaptation.license
                                     == TerminalQuotientAdaptationLicense::Input {
                                         operation: index as u32,
@@ -3110,7 +3110,7 @@ pub mod quotients {
                             );
                         }
                         let representation = module
-                            .quotients
+                            .types.quotients
                             .representations
                             .get(adaptation.representation as usize)
                             .ok_or("quotient input representation is absent")?;
@@ -3123,7 +3123,7 @@ pub mod quotients {
                             );
                         }
                         if module
-                            .quotients
+                            .types.quotients
                             .representations
                             .get(adaptation.representation as usize)
                             .map(|row| &row.formation)
@@ -3207,7 +3207,7 @@ pub mod quotients {
                         match &contract.result_relation {
                             Relation::Quotient(relation) => {
                                 let mut adaptations =
-                                    module.quotients.adaptations.iter().filter(|adaptation| {
+                                    module.types.quotients.adaptations.iter().filter(|adaptation| {
                                         adaptation.license
                                             == TerminalQuotientAdaptationLicense::Result {
                                                 operation: index as u32,
@@ -3222,7 +3222,7 @@ pub mod quotients {
                                     || call.result.structural().map(|result| result.place)
                                         != Some(adaptation.source)
                                     || module
-                                        .quotients
+                                        .types.quotients
                                         .representations
                                         .get(adaptation.representation as usize)
                                         .map(|row| &row.formation)
@@ -3662,7 +3662,7 @@ pub mod quotients {
         let result = operation.result.structural()?;
         let source_type = quotient_place_type(machine, *source)?;
         let mut rows = module
-            .quotients
+            .types.quotients
             .adaptations
             .iter()
             .filter(|row| row.machine == machine.id && row.copy == operation.id);
@@ -3681,7 +3681,7 @@ pub mod quotients {
             return None;
         }
         let representation = module
-            .quotients
+            .types.quotients
             .representations
             .get(row.representation as usize)?;
         match row.license {
@@ -3697,7 +3697,7 @@ pub mod quotients {
             } if source_type == representation.quotient
                 && result.structural_type == representation.carrier =>
             {
-                let owner = module.quotients.operations.get(operation as usize)?;
+                let owner = module.types.quotients.operations.get(operation as usize)?;
                 let call = machine.operation(owner.call)?;
                 (owner.public_machine == machine.id
                         && call.kind.direct_callee() == Some(owner.representative_machine)
@@ -3711,7 +3711,7 @@ pub mod quotients {
                 if source_type == representation.carrier
                     && result.structural_type == representation.quotient =>
             {
-                let owner = module.quotients.operations.get(operation as usize)?;
+                let owner = module.types.quotients.operations.get(operation as usize)?;
                 let call = machine.operation(owner.call)?;
                 (owner.public_machine == machine.id
                         && call.kind.direct_callee() == Some(owner.representative_machine)
@@ -3725,14 +3725,14 @@ pub mod quotients {
     }
 
     pub fn validate_quotient_catalog(module: &TerminalModule) -> Result<(), &'static str> {
-        validate_quotient_representations(&module.structural_types, &module.quotients)?;
+        validate_quotient_representations(&module.types.structural_types, &module.types.quotients)?;
         validate_quotient_representation_identities(
-            &module.structural_types,
-            &module.quotients,
+            &module.types.structural_types,
+            &module.types.quotients,
             &module.identities,
         )?;
-        for (index, operation) in module.quotients.operations.iter().enumerate() {
-            if module.quotients.operations[..index].iter().any(|prior| {
+        for (index, operation) in module.types.quotients.operations.iter().enumerate() {
+            if module.types.quotients.operations[..index].iter().any(|prior| {
                 prior.public_machine == operation.public_machine && prior.call == operation.call
             }) {
                 return Err("duplicate quotient call correspondence");
@@ -3740,7 +3740,7 @@ pub mod quotients {
             validate_operation(module, index, operation)?;
         }
         validate_quotient_opacity(module)?;
-        for row in &module.quotients.adaptations {
+        for row in &module.types.quotients.adaptations {
             let machine = module
                 .machines
                 .iter()

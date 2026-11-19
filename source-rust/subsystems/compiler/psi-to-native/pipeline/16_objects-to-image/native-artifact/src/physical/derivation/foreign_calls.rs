@@ -155,7 +155,7 @@ pub(crate) fn derive_normalized_foreign_child(
                 )
             }
         };
-    let declaration = terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+    let declaration = terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
         .ok_or("normalized foreign D41 occurrence names an absent boundary")?;
     if declaration.completion != completion {
         return Err("normalized foreign invocation changed its completion contract");
@@ -241,7 +241,7 @@ pub(crate) fn derive_normalized_foreign_child(
             if !terminal_semantics::inhabitation::external_result_is_erased(
                 completion,
                 declared.structural(),
-                &module.structural_types,
+                &module.types.structural_types,
             )
             .map_err(|_| "normalized foreign completion result is not proved uninhabited")?
             {
@@ -343,7 +343,7 @@ pub(crate) fn derive_normalized_foreign_child(
                     .any(|item| item.id == result.structural_type)
                 || retained_types
                     .iter()
-                    .any(|item| !module.structural_types.iter().any(|source| source == item))
+                    .any(|item| !module.types.structural_types.iter().any(|source| source == item))
                 || !layout_matches
             {
                 return Err("normalized foreign D41 child changed its structural result custody");

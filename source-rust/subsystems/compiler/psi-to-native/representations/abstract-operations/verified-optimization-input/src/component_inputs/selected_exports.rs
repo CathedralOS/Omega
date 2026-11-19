@@ -41,7 +41,7 @@ pub(super) fn selected_plan_export_positions(
             });
         }
         for position in projected.candidate_positions {
-            let candidate = &component.module().provider_candidates[position];
+            let candidate = &component.module().interfaces.provider_candidates[position];
             let requirement = component
                 .module()
                 .identities
@@ -57,7 +57,7 @@ pub(super) fn selected_plan_export_positions(
     }
     let unresolved: Vec<String> = component
         .module()
-        .root_service_reach
+        .interfaces.root_service_reach
         .installation_dependencies
         .iter()
         .map(|dependency| {

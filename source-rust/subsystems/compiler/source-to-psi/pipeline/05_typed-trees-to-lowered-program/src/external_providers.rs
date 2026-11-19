@@ -60,7 +60,7 @@ impl ExternalProviderNamespace {
         typed_source: Option<&crate::source_state::TypedTrees>,
     ) -> Checked<Vec<ExternalProviderCandidate>> {
         let refuse = |detail| crate::lowering::read::services::unavailable(context, detail);
-        if !module.external_providers.is_empty() {
+        if !module.interfaces.external_providers.is_empty() {
             return Err(refuse(
                 "native candidates cannot overwrite checked provider publication",
             ));

@@ -144,8 +144,8 @@ impl<'a> DescriptorAnalysis<'a> {
         'a: 'input,
     {
         crate::descriptor_results::PayloadMembershipHistory::new(
-            &module.structural_types,
-            &module.structural_domains,
+            &module.types.structural_types,
+            &module.types.structural_domains,
             self.replay.machines,
             machine,
         )

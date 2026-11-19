@@ -31,7 +31,7 @@ pub fn boundary_call_preserves_descriptor_storage(
     else {
         return false;
     };
-    let Some(declaration) = exactly_one(module.boundary_machines.iter(), |declaration| {
+    let Some(declaration) = exactly_one(module.interfaces.boundary_machines.iter(), |declaration| {
         declaration.id == *boundary
     }) else {
         return false;
@@ -46,7 +46,7 @@ pub fn boundary_call_preserves_descriptor_storage(
         }
     };
     boundary_completion_preserves_descriptor_storage(
-        module.structural_types.iter(),
+        module.types.structural_types.iter(),
         declaration,
         result,
         !completion_receipts.is_empty(),

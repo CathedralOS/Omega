@@ -100,7 +100,7 @@ impl TargetReach {
             .collect::<Vec<_>>();
         function_positions.sort_unstable_by_key(|(machine, _)| *machine);
         let boundary_set = module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .map(|row| row.id)
             .collect::<std::collections::BTreeSet<_>>();
@@ -108,7 +108,7 @@ impl TargetReach {
             BoundaryMachineId,
             Vec<(usize, &terminal_psi::ProviderCandidateConformance)>,
         >::new();
-        for (pos, candidate) in module.provider_candidates.iter().enumerate() {
+        for (pos, candidate) in module.interfaces.provider_candidates.iter().enumerate() {
             candidates_by_boundary
                 .entry(candidate.boundary)
                 .or_default()
@@ -157,7 +157,7 @@ impl TargetReach {
         let mut pending = vec![entry];
         pending.extend(
             module
-                .dynamic_dispatch
+                .execution.dynamic_dispatch
                 .tables
                 .iter()
                 .flat_map(|table| table.rows.iter().flatten())
@@ -213,14 +213,14 @@ impl TargetReach {
                                     reason,
                                 };
                             let selected = module
-                                .callables
+                                .execution.callables
                                 .descriptor(*descriptor)
                                 .ok_or_else(|| invalid("selected descriptor is absent"))?;
                             if operation.result.scalar().map(|value| value.scalar_type)
                                 != Some(semantic_vocabulary::ScalarType::Callable(
                                     selected.contract,
                                 ))
-                                || module.callables.contract(selected.contract).is_none()
+                                || module.execution.callables.contract(selected.contract).is_none()
                             {
                                 return Err(invalid(
                                     "selected descriptor changes its callable contract",

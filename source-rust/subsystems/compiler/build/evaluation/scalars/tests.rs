@@ -103,13 +103,13 @@ fn program() -> std::sync::Arc<CanonicalTerminalArtifact> {
         ));
         let callable = TargetMachineCallable::Machine(machine_id(index));
         module
-            .scalar_applications
+            .scalars.scalar_applications
             .insert(ScalarApplication::Evaluate {
                 entry: callable,
                 scalar_type: scalar(),
             })
             .unwrap();
-        let scope = &mut module.scalar_applications.proof_scope;
+        let scope = &mut module.scalars.scalar_applications.proof_scope;
         let name = format!("scalar-evaluation::constant{index}");
         let id = identities.intern(&name);
         let declaration = terminal_psi::ProofDeclarationId(index as u32);
@@ -151,7 +151,7 @@ fn program() -> std::sync::Arc<CanonicalTerminalArtifact> {
     }
     module.identities = identities.build();
     module
-        .scalar_applications
+        .scalars.scalar_applications
         .conditions
         .retain_completion(ScalarConditionSubject::Module, application(1));
     let optimized = build_identity_optimization_execution_record(&module).unwrap();

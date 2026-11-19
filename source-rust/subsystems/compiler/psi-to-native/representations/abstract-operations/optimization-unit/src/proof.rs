@@ -65,17 +65,17 @@ impl RuntimeEvidenceCatalog {
     pub(crate) fn from_verified_module(psi: TerminalPsiIdentity, module: &TerminalModule) -> Self {
         Self {
             psi,
-            callables: module.callables.clone(),
+            callables: module.execution.callables.clone(),
             declarations: module
                 .machines
                 .iter()
                 .map(|machine| (machine.id, machine.declaration.clone()))
                 .collect(),
-            proposition_declarations: module.proposition_declarations.clone(),
-            applications: module.proposition_applications.clone(),
-            terms: module.evidence_terms.clone(),
-            lanes: module.evidence_contract_lanes.clone(),
-            calls: module.proof_output_calls.clone(),
+            proposition_declarations: module.proofs.proposition_declarations.clone(),
+            applications: module.proofs.proposition_applications.clone(),
+            terms: module.proofs.evidence_terms.clone(),
+            lanes: module.proofs.evidence_contract_lanes.clone(),
+            calls: module.proofs.proof_output_calls.clone(),
             owned_cleanups: source_owned_cleanups(module),
         }
     }
@@ -130,7 +130,7 @@ pub fn validate_runtime_evidence_context(
 ) -> Result<(), &'static str> {
     if unit.psi != expected
         || unit.identities != module.identities
-        || unit.callables != module.callables
+        || unit.callables != module.execution.callables
     {
         return Err("optimizer runtime evidence context belongs to another verified input");
     }
@@ -139,7 +139,7 @@ pub fn validate_runtime_evidence_context(
         .as_ref()
         .ok_or("verified optimizer runtime evidence catalog is absent")?;
     if catalog.psi != expected
-        || catalog.callables != module.callables
+        || catalog.callables != module.execution.callables
         || !catalog
             .declarations
             .iter()
@@ -148,11 +148,11 @@ pub fn validate_runtime_evidence_context(
                 .machines
                 .iter()
                 .map(|machine| (machine.id, &machine.declaration)))
-        || catalog.proposition_declarations != module.proposition_declarations
-        || catalog.applications != module.proposition_applications
-        || catalog.terms != module.evidence_terms
-        || catalog.lanes != module.evidence_contract_lanes
-        || catalog.calls != module.proof_output_calls
+        || catalog.proposition_declarations != module.proofs.proposition_declarations
+        || catalog.applications != module.proofs.proposition_applications
+        || catalog.terms != module.proofs.evidence_terms
+        || catalog.lanes != module.proofs.evidence_contract_lanes
+        || catalog.calls != module.proofs.proof_output_calls
         || catalog.owned_cleanups != source_owned_cleanups(module)
     {
         return Err("optimizer runtime evidence catalog differs from admitted Terminal source");
@@ -164,7 +164,7 @@ pub fn validate_runtime_evidence_context(
             .ok_or("runtime evidence function has no verified source declaration")?;
         if function.verified_contract.as_ref() != Some(&source.contract)
             || !function.evidence_contract_lanes.iter().eq(module
-                .evidence_contract_lanes
+                .proofs.evidence_contract_lanes
                 .iter()
                 .filter(|lane| {
                     lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
@@ -408,16 +408,16 @@ pub fn attach_verified_module_context(
     unit.runtime_evidence = Some(std::sync::Arc::new(
         RuntimeEvidenceCatalog::from_verified_module(unit.psi, module),
     ));
-    unit.structural_domains = module.structural_domains.clone().into();
-    unit.services = module.services.clone().into();
-    unit.root_service_reach = module.root_service_reach.clone();
+    unit.structural_domains = module.types.structural_domains.clone().into();
+    unit.services = module.interfaces.services.clone().into();
+    unit.root_service_reach = module.interfaces.root_service_reach.clone();
     for function in &mut unit.functions {
         let source = module.machine(function.machine).ok_or(function.machine)?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();
         function.verified_contract = Some(source.contract.clone());
         function.evidence_contract_lanes = module
-            .evidence_contract_lanes
+            .proofs.evidence_contract_lanes
             .iter()
             .filter(|lane| {
                 lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)

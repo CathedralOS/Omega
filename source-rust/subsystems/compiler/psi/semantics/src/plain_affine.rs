@@ -950,7 +950,7 @@ pub fn plan_in(
     let machine = module_machine(module, identity)?;
     analyze(
         machine,
-        &module.structural_types,
+        &module.types.structural_types,
         false,
         Some(module),
         None,
@@ -969,7 +969,7 @@ pub fn plan_reference_ends(
     let machine = module_machine(module, identity)?;
     analyze(
         machine,
-        &module.structural_types,
+        &module.types.structural_types,
         false,
         Some(module),
         Some(candidates),
@@ -997,7 +997,7 @@ pub fn verify_in(
         machine,
         analyze(
             machine,
-            &module.structural_types,
+            &module.types.structural_types,
             true,
             Some(module),
             None,
@@ -1014,7 +1014,7 @@ pub fn plan_claims_in(
     let machine = module_machine(module, identity)?;
     analyze(
         machine,
-        &module.structural_types,
+        &module.types.structural_types,
         false,
         Some(module),
         None,
@@ -1032,7 +1032,7 @@ pub fn verify_claims_in(
     let machine = module_machine(module, identity)?;
     let plan = analyze(
         machine,
-        &module.structural_types,
+        &module.types.structural_types,
         true,
         Some(module),
         None,

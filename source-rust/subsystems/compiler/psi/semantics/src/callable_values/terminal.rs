@@ -97,7 +97,7 @@ pub fn boundary_call_reach(
             ReachedCallableTarget::Callable(values) => {
                 for ceiling in &values.unresolved_ceilings {
                     let contract = module
-                        .callables
+                        .execution.callables
                         .contract(*ceiling)
                         .ok_or("reached callable has no exact unresolved contract")?;
                     if !contract.envelope.invocations.is_empty() {
@@ -255,7 +255,7 @@ pub fn terminal_callable_values_with_error_context(
                     let site =
                         CallableInvocationSite::Invocation(InvocationSite::Operation(operation.id));
                     match project_callable_invocation(
-                        &module.structural_types,
+                        &module.types.structural_types,
                         flow,
                         site,
                         match operation.kind {
@@ -325,7 +325,7 @@ pub fn terminal_callable_values_with_error_context(
             };
             if let Some((site, target, boundary, scalar, structural)) = terminal_call {
                 match project_callable_invocation(
-                    &module.structural_types,
+                    &module.types.structural_types,
                     flow,
                     site,
                     boundary,
@@ -392,7 +392,7 @@ pub fn terminal_callable_values_with_error_context(
             action_ordinal: ordinal,
         };
         let call = project_owned_cleanup_invocation(
-            &module.structural_types,
+            &module.types.structural_types,
             flow,
             position,
             edge,
@@ -414,8 +414,8 @@ pub fn terminal_callable_values_with_error_context(
         }
     }
     Ok(CallableValueProgram {
-        catalog: &module.callables,
-        structural_types: &module.structural_types,
+        catalog: &module.execution.callables,
+        structural_types: &module.types.structural_types,
         graph,
         bodies,
     })

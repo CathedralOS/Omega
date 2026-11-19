@@ -249,7 +249,7 @@ impl TerminalNativeRealizationProposal {
         let mut demands = BTreeSet::new();
         let mut direct_demands = BTreeSet::new();
         for boundary in module
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .filter(|boundary| scope.contains_boundary(boundary.id))
         {
@@ -325,19 +325,19 @@ impl TerminalNativeRealizationProposal {
             // A missing settlement can originate before native admission. Show
             // the retained choices without changing which boundaries are used.
             let retained_boundary_count = module
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .filter(|boundary| scope.contains_boundary(boundary.id))
                 .count();
             let mut text = format!(
                 "prepared native boundaries: entry={:?} total={} in_scope={} direct_leaves={} builtins={}\n",
                 scope.entry(),
-                module.boundary_machines.len(),
+                module.interfaces.boundary_machines.len(),
                 retained_boundary_count,
                 self.providers().direct_boundary_leaves.len(),
                 compiler_builtins.len(),
             );
-            for boundary in module.boundary_machines.iter().take(16) {
+            for boundary in module.interfaces.boundary_machines.iter().take(16) {
                 let retained = scope.contains_boundary(boundary.id);
                 let name = module.identities.text(boundary.identity);
                 let selected =
@@ -362,7 +362,7 @@ impl TerminalNativeRealizationProposal {
             }
             text.push_str(&format!(
                 "prepared native boundaries omitted={}\n",
-                module.boundary_machines.len().saturating_sub(16),
+                module.interfaces.boundary_machines.len().saturating_sub(16),
             ));
             // Every field is a bounded numeric identity, count or boolean; also
             // cap the assembled record if an internal Debug spelling changes.
@@ -473,7 +473,7 @@ pub fn requires_scalar_values(
     !demand.is_empty()
         || !artifact
             .semantic_module()
-            .scalar_applications
+            .scalars.scalar_applications
             .conditions
             .is_empty()
 }

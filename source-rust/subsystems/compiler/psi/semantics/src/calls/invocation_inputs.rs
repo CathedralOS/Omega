@@ -15,7 +15,7 @@ pub fn validate_empty_erased_invocation_inputs(
     if targets.next().is_some() {
         return Err("empty erased invocation target is ambiguous");
     }
-    if module.evidence_contract_lanes.iter().any(|lane| {
+    if module.proofs.evidence_contract_lanes.iter().any(|lane| {
         lane.owner == terminal_psi::EvidenceCallableOwner::Machine(target)
             && lane.kind == EvidenceContractLaneKind::Requires
     }) {

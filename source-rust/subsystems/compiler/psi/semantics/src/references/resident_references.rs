@@ -41,7 +41,7 @@ pub fn resident_reference_plan(
         return Err("resident interpretation lost distinct source-owner qualification roles");
     }
     let mut plans = module
-        .access_view_plans
+        .access.access_view_plans
         .iter()
         .filter(|plan| plan.carrier == *referent);
     let (Some(plan), None) = (plans.next(), plans.next()) else {

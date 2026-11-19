@@ -832,7 +832,7 @@ pub(crate) mod capabilities {
                 shape,
                 scalar_restriction: None,
             };
-            module.structural_types = vec![
+            module.types.structural_types = vec![
                 declaration(
                     1,
                     terminal_psi::StructuralTypeShape::Reference {
@@ -1811,7 +1811,7 @@ pub(crate) mod content_transformations {
                         .get(&input.subject.root)
                         .ok_or_else(invalid)?;
                     let path = terminal_semantics::content_transformations::structural_path(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         &module.identities,
                         root.structural_type,
                         &input.subject.segments,
@@ -1833,15 +1833,15 @@ pub(crate) mod content_transformations {
             }
             let mut actual = Vec::new();
             let types = module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .map(|declaration| (declaration.id, declaration))
                 .collect::<std::collections::BTreeMap<_, _>>();
             let boundaries = module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .filter_map(|declaration| declaration.owns_linear_claim.then_some(declaration.id))
-                .chain(module.structural_types.iter().filter_map(|declaration| {
+                .chain(module.types.structural_types.iter().filter_map(|declaration| {
                     declaration.nominal_cleanup.as_ref().map(|_| declaration.id)
                 }))
                 .collect::<std::collections::BTreeSet<_>>();
@@ -1912,8 +1912,8 @@ pub(crate) mod content_transformations {
                     .get(&parent.place)
                     .ok_or_else(invalid)?;
                 terminal_semantics::content_transformations::validate_parent_memberships(
-                &module.structural_types,
-                &module.structural_domains,
+                &module.types.structural_types,
+                &module.types.structural_domains,
                 &module.identities,
                 root.structural_type,
                 parent,

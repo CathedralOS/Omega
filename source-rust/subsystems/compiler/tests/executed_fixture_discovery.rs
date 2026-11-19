@@ -131,7 +131,7 @@ fn native_project_build_publishes_the_reached_boundary_calling_application() {
         .published()
         .expect("source checking publishes the accepted Terminal product");
     let module = published.artifact().semantic_module();
-    let [boundary] = module.boundary_machines.as_slice() else {
+    let [boundary] = module.interfaces.boundary_machines.as_slice() else {
         panic!("the kept project reaches exactly its process-ID requirement")
     };
     let identity = module
@@ -142,7 +142,7 @@ fn native_project_build_publishes_the_reached_boundary_calling_application() {
         Some(identity.requirement_identity.as_str()),
         module.identities.text(callable)
     );
-    let [association] = module.calling_signatures.as_slice() else {
+    let [association] = module.interfaces.calling_signatures.as_slice() else {
         panic!("the reached requirement has one exact calling association")
     };
     assert_eq!(association.boundary, boundary.id);

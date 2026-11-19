@@ -78,7 +78,7 @@ pub(crate) fn select_terminal_checked_body<'module>(
 ) -> Result<&'module terminal_psi::CheckedMachineDeclaration, Diagnostic> {
     let selection = CheckedBodySelection::new(plan, row)?;
     let mut candidates = module
-        .boundary_application_candidates
+        .interfaces.boundary_application_candidates
         .iter()
         .filter(|candidate| {
             candidate.requirement == *demand.requirement()

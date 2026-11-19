@@ -1260,7 +1260,7 @@ pub(crate) mod instance {
                 let structural_type = StructuralTypeId::new(1).unwrap();
                 let place = PlaceId::new(1).unwrap();
                 let mut identities = module.identities.clone().into_builder();
-                module.structural_types.push(StructuralTypeDeclaration {
+                module.types.structural_types.push(StructuralTypeDeclaration {
                     declaration_identity: Default::default(),
                     id: structural_type,
                     identity: identities.intern("borrowed Boolean"),
@@ -1350,7 +1350,7 @@ pub(crate) mod instance {
                     (1, "host carrier", vec![field]),
                     (2, "empty host value", Vec::new()),
                 ] {
-                    module.structural_types.push(StructuralTypeDeclaration {
+                    module.types.structural_types.push(StructuralTypeDeclaration {
                         declaration_identity: Default::default(),
                         id: StructuralTypeId::new(id).unwrap(),
                         identity: identities.intern(name),
@@ -3545,7 +3545,7 @@ pub(crate) mod program {
             };
             let row = artifact
                 .semantic_module()
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .find(|row| row.machine == entry)
                 .expect("actual direct placed row")

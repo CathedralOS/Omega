@@ -82,7 +82,7 @@ impl<'t> Program<'t> {
             return Ok(());
         }
         let graph = terminal_semantics::storage::type_graph::StorageTypeGraph::new(
-            &module.structural_types,
+            &module.types.structural_types,
         )
         .map_err(|why| unavailable(machine, format!("opaque storage declarations: {why:?}")))?;
         let demand = graph
@@ -124,13 +124,13 @@ impl<'t> Program<'t> {
             } = &mut shape
             {
                 let mut layout = module
-                    .target_layout_applications
+                    .layouts.target_layout_applications
                     .iter()
                     .find(|row| row.id == *application)
                     .ok_or_else(|| malformed(machine, "opaque carrier lost its target layout"))?
                     .clone();
                 let next = module
-                    .target_layout_applications
+                    .layouts.target_layout_applications
                     .last()
                     .map_or(0, |row| row.id.0)
                     .checked_add(1)
@@ -155,13 +155,13 @@ impl<'t> Program<'t> {
                         field.field = rebase(field.field)?;
                     }
                 }
-                module.target_layout_applications.push(layout);
+                module.layouts.target_layout_applications.push(layout);
             }
             let position = module
-                .structural_types
+                .types.structural_types
                 .binary_search_by_key(&opaque, |row| row.id)
                 .map_err(|_| malformed(machine, "opaque declaration lost its storage"))?;
-            let declaration = &mut module.structural_types[position];
+            let declaration = &mut module.types.structural_types[position];
             if declaration.shape != StructuralTypeShape::Opaque {
                 return Err(malformed(
                     machine,
@@ -171,7 +171,7 @@ impl<'t> Program<'t> {
             declaration.shape = shape;
             declaration.scalar_restriction = scalar_restriction;
             module
-                .opaque_representations
+                .types.opaque_representations
                 .push(TerminalOpaqueRepresentation {
                     opaque,
                     carrier,
@@ -222,14 +222,14 @@ fn by_value_roots<'a>(
         .machines
         .iter()
         .map(|machine| &machine.contract)
-        .chain(&module.declaration_contracts)
+        .chain(&module.execution.declaration_contracts)
     {
         roots.extend(owned(&contract.structural_parameters));
         if let TerminalMachineResult::Structural(result) = &contract.result {
             roots.push(result.structural_type);
         }
     }
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         roots.extend(owned(&boundary.structural_parameters));
         if let BoundaryMachineResult::Structural(result) = &boundary.result {
             roots.push(result.structural_type);
@@ -237,7 +237,7 @@ fn by_value_roots<'a>(
     }
     roots.extend(
         module
-            .calling_abi_signatures
+            .interfaces.calling_abi_signatures
             .iter()
             .filter_map(|row| row.storage.as_ref().ok())
             .flat_map(abi),
@@ -247,20 +247,20 @@ fn by_value_roots<'a>(
 }
 
 fn publish_native_layouts(machine: MachineId, module: &mut TerminalModule) -> Checked<()> {
-    if module.opaque_representations.is_empty() {
+    if module.types.opaque_representations.is_empty() {
         return Ok(());
     }
-    let previous = std::mem::take(&mut module.native_layouts);
+    let previous = std::mem::take(&mut module.layouts.native_layouts);
     let old = previous.records().collect::<Vec<_>>();
     let mut layouts = NativeLayoutCatalog::default();
-    for declaration in &module.structural_types {
+    for declaration in &module.types.structural_types {
         let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
             continue;
         };
         let owner = module
-            .opaque_representations
+            .types.opaque_representations
             .binary_search_by_key(&declaration.id, |row| row.opaque)
-            .map_or(declaration.id, |i| module.opaque_representations[i].carrier);
+            .map_or(declaration.id, |i| module.types.opaque_representations[i].carrier);
         let index = old
             .binary_search_by_key(&owner, |row| row.record)
             .map_err(|_| malformed(machine, "record lost its carrier's native layout"))?;
@@ -293,6 +293,6 @@ fn publish_native_layouts(machine: MachineId, module: &mut TerminalModule) -> Ch
                 .cloned(),
         );
     }
-    module.native_layouts = layouts;
+    module.layouts.native_layouts = layouts;
     Ok(())
 }

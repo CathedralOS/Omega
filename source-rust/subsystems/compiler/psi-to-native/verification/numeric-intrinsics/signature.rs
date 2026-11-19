@@ -65,7 +65,7 @@ pub fn float_arithmetic_signature(
             return Err("does not match its structural classification result".to_owned());
         };
         let mut declarations = module
-            .structural_types
+            .types.structural_types
             .iter()
             .filter(|declaration| declaration.id == result.structural_type);
         if declarations
@@ -92,7 +92,7 @@ pub fn float_arithmetic_signature(
     let result_matches = if result.qualifications.is_empty() {
         true
     } else {
-        terminal_psi::find_boundary_machine(&module.boundary_machines, boundary.id)
+        terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, boundary.id)
             == Some(boundary)
             && numeric_boundary_realization(module, boundary).is_ok_and(|required| {
                 required.operation == realization.operation && required.format == realization.format

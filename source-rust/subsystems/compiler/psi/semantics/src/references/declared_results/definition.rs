@@ -143,7 +143,7 @@ fn occurrences(
         if *referent {
             continue; // The caller checks the formal's separate access column.
         }
-        let actual = crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)
+        let actual = crate::runtime_structural_path_tip(module.types.structural_types.iter(), root, path)
             .and_then(|tip| crate::stored_reference_access(&tip.shape));
         if actual != Some(*access) {
             return Err("public reference path or access differs from its original declared type");
@@ -225,7 +225,7 @@ impl TypeIdentityPackageOwnerVisitor for DeclaredTypeWalk<'_> {
                     if !(self.borrowed_formal && self.outer_reference()) =>
                 {
                     let tip = crate::runtime_structural_path_tip(
-                        self.module.structural_types.iter(),
+                        self.module.types.structural_types.iter(),
                         self.root,
                         &self.path,
                     )
@@ -247,7 +247,7 @@ impl TypeIdentityPackageOwnerVisitor for DeclaredTypeWalk<'_> {
             )
         {
             let tip = crate::runtime_structural_path_tip(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 self.root,
                 &self.path,
             )
@@ -257,7 +257,7 @@ impl TypeIdentityPackageOwnerVisitor for DeclaredTypeWalk<'_> {
             // cannot be interpreted as an empty borrowed frontier, including
             // behind an outer reference that stops an ordinary leaf walk.
             if !crate::descriptors::descriptor_results::owned_shape::plain_owned_shape(
-                self.module.structural_types.iter(),
+                self.module.types.structural_types.iter(),
                 tip.id,
             ) {
                 return Err(TypeIdentityVisitError::UnsupportedEmbeddedName);
@@ -346,7 +346,7 @@ mod tests {
             requires: Vec::new(),
         };
         let mut module = TerminalModule::declarations();
-        module.structural_types = vec![
+        module.types.structural_types = vec![
             declaration(1, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
             declaration(
                 2,
@@ -380,7 +380,7 @@ mod tests {
                 },
             ),
         ];
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             5,
             StructuralTypeShape::Reference {
                 referent: id(2),

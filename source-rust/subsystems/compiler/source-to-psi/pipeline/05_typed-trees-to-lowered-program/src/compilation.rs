@@ -395,7 +395,7 @@ fn retain_installation_reach(
         .and_then(|graph| graph.service_reach_from(entry, &requirements))
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     if !reach.installation_dependencies.is_empty() {
-        module.root_service_reach = reach;
+        module.interfaces.root_service_reach = reach;
     }
     Ok(())
 }

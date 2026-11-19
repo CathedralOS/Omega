@@ -222,7 +222,7 @@ fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
         shape,
     };
     let mut module = terminal_psi::TerminalModule::declarations();
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(32))),
         declaration(
             2,
@@ -269,21 +269,21 @@ fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
     };
     assert_eq!(
         reference_field_representation_width(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             &StructuralFieldType::Scalar(ScalarType::Boolean)
         ),
         Some(1),
     );
     assert_eq!(
         reference_field_representation_width(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             &StructuralFieldType::Structural(identity(1))
         ),
         Some(32),
     );
     assert_eq!(
         reference_field_representation_width(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             &StructuralFieldType::Structural(identity(2))
         ),
         None,
@@ -300,7 +300,7 @@ fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
     .expect("checked bounded integer");
     assert_eq!(
         reference_field_representation_width(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             &StructuralFieldType::BoundedInteger(bounded)
         ),
         Some(3),
@@ -369,7 +369,7 @@ fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
     let direct = AuthoredFieldStorage::Direct { byte_offset: 0 };
     let extent = |storage: &AuthoredFieldStorage, size| {
         authored_field_storage_extent(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             &field,
             storage,
             size,

@@ -219,7 +219,7 @@ machine build_entry() { let outcome: Outcome = accept(); }
         .fields[0]
         .identity;
     assert_eq!(
-        module.structural_domains[0].byte_predicate,
+        module.types.structural_domains[0].byte_predicate,
         Some(ByteSequencePredicate::ValidUtf8)
     );
     accepted.publish_invocation().unwrap();
@@ -442,7 +442,7 @@ machine build_entry() {
         other => panic!("the declared membership must cross the actual call: {other:?}"),
     };
     let module = &accepted.elaboration.module;
-    assert!(module.structural_domains.iter().any(|domain| {
+    assert!(module.types.structural_domains.iter().any(|domain| {
         domain.byte_predicate == Some(terminal_psi::ByteSequencePredicate::NoNul)
     }));
     assert!(module.machines.iter().any(|machine| {
@@ -563,7 +563,7 @@ fn the_field_carries_its_predicates_on_its_type() {
     let fields: Vec<&StructuralFieldType> = accepted
         .elaboration
         .module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter_map(|declared| match &declared.shape {
             StructuralTypeShape::Record { fields, .. } => Some(fields),
@@ -691,7 +691,7 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
         })
         .expect("the source emitted its zeroed fixed-array record");
     let mut domain = module
-        .structural_domains
+        .types.structural_domains
         .iter()
         .find(|domain| domain.byte_predicate == Some(ByteSequencePredicate::ValidUtf8))
         .expect("the source retains its complete primitive byte theory")
@@ -723,7 +723,7 @@ machine build_entry() { let n: Named = Named { name: "x" as +Filled }; }
         );
         assert_eq!(
             terminal_semantics::zeroed_projected_byte_qualifications_hold(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 std::iter::once(&domain),
                 root,
                 std::slice::from_ref(&qualification),

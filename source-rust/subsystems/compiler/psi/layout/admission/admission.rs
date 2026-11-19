@@ -98,7 +98,7 @@ impl<'a> TargetLayoutGeometry<'a> {
     pub fn declarations(&self) -> impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone + '_ {
         self.artifact
             .module()
-            .structural_types
+            .types.structural_types
             .iter()
             .map(move |row| {
                 self.declaration(row.id)
@@ -171,7 +171,7 @@ pub fn admit_target_layouts<'artifact>(
     }
     let mut records = Vec::new();
     let mut closures = Vec::new();
-    for application in &artifact.module().target_layout_applications {
+    for application in &artifact.module().layouts.target_layout_applications {
         let stale = || TargetLayoutSelectionError::StaleApplication(application.id);
         let Some(realization) = application
             .realizations
@@ -222,7 +222,7 @@ pub fn admit_target_layouts<'artifact>(
     }
     records.sort_unstable_by_key(|record| record.id);
     let mut lifecycles = Vec::new();
-    for plan in &artifact.module().access_lifecycle_plans {
+    for plan in &artifact.module().access.access_lifecycle_plans {
         if let Some(input) = &plan.target
             && !lifecycle_target_matches(input, target).map_err(|reason| {
                 TargetLayoutSelectionError::InvalidLifecycle {

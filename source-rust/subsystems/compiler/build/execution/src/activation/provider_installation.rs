@@ -82,14 +82,14 @@ pub(super) fn prepare<'host, 'code>(
     for boundary in &request.requirement.boundaries {
         let receiving = receiver
             .module()
-            .boundary_machines
+            .interfaces.boundary_machines
             .iter()
             .find(|row| row.id == *boundary)
             .ok_or("Build readiness names an absent receiving slot")?;
         let identity = identities
             .text(receiving.identity)
             .ok_or("Build slot lost its exact requirement identity")?;
-        let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+        let mut candidates = module.interfaces.provider_candidates.iter().filter(|candidate| {
             module
                 .identities
                 .text(candidate.provider_declaration.identity())

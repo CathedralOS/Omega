@@ -47,7 +47,7 @@ impl ProductSchemaCustody {
     ) -> Self {
         let module = artifact.module();
         let mut requests = std::collections::BTreeMap::new();
-        for request in &module.calling_policy_requests {
+        for request in &module.interfaces.calling_policy_requests {
             if let Ok(identity) = request.declaration.as_ref()
                 && let Some(name) = module.identities.text(*identity)
             {
@@ -57,7 +57,7 @@ impl ProductSchemaCustody {
                     .calling_policy = true;
             }
         }
-        for contract in &module.program_entry_contracts {
+        for contract in &module.interfaces.program_entry_contracts {
             let identity = contract.schema_declaration;
             if let Some(name) = module.identities.text(identity) {
                 requests
@@ -555,7 +555,7 @@ pub fn validate_selection_questions(
             } => {
                 declaration(packet, *source)?;
                 let row =
-                    terminal_psi::find_structural_type(&module.structural_types, *structural_type)
+                    terminal_psi::find_structural_type(&module.types.structural_types, *structural_type)
                         .ok_or("source selection structure has no emitted carrier")?;
                 if module.identities.text(row.identity) != Some(storage_identity.as_str()) {
                     return Err(
@@ -616,7 +616,7 @@ pub fn validate_selection_questions(
         }
     }
     if module
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .any(|row| lookup(&boundary_origins, row.id).is_none())
     {
@@ -669,7 +669,7 @@ pub fn validate_selection_questions(
                             lookup(&boundary_origins, *target) == Some(selected)
                         }
                         SelectionCallTarget::Selected { contract, .. } => module
-                            .callables
+                            .execution.callables
                             .contract(*contract)
                             .is_some_and(|contract| {
                                 packet
@@ -691,7 +691,7 @@ pub fn validate_selection_questions(
                 if let SelectionReference::RuntimeContract { identity } = &row.selected {
                     let same = match target {
                         SelectionCallTarget::Selected { contract, .. } => module
-                            .callables
+                            .execution.callables
                             .contract(*contract)
                             .is_some_and(|contract| {
                                 module.identities.text(contract.identity) == Some(identity.as_str())
@@ -732,7 +732,7 @@ pub fn validate_selection_questions(
                     return Err("descriptor selection differs from its actual construction".into());
                 }
                 let value = module
-                    .callables
+                    .execution.callables
                     .descriptor(*descriptor)
                     .ok_or("descriptor selection names no descriptor")?;
                 if origin(&origins, value.machine, *selected).is_none() {

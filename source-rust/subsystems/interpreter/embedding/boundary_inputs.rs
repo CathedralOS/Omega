@@ -51,7 +51,7 @@ pub(crate) mod access_views {
     ) -> Result<BTreeMap<TerminalAccessViewInput, AccessViewOccurrence>, TerminalInterpretError>
     {
         let entry_rows = module
-            .access_view_inputs
+            .access.access_view_inputs
             .iter()
             .filter(|row| row.machine == entry)
             .map(|row| input_parameter(module, row).map(|_| row))
@@ -188,7 +188,7 @@ pub(crate) mod access_views {
             let mut bound: BTreeMap<TerminalAccessViewInput, AccessViewOccurrence> =
                 BTreeMap::new();
             for row in module
-                .access_view_inputs
+                .access.access_view_inputs
                 .iter()
                 .filter(|row| row.machine == callee)
             {
@@ -206,7 +206,7 @@ pub(crate) mod access_views {
                 let occurrence = if let Some(mut ram) = ram {
                     self.validate_access_backing(&ram)?;
                     let plan = module
-                        .access_view_plans
+                        .access.access_view_plans
                         .iter()
                         .find(|plan| plan.carrier == ram.carrier())
                         .ok_or(malformed())?;

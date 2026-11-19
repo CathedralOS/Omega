@@ -265,7 +265,7 @@ fn admission_uses_only_the_complete_root_summary() {
         cause: CrashCause::Trap,
         alternatives: vec![CrashRouteGuard::Truth],
     }];
-    let scope = &mut module.scalar_applications.proof_scope;
+    let scope = &mut module.scalars.scalar_applications.proof_scope;
     for declaration in [root, unrelated] {
         scope.callables.insert(ProofCallableAssociation::Callable {
             declaration,
@@ -284,7 +284,7 @@ fn admission_uses_only_the_complete_root_summary() {
     );
     assert!(require_crash_free_evaluation(&module, ProofDeclarationId(3)).is_err());
     module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_headers
         .insert(header(root));
@@ -478,7 +478,7 @@ fn admission_validates_the_whole_guard_in_the_emitted_entry_context() {
     let mut module = terminal_psi::TerminalModule::declarations();
     module.machines.push(machine(1));
     module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callables
         .insert(ProofCallableAssociation::Callable {
@@ -507,7 +507,7 @@ fn admission_validates_the_whole_guard_in_the_emitted_entry_context() {
         integer(0),
     ));
     module
-        .scalar_applications
+        .scalars.scalar_applications
         .proof_scope
         .callable_headers
         .insert(header(root));

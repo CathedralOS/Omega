@@ -510,7 +510,7 @@ fn validate_native_geometry(
             .get(usize::from(root))
             .ok_or("native descriptor has no retained value shape")?;
         let geometry =
-            calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+            calling_conventions::terminal_layout::NativeGeometry::new(&module.types.structural_types)
                 .map_err(|error| format!("native type catalog: {error:?}"))?;
         let expected = geometry
             .shape(kind)
@@ -561,7 +561,7 @@ fn validate_native_geometry(
             if terminal_semantics::inhabitation::external_result_is_erased(
                 boundary.completion,
                 Some(kind.structural_type),
-                &module.structural_types,
+                &module.types.structural_types,
             )? {
                 Ok(())
             } else {

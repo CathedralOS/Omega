@@ -184,7 +184,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                     )
                 })?;
             let envelope = module
-                .callables
+                .execution.callables
                 .declaration_envelope(required)
                 .ok_or_else(|| {
                     fault(
@@ -200,7 +200,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                 .map(|position| summaries[position])
                 .ok_or_else(|| fault(caller, site, "operational callee is unavailable")),
             Callee::Declared(TargetMachineCallable::Boundary(id)) => module
-                .callables
+                .execution.callables
                 .boundary_envelope(id)
                 .map(|envelope| [envelope.suspends, envelope.blocks])
                 .ok_or_else(|| {
@@ -212,7 +212,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                 }),
             Callee::Selected { .. } => call
                 .contract
-                .and_then(|contract| module.callables.contract(contract))
+                .and_then(|contract| module.execution.callables.contract(contract))
                 .map(|contract| [contract.envelope.suspends, contract.envelope.blocks])
                 .ok_or_else(|| {
                     fault(
@@ -386,7 +386,7 @@ fn crossings_are_stated(
             let plan = call_plan(module, machine, operation.id, crossing)
                 .map_err(|reason| fault(machine.id, site, reason))?;
             let mut plans = module
-                .suspension_call_plans
+                .execution.suspension_call_plans
                 .iter()
                 .filter(|plan| plan.crossing == crossing);
             if plans.next() != Some(&plan) || plans.next().is_some() {
@@ -397,7 +397,7 @@ fn crossings_are_stated(
                 ));
             }
             let mut sites = module
-                .suspension_call_sites
+                .execution.suspension_call_sites
                 .iter()
                 .filter(|site| site.crossing == crossing);
             if sites.next() != Some(&call_site(module, &plan)) || sites.next().is_some() {
@@ -423,9 +423,9 @@ fn crossings_are_stated(
             }
         }
     }
-    if stated != module.suspension_call_plans.len()
-        || stated != module.suspension_call_sites.len()
-        || u32::try_from(stated).ok() != Some(module.suspension_call_plan_count)
+    if stated != module.execution.suspension_call_plans.len()
+        || stated != module.execution.suspension_call_sites.len()
+        || u32::try_from(stated).ok() != Some(module.execution.suspension_call_plan_count)
     {
         return Err(fault(
             semantic_vocabulary::MachineId::new(1).expect("nonzero diagnostic identity"),

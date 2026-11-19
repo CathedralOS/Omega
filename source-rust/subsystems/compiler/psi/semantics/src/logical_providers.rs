@@ -27,8 +27,8 @@ struct Candidate<'a> {
 }
 
 fn candidates(module: &TerminalModule) -> Result<Vec<Candidate<'_>>, String> {
-    let mut rows = Vec::with_capacity(module.provider_candidates.len());
-    for row in &module.provider_candidates {
+    let mut rows = Vec::with_capacity(module.interfaces.provider_candidates.len());
+    for row in &module.interfaces.provider_candidates {
         let body = module
             .machine(row.candidate)
             .ok_or("canonical provider candidate has no executable body")?;
@@ -189,7 +189,7 @@ fn selected_logical_providers(
 ) -> Result<Vec<LogicalProvider>, ProviderSelectionError> {
     let candidates = candidates(module)?;
     let mut lifetime_families = module
-        .closed_conformance_applications
+        .proofs.closed_conformance_applications
         .iter()
         .flat_map(|application| &application.schemas)
         .filter(|schema| schema.lifetime_parameter_count != 0)
@@ -199,7 +199,7 @@ fn selected_logical_providers(
     lifetime_families.dedup();
     let mut selections = Vec::new();
     for choice in module
-        .provider_selections
+        .interfaces.provider_selections
         .iter()
         .filter(|choice| choice.target == target)
     {

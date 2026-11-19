@@ -63,7 +63,7 @@ impl PointerOutputPlan {
             ));
         }
         let tip = terminal_semantics::runtime_structural_path_tip(
-            program.module().structural_types.iter(),
+            program.module().types.structural_types.iter(),
             layout.structural_type,
             declared_path,
         )
@@ -104,7 +104,7 @@ impl PointerOutputPlan {
                 layout.opaque_region_repetitions(region),
                 &mut |path, byte_offset| {
                     let storage = terminal_semantics::canonical_structural_storage_path(
-                        program.module().structural_types.iter(),
+                        program.module().types.structural_types.iter(),
                         layout.structural_type,
                         &path,
                     )

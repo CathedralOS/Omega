@@ -40,7 +40,7 @@ impl ProhibitedSite {
                 boundary,
             } => {
                 let identity =
-                    terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+                    terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
                         .map(|declaration| {
                             module
                                 .identities
@@ -538,7 +538,7 @@ fn inspect_boundary<'module>(
 ) {
     let boundary = called_boundary;
     let Some(declaration) =
-        terminal_psi::find_boundary_machine(&module.boundary_machines, boundary)
+        terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, boundary)
     else {
         report.gaps.push(EvidenceGap {
             entry,
@@ -587,7 +587,7 @@ fn inspect_boundary<'module>(
         }
     }
     let candidates: Vec<&ProviderCandidateConformance> = module
-        .provider_candidates
+        .interfaces.provider_candidates
         .iter()
         .filter(|candidate| candidate.boundary == boundary)
         .collect();
@@ -675,7 +675,7 @@ mod boundary_reach_tests {
         let child = identities.intern("package:other::Child");
         let callable = identities.intern("package:owner::Interface::read()");
         module.identities = identities.build();
-        module.services = vec![
+        module.interfaces.services = vec![
             ServiceDeclaration {
                 id: ServiceId::new(1).unwrap(),
                 identity: owner,
@@ -692,7 +692,7 @@ mod boundary_reach_tests {
                 parents: vec![ServiceId::new(2).unwrap()],
             },
         ];
-        module.boundary_machines.push(BoundaryMachineDeclaration {
+        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
             declaration: None,
             numeric_intrinsic: None,
@@ -738,9 +738,9 @@ mod boundary_reach_tests {
         );
         assert!(crate::service_for_exclusion(&module, "Child").is_err());
         assert!(crate::service_for_exclusion(&module, "package:absent::Child").is_err());
-        let mut duplicate = module.services[2].clone();
+        let mut duplicate = module.interfaces.services[2].clone();
         duplicate.id = ServiceId::new(4).unwrap();
-        module.services.push(duplicate);
+        module.interfaces.services.push(duplicate);
         assert!(crate::service_for_exclusion(&module, identity).is_err());
     }
 
@@ -789,7 +789,7 @@ mod boundary_reach_tests {
                 },
             ),
         ];
-        module.unoptimized_behavior = module
+        module.execution.unoptimized_behavior = module
             .machines
             .iter()
             .map(UnoptimizedMachineBehavior::capture)
@@ -820,7 +820,7 @@ mod boundary_reach_tests {
         );
 
         // A direct invocation brings the private body into even the single-entry scope.
-        module.unoptimized_behavior[0]
+        module.execution.unoptimized_behavior[0]
             .operations
             .push(UnoptimizedBehaviorOperation::Invocation {
                 block,
@@ -832,9 +832,9 @@ mod boundary_reach_tests {
                 .message
                 .contains("behavior exclusion violated")
         );
-        module.unoptimized_behavior[1].operations.clear();
+        module.execution.unoptimized_behavior[1].operations.clear();
         assert!(check(&module, None).is_ok());
-        module.unoptimized_behavior.pop();
+        module.execution.unoptimized_behavior.pop();
         assert!(
             check(&module, Some(&[entry])).unwrap_err()[0]
                 .message
@@ -867,7 +867,7 @@ mod boundary_reach_tests {
         let empty = inspect(&module, owner);
         assert!(empty.prohibited.is_empty(), "{empty:?}");
         assert!(empty.gaps.is_empty(), "{empty:?}");
-        module.boundary_machines[0].fixed_service_reach.push(owner);
+        module.interfaces.boundary_machines[0].fixed_service_reach.push(owner);
         let reached = inspect(&module, owner);
         assert!(
             reached
@@ -876,8 +876,8 @@ mod boundary_reach_tests {
                 .any(|row| row.exclusion == BehaviorExclusion::Service(owner)),
             "{reached:?}"
         );
-        module.boundary_machines[0].fixed_service_reach.clear();
-        module.boundary_machines[0]
+        module.interfaces.boundary_machines[0].fixed_service_reach.clear();
+        module.interfaces.boundary_machines[0]
             .fixed_service_reach
             .push(ServiceId::new(3).unwrap());
         let reached = inspect(&module, ServiceId::new(2).unwrap());
@@ -893,8 +893,8 @@ mod boundary_reach_tests {
                 .prohibited
                 .is_empty()
         );
-        module.boundary_machines[0].fixed_service_reach.clear();
-        module.boundary_machines[0]
+        module.interfaces.boundary_machines[0].fixed_service_reach.clear();
+        module.interfaces.boundary_machines[0]
             .published_service_ceiling
             .push(owner);
         let report = inspect(&module, owner);

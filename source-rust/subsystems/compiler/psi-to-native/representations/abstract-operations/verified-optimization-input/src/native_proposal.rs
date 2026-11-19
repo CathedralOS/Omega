@@ -236,7 +236,7 @@ mod proposal {
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
         provider_admission::validate_task_activations(
-            &terminal_module.task_activation_demands,
+            &terminal_module.execution.task_activation_demands,
             &terminal_module.identities,
             &selected,
             target_profile,
@@ -418,7 +418,7 @@ mod proposal {
         application_indices.sort_unstable();
         let operations = crate::settlement::callback_settlement::CallbackTerminalOperations::new(
             module
-                .callback_applications
+                .interfaces.callback_applications
                 .iter()
                 .map(|application| (application.registrar_machine, application.registrar)),
             module.machines.iter().flat_map(|machine| {
@@ -427,7 +427,7 @@ mod proposal {
                     .map(move |operation| (machine.id, operation))
             }),
         );
-        for application in &module.callback_applications {
+        for application in &module.interfaces.callback_applications {
             let first = application_indices.partition_point(|application_index| {
                 *application_index < application.application_index
             });

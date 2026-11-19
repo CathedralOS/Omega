@@ -3701,7 +3701,7 @@ mod finite_family_tests {
             .operations
             .push(operation.clone());
         module
-            .dynamic_dispatch
+            .execution.dynamic_dispatch
             .interfaces
             .push(TerminalDynamicInterface {
                 id: 0,
@@ -3723,7 +3723,7 @@ mod finite_family_tests {
                     })
                     .collect(),
             });
-        module.dynamic_dispatch.tables.push(TerminalDynamicTable {
+        module.execution.dynamic_dispatch.tables.push(TerminalDynamicTable {
             id: 0,
             interface: 0,
             implementation_identity,

@@ -244,7 +244,7 @@ impl RealizedTargetSupply {
             if leaf.plan.target != input.target {
                 return Err("direct boundary leaf belongs to a different target".into());
             }
-            let mut matches = module.boundary_machines.iter().filter(|boundary| {
+            let mut matches = module.interfaces.boundary_machines.iter().filter(|boundary| {
                 boundary.declaration.as_ref().is_some_and(|declaration| {
                     module.identities.text(
                         if boundary.kind == semantic_vocabulary::BoundaryRequirementKind::Trait
@@ -307,7 +307,7 @@ impl RealizedTargetSupply {
                 .declaration
                 .as_ref()
                 .ok_or("direct leaf lost its checked declaration")?;
-            let mut external = module.external_providers.iter().filter(|source| {
+            let mut external = module.interfaces.external_providers.iter().filter(|source| {
                 source.realization == declared.source
                     && source
                         .target

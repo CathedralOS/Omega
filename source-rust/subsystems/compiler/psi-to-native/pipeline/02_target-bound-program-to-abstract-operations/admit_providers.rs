@@ -161,7 +161,7 @@ pub fn admit_prepared_native_realization<'execution>(
     let module_boundaries: BTreeSet<BoundaryMachineId> = input
         .context()
         .module()
-        .boundary_machines
+        .interfaces.boundary_machines
         .iter()
         .map(|boundary| boundary.id)
         .collect();
@@ -174,7 +174,7 @@ pub fn admit_prepared_native_realization<'execution>(
             let mut matching = input
                 .context()
                 .module()
-                .boundary_machines
+                .interfaces.boundary_machines
                 .iter()
                 .filter(|boundary| {
                     request

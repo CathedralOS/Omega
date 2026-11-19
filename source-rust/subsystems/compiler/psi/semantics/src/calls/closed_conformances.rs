@@ -245,7 +245,7 @@ pub fn hosted_primitive_requirement(
     let BoundaryMachineResult::Structural(result) = &boundary.result else {
         return Err("hosted primitive has no declared empty result");
     };
-    let contracts = crate::inhabitation::TerminalContracts::new(module.structural_types.iter());
+    let contracts = crate::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
     let inhabitation = crate::inhabitation::Inhabitation::prepare(&contracts)
         .map_err(|_| "hosted primitive has malformed type contracts")?;
     if inhabitation.status(result.structural_type) != crate::inhabitation::Status::ProvedEmpty {
@@ -639,7 +639,7 @@ pub fn dispatch_applications(
     module: &TerminalModule,
 ) -> Vec<&terminal_psi::ClosedConformanceApplication> {
     let mut applications = module
-        .closed_conformance_applications
+        .proofs.closed_conformance_applications
         .iter()
         .collect::<Vec<_>>();
     applications.sort_unstable_by_key(|application| application_key(application));
@@ -714,10 +714,10 @@ pub fn identity_package(
 }
 
 pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'static str> {
-    for boundary in &module.boundary_machines {
+    for boundary in &module.interfaces.boundary_machines {
         validate_boundary_callable(module, boundary)?;
     }
-    for application in &module.closed_conformance_applications {
+    for application in &module.proofs.closed_conformance_applications {
         identity(module, application.declaration_identity)?;
         identity(module, application.trait_identity)?;
         if module.machine(application.owner).is_none() {
@@ -989,7 +989,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
     // the slice so a demanded ambiguous application still refuses.
     let applications = dispatch_applications(module);
     let mut proof_calls = module
-        .proof_output_calls
+        .proofs.proof_output_calls
         .iter()
         .filter_map(|call| {
             call.runtime_call
@@ -997,7 +997,7 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
         })
         .collect::<Vec<_>>();
     proof_calls.sort_unstable_by_key(|(site, _, _)| *site);
-    for invocation in &module.proof_output_calls {
+    for invocation in &module.proofs.proof_output_calls {
         let Some(dispatch) = &invocation.static_requirement_dispatch else {
             continue;
         };
@@ -1020,11 +1020,11 @@ pub fn validate_closed_conformances(module: &TerminalModule) -> Result<(), &'sta
                 .machine(invocation.inputs.callee)
                 .ok_or("selected public contract lost its executable body")?;
             let public_envelope = module
-                .callables
+                .execution.callables
                 .declaration_envelope(required)
                 .ok_or("selected public contract has no complete operational envelope")?;
             let body_envelope = module
-                .callables
+                .execution.callables
                 .machine_envelope(body.id)
                 .ok_or("selected public contract has no complete selected-body envelope")?;
             if (contract.declared_service_reach.is_none()

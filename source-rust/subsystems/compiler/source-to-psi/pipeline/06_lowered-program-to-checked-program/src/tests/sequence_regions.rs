@@ -27,7 +27,7 @@ fn sequence_calls_keep_outer_and_element_regions_on_one_erased_row() {
     let views = accepted
         .elaboration
         .module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter(|row| {
             matches!(

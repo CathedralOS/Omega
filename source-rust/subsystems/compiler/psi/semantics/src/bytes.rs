@@ -308,8 +308,8 @@ pub(crate) mod byte_sequence_predicates {
                         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
                     )
                     && pure_byte_qualifications(
-                        module.structural_types.iter(),
-                        module.structural_domains.iter(),
+                        module.types.structural_types.iter(),
+                        module.types.structural_domains.iter(),
                         structural_type,
                         &result.qualifications,
                         &result.projected_qualifications,
@@ -324,8 +324,8 @@ pub(crate) mod byte_sequence_predicates {
             parameter.multiplicity,
             StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
         ) && pure_byte_qualifications(
-            module.structural_types.iter(),
-            module.structural_domains.iter(),
+            module.types.structural_types.iter(),
+            module.types.structural_domains.iter(),
             parameter.structural_type,
             &parameter.qualifications,
             &parameter.projected_qualifications,
@@ -337,7 +337,7 @@ pub(crate) mod byte_sequence_predicates {
         module: &TerminalModule,
         parameter: &StructuralParameterDeclaration,
     ) -> Option<ByteSequencePredicateSet> {
-        byte_parameter_predicates_from_domains(&module.structural_domains, parameter)
+        byte_parameter_predicates_from_domains(&module.types.structural_domains, parameter)
     }
 
     pub fn byte_parameter_predicates_from_domains(
@@ -480,11 +480,11 @@ pub(crate) mod byte_sequence_predicates {
                 if operation.required_contract.is_some() {
                     return None;
                 }
-                let callable = module.callables.contract(*contract)?;
+                let callable = module.execution.callables.contract(*contract)?;
                 // The callable's public result owns the guarantee. Its shape
                 // columns and declared lifetime frontier must agree before an
                 // operation annotation can establish any byte predicate.
-                crate::references::callable_reference_result(&module.structural_types, callable)
+                crate::references::callable_reference_result(&module.types.structural_types, callable)
                     .ok()?;
                 callable.proof_result.structural()?
             }
@@ -512,7 +512,7 @@ pub(crate) mod byte_sequence_predicates {
     ) -> Option<&'machine terminal_psi::StructuralOperationResult> {
         let result = authenticated_call_result(module, machine, source)?;
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .any(|declaration| {
                 declaration.id == result.structural_type
@@ -528,7 +528,7 @@ pub(crate) mod byte_sequence_predicates {
     ) -> Option<&'machine terminal_psi::StructuralOperationResult> {
         let result = authenticated_call_result(module, machine, source)?;
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .any(|declaration| {
                 declaration.id == result.structural_type
@@ -549,7 +549,7 @@ pub(crate) mod byte_sequence_predicates {
         else {
             return None;
         };
-        if !module.structural_types.iter().any(|declaration| {
+        if !module.types.structural_types.iter().any(|declaration| {
             declaration.id == structural_type && declaration.is_bounded_owned_byte_sequence()
         }) {
             return None;
@@ -578,13 +578,13 @@ pub(crate) mod byte_sequence_predicates {
                 && result.claims.is_empty())
             .then_some(result)?
         };
-        if !module.structural_types.iter().any(|declaration| {
+        if !module.types.structural_types.iter().any(|declaration| {
             declaration.id == structural_type && declaration.shape.is_owned_or_shared_byte_carrier()
         }) {
             return None;
         }
         byte_qualification_predicates_in(
-            module.structural_domains.iter(),
+            module.types.structural_domains.iter(),
             structural_type,
             &result.qualifications,
         )
@@ -632,7 +632,7 @@ pub(crate) mod byte_sequence_predicates {
         if access == StructuralAccess::WriteOnlyBorrow {
             return None;
         }
-        shared_byte_field_copy_predicates(module.structural_types.iter(), root, &source.path)
+        shared_byte_field_copy_predicates(module.types.structural_types.iter(), root, &source.path)
     }
 
     /// Recover facts about the bytes a shared view reads. An entry view
@@ -688,7 +688,7 @@ pub(crate) mod byte_sequence_predicates {
         };
 
         let origins = analysis.unchanged_incoming_source_origins(
-            &module.structural_types,
+            &module.types.structural_types,
             machine.id,
             position,
             &DescriptorLocation::whole(source),
@@ -785,7 +785,7 @@ pub(crate) mod byte_sequence_predicates {
                 .iter()
                 .map(|row| (row.path.as_slice(), &row.domain)),
         ) {
-            let mut matching = module.structural_domains.iter().filter(|row| row.id == *id);
+            let mut matching = module.types.structural_domains.iter().filter(|row| row.id == *id);
             let domain = matching.next().ok_or("byte transfer domain is absent")?;
             if matching.next().is_some() {
                 return Err("byte transfer domain is ambiguous");
@@ -794,16 +794,16 @@ pub(crate) mod byte_sequence_predicates {
                 continue;
             }
             let carrier = crate::qualification_path_carrier(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 result.structural_type,
                 path,
             )
             .ok_or("byte transfer qualification has no exact carrier")?;
-            if !byte_predicate_carrier(module.structural_types.iter(), carrier) {
+            if !byte_predicate_carrier(module.types.structural_types.iter(), carrier) {
                 return Err("byte transfer qualification carrier is not bytes");
             }
             let required = byte_qualification_predicates_in(
-                module.structural_domains.iter(),
+                module.types.structural_domains.iter(),
                 carrier,
                 std::slice::from_ref(id),
             )
@@ -873,7 +873,7 @@ pub(crate) mod byte_sequence_predicates {
         }
         let carrier =
             module
-                .structural_types
+                .types.structural_types
                 .iter()
                 .find_map(|declaration| match declaration.shape {
                     StructuralTypeShape::ByteSequence(
@@ -900,7 +900,7 @@ pub(crate) mod byte_sequence_predicates {
             return None;
         }
         let parent = runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             parameter.structural_type,
             parent_path,
         )?;
@@ -988,7 +988,7 @@ pub(crate) mod byte_sequence_predicates {
                 }
                 let (root, _) = byte_field_root(module, machine, source.place)?;
                 let selected = runtime_structural_path_tip(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     root,
                     &source.path,
                 )?;
@@ -997,7 +997,7 @@ pub(crate) mod byte_sequence_predicates {
                 }
                 Some(
                     crate::runtime_structural_field(
-                        module.structural_types.iter(),
+                        module.types.structural_types.iter(),
                         root,
                         &source.path,
                     )
@@ -1018,7 +1018,7 @@ pub(crate) mod byte_sequence_predicates {
                     return None;
                 }
                 let declaration = runtime_structural_path_tip(
-                    module.structural_types.iter(),
+                    module.types.structural_types.iter(),
                     structural_type,
                     &source.path,
                 )?;
@@ -1195,7 +1195,7 @@ pub(crate) mod byte_sequence_predicates {
                     // A join owns its shared descriptor, whose byte facts
                     // arrive with the parameter just as a buffer's do.
                     let owned_readable = parameter.access == StructuralAccess::Owned
-                        && module.structural_types.iter().any(|row| {
+                        && module.types.structural_types.iter().any(|row| {
                             row.id == parameter.structural_type
                                 && row.shape.is_owned_or_shared_byte_carrier()
                         });
@@ -1210,7 +1210,7 @@ pub(crate) mod byte_sequence_predicates {
                     let mut predicates = byte_parameter_predicates(module, parameter)?;
                     if matches!(place.kind, StructuralPlaceKind::Parameter { .. })
                         && parameter.access == StructuralAccess::SharedBorrow
-                        && module.structural_types.iter().any(|declaration| {
+                        && module.types.structural_types.iter().any(|declaration| {
                             declaration.id == parameter.structural_type
                                 && declaration.shape.is_shared_readable_byte_view()
                         })
@@ -1335,7 +1335,7 @@ pub(crate) mod byte_sequence_predicates {
                             || !result.projected_qualifications.is_empty()
                             || !result.qualification_establishments.is_empty()
                             || !result.claims.is_empty()
-                            || !module.structural_types.iter().any(|declaration| {
+                            || !module.types.structural_types.iter().any(|declaration| {
                                 declaration.id == structural_type
                                     && declaration.shape.is_shared_readable_byte_view()
                             })
@@ -1376,7 +1376,7 @@ pub(crate) mod byte_sequence_predicates {
                         _ => None,
                     };
                     if let Some((backing, path)) = copy
-                        && module.structural_types.iter().any(|declaration| {
+                        && module.types.structural_types.iter().any(|declaration| {
                             declaration.id == structural_type
                                 && declaration.shape.is_borrowed_byte_view()
                         })
@@ -1397,7 +1397,7 @@ pub(crate) mod byte_sequence_predicates {
                                 return None;
                             }
                             shared_byte_field_copy_predicates(
-                                module.structural_types.iter(),
+                                module.types.structural_types.iter(),
                                 root,
                                 path,
                             )?

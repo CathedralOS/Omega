@@ -49,7 +49,7 @@ pub fn inferred_write_frames(
         machine.scalar_payload_writes.clear();
     }
     let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
+        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
     for body in &graph {
         // The frame roster above checked dense module positions before
         // graph construction, so this is the same original body owner.
@@ -103,7 +103,7 @@ pub fn inferred_write_frames(
 /// bodyless header cannot invent an empty or narrowed write promise.
 pub fn validate_write_frames(module: &terminal_psi::TerminalModule) -> Result<(), String> {
     if module
-        .declaration_contracts
+        .execution.declaration_contracts
         .iter()
         .any(|contract| contract.published_writes.is_some())
     {
@@ -275,14 +275,14 @@ pub fn call_write_regions(
             .structural_place_type(actual.place)
             .ok_or("write-frame actual has no declared root")?;
         let selected = crate::runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root,
             &actual.path,
         )
         .map(|declaration| declaration.id)
         .or_else(|| {
             crate::borrowed_primitive_projection_declaration(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 root,
                 &actual.path,
                 Some(formal.structural_type),
@@ -299,7 +299,7 @@ pub fn call_write_regions(
                 .map(CanonicalStructuralPathSegment::Field)
                 .collect();
             let relative = crate::canonical_field_storage_region(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 formal.structural_type,
                 &prefix,
                 *last,
@@ -317,12 +317,12 @@ pub fn call_write_regions(
             .map(CanonicalStructuralPathSegment::Field)
             .collect();
         if crate::shared_mutation(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             formal.structural_type,
             &field_path,
         ) == crate::SharedMutation::Unbounded
             || crate::canonical_structural_path_tip(
-                module.structural_types.iter(),
+                module.types.structural_types.iter(),
                 formal.structural_type,
                 &field_path,
             )
@@ -347,7 +347,7 @@ pub fn call_write_regions(
             return Ok(None);
         }
         let region =
-            crate::projected_storage_region(module.structural_types.iter(), root, &path, None);
+            crate::projected_storage_region(module.types.structural_types.iter(), root, &path, None);
         if region.indirect {
             return Ok(None);
         }

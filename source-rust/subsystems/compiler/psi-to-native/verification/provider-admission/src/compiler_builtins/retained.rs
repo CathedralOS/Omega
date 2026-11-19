@@ -171,7 +171,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
                 })
             } else {
                 selected_external_execution(
-                    &module.external_providers,
+                    &module.interfaces.external_providers,
                     &module.identities,
                     &callable.source.machine,
                     &plans[selected_row.plan_index],

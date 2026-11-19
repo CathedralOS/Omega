@@ -349,7 +349,7 @@ pub fn evaluate(
                 && invocation
                     .accepted()
                     .module()
-                    .boundary_machines
+                    .interfaces.boundary_machines
                     .iter()
                     .any(|boundary| {
                         boundary

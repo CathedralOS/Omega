@@ -123,7 +123,7 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
             Some((machine, block))
         })
         .expect("a dispatch edge carries the subject's discard");
-    let plan = plain_affine::verify(machine, &module.structural_types).unwrap();
+    let plan = plain_affine::verify(machine, &module.types.structural_types).unwrap();
     let Terminator::StructuralCase { cases, .. } = &machine.blocks[block].terminator else {
         unreachable!()
     };
@@ -142,7 +142,7 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
             unreachable!()
         };
         change(&mut cases[0].cleanup_actions);
-        plain_affine::verify(&machine, &module.structural_types).map(|_| ())
+        plain_affine::verify(&machine, &module.types.structural_types).map(|_| ())
     };
     assert!(matches!(
         edit(&|actions| actions.clear()),

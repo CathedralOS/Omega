@@ -27,7 +27,7 @@ fn moved_record(first: u128) -> crate::lowering::Elaboration {
 #[test]
 fn a_whole_move_preserves_the_fact_needed_by_a_bounded_call() {
     let elaboration = moved_record(5);
-    assert!(!elaboration.module.structural_types[0].is_copyable());
+    assert!(!elaboration.module.types.structural_types[0].is_copyable());
     let caller = &elaboration.module.machines[0];
     assert!(
         caller

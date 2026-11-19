@@ -31,7 +31,7 @@ fn declaration(value: u64, shape: StructuralTypeShape) -> StructuralTypeDeclarat
 
 fn array_module() -> TerminalModule {
     let mut module = TerminalModule::declarations();
-    module.structural_types = vec![
+    module.types.structural_types = vec![
         declaration(1, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
         declaration(
             2,
@@ -48,7 +48,7 @@ fn array_module() -> TerminalModule {
 fn finite_storage_depth_is_not_a_new_foreign_dependency_limit() {
     let mut module = array_module();
     for value in 3..=131 {
-        module.structural_types.push(declaration(
+        module.types.structural_types.push(declaration(
             value,
             StructuralTypeShape::FixedArray {
                 element: identity(value - 1),
@@ -67,7 +67,7 @@ fn finite_storage_depth_is_not_a_new_foreign_dependency_limit() {
 fn selected_opaque_carrier_owes_its_actual_array_extent() {
     use application_identity::opaque_representations::*;
     let mut module = array_module();
-    module.structural_types.push(declaration(
+    module.types.structural_types.push(declaration(
         3,
         StructuralTypeShape::Record {
             fields: Vec::new(),
@@ -81,7 +81,7 @@ fn selected_opaque_carrier_owes_its_actual_array_extent() {
     let copy = OpaqueRepresentationCopyDisposition::PlacementOnly;
     let origin = OpaqueRepresentationApplicationOrigin::NamedConformance;
     module
-        .opaque_representations
+        .types.opaque_representations
         .push(terminal_psi::TerminalOpaqueRepresentation {
             opaque: identity(3),
             carrier: identity(2),
@@ -117,7 +117,7 @@ fn target_stored_scalar_does_not_demand_the_logical_child_extent() {
     let mut module = array_module();
     let field = StructuralFieldId::new(1).unwrap();
     let application = terminal_psi::LayoutApplicationId(1);
-    module.structural_types.push(declaration(
+    module.types.structural_types.push(declaration(
         3,
         StructuralTypeShape::Record {
             fields: vec![StructuralFieldDeclaration {
@@ -133,7 +133,7 @@ fn target_stored_scalar_does_not_demand_the_logical_child_extent() {
         },
     ));
     module
-        .target_layout_applications
+        .layouts.target_layout_applications
         .push(TargetLayoutApplication {
             id: application,
             record: identity(3),

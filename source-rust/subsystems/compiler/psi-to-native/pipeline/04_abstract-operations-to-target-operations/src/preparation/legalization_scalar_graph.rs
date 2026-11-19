@@ -2447,7 +2447,7 @@ pub(crate) mod call_origin {
         }
         validate_qualified_numeric_executions(
             native,
-            &input.module.boundary_machines,
+            &input.module.interfaces.boundary_machines,
             Some(input.module),
         )?;
         for function in &native.functions {
@@ -2515,7 +2515,7 @@ pub(crate) mod call_origin {
         retained.sort_unstable_by_key(|row| row.id);
         let mut canonical: Vec<_> = module
             .into_iter()
-            .flat_map(|module| &module.boundary_machines)
+            .flat_map(|module| &module.interfaces.boundary_machines)
             .collect();
         canonical.sort_unstable_by_key(|row| row.id);
         fn unique<'a>(

@@ -364,7 +364,7 @@ impl<'host> NativeImport<'host> {
                     // A complete safe result frontier supplies its exact shared
                     // reference permission, including when it has input anchors.
                     let groups = terminal_semantics::boundary_result_lifetimes(
-                        &program.module().structural_types,
+                        &program.module().types.structural_types,
                         declaration,
                     )
                     .map_err(|reason| missing(reason.into()))?;

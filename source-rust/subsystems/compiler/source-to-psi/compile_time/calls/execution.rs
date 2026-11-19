@@ -75,8 +75,8 @@ impl PreparedBuildMachineEntry {
     ) -> Result<Vec<crate::compile_time::BuildTimeValue>, String> {
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
-        if module.target_layout_applications.is_empty()
-            && module.scalar_applications.declarations().is_empty()
+        if module.layouts.target_layout_applications.is_empty()
+            && module.scalars.scalar_applications.declarations().is_empty()
         {
             let target = InvocationTarget {
                 name: None,
@@ -166,7 +166,7 @@ impl PreparedBuildMachineEntry {
             .module()
             .entry
             .ok_or("source invocation lost its emitted root")?;
-        let scope = &view.module().scalar_applications.proof_scope;
+        let scope = &view.module().scalars.scalar_applications.proof_scope;
         let root = scope
             .callable_declaration(selected)
             .ok_or("source invocation has no exact proof declaration")?;
@@ -228,7 +228,7 @@ impl PreparedBuildMachineEntry {
         let (Some(name), Some(facts)) = (target.name, target.layout_target) else {
             return Ok(None);
         };
-        if view.module().target_layout_applications.is_empty() {
+        if view.module().layouts.target_layout_applications.is_empty() {
             return Ok(None);
         }
         let selected = psi_target_layouts::terminal_target_context(view, name);
@@ -288,7 +288,7 @@ impl PreparedBuildMachineEntry {
             let targets = psi_target_layouts::terminal_target_context(view, name);
             let declaration = view
                 .module()
-                .scalar_applications
+                .scalars.scalar_applications
                 .proof_scope
                 .callable_declaration(selected)
                 .ok_or("source scalar application has no exact invocation root")?;

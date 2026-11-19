@@ -442,12 +442,12 @@ mod tests {
             });
         let mut module = TerminalModule::declarations();
         module.identities = identities.build();
-        module.services.push(ServiceDeclaration {
+        module.interfaces.services.push(ServiceDeclaration {
             id: id(),
             identity: application,
             parents: vec![],
         });
-        module.service_schemas.push(TerminalServiceSchema {
+        module.interfaces.service_schemas.push(TerminalServiceSchema {
             declaration,
             application,
             surface: Arc::new(surface),
@@ -464,9 +464,9 @@ mod tests {
 
     fn replace_application(module: &mut TerminalModule, text: &str) {
         let identity = intern(module, text);
-        module.services[0].identity = identity;
-        module.service_schemas[0].application = identity;
-        let surface = Arc::make_mut(&mut module.service_schemas[0].surface);
+        module.interfaces.services[0].identity = identity;
+        module.interfaces.service_schemas[0].application = identity;
+        let surface = Arc::make_mut(&mut module.interfaces.service_schemas[0].surface);
         surface.receiver_applications[0].application = surface.identities.intern(text);
     }
 
@@ -504,7 +504,7 @@ mod tests {
             ),
         ] {
             let mut module = fixture(FilesystemService::MetadataQuery);
-            module.service_schemas[0].declaration = intern(&mut module, &declaration);
+            module.interfaces.service_schemas[0].declaration = intern(&mut module, &declaration);
             assert!(
                 module.core_filesystem_service(id()).is_err(),
                 "accepted {declaration}"
@@ -534,7 +534,7 @@ mod tests {
         let module = fixture(FilesystemService::MetadataQuery);
         let exact = module
             .identities
-            .text(module.service_schemas[0].declaration)
+            .text(module.interfaces.service_schemas[0].declaration)
             .unwrap();
         for declaration in [
             exact[..exact.len() - 1].to_owned(),
@@ -542,7 +542,7 @@ mod tests {
             "nominal(".into(),
         ] {
             let mut module = fixture(FilesystemService::MetadataQuery);
-            module.service_schemas[0].declaration = intern(&mut module, &declaration);
+            module.interfaces.service_schemas[0].declaration = intern(&mut module, &declaration);
             assert!(
                 module.core_filesystem_service(id()).is_err(),
                 "accepted {declaration}"
@@ -555,21 +555,21 @@ mod tests {
         for case in 0..15 {
             let mut module = fixture(FilesystemService::MetadataQuery);
             match case {
-                0 => module.services.clear(),
-                1 => module.services.push(module.services[0].clone()),
-                2 => module.services[0].parents.push(id()),
-                3 => module.services[0].parents.push(ServiceId::new(99).unwrap()),
-                4 => module.service_schemas.clear(),
+                0 => module.interfaces.services.clear(),
+                1 => module.interfaces.services.push(module.interfaces.services[0].clone()),
+                2 => module.interfaces.services[0].parents.push(id()),
+                3 => module.interfaces.services[0].parents.push(ServiceId::new(99).unwrap()),
+                4 => module.interfaces.service_schemas.clear(),
                 5 => module
-                    .service_schemas
-                    .push(module.service_schemas[0].clone()),
+                    .interfaces.service_schemas
+                    .push(module.interfaces.service_schemas[0].clone()),
                 6 => {
-                    let mut other = module.service_schemas[0].clone();
+                    let mut other = module.interfaces.service_schemas[0].clone();
                     other.declaration = intern(&mut module, "nominal(toolchain-owner,path(Other))");
-                    module.service_schemas.push(other);
+                    module.interfaces.service_schemas.push(other);
                 }
                 case => {
-                    let surface = Arc::make_mut(&mut module.service_schemas[0].surface);
+                    let surface = Arc::make_mut(&mut module.interfaces.service_schemas[0].surface);
                     let foreign = surface.identities.intern("Other");
                     match case {
                         7 => {

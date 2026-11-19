@@ -394,7 +394,7 @@ fn indexed_extent(
                 .map(|parameter| parameter.structural_type)
         })?;
         let array = terminal_semantics::runtime_structural_path_tip(
-            module.structural_types.iter(),
+            module.types.structural_types.iter(),
             root,
             &projection.path[..position],
         )?;

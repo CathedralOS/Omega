@@ -7,7 +7,7 @@ pub fn closed_owned_sequence_bounds(
 ) -> Result<Vec<(StructuralTypeId, u64)>, &'static str> {
     let mut bounds = arena::IdTable::from_rows(
         module
-            .structural_types
+            .types.structural_types
             .iter()
             .map(|ty| (ty.id, (ty, None::<u64>))),
     )
@@ -41,7 +41,7 @@ pub fn closed_owned_sequence_bounds(
         }
     }
     let mut rows = module
-        .structural_types
+        .types.structural_types
         .iter()
         .filter_map(|ty| {
             bounds

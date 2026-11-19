@@ -307,12 +307,12 @@ pub fn result_origins(
 ) -> Option<Vec<DescriptorResultOrigin>> {
     let result = machine.result.structural()?;
     if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
     {
         return None;
     }
     reconstruct_result_origins(
-        &module.structural_types,
+        &module.types.structural_types,
         &terminal_graph(module),
         machine.id,
     )
@@ -325,7 +325,7 @@ pub fn return_origins(
 ) -> Option<Vec<DescriptorResultOrigin>> {
     let result = machine.result.structural()?;
     if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
     {
         return None;
     }
@@ -339,7 +339,7 @@ pub fn return_origins(
         .filter(|(_, location)| location.root == source && location.path.is_empty())
     {
         origins.extend(replay::return_origins(
-            &module.structural_types,
+            &module.types.structural_types,
             &graph,
             machine.id,
             *position,
@@ -389,7 +389,7 @@ pub fn return_slots_have_external_backing(
     {
         found = true;
         if replay::return_slots_have_external_backing(
-            &module.structural_types,
+            &module.types.structural_types,
             &graph,
             machine.id,
             *position,
@@ -410,7 +410,7 @@ pub fn call_origins(
 ) -> Option<Vec<DescriptorCallOrigin>> {
     let graph = terminal_graph(module);
     call_origins_in(
-        &mut DescriptorAnalysis::new(&module.structural_types, &graph),
+        &mut DescriptorAnalysis::new(&module.types.structural_types, &graph),
         module,
         caller,
         operation,
@@ -431,7 +431,7 @@ pub fn call_origins_in(
     }
     let result = operation.result.structural()?;
     if result.multiplicity != StructuralMultiplicity::Unrestricted
-        || !is_shared_descriptor(module.structural_types.iter(), result.structural_type)
+        || !is_shared_descriptor(module.types.structural_types.iter(), result.structural_type)
     {
         return None;
     }
@@ -1410,7 +1410,7 @@ impl DescriptorGraphError {
                             let selected = root
                                 .and_then(|root| {
                                     crate::runtime_structural_path_tip(
-                                        module.structural_types.iter(),
+                                        module.types.structural_types.iter(),
                                         root,
                                         &argument.path,
                                     )
@@ -1757,7 +1757,7 @@ pub fn source_origins(
     location: &DescriptorLocation,
 ) -> Option<Vec<DescriptorCallOrigin>> {
     reconstruct_source_origins(
-        &module.structural_types,
+        &module.types.structural_types,
         &terminal_graph(module),
         machine.id,
         position,
@@ -1769,7 +1769,7 @@ pub fn stored_effects(
     machine: &TerminalMachine,
 ) -> Option<Vec<DescriptorStoredEffect>> {
     reconstruct_stored_effects(
-        &module.structural_types,
+        &module.types.structural_types,
         &terminal_graph(module),
         machine.id,
     )
@@ -1781,7 +1781,7 @@ pub fn call_stored_effects(
 ) -> Option<Vec<DescriptorStoredCallEffect>> {
     let graph = terminal_graph(module);
     call_stored_effects_in(
-        &mut DescriptorAnalysis::new(&module.structural_types, &graph),
+        &mut DescriptorAnalysis::new(&module.types.structural_types, &graph),
         machine,
         operation,
     )
