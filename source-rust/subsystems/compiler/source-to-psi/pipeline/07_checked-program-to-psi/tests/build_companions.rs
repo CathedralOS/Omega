@@ -1106,7 +1106,7 @@ machine build(builder: @mut Build) {
     selections
         .admit(
             view,
-            &terminal_installation::selection_questions::SelectionAuthorities {
+            &psi_authorization::selection_questions::SelectionAuthorities {
                 build: None,
                 product: None,
             },
@@ -1117,7 +1117,7 @@ machine build(builder: @mut Build) {
     let duplicate = repeated.declarations.values().next().unwrap().clone();
     repeated.declarations.push(duplicate);
     assert!(
-        terminal_installation::selection_questions::validate_selection_questions(module, &repeated)
+        psi_authorization::selection_questions::validate_selection_questions(module, &repeated)
             .unwrap_err()
             .contains("dictionary repeats a declaration in one purpose")
     );
@@ -1451,7 +1451,7 @@ fn boundary_declaration_facts_do_not_admit_pure_execution() {
             .unwrap()
             .admit(
                 view,
-                &terminal_installation::selection_questions::SelectionAuthorities {
+                &psi_authorization::selection_questions::SelectionAuthorities {
                     build: None,
                     product: None,
                 },

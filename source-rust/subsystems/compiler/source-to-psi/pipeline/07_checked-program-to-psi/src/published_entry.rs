@@ -2,9 +2,7 @@
 
 pub(super) fn issue(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    owners: Option<
-        &Result<terminal_installation::selection_questions::ProductSchemaCustody, String>,
-    >,
+    owners: Option<&Result<psi_authorization::selection_questions::ProductSchemaCustody, String>>,
     provenance: terminal_psi::TerminalMachineProvenance,
     has_bound_applications: bool,
 ) -> terminal_psi::PublishedEntryMetadata {

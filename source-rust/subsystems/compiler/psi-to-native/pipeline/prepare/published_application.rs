@@ -291,7 +291,7 @@ pub(crate) fn prepare_saved_program(
     let entry = module.program_entry_contract(name).map_err(refuse)?.entry;
     target.requested_boundaries.sort_unstable();
     target.requested_boundaries.dedup();
-    let (logical, bodies) = terminal_installation::logical_reach::close_providers(
+    let (logical, bodies) = psi_provider_selections::logical_reach::close_providers(
         module,
         name,
         Some(entry),

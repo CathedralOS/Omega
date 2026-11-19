@@ -13,12 +13,12 @@ use crate::declaration_selection::ProductDeclarationRequest;
 use crate::production::ProducedTerminalApplication;
 use crate::production::TerminalBuildFilesystemCall;
 use crate::production::{TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildRequests};
-use record_storage::RecordWriter;
 use diagnostics::Diagnostic;
+use psi_authorization::selection_questions::ProductSchemaCustody;
+use record_storage::RecordWriter;
 use std::sync::Arc;
 use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
-use terminal_installation::selection_questions::ProductSchemaCustody;
 
 // Operation numbers are local to their machine. Refuse persisted records that
 // predate the complete call-site keys before decoding their shifted fields.

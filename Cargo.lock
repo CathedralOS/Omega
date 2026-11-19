@@ -277,6 +277,7 @@ dependencies = [
  "package-compilation",
  "products",
  "provider-admission",
+ "psi-authorization",
  "psi-provider-selections",
  "psi-target-layouts",
  "runtime-abi",
@@ -288,7 +289,6 @@ dependencies = [
  "syntax-trees",
  "target",
  "terminal-codec",
- "terminal-installation",
  "terminal-interpreter",
  "terminal-psi",
  "terminal-runtime",
@@ -526,8 +526,11 @@ dependencies = [
 name = "psi-authorization"
 version = "0.1.0"
 dependencies = [
+ "declaration-scope",
+ "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -542,6 +545,7 @@ dependencies = [
 name = "psi-provider-selections"
 version = "0.1.0"
 dependencies = [
+ "diagnostics",
  "record-storage",
  "schema-reflection",
  "semantic-vocabulary",

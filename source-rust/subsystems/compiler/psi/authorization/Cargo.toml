@@ -8,7 +8,10 @@ version.workspace = true
 path = "authorization.rs"
 
 [dependencies]
+declaration-scope = { path = "../../foundation/declaration-scope" }
+semantic-vocabulary = { path = "../../foundation/semantic-records" }
+terminal-psi = { path = ".." }
 terminal-codec = { path = "../codec" }
 
 [dev-dependencies]
-terminal-psi = { path = ".." }
+terminal-semantics = { path = "../semantics" }

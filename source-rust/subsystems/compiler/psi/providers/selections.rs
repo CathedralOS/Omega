@@ -4,6 +4,8 @@
 //! selection also checks the receiving catalog against the supplying artifact.
 #![forbid(unsafe_code)]
 
+pub mod logical_reach;
+
 mod component;
 pub use component::{AdmittedComponentProvider, admit_component_provider};
 

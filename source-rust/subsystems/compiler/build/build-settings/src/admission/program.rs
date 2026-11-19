@@ -6,14 +6,14 @@ separate authority; an old checked result cannot replace any of them.
 */
 
 use build_declarations::DependencyPurpose;
+use declaration_scope::DeclarationSelectionAuthority;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
-use declaration_scope::DeclarationSelectionAuthority;
+use psi_authorization::selection_questions::SelectionAuthorities;
 use source_compiler::evaluation::BuildEvaluationSponsor;
 use symbols::SymbolHandle;
-use terminal_installation::selection_questions::SelectionAuthorities;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {

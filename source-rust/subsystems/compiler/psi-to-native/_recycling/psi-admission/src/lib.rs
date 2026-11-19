@@ -21,11 +21,10 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 
 #![forbid(unsafe_code)]
 
-pub mod declaration_selection;
-pub mod logical_reach;
+pub use psi_provider_selections::logical_reach;
 mod provider_and_target_installation;
 
-pub mod selection_questions;
+pub use psi_authorization::selection_questions;
 
 pub use psi_authorization::{
     ArtifactTrustError, AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,

@@ -463,7 +463,7 @@ impl AcceptedTerminalSource {
         implementations: &[crate::production::CallableBoundaryImplementation],
         target: Option<&str>,
     ) -> Result<terminal_semantics::callable_values::ReachedBoundaryCalls, Diagnostic> {
-        terminal_installation::logical_reach::boundary_call_reach(
+        psi_provider_selections::logical_reach::boundary_call_reach(
             self.module(),
             entry,
             implementations,
