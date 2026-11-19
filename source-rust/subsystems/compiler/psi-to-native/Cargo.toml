@@ -7,6 +7,9 @@ version.workspace = true
 [lib]
 path = "psi_to_native.rs"
 
+[features]
+test-support = []
+
 [dependencies]
 native-scalar-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }
 published-object-verification = { path = "replay/published-objects" }

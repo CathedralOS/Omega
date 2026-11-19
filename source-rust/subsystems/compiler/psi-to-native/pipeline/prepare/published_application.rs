@@ -1,28 +1,37 @@
 //! Prepare native execution from the host-admitted publication and its selected providers.
+use super::application::{TerminalApplication, admit_package_permissions};
+use super::program_entry::PublishedNativeEntry;
+use artifact_lowering::{
+    BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+};
 use diagnostics::Diagnostic;
+use provider_admission::provider_admission::{
+    CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy,
+};
+use provider_realization::{
+    PublishedSelection, SelectedProviderResult, select_published_providers,
+};
 use std::sync::Arc;
 
-pub struct PublishedApplicationInputs<'a, Publisher> {
-    pub artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
-    pub execution: &'a crate::PublishedSelection<Publisher, crate::SelectedProviderResult>,
-    pub proposal: Option<backend_plan::TerminalTargetProviderProposal>,
-    pub bindings: &'a [effects::semantic_bindings::AcceptedSemanticBinding],
-    pub package_permissions:
+struct PublishedApplicationInputs<'a, Publisher> {
+    artifact: &'a Arc<terminal_codec::CanonicalTerminalArtifact>,
+    execution: &'a PublishedSelection<Publisher, SelectedProviderResult>,
+    proposal: Option<backend_plan::TerminalTargetProviderProposal>,
+    bindings: &'a [effects::semantic_bindings::AcceptedSemanticBinding],
+    package_permissions:
         Option<&'a semantic_vocabulary::compiler_evaluation::ProductDeclarationScope>,
-    pub application: target::NativeApplicationMetadata,
-    pub optimizations: &'a optimization_core::OptimizationSelections,
-    pub behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],
-    pub x86_scalar_fma_provider: Result<Option<target::AdmittedX86ScalarFmaProvider>, String>,
-    pub audit_assumptions: Option<&'a [installation_evidence::InstallationEnvironmentAssumption]>,
+    application: target::NativeApplicationMetadata,
+    optimizations: &'a optimization_core::OptimizationSelections,
+    behavior_exclusions: &'a [effects::AuthoredBehaviorExclusion],
+    x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
 }
 
-pub fn prepare_published_application<Publisher>(
+fn prepare_published_application<Publisher>(
     inputs: PublishedApplicationInputs<'_, Publisher>,
 ) -> Result<
     (
         artifact_lowering::RetainedTerminalArtifact,
-        crate::TerminalAuthorityPermissionPolicy,
-        Option<Vec<u8>>,
+        TerminalAuthorityPermissionPolicy,
     ),
     Vec<Diagnostic>,
 > {
@@ -38,7 +47,7 @@ pub fn prepare_published_application<Publisher>(
         .target_profile()
         .unwrap_or_else(target::TargetProfile::host);
     let declarations = realization.provider_declarations();
-    let selection = crate::PublishedNativeEntry::for_program(artifact, execution)?;
+    let selection = PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = publication
         .entry_schema_custody(selection.schema_declaration())
         .map_err(refuse)?;
@@ -132,32 +141,32 @@ pub fn prepare_published_application<Publisher>(
                 .iter()
                 .find(|leaf| leaf.plan == *declaration)
                 .map_or(&declaration.schema, |leaf| &leaf.satisfied_schema);
-            crate::CompilerIntrinsicPlanProvenance {
+            CompilerIntrinsicPlanProvenance {
                 plan: declaration,
                 semantic_schema: schema,
                 row_executions: executions,
             }
         })
         .collect();
-    let permissions = crate::admit_package_permissions(
+    let permissions = admit_package_permissions(
         realization.terminal_authority_permissions().to_vec(),
         realization
             .terminal_authority_permission_identities()
             .clone(),
     )?;
-    let native = crate::TerminalNativeProposalRequest {
+    let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
         native_bindings: &[],
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
         target_profile: Some(profile),
-        boundaries: crate::BoundaryApplicationSettlement {
+        boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: realization.plans(),
             selected_provider_provenance: provenance,
             calling_applications: realization.calling_applications().to_vec(),
         },
         native_target: Some(profile.native_target()),
         program_entry: Some(
-            crate::NativeProgramEntrySettlement::new(
+            NativeProgramEntrySettlement::new(
                 entry.source_signature(),
                 Some((
                     &plans.semantic_calling_application,
@@ -177,25 +186,10 @@ pub fn prepare_published_application<Publisher>(
         package_terminal_authority_permission_identities: realization
             .terminal_authority_permission_identities()
             .clone(),
-        x86_scalar_fma_provider: inputs.x86_scalar_fma_provider.map_err(refuse)?,
+        x86_scalar_fma_provider: inputs.x86_scalar_fma_provider,
     };
     let proposals = vec![provider_proposal];
     let physical_entry_adapter = entry.physical_adapter().is_some();
-    let retained_inputs = inputs
-        .audit_assumptions
-        .map(|assumptions| {
-            crate::retain_native_derivation_inputs(
-                &receipt,
-                physical_entry_adapter,
-                &proposals,
-                &native,
-                &permissions,
-                assumptions,
-                artifact.published_evidence().map(Arc::as_ref),
-            )
-            .map_err(refuse)
-        })
-        .transpose()?;
     let original = execution.published_authorization();
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
@@ -215,7 +209,7 @@ pub fn prepare_published_application<Publisher>(
         terminal_installation::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
-    let terminal = crate::TerminalApplication {
+    let terminal = TerminalApplication {
         artifact: authorized,
         receipt: receipt.clone(),
         provider_proposals: proposals,
@@ -223,7 +217,7 @@ pub fn prepare_published_application<Publisher>(
         evidence: artifact.published_evidence().cloned(),
     }
     .prepare(native)?;
-    Ok((terminal, permissions, retained_inputs))
+    Ok((terminal, permissions))
 }
 
 fn checked_provider_calls(
@@ -273,13 +267,13 @@ pub struct SavedProgramTarget<'a> {
 }
 
 /// Use the same provider, entry and native application stages as a source build.
-pub fn prepare_saved_program(
+pub(crate) fn prepare_saved_program(
     authorization: terminal_installation::AuthorizedTerminalArtifact,
     mut target: SavedProgramTarget<'_>,
 ) -> Result<
     (
         artifact_lowering::RetainedTerminalArtifact,
-        crate::TerminalAuthorityPermissionPolicy,
+        TerminalAuthorityPermissionPolicy,
     ),
     Vec<Diagnostic>,
 > {
@@ -332,14 +326,14 @@ pub fn prepare_saved_program(
     let issued = backend_plan::IssuedProviderDemand::issue((), facts);
     let admitted = backend_plan::AdmittedProviderDemand::new(issued, authorization)
         .map_err(|error| refuse(error.to_string()))?;
-    let mut execution = crate::select_published_providers(admitted)?;
+    let mut execution = select_published_providers(admitted)?;
     execution
         .bind_folded_entry(&artifact, artifact.published_evidence().map(Arc::as_ref))
         .map_err(refuse)?;
     let effective = Arc::clone(execution.effective_artifact(&artifact).map_err(refuse)?);
     let proposal = execution.provider_proposal(effective.view(), target.optimizations.identity());
     let execution = execution.into_result();
-    let (program, permissions, _) = prepare_published_application(PublishedApplicationInputs {
+    prepare_published_application(PublishedApplicationInputs {
         artifact: &effective,
         execution: &execution,
         proposal,
@@ -348,8 +342,6 @@ pub fn prepare_saved_program(
         application: target.application,
         optimizations: target.optimizations,
         behavior_exclusions: target.behavior_exclusions,
-        x86_scalar_fma_provider: Ok(target.x86_scalar_fma_provider),
-        audit_assumptions: None,
-    })?;
-    Ok((program, permissions))
+        x86_scalar_fma_provider: target.x86_scalar_fma_provider,
+    })
 }

@@ -20,7 +20,9 @@ terminal-codec = { path = "representations/psi/codec" }
 terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
+native-compiler = { path = "psi-to-native", features = ["test-support"] }
 optimization-selections = { path = "foundation/optimization-selections" }
+provider-realization = { package = "admitted-native-inputs-to-target-bound-program", path = "psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program" }
 
 [[test]]
 name = "build_charge"

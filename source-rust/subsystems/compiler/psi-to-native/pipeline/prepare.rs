@@ -6,12 +6,12 @@
 // step reads the retained Terminal product, its native proposal and the
 // request; `compile` then runs Omega 00 to 09 once, front to back.
 
-pub(crate) mod application;
-pub(crate) mod program_entry;
+mod application;
+mod program_entry;
 pub(crate) mod published_application;
 pub(in crate::pipeline) mod required_scalars;
 
-use crate::NativeCompileRequest;
+use super::request::NativeCompileRequest;
 use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
 use installation_evidence::InstallationEnvironmentAssumption;

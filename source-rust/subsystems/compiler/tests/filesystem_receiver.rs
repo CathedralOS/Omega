@@ -250,7 +250,7 @@ fn windows_canonicalize_receiver() {
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
         .expect("scalar completion");
     let subsystem = proposal.application().subsystem;
-    let request = |receiver| native_compiler::NativeCompileRequest {
+    let request = |receiver| native_compiler::test_support::NativeCompileRequest {
         retain_native_stage_inputs: false,
         private_entry_ram: &[],
         installation_assumptions: &[],
@@ -264,10 +264,10 @@ fn windows_canonicalize_receiver() {
         scalars: scalars.as_ref(),
     };
     eprintln!("Windows receiver: checking the restricted receiver policy");
-    let product = native_compiler::compile(&retained, request(receiver))
+    let (finished, _) = native_compiler::test_support::compile(&retained, request(receiver))
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
 
-    let (image, _) = product.image.into_parts();
+    let (image, _) = finished.into_parts();
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = image else {
         panic!("{FIXTURE} emits its ordinary Windows image")
     };
@@ -283,10 +283,11 @@ fn windows_canonicalize_receiver() {
     // Reuse the same accepted retained Terminal input. Runtime admission shares
     // the provider/receiver review and stops before image production; this is
     // a policy refusal control, not a second source review or runtime claim.
-    let refusal = match native_compiler::admit_runtime(retained, request(filesystem_only)) {
-        Err((_, diagnostics)) => diagnostics,
-        Ok(_) => panic!("filesystem-only input must refuse console-capable WriteFile"),
-    };
+    let refusal =
+        match native_compiler::test_support::admit_runtime(retained, request(filesystem_only)) {
+            Err((_, diagnostics)) => diagnostics,
+            Ok(_) => panic!("filesystem-only input must refuse console-capable WriteFile"),
+        };
     assert!(
         refusal.iter().any(|diagnostic| {
             diagnostic

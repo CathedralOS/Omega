@@ -1066,7 +1066,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         demand,
     )
     .expect("admit the source publication before provider selection");
-    let planner = native_compiler::select_published_providers(admitted)
+    let planner = provider_realization::select_published_providers(admitted)
         .expect("plan native providers from the published demand");
     let mut selected = planner.clone();
     selected

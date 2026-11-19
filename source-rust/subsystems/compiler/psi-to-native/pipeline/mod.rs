@@ -15,18 +15,23 @@ mod physical_publication_tests;
 
 use self::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use self::prepare::PreparedNativeCompilation;
-use crate::NativeCompileRequest;
+use self::request::NativeCompileRequest;
 use artifact_lowering::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
+use native_artifact::FinishedNativeImage;
+use published_object_verification::NativeStageReplay;
 use target::ExecutableImageEmissionRequest;
 
 pub fn compile(
     retained: &RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
-) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
+) -> Result<
+    (FinishedNativeImage, NativeStageReplay),
+    (ExecutableImageEmissionRequest, Vec<Diagnostic>),
+> {
     let prepared = prepare::prepare(retained, request)?;
     match produce(prepared, NativeProductionStop::Image)? {
-        Produced::Image(product) => Ok(product),
+        Produced::Image(image, replay) => Ok((image, replay)),
         Produced::Runtime(_) => unreachable!("image production returned runtime admission"),
     }
 }
@@ -43,7 +48,7 @@ pub fn admit_runtime(
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
         Produced::Runtime(plan) => native_artifact::AdmittedRuntimeProgram::finish(retained, plan)
             .map_err(|reason| (recovery, vec![Diagnostic::error(reason)])),
-        Produced::Image(_) => unreachable!("runtime admission emitted an image"),
+        Produced::Image(..) => unreachable!("runtime admission emitted an image"),
     }
 }
 
@@ -54,7 +59,7 @@ enum NativeProductionStop {
 }
 
 enum Produced {
-    Image(crate::RealizedNativeProduct),
+    Image(FinishedNativeImage, NativeStageReplay),
     Runtime(realization::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 
@@ -168,10 +173,7 @@ fn produce(
         observation.enter(NativePipelineStage::ImageEmission);
         let image = image.emit(component_products)?;
         observation.complete();
-        Ok(Produced::Image(crate::RealizedNativeProduct {
-            stage_replay,
-            image,
-        }))
+        Ok(Produced::Image(image, stage_replay))
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }

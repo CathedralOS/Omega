@@ -884,7 +884,7 @@ fn check_publication(
 ) -> (
     native_artifact::NativeArtifactIdentity,
     Option<image_emission::FragmentReplay>,
-    crate::NativeStageReplay,
+    published_object_verification::NativeStageReplay,
 ) {
     check_canonical_publication(
         constant_artifact(through_boundary),
@@ -915,7 +915,7 @@ fn check_canonical_publication(
 ) -> (
     native_artifact::NativeArtifactIdentity,
     Option<image_emission::FragmentReplay>,
-    crate::NativeStageReplay,
+    published_object_verification::NativeStageReplay,
 ) {
     use provider_admission::provider_admission::{
         ProviderAdmissionRequest, current_terminal_authority_policy,
@@ -1027,7 +1027,9 @@ fn check_canonical_publication(
         projection,
         originals,
     } = projection;
-    let archive = crate::NativeStageReplay::from_bodies(originals, Vec::new()).unwrap();
+    let archive =
+        published_object_verification::NativeStageReplay::from_bodies(originals, Vec::new())
+            .unwrap();
     let unrelated = constant_artifact(!through_boundary);
     assert!(
         native_artifact::PrivatePhysicalOriginal::new(
