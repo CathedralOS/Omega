@@ -1,0 +1,24 @@
+// A qualified shared byte view retains its length through a boundary call.
+// Expected exit: 0
+
+domain [u8]::FourBytes requires self.len == 4;
+
+boundary trait ByteCount {
+    machine length(input: &[u8] in FourBytes) -> u64 reaches none crashes none;
+}
+
+CountBytes satisfies ByteCount {
+    machine length(input: &[u8] in FourBytes) -> u64 reaches none crashes none {
+        (input as -FourBytes).len
+    }
+}
+
+machine main() crashes Trap {
+    let length: u64 = ByteCount::length("room" as +FourBytes);
+    transition length == 4u64 {
+        true -> done()
+        false -> fail()
+    }
+    machine done() {}
+    machine fail() { crash Trap; }
+}

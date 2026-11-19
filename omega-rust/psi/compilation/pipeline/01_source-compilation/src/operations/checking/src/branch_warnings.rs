@@ -256,7 +256,7 @@ fn refutation(
         EvidenceRoute::CertificateDerived(CertificateEnvelope {
             identity: EvidenceIdentity::new(probe.get())?,
             proof_system_marker: ProofSystemMarker::CURRENT,
-            proof,
+            proof: &proof,
         }),
     )
     .ok()?;

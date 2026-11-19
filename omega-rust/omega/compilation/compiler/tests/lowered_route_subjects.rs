@@ -644,9 +644,9 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 /// would be judged, and each selection is then added by hand. Selecting the
 /// defective machine brings it in and the program is rejected. Selecting a
 /// boundary requirement and its trait, as a native binding does, declares
-/// that boundary. Selecting a trait that is no boundary, which the route
-/// cannot judge a provider against, hands the compilation back instead of
-/// leaving the selection unjudged.
+/// that boundary. Selecting a namespace, which supplies no executable
+/// declaration to judge, hands the compilation back instead of leaving the
+/// selection unjudged.
 #[test]
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -706,11 +706,20 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     // that trait. Neither has a body; each is read as the boundary it is,
     // and the requirement is declared in the accepted module though nothing
     // calls it.
+    // Build and Product load separate declarations of the bundled library.
+    // This Product check must select its own prepared boundary declaration.
     let exit = typed
         .traits()
         .iter()
-        .find(|definition| definition.is_boundary && definition.name.as_str() == "ProcessExit")
-        .expect("the bundled library declares `ProcessExit`");
+        .find(|definition| {
+            definition.is_boundary
+                && definition.name.as_str() == "ProcessExit"
+                && typed.symbols.symbol_is_in_dependency_scope(
+                    definition.symbol,
+                    declaration_contracts::source_identity::DependencyScope::Product,
+                )
+        })
+        .expect("the Product library declares `ProcessExit`");
     let exit_process = typed
         .trait_machine_signatures(exit)
         .first()
@@ -742,13 +751,12 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             .any(|(_, symbol)| *symbol == exit_process)
     );
 
-    let a_trait = typed
-        .traits()
-        .iter()
-        .find(|definition| !definition.is_boundary)
-        .expect("the bundled library declares a trait that is no boundary")
-        .symbol;
-    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(a_trait) else {
+    let namespace = typed.symbols.get(exit.symbol).parent;
+    assert!(matches!(
+        typed.symbols.get(namespace).kind,
+        symbols::SymbolKind::Module | symbols::SymbolKind::Root
+    ));
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict_selecting(namespace) else {
         panic!("a selection the route cannot judge hands the compilation back");
     };
     assert_eq!(
@@ -1106,26 +1114,20 @@ fn boundary_conformer_subject_is_checked_without_a_direct_entry() {
     );
 }
 
-/// A generic body that calls another generic machine at its own type
-/// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
-/// contract with no body; `forward`'s own check form, judged in the same
-/// compilation, is what proves that contract for every `T`, so `relay`'s
-/// form is accepted on its own proofs. A bound the callee does not give
-/// still rejects the caller. A machine that applies itself is refused by
-/// name, with or without an `ensures`: its form would take its own contract
-/// as given, and nothing in a form judges the cycle. The one with no
-/// `ensures` and a `terminates` promise is the case that was once accepted:
-/// it has no contract row to leave undecided, and it never returns.
+/// The checker includes a generic helper's body when checking its caller.
+/// The call supports the caller's result bound. A tighter bound still fails.
+/// Recursive applications follow the ordinary rules for calls and termination.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
+    // Borrow the unused item so the test can check the call's numeric contract.
+    let forward = "machine forward<T>(item: &T, limit: u32) -> u32 \
                    requires limit <= 10 ensures result <= 10 { limit }";
     let relay = |bound: u32| {
         format!(
-            "{forward}\nmachine relay<T>(item: T, limit: u32) -> u32 \
+            "{forward}\nmachine relay<T>(item: &T, limit: u32) -> u32 \
              requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
         )
     };
@@ -1147,39 +1149,37 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
             Verdict::Rejected
         ]
     );
+    // These calls test a cycle in static applications. The type parameter
+    // is passed at compile time and needs no runtime storage.
     assert_eq!(
         judged_parts(
             "generic_application_of_itself",
-            "machine again<T>(item: T, limit: u32) -> u32 \
-             ensures result <= 10 { again<T>(item, limit) }"
+            "machine again<T>(limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(limit) }"
         ),
-        [
-            Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `again` on a call cycle".to_owned())
-        ]
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
     );
     assert_eq!(
         judged_parts(
             "generic_application_of_itself_with_no_guarantee",
-            "machine forever<T>(item: T, limit: u32) -> u32              terminates { forever<T>(item, limit) }"
+            "machine forever<T>(limit: u32) -> u32              terminates { forever<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `forever` on a call cycle".to_owned())
+            Verdict::FallsBack("contract termination promise over a call cycle".to_owned())
         ]
     );
-    // Two generic machines that reach each other are one cycle; each is
-    // refused.
+    // Both check forms include the bodies of the two machines in the cycle.
     assert_eq!(
         judged_parts(
             "generic_application_cycle_of_two",
-            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
-             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }"
+            "machine ping<T>(limit: u32) -> u32 { pong<T>(limit) }
+             machine pong<T>(limit: u32) -> u32 { ping<T>(limit) }"
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack("generic machine `ping` on a call cycle".to_owned()),
-            Verdict::FallsBack("generic machine `pong` on a call cycle".to_owned())
+            Verdict::Accepted(2),
+            Verdict::Accepted(2)
         ]
     );
 }
@@ -1308,26 +1308,26 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 
-    // An unused subject machine still demands the exact library declaration
-    // it calls. The library's data-owned helper breaks the static machine rule.
+    // The checker must follow library calls even from an unused machine.
     let frontier = staged_unused(
         "dependency_call",
         "use omega::language::core::CompactBinary;\n\
          machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
     );
-    let violation = rule_violation(&frontier);
-    assert_eq!(
-        violation.statement,
-        "a data declaration cannot own a machine; declare an ordinary static machine \
-         while reading the body of `spare`"
-    );
-    assert_authored_site(
-        &frontier,
-        violation.site,
-        "source/library/core/wire.omg",
-        "public machine CompactBinary::signed_from_word(",
-        "CompactBinary::signed_from_word",
-    );
+    let (_, verdict) = route_verdict(&frontier);
+    let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+        panic!("the checker must accept the library call: {verdict:?}");
+    };
+    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+        names.machine == "signed_from_word"
+            && names
+                .declared
+                .and_then(|span| frontier.typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.path
+                        .ends_with("source/library/core/compact_binary.omg")
+                })
+    }));
 }
 
 /// A requirement that contradicts a crash route's guard rules the route out,
@@ -2040,7 +2040,7 @@ fn a_guarded_array_index_survives_only_writes_to_separate_fields() {
     ] {
         let source = format!(
             "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}\n\
-            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index] }}\n\
+            machine fetch(input: &mut Input) -> u32 {{ {write} input.values[input.index as -Wrapping] }}\n\
             public machine spare(input: &mut Input) -> u32 requires true {{\n\
                 transition input.index < 3u32 {{ true -> fetch(input) false -> 0u32 }}\n\
             }}"
@@ -2092,7 +2092,7 @@ fn a_guarded_array_index_survives_a_terminal_call_cycle() {
                 }}
                 machine fetch(input: &mut Input) -> u32 {contract} {{
                     {write}
-                    let found: u32 = input.values[input.index];
+                    let found: u32 = input.values[input.index as -Wrapping];
                     input.index = input.index + 1;
                     transition found == 0u32 {{ true -> 0u32 _ -> block test(input) }}
                 }}

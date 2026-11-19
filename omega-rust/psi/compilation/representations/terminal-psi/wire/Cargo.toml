@@ -14,7 +14,6 @@ access-vocabulary = { path = "../../access-vocabulary" }
 declaration-contracts = { path = "../../declaration-contracts" }
 schema-reflection = { path = "../../schema-reflection" }
 application-identity = { path = "../../application-identity" }
-storage-access = { path = "../../../../runtime/storage-access" }
 numeric-literals = { path = "../../numeric-literals" }
 bignum = { path = "../../../../foundation/bignum" }
 wire = { path = "../../../../foundation/wire" }

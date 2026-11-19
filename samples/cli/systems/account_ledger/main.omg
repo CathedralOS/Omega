@@ -474,8 +474,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine vcall_check_b2(main: &mut Main, b0: i32 in Wrapping) {
         let b2: i32 in Wrapping = balance_of(main, 2 as +Wrapping);
         transition b2 == 30 {
-            true -> vcall_check_sum(main, b0, b2)
-            _ -> bad_vcall2(main)
+            true -> block vcall_check_sum(main, b0, b2)
+            _ -> block bad_vcall2(main)
         }
     }
 
@@ -493,8 +493,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine vcall_check_sum(main: &mut Main, b0: i32 in Wrapping, b2: i32 in Wrapping) {
         let checksum: i32 in Wrapping = b0 + b2;
         transition checksum == 70 {
-            true -> check_total(main)
-            _ -> bad_sum(main)
+            true -> block check_total(main)
+            _ -> block bad_sum(main)
         }
     }
 
@@ -509,8 +509,8 @@ machine main(main: &mut Main) reaches ProcessExit + Console {
     machine check_total(main: &mut Main) {
         let t: i32 in Wrapping = total(main);
         transition t == 230 {
-            true -> good(main)
-            _ -> bad_total(main)
+            true -> block good(main)
+            _ -> block bad_total(main)
         }
     }
 

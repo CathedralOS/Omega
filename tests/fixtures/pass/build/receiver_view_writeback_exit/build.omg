@@ -33,7 +33,6 @@ machine configure_all_settings(builder: &mut Build) {
     builder.subsystem = Subsystem::Unspecified { value: 73 };
     builder.freestanding = true;
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
-    builder.privileged_services.port_io = true;
     builder.elf_interpreter.linux_arm64 = "/lib/omega-loader.so";
     builder.optimizations.selected[0] = 1 as +Saturating;
     builder.optimizations.human_report = 1 as +Saturating;

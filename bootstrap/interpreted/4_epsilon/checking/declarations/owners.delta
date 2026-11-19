@@ -275,6 +275,8 @@
     ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
       NoEpsilonCensusCandidate)))
 
+; Parsed declarations are in source order. The first equal name has the
+; earliest duplicate offset, and every match shares the same entry exemption.
 (def epsilon_census_machine_name_against ((source EpsilonSourceView)
   (nameValue EpsilonQualifiedName)
   (declarations EpsilonDeclarationList) (hasEntry Int)) EpsilonCensusCandidate
@@ -287,17 +289,11 @@
         ((EpsilonDataDeclaration start end name members)
           (epsilon_census_machine_name_against source nameValue rest hasEntry))
         ((EpsilonMachineDeclaration start end name inputs returnType bodyValue)
-          (let current EpsilonCensusCandidate
-            (if (epsilon_qualified_names_equal source nameValue name)
-              (if (if hasEntry
-                    (epsilon_qualified_name_is_main_entry source nameValue)
-                    0)
-                NoEpsilonCensusCandidate
-                (epsilon_census_duplicate start))
-              NoEpsilonCensusCandidate)
-            (epsilon_census_min current
-              (epsilon_census_machine_name_against source nameValue rest
-                hasEntry))))))))
+          (if (epsilon_qualified_names_equal source nameValue name)
+            (if (if hasEntry (epsilon_qualified_name_is_main_entry source nameValue) 0)
+              NoEpsilonCensusCandidate
+              (epsilon_census_duplicate start))
+            (epsilon_census_machine_name_against source nameValue rest hasEntry)))))))
 
 (def epsilon_census_machine_against ((source EpsilonSourceView)
   (declarationValue EpsilonDeclaration)

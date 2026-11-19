@@ -247,14 +247,16 @@ machine posix_put_path_byte(path: &[u8], out: &mut [u8], index: u64) {
         _ -> terminator(out, index)
     }
 
-    machine byte(path: &[u8], out: &mut [u8], index: u64) {
-        transition index + 1 < out.len {
+    machine byte(path: &[u8], out: &mut [u8], index: u64)
+    requires index < path.len {
+        transition index < out.len && out.len - index > 1 {
             true -> write_byte(path, out, index)
             _ -> done()
         }
     }
 
-    machine write_byte(path: &[u8], out: &mut [u8], index: u64) {
+    machine write_byte(path: &[u8], out: &mut [u8], index: u64)
+    requires index < path.len, index < out.len {
         out[index] = path[index];
         transition { _ -> done() }
     }
@@ -266,7 +268,8 @@ machine posix_put_path_byte(path: &[u8], out: &mut [u8], index: u64) {
         }
     }
 
-    machine write_terminator(out: &mut [u8], index: u64) {
+    machine write_terminator(out: &mut [u8], index: u64)
+    requires index < out.len {
         out[index] = 0;
         transition { _ -> done() }
     }

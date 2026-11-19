@@ -155,6 +155,7 @@ pub(crate) fn execute(
         .observe_private_entry_ram()
         .map_err(TerminalRuntimeError::Execution)?;
     let effects = instance.effects().to_vec();
+    drop(instance);
     host.finish_native_provider()?;
     Ok(TerminalRuntimeObservation {
         work_usage: work.into_usage(),

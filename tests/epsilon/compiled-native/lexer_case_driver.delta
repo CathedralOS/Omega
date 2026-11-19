@@ -1,0 +1,29 @@
+; The selected token, classified token and keyword each report their authored
+; case span. A field left at sparse zero contributes no constructed case.
+(def test_lexer_case ((outcome EpsilonEvaluatorOutcome)) Bytes
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output)
+      (match value
+        ((EpsilonRuntimeSumValue selected payloads)
+          (match selected
+            ((EpsilonResolvedSumCaseSyntax start end name parameters)
+              (bytes_concat (epsilon_compiled_u32 start) (epsilon_compiled_u32 end)))))
+        ((EpsilonRuntimeAggregate typeValue children) "")
+        ((EpsilonRuntimeInteger integer) "")
+        ((EpsilonRuntimeViewValue view) "")))
+    ((EpsilonEvaluatorResultless store output) "")
+    ((EpsilonEvaluatorExit code output) "")
+    ((EpsilonEvaluatorTrap kind output) "")
+    ((EpsilonEvaluatorInternal offset) "")))
+
+(def test_lexer_entry ((mainType EpsilonType) (input Bytes)) Bytes
+  (let receiver EpsilonRuntimePlace (EpsilonRuntimePlaceAt 1 NoEpsilonRuntimePath mainType)
+    (let roots EpsilonRuntimeRoots (MoreEpsilonRuntimeRoots 1
+      (epsilon_runtime_zero_value mainType) NoEpsilonRuntimeRoots)
+      (let store EpsilonRuntimeStore (EpsilonRuntimeStoreState 2 roots (EpsilonRuntimeConsoleInputAt input 0))
+        (let word EpsilonRuntimeValue (EpsilonRuntimeViewValue
+          (EpsilonRuntimeViewAt (EpsilonRuntimeLiteralBacking input) (EpsilonU8Type 0 0) 0 (bytes_length input)))
+          (bytes_concat (epsilon_compiled_entry input)
+            (bytes_concat (test_lexer_case (ep_owned_4_Main_selected_token receiver store ""))
+              (bytes_concat (test_lexer_case (ep_owned_4_Main_classified_token receiver word store ""))
+                (test_lexer_case (ep_owned_4_Main_classified_keyword receiver word store ""))))))))))

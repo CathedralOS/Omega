@@ -101,7 +101,7 @@ fn admit(
         &obligation(goal),
         requires,
         &[],
-        envelope(proof),
+        envelope(proof).as_ref(),
     )?;
     let AcceptedFactRoute::CertificateDerived { acceptance, .. } = accepted.route else {
         panic!("a certificate envelope is accepted on the certificate route");
@@ -115,7 +115,7 @@ fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
         .expect("the shipped symmetry certificate discharges the ensures obligation");
     // Three declarations — `Int` and the two mathematical endpoints —
     // all of which the judgment's closure commits to; one bound premise;
-    // 34 arena slots once the kernel has checked the judgment, the
+    // 36 arena slots once the kernel has checked the judgment, the
     // elaborated terms plus the checker's own working terms.
     assert_eq!(
         decision,
@@ -123,7 +123,7 @@ fn the_symmetry_theorem_obligation_is_judged_by_the_kernel_at_admission() {
             declarations: 3,
             assumption_closure: 3,
             context_depth: 1,
-            arena_slots: 34,
+            arena_slots: 36,
         })
     );
 }

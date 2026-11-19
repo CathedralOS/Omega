@@ -698,6 +698,7 @@ mod bound_fact_index {
             },
         );
         assert_eq!(bound.proof, expected);
+        assert_eq!(activity.literal_bound_fact_nodes, 1);
         proof_admission::accept_certificate(
             &context,
             &expected.conclusion,
@@ -706,6 +707,31 @@ mod bound_fact_index {
             &bound.proof,
         )
         .unwrap();
+
+        // A strict comparison can improve a bound with the same written number.
+        let raw_tie = [
+            Proposition::LessOrEqual(value(subject), literal(10)),
+            Proposition::LessThan(value(subject), literal(10)),
+        ];
+        let mut activity = ProofSearchActivity::default();
+        let mut prover = Prover::new(&context, &raw_tie, &[], &values, &mut activity);
+        let bound = prover.bound(subject, Direction::Upper).unwrap();
+        assert_eq!(bound.literal, IntegerValue::Unsigned(9));
+        assert_eq!(prover.activity.literal_bound_fact_nodes, 2);
+        let goal = Proposition::LessOrEqual(value(subject), literal(9));
+        let expected = node(
+            goal.clone(),
+            ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(node(raw_tie[1].clone(), ProofRule::Assumption { index: 1 })),
+            },
+        );
+        assert_eq!(bound.proof, expected);
+        proof_admission::accept_certificate(&context, &goal, &raw_tie, &[], &bound.proof).unwrap();
+        assert!(
+            prover
+                .prove(&Proposition::LessOrEqual(value(subject), literal(8)))
+                .is_err()
+        );
     }
 
     #[test]
@@ -1063,8 +1089,13 @@ fn a_later_named_result_can_bound_the_same_expression_more_tightly() {
         PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
             .unwrap();
     let mut prover = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
-    let (literal, proof) = prover.side(&expression, Direction::Upper).unwrap();
-    assert_eq!(literal, endpoint);
+    let side = prover
+        .comparison_side(&expression, Direction::Upper)
+        .unwrap();
+    assert_eq!(side.literal, endpoint);
+    let proof = prover
+        .comparison_proof(&expression, Direction::Upper, side)
+        .unwrap();
     let goal = Proposition::LessOrEqual(expression, limit);
     proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof.unwrap())
         .unwrap();
@@ -1213,6 +1244,80 @@ fn wrapping_headroom_reuses_a_completed_bound_without_assuming_its_goal() {
 }
 
 #[test]
+fn sibling_disjunctions_in_one_premise_remain_separate_cuts() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar = ScalarType::Integer(integer);
+    let values = IdTable::from_rows((1..=2).map(|raw| {
+        (
+            ValueId::new(raw).unwrap(),
+            ValueRow {
+                scalar_type: scalar,
+                origin: ValueOrigin::MachineParameter {
+                    position: u32::try_from(raw - 1).unwrap(),
+                },
+                rigid: None,
+            },
+        )
+    }))
+    .unwrap();
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let terms: Vec<_> = values
+        .keys()
+        .map(|id| ScalarTerm::value(id, scalar))
+        .collect();
+    let cuts: Vec<_> = terms
+        .iter()
+        .map(|term| {
+            Proposition::Disjunction(
+                [1, 2]
+                    .into_iter()
+                    .map(|limit| {
+                        Proposition::LessOrEqual(
+                            term.clone(),
+                            ScalarTerm::integer(integer, IntegerValue::Unsigned(limit)).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    let goal = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::embed(terms[0].clone()).unwrap()),
+            Box::new(IntegerMathTerm::embed(terms[1].clone()).unwrap()),
+        ),
+        IntegerMathTerm::literal(IntegerValue::Unsigned(4)),
+    );
+    let assumptions = [Proposition::Conjunction(cuts.clone())];
+    let proof = Prover::new(
+        &context,
+        &assumptions,
+        &[],
+        &values,
+        &mut ProofSearchActivity::default(),
+    )
+    .prove(&goal)
+    .unwrap();
+    proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    for omitted in 0..cuts.len() {
+        let assumptions = [cuts[1 - omitted].clone()];
+        assert!(
+            Prover::new(
+                &context,
+                &assumptions,
+                &[],
+                &values,
+                &mut ProofSearchActivity::default(),
+            )
+            .prove(&goal)
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let scalar_type = ScalarType::Integer(integer);
@@ -1249,7 +1354,10 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
 
     let mut activity = ProofSearchActivity::default();
     let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
-    active.active_cuts.push(ActiveCut { proposition: cut, origin: None });
+    active.active_cuts.push(ActiveCut {
+        proposition: cut.clone(),
+        origin: None,
+    });
     assert!(active.split(&Proposition::Truth).is_none());
     assert_eq!(active.activity.disjunction_materializations, 0);
     assert_eq!(active.activity.started, 1);
@@ -1258,6 +1366,46 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let unknown = Proposition::Equal(ScalarTerm::value(id, scalar_type), literal(7));
     assert!(failed.split(&unknown).is_none());
     assert_eq!(failed.activity.disjunction_materializations, 0);
+
+    let Proposition::Disjunction(parts) = cut else {
+        unreachable!("the test premise is a disjunction");
+    };
+    let mut values = values.clone();
+    let flag = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let definition = Proposition::Equal(
+        ScalarTerm::value(flag, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
+    let wrapped = Proposition::Disjunction(vec![
+        Proposition::Conjunction(vec![parts[0].clone(), definition.clone()]),
+        parts[1].clone(),
+    ]);
+    let assumptions = [wrapped.clone()];
+    let axioms = [definition];
+    let mut activity = ProofSearchActivity::default();
+    let mut active = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
+    assert!(active.facts.iter().any(|fact| {
+        matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
+    }));
+    let original = active
+        .facts
+        .iter()
+        .find(|fact| fact.proposition == wrapped)
+        .unwrap();
+    active.active_cuts.push(ActiveCut {
+        proposition: wrapped,
+        origin: original.disjunction_origin(&active.facts),
+    });
+    assert!(active.split(&Proposition::Truth).is_none());
+    assert_eq!(active.remaining_case_branches, CASE_BRANCH_BUDGET);
+    assert_eq!(active.activity.disjunction_materializations, 0);
 }
 
 #[test]
@@ -1674,7 +1822,66 @@ fn compound_constant_offsets_tighten_literal_and_chained_bounds_without_poisonin
         prover.literal_bounds(index_id),
         (None, Some(IntegerValue::Unsigned(2)))
     );
+    let before_copies = prover.activity.bound_certificate_copies;
+    assert_eq!(
+        prover.literal_bounds(index_id),
+        (None, Some(IntegerValue::Unsigned(2)))
+    );
+    assert_eq!(prover.activity.bound_certificate_copies, before_copies);
     let exact_goal = Proposition::LessOrEqual(index.clone(), lit(2));
+    {
+        let Slot::Done(Some(bound)) =
+            &prover.bounds.get(index_id).unwrap()[Direction::Upper.index()]
+        else {
+            panic!("the offset bound must retain its completed certificate");
+        };
+        let mut translated = &bound.proof;
+        for expected_endpoint in [1, 0] {
+            let ProofRule::IntegerOrderSubstitution {
+                relation, endpoint, ..
+            } = &translated.rule
+            else {
+                panic!(
+                    "translation must restore both exact endpoints: {:?}",
+                    translated.rule
+                );
+            };
+            assert_eq!(*endpoint, expected_endpoint);
+            translated = relation.as_ref();
+        }
+        let ProofRule::IntegerMathOrderTranslation { relation, addend } = &translated.rule else {
+            panic!(
+                "the exact offset must use mathematical order translation: {:?}",
+                translated.rule
+            );
+        };
+        assert_eq!(addend, &IntegerMathTerm::literal(IntegerValue::Signed(-1)));
+        let ProofRule::IntegerOrderSubstitution {
+            relation: original,
+            endpoint: 1,
+            ..
+        } = &relation.rule
+        else {
+            panic!(
+                "the original upper order must retain its literal endpoint: {:?}",
+                relation.rule
+            );
+        };
+        assert_eq!(
+            original.as_ref(),
+            &node(
+                Proposition::LessOrEqual(add(&index, &lit(1)), lit(3)),
+                ProofRule::IntegerOrderDiscreteness {
+                    relation: Box::new(node(
+                        assumptions[0].clone(),
+                        ProofRule::Assumption { index: 0 }
+                    )),
+                },
+            )
+        );
+        proof_admission::accept_certificate(&context, &exact_goal, &assumptions, &[], &bound.proof)
+            .unwrap();
+    }
     let proof = prover.prove(&exact_goal).unwrap();
     proof_admission::accept_certificate(&context, &exact_goal, &assumptions, &[], &proof).unwrap();
     assert!(
@@ -1772,6 +1979,23 @@ fn numeric_conclusions_use_checked_implications_and_keep_their_premises() {
     let accepted =
         proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
     assert_eq!(accepted.assumptions.len(), 2);
+    let observed = ScalarTerm::value(read, ScalarType::Integer(byte));
+    let literal = ScalarTerm::integer(byte, IntegerValue::Unsigned(7)).unwrap();
+    let equality = Proposition::Equal(observed.clone(), literal.clone());
+    let reversed = [
+        premise.clone(),
+        Proposition::Implication {
+            premise: Box::new(premise.clone()),
+            conclusion: Box::new(Proposition::Equal(literal, observed)),
+        },
+    ];
+    let proof = Prover::new(&context, &reversed, &[], &values, &mut activity)
+        .prove(&equality)
+        .unwrap();
+    let accepted =
+        proof_admission::accept_certificate(&context, &equality, &reversed, &[], &proof).unwrap();
+    assert_eq!(accepted.assumptions.len(), 2);
+
     for missing in [
         vec![premise],
         vec![implication],
@@ -2053,6 +2277,53 @@ fn dense_order_arrivals_copy_only_the_bounds_the_certificate_uses() {
             );
         }
     }
+}
+
+#[test]
+fn an_undecided_comparison_does_not_copy_its_endpoint_proofs() {
+    let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+    let scalar_type = ScalarType::Integer(integer);
+    let mut values = IdTable::default();
+    let [left_id, right_id] = [0, 1].map(|position| {
+        values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        })
+    });
+    let left = ScalarTerm::value(left_id, scalar_type);
+    let right = ScalarTerm::value(right_id, scalar_type);
+    let limit = ScalarTerm::integer(integer, IntegerValue::Unsigned(8)).unwrap();
+    let assumptions = [
+        Proposition::LessOrEqual(left.clone(), limit.clone()),
+        Proposition::LessOrEqual(limit, right.clone()),
+    ];
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+
+    // Both values can be eight. The strict goal still settles both bounds,
+    // which the next comparison can use without searching again.
+    assert!(prover.compare(&left, &right, true).is_err());
+    assert_eq!(prover.activity.bound_value_searches, 2);
+    assert_eq!(prover.activity.bound_certificate_copies, 0);
+
+    let proof = prover.compare(&left, &right, false).unwrap();
+    assert_eq!(prover.activity.bound_value_searches, 2);
+    assert_eq!(prover.activity.bound_certificate_copies, 2);
+    let goal = Proposition::LessOrEqual(left, right);
+    let accepted =
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &[], &proof).unwrap();
+    assert_eq!(
+        accepted
+            .assumptions
+            .iter()
+            .map(|used| used.index)
+            .collect::<Vec<_>>(),
+        vec![0, 1],
+    );
 }
 
 #[test]

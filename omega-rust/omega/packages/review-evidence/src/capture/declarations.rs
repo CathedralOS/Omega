@@ -5,7 +5,8 @@
 
 use super::input::PolicySource;
 use crate::record::{
-    PackagePolicyDataShape, PackagePolicyDomainShape, PackageReviewContractBinaryOperator,
+    PackagePolicyDataShape, PackagePolicyDomainShape, PackageReviewByteSequencePredicate,
+    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
     PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractOperatorMeaning, PackageReviewDataField, PackageReviewDataKind,
     PackageReviewDataMember, PackageReviewDataProperties, PackageReviewNominalIdentity,
@@ -17,6 +18,9 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::source_state::TypedTrees;
 use source_compiler::source_state::data::{DataField, DataMember};
 use source_compiler::source_state::domain::DomainDefinition;
+use source_compiler::source_state::evidence::byte_predicates::{
+    ByteSequencePredicate, byte_domain_predicate,
+};
 use source_compiler::source_state::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use source_compiler::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
@@ -167,7 +171,7 @@ impl<'a> PolicySource<'a> {
         Ok(PackageReviewTypeIdentity { canonical })
     }
 
-    fn require_type_dependencies(
+    pub(super) fn require_type_dependencies(
         &self,
         reference: TypeReferenceHandle,
         exposure: PackageReviewSemanticDependencyExposure,
@@ -368,11 +372,9 @@ impl<'a> PolicySource<'a> {
                 else {
                     return Err(unavailable("a non-expression domain predicate fact"));
                 };
-                predicate_facts.push(PackageReviewContractFact::Expression(self.expression(
-                    *expression,
-                    definition,
-                    0,
-                )?));
+                predicate_facts.push(PackageReviewContractFact::Expression(
+                    self.domain_predicate(*expression, definition)?,
+                ));
             }
             predicate_facts.sort();
             predicate_facts.dedup();
@@ -393,12 +395,30 @@ impl<'a> PolicySource<'a> {
         Ok(rows)
     }
 
-    pub(super) fn expression(
+    fn domain_predicate(
         &self,
         expression: ExpressionHandle,
         domain: &DomainDefinition,
-        depth: usize,
     ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
+        if let Some((fact, predicate)) = byte_domain_predicate(self.typed(), domain)
+            && fact == expression
+        {
+            // The source checker matched the exact builtin observation of
+            // the complete domain subject. Record the predicate on those bytes.
+            let predicate = match predicate {
+                ByteSequencePredicate::ValidUtf8 => PackageReviewByteSequencePredicate::ValidUtf8,
+                ByteSequencePredicate::NoNul => PackageReviewByteSequencePredicate::NoNul,
+                ByteSequencePredicate::AsciiOnly => PackageReviewByteSequencePredicate::AsciiOnly,
+                ByteSequencePredicate::NonEmpty => PackageReviewByteSequencePredicate::NonEmpty,
+            };
+            return Ok(PackageReviewContractExpression::Call {
+                receiver: None,
+                target: PackageReviewContractCallTarget::ByteSequencePredicate(predicate),
+                static_arguments: Vec::new(),
+                evidence_arguments: Vec::new(),
+                arguments: vec![PackageReviewContractExpression::DomainSubject],
+            });
+        }
         self.scoped_expression(
             expression,
             ContractScope {
@@ -408,7 +428,7 @@ impl<'a> PolicySource<'a> {
                 statics: Default::default(),
                 result: None,
             },
-            depth,
+            0,
         )
     }
 

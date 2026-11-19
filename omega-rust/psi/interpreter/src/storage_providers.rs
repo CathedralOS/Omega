@@ -3615,7 +3615,7 @@ pub(crate) mod value_image {
         #[derive(Clone, Copy)]
         pub(crate) struct ImageGeometry<'execution, 'program> {
             execution: &'execution TerminalExecution<'program>,
-            carriers: Option<TargetCarrierLayout>,
+            carriers: Result<Option<TargetCarrierLayout>, StorageGeometryError>,
         }
 
         impl<'execution, 'program> ImageGeometry<'execution, 'program> {
@@ -3625,27 +3625,81 @@ pub(crate) mod value_image {
             ) -> Result<Self, TerminalInterpretError> {
                 let carriers = target
                     .map(|target| {
-                        Ok::<_, TerminalInterpretError>(TargetCarrierLayout {
-                            pointer_byte_size: target.pointer_size,
-                            pointer_byte_alignment: target.pointer_alignment,
-                            descriptor_byte_size: target
-                                .pointer_size
-                                .checked_mul(2)
-                                .ok_or(malformed())?,
-                            descriptor_byte_alignment: target.pointer_alignment,
-                            case_tag_byte_size: target.case_tag_size,
-                            case_tag_byte_alignment: target.case_tag_alignment,
-                        })
+                        Self::carrier_layout(
+                            target.pointer_size,
+                            target.pointer_alignment,
+                            target.case_tag_size,
+                            target.case_tag_alignment,
+                        )
                     })
-                    .transpose()?;
+                    .transpose()
+                    .map_err(|_| malformed())?;
                 Ok(Self {
                     execution,
-                    carriers,
+                    carriers: Ok(carriers),
                 })
+            }
+
+            pub(crate) fn for_execution(
+                execution: &'execution TerminalExecution<'program>,
+            ) -> Self {
+                let carriers = execution
+                    .program
+                    .target_layouts
+                    .as_ref()
+                    .map(|layouts| {
+                        let target = layouts.target_facts();
+                        Self::carrier_layout(
+                            target.pointer_size,
+                            target.pointer_alignment,
+                            target.case_tag_size,
+                            target.case_tag_alignment,
+                        )
+                    })
+                    .transpose();
+                Self {
+                    execution,
+                    carriers,
+                }
+            }
+
+            fn carrier_layout(
+                pointer_size: u64,
+                pointer_alignment: u64,
+                case_tag_size: u64,
+                case_tag_alignment: u64,
+            ) -> Result<TargetCarrierLayout, StorageGeometryError> {
+                Ok(TargetCarrierLayout {
+                    pointer_byte_size: pointer_size,
+                    pointer_byte_alignment: pointer_alignment,
+                    descriptor_byte_size: pointer_size
+                        .checked_mul(2)
+                        .ok_or(StorageGeometryError::Overflow)?,
+                    descriptor_byte_alignment: pointer_alignment,
+                    case_tag_byte_size: case_tag_size,
+                    case_tag_byte_alignment: case_tag_alignment,
+                })
+            }
+
+            fn available_carriers(&self) -> Option<TargetCarrierLayout> {
+                self.carriers.ok().flatten()
+            }
+
+            fn geometry_error(&self, error: StorageGeometryError) -> TerminalInterpretError {
+                // Closed, target-independent geometry remains usable even if
+                // the admitted profile cannot represent a descriptor. A query
+                // that needs carriers retains the actual conversion failure.
+                let error = if error == StorageGeometryError::MissingCarrierLayout {
+                    self.carriers.err().unwrap_or(error)
+                } else {
+                    error
+                };
+                TerminalInterpretError::ValueImageGeometry(error)
             }
 
             pub(crate) fn tag_width(&self) -> Result<usize, TerminalInterpretError> {
                 self.carriers
+                    .map_err(TerminalInterpretError::ValueImageGeometry)?
                     .and_then(|layout| usize::try_from(layout.case_tag_byte_size).ok())
                     .filter(|width| (1..=8).contains(width))
                     .ok_or(TerminalInterpretError::ValueImageGeometry(
@@ -3659,9 +3713,9 @@ pub(crate) mod value_image {
             ) -> Result<(u64, u64), TerminalInterpretError> {
                 let types = self.execution.structural_types();
                 ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.carriers)
+                    .with_target_carriers(self.available_carriers())
                     .layout(root)
-                    .map_err(TerminalInterpretError::ValueImageGeometry)
+                    .map_err(|error| self.geometry_error(error))
             }
 
             pub(crate) fn sum_layout(
@@ -3670,9 +3724,21 @@ pub(crate) mod value_image {
             ) -> Result<layout_plans::ConventionalSumGeometry, TerminalInterpretError> {
                 let types = self.execution.structural_types();
                 ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.carriers)
+                    .with_target_carriers(self.available_carriers())
                     .sum_layout(root)
-                    .map_err(TerminalInterpretError::ValueImageGeometry)
+                    .map_err(|error| self.geometry_error(error))
+            }
+
+            pub(crate) fn view_source_compatible(
+                &self,
+                root: StructuralTypeId,
+                path: &[StructuralPathSegment],
+                reference: StructuralTypeId,
+            ) -> bool {
+                let types = self.execution.structural_types();
+                ReferenceStorageGeometry::new(types.values(), unresolved)
+                    .with_target_carriers(self.available_carriers())
+                    .view_source_compatible(root, path, reference, None)
             }
 
             pub(crate) fn region(
@@ -3682,7 +3748,7 @@ pub(crate) mod value_image {
             ) -> Option<ReferenceStorageRegion> {
                 let types = self.execution.structural_types();
                 ReferenceStorageGeometry::new(types.values(), unresolved)
-                    .with_target_carriers(self.carriers)
+                    .with_target_carriers(self.available_carriers())
                     .region(root, path)
             }
         }

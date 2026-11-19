@@ -14,6 +14,7 @@ bindings selected before the invocation's storage presentation is captured.
 */
 
 mod original_homes;
+mod provider_results;
 mod record_fields;
 mod record_shape;
 mod reference_outputs;
@@ -35,7 +36,7 @@ use calling_conventions::{
     BoundaryValueClass, ValueClass,
 };
 use native_provider_runtime::{
-    NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage,
+    NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage, NativeResultStorage,
 };
 use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use runtime_abi::NativeBorrowedStorageLayout;
@@ -139,6 +140,10 @@ enum ResultCodec {
     Reference {
         referent: semantic_vocabulary::StructuralTypeId,
         access: StructuralAccess,
+    },
+    ProviderReference {
+        codec: StorageCodec,
+        scalar_order: Vec<usize>,
     },
 }
 
@@ -332,23 +337,70 @@ impl<'host> NativeImport<'host> {
                     .result
                     .and_then(|root| application.signature.shapes.get(root as usize))
                     .ok_or_else(|| missing("native reference result has no public shape".into()))?;
-                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
-                    || !matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
-                    || shape.class != BoundaryValueClass::Reference || shape.byte_size != 8 || shape.alignment != 8
-                    || application.plan.plan().call.result.as_ref().map(|p| p.shape)
+                if !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !matches!(
+                        access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                    || shape.class != BoundaryValueClass::Reference
+                    || shape.byte_size != 8
+                    || shape.alignment != 8
+                    || application
+                        .plan
+                        .plan()
+                        .call
+                        .result
+                        .as_ref()
+                        .map(|p| p.shape)
                         != Some(calling_conventions::ValueShape::integer(8, 8))
-                    || declaration.result_reference_regions.is_empty()
-                    || declaration.result_reference_regions.iter().any(|region| {
+                {
+                    return Err(missing(
+                        "native reference result differs from its exact reference contract".into(),
+                    ));
+                }
+                if declaration.result_reference_regions.is_empty() {
+                    // Logical input debts do not locate the provider's bytes.
+                    // A complete safe result frontier supplies its exact shared
+                    // reference permission, including when it has input anchors.
+                    let groups = terminal_semantics::boundary_result_lifetimes(
+                        &program.module().structural_types,
+                        declaration,
+                    )
+                    .map_err(|reason| missing(reason.into()))?;
+                    if access != StructuralAccess::SharedBorrow
+                        || !groups
+                            .iter()
+                            .any(|group| group.results.iter().any(Vec::is_empty))
+                    {
+                        return Err(missing("native provider reference result needs an admitted shared plain scalar referent".into()));
+                    }
+                    let codec = StorageCodec::admit(program, layouts, referent)
+                        .map_err(|error| missing(error.reason))?;
+                    if !codec.references.is_empty() || codec.fields.is_empty() {
+                        return Err(missing("native provider reference result needs a complete plain scalar referent codec".into()));
+                    }
+                    let mut scalar_order = (0..codec.fields.len()).collect::<Vec<_>>();
+                    scalar_order.sort_unstable_by(|&left, &right| {
+                        codec.fields[left].path.cmp(&codec.fields[right].path)
+                    });
+                    ResultCodec::ProviderReference {
+                        codec,
+                        scalar_order,
+                    }
+                } else {
+                    if declaration.result_reference_regions.iter().any(|region| {
                         !region.path.is_empty() || region.access != access
                             || !matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index }
                                 if declaration.structural_parameters.get(argument_index as usize).is_some_and(|p|
                                     matches!(p.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
                     }) {
-                    return Err(missing("native reference result lacks exact captured-input pointer custody".into()));
+                        return Err(missing("native reference result lacks exact captured-input pointer custody".into()));
+                    }
+                    StorageCodec::admit(program, layouts, referent)
+                        .map_err(|error| missing(error.reason))?;
+                    ResultCodec::Reference { referent, access }
                 }
-                StorageCodec::admit(program, layouts, referent)
-                    .map_err(|error| missing(error.reason))?;
-                ResultCodec::Reference { referent, access }
             }
             BoundaryMachineResult::Structural(result) => {
                 let codec = StorageCodec::admit(program, layouts, result.structural_type)
@@ -364,10 +416,19 @@ impl<'host> NativeImport<'host> {
                 ResultCodec::Record(codec)
             }
         };
+        let result_storage = match &result {
+            ResultCodec::ProviderReference { codec, .. } => {
+                NativeResultStorage::SharedProviderReference {
+                    byte_size: codec.extent,
+                    alignment: codec.alignment,
+                }
+            }
+            _ => NativeResultStorage::Value,
+        };
         let adapter = native
             .sponsor
             .borrow_mut()
-            .with(|process| process.install_published(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>()))
+            .with(|process| process.install_published_with_result(product, &parameters.iter().map(|parameter| match parameter { Parameter::Structural { access: StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, codec, .. } => NativeParameterStorage::OriginalReference { byte_size: codec.extent, alignment: codec.alignment }, Parameter::ByteView { .. } => NativeParameterStorage::OriginalByteView, _ => NativeParameterStorage::Value }).collect::<Vec<_>>(), result_storage))
             .map_err(|error| missing(error.reason))?;
         let references = reference_outputs::ReferenceOutputs::admit(program, declaration, layouts);
         Ok(Some(Self {
@@ -745,13 +806,20 @@ impl TerminalEffectHandler for NativeImport<'_> {
                 },
             })
             .collect::<Vec<_>>();
-        let returned = match self
-            .native
-            .sponsor
-            .borrow_mut()
-            .call(self.adapter, &native_arguments)
-        {
-            Ok(bytes) => bytes,
+        let result = match &self.result {
+            ResultCodec::ProviderReference { .. } => self
+                .native
+                .call_provider_reference(self.adapter, &native_arguments)
+                .map(|reference| (Vec::new(), Some(reference))),
+            _ => self
+                .native
+                .sponsor
+                .borrow_mut()
+                .call(self.adapter, &native_arguments)
+                .map(|bytes| (bytes, None)),
+        };
+        let (returned, provider_reference) = match result {
+            Ok(result) => result,
             Err(error) if actual_trap(&error) => {
                 return Ok(TerminalEffectResult::Crash(terminal_psi::CrashCause::Trap));
             }
@@ -864,6 +932,16 @@ impl TerminalEffectHandler for NativeImport<'_> {
             ResultCodec::Record(codec) => {
                 Ok(TerminalEffectResult::Aggregate(codec.aggregate(&returned)?))
             }
+            ResultCodec::ProviderReference {
+                codec,
+                scalar_order,
+            } => provider_results::complete(
+                provider_reference.ok_or_else(|| {
+                    rejection("native provider completion lost its exact result lease")
+                })?,
+                codec,
+                scalar_order,
+            ),
             ResultCodec::Reference { referent, access } => Ok(
                 TerminalEffectResult::CapturedReference(self.references.returned_reference(
                     &self.native,

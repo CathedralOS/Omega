@@ -62,7 +62,6 @@ wire = { path = "../../../../psi/foundation/wire" }
 physical-planning = { path = "../04_physical-program-planning", features = ["test-support"] }
 register-environment = { path = "../../target-description/register-environment" }
 selected-instructions = { path = "../../representations/selected-instructions" }
-source-compiler = { path = "../../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }
 
 [features]
 test-support = []

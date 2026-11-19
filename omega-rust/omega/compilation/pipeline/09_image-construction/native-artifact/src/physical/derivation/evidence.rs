@@ -125,6 +125,11 @@ fn derive_object_physical_evidence(
         pass.verify(|| publication.replay_foreign_call_custody(object))?;
     }
     let module = terminal_artifact.module();
+    // One current-form declaration owner serves every foreign result in this
+    // receiving pass; no call reconstructs an index from claimed result rows.
+    let result_geometry =
+        calling_conventions::terminal_layout::NativeGeometry::new(&module.structural_types)
+            .map_err(|_| "physical result declarations have invalid identities")?;
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
@@ -334,6 +339,7 @@ fn derive_object_physical_evidence(
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
                     pass,
+                    &result_geometry,
                     occurrence,
                     projection.identity(),
                     requirement,

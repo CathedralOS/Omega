@@ -822,8 +822,11 @@ pub(crate) mod input_site {
                     .collect(),
                 ownership_frontier_facts: Vec::new(),
             };
-            let geometry =
-                crate::instruction_selection::native_geometry::NativeGeometry::new(&[]).unwrap();
+            let geometry = crate::instruction_selection::native_geometry::NativeGeometry::new(
+                &[],
+                target::NativeTarget::linux_x64(),
+            )
+            .unwrap();
             {
                 let source = crate::instruction_selection::native_geometry::NativeInput::new(
                     &function, &geometry,
@@ -1415,7 +1418,12 @@ pub(crate) mod normalized_foreign {
                 }
                 Some(home.shape)
             }
-            (TargetBoundaryResult::Structural(home), Some(placement), None) => {
+            (
+                TargetBoundaryResult::Structural(home)
+                | TargetBoundaryResult::ScalarReference { home, .. },
+                Some(placement),
+                None,
+            ) => {
                 let (producer, result) = home.operation_result().ok_or_else(|| invalid!())?;
                 source.structural.as_ref().ok_or_else(|| invalid!())?;
                 let storage = crate::instruction_selection::structural_inputs::structural_reference_input::shape(
@@ -1423,13 +1431,25 @@ pub(crate) mod normalized_foreign {
                     source.geometry(),
                 )
                 .ok_or_else(|| invalid!())?;
-                let shape = calling_conventions::classified_boundary_shape(
-                    result.structural_type,
-                    source.geometry(),
-                    plan.call.policy,
-                )
-                .map_err(|_| invalid!())?;
+                let expected_codec =
+                    TargetBoundaryResult::declared_reference_codec(result.structural_type, |id| {
+                        source.geometry().declaration(id).ok()
+                    });
+                let shape = if expected_codec.is_some() {
+                    // The foreign result carries the address. The canonical
+                    // codec is initialized in its internal descriptor home.
+                    let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                    ValueShape::integer(descriptor.address_byte_size, descriptor.alignment)
+                } else {
+                    calling_conventions::classified_boundary_shape(
+                        result.structural_type,
+                        source.geometry(),
+                        plan.call.policy,
+                    )
+                    .map_err(|_| invalid!())?
+                };
                 if Some(producer) != invocation_site.operation()
+                    || call.result.scalar_reference_codec() != expected_codec
                     || crate::instruction_selection::selection::aggregate_result_input::home(
                         source,
                         result.place,

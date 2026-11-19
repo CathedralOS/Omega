@@ -6743,22 +6743,7 @@ mod equality_transport {
         }
 
         pub(super) fn occurs_free(&self, term: TermHandle, index: u32) -> bool {
-            let mut pending = vec![(term, index)];
-            while let Some((term, index)) = pending.pop() {
-                let node = self.arena.node(term);
-                if let Term::Variable(position) = node {
-                    if *position == index {
-                        return true;
-                    }
-                    continue;
-                }
-                for (child, binders) in node.subterms().iter().rev() {
-                    if let Some(nested) = index.checked_add(binders) {
-                        pending.push((child, nested));
-                    }
-                }
-            }
-            false
+            self.arena.contains_free_variable(term, index)
         }
     }
 

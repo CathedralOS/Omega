@@ -6239,8 +6239,7 @@ pub(crate) fn apply(
                 || !match storage {
                     Some(storage) if storage.stored_scalar.is_none() => {
                         source_contract(function, custody, source.place).is_some_and(|root| {
-                            terminal_semantics::reference_storage_region_source_compatible(
-                                types.iter(),
+                            types.storage_view_source_compatible(
                                 root,
                                 &source.path,
                                 result.structural_type,
@@ -6580,7 +6579,13 @@ pub(crate) fn apply(
                     }
                     (
                         None,
-                        terminal_semantics::ReferenceCallContract::Callable(contract),
+                        terminal_semantics::ReferenceCallContract::Callable(
+                            terminal_semantics::references::callable_reference_result(
+                                plan.structural_types.as_slice(),
+                                contract,
+                            )
+                            .map_err(LegalizationError::custody_with_cause)?,
+                        ),
                     )
                 }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {

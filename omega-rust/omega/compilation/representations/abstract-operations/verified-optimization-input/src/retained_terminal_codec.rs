@@ -1,5 +1,5 @@
 /*
-  Compiler-private binary persistence (`OMGNTI42`) for retained native
+  Compiler-private binary persistence (`OMGNTI43`) for retained native
   derivation inputs (`retain_native_derivation_inputs`,
   `recover_native_derivation_inputs`) and installation environment assumptions.
 */
@@ -1486,10 +1486,9 @@ use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Structural type rows now retain their declared three-way multiplicity.
-// Schema 39 retains optional operation evidence beside the immutable Psi bytes.
-// Older native records cannot carry this field and reject before decoding.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI42";
+// Retains complete content custody and the current service contract schema.
+// Earlier native records cannot represent both and reject before decoding.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI43";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1519,9 +1518,9 @@ mod tests {
     }
 
     #[test]
-    fn retained_service_normal_membership_keeps_path_and_domain() {
+    fn retained_service_method_preserves_result_membership_and_invocation_targets() {
         use declaration_contracts::service_surface::{
-            ServiceNormalResultMembership, ServiceResultProjection,
+            ServiceNormalResultMembership, ServiceResultProjection, ServiceSynchronousInvocation,
         };
         let membership = ServiceNormalResultMembership {
             path: vec![
@@ -1533,6 +1532,12 @@ mod tests {
         };
         let method = effects::provider_plan::ServiceMethod {
             normal_result_memberships: vec![membership],
+            parameter_count: 2,
+            synchronous_invocations: vec![
+                ServiceSynchronousInvocation::Parameter(0),
+                ServiceSynchronousInvocation::Parameter(1),
+                ServiceSynchronousInvocation::Service("test::NamedService".into()),
+            ],
             ..Default::default()
         };
         let mut output = RecordWriter::new(RecordLimits::default());
@@ -1712,7 +1717,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI42", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI43", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

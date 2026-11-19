@@ -156,7 +156,11 @@ impl<'t> Program<'t> {
         let mut fixed = self.symbols.map(|_, _| false);
         for id in entry
             .iter()
-            .chain(&self.fixed_inputs)
+            .chain(
+                self.fixed_contracts
+                    .iter()
+                    .map(super::FixedContract::machine),
+            )
             .chain(&self.requirements)
             .chain(
                 self.selections
@@ -276,8 +280,9 @@ impl<'t> Program<'t> {
     /// Prepare the bodies whose checked outcomes are available to this source
     /// unit. Public visibility does not move an exact local call across the
     /// unit boundary (state_contracts.md, "Local call summaries"). Dependencies,
-    /// abstract requirements, selected implementations and generated generic
-    /// bodies still retain their separately checked interface contracts.
+    /// abstract requirements and selected implementations still retain their
+    /// separately checked interface contracts. A private applied body can
+    /// supply a result summary after its own returns have been checked.
     ///
     /// Scalar result inference currently adds ordinary contract clauses, so
     /// its roster remains private-only: stronger local facts must not silently
@@ -287,24 +292,31 @@ impl<'t> Program<'t> {
         &self,
         entry: Option<MachineId>,
     ) -> Checked<LocalSummaryBodies> {
-        let mut boundary = self.symbols.map(|_, _| false);
-        for id in entry
-            .iter()
-            .chain(&self.fixed_inputs)
-            .chain(&self.requirements)
-            .chain(
-                self.selections
-                    .iter()
-                    .map(|selection| &selection.implementation),
-            )
-        {
+        let mut boundary = self.symbols.map(|_, _| (false, false));
+        for id in entry.iter().chain(&self.requirements).chain(
+            self.selections
+                .iter()
+                .map(|selection| &selection.implementation),
+        ) {
             *boundary.get_mut(*id).ok_or_else(|| {
                 refuse(
                     *id,
                     Construct::Machine,
                     Unserved::Machine("local summary boundary without a machine"),
                 )
-            })? = true;
+            })? = (true, true);
+        }
+        for contract in &self.fixed_contracts {
+            let id = *contract.machine();
+            let current = boundary.get_mut(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local contract boundary without a machine"),
+                )
+            })?;
+            current.0 = true;
+            current.1 |= matches!(contract, super::FixedContract::Interface(_));
         }
         let mut local = LocalSummaryBodies {
             outcomes: Vec::with_capacity(self.subject_machines.len()),
@@ -321,35 +333,73 @@ impl<'t> Program<'t> {
             })? = true;
         }
         for (id, &symbol) in self.symbols.iter() {
-            if boundary.get(id) == Some(&true) {
+            let &(outcome_boundary, result_boundary) = boundary.get(id).ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("local body without a contract boundary"),
+                )
+            })?;
+            if outcome_boundary && result_boundary {
                 continue;
             }
             let complete = complete_subject.get(id) == Some(&true);
-            let outcome_subject = match &self.outcome_subjects {
-                Some(subjects) if !complete => crate::source_state::source_subjects::contains(
+            let local_subject = match &self.local_summary_scope {
+                Some(scope) if !complete => crate::source_state::source_subjects::contains(
                     self.typed,
                     symbol,
-                    subjects,
+                    scope.subjects(),
                     self.purpose,
                 )
                 .map_err(|reason| refuse(id, Construct::Machine, Unserved::Declaration(reason)))?,
                 _ => complete,
             };
-            if !outcome_subject {
+            if !local_subject {
                 continue;
             }
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
+            // Application copies are private symbols even when their source
+            // declaration is public or belongs to an implementation.
+            let template = crate::lowering::template_of(self.typed, symbol);
+            let declaration = self
+                .typed
+                .machine_by_symbol(template.unwrap_or(symbol))
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("a local body has no originating declaration"),
+                    )
+                })?;
             if machine.satisfies.is_empty()
+                && declaration.satisfies.is_empty()
                 && self
                     .typed
-                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
+                    .owned_conformance_realization(
+                        self.typed.lifetime_declaration_owner(declaration.symbol),
+                    )
                     .is_none()
-                && crate::lowering::template_of(self.typed, symbol).is_none()
             {
-                local.outcomes.push(id);
-                if complete && !machine.is_public {
+                let outcome_subject = complete
+                    || matches!(
+                        self.local_summary_scope,
+                        Some(super::LocalSummaryScope::Witness(_))
+                    );
+                if !outcome_boundary && outcome_subject && template.is_none() {
+                    local.outcomes.push(id);
+                }
+                let application = template.is_some()
+                    || self.applied.binary_search_by_key(&id, |row| row.0).is_ok();
+                if !result_boundary
+                    && !machine.is_public
+                    && !declaration.is_public
+                    && (complete
+                        || (application
+                            && machine.body_is_present
+                            && machine.body_status == MachineBodyStatus::Complete))
+                {
                     local.result_contracts.push(id);
                 }
             }
@@ -777,7 +827,7 @@ impl<'t> Program<'t> {
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
-        self.fixed_inputs.push(id);
+        self.fixed_contracts.push(super::FixedContract::Inputs(id));
         let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
                 .machine_type_parameters(machine)
@@ -912,16 +962,29 @@ impl<'t> Program<'t> {
         // The owning-row query chooses the witness contract. A selected call
         // must agree with it; the call cannot replace the body's requirement
         // or supply a different public contract to make the witness pass.
-        if let Some(expected) = expected.filter(|expected| *expected != declared) {
-            let (expected, _) = self.requirement_signature(
+        if let Some(expected_source) = expected.filter(|expected| *expected != declared) {
+            let (mut expected, _) = self.requirement_signature(
                 id,
-                expected,
-                if expected.type_parameters.is_empty() {
+                expected_source,
+                if expected_source.type_parameters.is_empty() {
                     &[]
                 } else {
                     arguments
                 },
             )?;
+            // The two headers can introduce distinct names for the same
+            // lifetime parameters. Substitution must preserve both signatures
+            // in either direction before we compare the rest of the contract.
+            if expected != signature
+                && self.same_signature(id, &signature, &expected, expected_source.symbol)?
+                && self.same_signature(id, &expected, &signature, declared.symbol)?
+            {
+                expected.parameters.clone_from(&signature.parameters);
+                expected.result = signature.result;
+                for (selected, witnessed) in expected.borrowed.iter_mut().zip(&signature.borrowed) {
+                    selected.regions = witnessed.regions;
+                }
+            }
             if expected != signature {
                 return Err(refuse(
                     id,
@@ -964,15 +1027,20 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// The `MachineId` that stands for a trait requirement in a generic
-    /// check form: its signature and contract, read as any machine's, and
-    /// no body. A requirement with value parameters is one machine per
-    /// tuple of literals a call binds them to (`arguments`), because its
-    /// contract differs with them.
-    /// A template requirement's own check form: the requirement read once as
-    /// a bodyless machine with its `const` binders as rigid inputs, so its
-    /// contract is judged for every admitted application (generics.md,
-    /// "Publication and assumptions").
+    /// Read the headers of authored requirements in this check form.
+    pub(super) fn declared_requirement_headers(
+        &self,
+    ) -> impl Iterator<Item = (SymbolHandle, MachineId)> + '_ {
+        self.requirement_headers
+            .iter()
+            .filter_map(|(origin, machine)| match origin {
+                RequirementHeaderOrigin::Declared(declaration) => Some((*declaration, *machine)),
+                RequirementHeaderOrigin::CallableParameter(_) => None,
+            })
+    }
+
+    /// Read a template requirement as a bodyless machine with rigid inputs
+    /// so the checker judges its contract for every admitted application.
     pub(crate) fn generic_requirement(&mut self, declared: &StateSignature) -> Checked<MachineId> {
         self.requirement_form(
             RequirementHeaderOrigin::Declared(declared.symbol),
@@ -981,6 +1049,7 @@ impl<'t> Program<'t> {
         )
     }
 
+    /// Read the requirement for the exact literals supplied by a call.
     pub(super) fn requirement(
         &mut self,
         declared: &StateSignature,
@@ -2811,7 +2880,6 @@ impl<'t> Program<'t> {
         abstract_schema: bool,
     ) -> Checked<Signature> {
         if (!abstract_schema && !signature.type_parameters.is_empty())
-            || !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
@@ -2821,7 +2889,7 @@ impl<'t> Program<'t> {
                 id,
                 Construct::Machine,
                 Unserved::Declaration(
-                    "static requirement with unrepresented binders, regions, defaults or callbacks",
+                    "static requirement with unrepresented binders, defaults or callbacks",
                 ),
             ));
         }
@@ -3830,16 +3898,19 @@ impl<'t> Program<'t> {
                 return unserved("reference to a qualified scalar");
             }
             ValueType::Record(_, _, _) => None,
-            ValueType::Scalar(..) => Some(
-                Some(self.typed.normalized_type_identity_text(referee))
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or_else(|| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Spelling("referent type without an identity"),
-                        )
-                    })?,
+            ValueType::Scalar(scalar, _) => Some(
+                Some(
+                    self.typed
+                        .normalized_type_identity_text(self.plain_scalar_reference(id, scalar)?),
+                )
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("referent type without an identity"),
+                    )
+                })?,
             ),
         };
         let outer = match ordinary_region {
@@ -4511,7 +4582,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(left, binder, out);
             spans(right, binder, out);
         }
-        ExpressionKind::Not(operand)
+        ExpressionKind::OwnedTemporary { value: operand, .. }
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)

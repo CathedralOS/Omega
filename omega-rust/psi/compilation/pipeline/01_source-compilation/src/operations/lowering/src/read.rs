@@ -59,6 +59,7 @@ mod references;
 mod reflection;
 mod regions;
 mod rejections;
+mod review_requirements;
 pub(crate) mod services;
 mod source_operators;
 mod source_records;
@@ -106,6 +107,35 @@ struct ConstBinding {
 pub(crate) struct LocalSummaryBodies {
     pub outcomes: Vec<MachineId>,
     pub result_contracts: Vec<MachineId>,
+}
+
+/// Keeping a generic body's declared inputs does not hide what it returns.
+/// A stored or selected callable instead keeps its full interface contract.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum FixedContract {
+    Inputs(MachineId),
+    Interface(MachineId),
+}
+
+impl FixedContract {
+    fn machine(&self) -> &MachineId {
+        match self {
+            Self::Inputs(machine) | Self::Interface(machine) => machine,
+        }
+    }
+}
+
+pub(super) enum LocalSummaryScope {
+    Compilation(Vec<Option<PackageKeyIdentity>>),
+    Witness(Vec<Option<PackageKeyIdentity>>),
+}
+
+impl LocalSummaryScope {
+    fn subjects(&self) -> &[Option<PackageKeyIdentity>] {
+        match self {
+            Self::Compilation(subjects) | Self::Witness(subjects) => subjects,
+        }
+    }
 }
 
 pub(crate) struct DeclaredDomain {
@@ -212,7 +242,10 @@ pub(crate) struct Program<'t> {
     resolving_services: Vec<SymbolHandle>,
     /// The machines whose bodies a contract clause is unfolding, innermost
     /// last (`clause_calls`): a recursive predicate is refused.
-    unfolding_calls: Vec<SymbolHandle>,
+    unfolding_calls: Vec<clause_calls::Unfolding>,
+    /// Each active clause retains the arguments an unfolded helper evaluates,
+    /// even when its result does not use them. Frames keep nested scopes apart.
+    clause_arguments: Vec<Vec<semantic_vocabulary::ScalarTerm>>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -227,15 +260,16 @@ pub(crate) struct Program<'t> {
     /// Only the ordinary/callable header reader allocates this family. Record
     /// member projections retain their separate receiver/member instance key.
     requirement_headers: Vec<(machine::RequirementHeaderOrigin, MachineId)>,
-    /// Entries and selected providers keep their declared input contract.
-    pub fixed_inputs: Vec<MachineId>,
+    /// Which declared contracts inference must keep unchanged. Ordinary generic
+    /// applications retain their inputs; callable selections retain results too.
+    pub(super) fixed_contracts: Vec<FixedContract>,
     /// Every declaration in these machines' verification subject is rooted;
     /// reaching one dependency helper alone does not close its possible uses.
     pub subject_machines: Vec<MachineId>,
-    /// The original request's fixed membership for outcome inference inside
-    /// independent witnesses. It neither roots declarations nor supplies the
-    /// complete caller roster needed by private input/result inference.
-    pub outcome_subjects: Option<Vec<Option<PackageKeyIdentity>>>,
+    /// The request fixes which source bodies belong to this verification unit.
+    /// Witnesses inherit that membership without rooting every declaration.
+    /// Neither form supplies the complete caller roster for input inference.
+    pub(super) local_summary_scope: Option<LocalSummaryScope>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::lowering::Selected>,
     /// What each type parameter in scope stands for while one machine's
@@ -494,14 +528,15 @@ impl<'t> Program<'t> {
             services: IdTable::default(),
             resolving_services: Vec::new(),
             unfolding_calls: Vec::new(),
+            clause_arguments: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),
             requirement_headers: Vec::new(),
-            fixed_inputs: Vec::new(),
+            fixed_contracts: Vec::new(),
             subject_machines: Vec::new(),
-            outcome_subjects: None,
+            local_summary_scope: None,
             selections: Vec::new(),
             scope: Vec::new(),
             source_scope: Default::default(),

@@ -606,6 +606,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
         &plan.boundary_machines,
         &structural_types,
         &plan.dynamic_dispatch,
+        &plan.callables,
         &installed_by_call,
         &settlements_by_boundary,
     );

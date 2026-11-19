@@ -183,10 +183,10 @@ source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`
 from the shared role registry rather than reading the entrance as the full source.
 
-The packed evaluator is 12,097 lines / 617,354 bytes, SHA-256
-`4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e`.
+The packed evaluator is 12,096 lines / 616,939 bytes, SHA-256
+`a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c`.
 The manifest itself is 16,779 bytes, SHA-256
-`915588f07a415b37c5106e4be8d790c40c1fa381ffb4d997dea6f20fdf8c4e6f`;
+`d8e2b9c0ef64c1be8a2b5b1582a4bde4cdba7f5d790cf95f2de0642b7bc69cc7`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
 materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that
@@ -194,13 +194,13 @@ the evaluator implements Epsilon.
 
 The canonical slice driver
 [`execution_driver.delta`](../../../tests/epsilon/interpreted-omega-experiment/execution_driver.delta)
-is 2,565 bytes, SHA-256
-`ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38`; every
+is 2,150 bytes, SHA-256
+`ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa`; every
 cross-rung consumer appends it after the packed evaluator to form the DCREQ
 subject. Compiling the bound evaluator, driver, and Delta support section
 through the bound Delta compiler reconstructs exactly one evaluator receipt:
-721,484 bytes, SHA-256
-`71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082`.
+719,006 bytes, SHA-256
+`f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds both identities, and
 `tests/bootstrap/epsilon-identity.sh` covers the refusals and checks every
 consuming gate's record. The receipt identity is an obligation on the
@@ -222,8 +222,10 @@ their view-taking counterparts share the same checking and execution judgments.
 The framed driver selects only its source window. Syntax, checked facts, and
 diagnostics keep source-relative offsets, independent of the backing origin.
 Invocation contexts retain that view for name lookup and string decoding, while
-Console input, output, decoded literals, and Epsilon runtime view backing remain
-ordinary `Bytes`. The driver still constructs its sealed stdin separately.
+Console starts at the first input byte after the source and advances to the
+end of the same request. A read at the end returns EOF. Both entries validate
+the source extent before creating the cursor. Output, decoded literals and
+Epsilon runtime views retain their existing byte storage.
 
 Runtime reference lookup uses a derivative index, not a replacement checked
 program. Entry builds an immutable interval tree over source-start coordinates.

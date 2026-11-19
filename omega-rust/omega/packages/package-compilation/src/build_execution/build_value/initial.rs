@@ -4,8 +4,8 @@
 // (`x86_deployment_features = Baseline`, `subsystem = Console`, `freestanding = false`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
-// false `privileged_services` flags, an enabled `tests` facet, empty `elf_interpreter` rows for each ELF
-// target profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
+// an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
+// profile, and filesystem grant roots (`$OmegaBuildSourceRoot`,
 // `$OmegaBuildOutputRoot`, `$OmegaBuildInputSlots`).
 
 use super::vocabulary::has_exact_toolchain_build_facet;
@@ -73,18 +73,6 @@ pub(super) fn initial_value(
             BuildTimeValue::Struct {
                 type_name: "$OmegaBuildProductFacet".to_owned(),
                 fields: Vec::new(),
-            },
-        ));
-    }
-    if has_exact_toolchain_build_facet(typed, "PrivilegedServices") {
-        build_fields.push((
-            "privileged_services".to_owned(),
-            BuildTimeValue::Struct {
-                type_name: "PrivilegedServices".to_owned(),
-                fields: vec![
-                    ("port_io".to_owned(), BuildTimeValue::Bool(false)),
-                    ("interrupt_table".to_owned(), BuildTimeValue::Bool(false)),
-                ],
             },
         ));
     }

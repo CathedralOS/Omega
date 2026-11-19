@@ -640,7 +640,8 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Not(operand)
+        ExpressionKind::OwnedTemporary { value: operand, .. }
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)

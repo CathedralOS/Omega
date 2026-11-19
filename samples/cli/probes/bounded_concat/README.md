@@ -8,17 +8,14 @@ has length 7, then traps if either check fails.
 
 The [Build file](build.omg) selects an entry for all four hosted targets.
 
-The source still calls undeclared `ascii_only`. It needs an ordinary checked
-ASCII predicate, explicit qualification under the current
-[domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains),
-and checker support for its fixed-array and qualified copy/view contracts.
-[LOWERED-FORM-CHECKER](../../../../TASKS.md#priority-human-set-only) tracks that
-remaining work. The source and its oracle remain in place; no successful check
-or native/Psi execution is claimed.
+The probe uses Core's `ascii_only` predicate. It removes the displayed domains
+before slicing and indexing under the
+[domain rules](../../../../wiki/spec/language/domains.md#byte-containers-and-encoding-domains).
+The shared prefixes keep the ASCII proof from their backing arrays. Each copy
+proves that its writes preserve the destination's ASCII requirement.
 
-Reproduce the outstanding check and execution requirements with:
+Run both engines with:
 
 ```sh
-mbx run -p omega -- --check samples/cli/probes/bounded_concat/main.omg < /dev/null
 mbx run -p omega -- run --both samples/cli/probes/bounded_concat/main.omg < /dev/null
 ```

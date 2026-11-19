@@ -100,7 +100,8 @@ fn a_literal_edge_can_retire_its_descriptor_home() {
     let function = &unit.functions[0];
     let inputs = FunctionInputs::new(function);
     let types =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let terminator = function.blocks[0].nodes.last().unwrap();
     control::validate(terminator, &[], &inputs, &types).unwrap();
 
@@ -294,7 +295,8 @@ fn retained_instruction_metadata_projects_without_a_node_and_rejects_changed_cus
     let instruction = &target.functions[0].graph.blocks[0].operations[0];
     let source = instruction.source.as_ref().unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let projected = crate::preparation::legalization_source::scalar_graph::instruction::project(
         unit.functions[0].machine,
         &unit.accepted_obligation_facts,
@@ -536,7 +538,8 @@ fn retained_interrupt_geometry_does_not_authorize_an_unassociated_helper() {
         result_home: None,
     };
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     crate::preparation::legalization_source::scalar_graph::instruction::project(
         machine(),
         &[],
@@ -671,7 +674,8 @@ fn function_storage_contract_projects_without_source_and_audits_every_field() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let source = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -971,6 +975,7 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         &unit.boundary_machines,
         &unit.structural_types,
         &unit.dynamic_dispatch,
+        &unit.callables,
         |_, node| Some(std::borrow::Cow::Borrowed(&node.operation)),
     )
     .expect("the metadata fixture has complete source descriptor structure");
@@ -985,7 +990,8 @@ fn retained_call_descriptor_origins_do_not_need_old_bodies_but_audit_does() {
         "source backing: {origins:?}"
     );
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let source = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -1161,7 +1167,8 @@ fn retained_scalar_store_geometry_is_checked_against_its_source() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -1292,7 +1299,8 @@ fn retained_field_store_value_type_is_checked_against_its_source() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -1397,7 +1405,8 @@ fn retained_leaf_copy_selectors_are_checked_against_their_source() {
     let plan = plan(names, vec![array, element], function);
     let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -1549,7 +1558,8 @@ fn retained_byte_view_store_projects_and_audits_exact_operands() {
     let plan = plan(names, vec![array, holder, bytes], function);
     let target = target_plan(&plan, vec![block(1, Vec::new(), return_unit(1))]);
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -1678,7 +1688,8 @@ fn retained_storage_copies_stores_and_tag_tests_project_without_bodies() {
         fields: vec![scalar_field(1, field_name, u64_type())],
     };
     let types = vec![cell];
-    let geometry = crate::preparation::native_geometry::NativeGeometry::new(&types).unwrap();
+    let geometry =
+        crate::preparation::native_geometry::NativeGeometry::new(&types, HOST()).unwrap();
     let obligation = semantic_vocabulary::ObligationId::new(3).unwrap();
     let index = TargetStructuralRuntimeIndex {
         operand: TargetUnitScalarArgumentSource::Parameter {
@@ -2087,9 +2098,11 @@ fn retained_element_view_reads_use_the_exact_descriptor_index_and_leaf() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        let geometry =
-            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
-                .unwrap();
+        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
+            &plan.structural_types,
+            HOST(),
+        )
+        .unwrap();
         let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
             &plan,
             &geometry,
@@ -2289,7 +2302,8 @@ fn retained_primitive_store_projects_indexed_leaf_and_audits_exact_geometry() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -2489,7 +2503,8 @@ fn retained_direct_byte_access_projects_and_audits_exact_operands() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -2711,7 +2726,8 @@ fn retained_byte_field_read_preserves_both_bounds_and_audits_the_field() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -2826,9 +2842,11 @@ fn retained_byte_length_audit_reconstructs_the_descriptor_and_exact_fold() {
         let unit =
             reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
                 .unwrap();
-        let geometry =
-            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
-                .unwrap();
+        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
+            &plan.structural_types,
+            HOST(),
+        )
+        .unwrap();
         let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
             &plan,
             &geometry,
@@ -2995,7 +3013,8 @@ fn retained_view_inputs_project_without_bodies_and_keep_independent_custody() {
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -3339,7 +3358,8 @@ fn retained_reference_selectors_project_without_bodies_and_audit_exact_geometry(
     let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan_view = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &geometry,
@@ -3713,7 +3733,8 @@ fn dispatch(
     let geometry = geometry(&plan, root, &path);
     let selected = sum_layout(&plan, geometry.selected);
     let layouts =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let prepared = crate::preparation::native_geometry::NativeInput::with_types(
         &plan,
         &layouts,
@@ -3775,7 +3796,8 @@ fn validate_stored_geometry(
     // These hand-built selection rows omit unrelated provenance metadata. Test
     // the validator's geometry checks directly, with the same rows selection uses.
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan = &crate::preparation::native_geometry::NativeInput::with_types(
         plan,
         &geometry,
@@ -4025,9 +4047,11 @@ fn carried_region_size(
     if geometry.pointer_slots.is_empty() && geometry.region_root == geometry.selected {
         sum_size
     } else {
-        let layouts =
-            crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types)
-                .unwrap();
+        let layouts = crate::preparation::native_geometry::NativeGeometry::new(
+            &plan.structural_types,
+            HOST(),
+        )
+        .unwrap();
         crate::preparation::structural_inputs::structural_reference_input::shape(
             geometry.region_root,
             &layouts,
@@ -4043,7 +4067,8 @@ fn geometry(
     path: &[StructuralPathSegment],
 ) -> crate::preparation::structural_inputs::structural_reference_input::ReferenceSourceGeometry {
     let layouts =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     crate::preparation::structural_inputs::structural_reference_input::reference_source_geometry(
         root, path, &layouts,
     )
@@ -4055,7 +4080,8 @@ fn sum_layout(
     sum: StructuralTypeId,
 ) -> calling_conventions::ConventionalSumLayout {
     let layouts =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let plan = crate::preparation::native_geometry::NativeInput::with_types(
         plan,
         &layouts,
@@ -4106,7 +4132,8 @@ fn target_plan(
     mut blocks: Vec<TargetControlBlock>,
 ) -> TargetOperationPlan {
     let layouts =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let function = &plan.functions[0];
     let unit = reconstruct_psi_optimization_unit_seed(plan, WorkScheduleIdentity::new(1).unwrap())
         .unwrap();
@@ -4240,7 +4267,8 @@ fn abi_parameter(
     parameter: &StructuralParameterDeclaration,
 ) -> TargetStructuralParameter {
     let layouts =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let shape = crate::preparation::structural_inputs::parameter_shape(parameter, &layouts)
         .expect("parameter shape");
     let call_plan = calling_conventions::evaluate_call_plan(
@@ -4524,7 +4552,8 @@ fn ordinary_comparison_metadata_requires_the_module_to_retain_its_operand_type()
     let function = &unit.functions[0];
     let inputs = crate::preparation::legalization_function_inputs::FunctionInputs::new(function);
     let geometry =
-        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::preparation::native_geometry::NativeGeometry::new(&plan.structural_types, HOST())
+            .unwrap();
     let retaining =
         crate::preparation::native_geometry::ModuleTypes::of(&module_retaining(&[scalar]));
     let retained =

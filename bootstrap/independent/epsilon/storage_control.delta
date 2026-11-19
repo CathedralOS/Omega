@@ -36,6 +36,44 @@
             ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
             ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
 
+; In a checked closed enum, the source start uniquely identifies a member.
+; Require the entire declaration span before using that start to select an arm.
+(def epsilon_delta_stored_case_starts ((owner EpsilonName) (members EpsilonDataMemberList)
+  (subject Bytes) (first Bytes)) Bytes
+  (match members
+    (NoEpsilonDataMembers "(- 0 1)")
+    ((MoreEpsilonDataMembers item rest)
+      (match item
+        ((EpsilonFieldMember start end name typeValue) "(- 0 1)")
+        ((EpsilonCaseMember start end name parameters)
+          (let test Bytes (epsilon_emit_call "epsilon_compiled_case_is"
+            (epsilon_emit_spaced subject (epsilon_emit_spaced
+              (epsilon_delta_span (epsilon_name_start owner) (epsilon_name_end owner))
+              (epsilon_emit_spaced (epsilon_delta_span start end) first))))
+            (epsilon_emit_if test (epsilon_emit_decimal start)
+              (epsilon_delta_stored_case_starts owner rest subject "0"))))))))
+
+(def epsilon_delta_stored_subject ((kind EpsilonTransitionSubjectKind) (coordinate Int)
+  (subject Bytes) (arms Bytes)) EpsilonDeltaCompilation
+  (match kind
+    (EpsilonScalarTransitionSubject
+      (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate subject arms)))
+    ((EpsilonSumTransitionSubject owner)
+      (match owner
+        ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal coordinate))
+        ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal coordinate))
+        ((EpsilonDataDeclaration start end name members)
+          (if (epsilon_delta_is_closed_enum members)
+            (let scalar Bytes (epsilon_emit_generated "scalar" coordinate)
+              (let key Bytes (epsilon_delta_stored_case_starts name members
+                (epsilon_emit_generated "value" coordinate) "1")
+                (let checked Bytes (epsilon_emit_if (epsilon_emit_call "lt" (epsilon_emit_spaced scalar "0"))
+                  (epsilon_emit_stored_internal end) arms)
+                  (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate subject
+                    (epsilon_emit_call "let" (epsilon_emit_spaced scalar (epsilon_emit_spaced "Int"
+                      (epsilon_emit_spaced key checked)))))))))
+            (EpsilonDeltaUnsupported coordinate)))))))
+
 (def epsilon_delta_stored_transition ((context EpsilonDeltaContext)
   (terminal EpsilonTerminal) (subject EpsilonExpression) (arms EpsilonArmList)
   (store Bytes) (output Bytes)) EpsilonDeltaCompilation
@@ -45,20 +83,17 @@
         (match (epsilon_control_find_transition_subject terminal control)
           (NoEpsilonTransitionSubjectReference (EpsilonDeltaInternal coordinate))
           ((OneEpsilonTransitionSubjectReference kind)
-            (match kind
-              ((EpsilonSumTransitionSubject owner) (EpsilonDeltaUnsupported coordinate))
-              (EpsilonScalarTransitionSubject
-                (match (epsilon_delta_stored_expression context subject store output)
-                  ((EpsilonDeltaCompiled subjectText)
-                    (match (epsilon_delta_stored_arms context arms coordinate)
-                      ((EpsilonDeltaCompiled armText)
-                        (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate subjectText armText)))
-                      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
-                      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-                      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+            (match (epsilon_delta_stored_expression context subject store output)
+              ((EpsilonDeltaCompiled subjectText)
+                (match (epsilon_delta_stored_arms context arms coordinate)
+                  ((EpsilonDeltaCompiled armText)
+                    (epsilon_delta_stored_subject kind coordinate subjectText armText))
                   ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
                   ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
-                  ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))))))
+                  ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+              ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+              ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+              ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))))
 
 (def epsilon_delta_stored_terminal ((context EpsilonDeltaContext)
   (terminal EpsilonOptionalTerminal) (store Bytes) (output Bytes)) EpsilonDeltaCompilation

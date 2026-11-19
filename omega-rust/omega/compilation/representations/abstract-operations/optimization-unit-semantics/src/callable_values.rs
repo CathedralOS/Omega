@@ -72,6 +72,7 @@ fn project<'a>(
         boundaries,
         structural_types,
         dynamic,
+        catalog,
         |_, node| Some(Cow::Borrowed(&node.operation)),
     )
     .ok_or("callable provenance cannot reconstruct current Abstract storage flow")?;

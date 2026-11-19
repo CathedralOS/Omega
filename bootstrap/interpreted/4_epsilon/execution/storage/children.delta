@@ -20,7 +20,7 @@
   (projection EpsilonRuntimeProjection)) EpsilonRuntimeValueLookup
   (match value
     ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeSumValue caseValue payloads) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeAggregate typeValue children)
       (match (epsilon_runtime_projection_default typeValue projection)
@@ -37,7 +37,7 @@
   EpsilonRuntimeValueLookup
   (match parent
     ((EpsilonRuntimeInteger integer) NoEpsilonRuntimeValue)
-    ((EpsilonRuntimeSumValue owner caseValue payloads) NoEpsilonRuntimeValue)
+    ((EpsilonRuntimeSumValue caseValue payloads) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeViewValue view) NoEpsilonRuntimeValue)
     ((EpsilonRuntimeAggregate typeValue children)
       (match (epsilon_runtime_projection_default typeValue projection)

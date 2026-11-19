@@ -83,7 +83,7 @@
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
         ((EpsilonRuntimeAggregate typeValue children)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
-        ((EpsilonRuntimeSumValue owner caseValue payload)
+        ((EpsilonRuntimeSumValue caseValue payload)
           (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
 
 (def epsilon_compiled_finish_call ((floor Int)
@@ -146,3 +146,44 @@
       (EpsilonRuntimeStoreState next
         (epsilon_compiled_retain_rows floor values homes receiver roots roots
           NoEpsilonRuntimeRoots) input))))
+
+; A string view owns immutable bytes and has no assignable place.
+(def epsilon_compiled_string ((text Bytes) (element EpsilonType)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (EpsilonEvaluatorValue
+    (EpsilonRuntimeViewValue (EpsilonRuntimeViewAt (EpsilonRuntimeLiteralBacking text)
+      element 0 (bytes_length text)))
+    NoEpsilonRuntimePlace store output))
+
+; A nullary stored case has an authored span and no payload. A sparse zero
+; selects only the first case of its own checked declaration.
+(def epsilon_compiled_case_is ((value EpsilonRuntimeValue) (ownerStart Int)
+  (ownerEnd Int) (start Int) (end Int) (first Int)) Int
+  (match value
+    ((EpsilonRuntimeInteger scalar) 0)
+    ((EpsilonRuntimeViewValue view) 0)
+    ((EpsilonRuntimeSumValue selected values)
+      (match values
+        ((MoreEpsilonRuntimePayloads payload rest) 0)
+        (NoEpsilonRuntimePayloads
+          (match selected
+            ((EpsilonResolvedSumCaseSyntax low high name parameters)
+              (match parameters
+                ((MoreEpsilonParameters parameter rest) 0)
+                (NoEpsilonParameters (if (eq low start) (eq high end) 0))))))))
+    ((EpsilonRuntimeAggregate typeValue children)
+      (if first
+        (match children
+          ((EpsilonRuntimeRecordChildren fields) 0)
+          ((EpsilonRuntimeIndexedChildren extent tree) 0)
+          (NoEpsilonRuntimeChildren
+            (match typeValue
+              ((EpsilonNamedType typeStart typeEnd name)
+                (match name
+                  ((EpsilonNameSpan low high) (if (eq low ownerStart) (eq high ownerEnd) 0))))
+              ((EpsilonI32Type typeStart typeEnd) 0)
+              ((EpsilonU8Type typeStart typeEnd) 0)
+              ((EpsilonNeverType typeStart typeEnd) 0)
+              ((EpsilonArrayType typeStart typeEnd element extent) 0)
+              ((EpsilonViewType typeStart typeEnd element) 0))))
+        0))))

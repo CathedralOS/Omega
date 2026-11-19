@@ -5775,7 +5775,7 @@ mod source {
             struct Homes<'a> {
                 target: &'a TargetFunction,
                 selected: &'a SelectedFunction,
-                geometry: calling_conventions::terminal_layout::NativeGeometry<'a>,
+                geometry: legalized_operations::native_geometry::NativeGeometry<'a>,
             }
             impl Homes<'_> {
                 fn root(&self, place: PlaceId) -> Result<(StructuralTypeId, Expr), Error> {
@@ -5919,10 +5919,12 @@ mod source {
                     target: &TargetFunction,
                     selected: &SelectedFunction,
                     arguments: &[StructuralArgument; 6],
+                    native: target::NativeTarget,
                 ) -> Result<Self, Error> {
-                    let geometry = calling_conventions::terminal_layout::NativeGeometry::with_owned_sequence_bounds(
+                    let geometry = legalized_operations::native_geometry::NativeGeometry::with_owned_sequence_bounds(
                         &target.graph.structural_types,
                         target.graph.structural_types.owned_sequence_bounds(),
+                        native,
                     )
                     .map_err(|_| {
                         Error::Mismatch("installation catalog repeats a structural identity")
@@ -7538,7 +7540,7 @@ mod source {
                         "installation substituted its admitted boundary or operands",
                     ));
                 }
-                let input = Inputs::derive(targeted, selected, arguments)?;
+                let input = Inputs::derive(targeted, selected, arguments, native)?;
                 let anchor = scope.context_anchor().ok_or(Error::Mismatch(
                     "installation has no exact acknowledgement context anchor",
                 ))?;
@@ -8934,6 +8936,7 @@ mod source {
                     let mut addresses = super::super::placed_reference::AddressReplay::new(
                         &self.target,
                         &self.selected,
+                        target::NativeTarget::linux_x64(),
                     );
                     correspondence
                         .operations()
@@ -10271,6 +10274,7 @@ mod source {
                             &source.boundary_machines,
                             source.structural_types.as_slice(),
                             &source.dynamic_dispatch,
+                            &source.callables,
                         )?;
                     record_selected_formation_calls(source, targeted, &mut graph)?;
                     Some(graph)
@@ -11616,6 +11620,7 @@ mod source {
                     &source.boundary_machines,
                     source.structural_types.as_slice(),
                     &source.dynamic_dispatch,
+                    &source.callables,
                 )
             }
 
@@ -12475,16 +12480,27 @@ mod source {
         pub(super) struct AddressReplay<'a> {
             target: &'a TargetFunction,
             selected: &'a SelectedFunction,
+            native: target::NativeTarget,
             inputs: Option<AddressInputs<'a>>,
             spills: Option<super::spill_values::SpillValues<'a>>,
-            layouts: Option<Result<crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>, arena::NonDenseIdentities>>,
+            layouts: Option<
+                Result<
+                    legalized_operations::native_geometry::NativeGeometry<'a>,
+                    arena::NonDenseIdentities,
+                >,
+            >,
             failure: Option<&'static str>,
         }
         impl<'a> AddressReplay<'a> {
-            pub(super) fn new(target: &'a TargetFunction, selected: &'a SelectedFunction) -> Self {
+            pub(super) fn new(
+                target: &'a TargetFunction,
+                selected: &'a SelectedFunction,
+                native: target::NativeTarget,
+            ) -> Self {
                 Self {
                     target,
                     selected,
+                    native,
                     inputs: None,
                     spills: None,
                     layouts: None,
@@ -12498,16 +12514,19 @@ mod source {
                     .get_or_insert_with(|| AddressInputs::new(target, selected))
             }
 
-            fn layouts(&mut self) -> Option<&mut crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>>{
-                self.layouts.get_or_insert_with(|| {
-                    crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::from_catalog(&self.target.graph.structural_types)
-                }).as_mut().ok()
-            }
-
             pub(super) fn geometry(
                 &mut self,
-            ) -> Option<&calling_conventions::terminal_layout::NativeGeometry<'a>> {
-                Some(self.layouts()?.geometry())
+            ) -> Option<&legalized_operations::native_geometry::NativeGeometry<'a>> {
+                self.layouts
+                    .get_or_insert_with(|| {
+                        legalized_operations::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+                            &self.target.graph.structural_types,
+                            self.target.graph.structural_types.owned_sequence_bounds(),
+                            self.native,
+                        )
+                    })
+                    .as_ref()
+                    .ok()
             }
 
             pub(super) fn operation_instructions(
@@ -13044,8 +13063,9 @@ mod source {
                 return None;
             }
             let layout = addresses
-                .layouts()?
-                .sum_layout(geometry.selected.as_structural()?)?;
+                .geometry()?
+                .sum_layout(geometry.selected.as_structural()?)
+                .ok()?;
             if layout.tag_byte_offset != 0
                 || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
             {
@@ -16404,8 +16424,9 @@ mod source {
                         accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(b"byte bound"),
                     }),
                 ];
-                let native_geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                let native_geometry = legalized_operations::native_geometry::NativeGeometry::new(
                     &target.graph.structural_types,
+                    target::NativeTarget::linux_x64(),
                 )
                 .unwrap();
                 let retains = |accesses: &[SelectedMemoryAccess]| {
@@ -17194,7 +17215,7 @@ mod source {
         pub(super) fn indexed_read_footprint_retained(
             function: &AbstractFunction,
             target: &TargetFunction,
-            native_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
+            native_geometry: &legalized_operations::native_geometry::NativeGeometry<'_>,
             operation: &AbstractOperation,
             accesses: &[selected_instructions::SelectedMemoryAccess],
         ) -> bool {

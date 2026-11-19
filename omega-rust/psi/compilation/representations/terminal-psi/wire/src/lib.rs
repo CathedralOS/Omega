@@ -106,6 +106,10 @@ pub(crate) mod codec_error {
         InvalidUtf8(&'static str),
         MalformedStructuralFoundation(&'static str),
         MalformedWriteFrame(String),
+        MalformedCallableResult {
+            machine: Option<semantic_vocabulary::MachineId>,
+            reason: String,
+        },
         MalformedRanking(&'static str),
         MalformedScalarReturnFoundation {
             machine: String,

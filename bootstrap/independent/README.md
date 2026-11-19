@@ -7,8 +7,8 @@ loop, or host compiler. The first customer is the actual Gamma compiler from
 [`../compiled_vm/`](../compiled_vm/README.md), compiled into a native executable
 that emits the ordinary Alpha compiler tape.
 
-`native.gamma` replaces instruction sizing and emission in the shared Gamma
-compiler. Source composition is explicit concatenation, in order:
+`native.gamma` supplies the assembler for the shared Gamma lowering. The
+compiler source concatenates these three files in order.
 
 1. `../compiled_vm/compiler.gamma` owns declaration validation, scoped expression
    lowering, tagged values, call frames, runtime checks, and label resolution.
@@ -16,8 +16,8 @@ compiler. Source composition is explicit concatenation, in order:
 3. `native.gamma` emits ELF64 headers, startup, and native instruction sequences.
 
 No source text is rewritten or recognized as a special customer. The same
-frontend and lowering serve the Alpha and native realizations. Every instruction
-record becomes a fixed native sequence; labels resolve to actual code addresses.
+frontend and lowering serve the Alpha and native realizations. Each named
+operation appends its native fields, and labels identify positions in the code.
 The compiler validates all functions and branches before buffered publication.
 The public [Gamma semantics](../interpreted/2_gamma/LANGUAGE.md) and existing
 compiler's explicit accepted subset govern both realizations.
@@ -73,10 +73,9 @@ comments for review.
 
 The shared compiler's disjoint frame, sealed-input, buffered-output, immutable
 pair and call-depth guards remain authoritative. Pair handles retain a separate
-unforgeable tag. Only compiler-generated memory instructions enter this backend;
-this is not a compiler for arbitrary self-modifying Alpha programs. Native
-instruction records cannot be supplied by Gamma source. Output has the existing
-128-MiB buffer limit, including the 128-byte ELF header and 88-byte startup.
+unforgeable tag. The backend receives memory operations only through the
+compiler's checked lowering. The 128-MiB output limit includes the 128-byte
+ELF header and 88-byte startup.
 The Alpha backend separately retains its audited 16-MiB seed-hole limit.
 
 Storage limits and authored traps retain the shared compiler's distinct statuses.
@@ -89,15 +88,16 @@ addresses use at most 1,048,584 bytes plus the 2,048-byte register file and one
 8-byte I/O scratch slot. Existing source bounds protect Gamma data accesses;
 this experiment does not claim a machine-checked implementation proof.
 
-The native backend retains an **auditability failure**: numeric semantic
-operation identities and the nested `i_size` ladder make meaning costly to
-recover. Functional controls, scoped ISA/ELF review, and 214 source lines do not
-establish auditability. Gamma already permits named operation functions,
-predicates, and clearer decomposition; missing variants/matching do not excuse
-this code or make a language addition inevitable. Retention comparison must
-consider source refactoring/deletion before an earned facility or a different
-rung. Necessary numeric encoding bytes are separate from semantic operation
-identities. This milestone records the debt rather than claiming to repair it.
+The native assembler uses x86-64 direct branches and calls. For `i_jz`,
+`test rax,rax` sets the flags and `0f 84` jumps on zero. The next four
+bytes hold a signed displacement from the end of that instruction. To
+compute it, the assembler subtracts the target's distance from the code
+end from the number of bytes following the field. Zero selects the following
+instruction. Positive and negative displacements select later and earlier
+addresses. The distance between any two positions in a 128 MiB image fits
+within the signed 32-bit range. Calls and unconditional jumps use the same
+calculation.
+[Native assembler](native.gamma)
 
 ## Delivery continuation
 
@@ -112,8 +112,8 @@ precomputed compiler image, or proof-certificate subsystem is not part of it.
 
 ## Construction evidence
 
-A fresh Linux x86-64 cold run constructed the following exact closure and
-artifacts. Two native compiler rebuilds matched byte for byte; the native Alpha
+Before the assembler refactor, a Linux x86-64 cold run constructed the
+following source closures and artifacts. Two native compiler rebuilds matched byte for byte; the native Alpha
 compiler's output also matched its Alpha-executed self-rebuild. The disclosed
 Python-assisted development route independently produced the same native image.
 
@@ -263,20 +263,22 @@ contract and a named scalar/resultless/trap/internal outcome. Literal and typed
 parameter reads lower directly; operations that can trap retain outcome
 propagation and short-circuit evaluation order. The shared Epsilon I32 helpers
 own overflow, division, remainder, shifts and bitwise meaning. Delta primitive
-failure is not an Epsilon trap. Future effectful lowering must bridge these pure
-results to the existing store/outcome contract where effects occur. Omega's
+failure is not an Epsilon trap. The storage runtime wraps these scalar results
+when a stored expression uses one of the shared arithmetic leaves. Omega's
 full-u64 `Wrapping` customers are not implemented by this I32 capability.
 Named `EvaluateBoth`, `ShortOnTrue` and `ShortOnFalse` compiler cases express
 eager and short-circuit control.
 
-The complete Epsilon source still packs to exactly 617,354 bytes and the same
-canonical Gamma/native evaluator artifacts. Only the source ownership changes:
-binary operator and scalar outcome declarations now have shared leaf files.
-`epsilon/composition.py` selects those complete files plus the checked scalar
-implementation and a small named result adapter. It performs no host semantic
-extraction or dead-code selection. The compiler executable currently includes
-the full shared Epsilon closure; narrowing that retained checking dependency is
-still a whole-chain cost opportunity.
+Extracting the shared binary operator and scalar outcome declarations preserved
+the 617,354-byte Epsilon source and the canonical Gamma and native evaluator
+artifacts measured for that experiment.
+The [test source packer](../../tests/epsilon/compiled-native/composition.py)
+takes whole files from the verified Epsilon manifest in declaration order.
+The Epsilon-to-Delta compiler uses the source view, representations, lexer,
+parser and checker. Its literal emitter also uses the byte decoder in
+`execution/views/strings.delta`. The reference evaluator includes the
+remaining execution functions and its entry. Compiled programs receive the runtime files required by
+their calling convention. The Delta compiler checks each assembled program.
 
 The PR2737 scalar milestone first compiled four lexical machines. An initial implementation threaded generic runtime values and stores through
 every scalar node. Its lexical target was 123,827 Delta source bytes and
@@ -412,3 +414,129 @@ source now reaches the lexer's nominal diagnostic parameter at coordinate
 64,677, beyond the previous first slice parameter at 38,291. Nominal values in
 stored methods and Console text output remain subsequent implementation work;
 this is a completed receiver/view capability, not an Omega compiler self-build.
+
+### Passing values into receiver methods and states
+
+The compiled Epsilon lexer can now pass its diagnostic code through a method
+and retain it while transferring to two states. A receiver method or state
+takes an immutable snapshot of each argument, in source order, then allocates
+its parameter homes. The same operation carries records, arrays, sums and
+views. A view still refers to its original backing array. At this checkpoint a free function
+taking a Delta enum could receive a checked nullary constructor directly.
+
+On the 825,064-byte bootstrap compiler and construction entry at
+`b95769558667` (SHA-256
+`48f1b654605d1828c37af6e4472f2135367ecad1fc2435f2ef4919d862ab855f`),
+the native compiler previously stopped at the diagnostic parameter of
+`OmegaLexScan::reject`, byte 64,899. It now reaches byte 66,755, where
+`set_keyword` passes the constructed `OmegaTokenKind::Keyword` to `emit`.
+At this checkpoint, the compiler stopped before constructing that receiver argument.
+
+`python3 bootstrap/independent/successor_test.py --reuse-constructed --compile-epsilon`
+uses the verified native predecessors to exercise argument passing. The storage
+fixture passes a record as its first argument, mutates that same record in a
+later argument, and checks the original value after a state transfer. The unchanged
+lexer methods also run both valid and invalid diagnostic spans. The wrong-owner
+twin substitutes the scanner's token kind for its diagnostic code.
+
+### Constructing a lexer token kind
+
+The native Epsilon compiler now constructs the lexer's `OmegaTokenKind::Keyword`
+in a receiver call. A runtime sum carries its resolved case and payload. The
+case's exact source span identifies its declaration within the checked source.
+A transition checks that the case belongs to its expected owner before it reads
+the payload. This removes the separate owner declaration from every stored sum.
+
+The lexer fixture runs the production `set_keyword` and `emit` methods. Its
+compiled method returns the stored token kind, and the target driver checks the
+start and end of the authored `Keyword` case. Substituting another owner's
+`As` constructor produces the same type error in the native compiler and the
+source-built evaluator. A receiver can also return an array snapshot after its
+parameter homes are released. Constructing a case with payload arguments in a
+compiled receiver still reports the source coordinate.
+
+At this checkpoint the 825,064-byte compiler at `b95769558667` reached byte 67,414. The
+834,350-byte compiler at `720b1a10712f` reaches byte 67,681. Both stop at the
+same string literal, `"as"`, passed to `span_equals`. The shared evaluator
+packs to 616,982 bytes, down from 617,419.
+
+### Compiling the keyword classifier’s string literals
+
+The native Epsilon compiler compiles the complete `OmegaLexScan::classify_keyword`
+method. Its calls to `span_equals` receive immutable views of the authored
+strings. The emitted Delta preserves ordinary quoted spellings, including
+shared escapes. For Epsilon’s hexadecimal escape it decodes the string with
+the checked evaluator’s decoder and emits a balanced tree of ordinary
+`bytes_single` and `bytes_concat` expressions.
+
+The compiled lexer stores the authored cases `As` and `Copy` for those two
+keywords and classifies `aside` as an identifier. The same fixture checks empty and sliced literal
+views and a bounds trap. A separate compiled program writes all 256 values of a
+hex-escaped literal. Its complete output agrees with the constructed evaluator.
+
+On the frozen 825,064-byte source at `b95769558667`, compilation advances from
+byte 67,414 to 85,007, where `OmegaLexScan::consume_digits` passes the stored
+`self.numeric_base` to the free function `omega_digit_in_base`. The compiler’s
+composed Delta grows from 760,383 to 762,106 bytes. The storage runtime grows
+by 393 bytes. The experiment composes that runtime and a driver with the emitted
+module before Delta and Gamma construct the target executable.
+
+### Calling the numeric lexer with a stored enum
+
+The native Epsilon compiler uses one calling convention throughout a module
+with a nonempty receiver machine. Each machine receives immutable argument values, allocates
+mutable homes, and carries the current store and output. Receiver methods
+also receive the authored receiver's place. Free machines take no receiver.
+Pure modules continue to use direct scalar functions and named Delta enum
+types, including the Alpha-tape lexical customer.
+
+A stored nominal transition evaluates its subject once. An explicit nullary
+case must match both endpoints of a member of the checked declaration. A sparse
+zero with no children selects the first member when its owner matches the
+declaration. Compiled type descriptors retain use-site coordinates and the
+declaration’s name span, including after an array copy. The compiler also
+checks the absence of payloads. The selected
+member's source start identifies its arm. These checks precede the wildcard
+so an invalid runtime value yields an internal diagnostic.
+
+The production `consume_digits` and `scan_number` methods now run with their
+authored calls to `omega_digit_in_base`. The scanner fixture checks all four
+bases, an exponent, a missing exponent and a hex integer. A second argument
+mutates the field read by the first argument. A copied array passes through a
+free machine and keeps its original value. The constructed evaluator agrees
+with the compiled entry. A same-spelling case from a different owner fails
+source checking at the call. The target-interface controls also supply
+malformed cases, wrong owners and children on sparse values.
+
+Two prototypes used the same 44,706-byte scanner and target driver at
+`7c9569ea1d7`. Both passed the scanner and all twelve direct target-interface
+controls. The typed adapter preserved the named Delta enum across free calls.
+The shared convention compiled free machines in the storage module with the
+same store and output as methods.
+
+| Prototype | Compiler Delta source | Generated scanner module | Native scanner with test driver |
+| --- | ---: | ---: | ---: |
+| Typed adapter | 766,900 bytes | 216,890 bytes | 13,121,786 bytes |
+| Shared storage calling convention | 762,566 bytes | 274,206 bytes | 17,512,547 bytes |
+
+For the complete 54,840-byte numeric scanner, native-hosted and Alpha-hosted
+Gamma compilers both constructed the same 11,912,696-byte Alpha tape
+(SHA-256 `3848a7ed048f4f8a96e03b760526b95f4706872b527715dde94b925c5124527b`).
+It left 4,864,516 bytes in the unchanged seed. The tape and the 38,193,583-byte
+native executable matched on all thirteen inputs, including the malformed
+target values. The constructed Epsilon evaluator and the independent model
+also ran the authored scanner to exit 42.
+
+With the representations at `1830ef8ec8e`, the repository fixture has 55,030
+source bytes. Its 38,264,464-byte native executable also passes the authored
+entry and thirteen direct value controls.
+
+The landed compiler also handles the checked wildcard and gives free machines
+their own receiver-free signature. Its Delta composition is 763,595 bytes.
+The storage runtime is 93,995 bytes. The pure runtime is 5,429 bytes.
+On the frozen 825,064-byte compiler at `b95769558667`, the previous compiler
+stopped at byte 85,007. A control inserts one known unsupported constructor
+after the frozen lexer's last machine at byte 108,029. The new compiler reaches
+that constructor at byte 108,141. The lexer itself is unchanged. The complete
+numeric scanner also compiles and runs as a separate executable. [Scanner
+fixture](../../tests/epsilon/compiled-native/lexer_digits_main.epsilon)

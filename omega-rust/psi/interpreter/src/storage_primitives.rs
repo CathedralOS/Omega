@@ -6563,6 +6563,23 @@ pub(crate) mod structural_identities {
             }
         }
 
+        /// Projected issuer tokens enter before any guest storage allocation.
+        /// The existing set already contains every static and supplied root.
+        pub(crate) fn reserve_projected_host_at_entry(
+            &mut self,
+            value: &TerminalStructuralValue,
+        ) -> Result<(), TerminalInterpretError> {
+            if self.next != Some(0) {
+                return Err(malformed());
+            }
+            if !self.reserved.insert(value.opaque_identity) {
+                return Err(TerminalInterpretError::StructuralArgumentAliasing(
+                    value.opaque_identity,
+                ));
+            }
+            Ok(())
+        }
+
         pub(crate) fn allocate(&mut self) -> Result<u64, TerminalInterpretError> {
             let mut cursor = self.next;
             let result = self.allocate_staged(&mut cursor);

@@ -638,7 +638,14 @@ fn selected_affine_provider_reopens_with_its_published_authority() {
         method.service_reach(),
         ["AffineObservation", "AffineTransforms"]
     );
-    assert_eq!(method.synchronous_invocations(), ["AffineTransforms"]);
+    assert_eq!(
+        method.synchronous_invocations(),
+        [
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                "AffineTransforms".into(),
+            )
+        ]
+    );
     let [invocation] = method.authority().synchronous_invocations() else {
         panic!("the selected requirement publishes one synchronous entry");
     };
@@ -3504,6 +3511,70 @@ machine main() {}
         messages.contains("ensures") || messages.contains("guarantee"),
         "{messages}"
     );
+    session.close().unwrap();
+}
+
+#[test]
+fn ordinary_public_requirement_review_keeps_lifetimes_domains_and_open_ceilings() {
+    use review_evidence::record::PackagePolicyBaseline;
+    const SOURCE: &str = r#"
+use omega::language::core::byte_observation;
+public domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+public trait Window {
+    machine view<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
+}
+machine main() {}
+"#;
+    // There is deliberately no selected body to use as the public contract.
+    let (workspace, mut session, checked) =
+        captured_review_compilation(SOURCE, REVIEW_BUILD_SOURCE);
+    let checked = checked.unwrap_or_else(|errors| panic!("ordinary trait judgment: {errors:?}"));
+    let accepted = checked.terminal_publication().accepted().unwrap();
+    // Reading diagnostics releases additional accepted check forms. The
+    // compact declaration account must already be retained independently.
+    let _ = accepted.advisories();
+    std::fs::remove_file(workspace.path().join("project/main.omg")).unwrap();
+    std::fs::remove_file(workspace.path().join("project/build.omg")).unwrap();
+    let reviewed = review_evidence::project_package_review(
+        &checked,
+        checked.sources().package_identity().unwrap(),
+        checked.execution().target_profile().unwrap(),
+        usize::MAX,
+    )
+    .unwrap_or_else(|error| panic!("ordinary trait review: {error:?}"));
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    let recovered = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    assert_eq!(recovered, reviewed.policy);
+    assert_eq!(recovered.canonical_bytes().unwrap(), bytes);
+    let [window] = recovered.public_traits() else {
+        panic!("one public Window declaration")
+    };
+    assert!(window.identity().path().ends_with("Window"));
+    assert!(!window.is_boundary());
+    let [view] = window.requirements() else {
+        panic!("Window has exactly one requirement")
+    };
+    assert_eq!(view.lifetime_parameter_count(), 1);
+    assert!(view.service_reach().is_none());
+    assert!(view.published_crash().is_none());
+    assert_eq!(view.returned_borrow_origins().len(), 1);
+    assert_eq!(view.returned_borrow_origins()[0].parameter_index(), Some(0));
+    let [qualification] = view.parameter_qualification_preconditions() else {
+        panic!("packet retains Utf8")
+    };
+    assert_eq!(qualification.structural_index(), 0);
+    let [utf8] = recovered.public_domains() else {
+        panic!("one public Utf8 declaration")
+    };
+    assert_eq!(qualification.domain(), utf8.identity());
+    let [predicate] = utf8.predicate_facts() else {
+        panic!("Utf8 has one predicate")
+    };
+    let predicate = format!("{predicate:?}");
+    assert!(predicate.contains("target: ByteSequencePredicate(ValidUtf8),"));
+    assert!(predicate.contains("arguments: [DomainSubject]"));
+    assert!(format!("{:?}", view.parameters()[0].type_identity()).contains("Utf8"));
+    assert!(format!("{:?}", view.return_type().unwrap()).contains("Utf8"));
     session.close().unwrap();
 }
 

@@ -3388,9 +3388,21 @@ pub struct TerminalEstablishedErasedField {
     pub carrier_type_identity: String,
 }
 
+/// Host-issued value provenance for an empty packed record at a borrowed inline field path.
+/// The issued value is separate from its replaceable guest storage home.
+/// The host must own that value; binding checks local shape and identity
+/// separation, and does not establish the host's external ownership.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalProjectedHostAtom {
+    pub argument_index: u32,
+    pub path: Vec<terminal_psi::StructuralPathSegment>,
+    pub value: TerminalStructuralValue,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TerminalStructuralInputs<'input> {
     pub arguments: &'input [TerminalStructuralValue],
+    pub projected_host_atoms: &'input [TerminalProjectedHostAtom],
     pub contents: &'input [contents::TerminalStructuralContents],
     pub zero_initialized_arguments: &'input [u32],
     pub established_erased_fields: &'input [TerminalEstablishedErasedField],

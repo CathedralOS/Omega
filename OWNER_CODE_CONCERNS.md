@@ -75,6 +75,51 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Callable analysis loses arguments passed to checked providers
+
+- Category: Re-deriving.
+- Where: [Native callable preparation](omega-rust/omega/compilation/pipeline/03_native-program-planning/src/preparation/callable_invocations.rs) and [Psi execution checks](omega-rust/psi/interpreter/src/engine_execution.rs).
+- Saw: Target lowering and the interpreter each know which checked body the boundary call will enter. Their callable analysis still treats that call as opaque, so it never passes the caller's actual machine value to the provider.
+- Cost: The Build-selected dispatch example passes source checking. Native stack planning cannot bound the indirect call, and Psi's execution check cannot establish how it reaches the provider's body.
+- Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
+
+### Invocation inference loses the parameter behind a callable alias
+
+- Category: One idea, several implementations.
+- Where: [Source inference](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/services.rs#L471) and [callable origin checking](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/ceilings.rs#L479).
+- Saw: Source inference adds a callable parameter to the invocation ceiling when the call targets the parameter slot directly. The checker follows the callable through a local copy and recovers the parameter even when the call targets another slot.
+- Cost: The inferred ceiling is empty for `let alias = selected; alias(...)`, so checking rejects a valid call. Inference and checking need the same callable origin information.
+- Reported: 2026-11-18, Codex, while migrating the local runtime selection sample.
+
+### Package review recovery cannot verify structural parameter indices
+
+- Category: A verdict with nothing behind it.
+- Where: [Public trait validation](omega-rust/omega/packages/review-evidence/src/record/public_policy/validation/declarations.rs#L75) and [trait policy recovery](omega-rust/omega/packages/review-evidence/src/encoding/recovery/policy/public_api/traits.rs#L64).
+- Saw: Recovery reads a parameter number from each returned borrow and each qualification. It checks ordering and domain identity, and accepts a number beyond the entire formal list. The policy holds each formal's type name, while source checking knows which formals use structural storage.
+- Cost: A recovered policy can describe a borrow or qualification on a nonexistent parameter. Retain the checked structural parameter list so recovery can validate both kinds of index.
+- Reported: 2026-11-18, Codex, while restoring package review for stored machine calls.
+
+### Case splits rebuild unchanged proof facts
+- Category: Verifying costs more than writing
+- Where: [case splitting](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/prove.rs#L1674), [fact substitution](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L766)
+- Saw: A saved range check from the multiplication table creates 65 provers and makes 80,080 substitutions. The replay takes 1.23 seconds. Checking the equations takes 22 milliseconds. A 128-entry substitution cache made the replay 12% slower. The runs returned the same bounds.
+- Cost: Each branch rebuilds facts from its parent, even when its new assumption leaves those facts unchanged. Measure how much of that work branches can share while keeping their assumptions and search budget separate.
+- Reported: 2026-11-18, Codex, while investigating slow range checks in the portable filesystem and standard library.
+
+### Descriptor lifetime queries repeat the same graph walk
+- Category: One idea, several implementations
+- Where: [descriptor lifetime queries](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1221), [descriptor transport](omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs#L1487)
+- Saw: Entry and successor lifetime queries compute where each descriptor can survive. The solver computes those same locations internally to seed the all-arrivals authorization check. Local lifetime queries repeat the walk when authorization exists.
+- Cost: These paths solve the same graph twice. Share the first result while keeping the distinction between a descriptor that can survive on one arrival and one authorized on every arrival.
+- Reported: 2026-11-18, Codex, while investigating the Console binding test timeout.
+
+### Individual proof citations copy their entire compound premise
+- Category: Verifying costs more than writing
+- Where: [Fact::proof_with_work](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/known.rs#L119), [stored proof nodes](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L420)
+- Saw: Selecting a conjunct rebuilds its parent's proof and copies the complete parent proposition. One saved multiplication-table proof (machine 7, obligation 26) has 3,798 nodes and 1,408 assumption citations. Formatting it with `Debug` produces 1.95 GB of text, while its checked core certificate is 212 KB. Cloning it takes 0.593 seconds in `build/byte-observers/borrowed-admission-baseline` on the table worktree. Wire's 200-second sample also found `compound_limit_as_le` calling `Fact::proof_with_work` at about 4 GB of resident memory. That program subsequently passed native/Psi agreement in 233 seconds; its receipt and sample are in worker-4's `build/wire-3791/original-retained-540`.
+- Cost: Borrowing the proof during verification removes one extra copy, but building it still copies these large premises. Any sharing must count every logical use, keep its original scope and publish the complete predicate. Certificates attached to operations still refer to whole premise rows, so those assumptions cannot simply be replaced with selected conjuncts.
+- Reported: 2026-11-18, Codex, while carrying the original multiplication table through proof checking and execution.
+
 ### Focused compiler checks rebuild the implementation three times
 - Category: Verifying costs more than writing
 - Where: [source-compiler unit tests](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/production/src/source_selection_publication.rs#L1985), [integration-test feature](omega-rust/omega/compilation/compiler/Cargo.toml#L107), [source-compiler feature](omega-rust/psi/compilation/pipeline/01_source-compilation/Cargo.toml#L8)
@@ -117,17 +162,17 @@ framework or a list of unimplemented features.
 
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
 
-### Build still validates a retired hardware setting
+### Build still validates retired hardware settings
 - Category: Zombie machinery
-- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L3923), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L705), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
-- Saw: The authored `Build.freestanding` Boolean remains mandatory through result decoding for compatibility. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
-- Cost: Retire the authored field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
+- Where: [Build shape](omega-rust/omega/packages/build-declarations/src/prelude.rs#L266), [return decoding](omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs), [Source assembly](omega-rust/psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/read/machine.rs#L4063), [review projection](omega-rust/omega/packages/review-evidence/src/capture/callables.rs#L719), [per-output authority](wiki/spec/build/permissions.md#where-the-operation-can-run)
+- Saw: Build return decoding still requires the legacy `freestanding` Boolean. Target and provider contracts supply each output’s hardware authority. The checked core mask helpers and receiving classification report `InterruptControl` for mask changes. Source assembly and package instruction-authority projection still refuse their unsupported routes.
+- Cost: Retire the authored `freestanding` field and carry the instruction's exact service through Source, helpers and package review. Check the selected provider for each output. A mixed firmware/hosted build must refuse the hosted mask change when its provider lacks authority. A package update that adds a page-table write must report added `MachineControl` for acceptance.
 - Reported: 2026-11-16, Claude Code, while auditing code against wiki/spec/build/configuration.md
 
 ### Changing storage analysis rebuilds the native compiler
 - Category: Verifying costs more than writing
 - Where: [semantic analysis package](omega-rust/psi/compilation/representations/terminal-psi/semantics/Cargo.toml), [declaration lookup in optimization](omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs#L619), [target descriptor inputs](omega-rust/omega/compilation/representations/target-operations/target-vocabulary/src/descriptor_input.rs)
-- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. `target-operations` also declares an unused direct dependency, although removing it alone leaves a transitive dependency. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
+- Saw: Changing only the private descriptor replay cache and its error reporting rebuilt 64 packages and took 14m 17s before the original Console test could run. Some native consumers need only declaration or structural-path lookups from the same package; ownership analysis and explicit image validators genuinely need the full analysis. Removing the unused direct dependency from `target-operations` left `target-vocabulary`'s dependency on the analysis crate. Source and build evidence remains in claim `18e85a23de177c780000000018e83683`, under `post-3776-original-binding-control-49/native-terminal-semantics-coupling.json`.
 - Cost: Edits to the analysis invalidate native consumers of small lookup functions. Move the declaration and path queries out of the full analysis crate, keep each judgment implemented once, and remove unused direct dependencies. Measure the same Console edit/build/run loop before claiming a build-time improvement.
 - Reported: 2026-11-16, Codex, while carrying the original Console program through checking and execution
 

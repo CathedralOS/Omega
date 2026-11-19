@@ -1,0 +1,20 @@
+// Expected exit: 0.
+trait Plan { machine plan(value: u64) -> u64; }
+trait Other { machine other(value: u64) -> u64; }
+Fast satisfies Plan { machine plan(value: u64) -> u64 { value } }
+Slow satisfies Other { machine other(value: u64) -> u64 { value } }
+trait Convention<Selected satisfies Plan> { }
+public boundary trait Leaf: Convention<Fast> {
+    machine read(value: u64) -> u64 reaches none crashes none;
+}
+LocalLeaf satisfies Leaf {
+    machine read(value: u64) -> u64 { value }
+}
+
+machine main() crashes Trap {
+    let actual: u64 = Leaf::read(41u64);
+    let other: u64 = Leaf::read(75u64);
+    transition actual == 41u64 && other == 75u64 { true -> done() false -> wrong() }
+    machine done() { }
+    machine wrong() { crash Trap; }
+}

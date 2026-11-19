@@ -268,13 +268,11 @@ impl TerminalBuildBindingHost {
         ) {
             return description_contents(call, result.structural_type, description);
         }
-        let identity = u64::MAX
-            .checked_sub(
-                u64::try_from(state.descriptions.len())
-                    .map_err(|_| refuse("Product description identity overflow"))?,
-            )
-            .filter(|identity| *identity > 1)
-            .ok_or_else(|| refuse("Product description identity space exhausted"))?;
+        let identity = crate::host::descending_host_marker_identity(
+            u64::try_from(state.descriptions.len())
+                .map_err(|_| refuse("Product description identity overflow"))?,
+        )
+        .ok_or_else(|| refuse("Product description identity space exhausted"))?;
         state
             .descriptions
             .try_reserve(1)

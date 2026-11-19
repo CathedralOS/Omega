@@ -597,7 +597,8 @@ impl<'b> Walk<'b> {
             | ExpressionKind::Zero
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => Ok(true),
-            ExpressionKind::Not(operand)
+            ExpressionKind::OwnedTemporary { value: operand, .. }
+            | ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)

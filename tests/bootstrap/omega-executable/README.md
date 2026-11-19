@@ -107,7 +107,7 @@ The harness owns those diagnostic statuses; they are not new OCOUT wire numbers.
 Resource and internal failures remain distinct from successful compilation.
 
 Every invocation first reconstructs the same pinned Epsilon execution receipt —
-identical request, identical 721,484-byte output — so
+identical request, identical 719,068-byte output — so
 `OMEGA_EXECUTABLE_RECEIPT_CACHE=<file>` lets the controls matrix share one
 reconstruction; cached bytes still face the pinned identity check, and
 `OMEGA_EXECUTABLE_RECEIPT_SECONDS` bounds a cold reconstruction.
@@ -229,11 +229,15 @@ valid/invalid UTF-8 boundaries and an absent large index. The companion
 [controls_arithmetic.epsilon](controls_arithmetic.epsilon) checks arithmetic
 limits, five abnormal overflow/underflow traps, left-value capture across a
 mutating right operand, short-circuit suppression, reference forwarding and
-fourteen explicit refusal controls. Unsupported indexed carriers return coverage
-refusals without inventing a byte type; diagnosed missing names remain source
-errors. Four fresh evaluator processes bound cumulative immutable allocation.
-Only the first receives the full decoder source; the others compile small
-generic programs. The final process retains a success, all refusal controls and
-a successful reset in one compiler instance. These are source-to-Alpha customers, not full
-Omega compiler construction or a self-rebuild. The host distinguishes Alpha's
-Linux SIGILL Trap from every normal process exit.
+fifty-six refusal/reset checks. The terminal-call cases exercise precedence,
+grouping, nested calls, left-to-right argument evaluation, skipped and selected
+crashes, loans, blocking markers and entry preconditions. An unsupported
+indexed carrier returns a coverage refusal. An unknown name in a checked
+scalar operand remains a source error. Each refusal leaves the tape empty
+and unsealed. Transition predicates also exercise keyword-spelled local names,
+lookup in an uncalled machine and Boolean literal selection.
+
+Nine fresh evaluator processes bound cumulative allocation. The first receives
+the full decoder source. Each refusal batch reuses one compiler instance and
+ends with a successful compilation. The host stamps and runs all thirty-six
+published tapes, distinguishing Linux SIGILL from a normal process exit.

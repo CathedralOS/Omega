@@ -68,7 +68,7 @@ pub(in crate::encoding::encode) fn trait_shape(
                 &requirement.parameters,
                 requirement.return_type.as_ref()
             );
-            encode_callable_behavior_tail!(encoder, requirement)?;
+            encode_callable_behavior_tail!(encoder, requirement, optional)?;
             encoder.field("returned_borrow_origins", |encoder| {
                 encoder.sequence(
                     &requirement.returned_borrow_origins,

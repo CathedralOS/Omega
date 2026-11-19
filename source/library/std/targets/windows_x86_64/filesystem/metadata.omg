@@ -5,7 +5,6 @@
 use omega::language::core::FilesystemMetadataQuery;
 use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::widen_u32_to_u64;
-use omega::language::core::narrow_i64_to_u64_exact;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
     let since_windows_epoch: u64 = ticks / 10000000;
@@ -120,7 +119,7 @@ machine windows_filesystem_encode_timestamp(seconds: i64) -> WindowsTimestampEnc
     machine encode(seconds: i64) -> WindowsTimestampEncoding
     requires seconds > -11644473600 && seconds <= 1833029933770 {
         let shifted: i64 = seconds + 11644473600;
-        let ticks: u64 = narrow_i64_to_u64_exact(shifted) * 10000000;
+        let ticks: u64 = (shifted as u64) * 10000000;
         WindowsTimestampEncoding::Ticks { value: ticks }
     }
 }

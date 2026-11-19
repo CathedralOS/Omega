@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 290`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 291`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -5092,10 +5092,9 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 290 retains content snapshots separately from current claim locations
-// and binds each transformation to its conservation obligation. Older payloads
-// omit those owners and reject before decoding.
-pub(crate) const FORMAT_MARKER: u16 = 290;
+// Marker 291 retains content snapshots and conservation obligations together
+// with the current service contract schema. Older payloads reject before decoding.
+pub(crate) const FORMAT_MARKER: u16 = 291;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

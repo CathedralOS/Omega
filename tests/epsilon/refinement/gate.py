@@ -29,14 +29,14 @@ EEOUT = b"\xffEEOUT\x01\x00"
 # the records; this gate restates them so a drifted input fails here).
 EXPECTED = {
     "epsilon_compiler.delta": (
-        617354,
-        "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e"),
+        616939,
+        "a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c"),
     "evaluator_entry.delta": (
-        10950,
-        "52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91883bbfbd273e5e3"),
+        10563,
+        "ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79"),
     "canonical.gamma": (
-        729060,
-        "bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368"),
+        726601,
+        "1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af"),
 }
 
 

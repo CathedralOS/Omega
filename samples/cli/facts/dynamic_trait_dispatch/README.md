@@ -4,7 +4,7 @@ These programs choose a function at runtime, pass it the numbers 60 and 40,
 and rely on its promise to return 100. Subtracting 100 must remain safe after
 that choice passes through every place below.
 
-Fact: a runtime dyn trait selector dispatches an inline conformance member over explicit data arguments to establish 100u64 when subtracting 100u64.
+Fact: Calling a selected conformance member through a machine value preserves its guarantee of 100u64 for exact subtraction of 100u64.
 
 **BUILD-OWNED-TARGET-SELECTION** owns replacing the remaining platform-prefixed
 functions with ordinary named implementations chosen in Build.
@@ -23,11 +23,26 @@ selection, reordered data arguments, a missing store, or a store to the wrong
 place. A separate call returning a marker would not observe the actual
 `combine` call.
 
-The result promise justifies subtraction directly. The later runtime checks do
-not establish a missing proof. The function choice (`dyn WeightedCombine`) and
-all data, including the mutable output, stay explicit and independent under
+The result promise justifies subtraction directly. The selected callable and
+its arguments, including the mutable output, stay explicit under
 [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 and [named implementations](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent).
+
+## Dispatch with machine values
+
+The root and local examples store `UnitCombine::combine` and `OtherCombine::combine`
+as machine values with the same input and result contracts. The local helper
+declares `invokes selected` because it calls its argument through an alias. The
+call-result example returns each selected machine from `get_selector`. The field
+example reads the machine from a record and checks that both neighboring fields
+keep their original values.
+
+The parameter example calls the machine it receives. The forwarding and nested
+machine examples pass it to another machine before calling it. The named
+constant example subtracts `TARGET` from the result. The match example selects a
+machine in each branch and calls the result after the branches meet. Each invalid
+example passes 39 where the callable requires 40. The Build-selected example still
+uses the older syntax.
 
 ## Places and controls
 

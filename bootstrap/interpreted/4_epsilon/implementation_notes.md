@@ -105,8 +105,9 @@ and appending LF; argument traps retain the preceding output without emitting
 the line. `write_byte` and `exit_process` retain their existing effect ordering.
 The diagnostic driver accepts a private source-length/source/stdin frame. A
 validated source view references the source window in the existing Delta byte
-sequence; only stdin is reconstructed as a balanced byte tree. Source-relative
-reads preserve packed coordinates and cannot cross into the header or stdin.
+sequence. Console reads stdin from the following byte through the end of that
+same sequence. Source-relative reads stay within the source window and preserve
+packed coordinates.
 This test transport is
 not the final evaluator request or observation profile. Its result has an
 explicit private tag: exit carries the full signed `i32` code and stdout;

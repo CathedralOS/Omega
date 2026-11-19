@@ -62,13 +62,16 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
             contracts::contract(contract, &scope, 0)?;
         }
         behavior::validate(
-            &requirement.published_crash,
-            &requirement.service_reach,
+            requirement.published_crash.as_deref().unwrap_or_default(),
+            requirement.service_reach.as_deref().unwrap_or_default(),
             &requirement.synchronous_invocations,
             &requirement.termination,
             &scope,
             0,
         )?;
+        if requirement.service_reach_is_installation_bound && requirement.service_reach.is_none() {
+            return Err("an installation-bound public requirement has no declared service ceiling");
+        }
         ordered(&requirement.returned_borrow_origins)?;
         for origin in &requirement.returned_borrow_origins {
             if let Some(carrier) = origin.invocation_carrier() {

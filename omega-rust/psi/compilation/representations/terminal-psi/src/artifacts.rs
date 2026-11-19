@@ -353,10 +353,21 @@ pub(crate) mod proof_kernel {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct CertificateEnvelope {
+        pub struct CertificateEnvelope<Proof = ProofNode> {
             pub identity: EvidenceIdentity,
             pub proof_system_marker: ProofSystemMarker,
-            pub proof: ProofNode,
+            pub proof: Proof,
+        }
+
+        impl<Proof> CertificateEnvelope<Proof> {
+            /// Verification reads the proof; the stored envelope keeps owning it.
+            pub fn as_ref(&self) -> CertificateEnvelope<&Proof> {
+                CertificateEnvelope {
+                    identity: self.identity,
+                    proof_system_marker: self.proof_system_marker,
+                    proof: &self.proof,
+                }
+            }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -369,11 +380,24 @@ pub(crate) mod proof_kernel {
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
-        pub enum EvidenceRoute {
+        pub enum EvidenceRoute<Proof = ProofNode> {
             KernelDerived(PrimitiveJudgment),
-            CertificateDerived(CertificateEnvelope),
+            CertificateDerived(CertificateEnvelope<Proof>),
             Admitted(AdmissionEvidence),
             SourceChecked,
+        }
+
+        impl<Proof> EvidenceRoute<Proof> {
+            pub fn as_ref(&self) -> EvidenceRoute<&Proof> {
+                match self {
+                    Self::KernelDerived(judgment) => EvidenceRoute::KernelDerived(*judgment),
+                    Self::CertificateDerived(certificate) => {
+                        EvidenceRoute::CertificateDerived(certificate.as_ref())
+                    }
+                    Self::Admitted(evidence) => EvidenceRoute::Admitted(*evidence),
+                    Self::SourceChecked => EvidenceRoute::SourceChecked,
+                }
+            }
         }
     }
     pub(crate) mod nodes {

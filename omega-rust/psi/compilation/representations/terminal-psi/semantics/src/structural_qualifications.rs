@@ -713,7 +713,7 @@ impl<'a> DefaultRequirements<'a> {
             if !writes_default_storage(effect) {
                 continue;
             }
-            let (root, mut path, payload) = match used {
+            let (root, path, payload) = match used {
                 StructuralStorageUse::Projection(projection) => {
                     (projection.root, projection.path.to_vec(), false)
                 }
@@ -738,11 +738,13 @@ impl<'a> DefaultRequirements<'a> {
                     } else {
                         descriptor.path.to_vec()
                     };
-                    let (root, mut selected) =
-                        self.backing(descriptor.root, &selected, true, before, references)?;
-                    selected.extend_from_slice(path);
-                    selected.pop(); // The replaced element is not its containing owner.
-                    self.append_unique(&mut result, self.owners(root, &selected)?);
+                    for (root, mut selected) in
+                        self.backings(descriptor.root, &selected, true, before, references)?
+                    {
+                        selected.extend_from_slice(path);
+                        selected.pop(); // Only the containing owner carries the default.
+                        self.append_unique(&mut result, self.owners(root, &selected)?);
+                    }
                     continue;
                 }
                 _ => return Err(self.error("a default write has no supported storage projection")),
@@ -754,17 +756,15 @@ impl<'a> DefaultRequirements<'a> {
                     | OperationKind::StructuralByteViewFieldStore { field: None, .. }
                     | OperationKind::AtomicAccess { .. }
             );
-            let original_root = root;
-            let original_path = path.clone();
-            let (root, resolved) = self.backing(root, &path, payload, before, references)?;
-            path = resolved;
-            if replaces_whole {
-                self.append_lost(&mut result, original_root, &original_path, root, &path)?;
-                if path.pop().is_none() {
-                    continue;
+            for (owner, mut selected) in self.backings(root, &path, payload, before, references)? {
+                if replaces_whole {
+                    self.append_lost(&mut result, root, &path, owner, &selected)?;
+                    if selected.pop().is_none() {
+                        continue;
+                    }
                 }
+                self.append_unique(&mut result, self.owners(owner, &selected)?);
             }
-            self.append_unique(&mut result, self.owners(root, &path)?);
         }
         for argument in operation.kind.structural_arguments() {
             if !matches!(
@@ -774,13 +774,15 @@ impl<'a> DefaultRequirements<'a> {
             ) {
                 continue;
             }
-            let (root, mut path) =
-                self.backing(argument.place, &argument.path, true, before, references)?;
-            // The callee maintains its displayed domains, but domains removed
-            // from the actual loan remain the lender's responsibility.
-            self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
-            if path.pop().is_some() {
-                self.append_unique(&mut result, self.owners(root, &path)?);
+            for (root, mut path) in
+                self.backings(argument.place, &argument.path, true, before, references)?
+            {
+                // The callee maintains its displayed domains. Each possible
+                // lender still owes its own hidden and enclosing rules.
+                self.append_lost(&mut result, argument.place, &argument.path, root, &path)?;
+                if path.pop().is_some() {
+                    self.append_unique(&mut result, self.owners(root, &path)?);
+                }
             }
         }
         Ok(result)
@@ -815,14 +817,14 @@ impl<'a> DefaultRequirements<'a> {
         }
     }
 
-    fn backing(
+    fn backings(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
         payload: bool,
         before: crate::descriptor_lifetimes::DescriptorPosition,
         references: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
-    ) -> Judged<(PlaceId, Vec<StructuralPathSegment>)> {
+    ) -> Judged<Vec<(PlaceId, Vec<StructuralPathSegment>)>> {
         use crate::descriptor_results::DescriptorCallOrigin;
         let ty = self
             .declared
@@ -845,7 +847,7 @@ impl<'a> DefaultRequirements<'a> {
                     self.carrier(root, path)?,
                 ))
         {
-            return Ok((root, path.to_vec()));
+            return Ok(vec![(root, path.to_vec())]);
         }
         let split = path
             .iter()
@@ -867,31 +869,41 @@ impl<'a> DefaultRequirements<'a> {
                     self.error("default restoration has no exact descriptor location")
                 })?;
         let captured = references
-            .storage_projection(self.machine.id, before, &location)
-            .ok_or_else(|| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
-        let DescriptorCallOrigin::Argument { source, projection } = captured else {
-            return Err(self.error("default restoration has no exact captured lender"));
-        };
-        let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
-            (source, path)
-        } else {
-            let unique = references
-                .location(self.machine.id, before, &location)
-                .ok_or_else(|| self.error("default restoration has no unique incoming lender"))?;
-            let ty = self
-                .declared
-                .row(unique.root)
-                .map(|row| row.1)
-                .ok_or_else(|| self.error("default restoration lost its incoming carrier"))?;
-            let path = crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
-                .ok_or_else(|| {
-                self.error("default restoration lost its incoming storage path")
-            })?;
-            (unique.root, path)
-        };
-        selected.extend_from_slice(suffix);
-        self.carrier(root, &selected)?;
-        Ok((root, selected))
+            .captured_storage_family(self.machine.id, before, &location)
+            .map_err(|_| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
+        captured
+            .into_iter()
+            .map(|origin| {
+                let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                    return Err(self.error("default restoration has no exact captured lender"));
+                };
+                let (root, mut selected) = if let Some(path) = projection.captured_storage_path() {
+                    (source, path)
+                } else {
+                    let unique = references
+                        .location(self.machine.id, before, &location)
+                        .ok_or_else(|| {
+                            self.error("default restoration has no unique incoming lender")
+                        })?;
+                    let ty = self
+                        .declared
+                        .row(unique.root)
+                        .map(|row| row.1)
+                        .ok_or_else(|| {
+                            self.error("default restoration lost its incoming carrier")
+                        })?;
+                    let path =
+                        crate::descriptor_lifetimes::descriptor_path(self.types, ty, &unique.path)
+                            .ok_or_else(|| {
+                                self.error("default restoration lost its incoming storage path")
+                            })?;
+                    (unique.root, path)
+                };
+                selected.extend_from_slice(suffix);
+                self.carrier(root, &selected)?;
+                Ok((root, selected))
+            })
+            .collect()
     }
 
     fn declared_operation(&self, operation: &Operation) -> Judged<Vec<DefaultRequirement>> {
@@ -1004,7 +1016,6 @@ impl<'a> DefaultRequirements<'a> {
     /// are used only as goals, never as evidence that a mutable value satisfies
     /// its own default.
     pub fn clause(&self, required: &DefaultRequirement) -> Judged<Proposition> {
-        let self_place = PlaceId::new(1).expect("self has a nonzero coordinate");
         match required.origin {
             DefaultClause::Type(position) => self
                 .declaration(required.carrier)?
@@ -1020,37 +1031,42 @@ impl<'a> DefaultRequirements<'a> {
                     .map(|position| &self.domains[position])
                     .filter(|row| row.carrier == required.carrier)
                     .ok_or_else(|| self.error("a default domain clause is absent"))?;
-                let mut clauses = Vec::new();
-                if let Some(predicate) = &row.predicate {
-                    let mut bindings = DefaultBindings(Rerooted {
-                        subject: predicate.subject,
-                        root: self_place,
-                        referent: false,
-                    });
-                    clauses.push(
-                        crate::substitution::clauses::substitute_clause(
-                            &predicate.proposition,
-                            &mut bindings,
-                        )
-                        .map_err(|detail| self.error(detail))?,
-                    );
-                }
-                if let Some(predicate) = row.byte_predicate {
-                    if !crate::byte_predicate_carrier(self.types.iter(), required.carrier) {
-                        return Err(self.error("a named byte default has a nonbyte carrier"));
-                    }
-                    clauses.push(Proposition::Equal(
-                        ScalarTerm::byte_sequence_predicate(predicate, self_place, Vec::new()),
-                        ScalarTerm::Boolean(true),
-                    ));
-                }
-                Ok(match clauses.len() {
-                    0 => return Err(self.error("a named default has no predicate clause")),
-                    1 => clauses.pop().expect("one predicate"),
-                    _ => Proposition::Conjunction(clauses),
-                })
+                default_domain_clause(self.types, row).map_err(|detail| self.error(detail))
             }
         }
+    }
+}
+
+pub(crate) fn default_domain_clause(
+    types: &[StructuralTypeDeclaration],
+    domain: &StructuralDomainDeclaration,
+) -> Result<Proposition, &'static str> {
+    let self_place = PlaceId::new(1).expect("self has a nonzero coordinate");
+    let mut clauses = Vec::new();
+    if let Some(predicate) = &domain.predicate {
+        let mut bindings = DefaultBindings(Rerooted {
+            subject: predicate.subject,
+            root: self_place,
+            referent: false,
+        });
+        clauses.push(crate::substitution::clauses::substitute_clause(
+            &predicate.proposition,
+            &mut bindings,
+        )?);
+    }
+    if let Some(predicate) = domain.byte_predicate {
+        if !crate::byte_predicate_carrier(types.iter(), domain.carrier) {
+            return Err("a named byte default has a nonbyte carrier");
+        }
+        clauses.push(Proposition::Equal(
+            ScalarTerm::byte_sequence_predicate(predicate, self_place, Vec::new()),
+            ScalarTerm::Boolean(true),
+        ));
+    }
+    match clauses.len() {
+        0 => Err("a named default has no predicate clause"),
+        1 => Ok(clauses.pop().expect("one predicate")),
+        _ => Ok(Proposition::Conjunction(clauses)),
     }
 }
 
@@ -1501,7 +1517,7 @@ fn validate_change(
     destination: &Memberships,
     target: BlockId,
     facts: &crate::membership_facts::MembershipFacts,
-) -> Judged<Option<bool>> {
+) -> Judged<()> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
         return malformed(
@@ -1545,7 +1561,7 @@ fn validate_change(
         if !change.establishments.is_empty() {
             return malformed(machine, "a structural erasure cannot establish a domain");
         }
-        return Ok(None);
+        return Ok(());
     }
     let declaration = places.machine.declaration.as_ref();
     let held: Vec<_> = held.iter().map(|(id, _)| *id).collect();
@@ -1670,7 +1686,7 @@ fn validate_change(
             "a structural cast establishes a domain it does not add",
         );
     }
-    byte_change_judgment(module, places, change, source, destination)
+    Ok(())
 }
 
 fn byte_change_judgment(
@@ -1679,6 +1695,10 @@ fn byte_change_judgment(
     change: &StructuralQualificationChange,
     source: &StructuralArgument,
     destination: &Memberships,
+    mut incoming: Option<(
+        &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        crate::descriptor_results::DescriptorPosition,
+    )>,
 ) -> Judged<Option<bool>> {
     let machine = places.machine();
     if !source.path.is_empty() || change.source != source.place {
@@ -1736,11 +1756,26 @@ fn byte_change_judgment(
         })?;
         let mut argument = source.clone();
         argument.path.extend_from_slice(path);
-        let supplied = crate::byte_sequence_argument_predicates(module, places.machine, &argument)
-            .ok_or(StructuralQualificationError {
-                machine,
-                detail: "a byte qualification change has no reconstructed source predicates",
-            })?;
+        let mut supplied =
+            crate::byte_sequence_argument_predicates(module, places.machine, &argument).ok_or(
+                StructuralQualificationError {
+                    machine,
+                    detail: "a byte qualification change has no reconstructed source predicates",
+                },
+            )?;
+        if let Some((analysis, position)) = incoming.as_mut()
+            && let Some(facts) = crate::incoming_byte_sequence_argument_predicates(
+                module,
+                places.machine,
+                analysis,
+                *position,
+                &argument,
+            )
+        {
+            for predicate in facts.predicates() {
+                supplied.insert(predicate);
+            }
+        }
         byte_domain = true;
         established &= supplied.implies(predicates);
     }
@@ -1751,6 +1786,7 @@ fn validate_machine(
     module: &TerminalModule,
     machine: &TerminalMachine,
     facts: &crate::membership_facts::MembershipFacts,
+    mut incoming: Option<&mut crate::descriptor_results::DescriptorAnalysis<'_>>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let id = Some(machine.id);
@@ -1800,7 +1836,13 @@ fn validate_machine(
                                 "a structural qualification change names another destination",
                             );
                         }
-                        if let Some(established) = validate_change(
+                        let position = u32::try_from(block.operations.len()).map_err(|_| {
+                            StructuralQualificationError {
+                                machine: id,
+                                detail: "a byte qualification use exceeds its descriptor graph",
+                            }
+                        })?;
+                        validate_change(
                             module,
                             &places,
                             changes[index],
@@ -1808,6 +1850,16 @@ fn validate_machine(
                             &expected,
                             target.id,
                             facts,
+                        )?;
+                        if let Some(established) = byte_change_judgment(
+                            module,
+                            &places,
+                            changes[index],
+                            argument,
+                            &expected,
+                            incoming
+                                .as_deref_mut()
+                                .map(|analysis| (analysis, (block.id, position))),
                         )? {
                             byte_establishments.push((edge, established));
                         }
@@ -3531,7 +3583,7 @@ pub fn validate_shape_for_bodies(module: &TerminalModule, bodies: &[MachineId]) 
         }
     })?;
     for machine in &module.machines {
-        validate_machine(module, machine, &facts)?;
+        validate_machine(module, machine, &facts, None)?;
     }
     operation_permissions::validate(module)?;
     validate_change_owners(module)
@@ -3551,12 +3603,13 @@ fn validate_change_owners(module: &TerminalModule) -> Judged<()> {
     Ok(())
 }
 
-/// Primitive byte casts use the actual incoming arguments, just as byte copies
-/// and moves do. The lowered checker reports a false result as an unestablished
-/// value; artifact ingress requires every result to be true.
-pub fn byte_qualification_change_judgments(
+/// Judge primitive byte casts from their actual arguments, reusing the
+/// checker's prepared descriptor and storage history. False is reported as
+/// unestablished; artifact ingress requires every result to be true.
+pub fn byte_qualification_change_judgments_in(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
 ) -> Judged<Vec<(EdgeId, bool)>> {
     let places = Declared::new(machine)?;
     let mut changes = std::collections::BTreeMap::new();
@@ -3578,6 +3631,11 @@ pub fn byte_qualification_change_judgments(
     let mut used = std::collections::BTreeSet::new();
     let mut judgments = Vec::new();
     for block in &machine.blocks {
+        let position =
+            u32::try_from(block.operations.len()).map_err(|_| StructuralQualificationError {
+                machine: Some(machine.id),
+                detail: "byte qualification cut exceeds descriptor coordinates",
+            })?;
         let edges = block.terminator.successor_edges();
         let arguments = block.terminator.successor_block_arguments();
         if edges.len() != arguments.len() {
@@ -3617,6 +3675,7 @@ pub fn byte_qualification_change_judgments(
                         &parameter.qualifications,
                         &parameter.projected_qualifications,
                     ),
+                    Some((&mut *analysis, (block.id, position))),
                 )? {
                     judgments.push((edge, established));
                 }
@@ -3641,8 +3700,31 @@ pub fn validate(module: &TerminalModule) -> Judged<()> {
             machine: error.machine,
             detail: error.detail,
         })?;
+    // Prepare one shared closure for actual cast roots. An unsupported body
+    // remains absent and cannot add evidence; it must not erase independent
+    // supported rows. Modules without casts need no descriptor preparation.
+    let graph = if module.structural_qualification_changes.is_empty() {
+        Vec::new()
+    } else {
+        crate::descriptor_results::terminal_graph_rows(
+            module,
+            module
+                .structural_qualification_changes
+                .iter()
+                .map(|change| change.machine),
+            crate::descriptor_results::DescriptorSlotKind::BorrowedStorage,
+            &[],
+        )
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect()
+    };
+    let mut analysis = crate::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+        &module.structural_types,
+        &graph,
+    );
     for machine in &module.machines {
-        if validate_machine(module, machine, &facts)?
+        if validate_machine(module, machine, &facts, Some(&mut analysis))?
             .iter()
             .any(|(_, established)| !established)
         {

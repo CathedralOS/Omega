@@ -23,10 +23,10 @@ no observation can produce.
 | Artifact | Bytes | SHA-256 |
 | --- | ---: | --- |
 | Gamma evaluator tape `gamma_evaluator_bytecode.tape` | 8,575 | `9a5f9acc2eeadb46ae1f1922fe7e7efaf379045c719152d6e1bbde909be9df4a` |
-| packed Epsilon evaluator closure | 617,354 | `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e` |
-| canonical entry `evaluator_entry.delta` | 10,950 | `52032438c1236f51095b761afcb3111df2ae2d73ac9be7e91883bbfbd273e5e3` |
+| packed Epsilon evaluator closure | 616,939 | `a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c` |
+| canonical entry `evaluator_entry.delta` | 10,563 | `ae89a49dd7aecaa63d860a8970060fb7fa24e324f422e466de78d7529e822c79` |
 | Delta support section | 2,998 | `cfdf07cf8010eba2fd7da47e6936ea1e237f637f4ded5791c272e03096d70255` |
-| canonical evaluator receipt | 729,060 | `bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368` |
+| canonical evaluator receipt | 726,601 | `1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af` |
 
 The canonical entry source is
 [`tests/epsilon/evaluator-entry/evaluator_entry.delta`](../../../tests/epsilon/evaluator-entry/evaluator_entry.delta).
@@ -47,7 +47,7 @@ The edge consumes one Gamma evaluator request whose sealed input is the
 complete EREQ envelope:
 
 ```text
-0..4    little-endian u32 receipt length = 729,060
+0..4    little-endian u32 receipt length = 726,601
 4..     exact canonical receipt bytes
 ...     sealed input = the EREQ v1 envelope:
 
@@ -184,29 +184,33 @@ bytes after its five-byte tag/code header.
 
 ## Storage account
 
-The evaluator is unchanged, so the diagnostic profile's storage account
-carries over verbatim: every Delta value is a node in the evaluator's
+The canonical and diagnostic entries use the same evaluator storage: every Delta value is a node in the evaluator's
 cumulative immutable pair arena, sparse runtime storage keeps declared extents
 exact without dense allocation (`O(log E)` new nodes per indexed update,
 sharing every untouched sibling), and declared bounds and value semantics stay
 exact under cumulative per-update allocation. The canonical receipt adds only
-the entry's fixed header validation and the stdin section rope — bounded,
-header-sized work outside the evaluator's own allocation pattern. The same
-sparse-array and repeated-update witnesses apply to this receipt; their
-resource exhaustion mode is `Incomplete` via pair-arena status 252 with empty
-stdout, not an observation. That mode is executed directly against this
-canonical receipt by
-[`tests/epsilon/pair-boundary/`](../../../tests/epsilon/pair-boundary/README.md):
-a bounded sparse-write loop is the admitted control, and its unbounded
-counterpart reached the refused 40,265,319th pair node inside the execution
-phase — status 252, empty stdout, empty stderr, 4,250.673 seconds on macOS
-arm64.
+the entry's fixed header checks and one cursor into the sealed input.
+The cursor starts at the admitted stdin offset. Each read advances toward the
+end of the request. Opening stdin costs the same number of pairs for an empty
+stream and a full one.
+
+In one Linux x86-64 run, a program read the first two bytes of a 1 MiB
+stdin, wrote the first byte (`Q`) and exited with the second (`7`). The
+native evaluator built from revision `b95769558667` took 1.376 seconds and
+peaked at 181,156 KiB RSS. The native evaluator built with the cursor took
+0.129 seconds and peaked at 26,492 KiB. Both returned `000700000051` for the
+same program and input. Only the evaluator identity differed in the request.
+These times cover one invocation on a shared host.
+
+The [pair-boundary test](../../../tests/epsilon/pair-boundary/README.md)
+exercises cumulative allocation through repeated sparse-array writes. An
+earlier macOS arm64 run reached its 40,265,319th pair during execution
+and returned status 252 with empty stdout and stderr in 4,250.673 seconds.
 
 ## Refusal witnesses
 
-Exact and adjacent pairs executed against the canonical receipt by
-[`tests/epsilon/evaluator-entry/`](../../../tests/epsilon/evaluator-entry/README.md)
-on macOS arm64:
+The [entry gate](../../../tests/epsilon/evaluator-entry/README.md) exercises
+the following request and execution boundaries.
 
 | Boundary | Exact (admitted) | Adjacent (refused) |
 | --- | --- | --- |
@@ -234,7 +238,8 @@ envelope binds the exact evaluator artifact, the exact source closure, the
 sealed stdin, this profile, and the complete
 `RunEpsilon` observation without host parsing or policy, within the construct
 coverage the evaluator currently implements. The last two legs are now
-exercised gates on this unchanged composition:
+covered by these gates. The following measurements describe an earlier
+compiler and evaluator composition.
 [`tests/epsilon/d-composition/`](../../../tests/epsilon/d-composition/README.md)
 checks and executes the whole 569,920-byte D closure — all eight manifested
 members — through this canonical edge, including D's own

@@ -2,11 +2,13 @@
 //! module. A direct primitive does not require an unrelated selected provider
 //! just to recover that contract's nominal result and progress information.
 
-use declaration_contracts::service_surface::ServiceReceiverApplication;
+use declaration_contracts::service_surface::{
+    ServiceReceiverApplication, ServiceSynchronousInvocation,
+};
 use effects::provider_plan::{ServiceMethod, ServiceSchema, ServiceSurface};
 use language_core::sealed_intrinsics::HostedOperation;
 use semantic_vocabulary::BoundaryMachineId;
-use terminal_psi::{CheckedBoundaryExecution, TerminalModule};
+use terminal_psi::{CheckedBoundaryExecution, TerminalCallableInvocation, TerminalModule};
 
 /// Project the complete supported hosted requirement, preserving declared type
 /// identities even when its physical result occupies no storage. The caller
@@ -140,6 +142,23 @@ fn requirement_schema(
         names.dedup();
         Ok::<_, String>(names)
     };
+    let envelope = module
+        .callables
+        .boundary_envelope(boundary.id)
+        .ok_or("primitive schema lost its checked invocation contract")?;
+    let mut synchronous_invocations = envelope
+        .invocations
+        .iter()
+        .map(|entry| match entry {
+            TerminalCallableInvocation::Parameter(position) => {
+                Ok(ServiceSynchronousInvocation::Parameter(*position))
+            }
+            TerminalCallableInvocation::Service(service) => service_name(*service)
+                .map(|name| ServiceSynchronousInvocation::Service(name.to_owned())),
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    synchronous_invocations.sort_unstable();
+    synchronous_invocations.dedup();
     surface.methods.push(ServiceMethod {
         completion: boundary.completion,
         name: method_name.into(),
@@ -161,7 +180,7 @@ fn requirement_schema(
         has_result: !boundary.result.is_unit(),
         result_type_identity,
         service_reach: services(&boundary.published_service_ceiling)?,
-        synchronous_invocations: services(&boundary.published_synchronous_entries)?,
+        synchronous_invocations,
         may_suspend: declaration.source.published_may_suspend,
         may_block: declaration.source.published_may_block,
         terminates_guarantee: boundary.unconditional_termination,

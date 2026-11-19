@@ -1038,10 +1038,9 @@ fn bind_requirement(
 /// closed requirement (`TypedTrees::instantiate_requirement_application`
 /// keys it by the application's identity).
 ///
-/// Served for a requirement of a trait with no parameters of its own, given
-/// the operands every application here reads ([`Operand::read`]). A trait
-/// applied at arguments, and any operand that reading does not serve, leave
-/// the call as typing wrote it.
+/// An explicit trait application or a named implementation supplies the
+/// declaring trait's arguments. Requirements of a trait with no parameters
+/// can use its declared scope. Each supplied operand is read by [`Operand::read`].
 fn apply_requirement(
     program: &mut TypedTrees,
     site: Site,
@@ -1049,18 +1048,57 @@ fn apply_requirement(
     arguments: &[StaticMachineArgument],
 ) -> Served<()> {
     let reference = site.requirement_application(program);
-    let selected = if reference.is_valid() {
+    let environment = if reference.is_valid() {
         let owner = program
             .expression_table
             .static_machine_application(applied.application)
             .lexical_owner;
-        let scope = program
-            .applied_requirement_scope(owner, reference)
-            .ok_or(unserved("requirement call lost its applied trait scope"))?
-            .environment();
+        Some(
+            program
+                .applied_requirement_scope(owner, reference)
+                .ok_or(unserved("requirement call lost its applied trait scope"))?
+                .environment(),
+        )
+    } else if program
+        .trait_machine_signature(applied.target)
+        .is_some_and(|(owner, _)| {
+            !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+        })
+    {
+        // A named, closed implementation supplies its trait arguments
+        // even when the call does not write a type application.
+        let member = match site.call(program) {
+            Some(StaticArgumentCall::Expression(_, call)) => {
+                program.named_conformance_call_member(call)
+            }
+            Some(StaticArgumentCall::Statement(call))
+                if call.static_requirement_dispatch.is_none() =>
+            {
+                program.named_conformance_member(call.receiver_symbol, applied.target)
+            }
+            _ => Ok(None),
+        }
+        .map_err(unserved)?;
+        member
+            .map(|(conformance, row, _)| {
+                crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                    program,
+                    conformance,
+                )
+                .and_then(|scope| scope.declaring_scope(program, row.declaring_trait))
+                .map(|scope| scope.environment())
+                .ok_or(unserved(
+                    "selected requirement lost its declaring trait application",
+                ))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+    let selected = if let Some(environment) = environment {
         prepare_requirement_in_scope(
             program,
-            &scope,
+            &environment,
             applied.target,
             applied.application,
             arguments,

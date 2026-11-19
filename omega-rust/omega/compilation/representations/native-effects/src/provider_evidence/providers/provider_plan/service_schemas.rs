@@ -397,7 +397,11 @@ mod tests {
             effective_carry: declaration_contracts::CarryPolicy::STRICT,
         });
         enter.service_reach.push("Svc".into());
-        enter.synchronous_invocations.push("before_return".into());
+        enter.synchronous_invocations.push(
+            declaration_contracts::service_surface::ServiceSynchronousInvocation::Service(
+                "before_return".into(),
+            ),
+        );
         enter.may_suspend = true;
         enter.terminates_guarantee = true;
         enter.declared_type_signature = [31; 32];
@@ -464,7 +468,7 @@ mod tests {
         digest.update(&bytes[..819]);
         assert_eq!(hexadecimal(digest.finalize().into()), declaration_digest);
         let mut digest = Sha256::new();
-        digest.update(b"omega.service-schema.sha256.v7\0");
+        digest.update(b"omega.service-schema.sha256.v10\0");
         digest.update(&bytes);
         assert_eq!(
             hexadecimal(*schema.declaration_identity_digest().as_bytes()),
@@ -480,7 +484,7 @@ mod tests {
             });
         let preimage = encoded.finish_preimage();
         let prefix =
-            &preimage[b"omega.service-schema.sha256.v7\0".len()..preimage.len() - trailer.len()];
+            &preimage[b"omega.service-schema.sha256.v10\0".len()..preimage.len() - trailer.len()];
         let mut historical = Sha256::new();
         historical.update(b"omega.service-schema.sha256.v6\0");
         historical.update(prefix);

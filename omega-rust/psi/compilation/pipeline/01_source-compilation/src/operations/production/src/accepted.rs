@@ -12,6 +12,7 @@ pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
     correspondence: crate::lowering::SourceCorrespondence,
+    requirement_reviews: Vec<crate::lowering::RequirementReview>,
     publication: terminal_codec::TerminalPublication,
     pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
     /// What the route says about the accepted source without refusing it
@@ -66,6 +67,15 @@ impl AcceptedTerminalSource {
                 "accepted forms lost their exact source correspondence",
             )]);
         }
+        let mut requirement_reviews: Vec<_> = prepared
+            .source
+            .forms
+            .iter_mut()
+            .flatten()
+            .flat_map(|form| std::mem::take(&mut form.review_requirements))
+            .collect();
+        requirement_reviews
+            .sort_by_key(|row| (row.declaration.arena_index(), row.declaration.generation()));
         let AcceptedCompilation {
             closure,
             additional,
@@ -74,6 +84,7 @@ impl AcceptedTerminalSource {
             source,
             closure,
             correspondence: prepared.source,
+            requirement_reviews,
             publication,
             package_review_numeric: Default::default(),
             advisories: DeferredAdvisories::new(additional),
@@ -610,6 +621,32 @@ impl AcceptedTerminalSource {
 
     pub fn closure(&self) -> &AcceptedClosure {
         &self.closure
+    }
+
+    /// Facts from the requirement's own accepted declaration form. Equal
+    /// duplicate readings agree; an applied or ambiguous account refuses.
+    pub fn requirement_review(
+        &self,
+        declaration: symbols::SymbolHandle,
+    ) -> Result<&crate::production::RequirementReviewMetadata, String> {
+        if self.source.trait_machine_signature(declaration).is_none() {
+            return Err("requirement review names a foreign declaration".to_owned());
+        }
+        let key = (declaration.arena_index(), declaration.generation());
+        let start = self.requirement_reviews.partition_point(|row| {
+            (row.declaration.arena_index(), row.declaration.generation()) < key
+        });
+        let end = self.requirement_reviews.partition_point(|row| {
+            (row.declaration.arena_index(), row.declaration.generation()) <= key
+        });
+        let rows = &self.requirement_reviews[start..end];
+        let first = rows
+            .first()
+            .ok_or_else(|| "public requirement has no accepted declaration metadata".to_owned())?;
+        if rows[1..].iter().any(|row| row.metadata != first.metadata) {
+            return Err("public requirement has competing applied declaration metadata".to_owned());
+        }
+        first.metadata.as_ref().map_err(Clone::clone)
     }
 
     /// Source record associations for the accepted executable form.

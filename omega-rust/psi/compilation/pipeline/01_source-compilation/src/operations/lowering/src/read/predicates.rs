@@ -99,6 +99,33 @@ impl Program<'_> {
         Option<crate::lowering::body::RuntimeMembership>,
         Option<(Proposition, ClauseText)>,
     )> {
+        let ((fact, clause), arguments) = self.with_clause_arguments(id, |program| {
+            program.read_runtime_membership(id, scope, membership)
+        })?;
+        if arguments.is_empty() {
+            return Ok((fact, clause));
+        }
+        let (clause, text) = clause.unwrap_or_else(|| {
+            (
+                Proposition::Truth,
+                self.clause_text(scope.slots, membership.value),
+            )
+        });
+        Ok((
+            fact,
+            Some((self.form_call_arguments(id, clause, arguments)?, text)),
+        ))
+    }
+
+    fn read_runtime_membership(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        membership: &crate::source_state::domain::ProofMembershipFact,
+    ) -> Checked<(
+        Option<crate::lowering::body::RuntimeMembership>,
+        Option<(Proposition, ClauseText)>,
+    )> {
         let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let typed = self.typed;
         let domain = crate::lowering::body::DomainInstance {
@@ -650,7 +677,10 @@ impl Program<'_> {
                 Some(definition.target_type),
             );
         }
-        let carrier = self.value_type(id, definition.target_type)?;
+        let carrier = match self.logical_byte_domain_carrier(id, definition.target_type, None)? {
+            Some(carrier) => carrier,
+            None => self.value_type(id, definition.target_type)?,
+        };
         let domain = crate::lowering::body::DomainInstance {
             declaration: definition.symbol,
             identity: definition.semantic_id,

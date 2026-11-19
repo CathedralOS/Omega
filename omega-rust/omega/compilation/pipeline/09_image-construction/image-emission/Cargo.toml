@@ -67,10 +67,7 @@ isa-x86_64 = { path = "../../06_native-encoding/isa-x86_64" }
 image-fixtures = { path = "../../../../../test-support/image-fixtures" }
 optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
 native-program-planning = { path = "../../03_native-program-planning" }
-compiler = { path = "../../../compiler" }
 image-emission = { path = ".", features = ["test-support"] }
 layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
 optimization-core = { path = "../../../representations/optimization-contracts" }
 extents = { path = "../../../../../psi/runtime/extents" }
-
-source-compiler = { path = "../../../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }

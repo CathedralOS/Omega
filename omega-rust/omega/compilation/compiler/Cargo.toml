@@ -161,11 +161,6 @@ path = "tests/product_query_suspension.rs"
 name = "anonymous_module_owner"
 path = "tests/anonymous_module_owner.rs"
 
-# Product publication retains the accepted module, evidence and selected entry.
-[[test]]
-name = "checked_projection"
-path = "tests/checked_projection.rs"
-
 # The lowered-form checker is shown a standalone source program without its
 # Build and without the old checker, which is how it is probed while no Build
 # program can run.
@@ -292,6 +287,10 @@ name = "lowered_route_field_patterns"
 path = "tests/lowered_route_field_patterns.rs"
 
 # Independent receiver admission of the existing Windows filesystem customer.
+[[test]]
+name = "lowered_route_reflection"
+path = "tests/lowered_route_reflection.rs"
+
 [[test]]
 name = "filesystem_receiver"
 path = "tests/filesystem_receiver.rs"

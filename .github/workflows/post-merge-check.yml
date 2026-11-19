@@ -9,8 +9,8 @@ name: Post-merge check
 # reports (without failing) std portable-call differences across targets that
 # the reviewed baseline lacks and calling-plan placements that disagree with
 # clang;
-# `sample` runs one sample and one program that imports `std`, each natively
-# and in the interpreter; `tests` runs every Rust test in the workspace, only
+# `sample` runs a language sample, a libc provider fixture and a program that
+# imports `std` in both engines. `tests` runs every Rust test in the workspace, only
 # when a run is started by hand with `full` set. `report` writes the verdict
 # and the batch's commits to the run summary.
 #
@@ -33,6 +33,9 @@ permissions:
   # The report job reads this workflow's earlier runs to find where the last
   # judged batch ended.
   actions: read
+
+env:
+  OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
 
 concurrency:
   group: post-merge-check
@@ -68,7 +71,7 @@ jobs:
         run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/omega-mbx/artifacts
+          path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Install verified mbx
         shell: bash
@@ -113,7 +116,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # One sample and one `std` program, natively and in the interpreter. It
+  # Run a language sample, a libc fixture and a `std` program in both engines. It
   # builds `omega` from main's restored warm build, beside the other jobs, so
   # the compile holds up none of them.
   sample:
@@ -144,7 +147,7 @@ jobs:
         run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/omega-mbx/artifacts
+          path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
@@ -153,7 +156,14 @@ jobs:
           cd /workspace/Omega
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
-      # The sample above imports no `std`, so a change that breaks the
+      - name: Read errno after a failed realpath in both engines
+        working-directory: /workspace/Omega/tests/fixtures/run/providers/provider_errno_realpath
+        run: |
+          omega=/workspace/Omega/target/debug/omega
+          test ! -e q
+          env -u CI -u GITHUB_ACTIONS "$omega" run --both \
+            --build-input build.omg --build-input main.omg main.omg < /dev/null
+      # The other programs import no `std`, so a change that breaks the
       # standard library would pass it. This fixture writes `K` through
       # `std`'s Console and its Build's provider choices. It reuses the
       # compiler the sample gate just built and takes about three minutes.
@@ -199,7 +209,7 @@ jobs:
         run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/omega-mbx/artifacts
+          path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Set up the host and restore main's warm build
         run: cd /workspace/Omega && bash tools/ci/session_host.sh
@@ -268,7 +278,7 @@ jobs:
             bad "the \`post-merge-check\` job failed or did not finish ($CHECKS); its log names the step."
           fi
           if [ "$SAMPLE" = success ]; then
-            ok "The sample and the std program run natively and in the interpreter."
+            ok "The language sample, libc fixture, and std program run in both engines."
           else
             bad "the \`sample\` job failed or did not finish ($SAMPLE)."
           fi

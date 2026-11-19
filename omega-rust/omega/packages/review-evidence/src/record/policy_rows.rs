@@ -1,6 +1,6 @@
 // Complete, inert comparison rows (`PackagePolicyRow` and `PackagePolicyRowKind`).
 //
-// `PACKAGE_POLICY_ROW_VERSION` (version 9) is independent of legacy review rows
+// `PACKAGE_POLICY_ROW_VERSION` (version 11) is independent of legacy review rows
 // and of the complete baseline grammar; builtin-function slots returned to
 // their published numbers after three fences were briefly inserted mid-table in
 // version 8, so version 8 rows must be re-reviewed rather than decoded.
@@ -13,7 +13,7 @@ use crate::record::accessors::field_projection_accessors;
 mod limits;
 pub use limits::{PackagePolicyRowLimits, PackagePolicyRowUsage};
 
-pub const PACKAGE_POLICY_ROW_VERSION: u16 = 9;
+pub const PACKAGE_POLICY_ROW_VERSION: u16 = 11;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackagePolicyRowKind {

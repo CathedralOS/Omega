@@ -707,7 +707,7 @@ pub struct Borrowed {
     /// trees render it: Terminal Psi declares the primitive type of the
     /// formal's place with an interned text identity, as it does a scalar
     /// home's (`Statement::Declare`). `None` for a record referent, whose
-    /// `RecordType` holds its own. Nothing compares it.
+    /// `RecordType` holds its own.
     pub home: Option<String>,
 }
 
@@ -1139,6 +1139,13 @@ pub enum ExpressionKind {
     /// local declared without an initializer a fresh read of its home; a
     /// record slot is the root place it holds.
     Slot(usize),
+    /// A value materialized as storage owned by this invocation.
+    /// Each evaluation establishes a fresh root for the loan.
+    OwnedTemporary {
+        occurrence: crate::source_state::expression::ExpressionHandle,
+        value: Box<Expression>,
+        scalar_home: Option<StructuralTypeId>,
+    },
     /// `R { a: x, b: y }`: each operand in authored order, then one atomic
     /// establishment of the record `result` names.
     /// `wiki/spec/terminal-psi/structural_access.md`: "Each operand is

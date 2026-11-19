@@ -14,7 +14,8 @@ TEST_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 GATE_DIR=$TEST_DIR
 GATE_LABEL="Interpreted Omega experiment"
 GATE_ENVS="delta/compiler_env.sh epsilon/evaluator_env.sh omega/compiler_env.sh"
-. "$GATE_DIR/../../gate_env.sh"OMEGA_BUILD="$OMEGA_PATH_OMEGA/build.omg"
+. "$GATE_DIR/../../gate_env.sh"
+OMEGA_BUILD="$OMEGA_PATH_OMEGA/application/construction/build.omg"
 DRIVER="$TEST_DIR/execution_driver.delta"
 
 . "$GATE_DIR/../../gate_host.sh"
@@ -34,10 +35,11 @@ if grep -Eq 'EpsilonAlpha|epsilon_alpha_' "$EPSILON"; then
     exit 1
 fi
 
-[ "$(grep -Fc 'Build::bind(builder, alpha_bootstrap::ProgramEntry, Main::main);' "$OMEGA_BUILD")" -eq 1 ] || {
-    echo "Interpreted Omega experiment: alpha_bootstrap is not one ordinary root" >&2
+if [ "$(grep -Fc 'Build::bind(builder, alpha_bootstrap::ProgramEntry,' "$OMEGA_BUILD")" -ne 1 ] ||
+    ! grep -Fq 'Build::bind(builder, alpha_bootstrap::ProgramEntry, entry_start);' "$OMEGA_BUILD"; then
+    echo "Interpreted Omega experiment: construction must bind one alpha_bootstrap root to entry_start" >&2
     exit 1
-}
+fi
 
 materialize_omega_compiler "$TMP/compiler.epsilon"
 grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
@@ -47,8 +49,8 @@ grep -F 'data AlphaTapeBuffer {' "$TMP/compiler.epsilon" >/dev/null || {
 
 EPSILON_LINES=$(wc -l < "$EPSILON" | tr -d ' ')
 EPSILON_BYTES=$(wc -c < "$EPSILON" | tr -d ' ')
-[ "$EPSILON_LINES" -eq 12097 ]
-[ "$EPSILON_BYTES" -eq 617354 ]
+[ "$EPSILON_LINES" -eq 12092 ]
+[ "$EPSILON_BYTES" -eq 616939 ]
 
 materialize_gamma_evaluator "$TMP/evaluator" >/dev/null
 EPSILON="$EPSILON" DELTA="$DELTA" DRIVER="$DRIVER" TEST_DIR="$TEST_DIR" \
@@ -61,19 +63,20 @@ import hashlib
 import os
 import struct
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 artifacts = {
     "evaluator source": (
         Path(os.environ["EPSILON"]).read_bytes(),
-        617354,
-        "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e",
+        616939,
+        "a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c",
     ),
     "slice driver": (
         Path(os.environ["DRIVER"]).read_bytes(),
-        2565,
-        "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38",
+        2150,
+        "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa",
     ),
 }
 for name, (data, size, digest) in artifacts.items():
@@ -99,96 +102,14 @@ with (test_directory / "fixtures.tsv").open(encoding="ascii", newline="") as man
 if set(controls) != {path.name for path in test_directory.glob("*.epsilon")}:
     raise SystemExit("fixture manifest does not cover the exact Epsilon fixture inventory")
 
-# These customers use whole, unchanged D members. The host only checks identities
-# and concatenates bytes; no function extraction or source translation occurs.
-compiler = Path(os.environ["OMEGA_PATH_OMEGA_COMPILER"])
+# The canonical and diagnostic entries exercise the same pinned D members and
+# literal observations under their respective request envelopes.
+sys.path.insert(0, str(test_directory.parent / "refinement"))
+sys.path.insert(0, str(test_directory.parent / "d-composition"))
+from customers import ALPHA_PROGRAM, member_customers
 
-def add_customer(name, members, expected_size, expected_digest, expected_output):
-    source = b""
-    for path, size, digest in members:
-        data = path.read_bytes()
-        if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
-            raise SystemExit(f"{name} member identity changed: {path.name}")
-        source += data
-    if len(source) != expected_size or hashlib.sha256(source).hexdigest() != expected_digest:
-        raise SystemExit(f"{name} packed identity changed")
-    controls[name] = (source, b"", expected_output)
-
-add_customer("Omega D lexical helpers", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "lexical_classification.epsilon", 2520,
-     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    (test_directory / "customers/omega_lexical/main.epsilon", 1486,
-     "6ce07453269102f7f468241d1a066a21cbe08c2a0652bb460c9c34d2f6ef11b2"),
-), 35912, "50fdad5c4d105f1fc43ca5e51453c8a90d1af5fb411bc4e785c7916042604a5b", b"\x00\x00\x00\x00\x00A")
-
-# Independent literal oracle, not a host encoder. Only the actual successful
-# observation's suffix is stamped below. Offsets follow Alpha SEMANTICS.md.
-alpha_program = bytes.fromhex(
-    "01 ff ffffffffffffffff"  # 0: imm EOF sentinel
-    "01 fe 0100000000000000"  # 10: imm counter increment
-    "01 fd 0000000000000000"  # 20: imm counter
-    "11 00"                  # 30: read byte
-    "10 00 ff 4a00000000000000"  # 32: jeq EOF -> halt at 74
-    "13 4c00000000000000"     # 43: call writer at 76
-    "03 fd fe"               # 52: increment counter
-    "0e 00 1e00000000000000"  # 55: jnz -> read at 30
-    "0c 1e00000000000000"     # 65: zero-byte back edge
-    "00 fd"                  # 74: halt with count
-    "12 00"                  # 76: write byte
-    "14"                     # 78: ret
-)
-add_customer("Omega D Alpha tape buffers", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "alpha_tape.epsilon", 30832,
-     "26e943b2386e1f27761951af92d163cdaa54f32bdd990aa4694b91f10cb095a3"),
-    (test_directory / "customers/omega_alpha_tape/main.epsilon", 7274,
-     "a186166b32d38cfafdc02fc47f1ad46f2af7d18ed15b5bb0f18b0caa525bb35d"),
-), 70012, "4f4aef0eab15d29b1a4307577a66d453cd6876a7fd9fb545b6bcc53e3c5406f4",
-    b"\x00\x00\x00\x00\x00ABCDEFGH\x0c\x09\x00\x00\x00\x00\x00\x00\x00\x14"
-    + alpha_program)
-
-add_customer("Omega D request and UTF-8", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "request_and_utf8.epsilon", 23678,
-     "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
-    (test_directory / "customers/omega_request/main.epsilon", 9510,
-     "0f838c478d6497cb4ca92d35f2aeed167b61eca4ab245847fa04da0fc2f7b0b7"),
-), 65094, "8e513a78b90527fb1992d051f9c70c790f397e06e8dea35f33d1ae95fe08680e", b"\x00\x00\x00\x00\x00A\n")
-
-add_customer("Omega D request invocation fields", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "request_and_utf8.epsilon", 23678,
-     "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
-    (test_directory / "customers/omega_request_invocation/main.epsilon", 5930,
-     "b02e8f6f973a55ead1131a28cb939af0d6c31501d38bd7b15cba2cff4e6710bd"),
-), 61514, "9b5c158538d2c25ace49339b5e9a0994c05d489c6ed8d5bffb1dd1a05458398c", b"\x00\x00\x00\x00\x00A\n")
-
-add_customer("Omega D numeric-base sums", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "lexical_classification.epsilon", 2520,
-     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    (test_directory / "customers/omega_numeric_base/main.epsilon", 1479,
-     "abf50c23d589624d59b7b3603918d5ab76e6a6192594c50534fbee6cdf334386"),
-), 35905, "85ef36c1c2f2055391338d8d467b0cac1f99865e5efddcfdff410719e79b56c1", b"\x00\x00\x00\x00\x00A")
-
-add_customer("Omega D lexer", (
-    (compiler / "representations.epsilon", 31906,
-     "fdef2b8dce977b936ca9995c17dd2780166530cc1b0e9d038e3a3ed5c7cc5a09"),
-    (compiler / "request_and_utf8.epsilon", 23678,
-     "fe55376ff4c64ca61a045fee84c7856d4eefdda502832b967f680517150577e5"),
-    (compiler / "lexical_classification.epsilon", 2520,
-     "12a3775f19ac6030bcca609acbf530ee64a09111cc24d7e941292e0d05fd996f"),
-    (compiler / "lexer.epsilon", 44649,
-     "e16e7a42ee0848ff56b06dff4e9900569ae57724a281c0d3bada847717412ba6"),
-    (test_directory / "customers/omega_lexer/main.epsilon", 6771,
-     "e4a262f1b011402970f958afbc6c950882bb75906fc7244b3ea19c8d489a0e06"),
-), 109524, "71a078bab91b0ea9b5a41efb42f3614ce227361c6cd476bc6e1b912f75bd23b0", b"\x00\x00\x00\x00\x00A")
+for customer in member_customers():
+    controls[customer.name] = (customer.source, customer.stdin, customer.expected)
 
 selected_customer = os.environ["EPSILON_SELECTED_CUSTOMER"]
 if selected_customer:
@@ -216,14 +137,25 @@ def evaluate(program, sealed_input=b"", timeout=300):
     )
     return process.returncode, process.stdout
 
-status, receipt = evaluate(compiler, request)
-if status != 0 or len(receipt) != 721484:
+def positive_seconds(name, default):
+    try:
+        seconds = int(os.environ.get(name, default))
+    except ValueError:
+        seconds = 0
+    if seconds <= 0:
+        raise SystemExit(f"{name} must be a positive integer")
+    return seconds
+
+receipt_timeout = positive_seconds("OMEGA_EPSILON_RECEIPT_SECONDS", 600)
+customer_timeout = positive_seconds("OMEGA_DCOMP_OBSERVATION_SECONDS", 14400)
+status, receipt = evaluate(compiler, request, timeout=receipt_timeout)
+if status != 0 or len(receipt) != 719006:
     raise SystemExit(
         f"evaluator slice returned {status} with {len(receipt)} bytes "
         f"and SHA-256 {hashlib.sha256(receipt).hexdigest()}"
     )
 if hashlib.sha256(receipt).hexdigest() != (
-    "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082"
+    "f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340"
 ):
     raise SystemExit(
         "evaluator receipt identity changed to "
@@ -251,7 +183,8 @@ for name, (source, stdin, expected) in controls.items():
     # Development-only separation of source and stdin, not the final Epsilon envelope.
     application_input = struct.pack("<I", len(source)) + source + stdin
     started = time.monotonic()
-    status, observation = evaluate(receipt, application_input)
+    timeout = customer_timeout if name.startswith("Omega D ") else 300
+    status, observation = evaluate(receipt, application_input, timeout=timeout)
     if (status, observation) != (0, expected):
         raise SystemExit(
             f"{name}: expected status 0 and {expected.hex()}, "
@@ -263,7 +196,7 @@ for name, (source, stdin, expected) in controls.items():
             flush=True,
         )
     if name == "Omega D Alpha tape buffers":
-        Path(os.environ["EPSILON_ALPHA_TAPE"]).write_bytes(observation[-len(alpha_program):])
+        Path(os.environ["EPSILON_ALPHA_TAPE"]).write_bytes(observation[-len(ALPHA_PROGRAM):])
 print(f"Epsilon execution: {len(controls)} exact diagnostic results pass", flush=True)
 PY
 

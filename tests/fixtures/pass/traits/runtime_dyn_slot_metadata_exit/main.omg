@@ -1,8 +1,10 @@
 // Expected exit: 0.
 // Owning requirement: RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.
-// Fact: the public dynamic slot records the returned borrow of its Utf8
-// parameter and that parameter's qualification precondition.
-public domain [u8]::Utf8 requires valid_utf8(self);
+// Package review keeps the argument's Utf8 requirement and records that
+// the returned view borrows from that argument.
+use omega::language::core::byte_observation;
+
+public domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
 
 public trait Window {
     machine view<'input>(packet: &'input [u8] in Utf8) -> &'input [u8] in Utf8;
@@ -13,10 +15,10 @@ Direct satisfies Window {
 }
 
 machine main() crashes Trap {
-    let packet: &[u8] in Utf8 = "é";
-    let selected: dyn Window = Direct as dyn Window;
-    let viewed: &[u8] in Utf8 = Window::view(selected, packet);
-    transition viewed == "é" {
+    let packet: &[u8] in Utf8 = "é" as +Utf8;
+    let selected: machine(packet: &[u8] in Utf8) -> &[u8] in Utf8 reaches none crashes none = Direct::view;
+    let viewed: &[u8] in Utf8 = selected(packet);
+    transition (viewed as -Utf8) == "é" {
         true -> done()
         false -> wrong()
     }

@@ -850,7 +850,6 @@ dependencies = [
  "arena",
  "boundary-applications",
  "calling-conventions",
- "compiler",
  "diagnostics",
  "encoding-admission",
  "extents",
@@ -888,7 +887,6 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
- "source-compiler",
  "target",
  "target-aarch64",
  "target-operations",
@@ -1470,7 +1468,6 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "source-compiler",
  "symbols",
  "target",
  "target-operations",
@@ -1686,15 +1683,11 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "arena",
  "bounded-process",
- "declaration-contracts",
  "libc",
  "serde",
  "serde_json",
  "sha2",
- "source-admission",
- "source-compiler",
 ]
 
 [[package]]
@@ -2623,7 +2616,6 @@ dependencies = [
  "source-parser",
  "source-syntax",
  "source-text",
- "storage-access",
  "symbols",
  "syntax-trees",
  "terminal-check-tables",
@@ -2976,6 +2968,7 @@ dependencies = [
  "extents",
  "language-core",
  "native-provider-runtime",
+ "native-provider-sponsor",
  "numerics",
  "orchestration",
  "platform-custody",
@@ -3015,7 +3008,6 @@ dependencies = [
  "schema-reflection",
  "semantic-vocabulary",
  "source-text",
- "storage-access",
  "terminal-psi",
  "wire",
 ]
@@ -3038,7 +3030,6 @@ dependencies = [
  "proof-admission",
  "schema-reflection",
  "semantic-vocabulary",
- "storage-access",
  "terminal-psi",
  "terminal-semantics",
  "wire",

@@ -4905,6 +4905,33 @@ pub(crate) mod term {
             (generation == term.generation()).then_some(required)
         }
 
+        /// Skip the tree walk when the constructor's recorded bound rules out this
+        /// variable. Terms without a usable bound need the full scan.
+        pub(crate) fn contains_free_variable(&self, term: TermHandle, index: u32) -> bool {
+            if self
+                .required_bindings(term)
+                .is_some_and(|required| required <= index)
+            {
+                return false;
+            }
+            let mut pending = vec![(term, index)];
+            while let Some((term, index)) = pending.pop() {
+                let node = self.node(term);
+                if let Term::Variable(position) = node {
+                    if *position == index {
+                        return true;
+                    }
+                    continue;
+                }
+                for (child, binders) in node.subterms().iter().rev() {
+                    if let Some(nested) = index.checked_add(binders) {
+                        pending.push((child, nested));
+                    }
+                }
+            }
+            false
+        }
+
         pub fn apply_arguments(
             &mut self,
             function: TermHandle,
@@ -9393,6 +9420,10 @@ mod tests {
             let mut restored: TermArena = compiler_storage::decode(&bytes, limits).unwrap();
             assert_eq!(arena, restored);
             assert_eq!(restored.required_bindings(closed), None);
+            assert!(arena.contains_free_variable(zero, 0));
+            assert!(!arena.contains_free_variable(closed, 0));
+            assert!(restored.contains_free_variable(zero, 0));
+            assert!(!restored.contains_free_variable(closed, 0));
             let before = crate::mathematical_core::substitution::remapped_nodes();
             assert_eq!(shift(&mut restored, closed, 0, 1), closed);
             assert!(crate::mathematical_core::substitution::remapped_nodes() > before);

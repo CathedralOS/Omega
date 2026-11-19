@@ -2352,6 +2352,7 @@ pub(crate) mod byte_views {
                                 &unit.boundary_machines,
                                 unit.geometry(),
                                 &unit.dynamic_dispatch,
+                                &unit.callables,
                                 |function, node| {
                                     super::call_origin::selected_boundary_operation(
                                         node, function, native, plan,
@@ -4057,27 +4058,46 @@ pub(crate) mod normalized_foreign {
                         plan.geometry(),
                     )
                     .ok_or(LegalizationError::custody())?;
-                let shape = calling_conventions::classified_boundary_shape(
-                    result.structural_type,
-                    plan.geometry(),
-                    policy,
-                )
-                .map_err(|cause| LegalizationError::custody_with_cause(cause))?;
-                Ok((
-                    TargetBoundaryResult::Structural(
-                        target_operations::TargetStructuralHomeRequirement {
-                            origin:
-                                target_operations::TargetStructuralHomeOrigin::OperationResult {
-                                    operation,
-                                    result: result.clone(),
-                                },
-                            layout: target_operations::TargetStructuralHomeLayout::Aggregate(
-                                storage,
-                            ),
-                        },
-                    ),
-                    Some(shape),
-                ))
+                let codec =
+                    TargetBoundaryResult::declared_reference_codec(result.structural_type, |id| {
+                        plan.geometry().declaration(id).ok()
+                    });
+                let shape = if codec.is_some() {
+                    let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                    ValueShape::integer(descriptor.address_byte_size, descriptor.alignment)
+                } else {
+                    calling_conventions::classified_boundary_shape(
+                        result.structural_type,
+                        plan.geometry(),
+                        policy,
+                    )
+                    .map_err(|cause| LegalizationError::custody_with_cause(cause))?
+                };
+                let home = target_operations::TargetStructuralHomeRequirement {
+                    origin: target_operations::TargetStructuralHomeOrigin::OperationResult {
+                        operation,
+                        result: result.clone(),
+                    },
+                    layout: target_operations::TargetStructuralHomeLayout::Aggregate(storage),
+                };
+                let result = match codec {
+                    Some(codec) => {
+                        let descriptor = runtime_abi::ScalarReferenceLayout::NATIVE;
+                        if storage
+                            != ValueShape::integer(descriptor.byte_size, descriptor.alignment)
+                            || shape
+                                != ValueShape::integer(
+                                    descriptor.address_byte_size,
+                                    descriptor.alignment,
+                                )
+                        {
+                            return Err(LegalizationError::custody());
+                        }
+                        TargetBoundaryResult::ScalarReference { home, codec }
+                    }
+                    None => TargetBoundaryResult::Structural(home),
+                };
+                Ok((result, Some(shape)))
             }
             _ => Err(LegalizationError::custody()),
         }
@@ -4592,6 +4612,7 @@ pub(crate) mod normalized_foreign {
                 &unit.boundary_machines,
                 types,
                 &unit.dynamic_dispatch,
+                &unit.callables,
                 |caller, node| {
                     super::call_origin::selected_boundary_operation(node, caller, native, plan)
                         .ok()
@@ -9274,7 +9295,11 @@ mod diagnostic_tests {
             identities: Default::default(),
             functions: Vec::new(),
         };
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let geometry = crate::preparation::native_geometry::NativeGeometry::new(
+            &[],
+            target::NativeTarget::linux_x64(),
+        )
+        .unwrap();
         let input =
             crate::preparation::native_geometry::NativeInput::with_types(&plan, &geometry, &types);
         let machine = MachineId::new(7).unwrap();

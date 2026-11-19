@@ -56,7 +56,8 @@ mod compilation;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{
-    DesignatedOperands, SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
+    DesignatedOperands, RequirementReview, RequirementReviewMetadata, SourceCorrespondence,
+    SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;
 #[cfg(any(test, feature = "test-support"))]
@@ -94,6 +95,22 @@ fn shared_reading(typed: &TypedTrees) -> SharedReading {
         calling_catalogs: Default::default(),
         content_definitions: Default::default(),
     })
+}
+
+/// Read the selected data application through the same type reader as a
+/// dispatch. Only a proved-empty case can be left out of a generated visitor.
+pub(crate) fn proved_empty_sum_cases(
+    typed: &TypedTrees,
+    reference: crate::source_state::types::TypeReferenceHandle,
+    owner: SymbolHandle,
+) -> Option<Vec<bool>> {
+    let mut program = read::Program::with_captures(
+        typed,
+        false,
+        declaration_contracts::source_identity::DependencyScope::Product,
+        shared_reading(typed),
+    );
+    program.proved_empty_sum_cases(reference, owner)
 }
 
 pub(crate) struct SharedProgram {
@@ -429,6 +446,9 @@ fn elaborate_source_for<'source>(
     captures: SharedReading,
 ) -> Result<PreparedProgram<'source>, Vec<Refusal>> {
     let mut program = read::Program::with_captures(typed, false, compilation.purpose, captures);
+    program.local_summary_scope = Some(read::LocalSummaryScope::Compilation(
+        compilation.subjects.to_vec(),
+    ));
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -443,10 +463,14 @@ fn elaborate_source_for<'source>(
     program.collected = Some(Vec::new());
     let entry = if let Some((entry, others)) = compilation.entries.split_first() {
         let entry = program.machine(*entry).map_err(alone)?;
-        program.fixed_inputs.push(entry);
+        program
+            .fixed_contracts
+            .push(read::FixedContract::Interface(entry));
         for other in others {
             match program.machine(*other) {
-                Ok(other) => program.fixed_inputs.push(other),
+                Ok(other) => program
+                    .fixed_contracts
+                    .push(read::FixedContract::Interface(other)),
                 Err(refused) => program.keep(Err(refused)).map_err(alone)?,
             }
         }
@@ -832,7 +856,9 @@ fn prepare_witness<'source>(
         .machine_by_symbol(implementation)
         .is_some_and(|machine| is_generic_template(typed, machine));
     let mut program = read::Program::with_captures(typed, generic, inputs.purpose, inputs.captures);
-    program.outcome_subjects = inputs.outcome_subjects.map(|subjects| subjects.to_vec());
+    program.local_summary_scope = inputs
+        .outcome_subjects
+        .map(|subjects| read::LocalSummaryScope::Witness(subjects.to_vec()));
     let entry = program.witnessed(
         declaring_trait,
         requirement,
@@ -1376,6 +1402,7 @@ fn finish_reading_into<'source>(
             .flat_map(|rows| rows.signatures.iter().map(|row| &row.storage)),
         &mut elaboration.module,
     )?;
+    source.review_requirements = program.review_requirements(diagnostic, &elaboration.module);
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -1850,6 +1877,7 @@ fn lower_program<'source>(
         services,
         &mut qualifications,
         &mut module,
+        declarations,
     )?;
     module.callables.declaration_envelopes = declaration_envelopes;
     let external_provider_candidates = external_providers.publish(

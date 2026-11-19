@@ -1320,6 +1320,64 @@ pub(crate) mod block_bindings {
         }
 
         #[test]
+        fn byte_descriptors_carry_ordinary_domains_only_from_checked_arrivals() {
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm,
+            };
+            let (mut execution, parameter, argument, arrived, edge) = byte_arrival(b"room", false);
+            let module = std::sync::Arc::get_mut(&mut execution.program)
+                .unwrap()
+                .fixture_module_mut();
+            let count = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let domain = &mut module.structural_domains[0];
+            domain.byte_predicate = None;
+            domain.predicate = Some(terminal_psi::StructuralDomainPredicate {
+                subject: PlaceId::new(1).unwrap(),
+                proposition: Proposition::Equal(
+                    ScalarTerm::ViewExtent {
+                        root: PlaceId::new(1).unwrap(),
+                        path: Vec::new(),
+                        scalar_type: count,
+                    },
+                    ScalarTerm::integer(count, IntegerValue::Unsigned(4)).unwrap(),
+                ),
+            });
+            let mut borrowed = parameter.clone();
+            borrowed.access = StructuralAccess::SharedBorrow;
+            let source = StructuralArgument::whole(argument.place, StructuralAccess::SharedBorrow);
+            let refused = match execution.prepare_byte_descriptor_argument(&borrowed, &source) {
+                Err(refused) => refused,
+                Ok(_) => panic!("four bytes alone cannot add a named domain at a call"),
+            };
+            assert!(
+                format!("{refused:?}")
+                    .contains("byte descriptor lacks its declared qualifications"),
+                "{refused:?}"
+            );
+            let (value, binding) = execution
+                .prepare_owned_byte_descriptor_argument(&parameter, &argument, &arrived, Some(edge))
+                .unwrap()
+                .unwrap();
+            assert_eq!(value.qualifications, parameter.qualifications);
+            execution
+                .structural_values
+                .insert(parameter.place, value.clone())
+                .unwrap();
+            execution
+                .byte_sequence_values
+                .insert(parameter.place, binding)
+                .unwrap();
+            let source = StructuralArgument::whole(parameter.place, StructuralAccess::SharedBorrow);
+            let (passed, binding) = execution
+                .prepare_byte_descriptor_argument(&borrowed, &source)
+                .unwrap()
+                .unwrap();
+            assert_eq!(passed.qualifications, value.qualifications);
+            assert_eq!(passed.opaque_identity, value.opaque_identity);
+            assert_eq!(binding.snapshot(&execution).unwrap().bytes(), b"room");
+        }
+
+        #[test]
         fn byte_descriptor_arrival_checks_actual_bytes_identity_and_access() {
             for invalid in 0..6 {
                 let bytes: &[u8] = if invalid == 0 {

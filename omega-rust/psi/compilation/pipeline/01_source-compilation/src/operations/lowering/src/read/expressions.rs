@@ -1890,7 +1890,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Establish { .. }
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
-                // A loan is formed afresh each time; two are never one.
+                // Each evaluation forms its own loan and temporary home.
+                | ExpressionKind::OwnedTemporary { .. }
                 | ExpressionKind::Borrow { .. }
                 | ExpressionKind::Referent(_),
                 _,

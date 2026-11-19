@@ -2,9 +2,9 @@
 //
 // `EvaluatedBuildSettings` captures the authored presentation intent (`application_intent`),
 // optional `application_identifier`, PE `subsystem` word, root
-// `optimizations`, `x86_deployment_claim`, legacy `privileged_services` settings, and
-// per-target `elf_interpreters`. Optional facets (`identifier`, `privileged_services`,
-// `elf_interpreter`) default cleanly when omitted by builds that predate those surfaces.
+// `optimizations`, `x86_deployment_claim`, and per-target `elf_interpreters`.
+// Optional facets (`identifier`, `elf_interpreter`) default cleanly when omitted
+// by builds that predate those surfaces.
 // The `x86_deployment_claim` is a single Build value that each realized x86 profile
 // admits independently via `X86DeploymentClaim::admit_for`, allowing a single Build
 // to bind AArch64 targets alongside x86 targets without conflict.
@@ -21,7 +21,6 @@ pub struct EvaluatedBuildSettings {
     pub subsystem: u16, // PE optional-header Subsystem word (console 3 when unstated).
     pub optimizations: OptimizationSelections, // Exact root-build optimization selections.
     pub x86_deployment_claim: X86DeploymentClaim, // Authored x86 deployment-feature claim admitted per realized x86 profile.
-    pub privileged_services: PrivilegedServicesGrants, // Legacy privileged-service settings (`port_io`, `interrupt_table`).
     pub elf_interpreters: ElfInterpreterSelections, // Authored per-target ELF loader selections (`PT_INTERP`).
     pub tests_disabled: bool, // Authored `builder.tests.disabled`: registered groups stay checked but are reported disabled, never run or passed.
 }
@@ -71,12 +70,6 @@ impl ElfInterpreterSelections {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PrivilegedServicesGrants {
-    pub port_io: bool,         // Legacy port-I/O setting (`in`/`out`).
-    pub interrupt_table: bool, // Legacy interrupt-table setting (`lidt`).
-}
-
 impl Default for EvaluatedBuildSettings {
     fn default() -> Self {
         Self {
@@ -85,7 +78,6 @@ impl Default for EvaluatedBuildSettings {
             subsystem: 3,
             optimizations: OptimizationSelections::default(),
             x86_deployment_claim: X86DeploymentClaim::Baseline,
-            privileged_services: PrivilegedServicesGrants::default(),
             elf_interpreters: ElfInterpreterSelections::default(),
             tests_disabled: false,
         }
@@ -224,34 +216,6 @@ pub(crate) fn extract_build_settings(
         other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
     }
 
-    let privileged_services = match field("privileged_services") {
-        Ok(BuildTimeValue::Struct { fields, .. }) => {
-            let flag = |name: &str| -> Result<bool, String> {
-                match fields
-                    .iter()
-                    .find(|(field, _)| field == name)
-                    .map(|(_, value)| value)
-                {
-                    Some(BuildTimeValue::Bool(value)) => Ok(*value),
-                    Some(other) => Err(format!(
-                        "Build.privileged_services.{name} is not a bool: {other:?}"
-                    )),
-                    None => Ok(false),
-                }
-            };
-            PrivilegedServicesGrants {
-                port_io: flag("port_io")?,
-                interrupt_table: flag("interrupt_table")?,
-            }
-        }
-        Ok(other) => {
-            return Err(format!(
-                "Build.privileged_services is not a PrivilegedServices struct: {other:?}"
-            ));
-        }
-        Err(_) => PrivilegedServicesGrants::default(),
-    };
-
     let elf_interpreters = match field("elf_interpreter") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
             ElfInterpreterSelections::from_build_rows(fields)?
@@ -289,7 +253,6 @@ pub(crate) fn extract_build_settings(
             subsystem,
             optimizations,
             x86_deployment_claim,
-            privileged_services,
             elf_interpreters,
             tests_disabled,
         },
@@ -380,7 +343,12 @@ mod tests {
 
     #[test]
     fn legacy_freestanding_is_validated_without_becoming_a_choice() {
-        let (admission, original) = admitted_build();
+        let (admission, mut original) = admitted_build();
+        assert!(
+            !fields(&mut original)
+                .iter()
+                .any(|(name, _)| name == "privileged_services")
+        );
         let baseline = admission
             .extract(&original)
             .expect("decode the real initial Build");
@@ -420,14 +388,15 @@ mod tests {
             let expected = format!("Build.freestanding is not a bool: {wrong:?}");
             set(&mut malformed, "freestanding", wrong);
             // The later invalid setting must not hide this first refusal.
-            set(&mut malformed, "privileged_services", BuildTimeValue::Unit);
+            set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
             assert_eq!(admission.extract(&malformed).unwrap_err(), expected);
         }
+
         let mut malformed = original.clone();
-        set(&mut malformed, "privileged_services", BuildTimeValue::Unit);
+        set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
         assert_eq!(
             admission.extract(&malformed).unwrap_err(),
-            "Build.privileged_services is not a PrivilegedServices struct: Unit"
+            "Build.elf_interpreter is not an ElfInterpreterSelection struct: Unit"
         );
 
         let mut changed = original.clone();

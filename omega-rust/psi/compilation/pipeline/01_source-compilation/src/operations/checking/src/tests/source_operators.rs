@@ -932,3 +932,22 @@ fn static_false_pattern_keeps_the_computation_guard() {
         "pruning cannot waive the ordinary computation guard: {verdicts:#?}"
     );
 }
+
+#[test]
+fn byte_equality_after_a_domain_cast_keeps_its_exact_operand_types() {
+    for (operator, peer, expected) in [("==", "é", true), ("==", "ê", false), ("!=", "é", false)]
+    {
+        let source = format!(
+            r#"
+domain [u8]::Utf8 requires byte_observation::valid_utf8(&self[..]);
+machine build_entry() -> bool {{
+    let encoded: &[u8] in Utf8 = "é" as +Utf8;
+    (encoded as -Utf8) {operator} "{peer}"
+}}
+"#
+        );
+        let verdict =
+            super::byte_domains::judge_build(&source).map_err(|error| format!("{error:?}"));
+        assert_operator_value(verdict, expected);
+    }
+}

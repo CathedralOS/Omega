@@ -2260,16 +2260,22 @@ fn finish_references(roots: ReferenceCollector) -> ProgramReferences {
 /// their own instance index ([`crate::source_state::MachineSpecializations`]).
 pub struct MachineSidecarIndex {
     service_reaches: Vec<(SymbolHandle, u32)>,
+    requirement_invocations: std::sync::OnceLock<
+        Vec<(
+            SymbolHandle,
+            arena::Handle<super::callable_applications::AppliedCallableSignature>,
+        )>,
+    >,
 }
 
 fn sidecar_symbol_key(symbol: SymbolHandle) -> u64 {
     (u64::from(symbol.arena_index()) << 32) | u64::from(symbol.generation())
 }
 
-fn sidecar_symbol_rows(
-    rows: &[(SymbolHandle, u32)],
+fn sidecar_symbol_rows<Row>(
+    rows: &[(SymbolHandle, Row)],
     symbol: SymbolHandle,
-) -> &[(SymbolHandle, u32)] {
+) -> &[(SymbolHandle, Row)] {
     if rows.is_empty() {
         return &[];
     }
@@ -2289,7 +2295,31 @@ impl MachineSidecarIndex {
             .map(|(index, row)| (row.owner, index as u32))
             .collect();
         service_reaches.sort_by_key(|(symbol, _)| sidecar_symbol_key(*symbol));
-        Self { service_reaches }
+        Self {
+            service_reaches,
+            requirement_invocations: Default::default(),
+        }
+    }
+
+    pub(crate) fn requirement_invocation_signatures<'program>(
+        &'program self,
+        program: &'program TypedTrees,
+        owner: SymbolHandle,
+    ) -> impl Iterator<Item = &'program crate::source_state::signature::StateSignature> {
+        // Some visitors never read derived rows. Prepare the complete owner
+        // associations only after this machine's visitor asks for them, then
+        // reuse them for this immutable walk. Stable sorting preserves arena
+        // order within each full owner, including repeated declaration views.
+        let rows = self.requirement_invocations.get_or_init(|| {
+            let mut rows = program
+                .requirement_invocation_signature_rows()
+                .collect::<Vec<_>>();
+            rows.sort_by_key(|(owner, _)| sidecar_symbol_key(*owner));
+            rows
+        });
+        sidecar_symbol_rows(rows, owner)
+            .iter()
+            .map(move |(_, row)| program.requirement_invocation_signature(*row))
     }
 }
 
@@ -4020,8 +4050,14 @@ fn visit_machine_with_sidecars(
             retained.declaration_description_dependency(entry.owner);
         }
         visit_declaration_dependencies(program, retained, machine.symbol);
-        for signature in program.requirement_invocation_signatures(machine.symbol) {
-            visit_signature(program, retained, signature);
+        if let Some(sidecars) = sidecars {
+            for signature in sidecars.requirement_invocation_signatures(program, machine.symbol) {
+                visit_signature(program, retained, signature);
+            }
+        } else {
+            for signature in program.requirement_invocation_signatures(machine.symbol) {
+                visit_signature(program, retained, signature);
+            }
         }
         if let Some(origin) = machine.lexical_region_origin {
             retained.declaration_description_dependency(origin.machine);

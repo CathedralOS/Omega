@@ -375,6 +375,54 @@ pub(crate) mod byte_sequences {
                 ))
             }
 
+            /// Checked casts and calls carry ordinary domains on the exact
+            /// descriptor. Only primitive predicates are runtime byte tests.
+            fn byte_descriptor_qualifications_hold(
+                &self,
+                binding: &ByteSequenceBinding,
+                value: &TerminalStructuralValue,
+                qualifications: &[semantic_vocabulary::StructuralDomainId],
+            ) -> Result<bool, TerminalInterpretError> {
+                if qualifications.windows(2).any(|pair| pair[0] >= pair[1]) {
+                    return Ok(false);
+                }
+                let domains = &self.program.catalogs.structural_domains;
+                let mut captured = None;
+                for identity in qualifications {
+                    let position = domains
+                        .binary_search_by_key(identity, |domain| domain.id)
+                        .map_err(|_| {
+                            malformed()
+                                .in_argument_preparation("byte descriptor names an unknown domain")
+                        })?;
+                    let domain = &domains[position];
+                    if domain.carrier != value.structural_type {
+                        return Err(malformed().in_argument_preparation(
+                            "byte descriptor domain has another carrier",
+                        ));
+                    }
+                    if domain.byte_predicate.is_some() {
+                        if captured.is_none() {
+                            captured = Some(binding.snapshot(self)?);
+                        }
+                        let Some(bytes) = &captured else {
+                            return Err(malformed());
+                        };
+                        if !terminal_semantics::byte_literal_qualifications_hold_in(
+                            std::iter::once(domain),
+                            value.structural_type,
+                            std::slice::from_ref(identity),
+                            bytes.bytes(),
+                        ) {
+                            return Ok(false);
+                        }
+                    } else if value.qualifications.binary_search(identity).is_err() {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+
             pub(crate) fn byte_field_read(
                 &self,
                 field: &StructuralByteSequenceRuntimeField,
@@ -837,26 +885,15 @@ pub(crate) mod byte_sequences {
                     return Err(malformed());
                 }
                 let permission_matches = match &binding {
-                    ByteSequenceBinding::Representation(_) => {
+                    ByteSequenceBinding::Representation(_) | ByteSequenceBinding::Immutable(_) => {
                         self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
                         parameter.multiplicity == StructuralMultiplicity::Unrestricted
                             && matches!(access, None | Some(StructuralAccess::SharedBorrow))
-                            && self.byte_binding_qualifications_hold(
+                            && self.byte_descriptor_qualifications_hold(
                                 &binding,
-                                parameter.structural_type,
+                                &presented,
                                 &parameter.qualifications,
                             )?
-                    }
-                    ByteSequenceBinding::Immutable(bytes) => {
-                        self.validate_descriptor_borrow(argument, StructuralAccess::SharedBorrow)?;
-                        parameter.multiplicity == StructuralMultiplicity::Unrestricted
-                            && matches!(access, None | Some(StructuralAccess::SharedBorrow))
-                            && terminal_semantics::byte_literal_qualifications_hold_in(
-                                self.program.catalogs.structural_domains.iter(),
-                                parameter.structural_type,
-                                &parameter.qualifications,
-                                bytes.bytes(),
-                            )
                     }
                     ByteSequenceBinding::MutableArray { .. }
                     | ByteSequenceBinding::MutableField { .. }
@@ -968,6 +1005,16 @@ pub(crate) mod byte_sequences {
                             error.in_argument_preparation("byte descriptor reborrow")
                         })?
                 };
+                let mut value = value;
+                terminal_semantics::present_structural_memberships(
+                    self.structural_types().values(),
+                    self.program.catalogs.structural_domains.iter(),
+                    parameter.structural_type,
+                    &mut value.qualifications,
+                    &mut value.projected_qualifications,
+                )
+                .map_err(|reason| malformed().in_argument_preparation(reason))?;
+                value.structural_type = parameter.structural_type;
                 if matches!(
                     requested_access,
                     StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -975,15 +1022,15 @@ pub(crate) mod byte_sequences {
                     if !parameter.qualifications.is_empty() || !value.qualifications.is_empty() {
                         return Err(malformed());
                     }
-                } else if !self.byte_binding_qualifications_hold(
+                } else if !self.byte_descriptor_qualifications_hold(
                     &binding,
-                    parameter.structural_type,
+                    &value,
                     &parameter.qualifications,
                 )? {
-                    return Err(malformed());
+                    return Err(malformed().in_argument_preparation(
+                        "byte descriptor lacks its declared qualifications",
+                    ));
                 }
-                let mut value = value;
-                value.structural_type = parameter.structural_type;
                 value.absorb_qualifications(&parameter.qualifications);
                 let binding = binding.with_descriptor_home(value.clone());
                 Ok(Some((value, binding)))

@@ -7,8 +7,8 @@ through the selected lower chain: the bound Gamma evaluator runs the bound
 Delta compiler over the packed `epsilon_compiler.delta.sources` closure plus
 the bound canonical entry
 [`evaluator_entry.delta`](../evaluator-entry/evaluator_entry.delta). The
-729,060-byte receipt (SHA-256
-`bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368`) then
+726,601-byte receipt (SHA-256
+`1d3a700d970acda04ee4699c19bf03a3654eb481a46755399d0daf759fe030af`) then
 consumes each customer framed as one EREQ v1 envelope and publishes canonical
 observations — `00` Exit, `01` Trap, `02` Reject — or an EEOUT refusal
 frame / lower-chain `Incomplete` status, per
@@ -54,9 +54,11 @@ requirement to execute the canonical D customer twice.
 
 The six whole-member customers concatenate the whole, unchanged D members
 pinned by `omega_compiler.epsilon.sources` with the pinned customer entries
-under `interpreted-omega-experiment/customers/`; member and packed identities
-are re-pinned here as records of the same bound obligation. Their canonical
-observations are the same exact byte strings the diagnostic gate expects:
+under `interpreted-omega-experiment/customers/`. The canonical and diagnostic
+gates share the [current member and packed identities](customers.py) and
+literal observations. The table records the earlier packed sizes used at
+`eda310c95dba` for the six member customers and at `2e33b6bfe9ef` for
+the two complete-closure customers.
 
 | Customer | Packed bytes | Canonical observation |
 | --- | ---: | --- |

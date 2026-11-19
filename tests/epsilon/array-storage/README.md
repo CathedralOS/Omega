@@ -14,7 +14,8 @@ Epsilon fixture and one private control. The fixture owns
 and verifies every index through a second tail-state loop, and writes `A` only
 after all checks complete. The expected diagnostic observation is
 `000000000041`, with outer status zero and empty stderr. The private control
-expects 40 bytes of `01` and exercises malformed/sparse runtime storage paths.
+expects 42 bytes of `01`. It checks malformed and sparse storage, including a
+sum case with the same spelling under a different owner.
 
 This is private scalability evidence for sparse array-child replacement. It is
 not a new Epsilon operation, a final storage representation, or a language
@@ -29,12 +30,12 @@ both controls in one invocation.
 The fixed source identity is 654 bytes,
 `365534cde66cb10a61eee9b52956a4f69d9fd69edacc82d7798319ef36756467`.
 
-The current receipt identity is 719826 bytes,
-`dd4985c0eb6e1f30bc2178f90dd30e25ae7b842fb544137f606a44e622000f22`.
-The private invariant driver is 8415 bytes,
-`2bc73c60572ddac4ebbfe9b36d4d0d5f44268b56fc0cbafc14dd2a127f947144`, and its
-compiled receipt is 721626 bytes,
-`55560f2c9b7575bc9774416ddbe2c2eb64da8ae8d1ac3ca873f1ba64d887819b`.
+The diagnostic receipt is 719006 bytes,
+`f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340`.
+The private invariant driver is 9044 bytes,
+`e5b3d4061a4155ec099b6208bd43ef4e1286da50033cd2f645f398e292ec548f`, and its
+compiled receipt is 722154 bytes,
+`92dcde363da357b20a31f2301ff64873372c2938d43bad070c434fb6022fb8d0`.
 The same V4 evaluator and unchanged fixture measured 570.692 seconds with the
 prior 702903-byte receipt
 (`3bc739535e467378a4c82d03358bcbe2ae91ba7447139c20ef202d1313585f92`)

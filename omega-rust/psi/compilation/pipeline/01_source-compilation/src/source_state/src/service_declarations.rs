@@ -491,12 +491,8 @@ pub mod projection {
             identities: &mut ProviderIdentityTable,
         ) -> Result<Vec<ServiceReceiverApplication>, Diagnostic> {
             let mut applications = Vec::new();
-            for scope in scopes.iter().filter(|scope| {
-                scope.declaration.is_boundary
-                    || !program
-                        .trait_machine_signatures(scope.declaration)
-                        .is_empty()
-            }) {
+            // Parents still distinguish service contracts when they add no methods.
+            for scope in scopes {
                 let unavailable =
                     |reason| super::projection_failure(program, scope.declaration.symbol, reason);
                 let mut argument_identities = Vec::new();
@@ -816,13 +812,13 @@ pub mod projection {
     use crate::source_state::trait_definition::{AppliedTraitScope, AppliedTypeReference};
     use declaration_contracts::service_surface::ServiceEntryAuthorityFlow;
     use declaration_contracts::service_surface::ServiceEntryClaim;
-    use declaration_contracts::service_surface::ServiceMethod;
     use declaration_contracts::service_surface::ServiceProgressEstablishmentRoute;
     use declaration_contracts::service_surface::ServiceProgressEstablishmentRouteKind;
     use declaration_contracts::service_surface::ServiceProgressPremise;
     use declaration_contracts::service_surface::ServiceProgressSubject;
     use declaration_contracts::service_surface::ServiceResultClaim;
     use declaration_contracts::service_surface::ServiceSurface;
+    use declaration_contracts::service_surface::{ServiceMethod, ServiceSynchronousInvocation};
 
     pub(super) fn projection_failure(
         program: &crate::source_state::TypedTrees,
@@ -1145,17 +1141,14 @@ pub mod projection {
                     .collect(entry.symbol, entry.contracts, None)
                     .map_err(|reason| projection_failure(program, requirement.symbol, reason))?,
                     service_reach: service_reach_row_names(program, requirement.service_reach_row),
-                    synchronous_invocations: machine_synchronous_invocation_names(
-                        program,
-                        requirement,
-                    )
-                    .ok_or_else(|| {
-                        projection_failure(
-                            program,
-                            requirement.symbol,
-                            "normal requirement lost its synchronous invocation roster",
-                        )
-                    })?,
+                    synchronous_invocations: machine_synchronous_invocations(program, requirement)
+                        .ok_or_else(|| {
+                            projection_failure(
+                                program,
+                                requirement.symbol,
+                                "normal requirement lost its synchronous invocation roster",
+                            )
+                        })?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
                     terminates_guarantee: published_termination.promises_termination(),
@@ -1246,7 +1239,7 @@ pub mod projection {
                     .collect(signature.symbol, signature.contracts, Some(scope))
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 service_reach: service_reach_names(program, trait_definition, signature),
-                synchronous_invocations: synchronous_invocation_names(program, signature)
+                synchronous_invocations: synchronous_invocations(program, signature)
                     .map_err(|reason| projection_failure(program, signature.symbol, reason))?,
                 may_suspend: signature.suspends,
                 may_block: signature.blocks,
@@ -1604,74 +1597,56 @@ pub mod projection {
         names
     }
 
-    fn synchronous_invocation_names(
+    fn synchronous_invocations(
         program: &crate::source_state::TypedTrees,
         signature: &crate::source_state::signature::StateSignature,
-    ) -> Result<Vec<String>, String> {
-        let parameters = program
-            .state_signature_parameters(signature)
-            .iter()
-            .collect::<Vec<_>>();
-        invocation_names(
+    ) -> Result<Vec<ServiceSynchronousInvocation>, String> {
+        invocation_entries(
             program,
             crate::source_state::invocations::declared_signature_invocations(program, signature)?,
-            &parameters,
+            program.state_signature_parameters(signature).len(),
         )
-        .ok_or_else(|| "an invoked target has no exact service identity".into())
+        .ok_or_else(|| "an invoked target has no exact service or parameter identity".into())
     }
 
-    fn machine_synchronous_invocation_names(
+    fn machine_synchronous_invocations(
         program: &crate::source_state::TypedTrees,
         machine: &crate::source_state::machine::Machine,
-    ) -> Option<Vec<String>> {
+    ) -> Option<Vec<ServiceSynchronousInvocation>> {
         let entry = program.machine_states(machine).first()?;
-        let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
-        invocation_names(
+        invocation_entries(
             program,
             crate::source_state::invocations::declared_machine_invocations(program, machine)
                 .ok()?,
-            &parameters,
+            program.state_parameters(entry).len(),
         )
     }
 
-    fn invocation_trait_name_for_type(
-        program: &crate::source_state::TypedTrees,
-        type_reference: crate::source_state::types::TypeReferenceHandle,
-    ) -> Option<String> {
-        let symbol = program
-            .type_reference_node(type_reference)
-            .type_symbol(&program.type_reference_table);
-        program
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol)
-            .map(|definition| program.trait_declaration_path(definition))
-    }
-
-    fn invocation_names(
+    fn invocation_entries(
         program: &crate::source_state::TypedTrees,
         targets: Vec<flow_effects::InvocationTarget>,
-        parameters: &[&crate::source_state::signature::StateParameter],
-    ) -> Option<Vec<String>> {
-        let mut names = targets
+        parameter_count: usize,
+    ) -> Option<Vec<ServiceSynchronousInvocation>> {
+        let mut entries = targets
             .into_iter()
             .map(|target| match target {
-                flow_effects::InvocationTarget::Parameter(index) => parameters
-                    .get(index as usize)
-                    .map(|parameter| parameter.type_reference)
-                    .and_then(|type_reference| {
-                        invocation_trait_name_for_type(program, type_reference)
-                    }),
+                flow_effects::InvocationTarget::Parameter(position) => ((position as usize)
+                    < parameter_count)
+                    .then_some(ServiceSynchronousInvocation::Parameter(position)),
                 flow_effects::InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
                     .find(|definition| definition.symbol == symbol)
-                    .map(|definition| program.trait_declaration_path(definition)),
+                    .map(|definition| {
+                        ServiceSynchronousInvocation::Service(
+                            program.trait_declaration_path(definition),
+                        )
+                    }),
             })
             .collect::<Option<Vec<_>>>()?;
-        names.sort_unstable();
-        names.dedup();
-        Some(names)
+        entries.sort_unstable();
+        entries.dedup();
+        Some(entries)
     }
 }
 pub use projection::ProjectedServiceSurface;

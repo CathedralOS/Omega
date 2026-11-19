@@ -1106,7 +1106,8 @@ mod tests {
             borrowed_storage_layouts: Default::default(),
             publication: Default::default(),
         };
-        let geometry = crate::preparation::native_geometry::NativeGeometry::new(&[]).unwrap();
+        let geometry =
+            crate::preparation::native_geometry::NativeGeometry::new(&[], target.target).unwrap();
         assert_eq!(
             project(machine, &[], &types, &target, &geometry, &instruction)
                 .unwrap()

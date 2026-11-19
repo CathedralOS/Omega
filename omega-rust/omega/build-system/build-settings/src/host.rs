@@ -12,6 +12,16 @@ pub mod bindings;
 pub(crate) mod filesystem;
 pub mod requests;
 
+// The original Output occupies the top existing host-marker slot. Dynamic
+// filesystem and Product-description markers descend strictly below it.
+pub(crate) const ORIGINAL_OUTPUT_IDENTITY: u64 = u64::MAX;
+
+pub(crate) fn descending_host_marker_identity(position: u64) -> Option<u64> {
+    ORIGINAL_OUTPUT_IDENTITY
+        .checked_sub(position.checked_add(1)?)
+        .filter(|identity| *identity > 1)
+}
+
 /// Whether `effect` is the emitted call a host row was published for. The
 /// three adapters find an effect's row by this and by nothing else. A row
 /// names its call by machine, operation and boundary because an operation

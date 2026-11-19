@@ -368,7 +368,7 @@ impl<'a> Storage<'a> {
                 references,
                 tables,
                 &leaf,
-                (value, row.scalar_type),
+                (value, row.scalar_type, None),
                 (entry, 0),
                 Construct::Value(value),
             )? {

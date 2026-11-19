@@ -290,6 +290,135 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
 }
 
 #[test]
+fn a_callable_byte_result_keeps_only_its_public_predicates() {
+    let source = r#"
+domain [u8]::Text requires byte_observation::valid_utf8(&self[..]);
+trait Window {
+    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text;
+}
+Direct satisfies Window {
+    machine view<'input>(packet: &'input [u8] in Text) -> &'input [u8] in Text { packet }
+}
+machine build_entry() -> bool {
+    let packet: &[u8] in Text = "é" as +Text;
+    let selected: machine(packet: &[u8] in Text) -> &[u8] in Text reaches none crashes none = Direct::view;
+    let viewed: &[u8] in Text = selected(packet);
+    (viewed as -Text) == "é"
+}
+"#;
+    let accepted = match judge_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the callable's public result retains its byte domain: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    let (caller, place, contract) = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine.operations().find_map(|operation| {
+                let terminal_psi::OperationKind::CallMachine { contract, .. } = operation.kind
+                else {
+                    return None;
+                };
+                Some((machine.id, operation.result.structural()?.place, contract))
+            })
+        })
+        .expect("the source invokes its retained machine value");
+    let predicates = terminal_semantics::byte_sequence_source_predicates(
+        module,
+        module.machine(caller).unwrap(),
+        place,
+    )
+    .expect("the public contract authenticates the actual result");
+    assert!(
+        predicates
+            .predicates()
+            .any(|predicate| predicate == ByteSequencePredicate::ValidUtf8)
+    );
+
+    let mut changed_result = module.clone();
+    let result = changed_result
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == caller)
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.place == place)
+        })
+        .unwrap();
+    let terminal_psi::OperationResult::Structural(result) = &mut result.result else {
+        unreachable!()
+    };
+    result.qualifications.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &changed_result,
+            changed_result.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "an operation cannot change the public result's qualifications"
+    );
+
+    let mut changed_header = module.clone();
+    let callable = changed_header
+        .callables
+        .contracts
+        .iter_mut()
+        .find(|row| row.id == contract)
+        .unwrap();
+    let terminal_psi::TerminalMachineResult::Structural(result) = &mut callable.proof_result else {
+        unreachable!()
+    };
+    result.qualifications.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &changed_header,
+            changed_header.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "disagreeing public result columns establish no predicate"
+    );
+
+    let mut missing_header = module.clone();
+    missing_header.callables.contracts.clear();
+    assert!(
+        terminal_semantics::byte_sequence_source_predicates(
+            &missing_header,
+            missing_header.machine(caller).unwrap(),
+            place,
+        )
+        .is_none(),
+        "an absent contract cannot be replaced by the operation annotation"
+    );
+
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Boolean(true)
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
 fn byte_domain_membership_survives_locals_formals_and_call_results() {
     let source = r#"
 domain [u8]::Text requires byte_observation::no_nul(&self[..]);
@@ -452,9 +581,9 @@ fn the_field_carries_its_predicates_on_its_type() {
 }
 
 /// What this slice does not judge is refused by name, never accepted: the
-/// literal without the cast that would give it the domain, a domain that
-/// is no primitive byte predicate, or one the empty view is not in. A
-/// previously given qualification must also be justified before it is erased.
+/// literal without its named cast, incompatible loan lifetimes, or a
+/// primitive domain the empty view is not in. Removing a qualification
+/// must still check the cast that originally established it.
 #[test]
 fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
@@ -623,9 +752,39 @@ fn byte_predicate_spelling_needs_its_exact_domain_call() {
         "machine valid_utf8(value: &[u8]) -> bool {{ false }}\n{}",
         rejection("valid_utf8", "plain").replace("byte_observation::valid_utf8", "valid_utf8")
     );
+    let source = format!("use omega::language::core::byte_observation;\n{shadowed}");
+    let typed = super::build_purpose::frontier_with_core(
+        "machine product_entry() {}",
+        &source,
+        declaration_contracts::source_identity::DependencyScope::Build,
+        BYTE_OBSERVATION_SOURCE,
+    );
+    let domains: Vec<_> = typed
+        .domain_definitions()
+        .iter()
+        .filter(|domain| {
+            matches!(
+                typed
+                    .type_reference_table
+                    .type_reference(domain.target_type),
+                crate::source_state::types::TypeReferenceNode::Slice { .. }
+            )
+        })
+        .collect();
+    let [domain] = domains.as_slice() else {
+        panic!("the fixture declares exactly one slice domain: {domains:?}");
+    };
+    assert!(
+        crate::source_state::byte_predicates::byte_slice_domain_predicate(&typed, domain).is_none(),
+        "a user declaration with the same spelling has no primitive byte meaning"
+    );
+    // Ordinary predicate translation now reads this helper. Its borrowed
+    // subject still needs lifetime support; this is not proof of its false
+    // predicate, and must not be counted as a primitive byte rejection.
     let reason = verdict(&shadowed);
     assert!(
-        reason.starts_with("type byte view in a domain that is not a primitive byte predicate"),
+        reason.starts_with("typing data field that elides a view's lifetime")
+            && reason.contains("the domain predicate"),
         "{shadowed}\n{reason}"
     );
 }
@@ -761,7 +920,7 @@ domain [u8; 3]::Text
 requires
     byte_observation::{predicate}(&self[..]);
 data Holder {{ bytes: [u8; 3] in Text; }}
-machine first(bytes: &[u8; 3] in Text) -> u8 {{ bytes[0] }}
+machine first(bytes: &[u8; 3] in Text) -> u8 {{ (bytes as -Text)[0] }}
 machine build_entry() {{
     let plain: [u8; 3] = [{bytes}];
     let holder: Holder = Holder {{ bytes: plain as +Text }};
@@ -846,6 +1005,115 @@ machine build_entry() {
 }
 
 #[test]
+fn a_shared_byte_view_join_checks_the_bytes_from_each_branch() {
+    let valid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/shared_byte_view_join/main.omg"
+    ));
+    let invalid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/views/shared_byte_view_join/main.omg"
+    ));
+    let build_source = |source: &str| {
+        source
+            .replace("use omega::language::core::byte_observation;", "")
+            .replace("machine entry_start()", "machine build_entry()")
+    };
+    match judge_portable_byte_build(&build_source(valid)) {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+            terminal_codec::decode_module(&bytes).unwrap();
+        }
+        other => panic!("both branches supply ASCII bytes: {other:?}"),
+    }
+    let verdict = judge_portable_byte_build(&build_source(invalid)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && unproved.len() == 1
+            && unproved[0].statement.contains("ascii_only")
+            && unestablished.len() == 1
+            && unestablished[0].detail.contains("byte-domain qualifications")),
+        "one branch supplies a non-ASCII byte: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_shared_array_prefix_uses_its_own_backing_membership() {
+    let valid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/shared_fixed_array_prefix/main.omg"
+    ));
+    let invalid = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/fail/views/shared_fixed_array_prefix/main.omg"
+    ));
+    let build_source = |source: &str| {
+        source
+            .replace("use omega::language::core::byte_observation;", "")
+            .replace("machine entry_start()", "machine build_entry()")
+    };
+    match judge_portable_byte_build(&build_source(valid)) {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+            terminal_codec::decode_module(&bytes).unwrap();
+        }
+        other => panic!("the borrowed array field supplies the ASCII prefix: {other:?}"),
+    }
+    let verdict = judge_portable_byte_build(&build_source(invalid)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && unproved.len() == 1
+            && unproved[0].statement.contains("ascii_only")
+            && unestablished.len() == 1
+            && unestablished[0].detail.contains("byte-domain qualifications")),
+        "the adjacent unqualified array supplies no ASCII proof: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_byte_read_keeps_ascii_facts_about_its_own_view() {
+    let source = r#"
+domain [u8]::Ascii requires byte_observation::ascii_only(&self[..]);
+
+machine ascii_byte(bytes: &[u8] in Ascii, other: &[u8], index: u64) -> u8
+requires index < bytes.len, index < other.len
+ensures result <= 127
+{
+    (bytes as -Ascii)[index]
+}
+
+machine build_entry() {
+    let byte: u8 = ascii_byte("A1" as +Ascii, "\xff2", 0);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let other_source = source.replace("(bytes as -Ascii)[index]", "other[index]");
+    let verdict = judge_build(&other_source).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected {
+            formations, violations, unproved, unestablished, conflicts, exceeded,
+        } if formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+            && unproved.len() == 1
+            && unproved[0].statement.contains("result <= 127")),
+        "the other view does not establish the same byte bound: {verdict:?}"
+    );
+}
+
+#[test]
 fn a_variable_byte_store_preserves_the_buffers_utf8_domain() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -893,4 +1161,75 @@ machine build_entry() crashes Trap {
     let encoded = terminal_codec::ClosedTerminalModule::new(accepted.elaboration.module).unwrap();
     terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes())
         .expect("the receiving checker must recognize the same carried reference custody");
+}
+
+/// A declared length rule is an ordinary domain predicate. Casts prove it
+/// for the actual descriptor; a call also requires that exact domain name.
+#[test]
+fn shared_byte_view_domains_check_lengths_and_keep_their_names() {
+    let source = r#"
+domain [u8]::FourBytes requires self.len == 4;
+machine length(input: &[u8] in FourBytes) -> u64 {
+    (input as -FourBytes).len
+}
+machine build_entry() {
+    let view: &[u8] in FourBytes = "room" as +FourBytes;
+    let count: u64 = length(view);
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let accepted = match judge_portable_byte_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the declared length must be proved and published: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    terminal_codec::decode_module(&terminal_codec::encode_module(module).unwrap())
+        .expect("the ordinary domain crosses independent artifact validation");
+    let mut forged = module.clone();
+    for domain in &mut forged.structural_domains {
+        if domain.byte_predicate.is_none()
+            && let Some(predicate) = &mut domain.predicate
+        {
+            predicate.proposition = Proposition::Falsehood;
+        }
+    }
+    terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+        .expect_err("a changed domain theory cannot reuse the original cast proof");
+    accepted.publish().unwrap();
+    let wrong_length = source.replace("\"room\" as +FourBytes", "\"rooms\" as +FourBytes");
+    match judge_build(&wrong_length) {
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }) => {
+            assert!(
+                formations.is_empty()
+                    && violations.is_empty()
+                    && unestablished.is_empty()
+                    && conflicts.is_empty()
+                    && exceeded.is_empty()
+            );
+            assert_eq!(unproved.len(), 1, "{unproved:?}");
+            assert!(matches!(
+                unproved[0].kind,
+                terminal_check_tables::obligations::ObligationKind::ArrivalInvariant { .. }
+            ));
+            assert!(
+                unproved[0].statement.contains("FourBytes")
+                    && unproved[0].statement.contains("self.len == 4"),
+                "{unproved:?}"
+            );
+        }
+        other => panic!("the longer literal must fail only its length-domain cast: {other:?}"),
+    }
+    let plain = source.replace("length(view)", "length(\"room\")");
+    let reason = verdict(&plain);
+    assert!(
+        reason.contains("domain") && reason.contains("FourBytes"),
+        "{reason}"
+    );
 }

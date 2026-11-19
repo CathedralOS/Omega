@@ -9,7 +9,7 @@ use crate::lowering::body::{Policy, Qualification};
 use crate::source_state::closed_numeric;
 use crate::source_state::domain::ProofFact;
 use crate::source_state::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
 };
 use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use semantic_vocabulary::{
@@ -307,7 +307,16 @@ impl Program<'_> {
     ) -> Checked<Option<(Proposition, ClauseText)>> {
         if let ProofFact::Membership(membership) = fact {
             return match scope.logical {
-                Some(logical) => logical.membership_clause(self, scope, membership).map(Some),
+                Some(logical) => {
+                    let ((clause, text), arguments) = self
+                        .with_clause_arguments(id, |program| {
+                            logical.membership_clause(program, scope, membership)
+                        })?;
+                    Ok(Some((
+                        self.form_call_arguments(id, clause, arguments)?,
+                        text,
+                    )))
+                }
                 None => self.runtime_membership_clause(id, scope, membership),
             };
         }
@@ -329,10 +338,91 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
     ) -> Checked<Proposition> {
-        let mut operands = [None, None];
-        let read = self.read_clause(id, scope, expression, &mut operands)?;
-        self.complete_contract_operator(id, scope, expression, operands)?;
-        Ok(read)
+        let (clause, arguments) = self.with_clause_arguments(id, |program| {
+            let mut operands = [None, None];
+            let clause = program.read_clause(id, scope, expression, &mut operands)?;
+            program.complete_contract_operator(id, scope, expression, operands)?;
+            Ok(clause)
+        })?;
+        self.form_call_arguments(id, clause, arguments)
+    }
+
+    /// Reading a helper can discard an argument's value, but must still form
+    /// that argument. Keep this work in the enclosing clause's own scope.
+    pub(super) fn with_clause_arguments<T>(
+        &mut self,
+        id: MachineId,
+        read: impl FnOnce(&mut Self) -> Checked<T>,
+    ) -> Checked<(T, Vec<ScalarTerm>)> {
+        self.clause_arguments.push(Vec::new());
+        let read = read(self);
+        let arguments = self.clause_arguments.pop().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("clause lost its argument formation scope"),
+            )
+        })?;
+        read.map(|result| (result, arguments))
+    }
+
+    pub(super) fn retain_call_arguments(
+        &mut self,
+        id: MachineId,
+        bound: impl IntoIterator<Item = (SymbolHandle, ScalarTerm)>,
+    ) -> Checked<()> {
+        // Declared scalar inputs and validated literals are already formed.
+        // Projections and computations still need their own formation check.
+        let mut pending = bound
+            .into_iter()
+            .map(|(_, term)| term)
+            .filter(|term| {
+                !matches!(
+                    term,
+                    ScalarTerm::Value { .. }
+                        | ScalarTerm::Boolean(_)
+                        | ScalarTerm::Integer { .. }
+                        | ScalarTerm::IeeeFloatLiteral(_)
+                )
+            })
+            .peekable();
+        if pending.peek().is_none() {
+            return Ok(());
+        }
+        let arguments = self.clause_arguments.last_mut().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("called machine has no owning clause for argument formation"),
+            )
+        })?;
+        arguments.extend(pending);
+        Ok(())
+    }
+
+    /// Reflexivity keeps each argument in ordinary formation. Keep the result
+    /// in the same clause: a false result must not become an independent
+    /// premise that excuses its own argument's partial computations.
+    pub(super) fn form_call_arguments(
+        &self,
+        id: MachineId,
+        clause: Proposition,
+        arguments: Vec<ScalarTerm>,
+    ) -> Checked<Proposition> {
+        if arguments.is_empty() {
+            return Ok(clause);
+        }
+        let mut formed = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            formed.push(canonical::equal(argument.clone(), argument, id)?);
+        }
+        // Once its terms form, the reflexive premise is true, so this retains
+        // exactly the helper's result. Formation visits the whole implication
+        // before publishing any consequence of the result.
+        Ok(Proposition::Implication {
+            premise: Box::new(canonical::conjunction(formed, id)?),
+            conclusion: Box::new(clause),
+        })
     }
 
     fn read_clause(
@@ -364,6 +454,14 @@ impl Program<'_> {
                 } else {
                     Proposition::Falsehood
                 });
+            }
+            ExpressionNode::Call(call)
+                if typed
+                    .symbols
+                    .fixed_core_declaration_for_symbol(call.target_symbol)
+                    == Some(symbols::FixedCoreDeclaration::Identity) =>
+            {
+                return self.scalar_identity_clause(id, scope, expression, call);
             }
             ExpressionNode::Call(call) if self.is_mathematical_term(expression) => {
                 return self.mathematical_clause(id, scope, call);
@@ -624,6 +722,192 @@ impl Program<'_> {
             .map(Proposition::Disjunction),
             _ => unserved("comparison"),
         }
+    }
+
+    /// A plain integer Identity forms the kernel's existing scalar identity.
+    /// The fixed declaration, written type, and both subjects belong to this
+    /// exact clause before the prover considers whether its identity holds.
+    fn scalar_identity_clause(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        call: &TableCallExpression,
+    ) -> Checked<Proposition> {
+        use crate::declaration_selection::AuthoredDeclarationSelectionKind::{
+            Call, StaticArgument,
+        };
+        use symbols::BuiltinTypeAtom;
+
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        if !scope.formal_fields || scope.logical.is_some() || scope.subject.is_some() {
+            return Err(unavailable(
+                "Identity outside a machine entry or return clause",
+            ));
+        }
+        if call.receiver.is_valid()
+            || call.runtime_call.is_some()
+            || call.build_selection.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.requirement_application.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.installed_interrupt_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || !call.evidence_arguments.is_empty()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return Err(unavailable("Identity has a special invocation form"));
+        }
+        let typed = self.typed;
+        let expressions = &typed.expression_table;
+        let [argument] = call.machine_arguments.as_ref() else {
+            return Err(unavailable("Identity requires one explicit type argument"));
+        };
+        let [_] = argument.path.as_ref() else {
+            return Err(unavailable(
+                "Identity needs one plain fixed integer type name",
+            ));
+        };
+        if !typed.contains_type_reference(argument.type_reference)
+            || !matches!(
+                typed.type_reference_table.type_reference(argument.type_reference),
+                TypeReferenceNode::Named { symbol, .. } if *symbol == argument.symbol
+            )
+            || !typed.symbols.symbols().nodes().is_valid(argument.symbol)
+            || argument.application.is_some()
+            || argument.const_literal.is_some()
+            || argument.evidence_projection.is_some()
+            || argument.authored_machine_application.is_valid()
+            || argument.authored_selection.is_some()
+        {
+            return Err(unavailable("Identity lost its exact written type"));
+        }
+        let Some(atom @ BuiltinTypeAtom::Integer(_)) =
+            typed.symbols.builtin_type_atom(argument.symbol)
+        else {
+            return Err(unavailable(
+                "Identity of a type other than a plain fixed integer",
+            ));
+        };
+        let application_handle = call.authored_machine_application;
+        if !expressions.static_machine_application_is_valid(application_handle) {
+            return Err(unavailable("Identity lost its authored type application"));
+        }
+        let application = expressions.static_machine_application(application_handle);
+        // The written application belongs to the declaration. The clause's
+        // result belongs to that machine's one state.
+        if self.entered_machine(scope.owner) != Some(application.lexical_owner) {
+            return Err(unavailable(
+                "Identity application has a different lexical declaration",
+            ));
+        }
+        if application.registration_operation != call.target_symbol
+            || application.callable_contract_source.is_valid()
+            || application.source_record_receiver.is_some()
+            || application.lifetime_binding_declaration.is_valid()
+            || application.binding_declaration.is_valid()
+            || application.conformance_selection.is_some()
+            || !application.input_selections.is_empty()
+            || !application.selected_machine_arguments.is_empty()
+            || !application.bindings.is_empty()
+            || !application.lifetime_bindings.is_empty()
+            || expressions.static_machine_application_arguments(application_handle)
+                != std::slice::from_ref(argument)
+        {
+            return Err(unavailable(
+                "Identity changed its authored type application",
+            ));
+        }
+        let source = expressions.source_span(expression);
+        let within_call = |selected: source_text::SourceSpan| {
+            selected.source_id == source.source_id
+                && source.span.start <= selected.span.start
+                && selected.span.start < selected.span.end
+                && selected.span.end <= source.span.end
+        };
+        let ledger = typed.authored_declaration_selections();
+        let selection = call
+            .authored_call_selection
+            .ok_or_else(|| unavailable("Identity lost its authored declaration"))?;
+        let call_row = ledger
+            .get(selection)
+            .filter(|row| row.kind() == Call && within_call(row.source_span()))
+            .ok_or_else(|| unavailable("Identity changed its source call occurrence"))?;
+        if call_row
+            .target()
+            .as_resolved()
+            .map(|row| row.selected_symbol())
+            != Some(call.target_symbol)
+            || call.authored_call_binding.is_none()
+        {
+            return Err(unavailable("Identity changed its selected declaration"));
+        }
+        let call_source = call_row.source_span();
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            Some(selection),
+            call.authored_call_binding,
+        )?;
+
+        let mut attached_call = false;
+        let mut written_type = None;
+        for occurrence in expressions.authored_selection_occurrences(expression) {
+            let row = ledger
+                .get(occurrence)
+                .ok_or_else(|| unavailable("Identity lost an attached source selection"))?;
+            if occurrence == selection {
+                if std::mem::replace(&mut attached_call, true) {
+                    return Err(unavailable("Identity repeats its source call occurrence"));
+                }
+            } else if row.kind() == StaticArgument
+                && row.top_level_static_argument_position() == Some(0)
+                && written_type.replace(row).is_some()
+            {
+                return Err(unavailable("Identity repeats its written type selection"));
+            }
+        }
+        if !attached_call
+            || written_type.is_none_or(|row| {
+                let typed_source = row.source_span();
+                !within_call(typed_source)
+                    || typed_source.span.start < call_source.span.end
+                    || row
+                        .target()
+                        .as_resolved()
+                        .map(|selected| selected.selected_symbol())
+                        != Some(argument.symbol)
+            })
+        {
+            return Err(unavailable(
+                "Identity lost the source selection for its written type",
+            ));
+        }
+
+        let [left, right] = expressions.expression_handles(call.arguments) else {
+            return Err(reject(
+                id,
+                SourceOrigin::Authored(call_source),
+                "Identity requires two subjects",
+            ));
+        };
+        let scalar = super::types::atom_type(atom, id)?;
+        let (left, left_type) = self.term(id, scope, *left, Some(scalar))?;
+        let (right, right_type) = self.term(id, scope, *right, Some(scalar))?;
+        let expected = ValueType::plain(scalar);
+        if left_type != expected || right_type != expected {
+            return Err(reject(
+                id,
+                SourceOrigin::Authored(call_source),
+                "Identity subjects must have the exact written plain integer type",
+            ));
+        }
+        canonical::equal(left, right, id)
     }
 
     /// A primitive byte predicate of a byte view (`no_nul(self)`,
@@ -1038,11 +1322,12 @@ impl Program<'_> {
                 if typed.expression_table.name_path_members(path.members).len() != 1 {
                     return unserved("projected value parameter");
                 }
-                let literal = scope
+                let (position, literal) = scope
                     .bound
                     .iter()
-                    .find(|(symbol, _)| *symbol == path.symbol)
-                    .map(|(_, literal)| literal.clone())
+                    .enumerate()
+                    .find(|(_, (symbol, _))| *symbol == path.symbol)
+                    .map(|(position, (_, literal))| (position, literal.clone()))
                     .ok_or_else(|| {
                         refuse(
                             id,
@@ -1050,6 +1335,7 @@ impl Program<'_> {
                             Unserved::Contract("value parameter binding"),
                         )
                     })?;
+                self.use_unfolded_argument(id, scope.owner, position)?;
                 let scalar_type = literal.scalar_type();
                 Ok((literal, ValueType::plain(scalar_type)))
             }
@@ -1133,8 +1419,11 @@ impl Program<'_> {
                     )
                 ) =>
             {
-                if !scope.formal_fields || scope.subject.is_some() {
-                    return unserved("extent outside an input requirement");
+                if !scope.formal_fields
+                    && scope.subject.is_none()
+                    && !matches!(scope.result, ResultTerm::Structural(..))
+                {
+                    return unserved("extent without a structural subject");
                 }
                 let Some((root, path, receiver)) = self.projected(id, scope, member.receiver)?
                 else {

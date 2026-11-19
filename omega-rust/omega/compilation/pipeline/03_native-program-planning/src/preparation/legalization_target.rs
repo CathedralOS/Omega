@@ -1802,9 +1802,8 @@ pub(crate) mod control_flow {
                             };
                             match expression {
                                 TargetScalarExpression::IeeeFloatElementViewRead { .. } => false,
-                                TargetScalarExpression::IeeeFloat(source) => {
-                                    matches!(expected_type, ScalarType::IeeeFloat(_))
-                                        && source.scalar_type() == *expected_type
+                                TargetScalarExpression::Source(source) => {
+                                    source.scalar_type() == *expected_type
                                         && source.source_value() == *value
                                         && available
                                             .matching(*value)
@@ -4904,7 +4903,13 @@ pub(crate) mod unit {
                                 reference_custody::reference_results(
                                     caller,
                                     None,
-                                    terminal_semantics::ReferenceCallContract::Callable(contract),
+                                    terminal_semantics::ReferenceCallContract::Callable(
+                                        terminal_semantics::references::callable_reference_result(
+                                            plan.structural_types.as_slice(),
+                                            contract,
+                                        )
+                                        .map_err(LegalizationError::custody_with_cause)?,
+                                    ),
                                     structural_arguments,
                                     expected_result,
                                     *psi_operation,

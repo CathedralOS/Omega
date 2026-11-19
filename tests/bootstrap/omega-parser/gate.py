@@ -52,13 +52,13 @@ def main():
     # These are whole source closures and an unchanged ordinary Delta adapter.
     # The host frames and compares bytes; the lower chain checks and runs D.
     epsilon = (directory / "epsilon_compiler.delta").read_bytes()
-    require_identity("Epsilon", epsilon, 617354,
-                     "4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e")
-    require_identity("execution adapter", adapter, 2565,
-                     "ba509602e6873117e59ffc544ada6c8aa16e20b08311e69a01b7cb3897199b38")
+    require_identity("Epsilon", epsilon, 616939,
+                     "a2830415a4d98176e9bd97e7f28a9c4512d926fdb5c502d73e19d874ed58ca4c")
+    require_identity("execution adapter", adapter, 2150,
+                     "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 818946,
-                     "30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f")
+    require_identity("D", compiler, 838497,
+                     "5aac4b30bb4c030c1807e03f690e608358414e25b6cffd4a17472121a7c472e2")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 59962,
                      "857fa18ffc214176022d57c2c5d6d5a506b86a4a25c9540460e4a70e73f603c2")
@@ -84,8 +84,8 @@ def main():
     receipt_timeout = env_seconds("OMEGA_PARSER_RECEIPT_SECONDS", "1800")
     receipt = evaluate(directory, delta_compiler,
                        request, receipt_timeout, "Epsilon receipt reconstruction")
-    require_identity("Epsilon execution receipt", receipt, 721484,
-                     "71a016f53f63501760e3a10632d86c9561aa0e8387b794b074d98ce98a823082")
+    require_identity("Epsilon execution receipt", receipt, 719006,
+                     "f368dfc90787025cdde8067ca81b83778ceec47791055320235e89e0d845f340")
 
     observation = evaluate(directory, receipt,
                            struct.pack("<I", len(customer)) + customer,

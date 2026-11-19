@@ -383,7 +383,7 @@ impl TargetScalarImmediate {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetScalarExpression {
-    IeeeFloat(crate::TargetUnitScalarArgumentSource),
+    Source(crate::TargetUnitScalarArgumentSource),
     IeeeFloatElementViewRead {
         format: semantic_vocabulary::IeeeFloatFormat,
         psi_operation: semantic_vocabulary::OperationId,
@@ -406,7 +406,7 @@ pub enum TargetScalarExpression {
 impl TargetScalarExpression {
     pub const fn scalar_type(&self) -> ScalarType {
         match self {
-            Self::IeeeFloat(source) => source.scalar_type(),
+            Self::Source(source) => source.scalar_type(),
             Self::IeeeFloatElementViewRead { format, .. } => ScalarType::IeeeFloat(*format),
             Self::Boolean(_) => ScalarType::Boolean,
             Self::Integer { scalar_type, .. } => ScalarType::Integer(*scalar_type),

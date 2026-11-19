@@ -170,6 +170,9 @@ pub enum Lender {
     Owner,
     /// Reborrowed from this immediate parent loan.
     Loan(ObligationId),
+    /// The descriptor carries a different local loan on different paths.
+    /// The checker finds the immediate parent on each incoming edge.
+    Selected,
     /// Reborrowed from the loan the invocation passed in at the captured
     /// place's root, a borrowed formal. That parent resource is the
     /// caller's, so this machine has no row for it and names it by the

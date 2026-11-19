@@ -41,8 +41,8 @@
         (NoEpsilonRuntimeValue (EpsilonEvaluatorBlockInternal (epsilon_declaration_end owner)))
         ((SomeEpsilonRuntimeValue normalized)
           (match normalized
-            ((EpsilonRuntimeSumValue sumOwner caseValue payload)
-              (epsilon_evaluate_sum_arms context arms sumOwner caseValue payload
+            ((EpsilonRuntimeSumValue caseValue payload)
+              (epsilon_evaluate_sum_arms context arms owner caseValue payload
                 bindings store output))
             ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorBlockInternal 0))
             ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorBlockInternal 0))

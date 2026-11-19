@@ -176,6 +176,16 @@ impl Program<'_> {
             .typed
             .expression_table
             .constructed_value_type_reference(source);
+        // Accounted casts already retain their exact post-cast source type.
+        // A physical carrier can be shared with the pre-cast qualified type,
+        // so its first record source is not the cast's operator operand.
+        let reference = if reference.is_valid() {
+            reference
+        } else if let ExpressionNode::Cast(cast) = self.typed.expression_table.expression(source) {
+            cast.result_type
+        } else {
+            reference
+        };
         if !reference.is_valid() {
             return Ok(self.operator_operand_reference(operand));
         }
@@ -311,6 +321,26 @@ impl Program<'_> {
                     .result
                     .and_then(|operand| self.operator_operand_reference(operand));
                 self.complete_builtin_operator(machine, owner, expression, &[collection, index])
+            }
+            (
+                ExpressionKind::Strict { left, right, .. }
+                | ExpressionKind::ShortCircuit { left, right, .. },
+                ExpressionNode::Binary(binary),
+            ) => {
+                let mut operands = [None; 2];
+                for (target, (source, operand)) in operands
+                    .iter_mut()
+                    .zip([(binary.left, left.result), (binary.right, right.result)])
+                {
+                    *target = match operand {
+                        Some(operand @ ValueType::Record(..)) => {
+                            self.structural_operator_operand_reference(machine, source, operand)?
+                        }
+                        Some(operand) => self.operator_operand_reference(operand),
+                        None => None,
+                    };
+                }
+                self.complete_builtin_operator(machine, owner, expression, &operands)
             }
             _ => {
                 // A case test has already resolved its case within the subject's

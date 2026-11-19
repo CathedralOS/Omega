@@ -2,7 +2,7 @@
 //! planning reads this normalized surface instead of reopening typed source.
 
 use crate::TerminalIdentityIndex;
-use declaration_contracts::service_surface::ServiceSurface;
+use declaration_contracts::service_surface::{ServiceSurface, ServiceSynchronousInvocation};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -182,6 +182,10 @@ impl crate::TerminalModule {
         }
         row.surface.validate_receiver_applications()?;
         for method in &row.surface.methods {
+            ServiceSynchronousInvocation::validate_entries(
+                &method.synchronous_invocations,
+                method.parameter_count,
+            )?;
             let identities = &row.surface.identities;
             if method.name.is_empty()
                 || method.requirement_owner.is_empty()

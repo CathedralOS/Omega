@@ -117,18 +117,21 @@ fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{ObligationKind, ObligationRow};
     let module = &elaboration.module;
-    let contains_reference = |ty| {
-        terminal_psi::structural_type_contains_reference_by(|id| module.structural_type(id), ty)
+    let contains_borrowed = |ty| {
+        terminal_psi::structural_type_has_borrowed_storage_by(|id| module.structural_type(id), ty)
     };
     let returns_borrowed = |operation: &terminal_psi::Operation| {
-        operation.declared_invocation().is_some_and(|call| {
-            call.structural_arguments
+        (operation.declared_invocation().is_some()
+            || operation.kind.callable_invocation().is_some())
+            && operation
+                .kind
+                .structural_arguments()
                 .iter()
                 .any(|argument| reference_access(argument.access).is_some())
-        }) && operation
-            .result
-            .as_structural()
-            .is_some_and(|result| contains_reference(result.structural_type))
+            && operation
+                .result
+                .as_structural()
+                .is_some_and(|result| contains_borrowed(result.structural_type))
     };
     let mut callers: Vec<_> = module
         .machines
@@ -154,7 +157,7 @@ fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -
                 || machine
                     .result
                     .structural()
-                    .is_some_and(|result| contains_reference(result.structural_type)))
+                    .is_some_and(|result| contains_borrowed(result.structural_type)))
     });
     let graph = terminal_borrowed_storage_graph_from(module, bodies.map(|machine| machine.id), &[])
         .map_err(|error| graph_unavailable(module, error))?;
@@ -189,12 +192,9 @@ fn publish_retained_call_loans(elaboration: &mut crate::lowering::Elaboration) -
                     &mut analysis,
                 )
                 .map_err(|error| graph_unavailable(module, error))?;
-                let call = operation
-                    .declared_invocation()
-                    .ok_or_else(|| unavailable("retained call loan lost its actual call"))?;
+                let arguments = operation.kind.structural_arguments();
                 for retained in retained {
-                    let argument = call
-                        .structural_arguments
+                    let argument = arguments
                         .get(retained.position)
                         .ok_or_else(|| unavailable("retained call loan has no actual argument"))?;
                     if retained.path == argument.path {
@@ -645,16 +645,45 @@ fn publish_parents(
                 }
             }
         }
+        let mut publish_call_payloads = |arguments, formals, before| {
+            publish_payload_children(
+                module,
+                machine,
+                tables,
+                arguments,
+                formals,
+                before,
+                &mut children,
+            )
+        };
         for block in &machine.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
                 if let Some(call) = operation.declared_invocation() {
-                    publish_payload_children(module, machine, tables, call, before, &mut children)?;
+                    publish_call_payloads(
+                        call.structural_arguments,
+                        module
+                            .invocation_structural_parameters(call.callee, call.required_contract),
+                        before,
+                    )?;
+                } else if let Some(call) = operation.kind.callable_invocation() {
+                    publish_call_payloads(
+                        call.structural_arguments,
+                        module
+                            .callables
+                            .contract(call.contract)
+                            .map(|contract| contract.structural_parameters.as_slice()),
+                        before,
+                    )?;
                 }
                 before = ProgramPoint::AfterOperation(operation.id);
             }
             if let Some((_, call)) = block.terminator.declared_invocation() {
-                publish_payload_children(module, machine, tables, call, before, &mut children)?;
+                publish_call_payloads(
+                    call.structural_arguments,
+                    module.invocation_structural_parameters(call.callee, call.required_contract),
+                    before,
+                )?;
             }
         }
         for successor in successor_loans
@@ -824,15 +853,13 @@ fn publish_parents(
                 )
                 .map_err(|error| graph_unavailable(module, error))?;
                 if !retained.is_empty() {
-                    let call = operation.kind.declared_invocation().ok_or_else(|| {
-                        unavailable(machine.id, "retained reference lost its actual call")
-                    })?;
+                    let arguments = operation.kind.structural_arguments();
                     // Each argument's own row first, in argument order, then
                     // each narrower retained region's row
                     // (`publish_retained_call_loans`).
                     let mut claimed = Vec::new();
-                    let mut own = Vec::with_capacity(call.structural_arguments.len());
-                    for source in call.structural_arguments {
+                    let mut own = Vec::with_capacity(arguments.len());
+                    for source in arguments {
                         let Some(access) = reference_access(source.access) else {
                             own.push(None);
                             continue;
@@ -851,12 +878,9 @@ fn publish_parents(
                         own.push(Some(id));
                     }
                     for retained in retained {
-                        let argument = call
-                            .structural_arguments
-                            .get(retained.position)
-                            .ok_or_else(|| {
-                                unavailable(machine.id, "retained call loan lost its argument")
-                            })?;
+                        let argument = arguments.get(retained.position).ok_or_else(|| {
+                            unavailable(machine.id, "retained call loan lost its argument")
+                        })?;
                         let id = if retained.path == argument.path {
                             own.get(retained.position).copied().flatten()
                         } else {
@@ -915,7 +939,8 @@ fn publish_parents(
                     "reference reborrow has no exact formation point",
                 )
             })?;
-            let parent = terminal_semantics::borrowed_loan_source(
+            use terminal_semantics::{BorrowedLoanSource, BorrowedLoanSources};
+            let lender = terminal_semantics::borrowed_loan_sources(
                 module,
                 machine,
                 &mut analysis,
@@ -926,6 +951,15 @@ fn publish_parents(
                     .filter(|(id, _)| *id != child)
                     .map(|(id, life)| (*id, life)),
             )
+            .and_then(|sources| match sources {
+                BorrowedLoanSources::Selected(_) => Ok(Lender::Selected),
+                other => Ok(match other.single()? {
+                    BorrowedLoanSource::Owner => Lender::Owner,
+                    BorrowedLoanSource::Incoming => Lender::Incoming,
+                    BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
+                    BorrowedLoanSource::Provider => Lender::Provider,
+                }),
+            })
             .map_err(|reason| {
                 let mut refusal = refuse(
                     machine.id,
@@ -950,16 +984,7 @@ fn publish_parents(
                 }
                 refusal
             })?;
-            updates.push((
-                machine.id,
-                child,
-                match parent {
-                    terminal_semantics::BorrowedLoanSource::Owner => Lender::Owner,
-                    terminal_semantics::BorrowedLoanSource::Incoming => Lender::Incoming,
-                    terminal_semantics::BorrowedLoanSource::Loan(parent) => Lender::Loan(parent),
-                    terminal_semantics::BorrowedLoanSource::Provider => Lender::Provider,
-                },
-            ));
+            updates.push((machine.id, child, lender));
         }
     }
     for (machine, child, lender) in updates {
@@ -1035,7 +1060,8 @@ fn publish_payload_children(
     module: &TerminalModule,
     machine: &terminal_psi::TerminalMachine,
     tables: &terminal_check_tables::MachineTables,
-    call: terminal_psi::ModuleInvocationInputs<'_, semantic_vocabulary::TargetMachineCallable>,
+    arguments: &[terminal_psi::StructuralArgument],
+    formals: Option<&[terminal_psi::StructuralParameterDeclaration]>,
     before: terminal_check_tables::ProgramPoint,
     children: &mut arena::IdTable<
         semantic_vocabulary::ObligationId,
@@ -1048,16 +1074,15 @@ fn publish_payload_children(
     use terminal_check_tables::obligations::ObligationKind;
     use terminal_semantics::descriptor_lifetimes::descriptor_location;
     let unavailable = |reason| refuse(machine.id, Construct::Machine, Unserved::Call(reason));
-    let formals = module
-        .invocation_structural_parameters(call.callee, call.required_contract)
-        .ok_or_else(|| unavailable("payload loan has no exact callable contract"))?;
-    if formals.len() != call.structural_arguments.len() {
+    let formals =
+        formals.ok_or_else(|| unavailable("payload loan has no exact callable contract"))?;
+    if formals.len() != arguments.len() {
         return Err(unavailable(
             "payload loan arguments differ from callable formals",
         ));
     }
     let mut claimed = Vec::new();
-    for (argument, formal) in call.structural_arguments.iter().zip(formals) {
+    for (argument, formal) in arguments.iter().zip(formals) {
         let Some(access) = reference_access(argument.access) else {
             continue;
         };
