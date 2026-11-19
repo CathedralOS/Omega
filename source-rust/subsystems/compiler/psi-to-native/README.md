@@ -23,7 +23,7 @@ Production stage consumers are the native entry, packages within the same stage,
 | Target descriptions | [Targets](targets/) owns target data, calling conventions and register descriptions. Target facts can be queried without constructing a program. |
 | Existing code with no active caller or unresolved ownership | `_recycling/` retains source for comparison or a rewrite. Cargo paths and Rust module declarations in active packages must resolve outside it. |
 
-The sort establishes ownership of the files. The driver still passes the proposal, execution selections and admission policy together in [its realization request](pipeline/request.rs). Repair that handoff by following a concrete consumer back to the stage that can issue the needed fact. The [representation plan](../../../../representation-pipeline.md) describes the isolation check for each adjacent pair.
+The [driver](pipeline/mod.rs) admits the selected providers and entry once. Runtime preparation receives the admitted result, the target and optimization choices. Image preparation also receives the callable plan and image request. The [representation plan](../../../../representation-pipeline.md) describes the isolation check for each adjacent pair.
 
 ## Reviewing a bootstrap environment assumption
 

@@ -1,11 +1,3 @@
-// Native compilation and realization requests (`NativeCompileRequest` and
-// `NativeRealizationRequest`) and baseline optimizer work budgets.
-// `native_optimization_budget` calibrates per-pass traversal and validation
-// ceilings for one `OPTIMIZATION_REFERENCE_EXTENT` (2^16 units) so register
-// pressure recovery, callee-save derivation, and fixed-occurrence linear audits
-// scale with the function or program they inspect without changing candidate or
-// commit limits.
-
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationWorkBudget;
 use provider_admission::{
@@ -13,26 +5,7 @@ use provider_admission::{
 };
 use target::ExecutableImageEmissionRequest;
 
-pub(crate) struct NativeRealizationRequest<'request> {
-    pub retain_native_stage_inputs: bool,
-    pub observation: &'request crate::pipeline::observations::NativePipelineObservation,
-    pub proposal: &'request artifact_lowering::TerminalNativeRealizationProposal,
-    pub execution: &'request artifact_lowering::PreparedNativeExecution,
-    pub scalar_applications: Option<artifact_lowering::NativeScalarApplications<'request>>,
-    pub program_entry: artifact_lowering::NativeProgramEntrySettlement<'request>,
-    pub admission: artifact_lowering::NativeAdmissionRequest<'request, 'request>,
-    pub image_request: ExecutableImageEmissionRequest,
-    pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
-    pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub target_provider_proposals: &'request [target_provider_admission::TerminalTargetProviderProposal],
-}
-
-impl NativeRealizationRequest<'_> {
-    pub fn optimization_budget(&self) -> OptimizationWorkBudget {
-        native_optimization_budget()
-    }
-}
-
+/// Per-pass traversal and validation ceilings for the reference extent (2^16 units).
 pub(crate) fn native_optimization_budget() -> OptimizationWorkBudget {
     OptimizationWorkBudget::new(1_000_000, 100_000, 4_000_000, 100_000, 1_000_000)
         .expect("compiler baseline optimizer ceilings are nonzero")
