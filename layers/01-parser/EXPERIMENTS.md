@@ -88,6 +88,8 @@ Measured, not guessed:
 | 3 | Spelling comparisons are a quarter of the grammar, so do fewer: test the cheap condition first. | A prefix word is only looked for when a word follows; the binary-operator test looks for punctuation before comparing with `in`. | 122.1 ms to 121.3 ms, under 1% faster. | Yes | **Kept**, as part of 4. By itself it is inside what code placement can cause, so it shows that these comparisons were not the cost. |
 | 4 | Wrapping a finished node shifts its events to make room; per kind of source, the constructs that wrap (binary expressions at 9.8 ns per token, statements at 7.9) cost the most, and those that do not (data at 5.6, types at 5.7) the least. | A statement is opened before its expression and given its kind at the end; a pattern that is one name takes a direct path. Same tree. | With 3: 122.3 ms to 118.7 ms, **3% faster**, in three alternating runs (118.2 to 119.1 against 122.0 to 124.9). | Yes | **Kept.** |
 
+| 5 | Every grammar function returns `Result<_, ParseError>`. The error is 40 bytes, so each result goes through memory on every call to carry an error that almost never exists. | The error is recorded in the parser when found; functions return `Result<_, ParseFailed>`, where `ParseFailed` has no size. | 118.7 ms to 112.0 ms, **5.6% faster**, in three alternating runs (112.0 each against 118.4 to 119.1). | Yes | **Kept.** |
+
 What my guess got wrong in experiment 1: I priced the classification at
 nothing, because it is "one pass". It was the most expensive pass in the
 parser. I also guessed the wrong cost inside the grammar; it was the spelling

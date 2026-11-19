@@ -6,9 +6,25 @@ use crate::parse_error::ParseError;
 use crate::parse_error_kind::ParseErrorKind;
 use crate::syntax_tree::SyntaxTree;
 use omega_lexer::{Punctuation, SourceSpan, Token, TokenKind};
+use std::cell::Cell;
 
-/// What every grammar function returns: the thing it parsed, or the first error.
-pub(crate) type Parsed<T = ()> = Result<T, ParseError>;
+/*
+    :SmallFailure
+    What every grammar function returns: the thing it parsed, or the fact that
+    it failed. The error itself is not in the result. It is written into the
+    parser when it is found, and `get_error` hands it over once parsing has
+    stopped.
+
+    The reason is size. A `ParseError` is 40 bytes, so a `Result` carrying one
+    is returned through memory: every grammar function would write its answer
+    to the stack and every caller would read it back, on every call, to carry
+    an error that almost never exists. `ParseFailed` has no size, so the common
+    results are one byte or a number, and travel in registers. Experiment 5.
+*/
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ParseFailed;
+
+pub(crate) type Parsed<T = ()> = Result<T, ParseFailed>;
 
 /*
     :NestingLimit
@@ -67,13 +83,14 @@ pub(crate) struct Parser<'source> {
     position: usize,                    // Index into `meaningful_token_indices` of the next token to consume.
     events: Vec<Event>,
     nesting_depth: u32,
+    recorded_error: Cell<Option<ParseError>>, // The error behind the most recent `ParseFailed`. See :SmallFailure.
 }
 
 impl<'source> Parser<'source> {
     pub(crate) fn new(
         source_bytes: &'source [u8],
         tokens: &'source [Token],
-    ) -> Parsed<Self> {
+    ) -> Result<Self, ParseError> {
         let mut meaningful_token_indices = Vec::with_capacity(tokens.len() / 2 + 1);
 
         for (token_index, token) in tokens.iter().enumerate() {
@@ -98,6 +115,7 @@ impl<'source> Parser<'source> {
             position: 0,
             events: Vec::with_capacity(event_capacity),
             nesting_depth: 0,
+            recorded_error: Cell::new(None),
         })
     }
 
@@ -105,9 +123,9 @@ impl<'source> Parser<'source> {
     pub(crate) fn finish(
         self,
         expected: &'static str,
-    ) -> Parsed<SyntaxTree> {
+    ) -> Result<SyntaxTree, ParseError> {
         if !self.at_end() {
-            return Err(self.error(expected));
+            return Err(self.build_error(expected));
         }
 
         Ok(SyntaxTree::new(self.events, self.meaningful_token_indices))
@@ -304,8 +322,52 @@ impl<'source> Parser<'source> {
 
     // ---- Errors ----
 
-    /// An error at the next token: unexpected token, or unexpected end if there is none.
+    /// Records an error at the next token (unexpected token, or unexpected end if there is none)
+    /// and returns the marker to fail with. See :SmallFailure.
     pub(crate) fn error(
+        &self,
+        expected: &'static str,
+    ) -> ParseFailed {
+        self.fail_with(self.build_error(expected))
+    }
+
+    /// Records an error of a specific kind at the next token.
+    pub(crate) fn error_of_kind(
+        &self,
+        kind: ParseErrorKind,
+        expected: &'static str,
+    ) -> ParseFailed {
+        self.fail_with(ParseError::new(kind, expected, self.get_span(0)))
+    }
+
+    /// Records `parse_error` as the reason parsing is stopping.
+    ///
+    /// Nothing in the grammar recovers from a failure, so the error recorded last is the one the
+    /// caller is told about. The one place that records twice is :IfStatement, which replaces a
+    /// plain error with a more useful one.
+    pub(crate) fn fail_with(
+        &self,
+        parse_error: ParseError,
+    ) -> ParseFailed {
+        self.recorded_error.set(Some(parse_error));
+
+        ParseFailed
+    }
+
+    /// The error behind the most recent failure, if there has been one.
+    pub(crate) fn get_recorded_error(&self) -> Option<ParseError> {
+        self.recorded_error.get()
+    }
+
+    /// The error to report after a grammar function has returned `ParseFailed`.
+    pub(crate) fn get_error(&self) -> ParseError {
+        // Every `ParseFailed` is made by `fail_with`, so one is always recorded; the fallback is
+        // here so that a mistake in that reasoning reports an odd error and does not panic.
+        self.get_recorded_error()
+            .unwrap_or_else(|| self.build_error("valid source"))
+    }
+
+    fn build_error(
         &self,
         expected: &'static str,
     ) -> ParseError {
@@ -315,14 +377,6 @@ impl<'source> Parser<'source> {
             ParseErrorKind::UnexpectedToken
         };
 
-        self.error_of_kind(kind, expected)
-    }
-
-    pub(crate) fn error_of_kind(
-        &self,
-        kind: ParseErrorKind,
-        expected: &'static str,
-    ) -> ParseError {
         ParseError::new(kind, expected, self.get_span(0))
     }
 

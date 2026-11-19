@@ -136,13 +136,15 @@ impl Parser<'_> {
         };
 
         let is_if_statement = match &statement_result {
-            Err(error) => matches!(error.get_kind(), ParseErrorKind::UnexpectedToken | ParseErrorKind::UnexpectedEnd),
+            Err(_) => self
+                .get_recorded_error()
+                .is_some_and(|parse_error| matches!(parse_error.get_kind(), ParseErrorKind::UnexpectedToken | ParseErrorKind::UnexpectedEnd)),
             Ok(StatementShape::Tail) => tail_rule == TailRule::Anywhere && !self.at_end(),
             Ok(_) => false,
         };
 
         if is_if_statement {
-            return Err(ParseError::new(ParseErrorKind::IfStatement, "`transition`", if_span));
+            return Err(self.fail_with(ParseError::new(ParseErrorKind::IfStatement, "`transition`", if_span)));
         }
 
         statement_result
