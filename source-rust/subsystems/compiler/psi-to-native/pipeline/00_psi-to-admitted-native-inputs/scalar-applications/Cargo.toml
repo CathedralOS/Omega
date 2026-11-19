@@ -14,7 +14,6 @@ build-scalar-evaluation = { path = "../../../../build/evaluation/scalars" }
 psi-scalar-applications = { path = "../../../../psi/scalar-applications" }
 psi-provider-selections = { path = "../../../../psi/providers" }
 psi-target-layouts = { path = "../../../../psi/layout/admission" }
-diagnostics = { path = "../../../../../../foundation/diagnostics" }
 provider-admission = { path = "../../../verification/provider-admission" }
 runtime-abi = { path = "../../../targets/runtime-abi" }
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
@@ -23,4 +22,3 @@ terminal-codec = { path = "../../../../psi/codec" }
 terminal-interpreter = { path = "../../../../../interpreter" }
 terminal-psi = { path = "../../../../psi" }
 terminal-runtime = { path = "../../../../../interpreter/host" }
-verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }

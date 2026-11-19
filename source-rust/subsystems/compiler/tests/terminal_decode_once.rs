@@ -136,8 +136,12 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let before = terminal_codec::module_decode_count();
     let optimizations = optimization_selections::PostTerminalOptimizationSelections::default();
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
-    let scalars = native_scalar_inputs::complete_native(&retained, &mut accounting)
-        .expect("scalar completion");
+    let scalars = native_compiler::test_support::complete_entry_scalars(
+        retained.authorization(),
+        proposal,
+        &mut accounting,
+    )
+    .expect("scalar completion");
     let (finished, _) = native_compiler::test_support::compile(
         &retained,
         native_compiler::test_support::NativeCompileRequest {
