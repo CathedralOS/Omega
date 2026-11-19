@@ -17,7 +17,7 @@ use super::*;
 use terminal_psi::{ByteSequencePredicate, StructuralFieldType, StructuralTypeShape};
 
 const BYTE_OBSERVATION_SOURCE: &[(&str, &str, &str)] = &[(
-    "byte_observation.omg",
+    "byte_observation/byte_observation.omg",
     "byte_observation",
     include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),

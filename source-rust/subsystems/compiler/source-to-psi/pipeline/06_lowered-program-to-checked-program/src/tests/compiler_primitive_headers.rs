@@ -13,7 +13,7 @@ fn typed(
     text: &str,
     origin: source_admission::SourceOrigin,
 ) -> Result<crate::source_state::TypedTrees, Vec<diagnostics::Diagnostic>> {
-    typed_at(text, "indexing.omg", origin)
+    typed_at(text, "indexing/indexing.omg", origin)
 }
 
 fn typed_at(
@@ -120,7 +120,7 @@ fn real_byte_observation_headers_publish_complete_terminating_schemas() {
     use language_core::byte_predicates::ByteSequencePredicate;
     let program = typed_at(
         SOURCE,
-        "byte_observation.omg",
+        "byte_observation/byte_observation.omg",
         source_admission::SourceOrigin::Toolchain,
     )
     .expect("the real observation source must resolve and type");
@@ -226,7 +226,7 @@ fn copied_or_edited_byte_observation_headers_cannot_acquire_catalog_supply() {
         (edited.as_str(), source_admission::SourceOrigin::Toolchain),
     ] {
         assert!(
-            typed_at(source, "byte_observation.omg", origin).is_err(),
+            typed_at(source, "byte_observation/byte_observation.omg", origin).is_err(),
             "a copied or changed header cannot nominate compiler supply"
         );
     }
@@ -238,7 +238,7 @@ fn observed_typed(text: &str) -> crate::source_state::TypedTrees {
         "machine build_entry() {}",
         source_provenance::DependencyScope::Product,
         &[(
-            "byte_observation.omg",
+            "byte_observation/byte_observation.omg",
             "byte_observation",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),

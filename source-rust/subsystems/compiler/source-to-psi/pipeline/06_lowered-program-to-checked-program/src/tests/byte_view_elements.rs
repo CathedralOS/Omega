@@ -661,7 +661,7 @@ fn prefix_domain_cast_reestablishes_the_predicate_after_explicit_removal() {
         &format!("use omega::language::core::byte_observation;\n{source}"),
         source_provenance::DependencyScope::Build,
         &[(
-            "byte_observation.omg",
+            "byte_observation/byte_observation.omg",
             "byte_observation",
             include_str!(concat!(
                 env!("CARGO_MANIFEST_DIR"),

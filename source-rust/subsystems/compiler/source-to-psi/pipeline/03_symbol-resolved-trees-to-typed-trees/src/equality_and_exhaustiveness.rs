@@ -3015,7 +3015,7 @@ mod equality_identity_tests {
         ));
         let check = |main| {
             crate::typing::qualified_operator_home_tests::checked_with_equality(&[
-                ("points.omg", points),
+                ("points/points.omg", points),
                 ("main.omg", main),
             ])
         };

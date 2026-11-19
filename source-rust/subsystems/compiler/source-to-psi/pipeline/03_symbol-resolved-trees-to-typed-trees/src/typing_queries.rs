@@ -2276,7 +2276,7 @@ mod tests {
                     .join("../../../../../../source/library/core");
                 let declaration = sources
                     .add_with_metadata(
-                        root.join("byte_observation.omg"),
+                        root.join("byte_observation/byte_observation.omg"),
                         text.to_owned(),
                         root,
                         None,
