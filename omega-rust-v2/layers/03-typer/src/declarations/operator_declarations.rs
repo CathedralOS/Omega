@@ -1,5 +1,6 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
+use crate::type_system::overload_identity::same_operands;
 use crate::{TypeError, ValueType};
 use omega_lexer::SourceSpan;
 use omega_resolver::ResolvedStage;
@@ -50,11 +51,7 @@ pub(crate) fn index_operator_declarations<'a>(
         let duplicate = family.iter().any(|b| {
             b.home == binding.home
                 && b.machine.package == binding.machine.package
-                && catalog.signatures[&b.machine]
-                    .params
-                    .iter()
-                    .map(|(_, t)| t)
-                    .eq(signature.params.iter().map(|(_, t)| t))
+                && same_operands(&catalog.signatures[&b.machine].params, &b.machine, &signature.params, &binding.machine)
         });
         if !valid || duplicate || primitive {
             let (file, span) = signature_site();
