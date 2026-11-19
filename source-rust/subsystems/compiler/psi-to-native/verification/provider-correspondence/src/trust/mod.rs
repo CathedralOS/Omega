@@ -6,7 +6,7 @@ mod tests;
 mod trust_admission;
 
 pub use admission_settlement::{RootTrustPolicy, reconstruct_trust_obligations};
-use effects::provider_grants::resolve_authored_selected_provider_grants;
+mod provider_grants;
 pub use trust_admission::{TrustAdmission, TrustAdmissionDigest};
 
 mod selected;
