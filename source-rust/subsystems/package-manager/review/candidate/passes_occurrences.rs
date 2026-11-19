@@ -35,7 +35,7 @@ use package_compilation::{
 };
 use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::PackageReviewProjectionError;
-use review_evidence::record::PackageReviewEvidence;
+use super::super::evidence::PackageReviewEvidence;
 use review_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
 

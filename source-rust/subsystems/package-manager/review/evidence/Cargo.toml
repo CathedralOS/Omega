@@ -5,30 +5,17 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
-
 [dependencies]
-build-evaluation-result = { path = "../../../compiler/build/build-settings/result" }
+build-consent = { path = "../../../compiler/build/evaluation/consent" }
 provider-acceptance = { path = "../../../compiler/build/providers/acceptance" }
-direct-boundary-bindings = { path = "../../../compiler/psi-to-native/verification/provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../../compiler/psi-to-native/targets/intrinsics" }
-selected-provider-plans = { path = "../../../compiler/build/providers/selections" }
-target-provider-admission = { path = "../../../compiler/psi-to-native/verification/target-providers" }
 provider-plans = { path = "../../../compiler/build/providers/plans" }
-source-declarations = { path = "../../../compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations" }
 service-surface = { path = "../../../compiler/psi/service-surface" }
-evaluation-receipts = { path = "../../../compiler/build/evaluation/receipts" }
 source-provenance = { path = "../../../compiler/foundation/source-provenance" }
 application-identity = { path = "../../../compiler/psi/application-identity" }
 numeric-literals = { path = "../../../compiler/foundation/numeric-literals" }
-source-admission = { path = "../../../compiler/source-to-psi/pipeline/representations/source-files/custody" }
-source-text = { path = "../../../../foundation/source-text" }
 wire = { path = "../../../../foundation/wire" }
-arena = { path = "../../../../foundation/arena" }
 layout-plans = { path = "../../../compiler/psi/layout" }
-products = { path = "../../compilation/products" }
-source-compiler = { path = "../../../compiler/source-to-psi" }
-terminal-check-tables = { path = "../../../compiler/source-to-psi/pipeline/representations/lowered-program" }
-package-compilation = { path = "../../../compiler/build/package-compilation" }
 calling-conventions = { path = "../../../compiler/psi-to-native/targets/calling-conventions" }
 terminal-psi = { path = "../../../compiler/psi" }
 target = { path = "../../../compiler/psi-to-native/targets/target" }

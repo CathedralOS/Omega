@@ -11,6 +11,7 @@
 
 mod custody;
 mod error;
+mod evidence;
 mod passes;
 mod review_cache;
 mod review_set;
