@@ -955,7 +955,6 @@ dependencies = [
  "function-identity",
  "image-fixtures",
  "machine-code",
- "mutation-matrix",
  "object-file",
  "semantic-vocabulary",
  "target",
@@ -1422,10 +1421,6 @@ version = "0.1.0"
 dependencies = [
  "sample-runner",
 ]
-
-[[package]]
-name = "mutation-matrix"
-version = "0.1.0"
 
 [[package]]
 name = "native-artifact"
