@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }
 backend-plan = { path = "../../installation/provider-plans" }
 boundary-applications = { path = "../../installation/boundary-applications" }

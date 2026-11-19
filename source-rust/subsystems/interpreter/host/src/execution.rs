@@ -381,19 +381,16 @@ pub fn capture_host_x86_flags(
 
 fn layout_target_facts(
     name: &str,
-) -> Result<
-    terminal_installation::LayoutTargetFacts,
-    terminal_installation::TargetLayoutSelectionError,
-> {
+) -> Result<psi_target_layouts::LayoutTargetFacts, psi_target_layouts::TargetLayoutSelectionError> {
     target::TargetProfile::from_canonical_target_name(name)
         .map_err(|reason| {
-            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
+            psi_target_layouts::TargetLayoutSelectionError::InvalidTargetInput(
                 reason.to_string(),
             )
         })?
         .layout_target_facts()
         .ok_or_else(|| {
-            terminal_installation::TargetLayoutSelectionError::InvalidTargetInput(
+            psi_target_layouts::TargetLayoutSelectionError::InvalidTargetInput(
                 "selected target has no representation context".into(),
             )
         })

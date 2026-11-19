@@ -11,7 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
-terminal-semantics = { path = "../psi/semantics" }
+psi-target-layouts = { path = "../psi/layout/admission" }
 provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }
@@ -69,6 +69,8 @@ psi-authorization = { path = "../psi/authorization" }
 terminal-installation = { path = "../psi-admission" }
 verified-optimization-input = { path = "pipeline/representations/abstract-operations/verified-optimization-input" }
 semantic-vocabulary = { path = "../foundation/semantic-records" }
+
+terminal-semantics = { path = "../psi/semantics" }
 
 [dev-dependencies]
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }

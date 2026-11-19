@@ -4,8 +4,9 @@
 
 use crate::VerifiedPsiOptimizationInput;
 use psi_authorization::AuthorizedTerminalArtifact;
+use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::MachineId;
-use terminal_installation::{AdmittedScalarApplications, TerminalTargetContext};
+use terminal_installation::AdmittedScalarApplications;
 
 #[derive(Clone, Copy)]
 pub struct AdmittedRuntimeInput<'input> {

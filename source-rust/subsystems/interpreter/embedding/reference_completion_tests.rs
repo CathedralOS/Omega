@@ -2019,8 +2019,8 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
     let artifact =
         terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None).unwrap();
     let program = crate::TerminalProgram::borrow(artifact.view());
-    let target = terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
-    let facts = terminal_installation::LayoutTargetFacts {
+    let target = psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
+    let facts = psi_target_layouts::LayoutTargetFacts {
         profile: "linux_x86_64".into(),
         pointer_size: if overflow { 1 << 63 } else { 8 },
         pointer_alignment: 8,
@@ -2029,7 +2029,7 @@ fn check_aggregate_reference_formation(control: AggregateReferenceControl) {
         little_endian: true,
     };
     let layouts =
-        terminal_installation::admit_target_layouts(artifact.view(), &target, &facts).unwrap();
+        psi_target_layouts::admit_target_layouts(artifact.view(), &target, &facts).unwrap();
     assert!(layouts.closures().is_empty());
     assert!(layouts.resolved_lifecycles().is_empty());
     let supplies = program

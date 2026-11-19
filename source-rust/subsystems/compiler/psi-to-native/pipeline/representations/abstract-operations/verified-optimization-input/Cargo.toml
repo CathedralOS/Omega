@@ -9,6 +9,7 @@ name = "verified_optimization_input"
 path = "src/lib.rs"
 
 [dependencies]
+psi-target-layouts = { path = "../../../../../psi/layout/admission" }
 service-surface = { path = "../../../../../psi/service-surface" }
 operation-operands = { path = "../../operation-operands" }
 target-vocabulary = { path = "../../target-operations/target-vocabulary" }
