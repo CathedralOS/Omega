@@ -1,4 +1,4 @@
-; Checked nominal parameter types lower to the same named target enum type in
+; In a pure module, checked nominal parameters use the same named target enum in
 ; machine and lifted-state signatures. Unused parameters still need that ABI.
 (def epsilon_delta_parameters ((context EpsilonDeltaContext)
   (parameters EpsilonParameterList)) EpsilonDeltaCompilation
@@ -92,8 +92,8 @@
 
 (def epsilon_delta_machine ((context EpsilonDeltaContext)
   (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
-  (returnType EpsilonOptionalType) (body EpsilonMachineBody)) EpsilonDeltaCompilation
-  (match (epsilon_delta_machine_runtime inputs body)
+  (returnType EpsilonOptionalType) (body EpsilonMachineBody) (runtime EpsilonDeltaRuntime)) EpsilonDeltaCompilation
+  (match runtime
     (EpsilonDeltaPureRuntime
       (match (epsilon_delta_pure_return_type returnType)
         ((EpsilonDeltaCompiled unused)
