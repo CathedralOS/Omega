@@ -57,8 +57,8 @@ def main():
     require_identity("execution adapter", adapter, 2150,
                      "ab79416b4278d3b132a4fd432485f1b90e868c0549af96e604e2e8da570d1baa")
     compiler = (directory / "omega_compiler.epsilon").read_bytes()
-    require_identity("D", compiler, 839579,
-                     "d07d617005694d37c29e31b74a035ce29aef969e9b161295ae840763564d4f3c")
+    require_identity("D", compiler, 845569,
+                     "8738a77cfab9544646f2ddaee35c94df3efb67dbda3f4f0b7648883452b10d7b")
     entry = (gate / "main.epsilon").read_bytes()
     require_identity("parser customer entry", entry, 59962,
                      "857fa18ffc214176022d57c2c5d6d5a506b86a4a25c9540460e4a70e73f603c2")
