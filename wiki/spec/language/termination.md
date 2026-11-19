@@ -202,7 +202,7 @@ names a crash cause or substitutes for the independent cleanup/control contract.
 <a id="ranked-callees-on-projected-receivers"></a>
 ## Ranked callees on borrowed subplaces
 
-An ordinary static call such as `Parser::scan(&mut compiler.parser, ...)` borrows
+An ordinary static call such as `Parser::scan(@mut compiler.parser, ...)` borrows
 the parser field through an explicit parameter. The same original referent is
 retained through ranked backedges and return; every state edge carries the
 necessary reference explicitly. The callee needs neither the enclosing

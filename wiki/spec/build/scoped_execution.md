@@ -120,7 +120,7 @@ copying declarations or structurally identifying same-spelled traits.
 
 Preparation's by-value registration argument copies the immutable handle;
 it does not consume or retarget the caller's registration. A subsequent
-`Build::validate(builder, &registered)` can therefore identify the same dependency,
+`Build::validate(builder, @registered)` can therefore identify the same dependency,
 and the validation request may also be recorded before preparation. Validation
 does not itself request immediate preparation or execute a dependency. Both
 operations use this one registration mechanism; their distinct requirements
@@ -134,14 +134,14 @@ route or supplied filesystem backing, never the compiler's ambient filesystem:
 ```omega
 use topology;
 
-machine build(builder: &mut Build)
+machine build(builder: @mut Build)
 suspends
 {
   Build::application(builder, "payments");
   let mut request = dependency::from_source(Source::Path {
     location: "../topology"
   });
-  dependency::with_alias(&mut request, "topology");
+  dependency::with_alias(@mut request, "topology");
   let registered = Build::build_dependency(builder, request);
 
   suspend Build::prepare_dependency(builder, registered);
@@ -301,10 +301,10 @@ Toolchain operations have designated product operands:
 
 ```omega
 Build::bind(builder, windows_x86_64::ProgramEntry, Application::start);
-Build::bind<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
-Build::select_provider<windows_x86_64::Console, TestConsole>(builder);
-Build::assume_binding_contract<WritableMemory::claim, RangeSupplier::supply>(builder);
-_ = builder.tests.group<Tests::memory>();
+Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
+Build::select_provider::<windows_x86_64::Console, TestConsole>(builder);
+Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
+_ = builder.tests.group::<Tests::memory>();
 ```
 
 Only those declaration-reference operands are resolved in the product context,

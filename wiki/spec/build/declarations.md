@@ -87,8 +87,8 @@ The entry-binding overload of `Build::bind` is a separate operation.
 A selected `build.omg` has exactly one free build entry with the explicit mutable
 Build parameter and any declared execution-backing parameters selected and
 admitted by its invocation. A simple entry remains
-`machine build(builder: &mut Build)`; a filesystem-using entry may additionally
-take `filesystem: &mut FilesystemBacking` under an ordinary selected
+`machine build(builder: @mut Build)`; a filesystem-using entry may additionally
+take `filesystem: @mut FilesystemBacking` under an ordinary selected
 `const Files: Filesystem<FilesystemBacking>` binder. These are explicit
 source arguments, not a synthesized receiver or ambient provider. Its kind is explicit:
 

@@ -134,7 +134,7 @@ service was declared; `ProcessExit` corresponds to process termination.
 The consuming root can add an exact custom boundary-trait identity:
 
 ```omega
-Build::audit_service<MotorControl>(builder);
+Build::audit_service::<MotorControl>(builder);
 ```
 
 This compiler-owned Build operation takes the activation's original mutable
