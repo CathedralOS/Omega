@@ -220,6 +220,13 @@ impl AdapterInstructions {
     }
 }
 
+// AArch64 can encode a naturally aligned, twelve-bit scaled displacement directly.
+// Other byte offsets require an address register before the load or store.
+fn needs_address_register(architecture: Architecture, offset: u32, size: u8) -> bool {
+    architecture == Architecture::Aarch64
+        && (!offset.is_multiple_of(u32::from(size)) || offset > 4095 * u32::from(size))
+}
+
 impl AdapterOperation {
     pub fn effects(&self, architecture: Architecture) -> calling_conventions::StateEffectsEvidence {
         use AdapterOperation as Op;
@@ -242,9 +249,7 @@ impl AdapterOperation {
                 scratch,
             } => {
                 e.stack(architecture, false);
-                if architecture == Architecture::Aarch64
-                    && u64::from(offset) > 4095 * u64::from(size)
-                {
+                if needs_address_register(architecture, offset, size) {
                     e.write(scratch);
                     e.read(scratch);
                 }
@@ -262,9 +267,7 @@ impl AdapterOperation {
                 load,
             } => {
                 e.read(base);
-                if architecture == Architecture::Aarch64
-                    && u64::from(offset) > 4095 * u64::from(size)
-                {
+                if needs_address_register(architecture, offset, size) {
                     e.write(base);
                 }
                 if load {

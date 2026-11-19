@@ -3,6 +3,34 @@ use post_allocation_machine::adapters::AdapterInstructions;
 pub type NativeForeignBridgePlan<Origin> = crate::PhysicalRecipe<Origin, NativeForeignInstructions>;
 pub use calling_conventions::NativeForeignBridgeRequest;
 
+/// The import, application and bridge travel together from physical planning.
+#[derive(Debug, Clone)]
+pub struct ForeignAdapterParts<Bridge, Imports> {
+    pub bridge: Bridge,
+    pub imports: Imports,
+    pub locator: target::NormalizedForeignLocator,
+    pub application: [u8; 32],
+}
+
+pub type ForeignAdapterPlan<Origin> = crate::PhysicalRecipe<
+    Origin,
+    ForeignAdapterParts<
+        NativeForeignBridgePlan<Origin>,
+        crate::imports::PhysicalImportProgram<Origin>,
+    >,
+>;
+
+impl<Origin> ForeignAdapterPlan<Origin> {
+    pub fn into_parts(
+        self,
+    ) -> ForeignAdapterParts<
+        NativeForeignBridgePlan<Origin>,
+        crate::imports::PhysicalImportProgram<Origin>,
+    > {
+        self.instructions
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeForeignInstructions {
     pub request: NativeForeignBridgeRequest,

@@ -17,13 +17,7 @@ use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::path::{Path, PathBuf};
 use target::NativeApplicationMetadata;
 
-/// The Product phase's completed scalar work and its unchanged provider inputs.
-/// Native completion adds application roots and demanded values to this owner.
-/// It is never encoded in saved native inputs.
-pub struct ProductScalarCompletion {
-    pub completed: source_compiler::evaluation::ScalarApplicationCompletion,
-    pub proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
-}
+pub use published_program::scalar_completion::ProductScalarCompletion;
 
 pub struct PendingNativeProduct {
     pub terminal: RetainedTerminalArtifact,
@@ -41,6 +35,7 @@ pub struct PendingNativeProduct {
 
 #[derive(Debug)]
 pub struct CompileReport {
+    native_stage_replay: native_compiler::NativeStageReplay,
     source_completion_accounting: source_compiler::evaluation::SourceCompletionAccounting,
     product: CompletedProduct,
     build_outputs: Option<crate::RetainedBuildOutputs>,
@@ -54,6 +49,16 @@ pub struct CompileReport {
 }
 
 impl CompileReport {
+    pub fn native_stage_replay(&self) -> &native_compiler::NativeStageReplay {
+        &self.native_stage_replay
+    }
+
+    #[must_use]
+    pub fn with_native_stage_replay(mut self, replay: native_compiler::NativeStageReplay) -> Self {
+        self.native_stage_replay = replay;
+        self
+    }
+
     #[must_use]
     pub fn with_test_roster(mut self, roster: Vec<crate::TestRosterEntry>) -> Self {
         self.test_roster = roster;
@@ -74,12 +79,22 @@ impl CompileReport {
         &self.advisories
     }
 
+    /// A saved program enters with its portable artifact and no source files.
+    pub fn from_saved_program(
+        path: PathBuf,
+        product: CompletedProduct,
+        accounting: source_compiler::evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        Self::from_completed_product(path, 0, product).with_source_completion_accounting(accounting)
+    }
+
     pub(crate) fn from_completed_product(
         root_path: PathBuf,
         source_file_count: usize,
         product: CompletedProduct,
     ) -> Self {
         Self {
+            native_stage_replay: Default::default(),
             source_completion_accounting: Default::default(),
             product,
             build_outputs: None,
@@ -190,12 +205,20 @@ impl CompileReport {
         self.product.wrote_output() || self.build_outputs_published
     }
 
-    pub fn with_runtime_provisions(
-        mut self,
-        provisions: Option<crate::TerminalRuntimeProvisions>,
-    ) -> Result<Self, &'static str> {
-        self.product = self.product.with_runtime_provisions(provisions)?;
+    pub fn save_published_psi(mut self, path: &Path) -> Result<Self, String> {
+        self.product = self.product.save_published_psi(path)?;
         Ok(self)
+    }
+
+    pub fn save_shared_psi<'a>(
+        reports: impl IntoIterator<Item = &'a mut Self>,
+        path: &Path,
+    ) -> Result<(), String> {
+        let mut products: Vec<_> = reports
+            .into_iter()
+            .map(|report| &mut report.product)
+            .collect();
+        CompletedProduct::save_shared_psi(&mut products, path)
     }
 
     pub(crate) fn publish(mut self, build_dir: &Path) -> Result<Self, String> {

@@ -44,6 +44,23 @@ impl Budget {
         self.remaining.maximum_policy_elements
     }
 
+    pub(super) fn native_bindings(
+        &mut self,
+        bytes: &[u8],
+    ) -> Result<Vec<evaluation_receipts::NativeBindingMaterialization>, Error> {
+        let mut limits = compiler_storage::RecordLimits {
+            bytes: bytes.len(),
+            allocation: self.remaining.maximum_owned_bytes,
+            elements: self.remaining.maximum_policy_elements,
+            ..Default::default()
+        };
+        let values = compiler_storage::decode_with_budget(bytes, &mut limits)
+            .map_err(|error| Error::NativeBindings(error.to_string()))?;
+        self.remaining.maximum_owned_bytes = limits.allocation;
+        self.remaining.maximum_policy_elements = limits.elements;
+        Ok(values)
+    }
+
     pub(super) fn source(&mut self, text: &str) -> Result<CanonicalSourceClosureSubject, Error> {
         let (source, usage) = CanonicalSourceClosureSubject::recover_text_with_usage(
             text,

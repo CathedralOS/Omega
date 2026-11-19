@@ -66,10 +66,41 @@ pub struct ProgramEntryPhysicalContractPackageSourceDigest {
 pub fn exact_physical_contract_package_source_digest(
     package: target::ProgramEntryPhysicalContractPackage,
 ) -> ProgramEntryPhysicalContractPackageSourceDigest {
-    ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-        package,
-        exact_package_source(package),
-    )
+    // The receiver compares the published entry to the installed target's
+    // identity. The test below derives each identity from its package.
+    let digest = match package {
+        Package::UefiX64 => [
+            0xa0, 0xaa, 0xd5, 0xd3, 0xf2, 0x59, 0x20, 0xbe, 0x92, 0xac, 0x96, 0x4e, 0x67, 0xdf,
+            0x83, 0xb2, 0xfd, 0xcd, 0x93, 0x45, 0x09, 0x1a, 0x7e, 0x69, 0xfc, 0x7f, 0xc8, 0xea,
+            0x8b, 0x22, 0x6d, 0xb7,
+        ],
+        Package::MacosArm64 => [
+            0x9a, 0xf0, 0x9e, 0xa7, 0xd7, 0x3f, 0x43, 0x83, 0x72, 0x99, 0x27, 0x6a, 0xd4, 0xd2,
+            0x77, 0x2a, 0x04, 0x0d, 0xb0, 0x16, 0xb1, 0x2c, 0xc8, 0x00, 0x5c, 0x72, 0x86, 0x78,
+            0x64, 0x3e, 0xaa, 0x1c,
+        ],
+        Package::MacosX64 => [
+            0xb5, 0xe7, 0xee, 0xfa, 0x0a, 0xa7, 0x65, 0x5e, 0xa7, 0x82, 0xee, 0xf0, 0x6d, 0x87,
+            0x9b, 0xae, 0x9a, 0x63, 0x44, 0x43, 0x7b, 0xd1, 0x80, 0x19, 0x23, 0x81, 0xd4, 0x89,
+            0xc7, 0xc5, 0xef, 0x75,
+        ],
+        Package::LinuxX86_64 => [
+            0xc8, 0x67, 0xcb, 0xba, 0xb4, 0x1b, 0x0b, 0xb4, 0x55, 0x38, 0x54, 0x2b, 0x35, 0xca,
+            0x00, 0x7d, 0x8d, 0x94, 0x7a, 0x1f, 0x4f, 0x1d, 0x52, 0x7b, 0x7d, 0x74, 0x9c, 0xa6,
+            0x1d, 0x14, 0x00, 0x95,
+        ],
+        Package::LinuxArm64 => [
+            0x64, 0xa4, 0x3d, 0xc6, 0x63, 0xbc, 0xc8, 0xec, 0x1e, 0xaa, 0xd1, 0x36, 0x26, 0x05,
+            0x11, 0x47, 0xc9, 0x2d, 0x84, 0x0d, 0x0d, 0xb9, 0xa6, 0x6b, 0xab, 0x14, 0xb1, 0x9a,
+            0x30, 0x4f, 0x8d, 0xf6,
+        ],
+        Package::WindowsX64 => [
+            0xad, 0x53, 0x72, 0x63, 0x76, 0xd8, 0x8b, 0x22, 0x62, 0x33, 0x59, 0x89, 0xfb, 0x8c,
+            0x23, 0x69, 0x24, 0x32, 0xf1, 0xfc, 0xd1, 0x0f, 0x88, 0x6c, 0x26, 0xd4, 0x97, 0x9d,
+            0xd3, 0x34, 0xe4, 0xea,
+        ],
+    };
+    ProgramEntryPhysicalContractPackageSourceDigest::from_retained_digest(package, digest)
 }
 
 impl ProgramEntryPhysicalContractPackageSourceDigest {
@@ -463,38 +494,58 @@ fn close_uefi_entry_stack(owner: TargetProfile) -> Result<TargetEntryStackGuaran
     Ok(guarantee)
 }
 
-fn exact_package_source(package: Package) -> &'static [u8] {
-    match package {
-        Package::UefiX64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/uefi_x86_64/entry.omg"
-        )),
-        Package::MacosArm64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/macos_arm64/entry.omg"
-        )),
-        Package::MacosX64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/macos_x86_64/entry.omg"
-        )),
-        Package::LinuxX86_64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/linux_x86_64/entry.omg"
-        )),
-        Package::LinuxArm64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/linux_arm64/entry.omg"
-        )),
-        Package::WindowsX64 => include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/std/targets/windows_x86_64/entry.omg"
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn exact_package_source(package: Package) -> &'static [u8] {
+        match package {
+            Package::UefiX64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/uefi_x86_64/entry.omg"
+            )),
+            Package::MacosArm64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/macos_arm64/entry.omg"
+            )),
+            Package::MacosX64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/macos_x86_64/entry.omg"
+            )),
+            Package::LinuxX86_64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/linux_x86_64/entry.omg"
+            )),
+            Package::LinuxArm64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/linux_arm64/entry.omg"
+            )),
+            Package::WindowsX64 => include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../../../../source/library/std/targets/windows_x86_64/entry.omg"
+            )),
+        }
+    }
+
+    #[test]
+    fn target_entry_revisions_match_the_bundled_package_sources() {
+        for package in [
+            Package::UefiX64,
+            Package::MacosArm64,
+            Package::MacosX64,
+            Package::LinuxX86_64,
+            Package::LinuxArm64,
+            Package::WindowsX64,
+        ] {
+            assert_eq!(
+                exact_physical_contract_package_source_digest(package),
+                ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
+                    package,
+                    exact_package_source(package)
+                )
+            );
+        }
+    }
 
     #[test]
     fn physical_contract_retains_interned_arrival_types_and_rejects_incomplete_inputs() {

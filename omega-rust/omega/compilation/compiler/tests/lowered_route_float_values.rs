@@ -435,8 +435,8 @@ fn canonical_float_conversions_retain_integer_inputs_and_refuse_changed_carriers
             }
             assert_eq!(conversions, 6);
             refuse_undeclared_conversion(module);
-            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = native_program_planning::direct_compiler_primitive_leaves(
+            let schemas = provider_realization::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_realization::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "windows_x86_64",
@@ -485,7 +485,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             assert!(imports.iter().all(|slot| !program.executes_boundary_internally(*slot)));
             let request = terminal_interpreter::TerminalRuntimeSupplyRequest {
                 native_code_layouts: None, x86_flags: None, memory_ordering: None,
-                entry: module.entry, installation: None, host_imports: &[],
+                entry: module.entry, installation: None, host_imports: &[], external_completions: &[],
                 target_machines: None, target_layouts: None,
             };
             let empty = program.admit_runtime_supplies(request).unwrap();
@@ -523,14 +523,14 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
                     assert!(error.contains("MalformedStructuralFoundation"), "{error}");
                 }
             }
-            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
+            let schemas = provider_realization::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap();
             assert_eq!(leaves.len(), 12);
-            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
+            assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", []).unwrap().is_empty(), "declarations alone do not request execution");
             let first = module.boundary_machines[0].id;
-            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
-            assert!(native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
-            let unsupported = native_program_planning::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
+            assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [first, first]).is_err(), "a repeated request is not a second realization");
+            assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
+            let unsupported = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
             assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
             let selection = effects::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
@@ -1006,8 +1006,8 @@ fn exact_float_widening_retains_its_unary_contract_and_rejects_a_qualified_opera
                 2,
                 "destination format and one source meaning"
             );
-            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = native_program_planning::direct_compiler_primitive_leaves(
+            let schemas = provider_realization::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_realization::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "macos_arm64",
@@ -1417,8 +1417,8 @@ use declaration_contracts::numeric_intrinsics::NumericType;
             )
             .unwrap();
             let module = reopened.module();
-            let schemas = native_program_planning::compiler_primitive_schemas(module).unwrap();
-            let leaves = native_program_planning::direct_compiler_primitive_leaves(
+            let schemas = provider_realization::compiler_primitive_schemas(module).unwrap();
+            let leaves = provider_realization::direct_compiler_primitive_leaves(
                 module,
                 &schemas,
                 "macos_arm64",
@@ -1577,7 +1577,7 @@ use declaration_contracts::numeric_intrinsics::NumericType;
                 .retained_target_operations().unwrap();
             let optimized = target.optimized();
             let verify = |plan, abstracted, unit| {
-                native_program_planning::replay::verify_target_operation_plan_with_closed_module(
+                target_lowering::replay::verify_target_operation_plan_with_closed_module(
                     plan, abstracted, unit, target.boundary_origins(),
                     target.lowering_facts().installed_interrupts(),
                     target.lowering_facts().closed_module(),

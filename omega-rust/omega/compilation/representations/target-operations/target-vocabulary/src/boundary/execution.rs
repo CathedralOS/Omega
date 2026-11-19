@@ -61,6 +61,7 @@ impl NativeBindingExecution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExternalExecutionBinding {
+    CompilerImport(super::CompilerImport),
     Provider(ProviderExecutionBinding),
     NativeBinding(NativeBindingExecution),
 }

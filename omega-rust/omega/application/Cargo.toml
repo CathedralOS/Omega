@@ -33,6 +33,9 @@ terminal-psi = { path = "../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-installation = { path = "../../psi/compilation/terminal-installation" }
 
+[target.'cfg(windows)'.dev-dependencies]
+sha2 = "0.10.9"
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.186"
 

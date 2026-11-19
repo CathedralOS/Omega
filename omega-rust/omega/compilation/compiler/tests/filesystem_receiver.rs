@@ -249,6 +249,7 @@ fn windows_canonicalize_receiver() {
     let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
     let scalars = build_settings::scalar_completion::complete_native(&retained, &mut accounting)
         .expect("scalar completion");
+    let subsystem = proposal.application().subsystem;
     let request = |receiver| native_compiler::NativeCompileRequest {
         retain_native_stage_inputs: false,
         private_entry_ram: &[],
@@ -257,9 +258,7 @@ fn windows_canonicalize_receiver() {
         terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
         accepted_package_terminal_authority_permission_policy: package_policy.clone(),
         terminal_authority_permission_policy: Some(receiver),
-        image_request: image_emission::ExecutableImageEmissionRequest::direct(
-            proposal.application().subsystem,
-        ),
+        image_request: image_emission::ExecutableImageEmissionRequest::direct(subsystem),
         imports: &[],
         components: &[],
         scalars: scalars.as_ref(),
@@ -268,7 +267,8 @@ fn windows_canonicalize_receiver() {
     let product = native_compiler::compile(&retained, request(receiver))
         .unwrap_or_else(|(_, diagnostics)| panic!("{FIXTURE} must realize: {diagnostics:#?}"));
 
-    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
+    let (image, _) = product.image.into_parts();
+    let native_artifact::RequestedNativeArtifact::Direct(artifact) = image else {
         panic!("{FIXTURE} emits its ordinary Windows image")
     };
     artifact
@@ -283,7 +283,7 @@ fn windows_canonicalize_receiver() {
     // Reuse the same accepted retained Terminal input. Runtime admission shares
     // the provider/receiver review and stops before image production; this is
     // a policy refusal control, not a second source review or runtime claim.
-    let refusal = match native_compiler::admit_runtime(&retained, request(filesystem_only)) {
+    let refusal = match native_compiler::admit_runtime(retained, request(filesystem_only)) {
         Err((_, diagnostics)) => diagnostics,
         Ok(_) => panic!("filesystem-only input must refuse console-capable WriteFile"),
     };

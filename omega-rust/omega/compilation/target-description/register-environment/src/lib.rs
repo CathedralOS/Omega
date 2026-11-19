@@ -284,6 +284,72 @@ pub fn selected_abi_preservation(
         .ok_or(AbiPreservationSelectionError::UnsupportedTargetConvention)
 }
 
+/// Encoding carries the selected preservation convention and allowed supervisor
+/// calls to the exit checker. The slot belongs to this exact physical register model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetExitAbi {
+    target: NativeTarget,
+    model: register_model::PhysicalRegisterModelIdentity,
+    preservation: Option<(FrameAbiPreservationConvention, usize)>,
+    system_calls: Vec<register_model::RegisterConstraintKey>,
+}
+
+impl TargetExitAbi {
+    pub fn from_environment(environment: &ValidatedTargetRegisterEnvironment) -> Self {
+        let physical = environment.physical();
+        let target = environment.target();
+        let preservation = selected_abi_preservation(environment)
+            .ok()
+            .and_then(|selected| {
+                physical
+                    .model()
+                    .conventions
+                    .iter()
+                    .position(|convention| std::ptr::eq(convention, selected.convention))
+                    .map(|slot| (selected.kind, slot))
+            });
+        let system_calls = if target == NativeTarget::linux_x64() {
+            target_x86_64::x86_64_linux_system_call_keys()
+        } else if target == NativeTarget::linux_arm64() {
+            target_aarch64::aarch64_linux_system_call_keys()
+        } else {
+            Vec::new()
+        };
+        Self {
+            target,
+            model: physical.identity(),
+            preservation,
+            system_calls,
+        }
+    }
+
+    pub fn target(&self) -> NativeTarget {
+        self.target
+    }
+
+    pub fn model(&self) -> register_model::PhysicalRegisterModelIdentity {
+        self.model
+    }
+
+    pub fn preservation<'a>(
+        &self,
+        physical: &'a ValidatedPhysicalRegisterModel,
+    ) -> Option<SelectedAbiPreservation<'a>> {
+        if physical.identity() != self.model {
+            return None;
+        }
+        let (kind, slot) = self.preservation?;
+        Some(SelectedAbiPreservation {
+            kind,
+            convention: physical.model().conventions.get(slot)?,
+        })
+    }
+
+    pub fn allows_system_call(&self, constraint: register_model::RegisterConstraintKey) -> bool {
+        self.system_calls.contains(&constraint)
+    }
+}
+
 pub fn selected_preservation_storage_catalog(
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<ValidatedPreservationStorageCatalog, AbiPreservationSelectionError> {

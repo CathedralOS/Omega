@@ -23,7 +23,7 @@ pub(crate) struct TerminalProductionView<'a> {
 impl<'a> TerminalProductionView<'a> {
     pub(crate) fn selection(selection: &'a mut SelectedProviderCustody) -> Self {
         Self {
-            program: &selection.source_program,
+            program: &selection.published_program,
             execution: &selection.execution,
             timings: &mut selection.timings,
         }

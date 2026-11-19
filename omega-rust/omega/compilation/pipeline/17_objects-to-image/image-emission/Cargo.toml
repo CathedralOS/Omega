@@ -1,0 +1,75 @@
+[package]
+name = "image-emission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "image_emission"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+sha2 = "0.10.9"
+physical-recipes = { path = "../../../representations/physical-recipes" }
+physical-program = { path = "../../../representations/physical-program" }
+installation-admission = { path = "../../../verification/installation-admission" }
+register-homes = { path = "../../../representations/register-homes" }
+wire = { path = "../../../../../psi/foundation/wire" }
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
+target-vocabulary = { path = "../../../representations/target-operations/target-vocabulary" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
+language-core = { path = "../../../../../psi/compilation/representations/source-vocabulary" }
+provider-admission = { path = "../../../verification/provider-admission" }
+register-model = { path = "../../../target-description/register-model" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
+runtime-abi = { path = "../../../target-description/runtime-abi" }
+arena = { path = "../../../../../psi/foundation/arena" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+program-entry-plan = { path = "../../../representations/program-entry" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../../representations/abstract-operations/optimization-unit-semantics" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+image = { path = "../image" }
+image-elf = { path = "../image-elf" }
+image-macho = { path = "../image-macho" }
+image-pe = { path = "../image-pe" }
+object-file = { path = "../../16_placed-functions-to-objects" }
+target = { path = "../../../target-description/target" }
+machine-code = { path = "../../../representations/machine-code" }
+function-identity = { path = "../../../representations/function-identity" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
+target-operations = { path = "../../../representations/target-operations" }
+task-plans = { path = "../../../representations/task-plans" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
+
+[dev-dependencies]
+entry-planning = { path = "../../10_post-allocation-machine-to-framed-machine/entry-planning" }
+frame-planning = { package = "post-allocation-machine-to-framed-machine", path = "../../10_post-allocation-machine-to-framed-machine" }
+native-encoding = { path = "../../12_bound-framed-machine-to-selected-form-encoding" }
+isa-x86_64 = { path = "../../12_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
+image-fixtures = { path = "../../../../../test-support/image-fixtures" }
+optimization-unit = { path = "../../../representations/abstract-operations/optimization-unit" }
+compiler = { path = "../../../compiler" }
+image-emission = { path = ".", features = ["test-support"] }
+layout-plans = { path = "../../../../../psi/compilation/representations/storage-layout" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+extents = { path = "../../../../../psi/runtime/extents" }
+
+source-compiler = { path = "../../../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }

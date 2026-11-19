@@ -36,6 +36,7 @@ struct Composition {
     reports: BTreeSet<task_plans::AdmittedStackContributionReportId>,
     commitments: BTreeSet<task_plans::SameStackContributionCommitment>,
     hosted: BTreeSet<[u8; 32]>,
+    compiler_imports: BTreeSet<target_vocabulary::CompilerImport>,
 }
 
 pub fn derive_physical_stack_demand(
@@ -61,8 +62,16 @@ pub fn derive_physical_stack_demand(
         reports: BTreeSet::new(),
         commitments: BTreeSet::new(),
         hosted: BTreeSet::new(),
+        compiler_imports: BTreeSet::new(),
     };
     let ceiling_bytes = visit(root, &functions, &private_demands, &mut composition)?;
+    if composition
+        .compiler_imports
+        .iter()
+        .any(|import| import.locator().target().native_target() != program.target)
+    {
+        return Err(Error::ConflictingTerminalStackEvidence(entry));
+    }
     Ok(StackDemand {
         psi: program.psi,
         target: program.target,
@@ -73,6 +82,7 @@ pub fn derive_physical_stack_demand(
         admitted_contribution_report_identities: composition.reports,
         admitted_contribution_commitments: composition.commitments,
         hosted_native_bindings: composition.hosted,
+        compiler_imports: composition.compiler_imports,
         private_demands,
     })
 }
@@ -119,6 +129,9 @@ fn visit(
         let contribution = match &call.extent {
             ForeignStackExtent::Admitted(contribution) => contribution,
             extent => {
+                if let ForeignStackExtent::CompilerImport(import) = extent {
+                    composition.compiler_imports.insert(*import);
+                }
                 if let ForeignStackExtent::Hosted { receipt } = extent {
                     composition
                         .hosted
@@ -141,6 +154,9 @@ fn visit(
                 .commitments
                 .extend(&demand.admitted_contribution_commitments);
             composition.hosted.extend(&demand.hosted_native_bindings);
+            composition
+                .compiler_imports
+                .extend(&demand.compiler_imports);
             callback_peak = callback_peak.max(demand.ceiling_bytes);
         }
         let composed = u64::from(call.caller_live_bytes)
@@ -172,6 +188,7 @@ pub struct StackDemand {
     admitted_contribution_commitments:
         std::collections::BTreeSet<task_plans::SameStackContributionCommitment>,
     hosted_native_bindings: std::collections::BTreeSet<[u8; 32]>,
+    compiler_imports: BTreeSet<target_vocabulary::CompilerImport>,
     private_demands: Vec<(function_identity::MachineFunctionIdentity, StackDemand)>,
 }
 
@@ -206,7 +223,7 @@ impl StackDemand {
     }
 
     pub fn requires_host_stack(&self) -> bool {
-        !self.hosted_native_bindings.is_empty()
+        !self.hosted_native_bindings.is_empty() || !self.compiler_imports.is_empty()
     }
 
     pub fn hosted_native_bindings(&self) -> &std::collections::BTreeSet<[u8; 32]> {

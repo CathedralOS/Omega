@@ -101,6 +101,7 @@ mod demand {
                                 target_machines: observations.targets(),
                                 target_layouts: observations.layouts(),
                                 host_imports: &[],
+                                external_completions: &[],
                                 x86_flags: None,
                                 memory_ordering: None,
                             })

@@ -13,7 +13,7 @@ pub use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalBoundaryApplicationDemands {
     terminal_psi: terminal_psi::TerminalPsiIdentity,
-    rows: Vec<TerminalBoundaryApplicationDemand>,
+    rows: std::sync::Arc<[TerminalBoundaryApplicationDemand]>,
 }
 
 impl TerminalBoundaryApplicationDemands {
@@ -28,7 +28,10 @@ impl TerminalBoundaryApplicationDemands {
         {
             return Err("boundary application demands repeat a Terminal operation");
         }
-        Ok(Self { terminal_psi, rows })
+        Ok(Self {
+            terminal_psi,
+            rows: rows.into(),
+        })
     }
 
     pub fn validate_for_terminal(

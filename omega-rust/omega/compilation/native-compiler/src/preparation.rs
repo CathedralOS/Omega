@@ -7,9 +7,9 @@
 // request; `compile` then runs Omega 00 to 09 once, front to back.
 
 use crate::NativeCompileRequest;
+use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
 use installation_evidence::InstallationEnvironmentAssumption;
-use native_program_planning::{PreparedNativeExecution, RetainedTerminalArtifact};
 use target::ExecutableImageEmissionRequest;
 use terminal_installation::admit_target_layouts;
 
@@ -106,7 +106,7 @@ pub(crate) fn prepare<'input>(
 
 fn validate_installation_environment_inputs(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    proposal: &native_program_planning::TerminalNativeRealizationProposal,
+    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
     assumptions: &[InstallationEnvironmentAssumption],
 ) -> Result<(), Vec<Diagnostic>> {
     let fail = |reason: &str| {

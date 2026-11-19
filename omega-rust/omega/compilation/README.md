@@ -10,7 +10,7 @@ the input and output of each stage.
 | Directory | Responsibility |
 | --- | --- |
 | [compiler](compiler/README.md) | Coordinates source, Build, target batches and the requested product. |
-| [Psi source compiler](../../psi/compilation/pipeline/01_source-compilation/src/lib.rs) | Streams each source unit through the lexer and parser, then resolves, types, lowers and checks the program. |
+| [Psi source compiler](../../psi/compilation/pipeline/source-compilation/src/lib.rs) | Streams each source unit through the lexer and parser, then resolves, types, lowers and checks the program. |
 | [native compiler](native-compiler/README.md) | Runs the native stages for a published program, selected target and admitted execution inputs. |
 | [pipeline](pipeline/) | Owns admission, portable publication, native stages 03–09 and product publication at 10. |
 | [representations](representations/) | Defines the program records, selected provider plans and physical evidence that stages pass forward. |

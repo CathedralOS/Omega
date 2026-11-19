@@ -20,7 +20,7 @@ backend-plan = { path = "../../compilation/representations/provider-plans" }
 layout-plans = { path = "../../../psi/compilation/representations/storage-layout" }
 optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 products = { path = "../../compilation/products" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 package-compilation = { path = "../package-compilation" }
 calling-conventions = { path = "../../compilation/target-description/calling-conventions" }

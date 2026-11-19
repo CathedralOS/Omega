@@ -139,3 +139,215 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         assert!(!artifact.exists());
     }
 }
+
+#[test]
+fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let fixture = root.join("tests/fixtures/run/calls/scalar_contract_route_exit");
+    let targets = [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ];
+    let consumer = TemporaryDirectory::create("saved-psi-consumer", false).unwrap();
+    let program = consumer.path().join("relocated.psi");
+    let manifest = {
+        let producer = TemporaryDirectory::create("saved-psi-producer", false).unwrap();
+        for file in ["main.omg", "build.omg"] {
+            std::fs::copy(fixture.join(file), producer.path().join(file)).unwrap();
+        }
+        let result = omega(producer.path())
+            .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
+            .args(["--emit-psi", "saved/main.psi"])
+            .args(targets.iter().flat_map(|name| ["--target", *name]))
+            .arg("main.omg")
+            .output()
+            .unwrap();
+        assert!(result.status.success(), "{result:?}");
+        assert_eq!(
+            std::fs::read_dir(producer.path().join("saved"))
+                .unwrap()
+                .count(),
+            1
+        );
+        std::fs::copy(producer.path().join("saved/main.psi"), &program).unwrap();
+        let stdout = String::from_utf8(result.stdout).unwrap();
+        let manifests: Vec<_> = stdout
+            .lines()
+            .filter_map(|line| line.strip_prefix("Psi manifest "))
+            .collect();
+        assert_eq!(manifests.len(), targets.len(), "{stdout}");
+        assert!(manifests.iter().all(|id| *id == manifests[0]), "{stdout}");
+        manifests[0].to_owned()
+    };
+    assert_eq!(std::fs::read_dir(consumer.path()).unwrap().count(), 1);
+    let command = |args: &[&str]| {
+        omega(consumer.path())
+            .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"))
+            .args(args)
+            .arg(&program)
+            .output()
+            .unwrap()
+    };
+    let inspected = command(&["psi", "inspect", "--artifact"]);
+    assert!(inspected.status.success(), "{inspected:?}");
+    let withheld = command(&["run", "--both"]);
+    assert!(!withheld.status.success());
+    assert!(String::from_utf8_lossy(&withheld.stderr).contains("requires --trusted-artifact"));
+    let mut wrong = manifest.clone();
+    wrong.replace_range(..1, if manifest.starts_with('0') { "1" } else { "0" });
+    let refused = command(&["run", "--both", "--trusted-artifact", &wrong]);
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("differs from the artifact authorized")
+    );
+    for target in targets {
+        let compiled = command(&[
+            "--trusted-artifact",
+            &manifest,
+            "--target",
+            target,
+            "--build-dir",
+            target,
+        ]);
+        assert!(compiled.status.success(), "{target}: {compiled:?}");
+        let executable = if target == "windows_x86_64" {
+            "omega-program.exe"
+        } else {
+            "omega-program"
+        };
+        assert!(consumer.path().join(target).join(executable).is_file());
+    }
+    let observed = command(&["run", "--both", "--trusted-artifact", &manifest]);
+    assert!(observed.status.success(), "{observed:?}");
+    assert!(observed.stdout.is_empty(), "{observed:?}");
+    assert!(
+        String::from_utf8_lossy(&observed.stderr).contains("interp exit: 0"),
+        "{observed:?}"
+    );
+}
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+#[test]
+fn reopened_program_uses_the_host_pinned_package_lock() {
+    use sha2::{Digest, Sha256};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
+    let fixture = root.join("tests/fixtures/run/providers/native_boundary_supply");
+    let consumer = TemporaryDirectory::create("psi-lock-consumer", false).unwrap();
+    let host = TemporaryDirectory::create("psi-lock-host", false).unwrap();
+    let lock = host.path().join("omega.lock");
+    let program = consumer.path().join("pid.psi");
+    let manifest = {
+        let producer = TemporaryDirectory::create("psi-lock-producer", false).unwrap();
+        for file in ["build.omg", "main.omg"] {
+            std::fs::copy(fixture.join(file), producer.path().join(file)).unwrap();
+        }
+        let invoke = |args: &[&str]| {
+            omega(producer.path())
+                .env("OMEGA_LIBRARY_ROOT", root.join("source/library"))
+                .args(args)
+                .output()
+                .unwrap()
+        };
+        let issued = invoke(&[
+            "--emit-psi",
+            program.to_str().unwrap(),
+            "--target",
+            "windows_x86_64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "main.omg",
+        ]);
+        assert!(issued.status.success(), "{issued:?}");
+        let output = String::from_utf8(issued.stdout).unwrap();
+        let manifest = output
+            .lines()
+            .find_map(|line| line.strip_prefix("Psi manifest "))
+            .unwrap()
+            .to_owned();
+        // Only this disposable application supplies the test host's _getpid binding.
+        let review = invoke(&[
+            "packages",
+            "update",
+            "--project",
+            ".",
+            "--target",
+            "windows_x86_64",
+            "--offline",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "--dangerously-accept-all",
+        ]);
+        assert!(review.status.success(), "{review:?}");
+        std::fs::copy(producer.path().join("omega.lock"), &lock).unwrap();
+        manifest
+    };
+    assert_eq!(std::fs::read_dir(consumer.path()).unwrap().count(), 1);
+    let bytes = std::fs::read(&lock).unwrap();
+    assert!(
+        std::str::from_utf8(&bytes)
+            .unwrap()
+            .contains("\nnative_bindings_v1 ")
+    );
+    let digest = format!("{:x}", Sha256::digest(&bytes));
+    let receive = |args: &[&str], pin: Option<&str>| {
+        let mut command = omega(consumer.path());
+        command
+            .env_remove("OMEGA_HOST_PACKAGE_LOCK")
+            .env_remove("OMEGA_HOST_PACKAGE_LOCK_SHA256")
+            .env("OMEGA_LIBRARY_ROOT", consumer.path().join("absent-library"));
+        if let Some(pin) = pin {
+            command
+                .env("OMEGA_HOST_PACKAGE_LOCK", &lock)
+                .env("OMEGA_HOST_PACKAGE_LOCK_SHA256", pin);
+        }
+        command
+            .args(args)
+            .args(["--trusted-artifact", &manifest])
+            .arg(&program)
+            .output()
+            .unwrap()
+    };
+    let refused = receive(&["--build-dir", "uninstalled"], None);
+    assert!(!refused.status.success(), "{refused:?}");
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("HostProcessId"),
+        "{refused:?}"
+    );
+    assert!(
+        !consumer
+            .path()
+            .join("uninstalled/omega-program.exe")
+            .exists()
+    );
+    let wrong = receive(&["--build-dir", "substituted"], Some(&"0".repeat(64)));
+    assert!(!wrong.status.success(), "{wrong:?}");
+    assert!(
+        String::from_utf8_lossy(&wrong.stderr).contains("approved SHA-256"),
+        "{wrong:?}"
+    );
+    assert!(
+        !consumer
+            .path()
+            .join("substituted/omega-program.exe")
+            .exists()
+    );
+    let compiled = receive(&["--build-dir", "installed"], Some(&digest));
+    assert!(compiled.status.success(), "{compiled:?}");
+    let status = Command::new(consumer.path().join("installed/omega-program.exe"))
+        .stdin(Stdio::null())
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(0));
+    let compared = receive(&["run", "--both"], Some(&digest));
+    assert!(compared.status.success(), "{compared:?}");
+    assert!(
+        String::from_utf8_lossy(&compared.stderr).contains("interp exit: 0"),
+        "{compared:?}"
+    );
+}

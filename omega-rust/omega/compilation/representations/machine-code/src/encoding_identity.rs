@@ -427,9 +427,9 @@ mod tests {
     use super::super::{
         DeferredControlEncodingReason, PostAllocationMachineIdentity, ResolvedPhysicalAddress,
         SelectedFormDecodedFootprint, SelectedFormDecodedFootprintHandle,
-        SelectedFormEncodedByteSpan, SelectedFormEncodedRowStore, SelectedFormEncoding,
-        SelectedFormEncodingCounts, SelectedFormEncodingIdentity, SelectedFormEncodingRow,
-        SelectedFormEncodingState, SelectedFormMachineDisposition,
+        SelectedFormEncodedByteSpan, SelectedFormEncoding, SelectedFormEncodingCounts,
+        SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
+        SelectedFormMachineDisposition,
     };
     use selected_instructions::{
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionId,
@@ -452,7 +452,7 @@ mod tests {
                 machine_disposition: SelectedFormMachineDisposition::RetainedV1,
                 state: SelectedFormEncodingState::DeferredControl {
                     reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
-                    alternatives: Box::new(crate::EncodedControlAlternatives {
+                    alternatives: std::sync::Arc::new(crate::EncodedControlAlternatives {
                         baseline: crate::EncodedBranchAlternative {
                             alternative: MachineAlternativeKey {
                                 family: MachineAlternativeFamily::ConditionalBranchNonZero,
@@ -481,7 +481,7 @@ mod tests {
                 code: SelectedFormEncodedByteSpan::default(),
                 footprint: SelectedFormDecodedFootprintHandle::default(),
             }],
-            encoded: SelectedFormEncodedRowStore::new(),
+            encoded: Default::default(),
             frame: None,
             counts: SelectedFormEncodingCounts {
                 ordinary_deferred_control: 1,
@@ -518,7 +518,7 @@ mod tests {
         effects.trap = MachineEncodedTrapBehavior::HostedReadFailureV1;
         effects.control = MachineEncodedControlEffect::HostedReadReturnOrTrapV1;
         program.rows[0].state = SelectedFormEncodingState::Encoded;
-        let (code, footprint) = program.encoded.intern(
+        let (code, footprint) = std::sync::Arc::make_mut(&mut program.encoded).intern(
             &[1],
             SelectedFormDecodedFootprint {
                 register_reads: Vec::new(),
@@ -550,7 +550,9 @@ mod tests {
                 }
                 _ => {
                     let handle = changed.rows[0].footprint;
-                    let footprint = changed.encoded.footprint_mut(handle).unwrap();
+                    let footprint = std::sync::Arc::make_mut(&mut changed.encoded)
+                        .footprint_mut(handle)
+                        .unwrap();
                     match mutation {
                         3 => {
                             footprint.encoded.memory =
@@ -637,6 +639,7 @@ mod tests {
             else {
                 unreachable!()
             };
+            let alternatives = std::sync::Arc::make_mut(alternatives);
             match field {
                 0 => alternatives.baseline.bytes[0] ^= 1,
                 1 => alternatives.baseline.field = crate::BranchDisplacementField::Relative8,

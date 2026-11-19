@@ -12,8 +12,6 @@ pub mod frame_address;
 pub mod frame_protocol;
 pub mod layout;
 pub mod layout_requirements;
-pub mod relative_branches;
-pub mod relaxation;
 mod validation;
 use OptimizedSelectedFormEncodingError as Error;
 use isa_aarch64::{

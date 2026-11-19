@@ -14,7 +14,6 @@ pub enum PackageChangeError {
     Decisions(HistoricalPackagePolicyError),
     RejectedChanges,
     Lock(PackageLockError),
-    AllocationFailed,
 }
 
 impl fmt::Display for PackageChangeError {
@@ -40,9 +39,6 @@ impl fmt::Display for PackageChangeError {
             Self::Lock(error) => {
                 write!(formatter, "cannot construct proposed package lock: {error}")
             }
-            Self::AllocationFailed => {
-                formatter.write_str("package lock proposal allocation failed")
-            }
         }
     }
 }
@@ -55,7 +51,7 @@ impl std::error::Error for PackageChangeError {
             Self::SourceSubject(error) => Some(error),
             Self::Decisions(error) => Some(error),
             Self::Lock(error) => Some(error),
-            Self::RejectedChanges | Self::AllocationFailed | Self::CompilerIdentity(_) => None,
+            Self::RejectedChanges | Self::CompilerIdentity(_) => None,
         }
     }
 }

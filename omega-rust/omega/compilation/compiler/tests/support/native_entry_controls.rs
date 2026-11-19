@@ -201,7 +201,7 @@ pub(super) fn inspect(report: &products::CompileReport, fixture: &Path) -> Resul
     }
     match image_fixtures::emit_native_entry_bridge(missing) {
         Err(
-            physical_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
+            entry_planning::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(
                 reason,
             ),
         ) if reason.starts_with(
@@ -347,13 +347,18 @@ fn inspect_body_cpu_state(report: &products::CompileReport, fixture: &Path) -> R
         }
         "scalar calls" => {
             let retained = object
-                .retained_fragment_source()
+                .retained_body_replay()
                 .ok_or("CPU-state audit requires retained fragments")?;
-            let source = retained.source().source().source().source();
+            let source = retained
+                .fragment_source()
+                .frame_application_for_audit()
+                .source()
+                .source();
             let model = source.register_environment().physical().model();
-            let actual_abi_vector_clobber = source
-                .original_physical_program()
+            let actual_abi_vector_clobber = retained
+                .original_encoding()
                 .ok_or("CPU-state audit requires retained originals")?
+                .physical
                 .machine
                 .functions
                 .iter()
@@ -450,7 +455,7 @@ fn inspect_instruction_sources(
     let retained = object
         .retained_fragment_source()
         .ok_or("relative-branch audit requires retained fragments")?;
-    inspect_relative_branches(retained.source().source())?;
+    inspect_relative_branches(retained.frame_application_for_audit())?;
     use installation_admission::selected::correlate_native_instruction_sources as correlate;
     let original = correlate(rows.selected, rows.physical.iter().copied())
         .map_err(|error| format!("unchanged native instruction correspondence: {error:?}"))?;
@@ -622,8 +627,7 @@ fn inspect_relative_branches(
             let mut bad_bytes = rows.clone();
             bad_bytes[position].bytes.fill(0);
             match validate(&bad_bytes) {
-                Err(Error::X86_64Branch(id, _)) | Err(Error::Aarch64Branch(id, _))
-                    if id == row.instruction => {}
+                Err(Error::BranchBytes(id)) if id == row.instruction => {}
                 actual => return Err(format!("relative branch decoder control: {actual:?}")),
             }
         }

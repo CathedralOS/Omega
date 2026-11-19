@@ -23,7 +23,7 @@ flow-effects = { path = "../../../psi/compilation/representations/source-effects
 optimization-core = { path = "../../compilation/representations/optimization-contracts" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../host-support/platform-custody" }

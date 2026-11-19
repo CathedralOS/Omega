@@ -9,9 +9,9 @@ handler body and verifies that reentry never changes the parent installation,
 artifact, or callback association.
 */
 
+use crate::callable_planning::{CallableTargetProduct, PrivateEntryContract};
 use diagnostics::Diagnostic;
 use image_emission::PrivateFunctionObject;
-use native_program_planning::callable_planning::{CallableTargetProduct, PrivateEntryContract};
 use provider_admission::provider_admission::{
     AdmittedInstalledInterruptCohort, AdmittedInstalledInterruptEntry,
     AdmittedInstalledInterruptScope, realization_error,
@@ -31,22 +31,20 @@ pub(crate) struct PreparedCallbackBodies<'a> {
 pub(crate) struct PlannedPrivateBody {
     pub identity: function_identity::MachineFunctionIdentity,
     pub callable: super::callable_objects::CallablePhysicalProduct,
-    pub entry: physical_planning::callable_entry::PlannedPrivateEntry,
+    pub entry: entry_planning::callable_entry::PlannedPrivateEntry,
     measurement: std::sync::OnceLock<
-        Result<physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>,
+        Result<installation_binding::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>,
     >,
 }
 
 pub(super) type EncodedPrivateBody = PrivateBody<
     super::callable_objects::EncodedCallable,
-    native_verification::bridges::EncodedPrivateEntry,
+    native_encoding::callable_entry::EncodedPrivateEntry,
 >;
 pub(super) type LaidOutPrivateBody = PrivateBody<
     super::callable_objects::LaidOutCallable,
     function_layout::entry_placement::PlacedPrivateEntry,
 >;
-pub(super) type ConstructedPrivateBody =
-    PrivateBody<super::callable_objects::ConstructedCallable, object_file::PrivateEntryObject>;
 
 pub(super) struct PrivateBody<Callable, Entry> {
     callable: Callable,
@@ -55,14 +53,14 @@ pub(super) struct PrivateBody<Callable, Entry> {
 
 pub(super) struct BoundPrivateBody {
     callable: super::callable_objects::BoundCallable,
-    entry: physical_planning::callable_entry::PlannedPrivateEntry,
+    entry: installation_binding::entries::BoundPrivateEntry,
 }
 impl PlannedPrivateBody {
     fn measured_handler(
         &self,
         machine: semantic_vocabulary::MachineId,
         operation: semantic_vocabulary::OperationId,
-    ) -> Result<&physical_planning::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>
+    ) -> Result<&installation_binding::installed_handlers::MeasuredInstalledHandler, Vec<Diagnostic>>
     {
         let measured = self
             .measurement
@@ -73,11 +71,11 @@ impl PlannedPrivateBody {
                         "installed handler has no arrival bridge",
                     )
                 })?;
-                physical_planning::installed_handlers::measure_installed_handler(
+                installation_binding::installed_handlers::measure_installed_handler(
                     self.identity,
-                    &self.callable.body.frame,
-                    &self.callable.body.facts,
-                    &self.callable.body.installations,
+                    &self.callable.body.stage.program().frame,
+                    self.callable.body.stage.facts(),
+                    self.callable.body.stage.installations(),
                     bridge,
                     self.entry.cpu_state(),
                 )
@@ -101,7 +99,7 @@ impl PlannedPrivateBody {
     ) -> Result<BoundPrivateBody, Vec<Diagnostic>> {
         Ok(BoundPrivateBody {
             callable: self.callable.bind(handlers)?,
-            entry: self.entry,
+            entry: installation_binding::entries::bind_private_entry(self.entry),
         })
     }
 }
@@ -123,47 +121,41 @@ impl EncodedPrivateBody {
     pub(super) fn layout(self) -> Result<LaidOutPrivateBody, Vec<Diagnostic>> {
         Ok(PrivateBody {
             callable: self.callable.layout()?,
-            entry: function_layout::entry_placement::place_private_entry(self.entry)
+            entry: placement::entry_layout::resolve_private_entry(self.entry)
+                .map(relaxation::retain_fixed_entry)
+                .map(function_layout::place_fixed_entry)
                 .map_err(|error| realization_error("callback entry layout", error))?,
         })
     }
 }
 
-impl LaidOutPrivateBody {
-    pub(super) fn construct_object(self) -> Result<ConstructedPrivateBody, Vec<Diagnostic>> {
-        Ok(PrivateBody {
-            callable: self.callable.construct_object()?,
-            entry: object_file::PrivateEntryObject::from_placement(self.entry),
-        })
-    }
+pub(super) struct PrivateBodyObject {
+    pub object: PrivateFunctionObject,
+    pub physical_original: native_artifact::PrivatePhysicalOriginal,
+    pub stage_originals: Option<Box<published_object_verification::RetainedPhysicalInputs>>,
 }
 
-impl ConstructedPrivateBody {
-    pub(super) fn emit_fragment(
-        self,
-    ) -> Result<
-        (
-            PrivateFunctionObject,
-            native_artifact::PrivatePhysicalOriginal,
-        ),
-        Vec<Diagnostic>,
-    > {
-        let emitted = self.callable.emit_fragment()?;
+impl LaidOutPrivateBody {
+    pub(super) fn construct_object(self) -> Result<PrivateBodyObject, Vec<Diagnostic>> {
+        let emitted = self.callable.construct_object()?;
         let object = image_emission::bind_private_function_entry(
-            self.entry,
+            object_file::PrivateEntryObject::from_placement(self.entry),
             Arc::new(emitted.projection.into_object()),
         )
         .map_err(|error| realization_error("callback entry ABI", error))?;
-        Ok((object, emitted.physical_original))
+        Ok(PrivateBodyObject {
+            object,
+            physical_original: emitted.physical_original,
+            stage_originals: emitted.stage_originals,
+        })
     }
 }
 
 impl<'contract> PreparedCallbackBodies<'contract> {
     pub fn from_roster(
-        roster: native_program_planning::callable_planning::ClosedCallbackRoster<'contract>,
-        root: &native_program_planning::NativeBodyPlan,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let (placement_count, planned) = roster.into_parts();
+        roster: crate::callable_planning::PlannedProgramBodies<'contract>,
+    ) -> Result<(target_lowering::NativeBodyPlan, Self), Vec<Diagnostic>> {
+        let (root, placement_count, planned) = roster.into_parts();
         let mut selected = vec![None; placement_count];
         let mut target_bodies = (0..placement_count).map(|_| None).collect::<Vec<_>>();
         let mut order = Vec::with_capacity(planned.len());
@@ -174,7 +166,7 @@ impl<'contract> PreparedCallbackBodies<'contract> {
             order.push(index);
         }
         let mut installed_plans = PreparedEntryPlans::new(placement_count);
-        let root_handlers = installed_plans.dependencies(root, &selected)?;
+        let root_handlers = installed_plans.dependencies(&root, &selected)?;
         let mut edges = vec![Vec::new(); placement_count];
         for &index in &order {
             let body = target_bodies[index]
@@ -182,12 +174,9 @@ impl<'contract> PreparedCallbackBodies<'contract> {
                 .expect("closed roster contains this target");
             edges[index] = installed_plans.dependencies(&body.target, &selected)?;
         }
-        let (before_root, after_root) = physical_planning::handler_order::handler_planning_order(
-            &edges,
-            &root_handlers,
-            &order,
-        )
-        .map_err(|reason| realization_error("installed handler stack", reason))?;
+        let (before_root, after_root) =
+            crate::handler_order::handler_planning_order(&edges, &root_handlers, &order)
+                .map_err(|reason| realization_error("installed handler stack", reason))?;
         let mut bodies = Self {
             selected,
             target_bodies,
@@ -199,7 +188,7 @@ impl<'contract> PreparedCallbackBodies<'contract> {
         for index in before_root {
             bodies.plan(index)?;
         }
-        Ok(bodies)
+        Ok((root, bodies))
     }
 
     fn plan(&mut self, index: usize) -> Result<(), Vec<Diagnostic>> {
@@ -229,7 +218,7 @@ pub(super) fn retained_handler_measurements(
     use std::collections::{BTreeMap, BTreeSet};
     let demanded = std::iter::once(root)
         .chain(private.iter().map(|body| &body.callable.body))
-        .flat_map(|body| body.installations.installed_stack_requirements())
+        .flat_map(|body| body.stage.installations().installed_stack_requirements())
         .map(|row| (row.installation_machine, row.operation, row.placement_index))
         .collect::<BTreeSet<_>>();
     let positions = private
@@ -260,9 +249,9 @@ struct RetainedInstallation<'a> {
 }
 
 fn retained_installations(
-    target: &native_program_planning::NativeBodyPlan,
+    target: &target_lowering::NativeBodyPlan,
 ) -> Result<Vec<RetainedInstallation<'_>>, Vec<Diagnostic>> {
-    let cohort = target.facts.admission.installed_interrupts();
+    let cohort = target.semantic_facts().admission.installed_interrupts();
     // The plan lists the installations that survived lowering, sorted and unique.
     let operations = &target.execution_plan().plan().installation_operations;
     let mut entries: Vec<_> = cohort.entries().iter().collect();
@@ -307,7 +296,7 @@ fn retained_installations(
 }
 
 pub(crate) fn prepare_installed_callbacks(
-    target: &native_program_planning::NativeBodyPlan,
+    target: &target_lowering::NativeBodyPlan,
     bodies: &PreparedCallbackBodies<'_>,
     physical_entry: Option<installation_evidence::InstalledPhysicalStackRoot>,
 ) -> Result<Vec<installation_evidence::InstalledInterruptStackRequirement>, Vec<Diagnostic>> {
@@ -321,7 +310,8 @@ pub(crate) fn prepare_installed_callbacks(
                 .and_then(Option::as_ref)
                 .filter(|body| {
                     body.identity == entry.callback_function
-                        && body.callable.body.frame.instructions.entry == entry.entry().machine()
+                        && body.callable.body.stage.program().frame.instructions.entry
+                            == entry.entry().machine()
                 })
                 .ok_or_else(|| {
                     realization_error(
@@ -369,7 +359,11 @@ fn plan_physical_callback(
 ) -> Result<PlannedPrivateBody, Vec<Diagnostic>> {
     let installed_plan = prepared_objects.installed_plans.for_body(
         settlement,
-        prepared.target.facts.admission.installed_interrupts(),
+        prepared
+            .target
+            .semantic_facts()
+            .admission
+            .installed_interrupts(),
     )?;
     let execution = installed_plan
         .as_ref()
@@ -379,6 +373,8 @@ fn plan_physical_callback(
         super::callable_objects::prepare_callable_physical(prepared, execution, requirements)?;
     let emitted = &callable
         .body
+        .stage
+        .program()
         .frame
         .instructions
         .contracts
@@ -428,10 +424,10 @@ fn plan_physical_callback(
             Ok(parameter.application.native_ordinal)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let entry = physical_planning::callable_entry::plan_private_function_entry(
+    let entry = entry_planning::callable_entry::plan_private_function_entry(
         settlement.callback_function,
-        &callable.body.frame,
-        &callable.body.installations,
+        &callable.body.stage.program().frame,
+        callable.body.stage.installations().for_entry_planning(),
         settlement.boundary_entry_plan,
         &inbound_ordinals,
         installed_plan.map(|(plan, _)| plan),
@@ -465,7 +461,7 @@ impl PreparedEntryPlans {
 
     fn dependencies(
         &mut self,
-        body: &native_program_planning::NativeBodyPlan,
+        body: &target_lowering::NativeBodyPlan,
         selected: &[Option<PrivateEntryContract<'_>>],
     ) -> Result<Vec<usize>, Vec<Diagnostic>> {
         let mut placements = Vec::new();

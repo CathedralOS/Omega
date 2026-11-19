@@ -251,6 +251,15 @@ pub fn terminal_authority_policy_with_rows(
     Ok(TerminalAuthorityPolicy::new(identity, explicit_rows))
 }
 
+pub(crate) fn reviewed_windows_import(
+    mechanism: TerminalMechanismIdentity,
+) -> Option<TerminalAuthorityDisposition> {
+    let TerminalMechanismIdentity::NormalizedForeign(foreign) = mechanism else {
+        return None;
+    };
+    windows_imports::mechanism_row(foreign).map(|row| row.disposition)
+}
+
 pub(crate) fn cohort_mechanism_row(
     mechanism: TerminalMechanismIdentity,
     schema: &ServiceSchema,

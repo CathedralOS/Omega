@@ -87,22 +87,9 @@ impl PackageChangeReview {
             HistoricalPackagePolicyLimits::default(),
         )
         .map_err(PackageChangeError::Decisions)?;
-        let mut policies = Vec::new();
-        crate::reserve!(policies, self.reviews.reviews().len(), PackageChangeError);
-        for package in source.packages() {
-            for purpose in crate::declarations::DependencyPurpose::ALL {
-                if let Some(review) = self.reviews.review_occurrence(package.key(), purpose) {
-                    policies.push((
-                        review.checked_context(),
-                        review.policy(),
-                        review.semantic_bindings(),
-                    ));
-                }
-            }
-        }
-        PackageLockTarget::from_accepted_policies(
+        PackageLockTarget::from_accepted_reviews(
             source,
-            &policies,
+            &self.reviews,
             self.compiler_identity,
             decisions,
         )

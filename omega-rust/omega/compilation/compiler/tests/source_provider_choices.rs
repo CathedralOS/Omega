@@ -150,10 +150,10 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
 /// the accepted program; the service map and its checked bodies remain real.
 fn fixture_inputs(
     module: &terminal_psi::TerminalModule,
-) -> native_program_planning::target_supply::TargetSupplyExecutionInputs {
+) -> provider_realization::target_supply::TargetSupplyExecutionInputs {
     assert!(module.external_providers.is_empty());
     assert!(module.calling_policy_requests.is_empty());
-    native_program_planning::target_supply::TargetSupplyExecutionInputs {
+    provider_realization::target_supply::TargetSupplyExecutionInputs {
         calling_applications: Vec::new(),
         external_bindings: Vec::new(),
         evaluated_native_bindings: Vec::new(),
@@ -165,7 +165,7 @@ fn fixture_inputs(
 
 fn execution(
     accepted: &AcceptedTerminalSource,
-) -> Result<native_program_planning::SelectedExecution, String> {
+) -> Result<provider_realization::SelectedExecution, String> {
     let module = accepted.module();
     let entry = accepted
         .entry()
@@ -176,7 +176,7 @@ fn execution(
     let closed = accepted
         .close_logical_provider_reach(TARGET, Some(entry), &reached)
         .map_err(first)?;
-    native_program_planning::plan_target_execution(
+    provider_realization::plan_target_execution(
         module,
         profile(),
         closed.selection(),
@@ -184,10 +184,8 @@ fn execution(
         fixture_inputs(module),
     )
     .map_err(|error| match error {
-        native_program_planning::NativeProgramPlanningError::Supply(error) => {
-            error.diagnostic(module)
-        }
-        native_program_planning::NativeProgramPlanningError::Admission(errors) => first(errors),
+        provider_realization::NativeProgramPlanningError::Supply(error) => error.diagnostic(module),
+        provider_realization::NativeProgramPlanningError::Admission(errors) => first(errors),
     })
 }
 
@@ -344,7 +342,7 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
     assert_eq!(closed.selection().program(), artifact.view().identity());
     let mut changed = accepted.module().clone();
     changed.provider_selections.clear();
-    use native_program_planning::{NativeProgramPlanningError, plan_target_execution};
+    use provider_realization::{NativeProgramPlanningError, plan_target_execution};
     let Err(NativeProgramPlanningError::Supply(foreign_program)) = plan_target_execution(
         &changed,
         profile(),

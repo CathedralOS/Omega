@@ -29,5 +29,6 @@ access-admission = { path = "../../access-admission" }
 layout-plans = { path = "../storage-layout" }
 
 [dev-dependencies]
+bundled-declarations = { path = "../bundled-declarations" }
 # The source guards delegate their scan to the shared audit crate.
 source-audit = { path = "../../../../test-support/source-audit" }

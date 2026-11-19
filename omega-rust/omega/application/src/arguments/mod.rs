@@ -103,6 +103,24 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
     }
 }
 
+fn parse_trusted_artifact(
+    arguments: &mut impl Iterator<Item = OsString>,
+    slot: &mut Option<String>,
+) -> Result<(), String> {
+    if slot.is_some() {
+        return Err("duplicate --trusted-artifact".into());
+    }
+    let digest = take_text(arguments, "--trusted-artifact")?;
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(
+            "--trusted-artifact requires the 64 hexadecimal digits issued by the trusted producer"
+                .into(),
+        );
+    }
+    *slot = Some(digest.to_ascii_lowercase());
+    Ok(())
+}
+
 fn retired_command(spelling: &str) -> String {
     let command = match spelling {
         "install" => "omega packages install",

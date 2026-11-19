@@ -137,6 +137,19 @@ pub fn encode_machine_function_identity(
 
 pub fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     let contribution = match &binding.mechanism {
+        crate::NormalizedForeignCallMechanism::CompilerImport {
+            import,
+            requirement_identity,
+            selected_plan,
+        } => {
+            encode_string(bytes, "@compiler-import");
+            bytes.push(import.tag());
+            bytes.extend_from_slice(selected_plan);
+            encode_string(bytes, requirement_identity);
+            encode_call_plan(bytes, &binding.boundary_entry_plan.call);
+            encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
+            return;
+        }
         crate::NormalizedForeignCallMechanism::HostedImport {
             locator,
             receipt,

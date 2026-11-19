@@ -18,37 +18,36 @@ mod object_emission;
 
 use crate::request::NativeRealizationRequest;
 use diagnostics::Diagnostic;
-use native_artifact::RequestedNativeArtifact;
 
 use self::object_emission::emit_realization_object;
-use native_program_planning::{AdmittedNativeRealization, admit_prepared_native_realization};
+use artifact_lowering::{AdmittedNativeRealization, admit_prepared_native_realization};
 use provider_admission::provider_admission::realization_error;
 
 pub struct RealizedNativeProduct {
-    pub artifact: RequestedNativeArtifact,
-    pub runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+    pub stage_replay: crate::NativeStageReplay,
+    pub image: native_artifact::FinishedNativeImage,
 }
 
 struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
-    entry_settlement: Option<native_program_planning::ValidatedNativeProgramEntrySettlement>,
+    entry_settlement: Option<artifact_lowering::ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
-        native_runtime_provisions::NativeRuntimePlan<
-            native_runtime_provisions::NativeForeignAdapterRequest,
+        crate::runtime_provisions::NativeRuntimePlan<
+            crate::runtime_provisions::NativeForeignAdapterRequest,
         >,
     >,
 }
 
 fn admit_realization<'request>(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: native_program_planning::VerifiedNativeArtifactInput,
+    input: artifact_lowering::VerifiedNativeArtifactInput,
     request: &NativeRealizationRequest<'request>,
 ) -> Result<AdmittedRealization<'request>, Vec<Diagnostic>> {
     let admitted = admit_prepared_native_realization(input, artifact, &request.admission)?;
     let AdmittedNativeRealization {
         input, providers, ..
     } = &admitted;
-    let entry_settlement = native_program_planning::admit_executable_entry(
+    let entry_settlement = artifact_lowering::admit_executable_entry(
         input,
         artifact,
         request.program_entry,
@@ -58,7 +57,7 @@ fn admit_realization<'request>(
     let runtime_provisions = entry
         .checked_entry
         .map(|_| {
-            native_runtime_provisions::plan_root_provisions(
+            crate::runtime_provisions::plan_root_provisions(
                 entry,
                 input.optimization_input().runtime_input(),
                 providers
@@ -69,22 +68,26 @@ fn admit_realization<'request>(
                     .settlements
                     .iter()
                     .map(
-                        |settlement| native_runtime_provisions::TerminalRuntimeHostProvision {
+                        |settlement| crate::runtime_provisions::TerminalRuntimeHostProvision {
                             boundary: settlement.boundary,
                             realization: settlement.realization.clone(),
                         },
                     )
                     .collect(),
-                request.admission.providers.selected_provider_plans,
+                request.execution,
                 request.admission.providers.external_binding_rows,
-                native_runtime_provisions::NativeBindingRuntimeInputs {
+                crate::runtime_provisions::NativeBindingRuntimeInputs {
                     bindings: request.admission.providers.native_bindings,
                     calling: request.admission.providers.installed_calling,
                 },
             )
         })
         .transpose()
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+        .map_err(|message| vec![Diagnostic::error(message)])?
+        .map(|plan| {
+            plan.with_private_entry_ram(input.private_entry_ram().to_vec())
+                .with_target_provider_proposals(request.target_provider_proposals.to_vec())
+        });
     Ok(AdmittedRealization {
         admitted,
         entry_settlement,
@@ -92,78 +95,81 @@ fn admit_realization<'request>(
     })
 }
 
-pub(crate) fn realize_native_artifact(
+pub(crate) fn prepare_program_image(
     artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: native_program_planning::VerifiedNativeArtifactInput,
+    input: artifact_lowering::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
-) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
+) -> Result<(native_artifact::ProgramImageInput, crate::NativeStageReplay), Vec<Diagnostic>> {
     let AdmittedRealization {
-        admitted:
-            AdmittedNativeRealization {
-                input,
-                mut providers,
-                boundary_application_coverage,
-            },
+        admitted,
         entry_settlement,
         runtime_provisions,
     } = admit_realization(&artifact, input, &request)?;
-    let private_entry_ram = input.private_entry_ram().to_vec();
-    let program_provider_context = providers.program_provider_context().clone();
-    let emitted = emit_realization_object(
-        input,
-        providers.installation.take(),
-        &providers.settlements,
-        entry_settlement.as_ref(),
-        &program_provider_context,
-        runtime_provisions,
-        &request,
+    let planning_request = crate::callable_planning::NativeProgramPlanningRequest {
+        proposal: request.proposal,
+        execution: request.execution,
+        scalar_applications: request
+            .scalar_applications
+            .as_ref()
+            .map(|scalars| scalars.completed),
+        admission: &request.admission,
+        optimization_selections: request.optimization_selections,
+        budget: request.optimization_budget(),
+        retain_native_stage_inputs: request.retain_native_stage_inputs,
+    };
+    let crate::callable_planning::PlannedNativeProgram {
+        bodies,
+        providers,
+        boundary_application_coverage,
+    } = crate::callable_planning::plan_program(
+        admitted,
+        &planning_request,
+        request.observation.native_body(),
     )?;
-    let runtime_provisions = emitted.runtime_provisions.map(|provisions| {
-        provisions
-            .map_adapters(auxiliary_native::emit)
-            .with_private_entry_ram(private_entry_ram)
-            .with_borrowed_storage_layouts(emitted.borrowed_storage_layouts)
-            .with_target_provider_proposals(request.target_provider_proposals.to_vec())
-    });
+    let image_providers = native_artifact::NativeImageProviders::from_admission(
+        providers,
+        request.admission.providers.selected_provider_plans,
+    )?;
+    let emitted = emit_realization_object(
+        bodies,
+        entry_settlement.as_ref(),
+        runtime_provisions,
+        request.observation,
+    )?;
     let physical_originals = emitted.physical_originals;
+    let stage_replay = emitted.stage_replay;
     let emitted = emitted.object;
     let image_request = emitted
-        .object
+        .object()
         .settle_elf_loader(request.image_request.clone(), request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
-    let artifact = {
-        request
-            .observation
-            .enter(crate::observations::NativePipelineStage::ImageEmission);
-        RequestedNativeArtifact::emit_admitted(
-            request.admission.providers.target(),
-            artifact,
-            emitted,
-            image_request,
-            request.admission.providers.selected_provider_plans,
-            providers,
-            boundary_application_coverage,
+    Ok((
+        native_artifact::ProgramImageInput {
+            terminal: artifact,
+            published: emitted,
+            image: image_request,
+            providers: image_providers,
+            coverage: boundary_application_coverage,
             physical_originals,
-        )
-    }?;
-    Ok(RealizedNativeProduct {
-        artifact,
-        runtime_provisions,
-    })
+        },
+        stage_replay,
+    ))
 }
 
 pub(crate) fn admit_terminal_runtime(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-    input: native_program_planning::VerifiedNativeArtifactInput,
+    input: artifact_lowering::VerifiedNativeArtifactInput,
     request: NativeRealizationRequest<'_>,
-) -> Result<Option<native_artifact::TerminalRuntimeProvisions>, Vec<Diagnostic>> {
+) -> Result<
+    crate::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>,
+    Vec<Diagnostic>,
+> {
     let AdmittedRealization {
         admitted: AdmittedNativeRealization { input, .. },
         runtime_provisions,
         ..
     } = admit_realization(artifact, input, &request)?;
-    let private_entry_ram = input.private_entry_ram().to_vec();
-    let borrowed_storage_layouts = native_program_planning::plan_runtime_storage(
+    let borrowed_storage_layouts = crate::body_planning::plan_runtime_storage(
         input,
         request.admission.providers.target(),
         request.optimization_selections,
@@ -173,26 +179,26 @@ pub(crate) fn admit_terminal_runtime(
             .counter(crate::observations::NativePipelineStage::AbstractOptimization),
     )
     .map_err(|error| match error {
-        native_program_planning::NativeBodyPlanningError::AbstractOptimization(error) => {
+        crate::body_planning::NativeBodyPlanningError::AbstractOptimization(error) => {
             realization_error("canonical abstract optimization", error)
         }
-        native_program_planning::NativeBodyPlanningError::Target(error) => {
+        crate::body_planning::NativeBodyPlanningError::Target(error) => {
             realization_error("runtime borrowed storage layout", error)
         }
     })?;
-    Ok(runtime_provisions
-        .map(|provisions| {
-            provisions
-                .map_adapters(auxiliary_native::plan)
-                .map_adapters(auxiliary_native::encode)
-                .map_adapters(auxiliary_native::place)
-                .map_adapters(auxiliary_native::construct)
-                .map_adapters(auxiliary_native::emit)
-                .with_private_entry_ram(private_entry_ram)
-                .with_borrowed_storage_layouts(borrowed_storage_layouts)
-                .with_target_provider_proposals(request.target_provider_proposals.to_vec())
+    let provisions = runtime_provisions.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "runtime admission requires a checked program entry",
+        )]
+    })?;
+    Ok(provisions
+        .map_adapters(|request| {
+            auxiliary_native::plan(request).map(installation_binding::entries::bind_foreign_adapter)
         })
-        .map(native_artifact::TerminalRuntimeProvisions::from_plan))
+        .map_adapters(auxiliary_native::encode)
+        .map_adapters(auxiliary_native::place)
+        .map_adapters(auxiliary_native::construct)
+        .with_borrowed_storage_layouts(borrowed_storage_layouts))
 }
 
 pub(crate) fn selected_physical_pipeline_failed(

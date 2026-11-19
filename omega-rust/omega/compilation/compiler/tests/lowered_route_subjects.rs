@@ -636,7 +636,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
     let Ok(RouteVerdict::Accepted(accepted)) = as_dependency else {
         panic!("only the empty entry is in scope: {as_dependency:?}");
     };
-    assert_eq!(accepted.elaboration.machines.len(), 1);
+    assert_eq!(accepted.elaboration().machines.len(), 1);
 }
 
 /// What the Build's selections name is in scope whichever package declares
@@ -745,7 +745,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     };
     assert!(
         accepted
-            .elaboration
+            .elaboration()
             .boundaries
             .iter()
             .any(|(_, symbol)| *symbol == exit_process)
@@ -870,7 +870,7 @@ fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
     let frontier = staged_unused(name, declaration);
     match route_verdict(&frontier).1 {
         Ok(RouteVerdict::Accepted(accepted)) => {
-            Verdict::Accepted(accepted.elaboration.machines.len())
+            Verdict::Accepted(accepted.elaboration().machines.len())
         }
         Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
         Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
@@ -944,12 +944,13 @@ fn judged_frontier(name: &str, frontier: &compiler::TypedFrontier) -> Vec<Verdic
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     )
     .into_iter()
     .map(|verdict| match verdict {
         Ok(RouteVerdict::Accepted(accepted)) => {
-            Verdict::Accepted(accepted.elaboration.machines.len())
+            Verdict::Accepted(accepted.elaboration().machines.len())
         }
         Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
         Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
@@ -1318,7 +1319,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
         panic!("the checker must accept the library call: {verdict:?}");
     };
-    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+    assert!(accepted.elaboration().names.iter().any(|(_, names)| {
         names.machine == "signed_from_word"
             && names
                 .declared
@@ -1570,13 +1571,13 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         other => panic!("the original-input contracts must check: {other:?}"),
     };
     let counter_id = closure
-        .elaboration
+        .elaboration()
         .machines
         .iter()
         .find_map(|(id, symbol)| (*symbol == counter).then_some(id))
         .unwrap();
     let counter = closure
-        .elaboration
+        .elaboration()
         .module
         .machines
         .iter()
@@ -1590,16 +1591,16 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
     let publication = closure.publish().expect("counter publication");
     assert_eq!(
         publication.artifact.semantic_module(),
-        &closure.elaboration.module
+        &closure.elaboration().module
     );
-    let input = native_program_planning::lower_artifact(
+    let input = artifact_lowering::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("Omega 00 retains the original-input guarantees")
     .into_optimization_artifact()
     .into_optimization_input();
-    native_program_planning::test_support::build_verified_psi_optimization_unit(
+    abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )

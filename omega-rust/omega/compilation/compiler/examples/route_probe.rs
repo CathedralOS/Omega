@@ -108,28 +108,34 @@ fn probe(
         frontier.bindings.clear();
         Vec::new()
     };
-    let verdicts = source_compiler::checking::judge_compilation(
-        source_compiler::lowering::prepare_compilation(
-            &frontier.typed,
-            source_compiler::lowering::Compilation {
-                declaration_metadata: &[],
-                entries: &frontier.entries,
-                subjects: &subjects,
-                purpose: declaration_contracts::source_identity::DependencyScope::Product,
-                selected: &frontier.selected,
-                calling: frontier
-                    .normalization
-                    .calling
-                    .borrow(&frontier.typed)
-                    .selection(),
-                providers: frontier.provider_selections(),
-                bindings: &frontier.bindings,
-                supplies: &frontier.supplies,
-            },
-            terminal_codec::TerminalPublication::Portable,
-        )
-        .program,
-    );
+    let prepared = match source_compiler::lowering::prepare_compilation(
+        &frontier.typed,
+        source_compiler::lowering::Compilation {
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &subjects,
+            purpose: declaration_contracts::source_identity::DependencyScope::Product,
+            selected: &frontier.selected,
+            calling: frontier
+                .normalization
+                .calling
+                .borrow(&frontier.typed)
+                .selection(),
+            providers: frontier.provider_selections(),
+            bindings: &frontier.bindings,
+            supplies: &frontier.supplies,
+        },
+        terminal_codec::TerminalPublication::Portable,
+    ) {
+        Ok(prepared) => prepared,
+        Err(diagnostics) => {
+            for diagnostic in diagnostics {
+                println!("  stopped: {}", diagnostic.message);
+            }
+            return "no-checker-input";
+        }
+    };
+    let verdicts = source_compiler::checking::judge_compilation(prepared.program);
     let mut whole = "accepted";
     let mut worse = |verdict: &'static str| {
         let rank = |name| match name {

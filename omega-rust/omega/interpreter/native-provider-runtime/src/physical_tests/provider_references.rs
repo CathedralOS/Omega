@@ -3,14 +3,12 @@
 
 use super::{Command, TIMEOUT, native_calls::compile};
 use crate::native_provider_runtime::test_session::TestProviderProcess;
-use crate::{
-    NativeAdapterId, NativeArgument, NativeProviderReference, NativeResultStorage, wire::Packet,
-};
+use crate::{NativeAdapterId, NativeProviderReference, NativeResultStorage, wire::Packet};
 use calling_conventions::{
     CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
-use image_fixtures::emit_native_foreign_bridge_object;
+use image_fixtures::prepare_foreign_adapter_object;
 use std::path::{Path, PathBuf};
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
@@ -145,15 +143,16 @@ impl Fixture {
             },
         )
         .unwrap();
-        let bridge = emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
+        let request = NativeForeignBridgeRequest {
             target,
             foreign,
             scalar_parameters: vec![None; parameters.len()],
-        })
-        .unwrap();
+        };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
-        let imports = image_fixtures::encode_locator_import(&locator);
-        image_emission::emit_native_foreign_adapter(bridge, locator, [37; 32], imports).unwrap()
+        image_emission::emit_native_foreign_adapter(
+            prepare_foreign_adapter_object(request, locator, [37; 32]).unwrap(),
+        )
+        .unwrap()
     }
 
     fn install(
@@ -426,7 +425,10 @@ fn provider_errno_handle_reads_guest_tls_after_loader_housekeeping() {
     assert_eq!(
         i32::from_le_bytes(
             process
-                .call(close, &[NativeArgument::Value(&(-1_i32).to_le_bytes())])
+                .call(
+                    close,
+                    &[crate::NativeArgument::Value(&(-1_i32).to_le_bytes())]
+                )
                 .unwrap()
                 .try_into()
                 .unwrap()

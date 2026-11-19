@@ -67,6 +67,7 @@ pub(crate) mod artifact_manifest {
         optimization: PsiOptimizationExecutionIdentity,
         installation: Option<SectionFingerprint>,
         debug: Option<SectionFingerprint>,
+        publication: Option<SectionFingerprint>,
         identity: TerminalArtifactIdentity,
     }
 
@@ -85,6 +86,31 @@ pub(crate) mod artifact_manifest {
 
         pub const fn debug(self) -> Option<SectionFingerprint> {
             self.debug
+        }
+
+        pub const fn publication(self) -> Option<SectionFingerprint> {
+            self.publication
+        }
+
+        /// Publication facts participate in host authorization even when executable code is identical.
+        pub fn with_publication(mut self, section: &[u8]) -> Self {
+            let fingerprint = hash_section(b"psi-publication-section\0", section);
+            let mut subject = [0u8; 64];
+            let base = if self.publication.is_some() {
+                artifact_identity(
+                    self.semantic,
+                    self.optimization,
+                    self.installation,
+                    self.debug,
+                )
+            } else {
+                self.identity
+            };
+            subject[..32].copy_from_slice(base.as_bytes());
+            self.publication = Some(fingerprint);
+            subject[32..].copy_from_slice(fingerprint.as_bytes());
+            self.identity = TerminalArtifactIdentity(hash(b"psi-published-artifact\0", &subject));
+            self
         }
 
         pub const fn identity(self) -> TerminalArtifactIdentity {
@@ -122,6 +148,7 @@ pub(crate) mod artifact_manifest {
             optimization: optimization_identity,
             installation,
             debug,
+            publication: None,
             identity,
         })
     }
@@ -133,12 +160,31 @@ pub(crate) mod artifact_manifest {
         debug_maps: Option<&[u8]>,
         manifest: TerminalArtifactManifest,
     ) -> Result<(), ArtifactManifestError> {
-        let expected = build_artifact_manifest(
+        validate_artifact_manifest_with_publication(
+            semantic_module,
+            optimization,
+            installation_record,
+            debug_maps,
+            None,
+            manifest,
+        )
+    }
+
+    pub fn validate_artifact_manifest_with_publication(
+        semantic_module: &TerminalModule,
+        optimization: &PsiOptimizationExecutionRecord,
+        installation_record: Option<&[u8]>,
+        debug_maps: Option<&[u8]>,
+        publication: Option<&[u8]>,
+        manifest: TerminalArtifactManifest,
+    ) -> Result<(), ArtifactManifestError> {
+        let base = build_artifact_manifest(
             semantic_module,
             optimization,
             installation_record,
             debug_maps,
         )?;
+        let expected = publication.map_or(base, |section| base.with_publication(section));
         if expected != manifest {
             return Err(ArtifactManifestError::ManifestMismatch);
         }

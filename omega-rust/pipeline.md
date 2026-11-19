@@ -148,26 +148,28 @@ and focused frontend tests must check that part of the compiler separately.
 
 ## Connected program route
 
-A source build enters at 00 and streams source through 01. Stage 02 publishes
-the accepted portable program. A target-scoped check can require provider
-selection at 03. Native builds continue through 09 and stage 10 installs the
-requested files. A received Terminal artifact enters native planning after
-decoding and admission. [Product coordinator](omega/compilation/compiler/src/product_execution.rs)
-· [Native driver](omega/compilation/native-compiler/src/compile.rs)
+The [source compiler](psi/compilation/pipeline/source-compilation/src/lib.rs) streams files through lexing and parsing, resolves and types the program, lowers it, checks it and publishes Psi. The [package adapter](omega/compilation/products/source-publication/src/provider_demand.rs) supplies the host’s target and bindings. The combined driver passes the published program in memory.
 
-| Stage | Input → output | Owner |
+| Native operation | Input → output | Implementation |
 | --- | --- | --- |
-| 00 · Compilation inputs | Requested product, targets, options, rollback and installation assumptions → admitted target destinations and policy | [Input admission](omega/compilation/pipeline/00_compilation-inputs/src/lib.rs) |
-| 01 · Source compilation | Admitted source and generated source → resolved and typed program, lowered-form verdict, accepted Terminal program and logical provider demand for the requested roots | [Psi source compiler](psi/compilation/pipeline/01_source-compilation/src/lib.rs) · [Resolver](psi/compilation/pipeline/01_source-compilation/src/operations/resolution/resolver.rs) · [Source provider choices](psi/compilation/pipeline/01_source-compilation/src/provider_supply.rs) |
-| 02 · Portable publication | Accepted program and logical provider choices → canonical Terminal artifact, entry metadata, reached requirements and selected checked bodies | [Published program](omega/compilation/pipeline/02_portable-publication/src/lib.rs) · [Provider demand](omega/compilation/pipeline/02_portable-publication/src/provider_demand.rs) |
-| 03 · Native program planning | Published program, logical choices and target bindings → admitted provider and calling plans, executable entry and target body plans | [Target execution](omega/compilation/pipeline/03_native-program-planning/src/execution.rs) · [Body planning](omega/compilation/pipeline/03_native-program-planning/src/body_planning.rs) |
-| 04 · Physical program planning | Target body plans → selected instructions, register homes, frames, generated entry recipes and measured installation resources | [Physical program](omega/compilation/pipeline/04_physical-program-planning/src/lib.rs) · [Handler measurement](omega/compilation/pipeline/04_physical-program-planning/src/installed_handlers.rs) |
-| 05 · Installation binding | Guarded installations and measured physical handlers → authority bound to the exact bodies, frames and finite stack geometry | [Binding](omega/compilation/pipeline/05_installation-binding/src/lib.rs) |
-| 06 · Native encoding | Physical instructions, frames and entry recipes → encoded alternatives, effects and fixups | [Encoder](omega/compilation/pipeline/06_native-encoding/src/lib.rs) |
-| 07 · Native layout | Encoded alternatives → branch choices, placed function fragments and resolved offsets | [Layout](omega/compilation/pipeline/07_native-layout/src/lib.rs) |
-| 08 · Object construction | Resolved layout → object sections, symbols and the object publication read by image construction | [Object construction](omega/compilation/pipeline/08_object-construction/src/lib.rs) |
-| 09 · Image construction | Object publication and image request → target image, executable bytes and retained artifact evidence | [Image emission](omega/compilation/pipeline/09_image-construction/image-emission/src/lib.rs) · [Native artifact](omega/compilation/pipeline/09_image-construction/native-artifact/src/lib.rs) |
-| 10 · Product publication | Finished Psi, native or component files → installed products and receipts for the exact outputs | [Product publication](omega/compilation/pipeline/10_product-publication/src/lib.rs) |
+| Input admission | Requested destinations, host authorization and published Psi → admitted provider demand | [Code](omega/compilation/pipeline/01_compilation-request-to-admitted-inputs/src/lib.rs) |
+| Provider selection | Admitted demand → selected execution | [Code](omega/compilation/pipeline/02_provider-demand-to-selected-execution/src/lib.rs) |
+| Body lowering | Psi operations and selected execution → abstract operations | [Code](omega/compilation/pipeline/03_terminal-psi-to-abstract-operations/src/lib.rs) |
+| Abstract optimization | Abstract operations → optimized abstract operations | [Code](omega/compilation/pipeline/04_abstract-operations-to-abstract-operations/src/lib.rs) |
+| Target lowering | Optimized abstract operations → target operations | [Code](omega/compilation/pipeline/05_abstract-operations-to-target-operations/src/lib.rs) |
+| Instruction selection | Target operations → selected instructions | [Code](omega/compilation/pipeline/06_target-operations-to-selected-instructions/src/lib.rs) |
+| Instruction rewriting | Selected instructions → rewritten selected instructions | [Code](omega/compilation/pipeline/07_selected-instructions-to-selected-instructions/src/lib.rs) |
+| Register allocation | Selected instructions → register homes | [Code](omega/compilation/pipeline/08_selected-instructions-to-register-homes/src/lib.rs) |
+| Physical instruction planning | Register homes → post-allocation machine instructions | [Code](omega/compilation/pipeline/09_register-homes-to-post-allocation-machine/src/lib.rs) |
+| Frame planning | Allocated machine instructions → framed machine program | [Code](omega/compilation/pipeline/10_post-allocation-machine-to-framed-machine/src/lib.rs) |
+| Installation binding | Handler measurements and guarded installations → bound installation resources | [Code](omega/compilation/pipeline/11_framed-machine-to-bound-framed-machine/src/lib.rs) |
+| Encoding | Framed instructions and entry recipes → encoded alternatives and fixups | [Code](omega/compilation/pipeline/12_bound-framed-machine-to-selected-form-encoding/src/lib.rs) |
+| Placement | Encoded alternatives → placed instructions | [Code](omega/compilation/pipeline/13_selected-form-encoding-to-resolved-layout/src/lib.rs) |
+| Branch relaxation | Placed instructions → resolved offsets | [Code](omega/compilation/pipeline/14_resolved-layout-to-resolved-layout/src/lib.rs) |
+| Function placement | Resolved body layout and encoded entries → placed functions and their frame evidence | [Code](omega/compilation/pipeline/15_resolved-layout-to-placed-functions/src/lib.rs) |
+| Object construction | Placed functions → sections, symbols and relocations | [Code](omega/compilation/pipeline/16_placed-functions-to-objects/src/lib.rs) |
+| Image construction | Objects and target image request → executable bytes | [Code](omega/compilation/pipeline/17_objects-to-image/image-emission/src/lib.rs) |
+| File publication | Requested finished products → installed files and receipts | [Code](omega/compilation/pipeline/18_finished-products-to-installed-files/src/lib.rs) |
 
 Native component production consumes separately accepted exports, package
 permissions and verified receiver inputs. Ordinary source requests that lack
@@ -176,19 +178,19 @@ native component route once the caller supplies the verified products.
 [Checked product boundary](omega/compilation/compiler/src/product_execution.rs)
 · [Native component entrance](omega/compilation/native-compiler/src/components.rs)
 
-Stage 01 streams deliberately. The lexer gives one source unit's tokens to
+The source compiler streams files through lexing and parsing. The lexer gives one source unit's tokens to
 the parser, which appends its syntax to a page. Independent pages can run in
 parallel. Their results retain source order, and lexical diagnostics take
 precedence over parse diagnostics. Package import discovery can admit another
 source frontier. Build-generated sources resume the existing resolver and
-typing continuation. [Source pages](psi/compilation/pipeline/01_source-compilation/src/source_parsing.rs)
-· [Source continuation](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
+typing continuation. [Source pages](psi/compilation/pipeline/source-compilation/src/source_parsing.rs)
+· [Source continuation](psi/compilation/pipeline/source-compilation/src/source_compilation.rs)
 
 Source settlement can grow the set of providers to check. When a reached
 provider calls another boundary, stage 01 adds its chosen provider and checks
 the enlarged roster before publication. Preparing the named backing for a
 suspended `Build::await_provider` also checks that backing as a supply of its
-exact requirement. [Source provider closure](psi/compilation/pipeline/01_source-compilation/src/source_supply.rs)
+exact requirement. [Source provider closure](psi/compilation/pipeline/source-compilation/src/source_supply.rs)
 · [Build-provider preparation](omega/compilation/compiler/src/checked/package_compilation.rs)
 
 <a id="one-driver-one-pass-per-target-realization"></a>
@@ -199,8 +201,8 @@ Psi prepares the typed program, lowers it to an unsealed Terminal module and
 runs the lowered-form checker. Its publication factory retains the accepted
 module, evidence and source correspondence. The empty Psi optimization
 selection uses that verdict. An unsupported nonempty selection receives the
-named second-check refusal. [Source checking](psi/compilation/pipeline/01_source-compilation/src/source_checking.rs)
-· [Accepted program](psi/compilation/pipeline/01_source-compilation/src/operations/production/src/accepted.rs)
+named second-check refusal. [Source checking](psi/compilation/pipeline/source-compilation/src/source_checking.rs)
+· [Accepted program](psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/accepted.rs)
 · [Optimization contract](../wiki/spec/terminal-psi/product.md#optimization-ordering)
 
 The product coordinator supplies the requested roots and each target's
@@ -298,7 +300,7 @@ declarations and the shared decoder for static defaults and executed Build
 choices. Checked Product selection returns all authored defaults before root
 pruning; Omega only selects among the retained rows.
 
-Resolver and typing continuation lives in the [Psi compiler](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs):
+Resolver and typing continuation lives in the [Psi compiler](psi/compilation/pipeline/source-compilation/src/source_compilation.rs):
 one owner keeps the deferred resolver, typing arenas and evaluation obligations
 together across Build and generated-source resumption. Product records cannot
 reorder those stages or replace half of the continuation. The same facade owns
@@ -448,11 +450,11 @@ recorded judgment is used.
 
 | Input → output | Owner |
 | --- | --- |
-| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/pipeline/01_source-compilation/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
-| Assembled syntax → completed typing | [Psi source continuation](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
-| Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/pipeline/01_source-compilation/src/source_checking.rs), through [typed preparation](psi/compilation/pipeline/01_source-compilation/src/operations/preparation/README.md), the one path to frozen typed trees |
-| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/01_source-compilation/src/operations/lowering/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/lib.rs) |
-| Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/pipeline/01_source-compilation/src/operations/production/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
+| Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/pipeline/source-compilation/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
+| Assembled syntax → completed typing | [Psi source continuation](psi/compilation/pipeline/source-compilation/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
+| Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/pipeline/source-compilation/src/source_checking.rs), through [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md), the one path to frozen typed trees |
+| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi/src/lib.rs) |
+| Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
 
 Package source preparation assembles source sets, imports and custody; Build
 evaluation does not discover or assemble sources. The Psi facade keeps the
@@ -570,7 +572,7 @@ foundations, product reports and publication keep their own owners.
 | `omega/build-system/orchestration/src/package/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
 | `omega/build-system/orchestration/src/package/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
 | `omega/build-system/orchestration/src/package/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
-| `psi/compilation/pipeline/01_source-compilation/src/lib.rs` | Source processing and checking through Terminal Psi |
+| `psi/compilation/pipeline/source-compilation/src/lib.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/compiler/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
 | `omega/interpreter/native-provider-runtime/src/native_provider_runtime.rs` | Sponsor isolated native provider incarnations, immutable mapped homes and exact compiled frame adapters; consume source-free products |
@@ -594,7 +596,7 @@ independent representations and explicit test-only consumers are fine.
 
 Within stage 01 the Psi driver pairs deferred resolver state with typing
 checkpoints. Source activations resume that same continuation, and pending
-syntax stays in resolution. [Source continuation](psi/compilation/pipeline/01_source-compilation/src/source_compilation.rs)
+syntax stays in resolution. [Source continuation](psi/compilation/pipeline/source-compilation/src/source_compilation.rs)
 
 Native code generation keeps the entry, selected functions and admitted
 callbacks tied to the same program and target. Stage 03 admits the published
@@ -602,9 +604,9 @@ execution inputs, optimizes the abstract program and lowers it to target
 operations. Its body plan carries the prepared instruction selection and
 emission facts. Stage 04 selects instructions, allocates registers, applies
 frames and measures physical handlers. Stage 05 binds installations to
-those exact bodies, frames and measurements. [Native body plan](omega/compilation/pipeline/03_native-program-planning/src/body_planning.rs)
-· [Physical planning](omega/compilation/pipeline/04_physical-program-planning/src/lib.rs)
-· [Installation binding](omega/compilation/pipeline/05_installation-binding/src/lib.rs)
+those exact bodies, frames and measurements. [Native body plan](omega/compilation/native-compiler/src/body_planning.rs)
+· [Physical planning](omega/compilation/native-compiler/src/pipeline.rs)
+· [Installation binding](omega/compilation/pipeline/11_framed-machine-to-bound-framed-machine/src/lib.rs)
 
 Consumers ask for a meaningful outcome: checking, Build or helper Terminal
 production, product completion, native realization or inspection. Do not expose
@@ -822,6 +824,12 @@ separately supplied package-permission rows. Product coordination supplies
 those inputs and requests preparation; it has no direct dependency on numbered
 Omega stages. Artifact-only and component publication use the same preparation
 without emitting an image.
+
+The source-free consumer lives in `omega/compilation/published-program`.
+It accepts the host-authorized artifact and target settings, completes scalar
+demands with `psi/evaluation/artifact-evaluation`, and returns the native
+image or interpreter admission. The combined compiler uses the same scalar
+completion code, including its receipts for failed evaluations.
 
 Product scalar completion reads canonical Terminal applications, declaration
 conditions and exact lexical identities, not a private rewrite of an earlier
@@ -1085,7 +1093,7 @@ accounting. [Psi directory](psi/README.md)
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Program judgments | The [lowered-form checker](psi/compilation/pipeline/01_source-compilation/src/operations/checking/src/lib.rs) in stage 01 and the independent mathematical checker in `compilation/proof-admission/` |
+| Program judgments | The [lowered-form checker](psi/compilation/pipeline/06_terminal-psi-to-checked-terminal-psi/src/lib.rs) in stage 01 and the independent mathematical checker in `compilation/proof-admission/` |
 | Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | The numbered stage that performs the operation |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/target-description/` and implementation stages 04–09 |
@@ -1207,7 +1215,7 @@ A root grant in `build.omg` is the root's acceptance; dependency claims are
 accepted through `omega.lock`. Pipeline execution does not load or mutate a
 separate admissions file.
 
-[Stage 03 provider planning](omega/compilation/pipeline/03_native-program-planning/src/provider_planning.rs)
+[Stage 03 provider planning](omega/compilation/pipeline/02_provider-demand-to-selected-execution/src/provider_planning.rs)
 owns target supply selection and provider plan formation.
 [Provider correspondence](omega/compilation/verification/provider-correspondence/src/boundary.rs)
 admits canonical boundary applications against the chosen plans.
@@ -1222,7 +1230,7 @@ executable bodies and use the same source-free join. Instruction lowering and
 task storage share the backend calling-conventions geometry owner. Static
 activation planning is not a task executor.
 
-[Selected target execution](omega/compilation/pipeline/03_native-program-planning/src/selected_execution.rs)
+[Selected target execution](omega/compilation/pipeline/02_provider-demand-to-selected-execution/src/selected_execution.rs)
 owns selected execution preparation and settlement. It imports no Psi
 transform: the source coordinator owns stage requests and supplies operator
 selections. Adapter dispatch reads the canonical backing through a Product
@@ -1422,7 +1430,7 @@ source checker or a transform stage.
 The old opaque representation planner is deleted. Source preparation and
 product policy refuse nonempty representation inputs until the lowered-form
 route can supply their obligations. Retained application records live in
-[`typed-trees::opaque_representations`](psi/compilation/pipeline/01_source-compilation/src/source_state/src/opaque_representations.rs);
+[`typed-trees::opaque_representations`](psi/compilation/representations/typed-trees/src/opaque_representations.rs);
 keeping them grants no checking or layout authority.
 `psi/compilation/proof-admission/` owns the mathematical kernel and checking of
 supplied certificates. The Terminal-specific codec, semantic reconstruction and
@@ -1623,7 +1631,7 @@ portable publication and native stages live under Omega's
 several private operations, including the lexer, parser and checker within 01.
 
 - Psi keeps the source continuation, its working source forms and its lowered-form
-  checker in [01 source compilation](psi/compilation/pipeline/01_source-compilation/src/lib.rs).
+  checker in [01 source compilation](psi/compilation/pipeline/source-compilation/src/lib.rs).
   Its independent proof checker lives in [proof admission](psi/compilation/proof-admission/).
 - Shared program forms, Terminal wire and codec definitions belong to their
   representation owners. [Psi representations](psi/compilation/representations/)

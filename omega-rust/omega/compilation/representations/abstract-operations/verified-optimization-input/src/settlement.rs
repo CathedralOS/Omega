@@ -47,13 +47,10 @@ pub mod boundary_application_settlement {
         profile: Option<target::TargetProfile>,
         scope: &crate::NativeExecutionScope,
     ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
-        let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
-            artifact.manifest().semantic(),
-            scope
-                .boundary_application_demands(artifact.semantic_module())
-                .map_err(|message| vec![Diagnostic::error(message)])?,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+        let demands = scope.boundary_application_demands();
+        demands
+            .validate_for_terminal(artifact.manifest().semantic())
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         let provenance = provenance
             .iter()
             .map(
@@ -146,15 +143,18 @@ pub mod boundary_application_settlement {
         )?;
         native_realizations.extend_from_slice(provider_realizations.rows());
         let realizations = boundary_applications::TerminalBoundaryApplicationRealizations::new(
-            &demands,
+            demands,
             native_realizations,
         )
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let opaque_applications = project_opaque_applications(calling, artifact.semantic_module())
             .map_err(|message| vec![Diagnostic::error(message)])?;
-        boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
-            .map_err(|message| vec![Diagnostic::error(message)])
-            .map(|coverage| coverage.with_opaque_applications(opaque_applications))
+        boundary_applications::TerminalBoundaryApplicationCoverage::new(
+            demands.clone(),
+            realizations,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])
+        .map(|coverage| coverage.with_opaque_applications(opaque_applications))
     }
 
     fn project_opaque_applications(

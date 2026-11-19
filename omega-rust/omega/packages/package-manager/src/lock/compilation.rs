@@ -8,6 +8,7 @@ use package_compilation::AcceptedSemanticBinding;
 pub(crate) struct AcceptedPackageCompilation {
     compiler_identity: [u8; 32],
     semantic_bindings: Vec<AcceptedSemanticBinding>,
+    pub(super) native_bindings: Vec<evaluation_receipts::NativeBindingMaterialization>,
 }
 
 impl AcceptedPackageCompilation {
@@ -21,11 +22,16 @@ impl AcceptedPackageCompilation {
         Ok(Self {
             compiler_identity,
             semantic_bindings,
+            native_bindings: Vec::new(),
         })
     }
 
     pub const fn compiler_identity(&self) -> [u8; 32] {
         self.compiler_identity
+    }
+
+    pub(crate) fn native_bindings(&self) -> &[evaluation_receipts::NativeBindingMaterialization] {
+        &self.native_bindings
     }
 
     pub fn semantic_bindings(&self) -> &[AcceptedSemanticBinding] {

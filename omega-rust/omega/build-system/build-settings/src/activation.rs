@@ -397,6 +397,7 @@ impl TerminalBuildHost {
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
                 native_code_layouts: None,
                 host_imports: &host_imports,
+                external_completions: &[],
                 installation: Some(&self.providers.checked),
                 entry: None,
                 x86_flags: None,

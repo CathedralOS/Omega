@@ -167,7 +167,8 @@ impl BoundedProcessPrepared {
     }
 
     #[cfg(windows)]
-    pub(crate) fn preserve_configured_stdin(&mut self) {
+    /// Keep the input stream the CLI selected before it prepared the child.
+    pub fn preserve_configured_stdin(&mut self) {
         self.stdin = Some(BoundedStandardStreamDisposition::CallerConfigured);
     }
 

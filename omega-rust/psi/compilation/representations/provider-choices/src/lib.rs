@@ -41,6 +41,8 @@ pub struct NativeBindingSelection {
     pub application: Option<ProviderApplicationId>,
     pub subject: SymbolHandle,
     pub requirement: SymbolHandle,
+    pub requirement_identity: String,
+    pub service_declaration: [u8; 32],
     pub target: declaration_contracts::selection::ProductTarget,
     pub locator: semantic_vocabulary::NativeBindingLocator,
     pub producer: declaration_contracts::selection::NativeBindingProducer,
@@ -59,6 +61,8 @@ pub struct NativeBuildSupply {
 impl NativeBuildSupply {
     pub fn materialization(&self) -> evaluation_receipts::NativeBindingMaterialization {
         evaluation_receipts::NativeBindingMaterialization {
+            requirement_identity: self.selection.requirement_identity.clone(),
+            service_declaration: self.selection.service_declaration,
             target: self.selection.target.canonical_name().to_owned(),
             locator: self.selection.locator.clone(),
             producer_identity: self.selection.producer.callable_identity.clone(),

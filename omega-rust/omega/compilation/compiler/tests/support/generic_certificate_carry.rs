@@ -107,7 +107,8 @@ pub(super) fn prepare(
             supplies: &[],
         },
         terminal_codec::TerminalPublication::Portable,
-    );
+    )
+    .expect("fixture must lower to checker input");
     let TerminalCompilation::Prepared(prepared) = prepared.program else {
         return Err(format!("{:?}", prepared.program));
     };

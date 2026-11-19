@@ -9,6 +9,7 @@ use std::fmt;
 pub(crate) enum PackageLockError {
     UnsupportedVersion,
     CompilerIdentity,
+    NativeBindings(String),
     MissingCompilationInputs,
     InvalidFraming,
     ByteLimitExceeded,
@@ -34,6 +35,7 @@ impl fmt::Display for PackageLockError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::UnsupportedVersion => "unsupported package lock version; run omega packages update with this compiler to accept compilation inputs",
+            Self::NativeBindings(reason) => return write!(formatter, "package native bindings: {reason}"),
             Self::CompilerIdentity => "package lock requires a nonzero SHA256 compiler input identity; run omega packages update",
             Self::MissingCompilationInputs => "historical package lock lacks accepted compilation inputs; run omega packages update for fresh review",
             Self::InvalidFraming => "package lock has invalid canonical framing",

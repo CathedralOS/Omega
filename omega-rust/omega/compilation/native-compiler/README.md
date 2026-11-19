@@ -4,16 +4,16 @@ The native driver takes a published Terminal program, one target and a
 `NativeCompileRequest`. The request supplies the entry, selected providers,
 imports, component call inputs, completed scalar values and output policy.
 The driver checks the scope and prepares the executable. A full image request
-runs through image construction at 09. A runtime admission request can return
+runs through image construction at stage 17. A runtime admission request can return
 the provisions needed to interpret the program. [Native entry points](src/compile.rs)
 · [Preparation](src/preparation.rs)
 
 | Stages | What passes forward |
 | --- | --- |
-| 03 · Native program planning | The published requirements and chosen bodies join their target provider and calling plans. Each surviving body receives its target operations and instruction selection inputs. [Planning](../pipeline/03_native-program-planning/src/lib.rs) |
-| 04–05 · Physical planning and installation | Physical planning allocates registers, plans frames and generated entry code, and measures demanded installed handlers. Installation binding checks the exact operation, body identity, geometry and fault evidence. [Body sequence](src/pipeline.rs) · [Installation binding](../pipeline/05_installation-binding/src/lib.rs) |
-| 06–08 · Encoding, layout and object construction | The driver encodes each physical body, places it, resolves branches and constructs its object publication. Application entries, demanded callbacks and separately admitted component exports use the common operations. [Body sequence](src/pipeline.rs) · [Callable exports](src/components.rs) |
-| 09 · Image construction | The image owner takes the object publication, target image request and selected component inputs and builds the executable and its evidence. [Native artifact](../pipeline/09_image-construction/native-artifact/src/lib.rs) |
+| 01–05 · Admission and target lowering | The compiler admits the published program, selects providers and lowers the reached bodies through abstract operations to target operations. Target lowering issues the instruction input, semantic obligations and closed private references together. [Target lowering](../pipeline/05_abstract-operations-to-target-operations/src/lib.rs) |
+| 06–11 · Selection through installation binding | Physical planning allocates registers, plans frames and generated entry code, and measures demanded installed handlers. Installation binding checks the exact operation, body identity, geometry and fault evidence. [Body sequence](src/pipeline.rs) · [Installation binding](../pipeline/11_framed-machine-to-bound-framed-machine/src/lib.rs) |
+| 12–16 · Encoding, layout and object construction | The driver encodes each body, places its blocks, relaxes eligible branches, places complete functions and constructs their objects. Application entries, demanded callbacks and separately admitted component exports use the common operations. [Body sequence](src/pipeline.rs) · [Callable exports](src/components.rs) |
+| 17 · Image construction | The image owner takes the object publication, target image request and selected component inputs and builds the executable and its evidence. [Native artifact](../pipeline/17_objects-to-image/native-artifact/src/lib.rs) |
 
 The product coordinator completes the source or received artifact's scalar
 inputs before native compilation. Target planning runs the selected calling
@@ -22,9 +22,8 @@ can be shared across targets. Each target keeps its own entry, deployment
 policy, authority and image. [Product coordinator](../compiler/src/product_execution.rs)
 · [Executable preparation](../compiler/src/executable.rs)
 
-The caller can submit the finished files to stage 10 for installation and a
-receipt. Independent validators can request retained originals to compare the
-physical program, encoding, frames and image. [Product publication](../pipeline/10_product-publication/src/lib.rs)
+File installation writes the finished products and returns their receipts. Independent validators can request retained originals to compare the
+physical program, encoding, frames and image. [Product publication](../pipeline/18_finished-products-to-installed-files/src/lib.rs)
 · [Verification](../verification/) · [Full pipeline](../../../pipeline.md#connected-program-route)
 
 ## Reviewing a bootstrap environment assumption

@@ -177,6 +177,7 @@ pub use obligation_evidence::{
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, validate_artifact_manifest,
+    validate_artifact_manifest_with_publication,
 };
 pub use sections::debug_map::{
     DebugFileId, DebugMapError, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin,

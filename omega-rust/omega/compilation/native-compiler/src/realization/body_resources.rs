@@ -5,7 +5,7 @@
 use super::callback_thunks::PlannedPrivateBody;
 use crate::pipeline::PreparedPhysicalBody;
 use diagnostics::Diagnostic;
-use physical_planning::stack_demand::{StackDemand, derive_physical_stack_demand};
+use frame_planning::stack_demand::{StackDemand, derive_physical_stack_demand};
 use provider_admission::provider_admission::realization_error;
 
 pub(super) fn plan(
@@ -23,7 +23,9 @@ fn visit(
     let invalid = |reason| realization_error("physical program stack", reason);
     let mut demands = Vec::new();
     for identity in body
-        .facts
+        .stage
+        .facts()
+        .physical
         .stack
         .functions
         .iter()
@@ -56,6 +58,10 @@ fn visit(
         active.pop();
         demands.push((*identity, demand));
     }
-    derive_physical_stack_demand(&body.facts.stack, body.frame.instructions.entry, demands)
-        .map_err(|error| realization_error("physical program stack", format!("{error:?}")))
+    derive_physical_stack_demand(
+        &body.stage.facts().physical.stack,
+        body.stage.program().frame.instructions.entry,
+        demands,
+    )
+    .map_err(|error| realization_error("physical program stack", format!("{error:?}")))
 }

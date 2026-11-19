@@ -18,8 +18,7 @@ use std::sync::Arc;
 pub(crate) struct SelectedProviderCustody {
     pub(crate) optimizations: optimization_core::OptimizationSelections,
     pub(crate) terminal_publication: Arc<source_compiler::SourcePublication>,
-    pub(crate) source_program: Arc<source_compiler::PortableTerminalProgram>,
-    published_program: Arc<portable_publication::PublishedProgram>,
+    pub(crate) published_program: Arc<portable_publication::PublishedProgram>,
     pub(crate) source_completion_accounting:
         source_compiler::evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
@@ -42,7 +41,7 @@ impl SelectedProductTarget {
         prepared: PreparedProductTarget,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut timings = source.timings.clone();
-        let (source_program, published_program, execution) =
+        let (published_program, execution) =
             settle_execution(source, prepared.profile, prepared.demand, &mut timings)?;
         Ok(Self {
             consent: prepared.consent,
@@ -50,7 +49,6 @@ impl SelectedProductTarget {
             custody: SelectedProviderCustody {
                 optimizations: source.optimizations.clone(),
                 terminal_publication: Arc::clone(&source.terminal_publication),
-                source_program,
                 published_program,
                 source_completion_accounting: source.source_completion_accounting.clone(),
                 source_inspection: Arc::new(products::SelectedProviderSource::new(
@@ -109,7 +107,6 @@ impl SelectedProductTarget {
         let SelectedProviderCustody {
             optimizations: _,
             terminal_publication,
-            source_program: _,
             published_program,
             source_completion_accounting,
             execution,
@@ -145,7 +142,6 @@ fn settle_execution(
     timings: &mut CompileTimings,
 ) -> Result<
     (
-        Arc<source_compiler::PortableTerminalProgram>,
         Arc<portable_publication::PublishedProgram>,
         SelectedExecution,
     ),
@@ -163,13 +159,16 @@ fn settle_execution(
     let program = source
         .terminal_publication
         .require_published(source.terminal_publication.optimizations())?;
-    let published = Arc::new(portable_publication::PublishedProgram::from_source(
-        &program,
-    ));
+    let producer = terminal_installation::HostProducerTrust::accept("in-process source compiler");
+    let admitted = compilation_inputs::admit_published_provider_demand(
+        Arc::clone(program.artifact()),
+        Some(&producer),
+        demand,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
     Ok((
         program,
-        published,
-        native_compiler::select_published_providers(demand)?,
+        native_compiler::select_published_providers(admitted)?,
     ))
 }
 

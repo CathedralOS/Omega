@@ -183,18 +183,6 @@ impl TerminalCallbackOccurrenceProposal {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct NativeCallbackThunkSettlement<'artifact> {
-    pub terminal_operation: semantic_vocabulary::OperationId,
-    pub placement_index: usize,
-    pub callback_function: function_identity::MachineFunctionIdentity,
-    pub artifact: &'artifact terminal_codec::CanonicalTerminalArtifact,
-    pub entry: semantic_vocabulary::MachineId,
-    pub boundary_entry_plan: &'artifact calling_conventions::BoundaryEntryPlan,
-    pub parameter_formals: &'artifact [u32],
-    pub entry_parameters: &'artifact [crate::NativeCallbackEntryParameter],
-}
-
 pub fn validate_callback_thunk_joins(
     caller: terminal_codec::TerminalArtifactView<'_>,
     occurrences: &[TerminalCallbackOccurrenceProposal],
@@ -242,22 +230,4 @@ pub fn validate_callback_thunk_joins(
         }
     }
     Ok(())
-}
-
-pub fn native_callback_thunks(
-    occurrences: &[TerminalCallbackOccurrenceProposal],
-) -> Vec<NativeCallbackThunkSettlement<'_>> {
-    occurrences
-        .iter()
-        .map(|occurrence| NativeCallbackThunkSettlement {
-            terminal_operation: occurrence.terminal_operation(),
-            placement_index: occurrence.placement_index(),
-            callback_function: occurrence.callback_thunk_identity(),
-            artifact: occurrence.callback_thunk_artifact().artifact(),
-            entry: occurrence.callback_thunk_artifact().entry(),
-            boundary_entry_plan: &occurrence.boundary_entry_plan,
-            parameter_formals: occurrence.callback_thunk_artifact().parameter_formals(),
-            entry_parameters: &occurrence.entry_parameters,
-        })
-        .collect()
 }

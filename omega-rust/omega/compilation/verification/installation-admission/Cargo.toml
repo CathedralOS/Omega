@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+function-identity = { path = "../../representations/function-identity" }
 target-x86_64 = { path = "../../target-description/target-x86_64" }
 native-vocabulary = { path = "../../representations/native-vocabulary" }
 language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }

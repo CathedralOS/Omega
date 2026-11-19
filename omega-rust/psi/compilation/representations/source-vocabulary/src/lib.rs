@@ -31,6 +31,7 @@ We neither parse nor judge a program, and we depend on `compiler_storage` and
 #![forbid(unsafe_code)]
 
 pub mod atomic;
+pub mod bundled_files;
 pub mod byte_predicates;
 pub mod core_vocabulary;
 pub mod float_operations;
@@ -291,10 +292,6 @@ pub mod descriptor_tables {
 pub mod layout_storage {
     pub const CONSTRUCTOR_NAME: &str = "LayoutStorage";
     pub const SOURCE_FILE_NAME: &str = "layout.omg";
-    pub const SOURCE: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/layout.omg"
-    ));
 }
 
 pub mod operator_spelling {
@@ -381,11 +378,6 @@ pub mod static_interrupts {
         BeginCompletion,
         FinishCompletion,
     }
-
-    pub const CORE_DECLARATIONS: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/static_interrupt.omg"
-    ));
 
     impl StaticInterruptOperation {
         pub const ALL: [Self; 4] = [

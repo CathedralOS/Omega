@@ -1,0 +1,52 @@
+[package]
+name = "native-artifact"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "native_artifact"
+path = "src/lib.rs"
+
+[dependencies]
+native-vocabulary = { path = "../../../representations/native-vocabulary" }
+published-runtime-input = { path = "../../../representations/published-runtime-input" }
+wire = { path = "../../../../../psi/foundation/wire" }
+component-description = { path = "../../../representations/component-description" }
+task-plans = { path = "../../../representations/task-plans" }
+runtime-abi = { path = "../../../target-description/runtime-abi" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
+platform-custody = { path = "../../../../host-support/platform-custody" }
+register-model = { path = "../../../target-description/register-model" }
+selected-instructions = { path = "../../../representations/selected-instructions" }
+post-allocation-machine = { path = "../../../representations/post-allocation-machine" }
+abstract-operations = { path = "../../../representations/abstract-operations" }
+boundary-applications = { path = "../../../representations/boundary-applications" }
+calling-conventions = { path = "../../../target-description/calling-conventions" }
+effects = { path = "../../../representations/native-effects" }
+function-identity = { path = "../../../representations/function-identity" }
+target = { path = "../../../target-description/target" }
+image = { path = "../image" }
+target-aarch64 = { path = "../../../target-description/target-aarch64" }
+target-x86_64 = { path = "../../../target-description/target-x86_64" }
+image-macho = { path = "../image-macho" }
+image-emission = { path = "../image-emission" }
+installation-evidence = { path = "../../../representations/installation-evidence" }
+machine-code = { path = "../../../representations/machine-code" }
+object-file = { path = "../../16_placed-functions-to-objects" }
+optimization-core = { path = "../../../representations/optimization-contracts" }
+target-operations = { path = "../../../representations/target-operations" }
+semantic-vocabulary = { path = "../../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
+sha2 = "0.10.9"
+program-entry-plan = { path = "../../../representations/program-entry" }
+legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-optimization-input" }
+backend-plan = { path = "../../../representations/provider-plans" }
+provider-admission = { path = "../../../verification/provider-admission" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+
+[dev-dependencies]
+optimization-core = { path = "../../../representations/optimization-contracts" }

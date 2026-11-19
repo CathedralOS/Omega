@@ -68,6 +68,7 @@ mod compile;
 mod package;
 mod project;
 mod published_terminal;
+mod saved_program;
 pub use compile::build_execution::execute_build as execute_build_activation;
 pub use compile::native_completion::complete_product;
 pub use compile::source_compilation::{
@@ -78,6 +79,10 @@ pub use project::stage_validators::{
     StageValidationResult, StageValidationRow, StageValidator, StageValidatorRequest,
 };
 pub use published_terminal::{execute_published_terminal, execute_published_terminal_sliced};
+pub use saved_program::{
+    TargetProviderInstallation, build_saved_program, configured_host_packages,
+    installed_package_providers, prepare_saved_program, saved_program_installation,
+};
 
 pub use build::build;
 pub use build_session::BuildSession;
@@ -99,6 +104,7 @@ use std::path::PathBuf;
 pub enum ProjectProduct {
     Check,
     Terminal,
+    PublishedPsi(PathBuf),
     Inspection {
         machine: String,
     },

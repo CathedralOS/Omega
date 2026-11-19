@@ -268,17 +268,16 @@ mod tests {
             )
             .unwrap()
         };
-        let bridge =
-            image_fixtures::emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
-                target,
-                foreign: plan(Vec::new()),
-                scalar_parameters: Vec::new(),
-            })
-            .unwrap();
+        let request = NativeForeignBridgeRequest {
+            target,
+            foreign: plan(Vec::new()),
+            scalar_parameters: Vec::new(),
+        };
         let locator = locate(b"getpid");
-        let imports = image_fixtures::encode_locator_import(&locator);
-        let image =
-            image_emission::emit_native_foreign_adapter(bridge, locator, [1; 32], imports).unwrap();
+        let image = image_emission::emit_native_foreign_adapter(
+            image_fixtures::prepare_foreign_adapter_object(request, locator, [1; 32]).unwrap(),
+        )
+        .unwrap();
         let roster = [Arc::new(image)];
         let exact = roster[0].runtime_identity();
         assert!(std::ptr::eq(

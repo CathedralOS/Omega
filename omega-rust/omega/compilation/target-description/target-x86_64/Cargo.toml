@@ -18,6 +18,6 @@ wire = { path = "../../../../psi/foundation/wire" }
 
 [dev-dependencies]
 isa-conformance = { path = "../../../../test-support/isa-conformance" }
-isa-x86_64 = { path = "../../pipeline/06_native-encoding/isa-x86_64" }
+isa-x86_64 = { path = "../../pipeline/12_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
 register-model = { path = "../register-model", features = ["test-support"] }
 selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

@@ -103,6 +103,7 @@ fn judge(
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     )
 }
@@ -1187,9 +1188,9 @@ fn a_program_applying_a_generic_machine_at_implementations_is_judged() {
     }
     // Each generated machine states the generic machine it came from and
     // commits to its own implementation, so the two do not commit alike.
-    assert!(closure.elaboration.undeclared.is_empty());
+    assert!(closure.elaboration().undeclared.is_empty());
     let commitments = closure
-        .elaboration
+        .elaboration()
         .module
         .machines
         .iter()
@@ -1329,7 +1330,7 @@ fn a_program_that_ends_through_process_exit_is_judged() {
     // Each exit is a terminator that names the requirement, never a call
     // operation with a continuation, and the requirement's declaration
     // states the same completion.
-    let module = &closure.elaboration.module;
+    let module = &closure.elaboration().module;
     let exits = module
         .machines
         .iter()
@@ -1403,7 +1404,7 @@ fn a_call_that_never_returns_carries_the_storage_it_is_lent() {
         panic!("the entry closure accepted: {parts:?}");
     };
     let consumed = closure
-        .elaboration
+        .elaboration()
         .tables
         .machines
         .values()
@@ -1449,7 +1450,7 @@ fn a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning() {
         panic!("the entry closure accepted: {parts:?}");
     };
     let operations = closure
-        .elaboration
+        .elaboration()
         .module
         .machines
         .iter()

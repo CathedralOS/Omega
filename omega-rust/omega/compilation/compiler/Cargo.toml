@@ -9,7 +9,8 @@ autotests = false
 
 
 [dependencies]
-portable-publication = { path = "../pipeline/02_portable-publication" }
+compilation-inputs = { path = "../pipeline/01_compilation-request-to-admitted-inputs" }
+portable-publication = { path = "../products/source-publication" }
 provider-admission = { path = "../verification/provider-admission" }
 declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 optimization-requests = { path = "../products/optimization-requests" }
@@ -44,7 +45,7 @@ optimization = { path = "../../../psi/compilation/representations/optimization-p
 optimization-core = { path = "../representations/optimization-contracts" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 backend-plan = { path = "../representations/provider-plans" }
 artifacts = { path = "../products/measurements" }
@@ -61,21 +62,25 @@ proof-admission = { path = "../../../psi/compilation/proof-admission" }
 wire = { path = "../../../psi/foundation/wire" }
 
 [dev-dependencies]
+verified-optimization-input = { path = "../representations/abstract-operations/verified-optimization-input" }
+abstract-optimization = { package = "abstract-operations-to-abstract-operations", path = "../pipeline/04_abstract-operations-to-abstract-operations", features = ["test-support"] }
+artifact-lowering = { package = "terminal-psi-to-abstract-operations", path = "../pipeline/03_terminal-psi-to-abstract-operations" }
+entry-planning = { path = "../pipeline/10_post-allocation-machine-to-framed-machine/entry-planning" }
+provider-realization = { package = "provider-demand-to-selected-execution", path = "../pipeline/02_provider-demand-to-selected-execution", features = ["test-support"] }
+target-lowering = { package = "abstract-operations-to-target-operations", path = "../pipeline/05_abstract-operations-to-target-operations" }
 application-identity = { path = "../../../psi/compilation/representations/application-identity" }
 installation-admission = { path = "../verification/installation-admission" }
 image-fixtures = { path = "../../../test-support/image-fixtures" }
 published-object-verification = { path = "../verification/published-objects" }
-native-artifact = { path = "../pipeline/09_image-construction/native-artifact" }
+native-artifact = { path = "../pipeline/17_objects-to-image/native-artifact" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }
-physical-planning = { path = "../pipeline/04_physical-program-planning" }
-native-encoding = { path = "../pipeline/06_native-encoding" }
-native-program-planning = { path = "../pipeline/03_native-program-planning", features = ["test-support"] }
+native-encoding = { path = "../pipeline/12_bound-framed-machine-to-selected-form-encoding" }
 abstract-operations = { path = "../representations/abstract-operations" }
-image = { path = "../pipeline/09_image-construction/image" }
-isa-aarch64 = { path = "../pipeline/06_native-encoding/isa-aarch64" }
-isa-x86_64 = { path = "../pipeline/06_native-encoding/isa-x86_64" }
-function-layout = { path = "../pipeline/07_native-layout/function-layout" }
+image = { path = "../pipeline/17_objects-to-image/image" }
+isa-aarch64 = { path = "../pipeline/12_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
+isa-x86_64 = { path = "../pipeline/12_bound-framed-machine-to-selected-form-encoding/isa-x86_64" }
+function-layout = { path = "../pipeline/15_resolved-layout-to-placed-functions" }
 register-homes = { path = "../representations/register-homes" }
 machine-code = { path = "../representations/machine-code" }
 selected-instructions = { path = "../representations/selected-instructions" }
@@ -85,7 +90,7 @@ optimization-unit-semantics = { path = "../representations/abstract-operations/o
 layout-plans = { path = "../../../psi/compilation/representations/storage-layout" }
 provider-correspondence = { path = "../verification/provider-correspondence" }
 layout = { path = "../target-description/layout" }
-image-emission = { path = "../pipeline/09_image-construction/image-emission" }
+image-emission = { path = "../pipeline/17_objects-to-image/image-emission" }
 terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
@@ -99,12 +104,12 @@ access-admission = { path = "../../../psi/compilation/access-admission" }
 extents = { path = "../../../psi/runtime/extents" }
 platform-custody = { path = "../../host-support/platform-custody" }
 installation-evidence = { path = "../representations/installation-evidence" }
-object-file = { path = "../pipeline/08_object-construction" }
+object-file = { path = "../pipeline/16_placed-functions-to-objects" }
 mimalloc = { version = "0.1", default-features = false }
 # Provider-choice owner tests type their programs before the lowered-form
 # checker judges them.
 
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation", features = ["test-support"] }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels

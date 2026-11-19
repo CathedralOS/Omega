@@ -14,11 +14,11 @@ shows which records its operations produce and what the next operation reads.
 
 | Program form | Producer | Next consumer |
 | --- | --- | --- |
-| [Tokens](tokens/token_stream.rs) | [Lexer](../pipeline/01_source-compilation/src/operations/lexing/lexer.rs) | [Parser](../pipeline/01_source-compilation/src/operations/parsing/parser.rs) |
-| [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_source-compilation/src/operations/parsing/parser.rs) | [Name resolution](../pipeline/01_source-compilation/src/operations/resolution/resolver.rs) |
-| [Resolved source](../pipeline/01_source-compilation/src/source_resolved/src/lib.rs) | Name resolution | [Typing](../pipeline/01_source-compilation/src/operations/typing/src/lowerer.rs) |
-| [Typed source](../pipeline/01_source-compilation/src/source_state/src/lib.rs) | Typing | [Source preparation](../pipeline/01_source-compilation/src/operations/preparation/README.md) and [structural lowering](../pipeline/01_source-compilation/src/operations/lowering/src/lib.rs) |
-| [Terminal Psi](terminal-psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../pipeline/01_source-compilation/src/operations/checking/src/verdict.rs) | The [accepted-source factory](../pipeline/01_source-compilation/src/operations/production/src/accepted.rs) passes its judgment to [stage 02 publication](../../../omega/compilation/pipeline/02_portable-publication/src/lib.rs). |
+| [Tokens](tokens/token_stream.rs) | [Lexer](../pipeline/00_source-files-to-tokens/lexer.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) |
+| [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
+| [Resolved source](../representations/symbol-resolved-trees/src/lib.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
+| [Typed source](../representations/typed-trees/src/lib.rs) | Typing | [Source preparation](../pipeline/04_typed-trees-to-typed-trees/README.md) and [structural lowering](../pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_terminal-psi-to-checked-terminal-psi/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-terminal-psi-to-published-psi/src/accepted.rs) passes its judgment to [stage 02 publication](../../../omega/compilation/products/source-publication/src/lib.rs). |
 
 The [Terminal interpreter](../../interpreter/README.md) runs the published
 program. Operational, invocation, capability and reach summaries live in
@@ -43,10 +43,10 @@ the dependency boundary between the representation and the checker.
 | [Carry](../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread and address demands, combined separately, each with the origin that explains it. |
 | [Effects](../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes and positive progress, separate even when inference computes them in one graph walk. |
 
-The [resolved domain](../pipeline/01_source-compilation/src/source_resolved/src/declarations_and_machines.rs)
-and [typed domain](../pipeline/01_source-compilation/src/source_state/src/declarations.rs) keep
+The [resolved domain](../representations/symbol-resolved-trees/src/declarations_and_machines.rs)
+and [typed domain](../representations/typed-trees/src/declarations.rs) keep
 predicate, role, route, alias, classification and semantic-identity records.
-The [typed machine](../pipeline/01_source-compilation/src/source_state/src/calls_and_control_flow.rs) carries
+The [typed machine](../representations/typed-trees/src/calls_and_control_flow.rs) carries
 normalized supply, termination plan, service row and separate operational
 clauses. Shared vocabulary belongs in
 [semantic vocabulary](semantic-vocabulary/src/lib.rs). Having these records does not mean every later proof,

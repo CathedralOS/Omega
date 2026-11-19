@@ -151,17 +151,8 @@ pub fn reference_view_compatible(
         // The source's enclosing record can contain sums or descriptors beside
         // the projected field. Their geometry belongs to this same retained
         // target, even when only the viewed record has a selected layout.
-        let carriers = semantic_vocabulary::TargetCarrierLayout {
-            pointer_byte_size: input.pointer_size,
-            pointer_byte_alignment: input.pointer_alignment,
-            descriptor_byte_size: input
-                .pointer_size
-                .checked_mul(2)
-                .ok_or("reference geometry descriptor footprint overflows")?,
-            descriptor_byte_alignment: input.pointer_alignment,
-            case_tag_byte_size: input.case_tag_size,
-            case_tag_byte_alignment: input.case_tag_alignment,
-        };
+        let carriers =
+            target_carriers(input).ok_or("reference geometry descriptor footprint overflows")?;
         let mut geometry =
             ReferenceStorageGeometry::new(module.structural_types.iter(), |application| {
                 Err(StorageGeometryError::UnresolvedExtent(application))
@@ -251,6 +242,19 @@ fn total_representation(
         fields.binary_search(&row.field).is_ok()
             && row.value_type.qualifications != semantic_vocabulary::ScalarQualificationSetId::ZERO
     }))
+}
+
+pub(crate) fn target_carriers(
+    input: &TargetLayoutInput,
+) -> Option<semantic_vocabulary::TargetCarrierLayout> {
+    Some(semantic_vocabulary::TargetCarrierLayout {
+        pointer_byte_size: input.pointer_size,
+        pointer_byte_alignment: input.pointer_alignment,
+        descriptor_byte_size: input.pointer_size.checked_mul(2)?,
+        descriptor_byte_alignment: input.pointer_alignment,
+        case_tag_byte_size: input.case_tag_size,
+        case_tag_byte_alignment: input.case_tag_alignment,
+    })
 }
 
 #[cfg(test)]

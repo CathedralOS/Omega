@@ -31,7 +31,7 @@ impl SemanticEmissionFacts {
     ) -> Result<RetainedTargetOperations, &'static str> {
         let plan = prepared.plan();
         if self.target_audit.is_some()
-            || self.admission != lowering.emission_admission()
+            || !self.admission.belongs_to(&lowering)
             || self.program.psi != working.psi
             || self.program.entry != working.entry
             || self.projection.identity != optimized.projection()
@@ -125,3 +125,50 @@ impl<'a> BoundaryOriginFacts<'a> {
         }
     }
 }
+
+/// The target stage issues its facts together with any explicitly requested
+/// original. Each subsequent stage replaces the facts when it changes form.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BodyPublication<Facts> {
+    pub facts: Facts,
+    original: Option<RetainedTargetOperations>,
+}
+
+impl BodyPublication<SemanticEmissionFacts> {
+    pub fn new(
+        facts: SemanticEmissionFacts,
+        original: Option<RetainedTargetOperations>,
+    ) -> Result<Self, &'static str> {
+        if original
+            .as_ref()
+            .is_some_and(|target| !target.belongs_to(&facts))
+        {
+            return Err("target replay belongs to another publication");
+        }
+        Ok(Self { facts, original })
+    }
+}
+
+impl<Facts> BodyPublication<Facts> {
+    pub fn map_facts<Next>(self, map: impl FnOnce(Facts) -> Next) -> BodyPublication<Next> {
+        BodyPublication {
+            facts: map(self.facts),
+            original: self.original,
+        }
+    }
+
+    pub fn original_for_audit(&self) -> Option<&RetainedTargetOperations> {
+        self.original.as_ref()
+    }
+
+    pub fn release_original(&mut self) {
+        self.original = None;
+    }
+}
+
+impl PartialEq for RetainedTargetOperations {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for RetainedTargetOperations {}

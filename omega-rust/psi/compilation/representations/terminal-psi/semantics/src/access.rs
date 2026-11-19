@@ -875,17 +875,8 @@ pub(crate) mod access_lifecycles {
             .target
             .as_ref()
             .map(|target| {
-                Ok::<_, &'static str>(semantic_vocabulary::TargetCarrierLayout {
-                    pointer_byte_size: target.pointer_size,
-                    pointer_byte_alignment: target.pointer_alignment,
-                    descriptor_byte_size: target
-                        .pointer_size
-                        .checked_mul(2)
-                        .ok_or("placement image descriptor footprint overflows")?,
-                    descriptor_byte_alignment: target.pointer_alignment,
-                    case_tag_byte_size: target.case_tag_size,
-                    case_tag_byte_alignment: target.case_tag_alignment,
-                })
+                crate::references::representation_geometry::target_carriers(target)
+                    .ok_or("placement image descriptor footprint overflows")
             })
             .transpose()?;
         let mut geometry =

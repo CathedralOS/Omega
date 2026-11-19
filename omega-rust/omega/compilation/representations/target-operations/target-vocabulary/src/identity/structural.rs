@@ -45,6 +45,9 @@ pub fn encode_boundary_settlement(bytes: &mut Vec<u8>, settlement: &LegalizedBou
 
 pub fn encode_external_execution(bytes: &mut Vec<u8>, execution: crate::ExternalExecutionBinding) {
     match execution {
+        crate::ExternalExecutionBinding::CompilerImport(import) => {
+            bytes.extend_from_slice(&[2, import.tag()]);
+        }
         crate::ExternalExecutionBinding::Provider(provider) => {
             bytes.push(0);
             encode_provider_execution(bytes, provider);
