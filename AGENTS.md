@@ -325,9 +325,12 @@ mbx xtask check-boundary
 During the source-rust migration, the required `admission` job runs
 `mbx test --locked --workspace` in `omega-rust-v2/` for changes to V2 or its CI
 toolchain. Admission also runs `python3 -B tools/ci/check_recycling.py` on the
-checkout. Active Rust source and Cargo manifests must keep implementation paths
-outside every `_recycling/` directory. Root workspace builds and automatic warm
-builds are paused.
+checkout. Park retired implementations and code awaiting piecemeal migration in
+the [repository-root archive](_recycling/README.md). Mirror the former owner's
+repository-relative path beneath `_recycling/`. Restore each piece in its active
+owner and wire callers there. Active Rust source and Cargo manifests must keep
+implementation paths outside the archive. Root workspace builds and automatic
+warm builds are paused.
 V2 changes are tested again on `main` after merge.
 
 When changing a shared Rust API or helper, search the whole repository for its

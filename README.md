@@ -604,6 +604,9 @@ Read [repository conventions](AGENTS.md#conventions-and-workflow) before changin
 code. [Local testing](tools/docs/testing.md) covers focused checks and supported
 development hosts.
 
+Code kept for reference or piecemeal migration lives in the repository-root
+`_recycling/` directory, organized by its former owner. [Archive index](_recycling/README.md)
+
 ## License
 
 Licensed under either of
