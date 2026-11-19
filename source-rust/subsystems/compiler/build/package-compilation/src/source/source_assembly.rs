@@ -1290,7 +1290,7 @@ fn append_default_build(
 ) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
     let admitted = storage.admit_source(
         SourceContents {
-            path: PathBuf::from("<default-build>"),
+            path: PathBuf::from(source_admission::source_identity::DEFAULT_BUILD_PATH),
             source: Arc::from(build_declarations::default_build_source()),
             scope: source_provenance::DependencyScope::Build,
         },

@@ -138,6 +138,8 @@ impl RetainedDeclaration {
 }
 
 pub mod source_identity {
+    pub const DEFAULT_BUILD_PATH: &str = "<default-build>";
+
     use crate::{SourceFile, SourceOrigin};
     use source_provenance::{
         ConsumedSourceUnit, ConsumedSourceUnitKind, canonical_consumed_unit_bytes,

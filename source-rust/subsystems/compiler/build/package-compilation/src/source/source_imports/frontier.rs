@@ -696,6 +696,12 @@ impl SourceStorage {
             }
         }
 
+        if origin_override == Some(SourceOrigin::Toolchain)
+            && path == Path::new(source_admission::source_identity::DEFAULT_BUILD_PATH)
+        {
+            return (path.to_owned(), None, SourceOrigin::Toolchain);
+        }
+
         if origin_override == Some(SourceOrigin::Toolchain) {
             if source_admission::source_identity::is_build_prelude_path(path) {
                 return (
