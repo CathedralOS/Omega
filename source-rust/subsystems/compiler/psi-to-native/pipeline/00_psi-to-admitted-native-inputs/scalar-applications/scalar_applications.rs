@@ -143,7 +143,7 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
         &self,
         imports: &[semantic_vocabulary::BoundaryMachineId],
     ) -> Result<Box<dyn build_scalar_evaluation::AdmittedImportRealizations>, String> {
-        use provider_admission::provider_admission as admission;
+        use numeric_intrinsic_admission as admission;
         let module = self.artifact.view().module();
         // Catalog admission matches selected rows by callable identity. An
         // import with no identity cannot match one and stays unrealized.
@@ -196,7 +196,7 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
     }
 }
 
-struct AdmittedIntrinsics(provider_admission::provider_admission::AdmittedTerminalIntrinsics);
+struct AdmittedIntrinsics(numeric_intrinsic_admission::AdmittedTerminalIntrinsics);
 
 impl build_scalar_evaluation::AdmittedImportRealizations for AdmittedIntrinsics {
     fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool {

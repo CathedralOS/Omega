@@ -277,6 +277,7 @@ dependencies = [
  "evaluation-contracts",
  "evaluation-receipts",
  "filesystem-authority",
+ "numeric-intrinsic-admission",
  "optimization-requests",
  "package-compilation",
  "products",
@@ -1872,7 +1873,7 @@ name = "native-scalar-inputs"
 version = "0.1.0"
 dependencies = [
  "build-scalar-evaluation",
- "provider-admission",
+ "numeric-intrinsic-admission",
  "psi-provider-selections",
  "psi-scalar-applications",
  "psi-target-layouts",
@@ -1942,6 +1943,25 @@ dependencies = [
  "target",
  "target-vocabulary",
  "terminal-psi",
+]
+
+[[package]]
+name = "numeric-intrinsic-admission"
+version = "0.1.0"
+dependencies = [
+ "diagnostics",
+ "language-core",
+ "native-intrinsics",
+ "numeric-literals",
+ "numerics",
+ "provider-correspondence",
+ "provider-plans",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "target-vocabulary",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2513,6 +2533,7 @@ dependencies = [
  "layout-plans",
  "native-binding-admission",
  "native-intrinsics",
+ "numeric-intrinsic-admission",
  "numeric-literals",
  "numerics",
  "operation-evidence",
