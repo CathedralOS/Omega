@@ -47,12 +47,13 @@ pub struct BuildStageAcquisition {
 }
 
 impl BuildStageAcquisition {
-    pub fn acquired_for(
+    pub fn retains(
         &self,
+        capture: &crate::CapturedLocalSource,
         typed: &source_compiler::source_state::TypedTrees,
-    ) -> Option<&crate::CapturedLocalSource> {
-        let selected = typed.symbols.source_map()?;
-        Arc::ptr_eq(&self.sources, &selected).then_some(&self.capture)
+    ) -> bool {
+        &self.capture == capture && typed.symbols.source_map()
+            .is_some_and(|selected| Arc::ptr_eq(&self.sources, &selected))
     }
 }
 

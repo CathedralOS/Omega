@@ -24,7 +24,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
-    unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
+    pub(crate) unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::ProducedTerminalProgram>,
     accepted: Arc<source_compiler::AcceptedTerminalSource>,
@@ -135,7 +135,7 @@ impl PreparedBuildExecution {
     pub(crate) fn continue_with(
         &self,
         admitted: AdmittedBuildProgram,
-        acquisition: Option<&package_compilation::CapturedLocalSource>,
+        unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
             prepared,
@@ -153,11 +153,6 @@ impl PreparedBuildExecution {
         // returns, whether or not that stage reaches the filesystem itself.
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
         let providers = providers.admit(produced.view())?;
-        let unbound_acquisition = self
-            .unbound_acquisition
-            .as_ref()
-            .filter(|capture| Some(capture.as_ref()) == acquisition)
-            .cloned();
         Ok(Self {
             unbound_acquisition,
             execution_purpose: self.execution_purpose,
@@ -229,7 +224,10 @@ impl PreparedBuildExecution {
     }
 
     pub(crate) fn validate_return(&self, returned: &ReturnedBuild) -> Result<(), Vec<Diagnostic>> {
-        if !self.host_issued || returned.identity != self.produced.view().custody_identity() {
+        if !self.host_issued
+            || !self.account.same_invocation(&returned.account)
+            || returned.identity != self.produced.view().custody_identity()
+        {
             return Err(self.refuse("Build completion belongs to another invocation"));
         }
         Ok(())

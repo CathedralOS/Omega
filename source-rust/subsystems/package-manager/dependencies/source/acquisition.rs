@@ -597,7 +597,7 @@ impl AcquiredBuildSource {
         &self,
         activation: &build_settings::TerminalBuildActivation,
     ) -> Result<package_compilation::PackageCompilationInputs, String> {
-        self.require_build_acquisition(activation.original_acquisition())?;
+        activation.require_source_acquisition(self.source_capture())?;
         let declaration = activation.project_declaration()?;
         let source = self.declare_requests(Some(&declaration), std::iter::empty())?;
         package_compilation::PackageCompilationInputs::new(
@@ -613,7 +613,7 @@ impl AcquiredBuildSource {
         &self,
         returned: &build_settings::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
-        self.require_build_acquisition(returned.original_acquisition())?;
+        returned.require_source_acquisition(self.source_capture())?;
         self.declare_requests(
             returned.declaration(),
             returned.requests().iter().map(|issued| issued.request()),
@@ -624,15 +624,8 @@ impl AcquiredBuildSource {
         &self,
         result: &build_settings::BuildSourceResult<'_>,
     ) -> Result<DeclaredBuildSource, String> {
-        self.require_build_acquisition(result.original_acquisition())?;
+        result.require_source_acquisition(self.source_capture())?;
         self.declare_requests(result.declaration(), result.requests())
-    }
-
-    fn require_build_acquisition(&self, source: Option<&CapturedLocalSource>) -> Result<(), String> {
-        if source != Some(&self.capture) {
-            return Err("Build declaration does not belong to this original source acquisition".into());
-        }
-        Ok(())
     }
 
     fn declare_requests<'request>(

@@ -109,13 +109,19 @@ impl PreparedBuildEvaluation {
             package_inputs,
             anonymous_source,
         } = request;
-        let acquisition = match source_acquisition {
-            Some(stage) => stage.acquired_for(typed),
-            None if package_inputs.is_none() => {
-                anonymous_source.and_then(|owner| owner.acquired_for(typed))
-            }
-            None => None,
-        };
+        let acquisition = self
+            .execution
+            .unbound_acquisition
+            .as_ref()
+            .filter(|capture| match source_acquisition {
+                Some(stage) => stage.retains(capture, typed),
+                None if package_inputs.is_none() => {
+                    anonymous_source.and_then(|owner| owner.acquired_for(typed))
+                        == Some(capture.as_ref())
+                }
+                None => false,
+            })
+            .cloned();
         let build_source = build_source.ok_or_else(|| {
             vec![Diagnostic::error(
                 "Build execution requires its source-owned selection",
