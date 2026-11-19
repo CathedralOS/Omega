@@ -1021,7 +1021,14 @@ impl<'a> Prover<'a> {
             self.reflexive(target.clone())
                 .or_else(|| self.closed(target.clone()))
                 .or_else(|| self.sum_order(&target))
-                .or_else(|| self.multiple_remainder(&target))?
+                .or_else(|| self.multiple_remainder(&target))
+                // Exact aliases may expose an open relation that needs the
+                // ordinary proof rules. Re-enter only a changed denotation.
+                .or_else(|| {
+                    (target != *goal)
+                        .then(|| self.prove_direct_subgoal(&target).ok())
+                        .flatten()
+                })?
         };
         Some(node(
             goal.clone(),
@@ -1245,6 +1252,9 @@ impl<'a> Prover<'a> {
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    // A partition may choose different valid endpoints on
+                    // each branch; every branch must prove the same equation.
+                    | Proposition::ContentConservation(_)
                     // `n == 1 or n == 2` proves `n == 1 or n == 2 or
                     // n == 3`, although no one alternative holds alone.
                     | Proposition::Disjunction(_)
@@ -4251,6 +4261,8 @@ impl<'a> Prover<'a> {
             return interval;
         }
         self.correlated_subtract(left, right)
+            .or_else(|| self.mathematical_common_sum_order(left, right))
+            .or_else(|| self.mathematical_offset_order(left, right))
             .ok_or(interval.err().unwrap_or("no bound"))
     }
 
@@ -4526,14 +4538,24 @@ impl<'a> Prover<'a> {
     /// capacity. Offer the retained relations and their exact definitions to the
     /// existing affine checker; it alone decides which bound follows.
     fn related_image(
-        &self,
+        &mut self,
         target: Option<&ScalarTerm>,
         term: &IntegerMathTerm,
         direction: Direction,
         preferred: Option<&IntegerMathTerm>,
     ) -> Option<ProofNode> {
         let Some(target) = target else {
-            return self.mathematical_relation_image(term, direction, preferred);
+            let direct = self.mathematical_relation_image(term, direction, preferred);
+            if direct.as_ref().is_some_and(|image| {
+                preferred.is_none_or(|limit| {
+                    mathematical_bounds::image_satisfies(image, limit, direction)
+                })
+            }) {
+                return direct;
+            }
+            return self
+                .mathematical_composed_image(term, direction, preferred)
+                .or(direct);
         };
         let exchanged = match target {
             ScalarTerm::ExactIntegerAdd {
@@ -4709,7 +4731,9 @@ impl<'a> Prover<'a> {
         }) {
             return mathematical;
         }
-        fallback.or(mathematical)
+        self.mathematical_composed_image(term, direction, preferred)
+            .or(fallback)
+            .or(mathematical)
     }
 
     /// A normalized guard may spell the constant or conversion where the
