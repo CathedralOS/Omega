@@ -51,6 +51,21 @@ fn resolves_only_the_named_package_files_and_locates_missing_callees() {
 }
 
 #[test]
+fn types_overloaded_calls_and_reports_the_wrong_result_at_its_use() {
+    let root = application_directory().join("../layers/03-typer/fixtures");
+    let pass = invoke(&root, &["source", "type", "draw.omg", "render.omg"]);
+    assert!(pass.status.success() && pass.stderr.is_empty() && pass.stdout.is_empty());
+    let fail = invoke(&root, &["source", "type", "draw.omg", "wrong_result.omg"]);
+    assert_eq!(fail.status.code(), Some(1));
+    assert_eq!(
+        String::from_utf8_lossy(&fail.stderr).trim(),
+        "wrong_result.omg:1:37: typer: expected u32, found bool"
+    );
+    let missing = invoke(&root, &["source", "type", "render.omg"]);
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("resolver: unresolved name draw"));
+}
+
+#[test]
 fn reports_layer_refusals_at_the_original_file_position() {
     for (path, diagnostic) in [
         (
@@ -122,4 +137,18 @@ fn help_and_usage_errors_have_distinct_statuses_and_streams() {
         assert!(output.stdout.is_empty());
         assert!(String::from_utf8_lossy(&output.stderr).contains("Usage: omega source parse"));
     }
+}
+#[test]
+fn source_type_checks_inherited_rows_and_locates_ambiguous_evidence() {
+    let root = application_directory().join("../layers/03-typer/fixtures");
+    let accepted = invoke(&root.join("accept"), &["source", "type", "inherited_row.omg"]);
+    assert!(accepted.status.success(), "{}", String::from_utf8_lossy(&accepted.stderr));
+    assert!(accepted.stdout.is_empty() && accepted.stderr.is_empty());
+    let refused = invoke(&root.join("reject"), &["source", "type", "evidence_ambiguity.omg"]);
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(refused.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&refused.stderr).trim_end(),
+        "evidence_ambiguity.omg:3:5: typer: ambiguous operator +"
+    );
 }

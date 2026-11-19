@@ -1,0 +1,3 @@
+call | flag() | game::flag | bool
+const | first | bool
+const | second | bool

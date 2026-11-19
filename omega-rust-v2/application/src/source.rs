@@ -48,7 +48,15 @@ fn read_file(path: &Path) -> Result<ParsedFile, FileError<'_>> {
     Ok(ParsedFile { bytes, tokens, tree })
 }
 
-pub(crate) fn resolve_files(paths: &[std::ffi::OsString]) -> Result<(), String> {
+pub(crate) enum Stage {
+    Resolve,
+    Type,
+}
+
+pub(crate) fn check_files(
+    paths: &[std::ffi::OsString],
+    stage: Stage,
+) -> Result<(), String> {
     use std::path::Component;
     let mut inputs = Vec::new();
     for path in paths.iter().map(Path::new) {
@@ -78,18 +86,16 @@ pub(crate) fn resolve_files(paths: &[std::ffi::OsString]) -> Result<(), String> 
             },
         });
     }
-    if let Err(error) = omega_resolver::resolve_stage(&sources, &[]) {
-        let Some((_, file)) = inputs.iter().find(|(path, _)| *path == error.file) else {
-            return Err(error.message);
+    let diagnostic = |layer: &str, path: &str, span: omega_lexer::SourceSpan, message: String| {
+        let Some((_, file)) = inputs.iter().find(|(name, _)| name == path) else {
+            return message;
         };
-        let position = LineIndex::new(&file.bytes).get_position(error.span.get_start_offset());
-        return Err(format!(
-            "{}:{}:{}: resolver: {}",
-            error.file,
-            position.get_line(),
-            position.get_column(),
-            error.message
-        ));
+        let position = LineIndex::new(&file.bytes).get_position(span.get_start_offset());
+        format!("{path}:{}:{}: {layer}: {message}", position.get_line(), position.get_column())
+    };
+    let resolved = omega_resolver::resolve_stage(&sources, &[]).map_err(|e| diagnostic("resolver", &e.file, e.span, e.message))?;
+    if matches!(stage, Stage::Type) {
+        omega_typer::type_stage(&sources, &resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
     }
     Ok(())
 }

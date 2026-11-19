@@ -1,0 +1,5 @@
+machine send(x: u8) {}
+machine f() {
+    let count = 5;
+    send(count)
+}

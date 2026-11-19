@@ -1,0 +1,6 @@
+// V1 crash_entry_representation_view guards the incoming value.
+machine forward(value: i64) -> i64
+crashes Trap value == 0
+{
+    value
+}

@@ -1,0 +1,3 @@
+machine small() -> u8 { ((5 / 2) * 2) as u8 }
+machine less(a: i8, b: u32) -> bool { a < b }
+machine hash(h: u13) -> u13 { h *% 31 }

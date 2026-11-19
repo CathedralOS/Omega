@@ -1,0 +1,1 @@
+machine render(flag: bool) -> bool { draw(flag) }

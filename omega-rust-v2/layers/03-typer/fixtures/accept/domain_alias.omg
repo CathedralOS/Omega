@@ -1,0 +1,4 @@
+data Close = u8::Near;
+domain u8::Near;
+machine through_alias(n: Close) -> u8 in Near { n }
+machine use_alias(n: u8 in Near) -> Close { through_alias(n) }

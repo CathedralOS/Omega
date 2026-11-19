@@ -1,0 +1,5 @@
+// Comparison operands from the V1 cross_width_compare probe.
+data Main { small: i8; big: i32; mid: i16; far: i64; tiny: u8; }
+machine compare(main: @Main) -> bool {
+    main.small != main.big && main.mid < main.far && main.tiny == main.small
+}

@@ -1,0 +1,5 @@
+// Arithmetic operands from the V1 rational_arg_landing probe.
+machine identity(value: i32) -> i32 ensures result == value { value }
+machine anonymous() -> i32 { identity((7 / 2 * 2) as i32) }
+machine typed() -> i32 { identity(7i32 / 2 * 2) }
+machine wide() -> i32 { identity((18446744073709551615 + 1) - 18446744073709551609) }

@@ -1,0 +1,5 @@
+operator | main.small != main.big | != | i8, i32 | bool
+operator | main.mid < main.far | < | i16, i64 | bool
+operator | main.small != main.big && main.mid < main.far | && | bool, bool | bool
+operator | main.tiny == main.small | == | u8, i8 | bool
+operator | main.small != main.big && main.mid < main.far && main.tiny == main.small | && | bool, bool | bool

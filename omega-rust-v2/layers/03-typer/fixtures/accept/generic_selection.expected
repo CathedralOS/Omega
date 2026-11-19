@@ -1,0 +1,2 @@
+call | get(box) | game::get<u8> | u8
+call | id::<Byte>(get(box)) | game::id<u8> | u8

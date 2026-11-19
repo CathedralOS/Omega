@@ -1,0 +1,1 @@
+refusal | 3:17 | 5 | an unsuffixed numeric binding must declare its type, as in `let count: u8 = 5`
