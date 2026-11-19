@@ -52,7 +52,7 @@ reparse source text during projection.
 
 The `external_binding` row describes the accepted Build-owned contract.
 Capture still pairs legacy `via` keywords with declaration bindings;
-`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../../TASKS.md#priority-human-set-only)
+`BUILD-OWNED-NATIVE-BINDINGS` in [the task board](../../../../../../../TASKS.md#priority-human-set-only)
 replaces that. An untaken Build call has no evaluated binding record, and
 product selections grant no call authority while Build runs. A schema change
 keeps exact old/new identities rather than passing a legacy declaration

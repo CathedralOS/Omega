@@ -18,6 +18,12 @@ The [package review contract](../../../../../wiki/spec/packages/review.md) requi
 
 The V2 project path has no issuer that joins these facts for a complete checked occurrence. A saved Psi artifact and an evaluated Build each cover only a part of the contract. The previous projector and its runtime permission custody checks are retained together in [the V1 capture archive](_recycling/v1-product-capture/capture.md). Package review cannot use a partial baseline to accept a new occurrence. Existing lock rows and canonical records remain readable.
 
+### Target-entry proposals
+
+For a cached occurrence, the [candidate codec](../candidate/review_cache/record_codec.rs) recovers the binding and its full `ServiceSchema` and checks the normalized schema digest for that exact role. The [candidate pass](../candidate/passes_occurrences.rs) consumes the cached nomination only within its occurrence checks. A changed role, supplier, source or target needs a fresh reviewed occurrence.
+
+For a fresh occurrence, `ProductCodeSource` can join the actual accepted source and package custody, and its `publish_provider_demand` receives a selection for one exact target. The application still needs a project review executor to deliver that declaration's validated schema and complete policy to the candidate pass. The V1 source handle could also recompile an independent component on demand. A V2 executor must obtain the component from its owning publication route before using it for a consumer.
+
 ## Encoding
 
 The [normalized policy baseline contract](POLICY_BASELINE.md) describes the
