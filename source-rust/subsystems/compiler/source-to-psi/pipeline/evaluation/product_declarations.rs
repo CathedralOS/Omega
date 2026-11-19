@@ -3,8 +3,7 @@
 //! declaration. The portable declaration anchor lets review rejoin it in
 //! the accepted Product source.
 
-use super::assumed_bindings::AssumedBindingContract;
-use super::test_groups::{TestGroupRegistration, TestGroupService};
+use source_declarations::source_selections::{AssumedBindingContract, TestGroupRegistration, TestGroupService};
 use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
@@ -103,7 +102,7 @@ impl<'request> AuthoredFormations<'request> {
                 .map_err(|reason| refuse(request, reason))?;
             if !typed.symbols.symbol_is_in_dependency_scope(
                 *author,
-                declaration_contracts::source_identity::DependencyScope::Build,
+                source_provenance::DependencyScope::Build,
             ) {
                 return Err(refuse(
                     request,
@@ -142,7 +141,7 @@ impl<'request> AuthoredFormations<'request> {
             typed.machine_by_symbol(machine).is_none()
                 || !typed.symbols.symbol_is_in_dependency_scope(
                     machine,
-                    declaration_contracts::source_identity::DependencyScope::Build,
+                    source_provenance::DependencyScope::Build,
                 )
         }) || event.target.is_some()
             || event.composition.is_some()

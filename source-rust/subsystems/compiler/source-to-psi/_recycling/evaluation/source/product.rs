@@ -32,18 +32,7 @@ mod provider_selection_tests;
 /// request (`declared`, executed or not) or executed one. Every admission
 /// of this module, and the opaque-representation admission of the source
 /// preparation, decides by this whether it has anything to admit.
-pub fn build_requests_any(
-    declared: &[std::sync::Arc<ProductDeclarationRequest>],
-    executed: &[ExecutedProductSelection],
-    operations: &[BuildOperation],
-) -> bool {
-    declared
-        .iter()
-        .any(|request| operations.contains(&request.operation))
-        || executed
-            .iter()
-            .any(|event| operations.contains(&event.request.operation))
-}
+pub use crate::evaluation::build_requests_any;
 
 pub mod test_groups {
     pub use source_declarations::source_selections::{TestGroupRegistration, TestGroupService};
