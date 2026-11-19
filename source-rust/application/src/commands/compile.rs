@@ -376,21 +376,21 @@ fn compile_target(
                     "a portable Psi publication produces no native target operations"
                 }
             })?;
-        let (Artifact::Psi(artifact), _) = compiler::compile_with_observations(
-            CompileRequest::Psi(stage.source()),
-            &Default::default(),
-            Some(&mut advisories),
-        )?
-        else {
-            return Err(output_error(
-                "source compilation returned an unexpected product",
-            ));
-        };
         if arguments.emit_psi.is_some() {
+            let (Artifact::Psi(artifact), _) = compiler::compile_with_observations(
+                CompileRequest::Psi(stage.source()),
+                &Default::default(),
+                Some(&mut advisories),
+            )?
+            else {
+                return Err(output_error("source compilation returned an unexpected product"));
+            };
             portable = Some(
                 CompletedProduct::from_published_psi(artifact, rollback.cloned())
                     .map_err(output_error)?,
             );
+        } else {
+            advisories = compiler::check(stage.source())?;
         }
     } else {
         let program = stage.program(

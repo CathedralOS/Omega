@@ -18,7 +18,7 @@ pub use native_compiler::{
     TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
-pub use source_compiler::{PublishedPsi, StageSource, inspect};
+pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
