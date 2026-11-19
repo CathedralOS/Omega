@@ -44,7 +44,9 @@ explicit stack; nesting depth never consumes host stack.
 
 Current marker 289 distinguishes callable parameter positions from named services
 in provider invocation contracts. Earlier markers cannot represent that distinction.
-Saved native input record `OMGNTI41` preserves the same distinction.
+The archived compiler-private `OMGNTI41` format recorded the same distinction in
+native derivation inputs. The public saved-program path decodes the canonical Psi
+publication and receives provider permissions from the executing host.
 
 Marker 255 introduced term tables. Marker 288 retained promised normal-result domain facts separately from
 declared result types. It records the owning machine before each callback

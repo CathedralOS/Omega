@@ -1,13 +1,14 @@
-# Native stage replay
+# Published-object verification
 
-An explicit validator request keeps the original stage outputs and checks the
-published object against them. The [object verifier](published-objects/src/lib.rs)
-returns diagnostics if the requested originals are missing or belong to another
-body. It checks root, callable and component bodies using their own retained
-inputs. Its output is a verdict on an existing object.
+The native driver passes the finished image and its retained stage outputs to
+the requested validators. The validator reports results for the root object,
+its private callable bodies and the runtime's component objects. Each body is
+matched to its originals by function identity or component slot.
+[Validator requests and results](../stage_validators.rs) · [Object checks](src/lib.rs)
 
-The producer can retain the issued allocation, physical machine, encoding and
-baseline layout in `RetainedPhysicalInputs`. The verifier reads those original
-records to replay selected rewrites, allocation, frame construction and layout.
-Frame and encoding checks live beside the [machine-code representation](../pipeline/representations/machine-code/).
-The numbered stages own instruction selection, encoding and object emission.
+Target-operation correspondence reads the execution plan retained in the object.
+Fixed-frame correspondence checks the original allocation, physical machine,
+encoding and baseline layout. Selected-instruction rewrite replay checks the
+recorded rewrite run when the compilation applied one. A request that needs
+missing originals reports a diagnostic.
+[Allocation correspondence](src/allocation.rs) · [Machine-code representation](../../representations/machine-code/)

@@ -572,10 +572,8 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 pub struct RetainedTerminalArtifact {
     artifact: psi_authorization::AuthorizedTerminalArtifact,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
-    /// The evidence seals produced beside this exact in-memory artifact by
-    /// the checker on the lowered form. Psi bytes carry no seals; an optional
-    /// saved native companion retains them separately and rejoins their exact
-    /// goals only after the caller authorizes the canonical artifact.
+    /// Operation evidence from this authorized Psi publication. Each seal
+    /// identifies the module, operation and obligation it accompanies.
     evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
 }
 

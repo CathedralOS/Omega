@@ -125,6 +125,53 @@ fn published_target_entry_emits_linux_image() {
 }
 
 #[test]
+fn saved_publication_rejects_evidence_from_another_module_or_obligation() {
+    let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
+    let evidence = artifact.published_evidence().unwrap().as_ref();
+    assert!(!evidence.seals.is_empty());
+    let debug = artifact
+        .debug_bytes()
+        .map(|bytes| terminal_codec::decode_debug_map(artifact.semantic_module(), bytes).unwrap());
+    let publish = |evidence| {
+        let program = CanonicalTerminalArtifact::from_closed_parts(
+            artifact.view().closed_module().clone(),
+            artifact.optimization().clone(),
+            debug.as_ref(),
+        )
+        .unwrap();
+        program.with_publication(
+            Arc::clone(artifact.publication_metadata().unwrap()),
+            Some(Arc::new(evidence)),
+        )
+    };
+    assert_eq!(publish(evidence.clone()).unwrap().to_bytes(), SAVED);
+
+    let mut foreign = evidence.clone();
+    foreign.module.program_fingerprint = terminal_psi::SemanticFingerprint::from_bytes([9; 32]);
+    let error = publish(foreign).unwrap_err();
+    assert!(format!("{error}").contains("InvalidPublication"), "{error}");
+
+    let missing = semantic_vocabulary::MachineId::new(u64::MAX).unwrap();
+    assert!(artifact.semantic_module().machine(missing).is_none());
+    let mut unowned = evidence.clone();
+    unowned.seals[0].machine = missing;
+    unowned.seals[0].fingerprint = unowned.seals[0].recompute().unwrap();
+    let encoded = publish(unowned).unwrap().to_bytes();
+    let error = CanonicalTerminalArtifact::from_bytes(&encoded).unwrap_err();
+    assert!(format!("{error}").contains("UnownedSeal"), "{error}");
+
+    let mut damaged = SAVED.to_vec();
+    let encoded_evidence = terminal_codec::encode_operation_evidence(evidence).unwrap();
+    assert!(damaged.ends_with(&encoded_evidence));
+    *damaged.last_mut().unwrap() ^= 1;
+    let error = CanonicalTerminalArtifact::from_bytes(&damaged).unwrap_err();
+    assert!(
+        format!("{error}").contains("operation evidence seal fingerprint mismatch"),
+        "{error}"
+    );
+}
+
+#[test]
 fn selected_entry_requires_its_checked_declaration() {
     use provider_realization::program_entry::SelectedCompilerProgramEntry;
 

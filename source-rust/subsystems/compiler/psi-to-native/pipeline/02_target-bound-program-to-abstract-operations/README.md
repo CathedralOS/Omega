@@ -15,14 +15,14 @@ decision. There is no native component disk cache; [compiler storage](../../../.
 retires it.
 
 The build's starting function, implementations and callbacks are joined before
-lowering. The [shared input owner](../../representations/abstract-operations/verified-optimization-input/src/lib.rs)
+lowering. The [shared input owner](../representations/abstract-operations/verified-optimization-input/src/lib.rs)
 keeps that checked record with the lowered program, so later stages read it
 without depending on this stage. The [stage entry](lower.rs) exposes selected
 execution and callable lowering, provider preparation and entry admission.
 Callers obtain retained programs, proposals and entry settlements directly from
 the shared input owner.
 
-- The [shared proposal owner](../../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
+- The [shared proposal owner](../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
   checks the chosen target, program entry, provider rows and callback
   occurrences against the canonical artifact, then publishes an immutable native
   proposal. It compiles no source and grants no native authority. The target
@@ -32,7 +32,7 @@ the shared input owner.
   backend target owner; package permissions and behavior exclusions are
   separate. Selected exclusions map to the artifact's local service IDs
   without reopening a typed or checked program or a source resolver.
-- The [shared execution owner](../../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
+- The [shared execution owner](../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
   follows calls from the proposal's entry, implementations and callbacks. It
   validates component replacements before excluding their local implementations. The [scope walk](admit_providers.rs)
   also keeps cleanup, installed-interrupt and code-layout requirements, and
@@ -44,9 +44,9 @@ the shared input owner.
   component callable. [Provider admission](admit_providers.rs) uses that execution's
   demands to prepare callbacks, imports and builtins and check package permissions. Derived import evidence stays invocation-owned through admission
   and emission; the compiler forwards this stage's request rather than copying
-  its fields. The [saved-input codec](../../_recycling/native-derivation-record/saved_inputs.rs)
-  writes the selected derivation and reopens it against the authorized program
-  using the same proposal checks.
+  its fields. A receiver opening a saved Psi program issues the proposal from
+  its authorized publication and reviewed provider installation.
+  [Saved Psi entry point](../../psi_to_native.rs)
 - [Provider admission](admit_providers.rs) is the complete
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input
@@ -69,9 +69,9 @@ the shared input owner.
   dynamic-table address roots keep their existing demand and per-block
   diagnostic order. Explicit artifact inspection and independent ownership
   validation cover the full catalog.
-- The admitted handoff to stage 03 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../../representations/abstract-operations/verified-optimization-input/src/lib.rs); stage 03 builds its optimization unit from it.
+- The admitted handoff to stage 03 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../representations/abstract-operations/verified-optimization-input/src/lib.rs); stage 03 builds its optimization unit from it.
 - `provider_installation` holds the exact selected adapter and installation.
-- [shared callback settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
+- [shared callback settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins a produced callback's Terminal interface to its exact selected calling
   application. Native placement reads each reached boundary's canonical calling
   parameter list: semantic and native-only argument identities and order,
@@ -85,11 +85,11 @@ the shared input owner.
   channel's import exclusion live here, beside program-entry settlement. The
   coordinator supplies the artifact, placement and calling-plan roster, with no
   checked-compilation wrapper or new stage.
-  Its [registrar-import settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
+  Its [registrar-import settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins each ordered callback occurrence to the registrar's separate outbound
   plan and selected import row. Retained-Terminal and direct-native routes
   share it; exact operation counts and check-only import absence stay explicit.
-- [Shared boundary settlement](../../representations/abstract-operations/verified-optimization-input/src/settlement.rs)
+- [Shared boundary settlement](../representations/abstract-operations/verified-optimization-input/src/settlement.rs)
   binds calls and comparisons to implementations the build already chose. It
   selects from canonical requirements and checked body candidates using the
   target's Build rows. Provider review already establishes intrinsic
