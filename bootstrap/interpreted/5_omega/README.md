@@ -797,3 +797,6 @@ With keyword-spelled transition operands, the model ran the unchanged
 `mark as u64 +Trapping` returned `Incomplete` at the plus, line 131,
 column 21, packed byte 18,143 / unit byte 4,389. The nine-byte observation
 was `0002000000df460000`.
+The frozen `b95769558667` input reached the same source unit and local
+coordinate, packed byte 18,029, observation `00020000006d460000`.
+Neither run reached semantic checking of the entire source graph.
