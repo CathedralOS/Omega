@@ -4,22 +4,33 @@
 construct the Omega compiler from its declared auditable seed and then use that
 compiler to rebuild itself reproducibly. No path is selected during exploration.
 
-The four routes below start with the audited Alpha VM and a separately admitted
-Beta compiler tape. Running that tape on the Beta compiler's own source
-reproduces the tape byte for byte. The rebuilt Beta compiler then turns the
-Beta-written Gamma evaluator into an Alpha tape. [Alpha seed](interpreted/0_alpha/README.md) · [Beta tape audit](interpreted/1_beta/AUDIT.md)
+All routes start with the audited Alpha VM and a separately admitted Beta
+compiler tape. Running it on Beta's own source reproduces the tape byte for
+byte. Rebuilt Beta then compiles the Beta-written Gamma evaluator to Alpha. On compiled routes this evaluator constructs the
+first Gamma compiler. [Alpha seed](interpreted/0_alpha/README.md) · [Beta tape audit](interpreted/1_beta/AUDIT.md)
 
-The first three routes use the same Delta compiler and Epsilon evaluator
-sources. All three run the Epsilon-written **bootstrap compiler** (D in older
-records), which emits Alpha tapes for supported Omega programs. The fourth
-route compiles Epsilon itself. [Bootstrap compiler](interpreted/5_omega/README.md)
+**Alpha** means tape executed by the seed VM. **Native** means a Linux
+x86-64 executable. The Delta compiler is written in Gamma and emits Gamma
+on every route.
 
-| Route | Authored sources | What executes the program | Result |
+| Route | Delta compiler runs on | Epsilon implementation | Demonstrated workload |
 | --- | --- | --- | --- |
-| [Original interpreted chain](interpreted/README.md) | Gamma-written Delta compiler and Delta-written Epsilon evaluator. | The Gamma evaluator runs the Delta compiler, then the Gamma source it emits for the Epsilon evaluator. | The Epsilon evaluator interprets the bootstrap compiler on Omega input. |
-| [Gamma to Alpha](compiled_vm/README.md) | Gamma-written Gamma compiler with an Alpha backend. | The Gamma evaluator constructs the first compiler. Alpha executes each compiled tape. | Separate Gamma compiler, Delta compiler and Epsilon evaluator tapes. |
-| [Native Gamma with Epsilon evaluation](independent/README.md) | The same Gamma compiler with a Linux x86-64 backend. | The Gamma evaluator constructs the first native compiler. Linux runs the compiled stages. | Standalone Gamma compiler, Delta compiler and Epsilon evaluator executables. |
-| [Native Epsilon-to-Delta compiler](independent/README.md#checked-epsilon-compilation) | A compiler written in Delta translates supported Epsilon modules, including parts of the bootstrap compiler's lexer. | The native Delta and Gamma compilers build the Epsilon-to-Delta compiler. Linux runs it. | A Delta module. With a runtime and an entry point, the native Delta and Gamma compilers turn that module into a Linux executable. |
+| [Original interpreter](interpreted/README.md) | Gamma evaluator on Alpha | Epsilon evaluator, interpreted by Gamma | The bootstrap compiler emits Alpha tape for supported Omega programs. |
+| [Gamma compiled to Alpha](compiled_vm/README.md) | Alpha | Epsilon evaluator on Alpha | Same Omega programs. |
+| [Gamma compiled to native](independent/README.md) | Native | Native Epsilon evaluator | Same Omega programs. |
+| [Epsilon compiled to Delta, Alpha target](independent/README.md#calling-the-numeric-lexer-with-a-stored-enum) | Alpha | Epsilon-to-Delta compiler on Alpha | Numeric lexer on Alpha. |
+| [Epsilon compiled to Delta, native target](independent/README.md#checked-epsilon-compilation) | Native | Native Epsilon-to-Delta compiler | Numeric lexer on Linux. |
+
+The first three use one Delta-written evaluator to interpret the Epsilon-written
+[bootstrap compiler](interpreted/5_omega/README.md)
+(D in older records). The last two use a Delta-written compiler to translate Epsilon
+into Delta modules. Adding a runtime and entry point lets the Delta and Gamma
+compilers build an executable.
+
+Native can lead back to Alpha. Compile the Gamma-to-Alpha compiler for Linux
+and it emits tape for the original VM. Native-hosted and Alpha-hosted compilers
+produced identical numeric lexer tapes. The tape and Linux executable agreed
+on all thirteen inputs. [Cross-compilation](independent/README.md#construction-and-acceptance) · [Lexer comparison](independent/README.md#calling-the-numeric-lexer-with-a-stored-enum)
 
 From the repository root on Linux x86-64, run
 `bootstrap/linux_x86_64/bootstrap . /tmp/omega-gamma` with a new output
