@@ -203,7 +203,7 @@ fn constants_and_indices_refuse_the_same_call_at_its_occurrence() {
         (
             "machine width(n:u8)->u8 requires n < 8 reaches none crashes none terminates {n +% 1}",
             "8",
-            "static evaluation cannot admit this invocation: the selected contract needs proof outside the total integer fragment",
+            "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments",
         ),
         (
             "boundary trait Sensor {} machine width(n:u8)->u8 reaches Sensor crashes none terminates {n +% 1}",
@@ -222,6 +222,99 @@ fn constants_and_indices_refuse_the_same_call_at_its_occurrence() {
             assert_eq!(error.package, "app");
             assert_eq!(error.file, "main.omg");
             assert_eq!(error.span.slice(source.as_bytes()), Some(call.as_bytes()));
+        }
+    }
+}
+
+#[test]
+fn guarded_division_supplies_the_same_constant_and_generic_index() {
+    let source = "data Buffer<const N:u8>{}
+                  machine divide(n:u8,d:u8)->u8 requires d != ZERO reaches none crashes none terminates {n / d}
+                  const SIZE:u8=divide(12,3);
+                  const ZERO:u8=0;
+                  machine computed(x:Buffer<divide(12,3)>){}
+                  machine named(x:Buffer<SIZE>){}";
+    let prepared = prepare(source).unwrap();
+    assert_integer_constant(&prepared, "SIZE", 4);
+    assert_buffer_index(&prepared, "computed", 4);
+    assert_buffer_index(&prepared, "named", 4);
+    let source = source.replace("12,3", "12,0");
+    let error = prepare(&source).unwrap_err();
+    assert_eq!(
+        error.message,
+        "static evaluation cannot admit this invocation: the selected integer precondition is false for the supplied arguments"
+    );
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"divide(12,0)".as_slice()));
+}
+
+#[test]
+fn concrete_preconditions_compare_mathematical_values_and_check_every_clause() {
+    for (op, pass, fail) in [
+        ("<", -1, 1),
+        ("<=", 1, 2),
+        (">", 2, 1),
+        (">=", 1, -1),
+        ("==", 1, 2),
+        ("!=", -1, 1),
+    ] {
+        let machine = format!("machine choose(a:i8,b:u16)->u8 requires a {op} b requires b < 2 {{3}}");
+        for (left, right, accepted) in [(pass, 1, true), (fail, 1, false)] {
+            let source = format!("{machine} const VALUE:u8=choose({left},{right});");
+            if accepted {
+                assert_integer_constant(&prepare(&source).unwrap(), "VALUE", 3);
+            } else {
+                assert!(
+                    prepare(&source)
+                        .unwrap_err()
+                        .message
+                        .contains("precondition is false"),
+                    "{source}"
+                );
+            }
+        }
+    }
+    for (guard, reason) in [
+        ("requires a < b requires b < 2", "precondition is false"),
+        ("requires (a < b) && (b > 0)", "needs proof outside"),
+    ] {
+        let source = format!("machine choose(a:i8,b:u16)->u8 {guard} {{3}} const VALUE:u8=choose(-1,2);");
+        let error = prepare(&source).unwrap_err();
+        assert!(error.message.contains(reason), "{error:?}");
+    }
+}
+
+#[test]
+fn signed_quotient_and_remainder_keep_the_selected_overflow_policy() {
+    for (op, n, d, expected) in [
+        ("/", -7, 2, -3),
+        ("%", -7, 2, -1),
+        ("/", 7, -2, -3),
+        ("%", 7, -2, 1),
+        ("/%", -128, -1, -128),
+        ("/|", -128, -1, 127),
+        ("%%", -128, -1, 0),
+        ("%|", -128, -1, 0),
+    ] {
+        let source = format!("machine calc(n:i8,d:i8)->i8{{n {op} d}} const VALUE:i8=calc({n},{d});");
+        let prepared = prepare(&source).unwrap();
+        assert_eq!(
+            prepared.integer_constant(&prepared.typed().constants[0].declaration),
+            Some(&BigInt::from(expected)),
+            "{source}"
+        );
+    }
+    for op in ["/", "%", "/%", "%%", "/|", "%|"] {
+        let source = format!("machine calc(n:i8,d:i8)->i8{{n {op} d}} const VALUE:i8=calc(-128,0);");
+        assert!(
+            prepare(&source)
+                .unwrap_err()
+                .message
+                .contains("nonzero divisor"),
+            "{source}"
+        );
+        if matches!(op, "/" | "%") {
+            let source = source.replace("-128,0", "-128,-1");
+            assert!(prepare(&source).unwrap_err().message.contains("exact"), "{source}");
         }
     }
 }

@@ -403,6 +403,55 @@ fn preparation_receives_typed_static_demands_before_dependent_identity_is_known(
 }
 
 #[test]
+fn array_return_waits_for_its_extent_and_rechecks_the_closed_type() {
+    use omega_typer::{StaticIntegerDemand, TypingEnvironment, TypingProgress, type_source_package_for_preparation};
+    let source = "machine width(n:u64)->u64{n} machine f(x:[[u8; width(4)]; 2])->[[u8; 4]; 2]{x}";
+    fn resolve(text: &str) -> omega_typer::SourcePackage<'_> {
+        let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+        let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+        omega_typer::resolve_source_package(&[omega_resolver::StageSource {
+            package: "game",
+            source: omega_resolver::ParsedSource {
+                logical_path: "arrays.omg",
+                text,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }])
+        .unwrap()
+    }
+    let resolved = resolve(source);
+
+    let TypingProgress::Pending(pending) = type_source_package_for_preparation(&resolved, &Default::default()).unwrap() else {
+        panic!("the inner extent requires evaluation");
+    };
+    let [StaticIntegerDemand::Closed(request)] = pending.demands() else {
+        panic!("expected just the call that computes the inner extent");
+    };
+    let resume = |width: u64| {
+        type_source_package_for_preparation(
+            &resolved,
+            &TypingEnvironment {
+                evaluated_indices: &[(request.clone(), width.into())],
+                ..Default::default()
+            },
+        )
+    };
+    assert!(matches!(resume(4).unwrap(), TypingProgress::Complete(_)));
+    assert_eq!(resume(5).unwrap_err().message, "expected [[u8; 4]; 2], found [[u8; 5]; 2]");
+    let wrong_element = source.replace("->[[u8", "->[[u16");
+    let resolved = resolve(&wrong_element);
+
+    let error = type_source_package_for_preparation(&resolved, &Default::default()).unwrap_err();
+    assert!(
+        error
+            .message
+            .starts_with("expected [[u16; 4]; 2], found [[u8; pending")
+    );
+}
+
+#[test]
+
 fn constant_initializers_publish_references_calls_and_suffixed_values() {
     use omega_typer::{CallUse, NodeSemantics};
     let source = "const FORWARD:u8=SIZE; const SIZE=width(7u8); machine width(n:u8)->u8{n+%1}";

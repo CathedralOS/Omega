@@ -39,6 +39,20 @@ impl IntegerRange {
             "+" | "+%" | "+|" => (left + right, "exact addition exceeds its selected integer carrier"),
             "-" | "-%" | "-|" => (left - right, "exact subtraction exceeds its selected integer carrier"),
             "*" | "*%" | "*|" => (left * right, "exact multiplication exceeds its selected integer carrier"),
+            "/" | "/%" | "/|" | "%" | "%%" | "%|" => {
+                if right.sign() == Sign::NoSign {
+                    return Err("integer division or remainder requires a nonzero divisor");
+                }
+                let quotient = &left / &right;
+                if token.starts_with('%') {
+                    // Exact remainder also requires the common quotient to fit.
+                    if token == "%" && !self.fits(&quotient) {
+                        return Err("exact remainder requires a representable integer quotient");
+                    }
+                    return Ok(left % right);
+                }
+                (quotient, "exact division exceeds its selected integer carrier")
+            }
             _ => return Err("the selected body is outside the total integer fragment"),
         };
         if self.fits(&result) {
