@@ -546,7 +546,7 @@ mod tests {
         registry.push((AppliedTraitScope::abstract_scope(&ordinary), Vec::new()));
         let context = crate::source_state::provider_declarations::ProviderPlanningContext::new(
             &typed,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         );
         let catalog = std::sync::Arc::new(
             crate::source_state::service_declarations::PreparedServiceCatalog::prepare(

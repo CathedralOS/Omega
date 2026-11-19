@@ -11,7 +11,7 @@ use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
-use declaration_contracts::wire::WireCompatibilityDemand;
+use crate::preparation::WireCompatibilityDemand;
 use diagnostics::Diagnostic;
 use source_admission::RetainedDeclaration;
 use std::sync::Arc;

@@ -11,7 +11,7 @@ mod source_frontier;
 mod source_jobs;
 
 pub use build_time_values::BuildTimeValue;
-pub use declaration_contracts::wire::WireCompatibilityDemand;
+pub use crate::preparation::WireCompatibilityDemand;
 pub use evaluation_accounting::{
     CanonicalScalarEvaluationReceipt, MeasuredEvaluation, PureEvaluationRecord,
     PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,

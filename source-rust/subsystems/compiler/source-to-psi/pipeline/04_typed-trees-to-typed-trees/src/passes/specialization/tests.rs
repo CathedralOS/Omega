@@ -2768,6 +2768,12 @@ fn applied_callbacks_with_nested_open_types_wait_for_the_enclosing_application()
     use super::{GeneratedMachines, close_machine_argument};
     let mut source = source();
     let supplying = callback_supply(&mut source);
+    // The callback's slice refers to the enclosing relay's type parameter.
+    source
+        .program
+        .expression_table
+        .static_machine_application_mut(supplying)
+        .lexical_owner = source.relay.machine;
     let parameter = named(&mut source.program, source.relay.parameter, "T");
     let slice = source
         .program

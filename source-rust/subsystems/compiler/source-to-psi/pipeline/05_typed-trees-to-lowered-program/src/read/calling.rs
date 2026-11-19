@@ -65,7 +65,7 @@ impl SourceCallingPolicies {
             Some(catalog) => catalog
                 .bind(ProviderPlanningContext::new(
                     typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 ))
                 .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?
                 .signatures()
@@ -296,7 +296,7 @@ impl Program<'_> {
         };
         let context_source = ProviderPlanningContext::new(
             typed,
-            declaration_contracts::source_identity::DependencyScope::Product,
+            source_provenance::DependencyScope::Product,
         );
         let environments = applications
             .iter()
@@ -315,7 +315,7 @@ impl Program<'_> {
                     .shared
                     .calling_catalog(
                         typed,
-                        declaration_contracts::source_identity::DependencyScope::Product,
+                        source_provenance::DependencyScope::Product,
                     )
                     .as_ref()
                     .map(Arc::clone)
@@ -365,7 +365,7 @@ impl Program<'_> {
                 crate::source_state::service_declarations::projection::from_typed_application(
                     crate::source_state::provider_declarations::ProviderPlanningContext::new(
                         typed,
-                        declaration_contracts::source_identity::DependencyScope::Product,
+                        source_provenance::DependencyScope::Product,
                     ),
                     scope.clone(),
                 )
@@ -1401,8 +1401,8 @@ mod header_reading_tests {
         let context = MachineId::new(1).unwrap();
         let mut prior = None;
         for purpose in [
-            declaration_contracts::source_identity::DependencyScope::Product,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
         ] {
             let mut program = Program::with_captures(&typed, false, purpose, Arc::clone(&shared));
             let mut policies = SourceCallingPolicies::default();
@@ -1415,7 +1415,7 @@ mod header_reading_tests {
             let product = shared
                 .calling_catalog(
                     &typed,
-                    declaration_contracts::source_identity::DependencyScope::Product,
+                    source_provenance::DependencyScope::Product,
                 )
                 .as_ref()
                 .unwrap();
@@ -1431,7 +1431,7 @@ mod header_reading_tests {
         let product = shared
             .calling_catalog(
                 &typed,
-                declaration_contracts::source_identity::DependencyScope::Product,
+                source_provenance::DependencyScope::Product,
             )
             .as_ref()
             .unwrap();
@@ -1439,7 +1439,7 @@ mod header_reading_tests {
             product
                 .bind(ProviderPlanningContext::new(
                     &typed,
-                    declaration_contracts::source_identity::DependencyScope::Build
+                    source_provenance::DependencyScope::Build
                 ))
                 .is_err()
         );
@@ -1448,13 +1448,13 @@ mod header_reading_tests {
             product
                 .bind(ProviderPlanningContext::new(
                     &foreign,
-                    declaration_contracts::source_identity::DependencyScope::Product
+                    source_provenance::DependencyScope::Product
                 ))
                 .is_err()
         );
         for purpose in [
-            declaration_contracts::source_identity::DependencyScope::Product,
-            declaration_contracts::source_identity::DependencyScope::Build,
+            source_provenance::DependencyScope::Product,
+            source_provenance::DependencyScope::Build,
         ] {
             let mut reader = Program::with_captures(&typed, false, purpose, Arc::clone(&shared));
             reader.begin_declaration_storage(context, 0).unwrap();
@@ -1463,7 +1463,7 @@ mod header_reading_tests {
             let _ = reader.prepare_calling_abis(context, &[owner]);
             assert_eq!(
                 shared.prepared_calling_catalogs(),
-                if purpose == declaration_contracts::source_identity::DependencyScope::Product {
+                if purpose == source_provenance::DependencyScope::Product {
                     1
                 } else {
                     2
