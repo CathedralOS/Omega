@@ -164,7 +164,7 @@ pub fn forbidden_rules() -> Vec<Rule> {
         )
     });
     rules.push(Rule {
-        forbidden_packages: vec![SOURCE_DRIVER, native_stages::PRODUCT_PUBLICATION],
+        forbidden_packages: vec![PRODUCT_COORDINATOR, SOURCE_DRIVER, native_stages::DRIVER, native_stages::PRODUCT_PUBLICATION],
         ..rule(
             vec![PACKAGE_MANAGER],
             vec![],
@@ -1282,6 +1282,8 @@ mod tests {
             (library, stages[2], Some("build"), false),
             (library, stages[2], Some("dev"), true),
             (PACKAGE_MANAGER, stages[1], None, false),
+            (PACKAGE_MANAGER, PRODUCT_COORDINATOR, None, false),
+            (PACKAGE_MANAGER, native_stages::DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::SOURCE_DRIVER, None, false),
             (PACKAGE_MANAGER, linear_pipeline::TEXT_READER, None, true),
             (library, stages[1], None, false),

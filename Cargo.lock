@@ -560,6 +560,7 @@ version = "0.1.0"
 dependencies = [
  "admitted-native-inputs-to-target-bound-program",
  "build-evaluation-result",
+ "compiler-identity",
  "diagnostics",
  "direct-boundary-bindings",
  "entry-planning",
@@ -594,12 +595,18 @@ dependencies = [
  "terminal-codec",
  "terminal-semantics",
  "verified-optimization-input",
- "wire",
 ]
 
 [[package]]
 name = "compiler-check-site"
 version = "0.1.0"
+
+[[package]]
+name = "compiler-identity"
+version = "0.1.0"
+dependencies = [
+ "wire",
+]
 
 [[package]]
 name = "component-description"
@@ -1953,7 +1960,7 @@ dependencies = [
  "build-output",
  "cap-fs-ext",
  "cap-std",
- "compiler",
+ "compiler-identity",
  "declaration-scope",
  "diagnostics",
  "evaluation-accounting",

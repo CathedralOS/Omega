@@ -1,6 +1,5 @@
 [package]
 name = "compiler"
-build = "build_identity.rs"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -9,6 +8,7 @@ version.workspace = true
 path = "compiler.rs"
 
 [dependencies]
+compiler-identity = { path = "foundation/compiler-identity" }
 psi-entry-memory = { path = "psi/access/entry-memory" }
 diagnostics = { path = "../../foundation/diagnostics" }
 native-compiler = { path = "psi-to-native" }
@@ -20,9 +20,6 @@ source-text = { path = "../../foundation/source-text" }
 target = { path = "psi-to-native/targets/target" }
 terminal-codec = { path = "psi/codec" }
 psi-authorization = { path = "psi/authorization" }
-
-[build-dependencies]
-wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
 source-compiler = { path = "source-to-psi", features = ["test-support"] }

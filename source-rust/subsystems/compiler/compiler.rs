@@ -2,10 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-/// Fingerprint of this compiler's sources, toolchain, target, and build profile.
-pub const fn compiler_identity() -> [u8; 32] {
-    *include_bytes!(concat!(env!("OUT_DIR"), "/compiler-identity.bin"))
-}
+pub use compiler_identity::compiler_identity;
 
 mod request_outcome;
 pub use request_outcome::CompilerRequestOutcome;

@@ -12,7 +12,7 @@ pub(crate) fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;
     let mut digest =
         wire::digest_encoder::DomainDigestEncoder::new(b"omega-accepted-compiler-inputs-v1\0");
-    digest.raw(&compiler::compiler_identity());
+    digest.raw(&compiler_identity::compiler_identity());
     digest.raw(library.as_bytes());
     Ok(digest.finish())
 }
