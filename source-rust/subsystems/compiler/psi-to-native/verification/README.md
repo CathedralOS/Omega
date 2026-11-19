@@ -13,6 +13,9 @@ install a handler. Their callers need the checked records during compilation.
   bindings and permissions and issues the corresponding admitted executions,
   installations and callbacks. Its [same-stack evidence](provider-admission/same-stack/src/lib.rs)
   binds an opaque call's stack use to the exact provider plan, requirement and receipt.
+  Its [authority review receipt](provider-admission/authority/receipt.rs) checks the
+  reviewed leaves against the physical classification and receiving permission,
+  and commits each role-tagged mechanism to the selected provider closure.
   Later stages retain these records through publication.
   [Task activation checks](provider-admission/src/task_activations/mod.rs) match the selected
   runtime, stack geometry and suspension obligations to the published demand.

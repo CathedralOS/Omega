@@ -13,7 +13,7 @@ use crate::encoding::{
 use crate::record::{
     PackagePolicyTerminalPermission, PackagePolicyTerminalPermissions, PackagePolicyTerminalService,
 };
-use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 
 impl PackagePolicyTerminalPermissions {
     super::recover_canonical_component!(

@@ -15,7 +15,7 @@ qualifications.
 */
 
 use calling_conventions::{BoundaryEntryPlan, CallSignature};
-use effects::{
+use terminal_authority_receipts::{
     CheckedSyscallArgumentContractIdentity, SyscallTerminalMechanismIdentity,
     TerminalMechanismIdentity,
 };
@@ -41,7 +41,7 @@ pub(crate) fn normalized_foreign_terminal_mechanism(
         "normalized foreign boundary plan is not canonical",
     )?;
     Ok(
-        effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+        terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
             locator,
             provider_plans::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),
@@ -70,7 +70,7 @@ pub(crate) fn normalized_foreign_terminal_mechanism_with_callback_materializatio
         "normalized foreign callback boundary plan is not canonical",
     )?;
     Ok(
-        effects::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
+        terminal_authority_receipts::NormalizedForeignTerminalMechanismIdentity::from_normalized_locator(
             locator,
             provider_plans::BoundaryCallingPlanCommitment::from_digest(
                 validated.contract_commitment_digest(),

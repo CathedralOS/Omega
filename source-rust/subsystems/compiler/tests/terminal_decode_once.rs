@@ -78,7 +78,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                 provider_admission::TerminalAuthorityPermissionPolicyRow::new(
                     plan.schema.identity_digest(),
                     permission_identities.intern(plan.identities.text(row.requirement_identity)),
-                    effects::TerminalAuthorityDisposition::from_classes([]),
+                    semantic_vocabulary::TerminalAuthorityDisposition::from_classes([]),
                 ),
             );
         }
@@ -104,8 +104,8 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
                     leaf.plan.schema.identity_digest(),
                     permission_identities
                         .intern(leaf.plan.identities.text(row.requirement_identity)),
-                    effects::TerminalAuthorityDisposition::from_classes([
-                        effects::TerminalAuthorityClass::ProcessTermination,
+                    semantic_vocabulary::TerminalAuthorityDisposition::from_classes([
+                        semantic_vocabulary::TerminalAuthorityClass::ProcessTermination,
                     ]),
                 ),
             );

@@ -1633,7 +1633,6 @@ dependencies = [
  "calling-conventions",
  "component-description",
  "diagnostics",
- "effects",
  "function-identity",
  "image",
  "image-emission",
@@ -1665,6 +1664,7 @@ dependencies = [
  "target-aarch64",
  "target-operations",
  "target-x86_64",
+ "terminal-authority-receipts",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -2162,7 +2162,6 @@ dependencies = [
  "declaration-contracts",
  "declaration-scope",
  "diagnostics",
- "effects",
  "evaluation-accounting",
  "evaluation-contracts",
  "evaluation-receipts",
@@ -2460,6 +2459,7 @@ dependencies = [
  "direct-boundary-bindings",
  "effects",
  "function-identity",
+ "host-provider-inputs",
  "installation-conditions",
  "language-core",
  "layout",
@@ -2483,6 +2483,7 @@ dependencies = [
  "target",
  "target-operations",
  "target-provider-admission",
+ "terminal-authority-receipts",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
@@ -3594,6 +3595,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-authority-receipts"
+version = "0.1.0"
+dependencies = [
+ "native-intrinsics",
+ "provider-plans",
+ "selected-provider-plans",
+ "semantic-vocabulary",
+ "target",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "terminal-codec"
 version = "0.1.0"
 dependencies = [
@@ -3964,6 +3978,7 @@ dependencies = [
  "boundary-applications",
  "calling-conventions",
  "direct-boundary-bindings",
+ "host-provider-inputs",
  "installation-conditions",
  "native-binding-admission",
  "native-intrinsics",

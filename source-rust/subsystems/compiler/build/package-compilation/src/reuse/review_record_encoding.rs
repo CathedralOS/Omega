@@ -6,7 +6,7 @@
 
 use crate::{AcceptedSemanticBindingRole, BuildDeclarationKind};
 use build_declarations::DependencyPurpose;
-use effects::TerminalAuthorityClass;
+use semantic_vocabulary::TerminalAuthorityClass;
 use filesystem_authority::observation_codec::ObservationCursor;
 
 pub fn encode_optional<T>(value: Option<&T>, out: &mut Vec<u8>, encode: impl Fn(&T, &mut Vec<u8>)) {

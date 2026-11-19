@@ -15,7 +15,7 @@ use super::{
 };
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::physical::{canonical_usize, hash_bytes, hash_call_site_owner};
-use effects::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
+use terminal_authority_receipts::{TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity};
 
 const NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] = b"omega.native-artifact.sha256.v18\0";
 

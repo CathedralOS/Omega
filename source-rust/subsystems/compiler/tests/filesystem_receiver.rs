@@ -15,7 +15,7 @@
 //! classification independently, so an unsupported leaf must refuse.
 
 use ::provider_admission::provider_admission;
-use effects::{
+use semantic_vocabulary::{
     PortableFilesystemAuthorityFacet, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
 use native_intrinsics::CompilerIntrinsicExecutionIdentity;

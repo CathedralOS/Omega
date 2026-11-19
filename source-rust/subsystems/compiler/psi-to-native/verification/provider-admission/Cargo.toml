@@ -5,6 +5,8 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+host-provider-inputs = { path = "../../pipeline/00_psi-to-admitted-native-inputs/host-providers" }
+terminal-authority-receipts = { path = "authority" }
 native-binding-admission = { path = "../native-bindings" }
 direct-boundary-bindings = { path = "../provider-correspondence/direct-boundaries" }
 native-intrinsics = { path = "../../targets/intrinsics" }

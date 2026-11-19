@@ -11,7 +11,7 @@ artifact identities (`NativeArtifactIdentity`).
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
-use effects::{
+use terminal_authority_receipts::{
     TerminalAuthorityClosureReviewReceipt,
     TerminalAuthorityPermissionPolicyIdentity,
     TerminalAuthorityPolicyIdentity,
