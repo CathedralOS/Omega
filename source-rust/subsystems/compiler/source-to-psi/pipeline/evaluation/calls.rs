@@ -8,6 +8,42 @@ use symbols::SymbolHandle;
 
 #[path = "calls/arguments.rs"]
 mod arguments;
+#[path = "calls/execution.rs"]
+mod execution;
+#[path = "calls/source_selection.rs"]
+mod source_selection;
+#[path = "calls/target.rs"]
+mod target;
+pub use target::InvocationTarget;
+
+/// A build-time value with the engine-tagged usage record of the evaluation
+/// that produced it. Both engines publish `BuildEvaluationUsage`, whose
+/// measurement identity names the work and storage schedules, so consumers
+/// such as evaluated binding digests never interpret one engine's counts as
+/// another's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeasuredEvaluation<T> {
+    value: T,
+    usage: evaluation_contracts::BuildEvaluationUsage,
+}
+
+impl<T> MeasuredEvaluation<T> {
+    pub const fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub const fn usage(&self) -> evaluation_contracts::BuildEvaluationUsage {
+        self.usage
+    }
+
+    pub fn into_value(self) -> T {
+        self.value
+    }
+
+    pub fn into_parts(self) -> (T, evaluation_contracts::BuildEvaluationUsage) {
+        (self.value, self.usage)
+    }
+}
 
 /// The input source is retained as metadata, never as a checked-program witness.
 pub struct PreparedBuildMachineProgram {
@@ -21,7 +57,6 @@ pub struct PreparedBuildMachineProgram {
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
     source: Arc<TypedTrees>,
-    records_private_layout: bool,
     symbol: SymbolHandle,
     requester: SymbolHandle,
     call: crate::source_state::expression::TableCallExpression,
@@ -334,8 +369,6 @@ impl PreparedBuildMachineProgram {
         };
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
-            records_private_layout: self.publication
-                == terminal_codec::TerminalPublication::LayoutPolicyInvocation,
             symbol: physical,
             requester,
             call: actual_call,

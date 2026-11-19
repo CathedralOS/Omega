@@ -49,4 +49,4 @@ pub use constants::validate_constant_evaluations;
 
 #[path = "evaluation/calls.rs"]
 mod calls;
-pub use calls::{PreparedBuildMachineEntry, PreparedBuildMachineProgram};
+pub use calls::{InvocationTarget, MeasuredEvaluation, PreparedBuildMachineEntry, PreparedBuildMachineProgram};
