@@ -182,9 +182,11 @@ fn refused(source: &str, detail: &str) {
 
 #[test]
 fn atomic_events_reject_plain_cells_illegal_orderings_and_mismatched_widths() {
+    // An ordinary integer has no selected atomic member. Supply ordinary value
+    // arguments so an unbound contextual ordering cannot mask that refusal.
     refused(
-        "data Cell { value: u32; } machine build_entry() { let cell: Cell; cell.value.store(1, Publish); }",
-        "dedicated atomic storage",
+        "data Cell { value: u32; } machine build_entry() { let cell: Cell; cell.value.store(1, 0u32); }",
+        "call selected by its receiver's type",
     );
     malformed_ordering(
         "data Cell { value: AtomicU32; } machine build_entry() { let cell: Cell; cell.value.store(1, Receive); }",
@@ -221,15 +223,8 @@ fn atomic_load_is_not_a_plain_value_equation_or_permission_upgrade() {
 }
 
 fn malformed_ordering(source: &str, detail: &str) {
-    let mut sources = crate::source_inputs::SourceMap::default();
-    let id = sources
-        .add("atomic_ordering.omg".into(), source.to_owned())
-        .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let error = crate::checking::frontend_fixture::parse_syntax_trees_with_id(id, &tokens)
-        .expect_err("illegal ordering was parsed");
+    let error = super::boundary_calls::try_typed(source)
+        .expect_err("an atomic receiver must reject an illegal ordering during typing");
     assert!(error.message.contains(detail), "{error:?}");
 }
 
