@@ -18,7 +18,7 @@ pub struct ProductSourceInputs<'a> {
     pub native_bindings: &'a [provider_choices::NativeBuildSupply],
     pub representations: crate::ProductRepresentationInput<'a>,
     pub layout_selection_authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
-    pub wire_demands: &'a [declaration_contracts::wire::WireCompatibilityDemand],
+    pub wire_demands: &'a [crate::preparation::WireCompatibilityDemand],
     pub optimizations: optimization::PsiOptimizationSelections,
 }
 

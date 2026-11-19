@@ -38,13 +38,27 @@ const PASSES: &[Pass] = &[
     },
 ];
 
+/// Compatibility checks requested for one Build-selected wire schema edge.
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+pub struct WireCompatibilityDemand {
+    pub edge: String,
+    pub lineage: String,
+    pub local_schema: String,
+    pub peer_schema: String,
+    pub require_readable: bool,
+    pub require_writable: bool,
+    pub require_unknown_preservation: bool,
+    pub require_canonical: bool,
+    pub require_complete_migration: bool,
+}
+
 /// Work the caller asks of this stage beside the program itself. It is a
 /// request, not evidence that preparation or checking occurred.
 #[derive(Clone, Copy)]
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
     deferred_layout_applications: &'request [crate::source_state::types::TypeReferenceHandle],
-    wire_compatibility_demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
+    wire_compatibility_demands: &'request [WireCompatibilityDemand],
 }
 
 impl<'request> PreparationRequest<'request> {
@@ -66,7 +80,7 @@ impl<'request> PreparationRequest<'request> {
 
     pub const fn with_wire_compatibility_demands(
         mut self,
-        demands: &'request [declaration_contracts::wire::WireCompatibilityDemand],
+        demands: &'request [WireCompatibilityDemand],
     ) -> Self {
         self.wire_compatibility_demands = demands;
         self
@@ -110,7 +124,7 @@ impl<'request> PreparationRequest<'request> {
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
     deferred_layout_applications: Vec<crate::source_state::types::TypeReferenceHandle>,
-    wire_compatibility_demands: Vec<declaration_contracts::wire::WireCompatibilityDemand>,
+    wire_compatibility_demands: Vec<WireCompatibilityDemand>,
 }
 
 impl PreparationAdmission {

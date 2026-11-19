@@ -416,7 +416,7 @@ dependencies = [
  "terminal-semantics",
  "tokens",
  "typed-trees",
- "typed-trees-to-terminal-psi",
+ "typed-trees-to-lowered-program",
  "typed-trees-to-typed-trees",
  "wire",
 ]
@@ -2988,7 +2988,7 @@ dependencies = [
  "terminal-work",
  "tokens",
  "typed-trees",
- "typed-trees-to-terminal-psi",
+ "typed-trees-to-lowered-program",
  "typed-trees-to-typed-trees",
  "wire",
  "worker-budget",
@@ -3558,7 +3558,7 @@ dependencies = [
  "terminal-work",
  "tokens",
  "typed-trees",
- "typed-trees-to-terminal-psi",
+ "typed-trees-to-lowered-program",
  "typed-trees-to-typed-trees",
  "wire",
 ]
@@ -3743,26 +3743,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "typed-trees-to-terminal-psi"
+name = "typed-trees-to-lowered-program"
 version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
  "bignum",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
  "numerics",
+ "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
+ "service-surface",
  "source-admission",
  "source-declarations",
+ "source-provenance",
+ "source-symbol-table",
  "source-text",
  "symbols",
  "terminal-check-tables",
  "terminal-codec",
- "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
@@ -3775,7 +3777,6 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3788,7 +3789,7 @@ dependencies = [
  "source-text",
  "symbols",
  "typed-trees",
- "typed-trees-to-terminal-psi",
+ "typed-trees-to-lowered-program",
  "wire",
 ]
 

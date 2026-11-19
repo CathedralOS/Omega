@@ -29,7 +29,7 @@ mod provider_source_identities {
 
     use crate::source_inputs::SourceMap;
     use crate::source_symbols::SymbolTableBuilder;
-    use declaration_contracts::source_identity::DependencyScope;
+    use source_provenance::DependencyScope;
     use source_admission::SourceOrigin;
     use symbols::{SymbolKind, SymbolNameRef};
 

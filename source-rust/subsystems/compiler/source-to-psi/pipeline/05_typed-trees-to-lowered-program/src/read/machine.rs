@@ -2732,9 +2732,7 @@ impl<'t> Program<'t> {
         let expected = meaning
             .signature()
             .ok_or_else(|| unavailable("numeric primitive has no scalar signature"))?;
-        let expected_operand = expected
-            .operand
-            .scalar_type()
+        let expected_operand = semantic_vocabulary::ScalarType::from_numeric_type(expected.operand)
             .ok_or_else(|| unavailable("numeric primitive has no scalar operand"))?;
         let expected_result = terminal_semantics::numeric_primitives::result_scalar_type(meaning)
             .map_err(unavailable)?;

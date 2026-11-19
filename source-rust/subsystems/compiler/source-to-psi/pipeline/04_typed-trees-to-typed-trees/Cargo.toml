@@ -18,7 +18,6 @@ typed-trees-to-lowered-program = { path = "../05_typed-trees-to-lowered-program"
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 typed-trees = { path = "../representations/typed-trees" }
-declaration-contracts = { path = "../../language/declaration-contracts" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-admission = { path = "../representations/source-files/custody" }

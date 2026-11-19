@@ -1212,7 +1212,7 @@ impl Inputs {
 
 pub(crate) fn projected_arrival(
     typed: &TypedTrees,
-    purpose: declaration_contracts::source_identity::DependencyScope,
+    purpose: source_provenance::DependencyScope,
     required: &StateSignature,
     supplied: SymbolHandle,
     projection: &[ParameterOccurrence],

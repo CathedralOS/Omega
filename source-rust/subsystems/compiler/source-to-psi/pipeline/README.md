@@ -1,8 +1,8 @@
 # Source-to-Terminal pipeline
 
 Psi has eight stage directories, from file lexing through publication. The
-lexer and parser compile as independent crates. The source compilation
-coordinator still compiles stages 02 through 07 together and owns the
+lexer, parser, resolver, type checker, typed preparation and lowering each
+have a Cargo entry point. The source compilation coordinator owns the
 resolution and typing loop for deferred bodies. [Connected program route](../../../pipeline.md#connected-program-route)
 
 ## Follow the compilation route
