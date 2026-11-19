@@ -3,6 +3,5 @@ machine build(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, normal);
     Build::bind(builder, macos_arm64::ProgramEntry, normal);
     Build::bind(builder, linux_x86_64::ProgramEntry, trapping);
-    Build::bind(builder, alpha_bootstrap::ProgramEntry, normal);
     Optimizations::enable(&mut builder.optimizations, Optimization::ControlFlowCleanup);
 }
