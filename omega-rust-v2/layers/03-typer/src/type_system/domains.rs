@@ -46,6 +46,17 @@ impl<'a> ResolvedSourceFile<'a> {
             arguments,
         })
     }
+    pub(crate) fn checked_domain_application(
+        &self,
+        n: usize,
+        types: &TypeCatalog<'_>,
+    ) -> Result<DomainApplication, TypeError> {
+        let app = self.domain_application(n, types)?;
+        types
+            .check_domain_at(&app, &self.file, n)
+            .map_err(|msg| TypeError::at(&self.file, n, msg))?;
+        Ok(app)
+    }
     pub fn index_domains(
         &self,
         types: &mut TypeCatalog<'a>,

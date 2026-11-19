@@ -93,5 +93,6 @@ pub(crate) fn type_admitted_stage(
     cleanup::check_cleanup_selections(&units, &catalog, &mut output)?;
     trait_refinements::check_trait_refinements(&catalog, &mut output)?;
     access_policies::check_access_policies(&units, &catalog, environment, &mut output)?;
+    catalog.types.record_type_universe_memberships(&mut output);
     Ok(output)
 }

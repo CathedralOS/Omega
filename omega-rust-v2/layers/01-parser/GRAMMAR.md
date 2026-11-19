@@ -66,7 +66,7 @@ value (`ByteBuffer<64>`, `Buffer<N * 2>`), and the two can start alike. The
 parser decides by looking ahead:
 
 1. Skip any `[` the argument opens with.
-2. `@` or `machine(` there begins a type.
+2. `@`, `machine(`, or a named function binder such as `(n: u8) ->` there begins a type.
 3. A name there, with any `::name` parts, begins a type if the token after
    it is `<` or `->`, or ends the argument: `,` or `>` at the top, `]` or `;`
    inside brackets. So `[u8]` and `[u8; 4]` are types, and `[a, b]` and

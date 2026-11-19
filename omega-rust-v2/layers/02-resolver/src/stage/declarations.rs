@@ -1,7 +1,21 @@
-use super::{Context, DeclarationId, Entry, Index, Local, NameError, builtin, callable, qualify};
+use super::{Context, DeclarationId, Entry, GenericBinder, Index, Local, NameError, builtin, callable, qualify};
 use crate::syntax::{File, Leaf};
 use omega_parser::NodeKind;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+// Universe-bound parameters take types. A level or an integer binder takes values
+// even though all three declarations use the same colon syntax.
+fn generic_binder(
+    file: &File<'_>,
+    index: usize,
+) -> GenericBinder {
+    let node = &file.nodes[index];
+    let universe = matches!(node.kind, NodeKind::KindedParam | NodeKind::ConstParam)
+        && file
+            .child(index, NodeKind::PathType)
+            .is_some_and(|kind| matches!(file.nodes[kind].path().as_str(), "core::Type" | "core::Strict"));
+    GenericBinder::new(node.kind, universe)
+}
 
 pub(super) fn index_file<'a>(
     file: &File<'a>,
@@ -11,6 +25,7 @@ pub(super) fn index_file<'a>(
 ) -> Result<Context<'a>, NameError> {
     use NodeKind::*;
     let mut ctx = Context::default();
+    let mut parameter_names = HashSet::new();
     for (n, node) in file.nodes.iter().enumerate() {
         let scope = || {
             file.enclosing_contexts(n)
@@ -30,6 +45,7 @@ pub(super) fn index_file<'a>(
                 start,
                 end,
                 static_binding,
+                type_binding: generic_binder(file, n).takes_type,
                 annotation: node
                     .children
                     .iter()
@@ -54,7 +70,19 @@ pub(super) fn index_file<'a>(
                     words.next()
                 };
                 if let Some(leaf) = leaf {
-                    if matches!(node.kind, TypeParam | SomeParam) && builtin(leaf.text) {
+                    if let Some(list) = node.parent
+                        && matches!(file.nodes[list].kind, GenericParams | Params)
+                        && file.nodes[list].children.len() > 1
+                        && !parameter_names.insert((list, leaf.text))
+                    {
+                        let category = if file.nodes[list].kind == GenericParams {
+                            "generic parameter"
+                        } else {
+                            "parameter"
+                        };
+                        return Err(file.error(leaf.span, format!("duplicate {category} {}", leaf.text)));
+                    }
+                    if builtin(leaf.text) && generic_binder(file, n).takes_type {
                         return Err(file.error(leaf.span, format!("builtin type {} cannot be redeclared", leaf.text)));
                     }
                     let owner = scope();
@@ -143,7 +171,7 @@ pub(super) fn index_file<'a>(
             .map(|&b| {
                 let binder = &file.nodes[b];
                 let index = usize::from(matches!(binder.kind, ConstParam | MachineParam | SomeParam));
-                (binder.words().nth(index).map_or("", |w| w.text), binder.kind)
+                (binder.words().nth(index).map_or("", |w| w.text), generic_binder(file, b))
             })
             .collect();
         let mut binder_ids = HashMap::new();
@@ -159,7 +187,8 @@ pub(super) fn index_file<'a>(
                         file.tokens[t.first_token..t.end_token]
                             .iter()
                             .map(|t| {
-                                if let Some((name, kind)) = generic_parameters.iter().find(|(name, _)| *name == t.text) {
+                                if let Some((name, binder)) = generic_parameters.iter().find(|(name, _)| *name == t.text) {
+                                    let kind = binder.kind;
                                     let next = binder_ids.len();
                                     format!("#{kind:?}{}", binder_ids.entry(*name).or_insert(next))
                                 } else {

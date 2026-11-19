@@ -52,12 +52,30 @@ fn callable(kind: NodeKind) -> bool {
     matches!(kind, NodeKind::Machine | NodeKind::AsmMachine | NodeKind::MathLet)
 }
 
+#[derive(Clone, Copy)]
+struct GenericBinder {
+    kind: NodeKind,
+    takes_type: bool,
+}
+
+impl GenericBinder {
+    fn new(
+        kind: NodeKind,
+        universe: bool,
+    ) -> Self {
+        Self {
+            kind,
+            takes_type: matches!(kind, NodeKind::TypeParam | NodeKind::SomeParam) || universe,
+        }
+    }
+}
+
 struct Entry {
     id: DeclarationId,
     source: Option<(usize, usize)>,
     public: bool,
     lexical_owner: Option<usize>,
-    generic_roles: Vec<NodeKind>,
+    generic_roles: Vec<GenericBinder>,
 }
 type Index = BTreeMap<(String, String), Vec<usize>>;
 struct Local {
@@ -67,6 +85,7 @@ struct Local {
     start: usize,
     end: usize,
     static_binding: bool,
+    type_binding: bool,
     callable_binding: bool,
     annotation: Option<usize>,
 }
@@ -159,7 +178,11 @@ pub fn resolve_stage_with_exports(
             source: None,
             public: true,
             lexical_owner: None,
-            generic_roles: export.generic_roles.clone(),
+            generic_roles: export
+                .generic_roles
+                .iter()
+                .map(|&kind| GenericBinder::new(kind, false))
+                .collect(),
         });
         let mut module = export.module;
         loop {

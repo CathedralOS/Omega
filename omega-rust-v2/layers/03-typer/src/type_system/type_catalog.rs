@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Default)]
 pub(crate) struct TypeCatalog<'a> {
+    type_universe_memberships: std::cell::RefCell<HashMap<crate::Site, Vec<(ValueType, ValueType)>>>,
     pub(crate) runtime_indices: HashSet<(&'a DeclarationId, usize)>,
     pub specializations: specialized_indices::IndexSpecializations,
     pub operator_tokens: HashSet<&'a str>,
@@ -192,10 +193,115 @@ impl TypeCatalog<'_> {
         }
     }
 
-    pub(crate) fn normalize(
+    // A universe itself can only inhabit the ordinary universe at its successor.
+    // Other subjects retain a membership obligation for the proof checker.
+    pub(crate) fn check_universe_member(
+        subject: &ValueType,
+        sort: &ValueType,
+    ) -> Result<(), String> {
+        if let (ValueType::Universe { level, .. }, ValueType::Universe { strict, level: outer }) = (subject, sort)
+            && (*strict || matches!((level.as_ref(),outer.as_ref()),(ValueType::Level(actual),ValueType::Level(required)) if actual+1u8 != *required))
+        {
+            return Err("universe argument requires its exact successor universe".into());
+        }
+        Ok(())
+    }
+
+    pub(crate) fn normalize_at(
+        &self,
+        ty: ValueType,
+        source: &omega_resolver::IndexedSource<'_>,
+        node: usize,
+    ) -> Result<ValueType, String> {
+        let mut memberships = Vec::new();
+        let normalized = self.normalize(ty, &mut HashSet::new(), &mut memberships)?;
+        self.retain_universe_memberships(source, node, memberships);
+        Ok(normalized)
+    }
+
+    fn retain_universe_memberships(
+        &self,
+        source: &omega_resolver::IndexedSource<'_>,
+        node: usize,
+        memberships: Vec<(ValueType, ValueType)>,
+    ) {
+        if !memberships.is_empty() {
+            let mut by_site = self.type_universe_memberships.borrow_mut();
+            let rows = by_site.entry(crate::Site::at(source, node)).or_default();
+            for row in memberships {
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+    }
+    fn check_universe_arguments(
+        &self,
+        owner: &DeclarationId,
+        arguments: &[ValueType],
+        instantiate: impl Fn(&ValueType) -> ValueType,
+        memberships: &mut Vec<(ValueType, ValueType)>,
+    ) -> Result<(), String> {
+        for (index, subject) in arguments.iter().enumerate() {
+            if let Some(bound @ ValueType::Universe { .. }) = self.bound(owner, index) {
+                let sort = instantiate(bound);
+                Self::check_universe_member(subject, &sort)?;
+                memberships.push((subject.clone(), sort));
+            }
+        }
+        Ok(())
+    }
+    fn check_domain_universes(
+        &self,
+        app: &crate::DomainApplication,
+        memberships: &mut Vec<(ValueType, ValueType)>,
+    ) -> Result<(), String> {
+        self.check_universe_arguments(
+            &app.declaration,
+            &app.arguments,
+            |bound| bound.substitute(&app.declaration, &app.arguments),
+            memberships,
+        )
+    }
+    pub(crate) fn check_domain_at(
+        &self,
+        app: &crate::DomainApplication,
+        source: &omega_resolver::IndexedSource<'_>,
+        node: usize,
+    ) -> Result<(), String> {
+        let mut memberships = Vec::new();
+        self.check_domain_universes(app, &mut memberships)?;
+        self.retain_universe_memberships(source, node, memberships);
+        Ok(())
+    }
+    pub(crate) fn record_type_universe_memberships(
+        &mut self,
+        output: &mut crate::TypedStage,
+    ) {
+        let mut groups: Vec<_> = self.type_universe_memberships.get_mut().drain().collect();
+        groups.sort_unstable_by(|(a, _), (b, _)| {
+            (&a.package, &a.file, a.span.get_start_offset(), a.span.get_end_offset()).cmp(&(
+                &b.package,
+                &b.file,
+                b.span.get_start_offset(),
+                b.span.get_end_offset(),
+            ))
+        });
+        for (site, rows) in groups {
+            output
+                .obligations
+                .extend(rows.into_iter().map(|(subject, sort)| crate::TypingObligation {
+                    site: site.clone(),
+                    kind: crate::ObligationKind::UniverseMembership { subject, sort },
+                }));
+        }
+    }
+
+    fn normalize(
         &self,
         mut ty: ValueType,
         active: &mut HashSet<DeclarationId>,
+        memberships: &mut Vec<(ValueType, ValueType)>,
     ) -> Result<ValueType, String> {
         use ValueType::*;
         let mut entered = Vec::new();
@@ -205,17 +311,23 @@ impl TypeCatalog<'_> {
                     c.parameters = c
                         .parameters
                         .into_iter()
-                        .map(|p| self.normalize(p, active))
+                        .map(|p| self.normalize(p, active, memberships))
                         .collect::<Result<_, _>>()?;
-                    c.result = self.normalize(c.result, active)?;
+                    c.result = self.normalize(c.result, active, memberships)?;
                     break Ok(Callable(c));
                 }
-                AtLifetime(t, l) => break Ok(AtLifetime(Box::new(self.normalize(*t, active)?), l)),
-                Function(a, b) => break Ok(Function(Box::new(self.normalize(*a, active)?), Box::new(self.normalize(*b, active)?))),
+                AtLifetime(t, l) => break Ok(AtLifetime(Box::new(self.normalize(*t, active, memberships)?), l)),
+                Function(a, b) => {
+                    break Ok(Function(
+                        Box::new(self.normalize(*a, active, memberships)?),
+                        Box::new(self.normalize(*b, active, memberships)?),
+                    ));
+                }
                 Qualified(base, domains) => {
-                    let base = self.normalize(*base, active)?;
+                    let base = self.normalize(*base, active, memberships)?;
                     let mut atoms = base.domains().to_vec();
                     for id in domains {
+                        self.check_domain_universes(&id, memberships)?;
                         atoms.extend(self.domains.expanded(&id, base.carrier(), true)?);
                     }
                     break Ok(domains::qualified(base.carrier().clone(), atoms));
@@ -224,18 +336,18 @@ impl TypeCatalog<'_> {
                     break Ok(Tuple(
                         items
                             .into_iter()
-                            .map(|t| self.normalize(t, active))
+                            .map(|t| self.normalize(t, active, memberships))
                             .collect::<Result<_, _>>()?,
                     ));
                 }
-                IndexedArray(t, n) => break Ok(IndexedArray(Box::new(self.normalize(*t, active)?), n)),
-                Reference(a, t) => break Ok(Reference(a, Box::new(self.normalize(*t, active)?))),
-                Array(t, n) => break Ok(Array(Box::new(self.normalize(*t, active)?), n)),
-                Slice(t) => break Ok(Slice(Box::new(self.normalize(*t, active)?))),
+                IndexedArray(t, n) => break Ok(IndexedArray(Box::new(self.normalize(*t, active, memberships)?), n)),
+                Reference(a, t) => break Ok(Reference(a, Box::new(self.normalize(*t, active, memberships)?))),
+                Array(t, n) => break Ok(Array(Box::new(self.normalize(*t, active, memberships)?), n)),
+                Slice(t) => break Ok(Slice(Box::new(self.normalize(*t, active, memberships)?))),
                 Applied(id, args) => (
                     id,
                     args.into_iter()
-                        .map(|t| self.normalize(t, active))
+                        .map(|t| self.normalize(t, active, memberships))
                         .collect::<Result<Vec<_>, _>>()?,
                 ),
                 StaticInteger { ref carrier, ref value }
@@ -259,6 +371,7 @@ impl TypeCatalog<'_> {
                     declaration: *id,
                     arguments: args,
                 };
+                self.check_domain_universes(&app, memberships)?;
                 let atoms = self.domains.expanded(&app, carrier, true)?;
                 break Ok(domains::qualified(carrier.clone(), atoms));
             }
@@ -271,6 +384,12 @@ impl TypeCatalog<'_> {
                 .sum::<usize>();
             if arity != args.len() {
                 return Err(format!("{} expects {arity} type arguments, found {}", id.path, args.len()));
+            }
+            let mut remaining = args.as_slice();
+            for &owner in &self.scopes[id.as_ref()] {
+                let (selected, rest) = remaining.split_at(self.arities[owner]);
+                self.check_universe_arguments(owner, selected, |bound| self.field_type(bound, &id, &args), memberships)?;
+                remaining = rest;
             }
             if let Some(target) = self.aliases.get(id.as_ref()) {
                 if !active.insert((*id).clone()) {

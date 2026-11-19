@@ -134,7 +134,7 @@ impl SyntaxParser<'_> {
           - Skip any `[` the argument opens with. They belong to a slice or
             array type, or to an array literal, and what follows them settles
             which.
-          - `@` or `machine(` there begins a type.
+          - `@`, `machine(`, or a named binder `(name: type) ->` begins a type.
           - A name there, with any `::name` parts, begins a type if the token
             after it continues a type or ends the argument: `<`, `->`, and
             `,` or `>` at the top, `]` or `;` inside brackets. So `[u8]` and
@@ -158,6 +158,11 @@ impl SyntaxParser<'_> {
         }
 
         let is_inside_brackets = ahead > 0;
+
+        // A named mathematical binder can only begin a function type.
+        if self.nth_at(ahead, Punctuation::LeftParenthesis) && self.nth_at_word(ahead + 1) && self.nth_at(ahead + 2, Punctuation::Colon) {
+            return true;
+        }
 
         if self.nth_at(ahead, Punctuation::At) {
             return true;

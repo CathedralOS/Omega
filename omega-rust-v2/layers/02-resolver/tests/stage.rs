@@ -632,3 +632,65 @@ fn ambiguous_domains_report_each_owner_carrier_and_exposing_import() {
     }
 }
 mod support;
+
+#[test]
+fn universe_and_value_binders_keep_their_name_roles() {
+    use omega_parser::NodeKind::KindedParam;
+    let redeclared = "machine f<u8:core::Type<0>>(){}";
+    assert_eq!(
+        run(&[("app", "probe.omg", redeclared)], &[])
+            .unwrap_err()
+            .message,
+        "builtin type u8 cannot be redeclared"
+    );
+    let mixed = "machine f<A:core::Type<0>,N:u8>() requires A == N {}";
+    assert_eq!(
+        run(&[("app", "probe.omg", mixed)], &[]).unwrap_err().message,
+        "type equality mixes a type and a value"
+    );
+    let source = "data X{} machine pick<A:core::Type<0>>(x:u8){} machine pick<N:u8>(x:bool){} machine f<X:u8>(){pick::<X>(true)}";
+    let stage = run(&[("app", "probe.omg", source)], &[]).unwrap();
+    let alternatives = stage
+        .uses
+        .iter()
+        .find_map(|usage| match &usage.target {
+            Symbol::ByOverload(alternatives) if usage.span.slice(source.as_bytes()).unwrap() == b"X" => Some(alternatives),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(alternatives.len(), 2);
+    for alt in alternatives {
+        assert_eq!(alt.binder, Some(KindedParam));
+        match alt.candidate.operands[0].as_str() {
+            "u8" => assert!(matches!(alt.target.as_deref(),Some(Symbol::Declaration(id)) if id.path=="X")),
+            "bool" => assert!(matches!(alt.target.as_deref(), Some(Symbol::Binding { kind: KindedParam, .. }))),
+            _ => panic!("unexpected overload"),
+        }
+    }
+    let source = "data X{} machine pick<A:core::Type<0>>(){} machine f<X:u8>(){pick::<X>()}";
+    let stage = run(&[("app", "probe.omg", source)], &[]).unwrap();
+    let start = source.rfind("X").unwrap();
+    assert!(
+        stage
+            .uses
+            .iter()
+            .any(|u| u.span.get_start_offset() == start && matches!(&u.target,Symbol::Declaration(id) if id.path=="X"))
+    );
+}
+
+#[test]
+fn parameters_must_have_distinct_names_within_each_parameter_list() {
+    for (source, expected) in [
+        ("data View<'value,value>{body:@'value i32;}", "duplicate generic parameter value"),
+        ("machine f<T,T>(){}", "duplicate generic parameter T"),
+        ("machine f(x:u8,x:bool){}", "duplicate parameter x"),
+    ] {
+        let error = run(&[("app", "probe.omg", source)], &[]).unwrap_err();
+        assert_eq!(error.message, expected);
+        let name = expected.split_whitespace().last().unwrap();
+        let first = source.find(name).unwrap();
+        let second = first + name.len() + source[first + name.len()..].find(name).unwrap();
+        assert_eq!(error.span.get_start_offset(), second);
+    }
+    run(&[("app", "probe.omg", "machine f<T>(x:T)->T{g(x) machine g<T>(x:T)->T{x}}")], &[]).unwrap();
+}

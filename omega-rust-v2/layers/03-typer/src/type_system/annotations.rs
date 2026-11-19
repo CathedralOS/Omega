@@ -5,7 +5,6 @@ use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
 use omega_parser::NodeKind;
 use omega_resolver::{DeclarationId, Symbol};
-use std::collections::HashSet;
 
 impl<'a> ResolvedSourceFile<'a> {
     pub(crate) fn universe_level(
@@ -66,7 +65,7 @@ impl<'a> ResolvedSourceFile<'a> {
             ));
         }
         types
-            .normalize(raw, &mut HashSet::new())
+            .normalize_at(raw, &self.file, node_index)
             .map_err(|reason| TypeError::at(&self.file, node_index, reason))
     }
     pub(crate) fn raw_type(
@@ -349,13 +348,15 @@ impl<'a> ResolvedSourceFile<'a> {
                     } else {
                         ValueType::Applied(Box::new(id.clone()), args)
                     }),
-                    Some(Symbol::Binding { span, kind: KindedParam })
-                        if args.is_empty()
-                            && self
-                                .parameters
-                                .get(span)
-                                .and_then(|p| types.parameter_carrier(p))
-                                .is_some_and(|t| matches!(t, ValueType::Universe { .. })) =>
+                    Some(Symbol::Binding {
+                        span,
+                        kind: KindedParam | ConstParam,
+                    }) if args.is_empty()
+                        && self
+                            .parameters
+                            .get(span)
+                            .and_then(|p| types.parameter_carrier(p))
+                            .is_some_and(|t| matches!(t, ValueType::Universe { .. })) =>
                     {
                         Ok(self.parameters[span].clone())
                     }

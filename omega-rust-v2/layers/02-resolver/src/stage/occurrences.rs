@@ -15,7 +15,7 @@ impl Catalog<'_> {
     ) -> Result<(), NameError> {
         use NodeKind::*;
         let mut argument_roles = HashMap::new();
-        let mut overload_roles = HashMap::<usize, Vec<(usize, Option<NodeKind>)>>::new();
+        let mut overload_roles = HashMap::<usize, Vec<(usize, Option<super::GenericBinder>)>>::new();
         let mut application_bases = HashMap::new();
         let mut type_operands = BTreeSet::new();
         let mut trait_annotations = HashMap::new();
@@ -115,7 +115,7 @@ impl Catalog<'_> {
                                     .flatten()
                                     .find(|l| l.owner == self.entries[*domain].source.expect("source domain").1)
                                 {
-                                    argument_roles.insert(arg, matches!(binding.kind, TypeParam | SomeParam));
+                                    argument_roles.insert(arg, binding.type_binding);
                                 }
                             }
                         }
@@ -139,6 +139,10 @@ impl Catalog<'_> {
             let last = node.words().next_back().unwrap_or(first);
             let span = SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset());
             let parent = node.parent.map(|p| file.nodes[p].kind);
+            let membership_target = node.parent.is_some_and(|p| {
+                let binary = &file.nodes[p];
+                binary.kind == Binary && binary.children.get(1) == Some(&n) && binary.leaves.iter().any(|leaf| leaf.text == "in")
+            });
             let ty = argument_roles
                 .get(&n)
                 .copied()
@@ -178,11 +182,11 @@ impl Catalog<'_> {
                 .flatten()
                 .rev()
                 .find(|l| {
-                    let type_local = matches!(l.kind, TypeParam | SomeParam);
+                    let type_local = l.type_binding;
                     let visible_role = if node.kind == Lifetime {
                         l.kind == LifetimeParam
                     } else if ty {
-                        type_local || l.kind == KindedParam || l.kind == Param && parent == Some(FamilyApplication)
+                        type_local || l.kind == KindedParam && !argument_roles.contains_key(&n) || l.kind == Param && parent == Some(FamilyApplication)
                     } else {
                         l.kind != LifetimeParam && (!type_local || expression_type)
                     };
@@ -214,7 +218,8 @@ impl Catalog<'_> {
             let symbol = if let Some(roles) = overload_roles.remove(&n) {
                 let mut options = Vec::new();
                 for (candidate, binder) in roles {
-                    let is_type = matches!(binder, Some(TypeParam | SomeParam));
+                    let is_type = binder.is_some_and(|b| b.takes_type);
+                    let binder = binder.map(|b| b.kind);
                     let local = ctx.locals.get(&*path).into_iter().flatten().rev().find(|l| {
                         n >= l.start
                             && n < l.end
@@ -223,7 +228,7 @@ impl Catalog<'_> {
                             && (if binder == Some(LifetimeParam) {
                                 l.kind == LifetimeParam
                             } else {
-                                l.kind != LifetimeParam && is_type == matches!(l.kind, TypeParam | SomeParam)
+                                l.kind != LifetimeParam && is_type == l.type_binding
                             })
                     });
                     let target = if binder.is_none() {
@@ -298,7 +303,7 @@ impl Catalog<'_> {
                 Symbol::Builtin(path.clone())
             } else {
                 let mut candidates = self.lookup(file, file_number, ctx, n, &path);
-                if ty && !ctx.heads.contains(&n) {
+                if (ty || membership_target) && !ctx.heads.contains(&n) {
                     let (carrier, short) = path
                         .rsplit_once("::")
                         .map_or((None, path.as_str()), |(c, s)| (Some(c), s));
@@ -307,7 +312,7 @@ impl Catalog<'_> {
                             .then(|| file.nodes[file.nodes[p].children[0]].path())
                     });
                     let carrier = carrier.or(implicit_carrier.as_deref());
-                    if carrier.is_some() || parent == Some(CastEntry) {
+                    if carrier.is_some() || parent == Some(CastEntry) || membership_target {
                         let visible_carriers = carrier
                             .map(|c| self.lookup(file, file_number, ctx, n, c))
                             .unwrap_or_default();
@@ -338,6 +343,9 @@ impl Catalog<'_> {
                     let kind = self.entries[i].id.kind;
                     if kind == Case && !path.contains("::") {
                         return false;
+                    }
+                    if membership_target && matches!(kind, Domain | Case) {
+                        return true;
                     }
                     let type_decl = matches!(kind, Data | Trait | Domain);
                     if ty {
@@ -392,7 +400,7 @@ impl Catalog<'_> {
                             self.entries[i]
                                 .generic_roles
                                 .get(position)
-                                .map(|kind| matches!(kind, TypeParam | SomeParam))
+                                .map(|binder| binder.takes_type)
                         };
                         let expected = role(owners[0]);
                         if owners.iter().any(|&i| role(i) != expected) {
@@ -412,13 +420,8 @@ impl Catalog<'_> {
             };
             if matches!(&symbol,Symbol::Builtin(name) if builtin(name))
                 || matches!(&symbol,Symbol::Declaration(id) if matches!(id.kind,Data|Trait|Domain))
-                || matches!(
-                    &symbol,
-                    Symbol::Binding {
-                        kind: TypeParam | SomeParam,
-                        ..
-                    }
-                )
+                || matches!(&symbol, Symbol::Binding { span, .. }
+                    if visible_local.is_some_and(|local| local.span == *span && local.type_binding))
             {
                 type_operands.insert(n);
             }

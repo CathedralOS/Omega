@@ -182,3 +182,64 @@ fn mathematical_generic_arguments_and_chained_prefixes_keep_the_checked_term() {
         assert!(err.message.contains(message), "{expression}: {err:?}");
     }
 }
+
+#[test]
+fn named_function_types_and_explicit_universe_arguments_work_through_calls() {
+    for source in [
+        "data Box<T>{} machine f(x:Box<(n:u8)->bool>)->Box<u8->bool>{x}",
+        "machine id<T>(x:T)->T{x} machine f(x:(n:u8)->bool)->u8->bool{id::<(n:u8)->bool>(x)}",
+        "machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:u8)->u8{id::<u8>(x)}",
+        "data X{} machine id<A:core::Type<0>>(x:A)->A{x} machine f(x:X)->X{id::<X>(x)}",
+        "machine id<A:core::Type<0>>(x:A)->A{x} machine f<B:core::Type<0>>(x:B)->B{id::<B>(x)}",
+    ] {
+        check(&[("types.omg", source)]).unwrap();
+    }
+    check(&[(
+        "domain.omg",
+        "domain<A:core::Type<1>> u8::Tag<A>; machine member(x:u8)->bool{x in Tag::<core::Type<0>>}",
+    )])
+    .unwrap();
+    for source in [
+        "machine one<A:core::Type<0>>() requires A == u8 {}",
+        "machine two<A:core::Type<0>,B:core::Type<0>>() requires A == B {}",
+        "machine numeric<N:u8>() requires N == 0u8 {}",
+    ] {
+        check(&[("equality.omg", source)]).unwrap();
+    }
+    let wrong = "data Box<T>{} machine f<A:core::Type<0>,F:A->core::Type<0>>(x:Box<(a:A)->(b:A)->F(a)>)->Box<(a:A)->(b:A)->F(b)>{x}";
+    assert!(
+        check(&[("types.omg", wrong)])
+            .unwrap_err()
+            .message
+            .contains("expected")
+    );
+}
+
+#[test]
+fn type_applications_require_the_same_universe_membership_as_machine_calls() {
+    let prefix = "data Box<u:core::Level,A:core::Type<u>>{} data U=core::Type<0>;";
+    let valid = format!("{prefix} machine f(x:Box<1,U>){{}}");
+    let stage = check(&[("universe.omg", &valid)]).unwrap();
+    let rows = stage
+        .obligations
+        .iter()
+        .filter(|o| {
+            matches!(&o.kind,omega_typer::ObligationKind::UniverseMembership {subject,sort}
+        if subject.to_string()=="core::Type<0>" && sort.to_string()=="core::Type<1>")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].site.span.slice(valid.as_bytes()).unwrap(), b"Box<1,U>");
+    for source in [
+        format!("{prefix} machine f(x:Box<0,U>){{}}"),
+        format!("{prefix} machine f(x:Box<2,U>){{}}"),
+        format!("{prefix} data Wrapped<T> = Box<0,T>; machine f(x:Wrapped<U>){{}}"),
+        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8 in Tag<core::Type<0>>){}".to_owned(),
+        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8::Tag<core::Type<0>>){}".to_owned(),
+        "domain<A:core::Type<0>> u8::Tag<A>; machine f(x:u8)->bool{x in u8::Tag::<core::Type<0>>}".to_owned(),
+        "data StrictBox<A:core::Strict<1>>{} machine f(x:StrictBox<core::Type<0>>){}".to_owned(),
+    ] {
+        let err = check(&[("universe.omg", &source)]).unwrap_err();
+        assert_eq!(err.message, "universe argument requires its exact successor universe");
+    }
+}
