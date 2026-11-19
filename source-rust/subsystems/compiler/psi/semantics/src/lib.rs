@@ -40,7 +40,6 @@ pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
-mod descriptor_replay;
 pub mod descriptors;
 pub mod float_meaning_sources;
 pub mod inhabitation;
