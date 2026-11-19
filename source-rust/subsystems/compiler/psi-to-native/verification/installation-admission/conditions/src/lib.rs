@@ -6,6 +6,9 @@
 
 mod environment;
 mod interrupt_stack;
+mod review;
+
+pub use review::{decode_installation_assumptions, encode_installation_assumptions};
 
 pub use environment::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,

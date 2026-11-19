@@ -30,10 +30,8 @@ pub use installation_evidence::{
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
 };
 pub use published_runtime_input::RuntimeExecutionProvisions;
-pub use verified_optimization_input::{
-    decode_installation_assumptions, encode_installation_assumptions,
-    recover_native_derivation_inputs,
-};
+pub use installation_conditions::{decode_installation_assumptions, encode_installation_assumptions};
+pub use verified_optimization_input::recover_native_derivation_inputs;
 
 mod checked_compilation;
 mod published_compilation;

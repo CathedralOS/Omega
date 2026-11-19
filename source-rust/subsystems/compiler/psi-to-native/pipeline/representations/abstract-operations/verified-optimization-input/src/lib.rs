@@ -60,7 +60,6 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 // rebuild, so a saved product is recovered without running an Omega stage.
 mod retained_terminal_codec;
 pub use retained_terminal_codec::{
-    decode_installation_assumptions, encode_installation_assumptions,
     recover_native_derivation_inputs, retain_native_derivation_inputs,
 };
 
