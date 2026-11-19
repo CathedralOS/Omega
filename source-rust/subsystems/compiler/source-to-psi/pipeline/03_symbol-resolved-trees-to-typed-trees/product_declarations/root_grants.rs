@@ -8,11 +8,10 @@ use crate::declaration_selection::{
 };
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::ProductDeclarationLookup;
-use declaration_contracts::selection::AuthoredRootGrant;
-use declaration_contracts::selection::RootGrantSubject;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use symbols::root_grants::{AuthoredRootGrant, RootGrantSubject};
 
 #[derive(Clone)]
 struct FormedSubject {
@@ -85,7 +84,7 @@ fn subject(
             callable: typed.trait_requirement_callable_identity_text(owner, signature),
         }
     } else if let Some(machine) = typed.machine_by_symbol(selected) {
-        if machine.supply_mode == declaration_contracts::MachineSupplyMode::AdmissionClaim {
+        if machine.supply_mode == source_declarations::MachineSupplyMode::AdmissionClaim {
             RootGrantSubject::AcceptedMachine {
                 declaration: identity,
                 machine: selected,
@@ -116,13 +115,19 @@ fn subject(
     }))
 }
 
-pub(super) fn collect(
+pub fn collect_product_root_grants(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     declared: &[Arc<ProductDeclarationRequest>],
     executed: &[ExecutedProductSelection],
 ) -> Result<Vec<AuthoredRootGrant>, Vec<Diagnostic>> {
-    if !super::build_requests_any(declared, executed, &[BuildOperation::BoundaryAcceptance]) {
+    if !declared
+        .iter()
+        .any(|r| r.operation == BuildOperation::BoundaryAcceptance)
+        && !executed
+            .iter()
+            .any(|e| e.request.operation == BuildOperation::BoundaryAcceptance)
+    {
         return Ok(Vec::new());
     }
     let authored = AuthoredRequests::new(typed, declared, BuildOperation::BoundaryAcceptance)?;
@@ -170,4 +175,138 @@ pub(super) fn collect(
         });
     }
     Ok(grants)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source_state::product_operand::collect_product_selection_occurrences;
+    use crate::source_symbols::SourceScopedTopLevelBinding;
+    use source_admission::{SourceOrigin, SourceResolutionStratum};
+    use source_provenance::DependencyScope;
+
+    #[test]
+    fn a_grant_requires_execution_of_its_original_build_occurrence() {
+        let prelude = r#"
+public data Build { marker: u64; }
+public boundary trait BuildBindingOperations {
+    machine prepare(builder: @Build) -> u64 reaches none crashes none;
+    machine select(activation: u64) reaches none crashes none;
+}
+public machine build_selection_receiver<'a>(builder: @'a mut Build) -> @'a mut Build { builder }
+"#;
+        let build =
+            "machine build(builder: @mut Build) { Build::accept_boundary<First>(builder); }";
+        let product = "public boundary trait Service { machine tick() reaches none crashes none; }
+                       public First satisfies Service { machine tick() reaches none crashes none {} }";
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let mut sources = crate::source_inputs::SourceMap::default();
+        let mut syntax = None;
+        let mut ids = Vec::new();
+        for (path, text, origin, scope) in [
+            (
+                "root/build.omg",
+                build,
+                SourceOrigin::User,
+                DependencyScope::Build,
+            ),
+            (
+                "<build-prelude>",
+                prelude,
+                SourceOrigin::Toolchain,
+                DependencyScope::Build,
+            ),
+            (
+                "<build-prelude:Build>",
+                "module Build;",
+                SourceOrigin::Toolchain,
+                DependencyScope::Build,
+            ),
+            (
+                "root/main.omg",
+                product,
+                SourceOrigin::User,
+                DependencyScope::Product,
+            ),
+        ] {
+            let id = sources
+                .add_checked_instance(
+                    path.into(),
+                    text,
+                    "root".into(),
+                    Some(package),
+                    origin,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            ids.push(id);
+            let tokens = crate::frontend_fixture::Lexer::new(text)
+                .tokenize()
+                .unwrap();
+            match &mut syntax {
+                Some(syntax) => {
+                    crate::frontend_fixture::parse(syntax, id, &tokens).unwrap();
+                }
+                None => {
+                    syntax = Some(
+                        crate::frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap(),
+                    );
+                }
+            }
+        }
+        let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+            syntax: syntax.unwrap(),
+            sources: Some(Arc::new(sources)),
+            retained_base: None,
+            top_level_bindings: vec![
+                SourceScopedTopLevelBinding::new(ids[0], ids[1], "Build"),
+                SourceScopedTopLevelBinding::module_import(ids[0], ids[2], "Build", 0),
+            ],
+        })
+        .unwrap();
+        let typed = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let occurrence = collect_product_selection_occurrences(&typed)
+            .into_iter()
+            .find(|row| row.request.operation == BuildOperation::BoundaryAcceptance)
+            .unwrap();
+        let author = typed.symbols.authored_origin(occurrence.machine);
+        let declared = [occurrence.request];
+        let event = ExecutedProductSelection {
+            request: Arc::clone(&declared[0]),
+            selecting_machine: typed.symbols.symbol_source_span(author),
+            target: None,
+            composition: None,
+            static_environment: None,
+        };
+        assert!(
+            collect_product_root_grants(&typed, None, &declared, &[])
+                .unwrap()
+                .is_empty()
+        );
+        let events = [event];
+        let grants = collect_product_root_grants(&typed, Some(author), &declared, &events).unwrap();
+        assert_eq!(grants.len(), 1);
+        assert_eq!(grants[0].selecting_machine, author);
+        assert_eq!(grants[0].subject_package, Some(package));
+        assert!(matches!(
+            &grants[0].subject,
+            RootGrantSubject::Provider {
+                application: None,
+                ..
+            }
+        ));
+        for (activation, requests, required) in [
+            (None, declared.as_slice(), "no original Build activation"),
+            (
+                Some(author),
+                &[][..],
+                "does not match its declared source occurrence and author",
+            ),
+        ] {
+            let refused =
+                collect_product_root_grants(&typed, activation, requests, &events).unwrap_err();
+            assert!(refused[0].message.contains(required), "{refused:?}");
+        }
+    }
 }

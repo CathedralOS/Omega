@@ -3161,9 +3161,9 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
+ "behavior-exclusion-requests",
  "bignum",
  "checked-program-to-psi",
- "declaration-contracts",
  "declaration-scope",
  "diagnostics",
  "evaluation-contracts",
@@ -3375,7 +3375,6 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "behavior-exclusion-requests",
  "diagnostics",
  "language-core",
  "numeric-literals",

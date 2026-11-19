@@ -14,7 +14,6 @@ test-support = ["symbol-resolved-trees/test-support"]
 path = "lib.rs"
 
 [dependencies]
-behavior-exclusion-requests = { path = "../../../build/behavior-exclusions" }
 source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
