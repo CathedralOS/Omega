@@ -11,7 +11,7 @@ pub use typed_trees::{
     literal_expression_pattern, spelled_literal_expression_pattern,
 };
 
-#[path = "../evaluation/source/mod.rs"]
+#[path = "evaluation.rs"]
 pub mod evaluation;
 
 #[cfg(not(any(test, feature = "test-support")))]

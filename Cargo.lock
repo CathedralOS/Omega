@@ -3290,6 +3290,8 @@ dependencies = [
  "arena",
  "behavior-exclusion-requests",
  "bignum",
+ "build-scalar-evaluation",
+ "build-time-values",
  "checked-program-to-psi",
  "declaration-scope",
  "diagnostics",
@@ -3311,6 +3313,7 @@ dependencies = [
  "service-surface",
  "sha2",
  "source-admission",
+ "source-completion-accounting",
  "source-declarations",
  "source-files",
  "source-lexer",
@@ -3336,6 +3339,25 @@ dependencies = [
  "typed-trees-to-typed-trees",
  "wire",
  "worker-budget",
+]
+
+[[package]]
+name = "source-completion-accounting"
+version = "0.1.0"
+dependencies = [
+ "build-invocation",
+ "build-scalar-evaluation",
+ "build-time-values",
+ "checked-program-to-psi",
+ "diagnostics",
+ "evaluation-accounting",
+ "evaluation-admission",
+ "record-storage",
+ "semantic-vocabulary",
+ "symbols",
+ "terminal-psi",
+ "terminal-work",
+ "typed-trees",
 ]
 
 [[package]]
