@@ -1732,6 +1732,7 @@ dependencies = [
  "libc",
  "mimalloc",
  "native-provider-sponsor",
+ "optimization-requests",
  "orchestration",
  "package-compilation",
  "package-manager",

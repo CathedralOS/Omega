@@ -80,8 +80,8 @@ mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
 
-use compiler::CompileOptions;
 use diagnostics::Diagnostic;
+use package_compilation::build_execution::BuildSnapshotRequest;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
@@ -97,7 +97,7 @@ pub enum ExecutionSelection {
 }
 
 pub struct RunRequest {
-    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
+    pub build_snapshot: Option<BuildSnapshotRequest>,
     pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub target_name: Option<String>,
@@ -205,11 +205,11 @@ pub fn run_project(
         ..
     } = compilation::compile(
         artifact,
-        request.private_entry_ram,
-        request.build_snapshot,
-        CompileOptions {
+        compilation::ProjectInput {
             root_path: request.root_path,
-            build_dir: Some(build_dir.clone()),
+            build_directory: build_dir.clone(),
+            private_entry_ram: request.private_entry_ram,
+            build_snapshot: request.build_snapshot,
             target_name: request.target_name.clone(),
         },
         orchestration::NativeDestination::Retained,
@@ -319,11 +319,11 @@ fn run_terminal(
         ..
     } = compilation::compile(
         artifact,
-        request.private_entry_ram,
-        request.build_snapshot,
-        CompileOptions {
+        compilation::ProjectInput {
             root_path: request.root_path,
-            build_dir: Some(build_dir.clone()),
+            build_directory: build_dir.clone(),
+            private_entry_ram: request.private_entry_ram,
+            build_snapshot: request.build_snapshot,
             target_name: request.target_name,
         },
         orchestration::NativeDestination::RuntimeAdmission,
@@ -402,7 +402,7 @@ fn format_work_tsv(
 }
 
 pub struct CaseRunRequest {
-    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
+    pub build_snapshot: Option<BuildSnapshotRequest>,
     pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
@@ -450,11 +450,11 @@ pub fn run_project_cases(
         ..
     } = compilation::compile(
         artifact,
-        request.private_entry_ram,
-        request.build_snapshot,
-        CompileOptions {
+        compilation::ProjectInput {
             root_path: request.root_path,
-            build_dir: Some(build_dir.clone()),
+            build_directory: build_dir.clone(),
+            private_entry_ram: request.private_entry_ram,
+            build_snapshot: request.build_snapshot,
             target_name: None,
         },
         orchestration::NativeDestination::Retained,

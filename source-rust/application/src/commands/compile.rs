@@ -45,7 +45,7 @@ verdicts no longer carry the compiler's authority.
 
 */
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use compiler::CompilerRequestOutcome;
@@ -55,9 +55,11 @@ use orchestration::{
     ProjectProduct, TargetBuildOutcome, build,
 };
 
-use crate::arguments::CompileArguments;
+use package_compilation::build_execution::BuildSnapshotRequest;
 
+use crate::arguments::CompileArguments;
 use crate::diagnostic_output::DiagnosticOutput;
+use crate::saved_program::SavedProgramError;
 
 pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
     if arguments
@@ -65,7 +67,17 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
     {
-        build_saved(arguments, output);
+        match build_saved(arguments) {
+            Ok(paths) => {
+                for path in paths {
+                    println!("executable {}", path.display());
+                }
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(i32::from(error.outcome().halt_value()));
+            }
+        }
         return;
     }
     let started = arguments.timings.then(Instant::now);
@@ -119,7 +131,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
         optimization_rollback: arguments.optimization_rollback,
         build_snapshot: arguments
             .build_inputs
-            .map(|capture| compiler::BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
+            .map(|capture| BuildSnapshotRequest::scoped(std::iter::empty(), capture)),
     };
 
     if target_names.len() > 1 {
@@ -144,36 +156,20 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
     }
 }
 
-fn build_saved(arguments: CompileArguments, output: DiagnosticOutput) {
+fn build_saved(arguments: CompileArguments) -> Result<Vec<PathBuf>, SavedProgramError> {
     let authorization = crate::inspection::open_trusted_program(
         &arguments.root_path,
         arguments.trusted_artifact.as_deref(),
-    )
-    .unwrap_or_else(|diagnostics| exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)]));
-    let targets = resolve_targets(&arguments.target_names)
-        .unwrap_or_else(|error| exit_on_refusal(output, [&BuildError::Diagnostics(error)]));
-    let profiles = targets.profiles().unwrap_or_else(|diagnostics| {
-        exit_on_refusal(output, [&BuildError::Diagnostics(diagnostics)])
-    });
-    match crate::saved_program::publish(
+    )?;
+    let targets = resolve_targets(&arguments.target_names)?;
+    let profiles = targets.profiles()?;
+    crate::saved_program::publish(
         authorization,
         &arguments.root_path,
         arguments.build_dir.as_deref(),
         &profiles,
         matches!(targets, RequestedTargets::Batch(_)),
-    ) {
-        Ok(paths) => {
-            for path in paths {
-                println!("executable {}", path.display());
-            }
-        }
-        Err(crate::saved_program::PublicationError::Diagnostics(rows)) => {
-            exit_on_refusal(output, [&BuildError::Diagnostics(rows)]);
-        }
-        Err(crate::saved_program::PublicationError::Output(error)) => {
-            exit_on_refusal(output, [&BuildError::Publication(error)]);
-        }
-    }
+    )
 }
 
 enum RequestedTargets {

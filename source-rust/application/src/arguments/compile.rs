@@ -7,7 +7,7 @@
 // file.
 
 use super::{option_value, parse_build_input};
-use compiler::OptimizationRollback;
+use optimization_requests::OptimizationRollback;
 use package_compilation::BuildSourceCaptureRequest;
 use std::path::PathBuf;
 
