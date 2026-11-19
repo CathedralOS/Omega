@@ -10,6 +10,7 @@ name = "proof_admission"
 path = "bounded.rs"
 
 [dependencies]
+closed-predicates = { path = "../../semantics/closed-predicates" }
 mathematical-kernel = { path = "../mathematical" }
 bignum = { path = "../../../../../foundation/bignum" }
 record-storage = { path = "../../../../../foundation/record-storage" }

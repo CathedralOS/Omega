@@ -9,6 +9,7 @@ name = "terminal_semantics"
 path = "src/lib.rs"
 
 [dependencies]
+closed-predicates = { path = "closed-predicates" }
 graphs = { path = "../../foundation/graphs" }
 service-surface = { path = "../service-surface" }
 source-provenance = { path = "../../foundation/source-provenance" }

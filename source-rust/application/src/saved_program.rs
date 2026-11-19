@@ -1,6 +1,9 @@
 //! Compile a published Psi program under the receiving host's permissions.
 
-use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
+use compiler::{
+    Artifact, CompileRequest, CompilerRequestOutcome, NativeTarget, Program,
+    TargetProviderInstallation,
+};
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
 use package_manager::operations::ReviewedHostPackages;
@@ -43,12 +46,35 @@ pub(crate) fn installation(
     }
 }
 
-pub(crate) enum PublicationError {
+pub(crate) enum SavedProgramError {
     Diagnostics(Vec<Diagnostic>),
     Output(String),
+    Internal(&'static str),
 }
 
-impl From<Vec<Diagnostic>> for PublicationError {
+impl std::fmt::Display for SavedProgramError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Diagnostics(diagnostics) => {
+                diagnostics::write_diagnostics(formatter, diagnostics)
+            }
+            Self::Output(reason) => formatter.write_str(reason),
+            Self::Internal(reason) => formatter.write_str(reason),
+        }
+    }
+}
+
+impl SavedProgramError {
+    pub(crate) fn outcome(&self) -> CompilerRequestOutcome {
+        match self {
+            Self::Diagnostics(diagnostics) => CompilerRequestOutcome::of_refusal(diagnostics),
+            Self::Output(_) => CompilerRequestOutcome::Reject,
+            Self::Internal(_) => CompilerRequestOutcome::InternalFailure,
+        }
+    }
+}
+
+impl From<Vec<Diagnostic>> for SavedProgramError {
     fn from(diagnostics: Vec<Diagnostic>) -> Self {
         Self::Diagnostics(diagnostics)
     }
@@ -60,7 +86,7 @@ pub(crate) fn publish(
     requested_directory: Option<&Path>,
     profiles: &[TargetProfile],
     per_target: bool,
-) -> Result<Vec<PathBuf>, PublicationError> {
+) -> Result<Vec<PathBuf>, SavedProgramError> {
     let packages = configured_host_packages()?;
     let base = output_directory::base(root, requested_directory);
     // Hold every target's lease until the entire invocation has finished publishing.
@@ -80,7 +106,7 @@ pub(crate) fn publish(
     for (&profile, directory) in profiles.iter().zip(&directories) {
         let directory = directory
             .as_ref()
-            .map_err(|error| PublicationError::Output(error.to_string()))?;
+            .map_err(|error| SavedProgramError::Output(error.to_string()))?;
         let target = NativeTarget {
             profile,
             installation: installation(&program, profile, packages.as_ref())?,
@@ -105,15 +131,15 @@ pub(crate) fn publish(
             entry_memory: &[],
         })?
         else {
-            return Err(PublicationError::Output(
-                "saved Psi compilation produced no native product".into(),
+            return Err(SavedProgramError::Internal(
+                "saved Psi compilation produced no native product",
             ));
         };
         let published = product
             .publish(root, directory.directory())
-            .map_err(PublicationError::Output)?;
+            .map_err(SavedProgramError::Output)?;
         let path = published.checked_native_executable_path().ok_or_else(|| {
-            PublicationError::Output("saved Psi compilation produced no executable".into())
+            SavedProgramError::Output("saved Psi compilation produced no executable".into())
         })?;
         paths.push(path.to_owned());
     }

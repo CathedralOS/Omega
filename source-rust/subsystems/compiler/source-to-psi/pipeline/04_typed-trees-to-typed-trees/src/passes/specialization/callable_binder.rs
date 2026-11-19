@@ -211,7 +211,7 @@ pub(super) fn satisfies_binder(
     if (machine.suspends && !binder.suspends) || (machine.blocks && !binder.blocks) {
         return Err(refuse("it may suspend or block, and the binder does not"));
     }
-    if binder.termination_guarantee != declaration_contracts::TerminationGuarantee::NoGuarantee {
+    if binder.termination_guarantee != source_declarations::TerminationGuarantee::NoGuarantee {
         return Err(unserved(
             "a callback binder with a termination promise needs a refinement proof",
         ));

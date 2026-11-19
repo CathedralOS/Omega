@@ -2,6 +2,9 @@
 
 #![forbid(unsafe_code)]
 
+mod request_outcome;
+pub use request_outcome::CompilerRequestOutcome;
+
 use diagnostics::Diagnostic;
 use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,

@@ -60,9 +60,9 @@ pub fn predicates_are_false_with(
     mut scalar_value: impl FnMut(ValueId) -> Option<(ScalarType, semantic_vocabulary::IntegerValue)>,
 ) -> bool {
     let mut bindings = KnownLiterals(&mut scalar_value);
-    let mut integers = proof_admission::ClosedIntegerEvaluator::default();
+    let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
     predicates.iter().any(|predicate| {
-        let truth = proof_admission::closed_guard_with(predicate, |leaf| {
+        let truth = closed_predicates::closed_guard_with(predicate, |leaf| {
             // The general crash-guard evaluator also decides IEEE relations.
             // This query admits only the Boolean/integer part of that owner.
             let allowed = matches!(
@@ -83,7 +83,7 @@ pub fn predicates_are_false_with(
                     .ok()
                     .filter(|closed| closed.validate().is_ok())
                     .and_then(|closed| {
-                        proof_admission::closed_guard(&closed, &mut integers)
+                        closed_predicates::closed_guard(&closed, &mut integers)
                             .ok()
                             .flatten()
                     })

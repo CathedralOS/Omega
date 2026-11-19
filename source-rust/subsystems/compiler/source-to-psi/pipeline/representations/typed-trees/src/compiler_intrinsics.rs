@@ -35,7 +35,7 @@ impl TypedTrees {
             .sealed_declaration(symbol, machine.name.as_str());
         let Some(SealedIntrinsic::CompilerPrimitive(operation)) = custody else {
             return if machine.supply_mode
-                == declaration_contracts::MachineSupplyMode::CompilerProvided
+                == source_declarations::MachineSupplyMode::CompilerProvided
             {
                 Err(Diagnostic::error(
                     "compiler primitive has no exact sealed declaration custody",
@@ -44,7 +44,7 @@ impl TypedTrees {
                 Ok(None)
             };
         };
-        if machine.supply_mode != declaration_contracts::MachineSupplyMode::CompilerProvided
+        if machine.supply_mode != source_declarations::MachineSupplyMode::CompilerProvided
             || machine.body_is_present
         {
             return Err(Diagnostic::error(
@@ -93,8 +93,8 @@ fn byte_observation_header(program: &TypedTrees, machine: &Machine) -> bool {
         || !machine.suspends_keyword_source_spans.is_empty()
         || !machine.blocks_keyword_source_spans.is_empty()
         || machine.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
-        || !matches!(&machine.termination_plan.interface, declaration_contracts::TerminationInterface::Published(
-            declaration_contracts::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
+        || !matches!(&machine.termination_plan.interface, source_declarations::TerminationInterface::Published(
+            source_declarations::TerminationGuarantee::Terminates { premises }) if premises.is_empty())
     {
         return false;
     }
@@ -306,7 +306,7 @@ fn normalized_schema(program: &TypedTrees, machine: &Machine) -> Option<Normaliz
         || !symbol.is_valid()
         || termination_plan.implementation_witness.is_some()
         || termination_plan.checked_summary
-            != declaration_contracts::TerminationGuarantee::NoGuarantee
+            != source_declarations::TerminationGuarantee::NoGuarantee
     {
         return None;
     }
@@ -480,10 +480,10 @@ fn contracts<'a>(
 // may disappear from a source-only compiler primitive schema.
 fn termination_schema(
     program: &TypedTrees,
-    interface: &declaration_contracts::TerminationInterface,
+    interface: &source_declarations::TerminationInterface,
     context: &TypeIdentityContext<'_>,
 ) -> Option<String> {
-    use declaration_contracts::{TerminationGuarantee, TerminationInterface};
+    use source_declarations::{TerminationGuarantee, TerminationInterface};
     match interface {
         TerminationInterface::InternalDerived => Some("inferred".to_owned()),
         TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => {
@@ -493,8 +493,8 @@ fn termination_schema(
             let premises = premises
                 .iter()
                 .map(|premise| {
-                    let declaration_contracts::ProgressPremise { profile, subject } = premise;
-                    let declaration_contracts::ProgressSubject { root, projections } = subject;
+                    let source_declarations::ProgressPremise { profile, subject } = premise;
+                    let source_declarations::ProgressSubject { root, projections } = subject;
                     let profile = program.semantic_domains.name(*profile)?;
                     let mut roots = context.binders.iter().filter(|(symbol, _)| symbol == root);
                     let (_, root) = roots.next()?;
@@ -724,7 +724,7 @@ mod tests {
                 ],
                 type_parameters,
                 states,
-                supply_mode: declaration_contracts::MachineSupplyMode::CompilerProvided,
+                supply_mode: source_declarations::MachineSupplyMode::CompilerProvided,
                 ..Default::default()
             });
             Self {
@@ -801,7 +801,7 @@ mod tests {
 
     #[test]
     fn published_termination_keeps_its_complete_conditional_subjects() {
-        use declaration_contracts::{
+        use source_declarations::{
             ProgressPremise, ProgressSubject, TerminationGuarantee, TerminationInterface,
         };
         let original = Fixture::ordinary().text().unwrap();
@@ -874,7 +874,7 @@ mod tests {
             .program
             .machine_mut(0)
             .termination_plan
-            .implementation_witness = Some(declaration_contracts::RankingWitness::default());
+            .implementation_witness = Some(source_declarations::RankingWitness::default());
         assert!(ranking.text().is_none());
         let mut checked = Fixture::ordinary();
         checked
@@ -882,7 +882,7 @@ mod tests {
             .machine_mut(0)
             .termination_plan
             .checked_summary =
-            declaration_contracts::TerminationGuarantee::Terminates { premises: vec![] };
+            source_declarations::TerminationGuarantee::Terminates { premises: vec![] };
         assert!(checked.text().is_none());
     }
 

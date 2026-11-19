@@ -1231,7 +1231,7 @@ impl<'t> Program<'t> {
             || signature.service_reach_row != crate::source_tables::ServiceReachRowTable::EMPTY_ROW
             || !signature.declares_no_crash_route
             || signature.termination_guarantee
-                != declaration_contracts::TerminationGuarantee::NoGuarantee
+                != source_declarations::TerminationGuarantee::NoGuarantee
             || !typed
                 .service_reach_rows
                 .services(signature.service_reach_row)

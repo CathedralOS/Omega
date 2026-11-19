@@ -12,7 +12,6 @@ test-support = []
 
 [dependencies]
 semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
-declaration-contracts = { path = "../../../language/declaration-contracts" }
 numeric-literals = { path = "../../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../../foundation/source-text" }
 wire = { path = "../../../../../../foundation/wire" }

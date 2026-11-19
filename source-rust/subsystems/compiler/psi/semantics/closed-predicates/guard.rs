@@ -1,31 +1,10 @@
-/*
-    Closed crash-guard evaluation. This is not predicate-denotation normalization.
-
-    Build-time admission (`exclude_failure_routes`) and the interpreter (a
-    boundary crash guard, and `InputObservations::evaluate`) ask whether one
-    published route is true, false, or still unknown. The Crash section of
-    `wiki/spec/terminal-psi/calls_and_outcomes.md` removes a route only when
-    that route is false. An unknown sibling does not hide a deciding child,
-    and an unknown premise with a true conclusion is true.
-
-    `wiki/spec/terminal-psi/fact_validity.md` leaves IEEE relations unchanged
-    in the bounded predicate-denotation conversion. `normalize`,
-    `check_predicate_denotations`, and `verify_obligation` do not call this
-    module. The shared IEEE leaf decides only operands in that comparison's exact
-    declared format. The certificate kernel uses that leaf through its explicit
-    closed-IEEE primitive judgment; it never uses this guard walk as a proof.
-    A binary32 literal beside a binary64 literal stays unknown. Formation
-    rejects that mismatch before admission calls this walk.
-
-    The walk lives in this crate because both callers already depend on it and
-    the decision needs `ClosedIntegerEvaluator`, which this crate owns.
-    `semantic-vocabulary` cannot take that evaluator without a dependency
-    cycle.
-*/
+//! A published crash route is ruled out only when its guard evaluates to false.
+//! Short-circuit evaluation preserves a deciding child alongside unknown operands.
+//! Build evaluation and the interpreter share this decision.
 
 use semantic_vocabulary::{Proposition, ScalarType};
 
-use crate::integer_rules::closed_integer::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
+use crate::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
 
 /// Decide `proposition`.
 ///
@@ -83,9 +62,7 @@ fn closed_leaf(
     Ok(match proposition {
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
-        Proposition::ScalarIeeeFloatComparison { .. } => {
-            crate::ieee_float_rules::closed_relation(proposition)
-        }
+        Proposition::ScalarIeeeFloatComparison { .. } => crate::closed_ieee_relation(proposition),
         Proposition::Equal(left, right) if left.scalar_type() == ScalarType::Boolean => left
             .boolean_value()
             .zip(right.boolean_value())
@@ -117,11 +94,8 @@ fn closed_leaf(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::check_predicate_denotations;
-    use crate::integer_rules::closed_integer::ClosedIntegerEvaluator;
     use semantic_vocabulary::{
-        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, PropositionContext, ScalarTerm,
-        ValueId,
+        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, ScalarTerm,
     };
 
     fn literal(value: IeeeFloatValue) -> ScalarTerm {
@@ -138,31 +112,5 @@ mod tests {
             right: literal(IeeeFloatValue::Binary64(0x4000_0000_0000_0000)),
         };
         assert_eq!(closed_guard(&guard, &mut integers).unwrap(), None);
-    }
-
-    #[test]
-    fn predicate_denotation_leaves_an_open_ieee_relation_unchanged() {
-        // The denotation conversion is a different owner. An IEEE relation it
-        // does not rewrite stays that relation, which is the fact-validity rule
-        // for this conversion. This walk is not on that path.
-        let value = ValueId::new(1).unwrap();
-        let subject = ScalarTerm::value(value, ScalarType::IeeeFloat(IeeeFloatFormat::Binary32));
-        let goal = Proposition::ScalarIeeeFloatComparison {
-            kind: IeeeFloatComparisonKind::Equal,
-            format: IeeeFloatFormat::Binary32,
-            left: subject.clone(),
-            right: subject,
-        };
-        let context = PropositionContext::from_value_types([(
-            value,
-            ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
-        )])
-        .unwrap();
-        assert_eq!(
-            check_predicate_denotations(&context, &goal, &[], &[])
-                .unwrap()
-                .goal(),
-            &goal
-        );
     }
 }

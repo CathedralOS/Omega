@@ -64,8 +64,8 @@ pub(crate) fn lower_domain_definition(
         .transpose()?;
     if let Some(owner) = owner {
         let scope = match owner.dependency_scope {
-            declaration_contracts::source_identity::DependencyScope::Product => "product",
-            declaration_contracts::source_identity::DependencyScope::Build => "build",
+            source_provenance::DependencyScope::Product => "product",
+            source_provenance::DependencyScope::Build => "build",
         };
         if let Some(package) = owner.package_identity {
             let hexadecimal = b"0123456789abcdef";
@@ -92,7 +92,7 @@ pub(crate) fn lower_domain_definition(
         .symbol_resolved_trees
         .semantic_domains
         .intern(&semantic_identity);
-    let semantic_roles = declaration_contracts::DomainSemanticRoles {
+    let semantic_roles = source_declarations::DomainSemanticRoles {
         denotation_dimension: (!operators.is_empty()).then_some(semantic_id),
         arithmetic_policy: None,
     };

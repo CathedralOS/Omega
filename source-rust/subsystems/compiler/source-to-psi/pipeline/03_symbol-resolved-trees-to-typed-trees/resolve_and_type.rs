@@ -967,7 +967,7 @@ impl ResolveAndTypeRequest {
     ) -> Result<
         (
             SourceContinuation,
-            declaration_contracts::build_stage::BuildStage,
+            source_declarations::build_stage::BuildStage,
         ),
         Vec<Diagnostic>,
     > {
@@ -982,7 +982,7 @@ impl ResolveAndTypeRequest {
             Some((source, stage)) => {
                 crate::build_stages::select_build_stage(&mut self.syntax.trees, source, stage)?
             }
-            None => declaration_contracts::build_stage::BuildStage::WHOLE,
+            None => source_declarations::build_stage::BuildStage::WHOLE,
         };
         let context = SourceContext {
             declaration_syntax: Arc::new(self.syntax.trees.clone()),

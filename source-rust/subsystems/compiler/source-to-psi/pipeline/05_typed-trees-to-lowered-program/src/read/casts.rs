@@ -730,7 +730,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<()> {
         use crate::source_state::domain::DomainIssuance;
-        use declaration_contracts::DomainEstablishmentRoute;
+        use source_declarations::DomainEstablishmentRoute;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let definition = self.domain_theory(id, domain)?;
         match definition.issuance() {

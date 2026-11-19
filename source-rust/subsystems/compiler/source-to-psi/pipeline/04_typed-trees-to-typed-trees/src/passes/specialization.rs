@@ -418,7 +418,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut GeneratedMachines
         && program
             .machine_by_symbol(declaration)
             .is_some_and(|machine| {
-                machine.supply_mode == declaration_contracts::MachineSupplyMode::Boundary
+                machine.supply_mode == source_declarations::MachineSupplyMode::Boundary
                     && machine.has_bodyless_signature()
             })
     {
@@ -2016,7 +2016,7 @@ fn copied_parts(
     // identifies the original declaration; invocation regions do not select a
     // separate executable body.
     let plain = machine.body_is_present
-        && machine.supply_mode == declaration_contracts::MachineSupplyMode::CheckedBody
+        && machine.supply_mode == source_declarations::MachineSupplyMode::CheckedBody
         && machine.owned_data.is_empty()
         && machine.satisfies.is_empty()
         && program.signature_invokes.span(machine.invokes).is_some()
@@ -2029,7 +2029,7 @@ fn copied_parts(
         && !machine.target_family_interface
         && !machine.structural_type_equations_pending
         && !machine.service_reach_is_installation_bound
-        && plan.checked_summary == declaration_contracts::TerminationGuarantee::NoGuarantee
+        && plan.checked_summary == source_declarations::TerminationGuarantee::NoGuarantee
         && program.authored_service_reach_rows_for(symbol).all(|row| {
             !row.installation_bound
                 && row
@@ -2216,8 +2216,8 @@ fn copy_progress(
     machine: &mut Machine,
     symbols: SymbolRebinding<'_>,
 ) -> Served<()> {
-    if let declaration_contracts::TerminationInterface::Published(
-        declaration_contracts::TerminationGuarantee::Terminates { premises },
+    if let source_declarations::TerminationInterface::Published(
+        source_declarations::TerminationGuarantee::Terminates { premises },
     ) = &mut machine.termination_plan.interface
     {
         for premise in premises {

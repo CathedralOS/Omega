@@ -1175,11 +1175,11 @@ pub(crate) mod signatures {
                 blocks: signature.blocks,
                 contracts: Default::default(),
                 termination_guarantee: if signature.terminates_guarantee {
-                    declaration_contracts::TerminationGuarantee::Terminates {
+                    source_declarations::TerminationGuarantee::Terminates {
                         premises: Vec::new(),
                     }
                 } else {
-                    declaration_contracts::TerminationGuarantee::NoGuarantee
+                    source_declarations::TerminationGuarantee::NoGuarantee
                 },
                 declares_no_crash_route: signature.declares_no_crash_route,
             };

@@ -61,6 +61,7 @@ use crate::execution::{
     RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
+use package_compilation::build_execution::BuildSnapshotRequest;
 use std::io::Write;
 
 const COMPARISON_DECLINED: i32 = 204;
@@ -95,7 +96,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         RunRequest {
             build_snapshot: arguments
                 .build_inputs
-                .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+                .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs)),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             target_name: arguments.target_name,
@@ -266,7 +267,7 @@ fn run_cases(
         CaseRunRequest {
             build_snapshot: arguments
                 .build_inputs
-                .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
+                .map(|inputs| BuildSnapshotRequest::scoped(Vec::new(), inputs)),
             private_entry_ram: arguments.private_entry_ram,
             root_path: arguments.main_path,
             compare_interpreter: arguments.selection == ExecutionSelection::Both,

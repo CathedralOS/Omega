@@ -420,6 +420,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "closed-predicates"
+version = "0.1.0"
+dependencies = [
+ "bignum",
+ "numerics",
+ "semantic-vocabulary",
+]
+
+[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1733,6 +1742,7 @@ dependencies = [
  "libc",
  "mimalloc",
  "native-provider-sponsor",
+ "optimization-requests",
  "orchestration",
  "package-compilation",
  "package-manager",
@@ -2187,9 +2197,10 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "bignum",
- "record-storage",
+ "closed-predicates",
  "mathematical-kernel",
  "numerics",
+ "record-storage",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -2537,6 +2548,7 @@ dependencies = [
  "service-surface",
  "source-admission",
  "source-compiler",
+ "source-declarations",
  "source-text",
  "symbols",
  "target",
@@ -3074,7 +3086,6 @@ name = "symbol-resolved-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3174,7 +3185,6 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
- "declaration-contracts",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -3185,6 +3195,7 @@ dependencies = [
  "source-declarations",
  "source-lexer",
  "source-parser",
+ "source-provenance",
  "source-symbol-table",
  "source-text",
  "symbol-resolved-trees",
@@ -3382,7 +3393,7 @@ dependencies = [
  "access-admission",
  "access-vocabulary",
  "arena",
- "record-storage",
+ "closed-predicates",
  "evaluation-accounting",
  "evaluation-contracts",
  "extent-contracts",
@@ -3390,7 +3401,7 @@ dependencies = [
  "language-core",
  "layout-plans",
  "numerics",
- "proof-admission",
+ "record-storage",
  "resource-bounds",
  "semantic-vocabulary",
  "storage-access",
@@ -3534,6 +3545,7 @@ dependencies = [
  "application-identity",
  "arena",
  "bignum",
+ "closed-predicates",
  "graphs",
  "language-core",
  "layout-planning",

@@ -258,7 +258,7 @@ pub(crate) mod domain_constraints {
                 carrier,
                 &domain_constraint.arguments,
             )?;
-            let semantic_roles = declaration_contracts::DomainSemanticRoles {
+            let semantic_roles = source_declarations::DomainSemanticRoles {
                 denotation_dimension: domain
                     .semantic_roles
                     .denotation_dimension

@@ -2398,19 +2398,19 @@ fn visit_symbol(retained: &mut impl TypedReferences, symbol: SymbolHandle) {
 /// still hold the trait a route names.
 fn visit_domain_establishment_routes(
     retained: &mut impl TypedReferences,
-    routes: &[declaration_contracts::DomainEstablishmentRoute],
+    routes: &[source_declarations::DomainEstablishmentRoute],
 ) {
     for route in routes {
         match *route {
-            declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+            source_declarations::DomainEstablishmentRoute::CheckedRequirement {
                 trait_definition: owner,
                 requirement,
             }
-            | declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+            | source_declarations::DomainEstablishmentRoute::BoundaryRequirement {
                 boundary_trait: owner,
                 requirement,
             } => retained.extend([owner, requirement]),
-            declaration_contracts::DomainEstablishmentRoute::ExactMachine { machine } => {
+            source_declarations::DomainEstablishmentRoute::ExactMachine { machine } => {
                 retained.extend([machine]);
             }
         }
@@ -3254,7 +3254,7 @@ pub fn visit_signature(
     {
         visit_contract(program, retained, contract);
     }
-    if let declaration_contracts::TerminationGuarantee::Terminates { premises } =
+    if let source_declarations::TerminationGuarantee::Terminates { premises } =
         &signature.termination_guarantee
     {
         for premise in premises {

@@ -33,8 +33,8 @@ pub(crate) mod access_views {
         use super::AccessLifecycleOperation;
         use crate::source_state::TypedTrees;
 
-        use declaration_contracts::MachineSupplyMode;
         use diagnostics::Diagnostic;
+        use source_declarations::MachineSupplyMode;
 
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
         pub enum AccessContentShape {
@@ -201,9 +201,9 @@ pub(crate) mod access_views {
         }
     }
     pub(crate) mod primitive_selection {
-        use declaration_contracts::MachineSupplyMode;
         use diagnostics::Diagnostic;
         use language_core::ReferenceAccess;
+        use source_declarations::MachineSupplyMode;
         use symbols::SymbolHandle;
 
         use crate::source_state::data::TypeParameterKind;
@@ -583,7 +583,7 @@ pub(crate) mod access_views {
                 };
                 if state.symbol != target.state_symbol
                     || machine.body_is_present
-                    || machine.supply_mode != declaration_contracts::MachineSupplyMode::Boundary
+                    || machine.supply_mode != source_declarations::MachineSupplyMode::Boundary
                     || !typed.machine_type_parameters(machine).is_empty()
                     || !machine.lifetime_parameters.is_empty()
                     || machine.suspends
@@ -716,7 +716,8 @@ pub(crate) mod access_views {
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
-    pub enum AccessLifecycleOwner {        #[default]
+    pub enum AccessLifecycleOwner {
+        #[default]
         Extent,
         Run {
             carrier: TypeReferenceHandle,

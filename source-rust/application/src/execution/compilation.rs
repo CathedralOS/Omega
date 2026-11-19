@@ -22,13 +22,23 @@ process itself).
 
 */
 
-use compiler::{CompileOptions, CompileReport};
+use compiler::CompileReport;
 use diagnostics::Diagnostic;
 use orchestration::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use package_compilation::build_execution::BuildSnapshotRequest;
+use std::path::PathBuf;
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
     TerminalRuntimeRequest,
 };
+
+pub(super) struct ProjectInput {
+    pub root_path: PathBuf,
+    pub build_directory: PathBuf,
+    pub target_name: Option<String>,
+    pub private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
+    pub build_snapshot: Option<BuildSnapshotRequest>,
+}
 
 pub(super) struct ProbeCompilation {
     pub report: CompileReport,
@@ -38,26 +48,31 @@ pub(super) struct ProbeCompilation {
 
 pub(super) fn compile(
     artifact: Option<psi_authorization::AuthorizedTerminalArtifact>,
-    private_entry_ram: Vec<products::PrivateEntryRamInitialization>,
-    build_snapshot: Option<compiler::BuildSnapshotRequest>,
-    options: CompileOptions,
+    input: ProjectInput,
     destination: NativeDestination,
     reference_inputs: Vec<std::fs::File>,
     psi_work_budget: u64,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
+    let ProjectInput {
+        root_path,
+        build_directory,
+        target_name,
+        private_entry_ram,
+        build_snapshot,
+    } = input;
     let (report, target_name) = if let Some(artifact) = artifact {
         if build_snapshot.is_some() {
             return Err(vec![Diagnostic::error(
                 "a saved Psi program cannot accept source build inputs",
             )]);
         }
-        let profile = target::TargetProfile::from_omega_target_name(options.target_name.as_deref())
+        let profile = target::TargetProfile::from_omega_target_name(target_name.as_deref())
             .map_err(|error| vec![error])?;
         let host = crate::saved_program::configured_host_packages()?;
         let installation = crate::saved_program::installation(&artifact, profile, host.as_ref())?;
         let report = orchestration::prepare_saved_program(
             artifact,
-            &options.root_path,
+            &root_path,
             profile,
             installation,
             destination,
@@ -66,8 +81,7 @@ pub(super) fn compile(
         .map_err(BuildError::into_diagnostics)?;
         (report, profile.target_name())
     } else {
-        if options
-            .root_path
+        if root_path
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
         {
@@ -75,7 +89,7 @@ pub(super) fn compile(
                 "execution of a saved Psi program requires producer trust",
             )]);
         }
-        let targets = match options.target_name.as_deref() {
+        let targets = match target_name.as_deref() {
             Some(name) => BuildTargets::Single(
                 target::TargetProfile::from_omega_target_name(Some(name))
                     .map_err(|diagnostic| vec![diagnostic])?,
@@ -84,8 +98,8 @@ pub(super) fn compile(
         };
         let outcomes = orchestration::build(BuildRequest {
             stage_validators: Default::default(),
-            root_path: options.root_path,
-            build_directory: options.build_dir,
+            root_path,
+            build_directory: Some(build_directory),
             targets,
             product: ProjectProduct::Native {
                 installation_assumptions: Vec::new(),

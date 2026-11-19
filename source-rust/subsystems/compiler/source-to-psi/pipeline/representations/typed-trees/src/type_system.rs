@@ -3323,8 +3323,8 @@ pub mod types {
         pub semantic_id: semantic_vocabulary::SemanticDomainId,
         pub classification: Option<language_core::DomainClassification>,
         pub predicate_presence: language_core::DomainPredicatePresence,
-        pub semantic_roles: declaration_contracts::DomainSemanticRoles,
-        pub establishment_routes: Vec<declaration_contracts::DomainEstablishmentRoute>,
+        pub semantic_roles: source_declarations::DomainSemanticRoles,
+        pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
         pub source_selection: Option<DomainConstraintSource>,
         /// Typing selected no domain for this written name, and no domain
         /// of that name is visible from its source under ordinary

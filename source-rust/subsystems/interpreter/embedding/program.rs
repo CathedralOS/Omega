@@ -2767,10 +2767,10 @@ pub(crate) mod program {
         /// true. `Some(true)` when every clause is, `Some(false)` when one is
         /// closed and false, and `None` when one depends on an argument.
         pub fn unconditional_precondition(&self) -> Result<Option<bool>, String> {
-            let mut integers = proof_admission::ClosedIntegerEvaluator::default();
+            let mut integers = closed_predicates::ClosedIntegerEvaluator::default();
             let mut undecided = false;
             for clause in self.requires {
-                match proof_admission::closed_guard(clause, &mut integers)
+                match closed_predicates::closed_guard(clause, &mut integers)
                     .map_err(|error| format!("entry precondition evaluation: {error:?}"))?
                 {
                     Some(true) => {}

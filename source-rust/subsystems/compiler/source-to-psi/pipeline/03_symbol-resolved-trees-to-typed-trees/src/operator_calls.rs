@@ -111,8 +111,8 @@ pub(crate) fn selection_for_operands(
         .filter(|machine| {
             matches!(
                 machine.supply_mode,
-                declaration_contracts::MachineSupplyMode::CheckedBody
-                    | declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                source_declarations::MachineSupplyMode::CheckedBody
+                    | source_declarations::MachineSupplyMode::TopLevelRequirement
             ) && machine.conformance_bounds.is_empty()
         })
     else {

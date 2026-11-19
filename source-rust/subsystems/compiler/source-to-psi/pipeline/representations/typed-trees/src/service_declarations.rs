@@ -61,7 +61,7 @@ pub mod provider_declarations {
             .filter_map(|receipt| typed.machine(receipt.instance))
             .filter(|instance| {
                 instance.supply_mode
-                    == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                    == source_declarations::MachineSupplyMode::TopLevelRequirement
             })
             .map(|instance| typed.machine_callable_identity(instance))
             .filter(|identity| identity.is_valid())
@@ -168,8 +168,7 @@ pub mod provider_declarations {
             ));
         }
         let requirement = typed.machine_by_symbol(symbol)?;
-        if requirement.supply_mode != declaration_contracts::MachineSupplyMode::TopLevelRequirement
-        {
+        if requirement.supply_mode != source_declarations::MachineSupplyMode::TopLevelRequirement {
             return None;
         }
         Some((
@@ -307,7 +306,7 @@ pub mod provider_declarations {
                         .iter()
                         .filter(|machine| {
                             machine.supply_mode
-                                == declaration_contracts::MachineSupplyMode::AdmissionClaim
+                                == source_declarations::MachineSupplyMode::AdmissionClaim
                         })
                         .map(|machine| {
                             let declaration_identity = typed
@@ -452,7 +451,7 @@ pub mod provider_declarations {
                 typed.push_machine(crate::source_state::machine::Machine {
                     symbol,
                     name: name.into(),
-                    supply_mode: declaration_contracts::MachineSupplyMode::AdmissionClaim,
+                    supply_mode: source_declarations::MachineSupplyMode::AdmissionClaim,
                     ..Default::default()
                 });
             }
@@ -1037,7 +1036,7 @@ pub mod projection {
         if !context.contains(requirement.symbol)
             || !requirement.symbol.is_valid()
             || requirement.supply_mode
-                != declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                != source_declarations::MachineSupplyMode::TopLevelRequirement
             || requirement.body_is_present
         {
             return Err(projection_failure(
@@ -1302,11 +1301,11 @@ pub mod projection {
 
     fn service_progress_premises_for_parameters(
         program: &crate::source_state::TypedTrees,
-        guarantee: &declaration_contracts::TerminationGuarantee,
+        guarantee: &source_declarations::TerminationGuarantee,
         parameters: arena::RootRows<'_, crate::source_state::signature::StateParameter>,
         identities: &mut ProviderIdentityTable,
     ) -> Vec<ServiceProgressPremise> {
-        let declaration_contracts::TerminationGuarantee::Terminates { premises } = guarantee else {
+        let source_declarations::TerminationGuarantee::Terminates { premises } = guarantee else {
             return Vec::new();
         };
         premises
@@ -1362,7 +1361,7 @@ pub mod projection {
             .filter(|route| {
                 !matches!(
                     route,
-                    declaration_contracts::DomainEstablishmentRoute::ExactMachine { .. }
+                    source_declarations::DomainEstablishmentRoute::ExactMachine { .. }
                 )
             })
             .map(|route| {
@@ -1373,13 +1372,13 @@ pub mod projection {
                     .trait_machine_signature_by_symbol(owner, route.requirement_symbol())
                     .expect("normalized progress establishment route must name one requirement");
                 let kind = match route {
-                    declaration_contracts::DomainEstablishmentRoute::CheckedRequirement {
+                    source_declarations::DomainEstablishmentRoute::CheckedRequirement {
                         ..
                     } => ServiceProgressEstablishmentRouteKind::CheckedRequirement,
-                    declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+                    source_declarations::DomainEstablishmentRoute::BoundaryRequirement {
                         ..
                     } => ServiceProgressEstablishmentRouteKind::BoundaryRequirement,
-                    declaration_contracts::DomainEstablishmentRoute::ExactMachine { .. } => {
+                    source_declarations::DomainEstablishmentRoute::ExactMachine { .. } => {
                         unreachable!("exact-machine routes are filtered above")
                     }
                 };
@@ -1504,7 +1503,7 @@ pub mod projection {
                     if domain.symbol.is_valid() && domain.establishment_routes.iter().any(|route| {
                         matches!(
                             route,
-                            declaration_contracts::DomainEstablishmentRoute::BoundaryRequirement {
+                            source_declarations::DomainEstablishmentRoute::BoundaryRequirement {
                                 boundary_trait: route_trait,
                                 requirement: route_requirement,
                             } if *route_trait == boundary_trait && *route_requirement == requirement
@@ -1953,7 +1952,7 @@ pub(crate) mod catalog {
             for machine in program.machines().iter().filter(|machine| {
                 context.contains(machine.symbol)
                     && machine.supply_mode
-                        == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                        == source_declarations::MachineSupplyMode::TopLevelRequirement
                     && !machine.body_is_present
             }) {
                 let schema = ProviderSchemaDeclaration::BoundaryRequirement(machine.symbol);
@@ -2664,8 +2663,8 @@ pub mod signatures {
                     }
                 } else if matches!(
                     machine.supply_mode,
-                    declaration_contracts::MachineSupplyMode::ExternalRealization { .. }
-                        | declaration_contracts::MachineSupplyMode::Boundary
+                    source_declarations::MachineSupplyMode::ExternalRealization { .. }
+                        | source_declarations::MachineSupplyMode::Boundary
                 ) {
                     governing_application(machine)
                 } else {
@@ -2872,7 +2871,7 @@ pub mod signatures {
                 .machine_by_symbol(declaration.symbol)
                 .is_some_and(|machine| {
                     machine.supply_mode
-                        == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                        == source_declarations::MachineSupplyMode::TopLevelRequirement
                 })
             {
                 return Ok(CallingDeclarationOwner::TopLevelRequirement);
@@ -3482,7 +3481,7 @@ pub mod signatures {
                 }
             }
             for machine in typed.machines().iter().filter(|machine| {
-                machine.supply_mode == declaration_contracts::MachineSupplyMode::TopLevelRequirement
+                machine.supply_mode == source_declarations::MachineSupplyMode::TopLevelRequirement
             }) {
                 let Some([entry]) = typed.machine_states(machine).as_array() else {
                     continue;

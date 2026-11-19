@@ -4,12 +4,12 @@
 use crate::source_state::machine::Machine;
 use crate::source_state::signature::StateSignature;
 use crate::source_tables::ServiceReachRowTable;
-use declaration_contracts::MachineSupplyMode;
-use declaration_contracts::TerminationGuarantee;
 use language_core::sealed_intrinsics::SealedIntrinsic;
 use semantic_vocabulary::ExternalBindingIdentity;
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::ServiceReachRowId;
+use source_declarations::MachineSupplyMode;
+use source_declarations::TerminationGuarantee;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 

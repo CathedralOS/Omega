@@ -8,7 +8,7 @@
 */
 
 pub(crate) mod boundary_predicates {
-    use proof_admission::ClosedIntegerEvaluator;
+    use closed_predicates::ClosedIntegerEvaluator;
     use semantic_vocabulary::{
         CanonicalStructuralPathSegment, IntegerMathTerm, IntegerValue, PlaceId, Proposition,
         PropositionContext, ScalarReadProjection, ScalarTerm, ScalarType, StructuralPlaceKind,
@@ -79,7 +79,7 @@ pub(crate) mod boundary_predicates {
             return Ok(());
         }
         let (parameters, arguments) = scalar_bindings(boundary, arguments)?;
-        proof_admission::check_predicate_evaluation_size(boundary.scalar_requires.iter()).map_err(
+        closed_predicates::check_predicate_evaluation_size(boundary.scalar_requires.iter()).map_err(
             |_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary input requirement evaluation exceeds the resource limit",
@@ -153,7 +153,7 @@ pub(crate) mod boundary_predicates {
             parameters.push(result);
             arguments.push(literal);
         }
-        proof_admission::check_predicate_evaluation_size(boundary.scalar_ensures.iter()).map_err(
+        closed_predicates::check_predicate_evaluation_size(boundary.scalar_ensures.iter()).map_err(
             |_| {
                 TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary output guarantee evaluation exceeds the resource limit",
@@ -235,7 +235,7 @@ pub(crate) mod boundary_predicates {
         ) -> Result<Option<bool>, TerminalInterpretError> {
             // Close each leaf as the shared walk reaches it. A deciding child
             // still skips later siblings; an unknown child does not.
-            proof_admission::closed_guard_with(predicate, |leaf| {
+            closed_predicates::closed_guard_with(predicate, |leaf| {
                 let mut closed = leaf.clone();
                 self.close_predicate(&mut closed)?;
                 closed_guard(&closed, integers).map_err(|_| {
@@ -476,12 +476,12 @@ pub(crate) mod boundary_predicates {
         }
     }
 
-    pub(crate) use proof_admission::closed_guard;
+    pub(crate) use closed_predicates::closed_guard;
 
     #[cfg(test)]
     pub(crate) mod tests {
         use super::{InputObservations, closed_guard};
-        use proof_admission::ClosedIntegerEvaluator;
+        use closed_predicates::ClosedIntegerEvaluator;
         use semantic_vocabulary::{
             IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, Proposition, PropositionId,
             ScalarTerm,
@@ -2005,7 +2005,7 @@ pub(crate) mod byte_buffers {
 }
 pub(crate) mod crash_outcome {
     use super::boundary_predicates::closed_guard;
-    use proof_admission::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
+    use closed_predicates::{ClosedIntegerEvaluationError, ClosedIntegerEvaluator};
     use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
     use terminal_psi::{BoundaryMachineDeclaration, CrashCause, CrashRouteGuard};
     use terminal_semantics::substitution::substitute_proposition_values;
@@ -2025,7 +2025,7 @@ pub(crate) mod crash_outcome {
         arguments: &[ScalarTerm],
         cause: CrashCause,
     ) -> Result<(), BoundaryCrashOutcomeError> {
-        proof_admission::check_predicate_evaluation_size(
+        closed_predicates::check_predicate_evaluation_size(
             boundary
                 .crash_routes
                 .iter()
