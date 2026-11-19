@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-target-layouts = { path = "../../../psi/layout/admission" }
 psi-authorization = { path = "../../../psi/authorization" }
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 schema-reflection = { path = "../source-to-psi/language/schema-reflection" }

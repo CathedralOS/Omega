@@ -457,8 +457,7 @@ pub(crate) mod errors {
     use terminal_work::WorkMeterError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum TerminalInterpretError {
-        UnsuppliedErasedEntryInputs {
+    pub enum TerminalInterpretError {        UnsuppliedErasedEntryInputs {
             machine: MachineId,
             reason: &'static str,
         },
@@ -639,8 +638,8 @@ pub(crate) mod errors {
         TargetContextIdentityMismatch,
         TargetLayoutSelectionIdentityMismatch,
         TargetLayoutSelectionMissing(terminal_psi::LayoutApplicationId),
-        TargetLayoutSelection(terminal_installation::TargetLayoutSelectionError),
-        TerminalEntry(terminal_installation::TerminalEntryError),
+        TargetLayoutSelection(psi_target_layouts::TargetLayoutSelectionError),
+        TerminalEntry(psi_target_layouts::TerminalEntryError),
         RuntimeSupplySelectionRejected {
             boundary: BoundaryMachineId,
             reason: &'static str,

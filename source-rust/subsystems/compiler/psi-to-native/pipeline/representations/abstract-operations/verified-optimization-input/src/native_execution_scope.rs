@@ -72,7 +72,7 @@ impl ScalarDemand<'_> {
     fn scalar_application_demand(
         &self,
         module: &TerminalModule,
-        layouts: &terminal_installation::AdmittedTargetLayouts,
+        layouts: &psi_target_layouts::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let mut applications = self.storage_extent_demand(module, layouts)?;
         applications.extend(self.scalar_value_demand(module)?);
@@ -90,7 +90,7 @@ mod storage {
         pub(super) fn storage_extent_demand(
             &self,
             module: &TerminalModule,
-            layouts: &terminal_installation::AdmittedTargetLayouts,
+            layouts: &psi_target_layouts::AdmittedTargetLayouts,
         ) -> Result<BTreeSet<ScalarApplicationId>, String> {
             let mut declarations = module
                 .structural_types
@@ -232,7 +232,7 @@ impl std::error::Error for NativeExecutionScopeError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeExecutionScope {
-    target_context: terminal_installation::TerminalTargetContext,
+    target_context: psi_target_layouts::TerminalTargetContext,
     entry: MachineId,
     selected_provider_closure: [u8; 32],
     source_native_bindings: Option<[u8; 32]>,
@@ -262,7 +262,7 @@ impl NativeExecutionScope {
     pub(crate) fn derive(
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
-        targets: &terminal_installation::TerminalTargetContext,
+        targets: &psi_target_layouts::TerminalTargetContext,
         entry_call: Option<&crate::SelectedProgramEntryCall>,
         selected: (
             &[SelectedProviderAdapter],
@@ -585,7 +585,7 @@ impl NativeExecutionScope {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         entry: MachineId,
-        targets: &terminal_installation::TerminalTargetContext,
+        targets: &psi_target_layouts::TerminalTargetContext,
         selection: &effects::SelectedProviderPlanFacts,
         adapters: &[SelectedProviderAdapter],
     ) -> Result<(), &'static str> {
@@ -613,7 +613,7 @@ impl NativeExecutionScope {
 
     pub fn full_module_scalar_demand(
         module: &TerminalModule,
-        layouts: &terminal_installation::AdmittedTargetLayouts,
+        layouts: &psi_target_layouts::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         let bounds = Self::full_module_owned_sequence_bounds(module).map_err(str::to_owned)?;
         ScalarDemand {
@@ -631,7 +631,7 @@ impl NativeExecutionScope {
         self.entry
     }
 
-    pub fn target_context(&self) -> &terminal_installation::TerminalTargetContext {
+    pub fn target_context(&self) -> &psi_target_layouts::TerminalTargetContext {
         &self.target_context
     }
 
@@ -709,7 +709,7 @@ impl NativeExecutionScope {
     pub(crate) fn require_input_context(
         &self,
         plan: &abstract_operations::AbstractOperationPlan,
-        targets: Option<&terminal_installation::TerminalTargetContext>,
+        targets: Option<&psi_target_layouts::TerminalTargetContext>,
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         if self.target_context.terminal_psi() != plan.psi
@@ -755,7 +755,7 @@ impl NativeExecutionScope {
     pub fn scalar_application_demand(
         &self,
         module: &TerminalModule,
-        layouts: &terminal_installation::AdmittedTargetLayouts,
+        layouts: &psi_target_layouts::AdmittedTargetLayouts,
     ) -> Result<Vec<semantic_vocabulary::ScalarApplicationId>, String> {
         self.scalar_demand()
             .scalar_application_demand(module, layouts)
@@ -886,7 +886,7 @@ mod scope_tests {
             terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
         let reloaded =
             terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
-        let targets = terminal_installation::terminal_target_context(reloaded.view(), target);
+        let targets = psi_target_layouts::terminal_target_context(reloaded.view(), target);
         let entry = targets
             .entry(
                 reloaded.view().identity(),
@@ -1141,7 +1141,7 @@ mod scope_tests {
             Vec::new(),
         )];
         let targets =
-            terminal_installation::terminal_target_context(artifact.view(), "windows_x86_64");
+            psi_target_layouts::terminal_target_context(artifact.view(), "windows_x86_64");
         for (entry, reached) in [(machine_id(1), false), (machine_id(2), true)] {
             let scope = NativeExecutionScope::derive(
                 artifact.view(),

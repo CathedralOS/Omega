@@ -15,8 +15,8 @@ use super::request::NativeCompileRequest;
 use artifact_lowering::{PreparedNativeExecution, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
 use installation_conditions::InstallationEnvironmentAssumption;
+use psi_target_layouts::admit_target_layouts;
 use target::ExecutableImageEmissionRequest;
-use terminal_installation::admit_target_layouts;
 
 pub(crate) struct PreparedNativeCompilation<'input> {
     pub(crate) retained: &'input RetainedTerminalArtifact,
@@ -42,7 +42,7 @@ pub(crate) fn prepare<'input>(
         )?;
         let components =
             crate::pipeline::components::prepare_components(request.components, artifact.view())?;
-        let selections = terminal_installation::terminal_target_context(
+        let selections = psi_target_layouts::terminal_target_context(
             artifact.view(),
             proposal.target_profile().target_name(),
         );

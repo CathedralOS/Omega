@@ -706,7 +706,7 @@ mod semantic_call {
         {
             return Err("semantic-entry transport does not join the exact selected artifact, requirement and entry shape".into());
         }
-        let selections = terminal_installation::terminal_target_context(
+        let selections = psi_target_layouts::terminal_target_context(
             artifact.view(),
             entry.source().target_slot().owner.target_name(),
         );
@@ -776,7 +776,7 @@ pub fn validate_native_program_entry_settlement(
         return Err(NativeProgramEntrySettlementError::TerminalPsiSubstitution);
     }
     let selections =
-        terminal_installation::terminal_target_context(artifact.view(), slot.owner.target_name());
+        psi_target_layouts::terminal_target_context(artifact.view(), slot.owner.target_name());
     let entry = selections
         .entry(
             artifact.view().identity(),

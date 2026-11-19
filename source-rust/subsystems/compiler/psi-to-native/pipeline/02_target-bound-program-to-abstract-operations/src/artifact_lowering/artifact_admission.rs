@@ -141,8 +141,9 @@ mod native {
     use super::retention::AdmittedOptimizationArtifact;
     use crate::artifact_lowering::lowering::lower_decoded_module;
     use abstract_operations::AbstractOperationPlan;
+    use psi_target_layouts::TerminalTargetContext;
+    use terminal_installation::AdmittedScalarApplications;
     use terminal_installation::TerminalAccessViewEstablishment;
-    use terminal_installation::{AdmittedScalarApplications, TerminalTargetContext};
     use verified_optimization_input::{
         VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
     };
@@ -168,7 +169,7 @@ mod native {
         profile: target::TargetProfile,
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: TerminalTargetContext,
-        pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
+        pub(crate) layouts: psi_target_layouts::AdmittedTargetLayouts,
         pub(crate) scope: Option<crate::artifact_lowering::NativeExecutionScope>,
         pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
     }
@@ -185,7 +186,7 @@ mod native {
                 .admit_address_representation()
                 .map_err(ArtifactLoweringError::TargetContext)?;
             let module = artifact.semantic_module();
-            let selections = terminal_installation::terminal_target_context(
+            let selections = psi_target_layouts::terminal_target_context(
                 artifact.view(),
                 profile.target_name(),
             );
@@ -197,7 +198,7 @@ mod native {
                     "selected native target has no representation facts".into(),
                 )
             })?;
-            let layouts = terminal_installation::admit_target_layouts(
+            let layouts = psi_target_layouts::admit_target_layouts(
                 artifact.view(),
                 &selections,
                 &target_facts,
@@ -669,8 +670,8 @@ mod native {
                 .expect("actual direct placed row")
                 .clone();
             let selections =
-                terminal_installation::terminal_target_context(artifact.view(), "linux_x86_64");
-            let layouts = terminal_installation::admit_target_layouts(
+                psi_target_layouts::terminal_target_context(artifact.view(), "linux_x86_64");
+            let layouts = psi_target_layouts::admit_target_layouts(
                 artifact.view(),
                 &selections,
                 &target::TargetProfile::LinuxX64
@@ -728,11 +729,11 @@ mod native {
             assert_eq!(recipe.target(), "linux_x86_64");
             {
                 let profile = target::TargetProfile::MacosArm64;
-                let other_selections = terminal_installation::terminal_target_context(
+                let other_selections = psi_target_layouts::terminal_target_context(
                     artifact.view(),
                     profile.target_name(),
                 );
-                let other = terminal_installation::admit_target_layouts(
+                let other = psi_target_layouts::admit_target_layouts(
                     artifact.view(),
                     &other_selections,
                     &profile
@@ -1002,9 +1003,8 @@ mod retention {
     }
 }
 mod scalar_applications {
-    use terminal_installation::{
-        AdmittedScalarApplications, AdmittedTargetLayouts, TerminalTargetContext,
-    };
+    use psi_target_layouts::{AdmittedTargetLayouts, TerminalTargetContext};
+    use terminal_installation::AdmittedScalarApplications;
 
     pub struct NativeScalarApplications<'request> {
         pub completed: &'request AdmittedScalarApplications,

@@ -15,13 +15,15 @@ produces the `TerminalComponentBinding`s installed into `TerminalInstance`.
 */
 
 use crate::host::bindings::BuildProviderRequest;
+use psi_target_layouts::{
+    AdmittedTargetLayouts, TerminalTargetContext, admit_target_layouts, terminal_target_context,
+};
 use source_compiler::ProducedBuildProvider;
 use source_compiler::evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use target::TargetProfile;
 use terminal_codec::TerminalExecutionView;
 use terminal_installation::{
-    AdmittedComponentProvider, AdmittedTargetLayouts, ProviderInstallationSelection,
-    TerminalTargetContext, admit_component_provider, admit_target_layouts, terminal_target_context,
+    AdmittedComponentProvider, ProviderInstallationSelection, admit_component_provider,
 };
 use terminal_interpreter::{
     TerminalComponentBinding, TerminalProgram, TerminalRuntimeSupplyRequest,

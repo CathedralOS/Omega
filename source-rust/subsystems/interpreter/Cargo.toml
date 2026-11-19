@@ -9,6 +9,7 @@ name = "terminal_interpreter"
 path = "src/lib.rs"
 
 [dependencies]
+psi-target-layouts = { path = "../compiler/psi/layout/admission" }
 access-vocabulary = { path = "../compiler/psi/access" }
 storage-access = { path = "memory/storage-access" }
 storage-materialization = { path = "memory/materialization" }

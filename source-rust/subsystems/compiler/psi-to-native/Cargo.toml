@@ -11,6 +11,7 @@ path = "psi_to_native.rs"
 test-support = []
 
 [dependencies]
+psi-target-layouts = { path = "../psi/layout/admission" }
 provider-demand = { path = "pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 native-inputs = { package = "psi-to-admitted-native-inputs", path = "pipeline/00_psi-to-admitted-native-inputs" }

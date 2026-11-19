@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+psi-target-layouts = { path = "../../../psi/layout/admission" }
 service-surface = { path = "../../../psi/service-surface" }
 application-identity = { path = "../../../psi/application-identity" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
