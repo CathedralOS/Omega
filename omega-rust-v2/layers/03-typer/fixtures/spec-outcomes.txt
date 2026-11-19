@@ -31,5 +31,8 @@ language/state_contracts.md:74  accepted
 language/state_contracts.md:86  accepted
 layouts/recasts.md:18  accepted
 proofs/contracts.md:826  accepted
+proofs/mathematical_bindings.md:63  accepted
+proofs/mathematical_bindings.md:199  accepted
+proofs/mathematical_bindings.md:263  accepted
 resources/bounded_input.md:38  accepted
 resources/carry.md:6  accepted

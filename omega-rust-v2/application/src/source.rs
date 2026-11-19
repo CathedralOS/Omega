@@ -93,9 +93,9 @@ pub(crate) fn check_files(
         let position = LineIndex::new(&file.bytes).get_position(span.get_start_offset());
         format!("{path}:{}:{}: {layer}: {message}", position.get_line(), position.get_column())
     };
-    let resolved = omega_resolver::resolve_stage(&sources, &[]).map_err(|e| diagnostic("resolver", &e.file, e.span, e.message))?;
+    let resolved = omega_typer::resolve_source_package(&sources).map_err(|e| diagnostic("resolver", &e.file, e.span, e.message))?;
     if matches!(stage, Stage::Type) {
-        omega_typer::type_stage(&sources, &resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
+        omega_typer::type_source_package(&sources, &resolved).map_err(|e| diagnostic("typer", &e.file, e.span, e.message))?;
     }
     Ok(())
 }

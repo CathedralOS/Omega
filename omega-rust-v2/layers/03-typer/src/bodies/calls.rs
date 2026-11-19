@@ -44,6 +44,108 @@ impl Body<'_, '_> {
     ) -> Result<(), TypeError> {
         let f = &self.unit.file;
         for (index, ty) in bindings.iter().enumerate() {
+            if let Some(sort @ ValueType::Universe { .. }) = self.catalog.types.bound(id, index) {
+                let expected = sort.substitute(id, bindings);
+                if let ValueType::Universe { level, .. } = ty
+                    && let ValueType::Level(actual) = level.as_ref()
+                    && let ValueType::Universe { strict, level: outer } = &expected
+                    && let ValueType::Level(target) = outer.as_ref()
+                    && (*strict || actual + 1u8 != *target)
+                {
+                    return Err(TypeError::at(f, callee, "universe argument requires its exact successor universe"));
+                }
+                self.obligation(
+                    n,
+                    ObligationKind::UniverseMembership {
+                        subject: ty.clone(),
+                        sort: expected,
+                    },
+                );
+            }
+            if let Some(ValueType::LogicalRequirement(site)) = self.catalog.types.bound(id, index) {
+                let req = &self.catalog.hypotheses[site];
+                if let ValueType::ProofTerm(source) = ty {
+                    let argument = (callee..f.nodes[callee].end)
+                        .find(|&i| {
+                            f.span(i) == source.span
+                                && matches!(
+                                    f.nodes[i].kind,
+                                    NodeKind::FieldAccess | NodeKind::Call | NodeKind::PathType | NodeKind::PathExpression
+                                )
+                        })
+                        .ok_or_else(|| TypeError::at(f, callee, "missing logical evidence expression"))?;
+                    let enclosing_logical_argument = std::mem::replace(&mut self.logical_argument, true);
+                    let actual = if f.nodes[argument].kind == NodeKind::PathType
+                        && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(argument)
+                    {
+                        self.locals
+                            .get(span)
+                            .cloned()
+                            .ok_or_else(|| TypeError::at(f, argument, "untyped evidence term"))
+                    } else {
+                        self.expression(argument)
+                    };
+                    self.logical_argument = enclosing_logical_argument;
+                    let mut evidence_type = actual?;
+                    for (span, parameter) in &req.parameters {
+                        let ValueType::Function(input, out) = evidence_type else {
+                            return Err(TypeError::at(f, argument, "logical evidence must abstract every required subject"));
+                        };
+                        if *input != parameter.substitute(id, bindings) {
+                            return Err(TypeError::at(f, argument, "incompatible logical evidence parameter"));
+                        }
+                        let mut formal = req.site.clone();
+                        formal.span = *span;
+                        evidence_type = out.apply_subject(&ValueType::Subject {
+                            declaration: formal,
+                            version: None,
+                        });
+                    }
+                    if req.result != ValueType::NoResult || !matches!(evidence_type, ValueType::FamilyApplication { .. } | ValueType::Squash(_)) {
+                        return Err(TypeError::at(f, argument, "expected evidence for the logical conclusion"));
+                    }
+                    self.obligation(
+                        n,
+                        ObligationKind::SupplyHypothesis {
+                            requirement: site.clone(),
+                            evidence: ty.clone(),
+                            substitutions: bindings.to_vec(),
+                        },
+                    );
+                    continue;
+                }
+                let (params, result) = match ty {
+                    ValueType::ProofCitation(selected) => {
+                        let sig = &self.catalog.signatures[selected.as_ref()];
+                        if self.catalog.types.arities[selected.as_ref()] != 0 {
+                            return Err(TypeError::at(f, callee, "logical citation needs a closed interface"));
+                        }
+                        (&sig.params, &sig.result)
+                    }
+                    ValueType::LogicalRequirement(other) => {
+                        let supplied = &self.catalog.hypotheses[other];
+                        (&supplied.parameters, &supplied.result)
+                    }
+                    _ => return Err(TypeError::at(f, callee, "expected explicit logical evidence")),
+                };
+                if !req
+                    .parameters
+                    .iter()
+                    .map(|(_, ty)| ty.substitute(id, bindings))
+                    .eq(params.iter().map(|(_, ty)| ty.clone()))
+                    || req.result.substitute(id, bindings) != *result
+                {
+                    return Err(TypeError::at(f, callee, "incompatible logical evidence signature"));
+                }
+                self.obligation(
+                    n,
+                    ObligationKind::SupplyHypothesis {
+                        requirement: site.clone(),
+                        evidence: ty.clone(),
+                        substitutions: bindings.to_vec(),
+                    },
+                );
+            }
             if let Some(formal @ ValueType::Evidence(_)) = self.catalog.types.bound(id, index)
                 && let ValueType::Evidence(slot) = formal.substitute(id, bindings)
             {
@@ -83,7 +185,12 @@ impl Body<'_, '_> {
             {
                 match ty {
                     ValueType::MachineSelection(m) => self.refine_callable(n, &c, m)?,
-                    ValueType::Parameter { .. } if self.catalog.types.parameter_carrier(ty) == Some(&ValueType::Callable(c)) => {}
+                    ValueType::Parameter { .. }
+                        if let Some(ValueType::Callable(actual)) = self.catalog.types.parameter_carrier(ty)
+                            && c.admits_contract(actual) =>
+                    {
+                        self.destination(callee, &ValueType::Callable(actual.clone()), &ValueType::Callable(c))?;
+                    }
                     _ => return Err(TypeError::at(f, callee, "forwarded callback has incompatible requirements")),
                 }
             }
@@ -106,10 +213,26 @@ impl Body<'_, '_> {
         if let Some(Symbol::Declaration(id)) = self.unit.symbol(callee)
             && id.kind == NodeKind::MathLet
         {
-            return self.mathematical_application(n, callee, Some(id), self.catalog.mathematical[id].clone(), &f.nodes[args].children, expected);
+            return self.mathematical_application(
+                n,
+                callee,
+                Some(id),
+                self.catalog.types.mathematical[id].clone(),
+                &f.nodes[args].children,
+                expected,
+            );
         }
         if let Some(Symbol::Binding { span, .. }) = self.unit.symbol(callee)
-            && let Some(ty @ ValueType::Function(..)) = self.locals.get(span).cloned()
+            && let Some(ty @ ValueType::Function(..)) = self
+                .locals
+                .get(span)
+                .or_else(|| {
+                    self.unit
+                        .parameters
+                        .get(span)
+                        .and_then(|p| self.catalog.types.parameter_carrier(p))
+                })
+                .cloned()
         {
             return self.mathematical_application(n, callee, None, ty, &f.nodes[args].children, expected);
         }
@@ -122,6 +245,38 @@ impl Body<'_, '_> {
         }
         match self.unit.symbol(callee) {
             Some(Symbol::StaticGuarantee { binder }) => {
+                if let Some(site) = self.unit.hypotheses.get(binder) {
+                    if !f
+                        .enclosing_contexts(n)
+                        .any(|p| matches!(f.nodes[p].kind, NodeKind::Requires | NodeKind::Ensures | NodeKind::MathLet))
+                    {
+                        return Err(TypeError::at(f, callee, "logical evidence cannot be executed"));
+                    }
+                    let requirement = &self.catalog.hypotheses[site];
+                    let mut parameters: Vec<_> = requirement
+                        .parameters
+                        .iter()
+                        .map(|(_, ty)| ty.clone())
+                        .collect();
+                    if requirement.result != ValueType::NoResult {
+                        parameters.push(requirement.result.clone());
+                    }
+                    if requirement.conclusions.is_empty() || parameters.len() != f.nodes[args].children.len() {
+                        return Err(TypeError::at(f, n, "logical guarantee needs its declared subjects and conclusion"));
+                    }
+                    for (&arg, ty) in f.nodes[args].children.iter().zip(&parameters) {
+                        let actual = self.expected(arg, Some(ty))?;
+                        self.destination(arg, &actual, ty)?;
+                    }
+                    self.obligation(
+                        n,
+                        ObligationKind::ApplyHypothesis {
+                            requirement: site.clone(),
+                            operands: f.nodes[args].children.iter().map(|&a| Site::at(f, a)).collect(),
+                        },
+                    );
+                    return Ok(ValueType::Bool);
+                }
                 let c = self.static_callable(*binder, callee)?;
                 return self.indirect(n, callee, args, &c, true);
             }
@@ -132,6 +287,10 @@ impl Body<'_, '_> {
                 let c = self.static_callable(*span, callee)?;
                 return self.indirect(n, callee, args, &c, false);
             }
+            Some(Symbol::Binding {
+                kind: NodeKind::Hypothesis | NodeKind::MachineParam,
+                ..
+            }) => return Err(TypeError::at(f, callee, "logical evidence cannot be executed")),
             Some(Symbol::Binding { span, .. }) => {
                 let Some(ValueType::Callable(c)) = self.locals.get(span).cloned() else {
                     return Err(TypeError::at(f, callee, "indirect call requires a callable value"));
@@ -150,20 +309,6 @@ impl Body<'_, '_> {
             Some(Symbol::Candidates(ids)) => ids.as_slice(),
             _ => return Err(TypeError::at(f, callee, "unsupported indirect call or non-machine callee")),
         };
-        let mut operands = Vec::new();
-        for (position, &arg) in f.nodes[args].children.iter().enumerate() {
-            // A common concrete parameter is already a destination for a nested
-            // call or aggregate, even while the outer overload is unresolved.
-            let mut parameter_types = candidates
-                .iter()
-                .filter_map(|id| self.catalog.signatures.get(id))
-                .filter(|sig| sig.params.len() == f.nodes[args].children.len() && sig.result.domains() == expected.map_or(&[][..], ValueType::domains))
-                .map(|sig| &sig.params[position].1);
-            let common = parameter_types
-                .next()
-                .filter(|ty| !ty.contains_parameter() && parameter_types.all(|other| other == *ty));
-            operands.push((arg, self.expected(arg, common)?));
-        }
         let mut explicit = &[][..];
         let mut enclosing_arguments = Vec::new();
         if let Some(value) = &evidence
@@ -201,11 +346,11 @@ impl Body<'_, '_> {
                 .iter()
                 .fold(t.clone(), |ty, (owner, args)| ty.substitute(owner, args))
         };
-        let mut matches = Vec::new();
+        let mut prepared = Vec::new();
         let mut argument_error = None;
         for id in candidates {
             let Some(signature) = self.catalog.signatures.get(id) else { continue };
-            if signature.params.len() != operands.len() {
+            if signature.params.len() != f.nodes[args].children.len() {
                 continue;
             }
             let arity = self.catalog.types.arities[id];
@@ -231,6 +376,40 @@ impl Body<'_, '_> {
             if instantiate(&signature.result).domains() != expected.map_or(&[][..], ValueType::domains) {
                 continue;
             }
+            prepared.push((id, signature, formals, explicit_values));
+        }
+        let mut operands = Vec::new();
+        let mut subjects = Vec::new();
+        for (position, &arg) in f.nodes[args].children.iter().enumerate() {
+            let mut parameters = prepared.iter().map(|(id, sig, formals, explicit)| {
+                let ty = capture(&sig.params[position].1)
+                    .substitute(id, formals)
+                    .instantiate_subjects(sig, &subjects);
+                (explicit.len() == formals.len() || !ty.contains_parameter()).then_some(ty)
+            });
+            let common = parameters
+                .next()
+                .flatten()
+                .filter(|ty| parameters.all(|other| other.as_ref() == Some(ty)));
+            let value = self.expected(arg, common.as_ref())?;
+            let version = match self.unit.symbol(arg) {
+                Some(Symbol::Binding { span, .. }) if self.writable.contains(span) => self.version.as_ref(),
+                _ => None,
+            };
+            subjects.push(
+                self.unit
+                    .term_subject(arg, common.as_ref().unwrap_or(&value), version),
+            );
+            operands.push((arg, value));
+        }
+        let mut matches = Vec::new();
+        for (id, signature, formals, explicit_values) in prepared {
+            let arity = formals.len();
+            let instantiate = |t: &ValueType| {
+                capture(t)
+                    .substitute(id, &formals)
+                    .instantiate_subjects(signature, &subjects)
+            };
             let mut bindings = vec![None; arity];
             for (i, ty) in explicit_values.iter().enumerate() {
                 bindings[i] = Some(ty.clone());
@@ -284,15 +463,26 @@ impl Body<'_, '_> {
             .ok_or_else(|| TypeError::at(f, callee, "cannot infer all generic arguments"))?;
         self.validate_call_bindings(n, callee, id, &bindings)?;
         for ((arg, value), (_, param)) in operands.iter().zip(&signature.params) {
-            self.admit_argument(*arg, value, &capture(param).substitute(id, &bindings))?;
+            self.admit_argument(
+                *arg,
+                value,
+                &capture(param)
+                    .substitute(id, &bindings)
+                    .instantiate_subjects(signature, &subjects),
+            )?;
         }
-        let result = capture(&signature.result).substitute(id, &bindings);
+        let result = capture(&signature.result)
+            .substitute(id, &bindings)
+            .instantiate_subjects(signature, &subjects);
         if signature.requires {
             self.obligation(n, ObligationKind::CallPrecondition(id.clone()));
         }
-        self.version = Some(Site::at(f, n));
-        self.cases.clear();
+        if self.call_use(n) == crate::CallUse::Execution {
+            self.version = Some(Site::at(f, n));
+            self.cases.clear();
+        }
         self.output.calls.push(TypedCall {
+            use_site: self.call_use(n),
             site: Site::at(f, n),
             machine: id.clone(),
             result: result.clone(),

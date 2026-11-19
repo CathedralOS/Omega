@@ -126,7 +126,7 @@ impl Catalog<'_> {
                     continue;
                 }
             }
-            if node.kind == PathType && matches!(path.as_str(), "u" | "i") {
+            if node.kind == PathType && matches!(path.as_str(), "u" | "i" | "core::Type" | "core::Strict") {
                 for &section in &node.children {
                     if file.nodes[section].kind == TypeArgs {
                         for &width in &file.nodes[section].children {
@@ -159,6 +159,18 @@ impl Catalog<'_> {
                 .enclosing_contexts(n)
                 .find(|&p| matches!(file.nodes[p].kind, Machine | AsmMachine | MathLet | MachineType | FunctionType | Hypothesis))
                 .unwrap_or(0);
+            // A nested logical telescope can name the outer theorem's subjects.
+            // Crossing an executable machine boundary still ends that scope.
+            let visible_owner = |local| {
+                let mut scope = owner;
+                while scope != local && matches!(file.nodes[scope].kind, Hypothesis | FunctionType) {
+                    scope = file
+                        .enclosing_contexts(scope)
+                        .find(|&p| matches!(file.nodes[p].kind, Machine | AsmMachine | MathLet | Hypothesis | MachineType | FunctionType))
+                        .unwrap_or(0);
+                }
+                scope == local
+            };
             let visible_local = ctx
                 .locals
                 .get(path.as_str())
@@ -170,11 +182,15 @@ impl Catalog<'_> {
                     let visible_role = if node.kind == Lifetime {
                         l.kind == LifetimeParam
                     } else if ty {
-                        type_local || l.kind == KindedParam
+                        type_local || l.kind == KindedParam || l.kind == Param && parent == Some(FamilyApplication)
                     } else {
                         l.kind != LifetimeParam && (!type_local || expression_type)
                     };
-                    visible_role && !value_patterns.contains(&l.span.get_start_offset()) && n >= l.start && n < l.end && (l.static_binding || l.owner == owner)
+                    visible_role
+                        && !value_patterns.contains(&l.span.get_start_offset())
+                        && n >= l.start
+                        && n < l.end
+                        && (l.static_binding || visible_owner(l.owner))
                 });
             let projection = path
                 .strip_suffix("::ensures")
@@ -202,7 +218,7 @@ impl Catalog<'_> {
                     let local = ctx.locals.get(&*path).into_iter().flatten().rev().find(|l| {
                         n >= l.start
                             && n < l.end
-                            && (l.owner == owner || l.static_binding)
+                            && (visible_owner(l.owner) || l.static_binding)
                             && !value_patterns.contains(&l.span.get_start_offset())
                             && (if binder == Some(LifetimeParam) {
                                 l.kind == LifetimeParam
@@ -323,7 +339,7 @@ impl Catalog<'_> {
                     }
                     let type_decl = matches!(kind, Data | Trait | Domain);
                     if ty {
-                        type_decl || (parent == Some(ConstParam) && callable(kind))
+                        type_decl || (parent == Some(ConstParam) && callable(kind)) || (parent == Some(FamilyApplication) && kind == MathLet)
                     } else {
                         !type_decl || expression_type || matches!(parent, Some(Reaches | Crashes | Invokes | Satisfies | Selection))
                     }

@@ -17,6 +17,8 @@ use omega_resolver::Symbol;
 use std::collections::{HashMap, HashSet};
 
 struct Body<'a, 'stage> {
+    static_argument: bool,
+    logical_argument: bool,
     unit: &'a Unit<'stage>,
     catalog: &'a Catalog<'stage>,
     locals: HashMap<SourceSpan, ValueType>,
@@ -36,6 +38,8 @@ impl<'a, 'stage> Body<'a, 'stage> {
         output: &'a mut TypedStage,
     ) -> Self {
         Self {
+            static_argument: false,
+            logical_argument: false,
             unit,
             catalog,
             output,
@@ -57,6 +61,17 @@ pub(super) fn check_static_argument(
     output: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let mut body = Body::new(unit, catalog, output);
+    body.static_argument = true;
+    body.caller = unit
+        .file
+        .enclosing_contexts(n)
+        .find_map(|p| {
+            unit.definitions
+                .get(&unit.file.span(p))
+                .filter(|d| matches!(d.kind, NodeKind::Machine | NodeKind::AsmMachine))
+        })
+        .map(|d| (**d).clone());
+    let start = body.output.calls.len();
     let value = if unit.file.nodes[n].kind == NodeKind::PathType
         && let Some(Symbol::Declaration(id)) = unit.symbol(n)
         && id.kind == NodeKind::Const
@@ -65,6 +80,16 @@ pub(super) fn check_static_argument(
     } else {
         body.expected(n, Some(expected))?
     };
+    if body.output.calls[start..].iter().any(|c| c.evidence.is_some())
+        && !catalog
+            .types
+            .deferred_sites
+            .borrow()
+            .contains(&Site::at(&unit.file, n))
+        && catalog.types.evaluator.is_none()
+    {
+        return Err(TypeError::at(&unit.file, n, "static operator requires evaluation with its selected evidence"));
+    }
     body.destination(n, &value, expected)
 }
 pub(super) fn infer_constant(
@@ -152,7 +177,7 @@ pub(super) fn check_declaration(
         ..Body::new(unit, catalog, output)
     };
     if f.nodes[n].kind == NodeKind::MathLet {
-        let mut result = catalog.mathematical[id].clone();
+        let mut result = catalog.types.mathematical[id].clone();
         if let Some(params) = f.child(n, NodeKind::Params) {
             for &p in &f.nodes[params].children {
                 let ValueType::Function(input, out) = result else {
@@ -163,13 +188,20 @@ pub(super) fn check_declaration(
                     .next()
                     .ok_or_else(|| TypeError::unsupported(f, p))?;
                 body.locals.insert(name.span, *input);
-                result = *out;
+                result = out.apply_subject(&ValueType::Subject {
+                    declaration: unit.binder_site(name.span),
+                    version: None,
+                });
             }
         }
         if f.nodes[n].leaves.iter().any(|l| l.text == "=") {
             let term = *f.nodes[n].children.last().unwrap();
             let value = body.expected(term, Some(&result))?;
-            body.destination(term, &value, &result)?;
+            if matches!(result, ValueType::Universe { strict: true, .. }) && value == ValueType::Bool {
+                body.obligation(term, ObligationKind::MathematicalFact { sort: result });
+            } else {
+                body.destination(term, &value, &result)?;
+            }
         }
         return Ok(());
     }
@@ -189,9 +221,18 @@ pub(super) fn check_declaration(
         match f.nodes[part].kind {
             NodeKind::Requires | NodeKind::Ensures => {
                 let expr = unit.single_child(part)?;
-                let actual = body.expected(expr, Some(&ValueType::Bool))?;
-                body.destination(expr, &actual, &ValueType::Bool)?;
+                body.check_fact(expr)?;
+                if f.nodes[part].kind == NodeKind::Ensures && sig.is_some() {
+                    body.obligation(
+                        expr,
+                        ObligationKind::ProveGuarantee {
+                            machine: id.clone(),
+                            predicate: Site::at(f, expr),
+                        },
+                    );
+                }
             }
+            NodeKind::Hypothesis => body.check_hypothesis(part)?,
             NodeKind::Crashes => body.crash_route(part, n)?,
             NodeKind::Terminates => body.ranking(part, id)?,
             NodeKind::Invokes => body.invocation(part, id)?,
@@ -206,6 +247,61 @@ pub(super) fn check_declaration(
 }
 
 impl Body<'_, '_> {
+    fn call_use(
+        &self,
+        n: usize,
+    ) -> crate::CallUse {
+        if self.logical_argument {
+            crate::CallUse::Fact
+        } else if self.static_argument {
+            crate::CallUse::StaticArgument
+        } else if self.unit.file.enclosing_contexts(n).any(|p| {
+            matches!(
+                self.unit.file.nodes[p].kind,
+                NodeKind::Crashes | NodeKind::Requires | NodeKind::Ensures | NodeKind::Hypothesis | NodeKind::MathLet | NodeKind::Terminates
+            )
+        }) {
+            crate::CallUse::Fact
+        } else {
+            crate::CallUse::Execution
+        }
+    }
+    fn check_fact(
+        &mut self,
+        expr: usize,
+    ) -> Result<(), TypeError> {
+        let value = self.expected(expr, Some(&ValueType::Bool))?;
+        if matches!(value, ValueType::Universe { strict: true, .. }) {
+            self.obligation(expr, ObligationKind::MathematicalFact { sort: value });
+            Ok(())
+        } else {
+            self.destination(expr, &value, &ValueType::Bool)
+        }
+    }
+    fn check_hypothesis(
+        &mut self,
+        n: usize,
+    ) -> Result<(), TypeError> {
+        let f = &self.unit.file;
+        let requirement = &self.catalog.hypotheses[&Site::at(f, n)];
+        let parent_result = self.subject.replace(requirement.result.clone());
+        self.locals.extend(requirement.parameters.iter().cloned());
+        for &part in &f.nodes[n].children {
+            match f.nodes[part].kind {
+                NodeKind::Requires | NodeKind::Ensures => {
+                    let expr = self.unit.single_child(part)?;
+                    self.check_fact(expr)?;
+                }
+                NodeKind::Hypothesis => self.check_hypothesis(part)?,
+                _ => {}
+            }
+        }
+        for (span, _) in &requirement.parameters {
+            self.locals.remove(span);
+        }
+        self.subject = parent_result;
+        Ok(())
+    }
     fn block(
         &mut self,
         n: usize,
@@ -476,7 +572,10 @@ impl Body<'_, '_> {
         let value = match node.kind {
             PathExpression => {
                 let symbol = self.unit.symbol(n);
-                if !node.children.is_empty() && !matches!(symbol, Some(Symbol::Declaration(id)) if id.kind == MathLet) {
+                if !node.children.is_empty()
+                    && !matches!(symbol, Some(Symbol::Declaration(id)) if id.kind == MathLet)
+                    && !matches!(symbol,Some(Symbol::Builtin(name)) if name=="core::Squash")
+                {
                     return Err(TypeError::unsupported(f, n));
                 }
                 match symbol {
@@ -495,6 +594,23 @@ impl Body<'_, '_> {
                         .get(span)
                         .cloned()
                         .ok_or_else(|| TypeError::at(f, n, "missing type of resolved binding"))?,
+                    Some(Symbol::Builtin(name)) if name == "core::Squash" => {
+                        let ValueType::Squash(source) = self.unit.annotation(n, &self.catalog.types)? else {
+                            return Err(TypeError::unsupported(f, n));
+                        };
+                        let level = ValueType::LevelOf(source.clone());
+                        self.obligation(
+                            n,
+                            ObligationKind::FormSquash {
+                                source: *source,
+                                level: level.clone(),
+                            },
+                        );
+                        ValueType::Universe {
+                            strict: true,
+                            level: Box::new(level),
+                        }
+                    }
                     Some(Symbol::TargetRegister(name)) => self
                         .catalog
                         .assembly
@@ -505,13 +621,20 @@ impl Body<'_, '_> {
                         .subject
                         .clone()
                         .ok_or_else(|| TypeError::unsupported(f, n))?,
+                    Some(Symbol::Declaration(id))
+                        if id.kind == Machine
+                            && let Some(wanted @ (ValueType::Function(..) | ValueType::FamilyApplication { .. } | ValueType::Squash(_))) = expected =>
+                    {
+                        self.mathematical_citation(n, id, wanted)?;
+                        wanted.clone()
+                    }
                     Some(Symbol::Declaration(id)) if id.kind == Machine && matches!(expected, Some(ValueType::Callable(_))) => {
                         let Some(ValueType::Callable(c)) = expected else { unreachable!() };
                         self.refine_callable(n, c, id)?;
                         ValueType::Callable(c.clone())
                     }
                     Some(Symbol::Declaration(id)) if id.kind == MathLet => {
-                        self.mathematical_application(n, n, Some(id), self.catalog.mathematical[id].clone(), &[], expected)?
+                        self.mathematical_application(n, n, Some(id), self.catalog.types.mathematical[id].clone(), &[], expected)?
                     }
                     Some(Symbol::Declaration(id)) if id.kind == Field => {
                         let (owner, args) = self

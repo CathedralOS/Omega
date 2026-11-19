@@ -35,7 +35,7 @@ pub(super) fn index_file<'a>(
                     .iter()
                     .copied()
                     .find(|&i| file.nodes[i].kind == PathType),
-                callable_binding: node.kind == MachineParam
+                callable_binding: matches!(node.kind, MachineParam | Hypothesis)
                     || node.kind == ConstParam
                         && node
                             .children

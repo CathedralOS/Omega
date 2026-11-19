@@ -155,33 +155,68 @@ pub(super) fn static_number(
                 value: right,
                 fractional_origin: b,
             },
-            None,
+            right_carrier,
         )) = values.pop()
         else {
-            return Err(TypeError::at(f, n, "static operation requires typed evaluation"));
+            return Err(TypeError::at(f, n, "static operation requires a numeric operand"));
         };
         let token = node.leaves.iter().map(|w| w.text).collect::<String>();
-        let value = if node.kind == NodeKind::Unary && token == "-" {
-            ValueType::Exact {
+        if node.kind == NodeKind::Unary && token == "-" {
+            let negated = ValueType::Exact {
                 value: -right,
                 fractional_origin: b,
-            }
-        } else if node.kind == NodeKind::Binary {
-            let Some((
-                ValueType::Exact {
-                    value: left,
-                    fractional_origin: a,
-                },
-                None,
-            )) = values.pop()
-            else {
-                return Err(TypeError::at(f, n, "static operation requires typed evaluation"));
             };
-            exact_binary(&token, &left, &right, a.or(b), f.span(n)).map_err(|e| TypeError::at(f, n, e))?
-        } else {
-            return Err(TypeError::unsupported(f, n));
+            if right_carrier.as_ref().is_some_and(|ty| !negated.fits(ty)) {
+                return Err(TypeError::at(f, n, "negated static integer exceeds its carrier"));
+            }
+            values.push((negated, right_carrier));
+            continue;
+        }
+        let Some((
+            ValueType::Exact {
+                value: left,
+                fractional_origin: a,
+            },
+            left_carrier,
+        )) = values.pop()
+        else {
+            return Err(TypeError::at(f, n, "static operation requires two numeric operands"));
         };
-        values.push((value, None));
+        if node.kind != NodeKind::Binary {
+            return Err(TypeError::unsupported(f, n));
+        }
+        if let Some(carrier) = left_carrier.as_ref().or(right_carrier.as_ref()) {
+            let shift = token.starts_with("<<") || token.starts_with(">>");
+            let right_destination = if shift { right_carrier.as_ref().unwrap_or(carrier) } else { carrier };
+            if !matches!(carrier, ValueType::Integer { .. })
+                || left_carrier
+                    .as_ref()
+                    .zip(right_carrier.as_ref())
+                    .is_some_and(|(l, r)| !shift && l != r)
+                || !left.is_integer()
+                || !right.is_integer()
+                || a.is_some()
+                || b.is_some()
+                || !crate::integers::fits(left.numer(), carrier)
+                || !crate::integers::fits(right.numer(), right_destination)
+            {
+                return Err(TypeError::at(f, n, "static integer operands require the same representable carrier"));
+            }
+            if token.ends_with('!') {
+                return Err(TypeError::at(f, n, "trapping operation requires proof-static admission"));
+            }
+            let result = crate::integers::compute(&token, &[left.to_integer(), right.to_integer()], carrier).map_err(|m| TypeError::at(f, n, m))?;
+            values.push((
+                ValueType::Exact {
+                    value: BigRational::from_integer(result),
+                    fractional_origin: None,
+                },
+                Some(carrier.clone()),
+            ));
+        } else {
+            let value = exact_binary(&token, &left, &right, a.or(b), f.span(n)).map_err(|e| TypeError::at(f, n, e))?;
+            values.push((value, None));
+        }
     }
     values.pop().ok_or_else(|| TypeError::unsupported(f, root))
 }

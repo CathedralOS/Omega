@@ -63,6 +63,7 @@ pub enum NodeKind {
     ArrayType,
     MachineType,
     FunctionType,
+    FamilyApplication,
     PathType,
     TypeArgs,
     QualifiedType,

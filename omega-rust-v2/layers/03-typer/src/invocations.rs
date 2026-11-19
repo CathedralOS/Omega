@@ -6,7 +6,7 @@ fn declared(id: &DeclarationId) -> InvocationTarget {
         trait_arguments: Vec::new(),
     })
 }
-fn through(
+pub(super) fn through(
     call: &TypedCall,
     entry: &InvocationTarget,
     files: &HashMap<(&str, &str), &Unit<'_>>,
@@ -55,6 +55,7 @@ fn through(
 pub(super) fn compose(
     units: &[Unit<'_>],
     catalog: &Catalog<'_>,
+    boundary_slots: &[BoundarySlot],
     out: &mut TypedStage,
 ) -> Result<(), TypeError> {
     let files = units
@@ -78,6 +79,9 @@ pub(super) fn compose(
         if allowed.contains(&entry) {
             return true;
         }
+        if let InvocationTarget::Declaration(actual) = entry {
+            return allowed.iter().any(|a| matches!(a,InvocationTarget::Declaration(slot) if slot.trait_arguments==actual.trait_arguments && catalog.requirements.get(&slot.declaration).is_some_and(|r|r.contains(&&actual.declaration))));
+        }
         let InvocationTarget::StaticParameter { owner: bound, index } = entry else {
             return false;
         };
@@ -95,7 +99,49 @@ pub(super) fn compose(
         span: site.span,
         message: "call exceeds the declared synchronous invocation ceiling".into(),
     };
-    for call in &out.indirect_calls {
+    for call in out.calls.iter().filter(|c| c.use_site == CallUse::Execution) {
+        let slots = boundary_slots.iter().filter(|s| {
+            s.requirement.declaration == call.machine
+                && s.arguments == call.type_arguments
+                && call
+                    .enclosing_arguments
+                    .iter()
+                    .find(|(owner, _)| {
+                        catalog
+                            .requirements
+                            .get(owner)
+                            .is_some_and(|r| r.contains(&&call.machine))
+                    })
+                    .map_or(&[][..], |(_, a)| a.as_slice())
+                    == s.requirement.trait_arguments.as_slice()
+        });
+        let mut slots = slots.peekable();
+        if let Some(slot) = slots.next() {
+            if slots.peek().is_some() {
+                return Err(TypeError {
+                    package: call.site.package.clone(),
+                    file: call.site.file.clone(),
+                    span: call.site.span,
+                    message: "competing directions for an applied boundary slot".into(),
+                });
+            }
+            out.boundary_calls.push((call.site.clone(), slot.clone()));
+            if slot.direction == SlotDirection::EnvironmentToProgram
+                && let Some(caller) = &call.caller
+            {
+                let target = InvocationTarget::Declaration(slot.requirement.clone());
+                if !admits(caller, &target) {
+                    return Err(error(&call.site));
+                }
+                rows.get_mut(caller).unwrap().insert(target);
+            }
+        }
+    }
+    for call in out
+        .indirect_calls
+        .iter()
+        .filter(|c| c.use_site == CallUse::Execution)
+    {
         if let Some(owner) = &call.caller
             && !call.guarantee
         {
@@ -107,7 +153,7 @@ pub(super) fn compose(
     }
     loop {
         let mut changed = false;
-        for call in &out.calls {
+        for call in out.calls.iter().filter(|c| c.use_site == CallUse::Execution) {
             let Some(caller) = &call.caller else {
                 continue;
             };

@@ -129,9 +129,12 @@ impl Body<'_, '_> {
         if sig.requires {
             self.obligation(n, ObligationKind::CallPrecondition(id.clone()));
         }
-        self.version = Some(Site::at(f, n));
-        self.cases.clear();
+        if self.call_use(n) == crate::CallUse::Execution {
+            self.version = Some(Site::at(f, n));
+            self.cases.clear();
+        }
         self.output.calls.push(TypedCall {
+            use_site: self.call_use(n),
             site: Site::at(f, n),
             machine: id.clone(),
             caller: self.caller.clone(),

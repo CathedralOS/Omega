@@ -129,7 +129,7 @@ Psi to native code) are not planned yet.
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
 | L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
 | L2 Resolver | syntax tree → bound names and candidates for typing | done, signed off 2026-11-18 | 0.17 s (warm median, five runs of `cargo test -p omega-resolver --tests --quiet`) |
-| L3 Typer | resolved tree → typed tree | typed calls, operators, applications, evidence, storage and effects implemented. Full gate open | 0.19 s (warm median, five runs) |
+| L3 Typer | resolved tree → typed tree | typing and downstream proof obligations tested. Awaiting owner sign-off | 0.46 s (warm median, five runs of `mbx test --locked -p omega-typer --tests --quiet`) |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
 | L6 Checker | Terminal Psi → checked Terminal Psi | not started | — |
@@ -284,7 +284,7 @@ L2 binds the visible overload candidates at a call. L3 selects the machine
 using the typed operands. L3 and L4 establish closed application identities
 after argument values are known. Jarod signed off L2 on 2026-11-18.
 
-The [L3 typing contract](layers/03-typer/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 35 that reach L3. The full gate remains open for the language and integration items recorded in the contract.
+The [L3 typing contract](layers/03-typer/CONTRACT.md) covers calls, operators, generic applications, evidence, storage and effects. `omega source type <file> [<file> ...]` checks one package. Its corpus gate accounts for all 132 fragments, including 38 that reach L3. L3 selects typed operations and publishes the exact premises, conclusions, effects and static arguments that L4 and the proof checker consume. The contract distinguishes the tested typing paths from the outstanding cross-layer execution checks.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.

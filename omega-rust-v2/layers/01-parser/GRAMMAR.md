@@ -235,11 +235,12 @@ proofs/mathematical_bindings.md:63 and :226.
 ## Types
 
     type        = type_operand ( '->' type )?
+                | '(' word ':' type ')' '->' type
     type_operand = '@' lifetime? ( 'mut' | 'write' )? type_operand
                 | '[' type ']'
                 | '[' type ';' expression ']'
                 | machine_type
-                | path_type
+                | path_type ( '(' arguments? ')' )?
     path_type   = word type_args? ( '::' word type_args? )*
     type_in     = type ( 'in' type_domains )?
     type_domains = path_type ( '&' path_type )*
@@ -254,6 +255,7 @@ mathematical declarations and in machine parameters
 (proofs/mathematical_bindings.md:63 and :226), and qualification
 `i32 in Km & Positive` (language/domains.md:572).
 
+- In a dependent function type such as `(x: A) -> F(x)`, the result can refer to the input by name. A type family takes ordinary expressions as arguments. Both forms appear in mathematical interfaces. [Mathematical bindings](../../wiki/spec/proofs/mathematical_bindings.md)
 - **The function arrow** groups to the right, and `@A -> B` is a function
   from `@A`. It is a type everywhere except directly after `as`: in an arm
   written `x as T -> ...` the arrow belongs to the arm.
