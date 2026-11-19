@@ -650,7 +650,7 @@ dependencies = [
  "platform-custody",
  "portable-publication",
  "products",
- "program-entry-plan",
+ "program-entry-contracts",
  "proof-admission",
  "provider-admission",
  "provider-choices",
@@ -880,7 +880,7 @@ dependencies = [
  "physical-recipes",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -1182,7 +1182,7 @@ dependencies = [
  "physical-recipes",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "psi-entry-memory",
  "register-homes",
@@ -1702,7 +1702,7 @@ dependencies = [
  "physical-program",
  "post-allocation-machine",
  "post-allocation-machine-to-framed-machine",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-plans",
  "provider-stack-contribution",
@@ -2350,6 +2350,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "program-entry-contracts"
+version = "0.1.0"
+dependencies = [
+ "calling-conventions",
+ "diagnostics",
+ "provider-plans",
+ "psi-entry-memory",
+ "semantic-vocabulary",
+ "source-provenance",
+ "target",
+ "terminal-psi",
+ "wire",
+]
+
+[[package]]
 name = "program-entry-plan"
 version = "0.1.0"
 dependencies = [
@@ -2512,7 +2527,7 @@ dependencies = [
  "layout",
  "optimization",
  "optimization-selections",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-correspondence",
  "provider-plans",
@@ -3949,7 +3964,7 @@ dependencies = [
  "numerics",
  "optimization-selections",
  "optimization-unit",
- "program-entry-plan",
+ "program-entry-contracts",
  "provider-admission",
  "provider-correspondence",
  "runtime-abi",

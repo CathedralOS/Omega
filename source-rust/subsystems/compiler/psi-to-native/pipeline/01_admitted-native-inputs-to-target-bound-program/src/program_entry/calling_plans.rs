@@ -7,7 +7,7 @@ use provider_plans::{
     BoundaryCallingPlanCommitment, BoundaryCallingPlanPromise, ServiceCallingApplication,
     ServiceCallingPlan, ServiceSchema,
 };
-use program_entry_plan::{
+use program_entry_contracts::{
     ProgramEntryPhysicalContractPackageSourceDigest, ProgramEntryPhysicalContractPlan,
     SelectedProgramStorageEntryPlan,
 };

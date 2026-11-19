@@ -712,7 +712,7 @@ mod entry {
     use super::value::{
         RecordError, RecordReader, RecordValue, RecordWriter, write_text, write_values,
     };
-    use program_entry_plan::*;
+    use program_entry_contracts::*;
     use terminal_psi::TerminalIdentityTable;
 
     pub(super) struct EntryRecord {

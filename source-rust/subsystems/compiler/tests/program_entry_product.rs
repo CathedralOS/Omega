@@ -281,7 +281,7 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .unwrap()
                 .declaration = None;
             assert!(
-                program_entry_plan::SelectedProgramEntrySignature::from_module_entry(
+                program_entry_contracts::SelectedProgramEntrySignature::from_module_entry(
                     signature.target_slot(),
                     &malformed,
                     receipt.terminal_entry(),

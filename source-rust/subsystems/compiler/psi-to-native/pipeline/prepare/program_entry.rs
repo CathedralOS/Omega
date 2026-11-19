@@ -1,4 +1,5 @@
 //! Rejoin the nominal entry selected by native planning with this exact executable publication.
+use declaration_scope::ProductDeclarationScope;
 use diagnostics::Diagnostic;
 use host_provider_inputs::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use provider_realization::program_entry::{
@@ -6,7 +7,6 @@ use provider_realization::program_entry::{
     plan_published_entry_calling_conventions,
 };
 use provider_realization::{PublishedSelection, SelectedProviderResult};
-use declaration_scope::ProductDeclarationScope;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use std::sync::Arc;
 use terminal_codec::CanonicalTerminalArtifact;
@@ -46,7 +46,7 @@ impl<'a> PublishedNativeEntry<'a> {
         })
     }
 
-    pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
+    pub fn source_signature(&self) -> &program_entry_contracts::SelectedProgramEntrySignature {
         self.nomination.source_signature()
     }
     pub fn schema_declaration(&self) -> terminal_psi::TerminalIdentityIndex {
