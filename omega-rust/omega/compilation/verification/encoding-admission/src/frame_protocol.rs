@@ -1,8 +1,5 @@
 //! Check frame byte arenas against exact target recipes and issued layouts.
-use std::sync::Arc;
-
 use register_environment::ValidatedTargetRegisterEnvironment;
-use target::NativeTarget;
 
 pub use machine_code::{
     FrameProtocolByteSpan, FunctionTargetFrameProtocolEncoding,
@@ -11,63 +8,19 @@ pub use machine_code::{
 };
 
 use frame_admission::frame_layout::{
-    TargetFrameLayoutIdentity, ValidatedTargetFrameLayout, committed_extent, frame_unwind_policy,
+    ValidatedTargetFrameLayout, committed_extent, frame_unwind_policy,
 };
 pub use frame_admission::frame_protocol::{
     FrameProtocolCodec, TargetFrameProtocolEncodingError, frame_protocol_codec,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TargetFrameProtocolEncodingReceipt {
-    identity: TargetFrameProtocolEncodingIdentity, // Content digest of the encoded frame-protocol plan.
-    frame_layout: TargetFrameLayoutIdentity,       // Upstream validated frame-layout identity.
-    target: NativeTarget, // Target platform for which the protocol was encoded.
-    policy: TargetFrameProtocolEncodingPolicy, // Frame-protocol encoding policy applied.
-    function_count: usize, // Number of functions covered by the plan.
-    byte_count: usize,    // Total byte length of the packed prologue/epilogue arena.
-    nonempty_prologue_count: usize, // Count of functions with non-empty prologue spans.
-    nonempty_epilogue_count: usize, // Count of functions with non-empty epilogue spans.
-}
-
-impl TargetFrameProtocolEncodingReceipt {
-    pub const fn identity(self) -> TargetFrameProtocolEncodingIdentity {
-        self.identity
-    }
-
-    pub const fn frame_layout(self) -> TargetFrameLayoutIdentity {
-        self.frame_layout
-    }
-
-    pub const fn target(self) -> NativeTarget {
-        self.target
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedTargetFrameProtocolEncoding {
-    pub(crate) plan: Arc<TargetFrameProtocolEncodingPlan>, // Admitted frame-protocol encoding plan.
-    pub(crate) receipt: TargetFrameProtocolEncodingReceipt, // Sealed summary receipt for downstream custody checks.
-}
-
-impl ValidatedTargetFrameProtocolEncoding {
-    pub fn plan(&self) -> &TargetFrameProtocolEncodingPlan {
-        &self.plan
-    }
-
-    pub fn shared_plan(&self) -> Arc<TargetFrameProtocolEncodingPlan> {
-        Arc::clone(&self.plan)
-    }
-
-    pub const fn receipt(&self) -> TargetFrameProtocolEncodingReceipt {
-        self.receipt
-    }
-}
-
+/// Reconstruct the prologue and epilogue from the admitted frame. Only the
+/// digest of the exact submitted protocol passes to later audit stages.
 pub fn validate_target_frame_protocol_encoding(
     frame: &ValidatedTargetFrameLayout,
     environment: &ValidatedTargetRegisterEnvironment,
-    candidate: TargetFrameProtocolEncodingPlan,
-) -> Result<ValidatedTargetFrameProtocolEncoding, TargetFrameProtocolEncodingError> {
+    candidate: &TargetFrameProtocolEncodingPlan,
+) -> Result<TargetFrameProtocolEncodingIdentity, TargetFrameProtocolEncodingError> {
     if candidate.frame_layout != frame.receipt().identity()
         || candidate.register_environment != environment.identity()
         || candidate.physical_register_model != environment.physical().identity()
@@ -75,12 +28,8 @@ pub fn validate_target_frame_protocol_encoding(
     {
         return Err(TargetFrameProtocolEncodingError::RootMismatch);
     }
-    validate_bytes(frame, environment, &candidate)?;
-    let receipt = seal(&candidate);
-    Ok(ValidatedTargetFrameProtocolEncoding {
-        plan: Arc::new(candidate),
-        receipt,
-    })
+    validate_bytes(frame, environment, candidate)?;
+    Ok(target_frame_protocol_encoding_identity(candidate))
 }
 
 fn encode_frame_function(
@@ -198,27 +147,6 @@ fn validate_span(
         return Err(TargetFrameProtocolEncodingError::NonCanonicalEncoding);
     }
     Ok(end)
-}
-
-fn seal(plan: &TargetFrameProtocolEncodingPlan) -> TargetFrameProtocolEncodingReceipt {
-    TargetFrameProtocolEncodingReceipt {
-        identity: self::target_frame_protocol_encoding_identity(plan),
-        frame_layout: plan.frame_layout,
-        target: plan.target,
-        policy: plan.policy,
-        function_count: plan.functions.len(),
-        byte_count: plan.bytes.len(),
-        nonempty_prologue_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.prologue.length != 0)
-            .count(),
-        nonempty_epilogue_count: plan
-            .functions
-            .iter()
-            .filter(|row| row.epilogue.length != 0)
-            .count(),
-    }
 }
 
 #[cfg(test)]

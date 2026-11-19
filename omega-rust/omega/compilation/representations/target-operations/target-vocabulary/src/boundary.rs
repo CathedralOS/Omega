@@ -18,12 +18,12 @@ pub use execution::{
 mod realizations;
 pub use realizations::{
     AccessorScalarAccessRealization, BoundaryRealization, BoundarySettlementRealization,
-    ClaimCompletionOnlyRealization, DirectPortReadU8Realization, ForeignCallOperands,
-    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
-    LinuxWriteLineRealization, MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
-    NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignExecution,
-    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
-    NormalizedSystemCallBinding,
+    ClaimCompletionOnlyRealization, CompilerImport, DirectPortReadU8Realization,
+    ForeignCallOperands, HostedExitProcessI32Realization, HostedReadByteRealization,
+    HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
+    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
+    NormalizedForeignCallMechanism, NormalizedForeignExecution, NormalizedForeignScalarArgument,
+    NormalizedForeignStructuralArgument, NormalizedSystemCallBinding,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

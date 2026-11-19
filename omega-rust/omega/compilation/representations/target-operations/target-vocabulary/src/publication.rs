@@ -10,6 +10,123 @@ use ::wire::digest_encoder::DomainDigestEncoder;
 pub use native_vocabulary::provenance::PsiProvenance;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId};
 
+/// Facts resolved while the admitted module and its target selection are available.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeploymentEntryFacts {
+    pub terminal: terminal_psi::TerminalPsiIdentity,
+    pub profile: Result<target::TargetProfile, Box<str>>,
+    pub machine: Result<MachineId, &'static str>,
+}
+
+/// Entry and execution facts projected from a checked program. The original
+/// provider and interrupt admissions stay with installation planning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeEntryFacts {
+    pub terminal: terminal_psi::TerminalPsiIdentity,
+    pub entry: MachineId,
+    pub original_entry: Option<terminal_psi::TargetMachineCallable>,
+    pub entry_has_body: bool,
+    pub deployment: Option<DeploymentEntryFacts>,
+    pub identities: terminal_psi::TerminalIdentityTable,
+    pub entry_declaration: Option<terminal_psi::CheckedMachineDeclaration>,
+    pub native_execution_scope:
+        Option<std::sync::Arc<native_vocabulary::emission::EmittedExecutionScope>>,
+    pub selected_provider_closure: Option<[u8; 32]>,
+}
+
+impl NativeEntryFacts {
+    /// Check current entry custody without reopening an earlier executable graph.
+    pub fn selected_terminal_entry(
+        &self,
+        identity: terminal_psi::TerminalPsiIdentity,
+        entry: MachineId,
+        native_target: target::NativeTarget,
+    ) -> Result<Option<MachineId>, &'static str> {
+        if self.terminal != identity || self.entry != entry {
+            return Err("native object entry differs from its admitted executable input");
+        }
+        let Some(deployment) = &self.deployment else {
+            return Ok(None);
+        };
+        let profile = deployment
+            .profile
+            .as_ref()
+            .map_err(|_| "native object entry has an unknown admitted deployment tag")?;
+        if profile.native_realization() != Some(native_target) {
+            return Err("native object target differs from its admitted deployment profile");
+        }
+        deployment.machine.map(Some)
+    }
+
+    pub fn admits_hosted_entry(
+        &self,
+        identity: terminal_psi::TerminalPsiIdentity,
+        entry: MachineId,
+        profile: target::TargetProfile,
+    ) -> bool {
+        match &self.deployment {
+            Some(deployment) => {
+                deployment.terminal == identity
+                    && deployment.profile.as_ref() == Ok(&profile)
+                    && deployment.machine == Ok(entry)
+            }
+            None => {
+                self.original_entry == Some(terminal_psi::TargetMachineCallable::Machine(entry))
+            }
+        }
+    }
+
+    pub const fn terminal(&self) -> terminal_psi::TerminalPsiIdentity {
+        self.terminal
+    }
+    pub const fn entry(&self) -> MachineId {
+        self.entry
+    }
+    pub fn has_entry_body(&self, entry: MachineId) -> bool {
+        self.entry == entry && self.entry_has_body
+    }
+
+    pub const fn original_entry(&self) -> Option<terminal_psi::TargetMachineCallable> {
+        self.original_entry
+    }
+    pub fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
+        &self.identities
+    }
+    pub fn entry_declaration(&self) -> Option<&terminal_psi::CheckedMachineDeclaration> {
+        self.entry_declaration.as_ref()
+    }
+    pub fn native_execution_scope_for(
+        &self,
+        terminal: terminal_psi::TerminalPsiIdentity,
+        target: target::NativeTarget,
+        entry: MachineId,
+        selected_provider_closure: [u8; 32],
+    ) -> Result<Option<&native_vocabulary::emission::EmittedExecutionScope>, &'static str> {
+        let Some(scope) = self.native_execution_scope.as_deref() else {
+            return Ok(None);
+        };
+        let deployment = self
+            .deployment
+            .as_ref()
+            .ok_or("native execution scope has no target selection custody")?;
+        let profile = deployment
+            .profile
+            .as_ref()
+            .map_err(|_| "native execution scope names an unknown target")?;
+        if self.terminal != terminal
+            || deployment.terminal != terminal
+            || profile.native_target() != target
+            || self.entry != entry
+            || self.selected_provider_closure != Some(selected_provider_closure)
+        {
+            return Err(
+                "native execution scope belongs to another artifact, target, entry or provider selection",
+            );
+        }
+        Ok(Some(scope))
+    }
+}
+
 pub const NATIVE_PUBLICATION_DOMAIN: &[u8] = b"omega.native-publication-facts.v3\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]

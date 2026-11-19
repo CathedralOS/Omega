@@ -21,19 +21,25 @@ pub(crate) struct PackagePolicyOccurrence {
 }
 
 impl PackagePolicyOccurrence {
-    pub(crate) fn from_policy(
-        policy: &PackagePolicyBaseline,
-        context: super::PackageCheckedContext,
+    pub(crate) fn from_review(
+        review: &crate::review::CompilerIssuedPackageReview,
         compiler_identity: [u8; 32],
-        semantic_bindings: &[package_compilation::AcceptedSemanticBinding],
     ) -> Result<Self, PackageLockError> {
+        let context = review.checked_context();
+        let mut compilation = super::AcceptedPackageCompilation::new(
+            compiler_identity,
+            review.semantic_bindings().to_vec(),
+        )?;
+        if context.purpose().is_product() {
+            review
+                .build_handoff()
+                .append_native_bindings(context.target(), &mut compilation.native_bindings)
+                .map_err(PackageLockError::NativeBindings)?;
+        }
         let value = Self {
-            acceptance: PackagePolicyAcceptance::from_policy(policy)?,
+            acceptance: PackagePolicyAcceptance::from_policy(review.policy())?,
             context,
-            compilation: Some(super::AcceptedPackageCompilation::new(
-                compiler_identity,
-                semantic_bindings.to_vec(),
-            )?),
+            compilation: Some(compilation),
         };
         value.validate()?;
         Ok(value)
@@ -55,6 +61,16 @@ impl PackagePolicyOccurrence {
     }
 
     pub(super) fn validate(&self) -> Result<(), PackageLockError> {
+        if self.compilation().is_some_and(|compilation| {
+            compilation.native_bindings.iter().any(|binding| {
+                self.context.purpose() != DependencyPurpose::Product
+                    || binding.target != self.context.target().target_name()
+                    || binding.supplier_package != self.acceptance.package()
+                    || binding.evaluation.usage.validate().is_err()
+            })
+        }) {
+            return Err(PackageLockError::OccurrenceCoverage);
+        }
         if self.context.target() != self.acceptance.target()
             || (self.context.purpose() == DependencyPurpose::Build
                 && self.context.build_execution_profile() != Some(self.acceptance.target()))

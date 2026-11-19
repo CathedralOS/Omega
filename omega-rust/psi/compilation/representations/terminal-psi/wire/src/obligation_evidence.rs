@@ -394,18 +394,11 @@ impl<'module> MachineEvidenceGoals<'module> {
         structural_types: &'module [terminal_psi::StructuralTypeDeclaration],
         indexed_types: &mut Option<Vec<&'module terminal_psi::StructuralTypeDeclaration>>,
     ) -> Self {
-        let declarations = machine
-            .parameters
-            .iter()
-            .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
-            .chain(
-                machine
-                    .operations()
-                    .filter_map(|operation| operation.result.scalar_ref()),
-            )
-            .map(|declaration| (declaration.id, declaration.scalar_type))
-            .collect();
-        let types = terminal_semantics::SortedValueTypes::new(declarations);
+        let types = terminal_semantics::SortedValueTypes::new(
+            crate::foundation_validation::values(machine)
+                .map(|value| (value.id, value.scalar_type))
+                .collect(),
+        );
         let mut sites = Vec::new();
         let mut goals = Vec::new();
         let mut places = None;

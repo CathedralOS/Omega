@@ -1,0 +1,17 @@
+[package]
+name = "portable-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+target = { path = "../../target-description/target" }
+effects = { path = "../../representations/native-effects" }
+backend-plan = { path = "../../representations/provider-plans" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+optimization = { path = "../../../../psi/compilation/representations/optimization-policy" }
+package-compilation = { path = "../../../packages/package-compilation" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+checked-terminal-psi-to-published-psi = { path = "../../../../psi/compilation/pipeline/07_checked-terminal-psi-to-published-psi" }
+typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

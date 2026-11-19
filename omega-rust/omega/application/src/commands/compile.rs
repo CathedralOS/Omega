@@ -57,6 +57,14 @@ use orchestration::{
 use crate::arguments::CompileArguments;
 
 pub(crate) fn run(arguments: CompileArguments) {
+    if arguments
+        .root_path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
+    {
+        build_saved(arguments);
+        return;
+    }
     let started = arguments.timings.then(Instant::now);
     let report_file = arguments.report_file;
     let installation_assumptions = arguments.installation_assumptions.clone();
@@ -90,6 +98,8 @@ pub(crate) fn run(arguments: CompileArguments) {
         targets,
         product: if arguments.check_only {
             ProjectProduct::Check
+        } else if let Some(path) = arguments.emit_psi {
+            ProjectProduct::PublishedPsi(path)
         } else {
             ProjectProduct::Native {
                 installation_assumptions: arguments.installation_assumptions,
@@ -124,6 +134,35 @@ pub(crate) fn run(arguments: CompileArguments) {
             &installation_assumptions,
             roster,
         );
+    }
+}
+
+fn build_saved(arguments: CompileArguments) {
+    let authorization = crate::inspection::open_trusted_program(
+        &arguments.root_path,
+        arguments.trusted_artifact.as_deref(),
+    )
+    .unwrap_or_else(|diagnostics| exit_on_refusal([&BuildError::Diagnostics(diagnostics)]));
+    let targets =
+        resolve_targets(&arguments.target_names).unwrap_or_else(|error| exit_on_refusal([&error]));
+    let directory = compiler::CompileOptions {
+        root_path: arguments.root_path.clone(),
+        build_dir: arguments.build_dir,
+        target_name: None,
+    }
+    .build_dir();
+    match orchestration::build_saved_program(
+        authorization,
+        &arguments.root_path,
+        &directory,
+        targets,
+    ) {
+        Ok(paths) => {
+            for path in paths {
+                println!("executable {}", path.display());
+            }
+        }
+        Err(error) => exit_on_refusal([&error]),
     }
 }
 
@@ -308,6 +347,11 @@ fn print_elapsed(started: Instant) {
 }
 
 fn print_outcome(outcome: &BuildReport) {
+    if outcome.report.wrote_output()
+        && let Some(artifact) = outcome.report.artifact()
+    {
+        println!("Psi manifest {}", artifact.manifest().identity());
+    }
     // The executed test roster goes to stderr so the publication lines on
     // stdout keep their format.
     for entry in outcome.report.test_roster() {

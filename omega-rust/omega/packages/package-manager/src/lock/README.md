@@ -134,6 +134,7 @@ schema <permission service schema digest>
 requirement <byte length>
 <requirement identity bytes>classes <count>
 class <terminal authority class tag>
+[native_bindings_v1 <lowercase hexadecimal compiler record>]
 end_compilation
 ```
 
@@ -149,6 +150,15 @@ package, purpose, target and profile must match the enclosing occurrence, and
 binding owners must belong to the source graph. The typed binding constructors
 validate role/plan combinations and permission/schema pairs. No permission is
 derived from a role or readable name.
+
+A Product occurrence with evaluated native bindings includes the optional
+`native_bindings_v1` row. It carries the checked callable and service contract,
+supplier, target locator and Build evaluation receipt for each binding. Locks
+written before this row was introduced supply zero native bindings. A receiver
+can select a reviewed application lock through `OMEGA_HOST_PACKAGE_LOCK` (an
+absolute path) and `OMEGA_HOST_PACKAGE_LOCK_SHA256` (the host-approved digest
+of that file). The receiver takes semantic permissions from the root Product
+occurrence and requires separate producer trust for the saved Psi program.
 
 Ordinary compilation accepts only outer version 4. Explicit review or update
 can read version 3 as a historical baseline, keeping its source pins, target

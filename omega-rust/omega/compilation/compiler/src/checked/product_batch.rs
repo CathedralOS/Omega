@@ -28,7 +28,9 @@ impl<'a> PackageProductSelection<'a> {
         use crate::CompilationProduct;
         let (permissions, test_permissions) = match product {
             CompilationProduct::Native(_) => (permissions, permissions),
-            CompilationProduct::Check | CompilationProduct::Terminal(_) => (permissions, None),
+            CompilationProduct::Check
+            | CompilationProduct::PublishedPsi(_)
+            | CompilationProduct::Terminal(_) => (permissions, None),
             CompilationProduct::Inspection(_) => (None, None),
         };
         Self {

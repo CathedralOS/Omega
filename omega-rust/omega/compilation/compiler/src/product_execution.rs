@@ -22,6 +22,7 @@ use std::path::PathBuf;
 pub enum CompilationProduct {
     Check,
     Terminal(crate::OptimizationRollback),
+    PublishedPsi(crate::OptimizationRollback),
     Native(NativeProductRequest),
     Inspection(String),
 }
@@ -38,6 +39,7 @@ impl CompilationProduct {
         use products::RequestedCompileProduct as Report;
         match self {
             Self::Check => Some(Report::Check),
+            Self::PublishedPsi(_) => Some(Report::PublishedPsi),
             Self::Terminal(_) => Some(Report::TerminalArtifact),
             Self::Native(_) => Some(Report::NativeArtifact),
             Self::Inspection(_) => None,
@@ -46,7 +48,7 @@ impl CompilationProduct {
 
     pub fn optimization_rollback(&self) -> crate::OptimizationRollback {
         match self {
-            Self::Terminal(rollback) => rollback.clone(),
+            Self::Terminal(rollback) | Self::PublishedPsi(rollback) => rollback.clone(),
             Self::Native(request) => request.optimization_rollback.clone(),
             Self::Check | Self::Inspection(_) => Default::default(),
         }
@@ -332,6 +334,16 @@ impl TargetCompilation {
                         )]
                     })?),
                 )),
+                CheckedProductReport::PublishedPsi {
+                    settlement,
+                    rollback,
+                } => settlement
+                    .finish_published_psi(
+                        std::sync::Arc::clone(produced.program.artifact()),
+                        rollback.into_receipt(),
+                    )
+                    .map(CompilationOutput::Report)
+                    .map_err(Into::into),
                 CheckedProductReport::Terminal {
                     mut settlement,
                     rollback,
@@ -429,6 +441,9 @@ impl ProductRequest {
                 ));
             }
             CompilationProduct::Check => ProductReportRequest::Check,
+            CompilationProduct::PublishedPsi(rollback) => {
+                ProductReportRequest::PublishedPsi(rollback)
+            }
             CompilationProduct::Terminal(rollback) => ProductReportRequest::Terminal(rollback),
             CompilationProduct::Native(request) => ProductReportRequest::Native(request),
         };

@@ -34,7 +34,7 @@ impl AdmittedHostedReceiver {
         validate_entry_arguments(
             ReceiverArgumentInput {
                 target,
-                admission,
+                admission: admission.entry_facts(),
                 function: function.ok_or_else(invalid)?,
                 abi: abi.ok_or_else(invalid)?,
             },
@@ -161,7 +161,7 @@ pub fn physical_contract_matches(
 
 pub struct ReceiverArgumentInput<'a> {
     pub target: target::NativeTarget,
-    pub admission: &'a crate::EmissionAdmission,
+    pub admission: &'a target_vocabulary::publication::NativeEntryFacts,
     pub function: &'a native_vocabulary::emission::EmissionFunctionFacts,
     pub abi: &'a target_operations::LegalizedFunctionAbi,
 }
@@ -222,16 +222,7 @@ pub fn validate_entry_arguments(
     {
         return Err(invalid());
     }
-    if let Some(selections) = admission.target_context() {
-        if selections.target() != source.target_slot().owner.target_name()
-            || selections.terminal_psi() != identity
-            || admission.entry() != selected
-        {
-            return Err(invalid());
-        }
-    } else if admission.original_entry()
-        != Some(terminal_psi::TargetMachineCallable::Machine(selected))
-    {
+    if !admission.admits_hosted_entry(identity, selected, source.target_slot().owner) {
         return Err(invalid());
     }
     for (ordinal, parameter) in function.structural_parameters.iter().enumerate() {
@@ -246,7 +237,7 @@ pub fn validate_entry_arguments(
         if recipe.terminal() != identity
             || recipe.target() != source.target_slot().owner.target_name()
             || recipe.input().machine != selected
-            || admission.access_view_input_parameter(recipe.input()) != Some(parameter)
+            || recipe.parameter() != parameter
             || actual.structural_type != parameter.structural_type
             || actual.access != parameter.access
             || actual.shape.byte_size as usize != recipe.contents().len()

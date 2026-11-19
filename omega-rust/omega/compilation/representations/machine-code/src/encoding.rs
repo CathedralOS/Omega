@@ -37,7 +37,7 @@ pub struct SelectedFormEncoding {
     pub post_allocation_machine_optimization: Option<PostAllocationMachineOptimizationCustody>,
     pub identity: SelectedFormEncodingIdentity,
     pub rows: Vec<SelectedFormEncodingRow>,
-    pub encoded: SelectedFormEncodedRowStore,
+    pub encoded: Arc<SelectedFormEncodedRowStore>,
     pub frame: Option<crate::TargetFrameLayoutPlan>,
     pub counts: SelectedFormEncodingCounts,
 }
@@ -65,7 +65,7 @@ impl SelectedFormEncoding {
         &self.rows
     }
 
-    pub const fn encoded(&self) -> &SelectedFormEncodedRowStore {
+    pub fn encoded(&self) -> &SelectedFormEncodedRowStore {
         &self.encoded
     }
 
@@ -182,6 +182,13 @@ impl SelectedFormEncodedRowStore {
         self.footprints.get(Self::index(handle)?)
     }
 
+    pub(crate) fn share_footprint(
+        &self,
+        handle: SelectedFormDecodedFootprintHandle,
+    ) -> Option<Arc<SelectedFormDecodedFootprint>> {
+        self.footprints.rows.get(Self::index(handle)?).cloned()
+    }
+
     pub fn footprint_mut(
         &mut self,
         handle: SelectedFormDecodedFootprintHandle,
@@ -207,7 +214,7 @@ pub enum SelectedFormEncodingState {
     Encoded,
     DeferredControl {
         reason: DeferredControlEncodingReason,
-        alternatives: Box<crate::EncodedControlAlternatives>,
+        alternatives: std::sync::Arc<crate::EncodedControlAlternatives>,
     },
     UnresolvedInternalMachineCall {
         fixup: Box<SelectedFormInternalMachineFixup>,

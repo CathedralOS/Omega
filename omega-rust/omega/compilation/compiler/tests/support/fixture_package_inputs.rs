@@ -829,6 +829,29 @@ pub fn check_fixture(
     check_fixture_recording(prepared, target, rollback, None)
 }
 
+pub fn prepare_fixture_package(
+    prepared: &mut ReviewedFixtureCompilation,
+    target: &str,
+    rollback: compiler::OptimizationRollback,
+) -> Result<compiler::PackageBuild, Vec<Diagnostic>> {
+    let profile = TargetProfile::from_canonical_target_name(target).map_err(|error| vec![error])?;
+    let (_, plan) = prepared
+        .plans
+        .iter()
+        .find(|(candidate, _)| *candidate == profile)
+        .ok_or_else(|| vec![Diagnostic::error("fixture Product target was not prepared")])?;
+    let mut occurrences = clone_fixture_occurrences(&plan.occurrences)?;
+    for occurrence in &mut occurrences {
+        occurrence.set_optimization_rollback(rollback.clone());
+    }
+    orchestration::prepare_package(
+        prepared.session.compiler(),
+        occurrences,
+        &mut prepared.completed,
+    )
+    .map_err(|error| error.failure.into_diagnostics())
+}
+
 fn check_fixture_recording(
     prepared: &mut ReviewedFixtureCompilation,
     target: &str,
@@ -836,23 +859,7 @@ fn check_fixture_recording(
     record: Option<&mut Option<FrontierRecord>>,
 ) -> Result<compiler::CheckedCompilation, Vec<Diagnostic>> {
     if prepared.package_inputs.is_some() {
-        let profile =
-            TargetProfile::from_canonical_target_name(target).map_err(|error| vec![error])?;
-        let (_, plan) = prepared
-            .plans
-            .iter()
-            .find(|(candidate, _)| *candidate == profile)
-            .ok_or_else(|| vec![Diagnostic::error("fixture Product target was not prepared")])?;
-        let mut occurrences = clone_fixture_occurrences(&plan.occurrences)?;
-        for occurrence in &mut occurrences {
-            occurrence.set_optimization_rollback(rollback.clone());
-        }
-        let build = orchestration::prepare_package(
-            prepared.session.compiler(),
-            occurrences,
-            &mut prepared.completed,
-        )
-        .map_err(|error| error.failure.into_diagnostics())?;
+        let build = prepare_fixture_package(prepared, target, rollback)?;
         check_package(prepared.session.compiler(), build, record)
     } else {
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some(target));

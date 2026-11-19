@@ -1,0 +1,28 @@
+[package]
+name = "abstract-operations-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+abstract-operations = { path = "../../representations/abstract-operations" }
+arena = { path = "../../../../psi/foundation/arena" }
+optimization = { path = "../../../../psi/compilation/representations/optimization-policy" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+wire = { path = "../../../../psi/foundation/wire" }
+
+[dev-dependencies]
+source-compiler = { path = "../../../../psi/compilation/pipeline/source-compilation", features = ["test-support"] }
+artifact-lowering = { package = "terminal-psi-to-abstract-operations", path = "../03_terminal-psi-to-abstract-operations" }

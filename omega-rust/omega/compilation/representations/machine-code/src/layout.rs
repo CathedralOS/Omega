@@ -261,6 +261,7 @@ impl ResolvedMachineLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FramedMachineProgram {
+    pub bindings: crate::import_code::EncodedBodyBindings,
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub frame_demands: Arc<crate::frame_demands::MachineFrameDemands>,
     pub frame_identity: TargetFrameLayoutIdentity,
@@ -273,6 +274,7 @@ pub struct FramedMachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodedMachineProgram {
+    pub bindings: crate::import_code::EncodedBodyBindings,
     pub exit_requirements: Arc<crate::exit_requirements::EncodedExitRequirements>,
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
@@ -288,6 +290,9 @@ pub struct EncodedMachineProgram {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedMachineProgram {
+    /// The encoder’s branch alternatives in the same function order as the resolved layout.
+    pub control_alternatives: Arc<[crate::EncodedControlIndex]>,
+    pub bindings: crate::import_code::EncodedBodyBindings,
     pub exit_requirements: Arc<crate::exit_requirements::EncodedExitRequirements>,
     pub fragment_origins: Arc<crate::fragment_origins::FragmentOrigins>,
     pub layout_requirements: Arc<crate::layout_requirements::EncodedLayoutRequirements>,
@@ -632,4 +637,301 @@ pub mod evidence {
         X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
         X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
     };
+}
+
+/// Selection policy and rejection reasons shared by layout and independent replay.
+pub mod relaxation_policy {
+    use super::X86BranchRelaxationRecord;
+    use crate::ResolvedMachineLayout;
+    use optimization_core::{
+        Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
+        OptimizationPhaseMismatch, OptimizationPhaseSelections,
+    };
+    use register_model::ValidatedPhysicalRegisterModel;
+    use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+    use target::{Architecture, NativeTarget};
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum X86BranchRelaxationWorkAxis {
+        RuleEvaluations,
+        Candidates,
+        ValidationSteps,
+        Commits,
+        Iterations,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum OptimizedX86BranchRelaxationError {
+        UnsupportedTarget(NativeTarget),
+        BudgetExceeded(X86BranchRelaxationWorkAxis),
+        DuplicateInstruction(SelectedInstructionId),
+        MissingTargetBlock(SelectedBlockId),
+        OffsetOverflow,
+        NonContiguousBlock(SelectedBlockId),
+        BranchFallthroughMismatch(SelectedInstructionId),
+        MalformedBranch(SelectedInstructionId),
+        BranchEffectsMismatch(SelectedInstructionId),
+        NonDecreasingByteMeasure,
+        X86_64(X86BranchFormError),
+        ArtifactMismatch,
+    }
+
+    impl std::fmt::Display for OptimizedX86BranchRelaxationError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                formatter,
+                "optimized x86 branch relaxation failed: {self:?}"
+            )
+        }
+    }
+
+    impl std::error::Error for OptimizedX86BranchRelaxationError {}
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum X86BranchFormError {
+        AlternativeMismatch,
+        MalformedEncoding,
+        EncodedFormMismatch,
+        BranchDisplacementOutsideI8,
+        BranchDisplacementOutsideI32,
+    }
+
+    pub fn validate_roots(
+        source: &ResolvedMachineLayout,
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Result<(), OptimizedX86BranchRelaxationError> {
+        ensure_x86_target(source.target(), physical)
+    }
+
+    pub fn ensure_x86_target(
+        target: NativeTarget,
+        physical: &ValidatedPhysicalRegisterModel,
+    ) -> Result<(), OptimizedX86BranchRelaxationError> {
+        if target.architecture != Architecture::X86_64
+            || physical.model().architecture != Architecture::X86_64
+        {
+            return Err(OptimizedX86BranchRelaxationError::UnsupportedTarget(target));
+        }
+        Ok(())
+    }
+
+    pub type FunctionRelativeLayoutRuleCatalogEntry = OptimizationCatalogDescriptor<Architecture>;
+
+    pub const FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG: [FunctionRelativeLayoutRuleCatalogEntry; 1] =
+        [FunctionRelativeLayoutRuleCatalogEntry::new(
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+            Architecture::X86_64,
+        )];
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum FunctionRelativeLayoutCatalogError {
+        WrongPhase(OptimizationPhaseMismatch),
+        UnsupportedSelection(Optimization),
+        UnsupportedComposition,
+        UnsupportedTarget {
+            optimization: Optimization, // Optimization rule rejected for the target architecture.
+            required: Architecture,     // Architecture required by the catalog entry.
+            actual: Architecture,       // Architecture supplied by the compilation target.
+        },
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ResolvedLayoutOptimizationError {
+        Catalog(FunctionRelativeLayoutCatalogError),
+        Relaxation(OptimizedX86BranchRelaxationError),
+        CurrentProgramMismatch,
+        SelectionMismatch,
+    }
+
+    impl std::fmt::Display for ResolvedLayoutOptimizationError {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(formatter, "resolved-layout optimization failed: {self:?}")
+        }
+    }
+
+    impl std::error::Error for ResolvedLayoutOptimizationError {}
+
+    pub fn relaxation_roots(
+        relaxation: &X86BranchRelaxationRecord,
+    ) -> crate::X86BranchRelaxationRoots {
+        crate::X86BranchRelaxationRoots {
+            identity: relaxation.identity(),
+            source: relaxation.source(),
+            output: relaxation.output(),
+        }
+    }
+
+    /// Replay the run from the original baseline layout: the current form and its
+    /// relaxation trace must be what the selections and budget produce from it.
+    pub fn x86_rel8_selected(
+        selections: &OptimizationPhaseSelections,
+        architecture: Architecture,
+    ) -> Result<bool, FunctionRelativeLayoutCatalogError> {
+        let phase = selections
+            .require_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+            .map_err(FunctionRelativeLayoutCatalogError::WrongPhase)?;
+        match phase.as_slice() {
+            [] => Ok(false),
+            [Optimization::X86RelaxConditionalBranchesToRel8V1] => {
+                let descriptor = FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG[0];
+                let required = *descriptor.payload();
+                if architecture != required {
+                    return Err(FunctionRelativeLayoutCatalogError::UnsupportedTarget {
+                        optimization: descriptor.optimization(),
+                        required,
+                        actual: architecture,
+                    });
+                }
+                Ok(true)
+            }
+            [unsupported] => Err(FunctionRelativeLayoutCatalogError::UnsupportedSelection(
+                *unsupported,
+            )),
+            _ => Err(FunctionRelativeLayoutCatalogError::UnsupportedComposition),
+        }
+    }
+}
+
+/// Stage 12 uses the bound program identity and the two requested readbacks.
+pub struct BoundEncodingRequirements<Publication> {
+    subject: crate::program_context::BoundEncodingSubject,
+    publication: Publication,
+    retain_original: bool,
+    check_installed_branches: bool,
+}
+
+impl<Publication> BoundEncodingRequirements<Publication> {
+    pub fn new(
+        subject: crate::program_context::BoundEncodingSubject,
+        publication: Publication,
+        retain_original: bool,
+        check_installed_branches: bool,
+    ) -> Self {
+        Self {
+            subject,
+            publication,
+            retain_original,
+            check_installed_branches,
+        }
+    }
+
+    pub fn capture_original(
+        &self,
+        instructions: &post_allocation_machine::PostAllocationMachineProgram,
+    ) -> Option<std::sync::Arc<post_allocation_machine::PostAllocationMachineProgram>> {
+        self.retain_original
+            .then(|| std::sync::Arc::new(instructions.clone()))
+    }
+
+    pub fn finish(
+        self,
+        program: &EncodedMachineProgram,
+        original: Option<std::sync::Arc<post_allocation_machine::PostAllocationMachineProgram>>,
+    ) -> Result<EncodedBodyContracts<EncodedBodyPublication<Publication>>, &'static str> {
+        let encoded = crate::program_context::BoundEncodingSubject::from_encoded(
+            &program.context,
+            program.frame_identity,
+        )?;
+        if self.subject != encoded {
+            return Err("bound body contracts differ from the encoded program or its frame");
+        }
+        if self.retain_original != original.is_some() {
+            return Err("instruction readback differs from the bound body's audit request");
+        }
+        let publication =
+            EncodedBodyPublication::from_encoding(self.publication, program, original)?;
+        Ok(EncodedBodyContracts::new(
+            program,
+            FramePlacementContracts {
+                encoded,
+                retain_original: self.retain_original,
+                publication: std::sync::Arc::new(publication),
+                check_installed_branches: self.check_installed_branches,
+            },
+        ))
+    }
+}
+
+/// Layout can move the contracts with the code. Only the matching encoded
+/// context and frame release them for object construction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EncodedBodyContracts<Contracts> {
+    context: std::sync::Arc<crate::program_context::EncodedProgramContext>,
+    frame: crate::TargetFrameLayoutIdentity,
+    placement: FramePlacementContracts<Contracts>,
+}
+
+impl<Contracts> EncodedBodyContracts<Contracts> {
+    fn new(program: &EncodedMachineProgram, placement: FramePlacementContracts<Contracts>) -> Self {
+        Self {
+            context: std::sync::Arc::clone(&program.context),
+            frame: program.frame_identity,
+            placement,
+        }
+    }
+    pub fn audit_requested(&self) -> bool {
+        self.placement.retain_original
+    }
+
+    pub fn into_placement(
+        self,
+        program: &ResolvedMachineProgram,
+    ) -> Option<FramePlacementContracts<Contracts>> {
+        (self.frame == program.frame_identity && self.context == program.context)
+            .then_some(self.placement)
+    }
+}
+
+/// Frame placement reads its branch obligation while carrying the sealed publication facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FramePlacementContracts<Contracts> {
+    pub encoded: crate::program_context::BoundEncodingSubject,
+    pub retain_original: bool,
+    pub publication: std::sync::Arc<Contracts>,
+    pub check_installed_branches: bool,
+}
+
+/// The physical instructions and encoding used by object readback on explicit request.
+///
+/// ```compile_fail,E0609
+/// fn recover_allocator(input: &machine_code::layout::PhysicalEncodingReadback) {
+///     let _ = &input.allocation;
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalEncodingReadback {
+    pub physical: std::sync::Arc<post_allocation_machine::PostAllocationMachineProgram>,
+    pub encoding: std::sync::Arc<crate::SelectedFormEncoding>,
+}
+
+/// The encoder pairs the publication facts and optional readback with the same
+/// instruction stream. Layout carries this value as its opaque publication.
+#[derive(Debug, PartialEq, Eq)]
+pub struct EncodedBodyPublication<Contracts> {
+    pub body: Contracts,
+    original: Option<PhysicalEncodingReadback>,
+}
+
+impl<Contracts> EncodedBodyPublication<Contracts> {
+    fn from_encoding(
+        body: Contracts,
+        program: &EncodedMachineProgram,
+        physical: Option<std::sync::Arc<post_allocation_machine::PostAllocationMachineProgram>>,
+    ) -> Result<Self, &'static str> {
+        if physical
+            .as_ref()
+            .is_some_and(|original| original.identity != program.context.identity)
+        {
+            return Err("original physical instructions differ from the encoded program");
+        }
+        Ok(Self {
+            body,
+            original: physical.map(|physical| PhysicalEncodingReadback {
+                physical,
+                encoding: program.encoding.clone(),
+            }),
+        })
+    }
+    pub fn original_encoding(&self) -> Option<&PhysicalEncodingReadback> {
+        self.original.as_ref()
+    }
 }

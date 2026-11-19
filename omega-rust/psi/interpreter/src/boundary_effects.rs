@@ -4272,6 +4272,7 @@ pub(crate) enum AdmittedBoundarySupply {
     },
     DeferredComponent,
     HostImport,
+    ExternalCompletion,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4282,6 +4283,8 @@ pub struct TerminalRuntimeSupplyRequest<'installation> {
     pub entry: Option<terminal_psi::TargetMachineCallable>,
     pub installation: Option<&'installation terminal_installation::AdmittedProviderSelections>,
     pub host_imports: &'installation [BoundaryMachineId],
+    /// Selected external leaves. The instance must still obtain authority for its process domain.
+    pub external_completions: &'installation [BoundaryMachineId],
     pub target_machines: Option<&'installation TerminalTargetContext>,
     pub target_layouts: Option<&'installation AdmittedTargetLayouts>,
 }

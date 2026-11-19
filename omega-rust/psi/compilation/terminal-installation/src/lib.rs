@@ -23,6 +23,7 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 
 pub mod declaration_selection;
 mod evaluation_and_synchronous_calls;
+pub mod logical_reach;
 mod producer_trust;
 mod provider_and_target_installation;
 mod scalar_applications;
@@ -167,6 +168,7 @@ pub(crate) mod private_entry_ram {
         terminal: terminal_psi::TerminalPsiIdentity,
         layouts: crate::AdmittedTargetLayouts,
         input: terminal_psi::TerminalAccessViewInput,
+        parameter: terminal_psi::StructuralParameterDeclaration,
         schema: StructuralTypeId,
         alignment: u64,
         correspondence: terminal_psi::AccessRamCorrespondence,
@@ -194,6 +196,10 @@ pub(crate) mod private_entry_ram {
         }
         pub fn input(&self) -> &terminal_psi::TerminalAccessViewInput {
             &self.input
+        }
+        /// The exact entry parameter checked against this access-view row at admission.
+        pub fn parameter(&self) -> &terminal_psi::StructuralParameterDeclaration {
+            &self.parameter
         }
         pub const fn schema(&self) -> StructuralTypeId {
             self.schema
@@ -436,6 +442,7 @@ pub(crate) mod private_entry_ram {
             terminal: artifact.identity(),
             layouts: layouts.clone(),
             input: recipe.input.clone(),
+            parameter: parameter.clone(),
             schema: plan.schema,
             alignment,
             correspondence,

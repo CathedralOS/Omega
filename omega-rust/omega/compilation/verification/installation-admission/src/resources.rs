@@ -15,7 +15,48 @@ pub struct PlannedInstallationResources {
     callbacks: AdmittedNativeCallbackCohort,
 }
 
+/// Entry planning consumes the measured stacks and, for a handler, the exact
+/// function, inbound ABI and interrupt installation that admitted it.
+#[derive(Clone, Copy)]
+pub struct EntryInstallationResources<'a> {
+    stack_requirements: &'a [InstalledInterruptStackRequirement],
+    handler: Option<InstalledHandlerEntry<'a>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct InstalledHandlerEntry<'a> {
+    pub function: function_identity::MachineFunctionIdentity,
+    pub contract: &'a bound_installations::BoundCallbackEntry,
+    pub installation: (
+        semantic_vocabulary::MachineId,
+        semantic_vocabulary::OperationId,
+    ),
+}
+
+impl<'a> EntryInstallationResources<'a> {
+    pub fn stack_requirements(self) -> &'a [InstalledInterruptStackRequirement] {
+        self.stack_requirements
+    }
+
+    pub fn handler(self) -> Option<InstalledHandlerEntry<'a>> {
+        self.handler
+    }
+}
+
 impl PlannedInstallationResources {
+    pub fn for_entry_planning(&self) -> EntryInstallationResources<'_> {
+        EntryInstallationResources {
+            stack_requirements: self.installed_stack_requirements(),
+            handler: self
+                .installed_entry_execution()
+                .map(|execution| InstalledHandlerEntry {
+                    function: execution.entry().callback_function,
+                    contract: execution.entry().entry(),
+                    installation: (execution.scope().machine(), execution.scope().operation()),
+                }),
+        }
+    }
+
     pub const fn program(&self) -> BoundInstalledEntry {
         self.program
     }

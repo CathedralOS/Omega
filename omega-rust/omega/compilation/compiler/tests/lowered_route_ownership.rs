@@ -49,6 +49,7 @@ fn call_arguments_read_fields_beside_a_sibling_loan() {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if refused {
@@ -103,6 +104,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if rejected {
@@ -130,7 +132,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                 "{verdict:?}"
             );
         }
-        let module = &closure.elaboration.module;
+        let module = &closure.elaboration().module;
         let mut ancestry = Vec::new();
         for machine in &module.machines {
             let operations = || machine.blocks.iter().flat_map(|block| &block.operations);
@@ -198,7 +200,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
                     "each written formation has one shared child"
                 );
                 let name = &closure
-                    .elaboration
+                    .elaboration()
                     .names
                     .get(machine.id)
                     .expect("machine names")
@@ -222,7 +224,7 @@ fn explicit_exclusive_formations_keep_their_shared_children_through_publication(
             let symbol = unbuilt_frontier::program_machine(&frontier.typed, name)
                 .expect("kept fixture declaration");
             closure
-                .elaboration
+                .elaboration()
                 .machines
                 .iter()
                 .find(|(_, declaration)| **declaration == symbol)
@@ -344,6 +346,7 @@ fn a_borrowed_runtime_element_write_keeps_its_selector_beneath_the_backing() {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         assert!(
@@ -427,6 +430,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     )
     .into_iter();
@@ -442,7 +446,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     }
     assert!(
         closure
-            .elaboration
+            .elaboration()
             .module
             .structural_types
             .iter()
@@ -451,16 +455,16 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     let publication = closure.publish().expect("owned-data publication");
     assert_eq!(
         publication.artifact.semantic_module(),
-        &closure.elaboration.module
+        &closure.elaboration().module
     );
-    let input = native_program_planning::lower_artifact(
+    let input = artifact_lowering::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("Omega 00 carries the checked affine operations and their seals")
     .into_optimization_artifact()
     .into_optimization_input();
-    native_program_planning::test_support::build_verified_psi_optimization_unit(
+    abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )
@@ -508,6 +512,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     );
     let mut unestablished = Vec::new();
@@ -550,14 +555,14 @@ fn execute_ownership_oracle(
             )),
         "the interpreted module retains its exact-value execution oracle"
     );
-    let input = native_program_planning::lower_artifact(
+    let input = artifact_lowering::lower_artifact(
         &artifact_trust::authorize(&publication.artifact),
         Some(publication.seals.clone()),
     )
     .expect("Omega 00 carries checked ownership operations")
     .into_optimization_artifact()
     .into_optimization_input();
-    let (_, unit) = native_program_planning::test_support::build_verified_psi_optimization_unit(
+    let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
         input,
         terminal_work::WorkSchedule::CURRENT.identity(),
     )
@@ -656,6 +661,7 @@ machine main() crashes Trap {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if shared {
@@ -741,6 +747,7 @@ machine main() crashes Trap {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if repeat {
@@ -828,6 +835,7 @@ machine main() crashes Trap {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if wrong_sibling {
@@ -921,6 +929,7 @@ machine main() crashes Trap {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if wrong_region {
@@ -1026,6 +1035,7 @@ machine main() crashes Trap {
                 },
                 terminal_codec::TerminalPublication::Portable,
             )
+            .expect("fixture must lower to checker input")
             .program,
         );
         if wrong_region {
@@ -1172,7 +1182,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
         Ok(RouteVerdict::Accepted(closure)) => closure,
         other => panic!("whole transfers must check: {other:?}"),
     };
-    let module = &closure.elaboration.module;
+    let module = &closure.elaboration().module;
     assert!(
         module
             .machines
@@ -1509,20 +1519,19 @@ mod transferred_on_one_path {
             other => panic!("the program must be accepted: {other:?}"),
         };
         let publication = closure.publish().expect("publication");
-        let input = native_program_planning::lower_artifact(
+        let input = artifact_lowering::lower_artifact(
             &artifact_trust::authorize(&publication.artifact),
             Some(publication.seals.clone()),
         )
         .expect("Omega 00 carries the join's disposal")
         .into_optimization_artifact()
         .into_optimization_input();
-        let (_, unit) =
-            native_program_planning::test_support::build_verified_psi_optimization_unit(
-                input,
-                terminal_work::WorkSchedule::CURRENT.identity(),
-            )
-            .expect("Omega 01 builds the unit")
-            .into_parts();
+        let (_, unit) = abstract_optimization::build_verified_psi_optimization_unit(
+            input,
+            terminal_work::WorkSchedule::CURRENT.identity(),
+        )
+        .expect("Omega 01 builds the unit")
+        .into_parts();
         // Default compilation does not re-verify its own stage output, so the
         // ownership replay that checks each edge's cleanup and each join's
         // agreement runs here, as at a trust boundary.

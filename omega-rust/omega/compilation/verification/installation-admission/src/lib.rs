@@ -7,7 +7,10 @@ mod authority;
 mod resources;
 
 pub use authority::BoundInstallationAuthority;
-pub use resources::{PlannedInstallationResources, admit_planned_guards};
+pub use resources::{
+    EntryInstallationResources, InstalledHandlerEntry, PlannedInstallationResources,
+    admit_planned_guards,
+};
 pub mod cpu;
 pub mod ram;
 pub mod selected;

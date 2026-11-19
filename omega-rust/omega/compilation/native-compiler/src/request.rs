@@ -16,15 +16,14 @@ use target::ExecutableImageEmissionRequest;
 pub(crate) struct NativeRealizationRequest<'request> {
     pub retain_native_stage_inputs: bool,
     pub observation: &'request crate::observations::NativePipelineObservation,
-    pub proposal: &'request native_program_planning::TerminalNativeRealizationProposal,
-    pub execution: &'request native_program_planning::PreparedNativeExecution,
-    pub scalar_applications: Option<native_program_planning::NativeScalarApplications<'request>>,
-    pub program_entry: native_program_planning::NativeProgramEntrySettlement<'request>,
-    pub admission: native_program_planning::NativeAdmissionRequest<'request, 'request>,
+    pub proposal: &'request artifact_lowering::TerminalNativeRealizationProposal,
+    pub execution: &'request artifact_lowering::PreparedNativeExecution,
+    pub scalar_applications: Option<artifact_lowering::NativeScalarApplications<'request>>,
+    pub program_entry: artifact_lowering::NativeProgramEntrySettlement<'request>,
+    pub admission: artifact_lowering::NativeAdmissionRequest<'request, 'request>,
     pub image_request: ExecutableImageEmissionRequest,
     pub elf_interpreter: Option<&'request target::NormalizedElfInterpreterPlan>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
-    pub callback_thunks: &'request [backend_plan::NativeCallbackThunkSettlement<'request>],
     pub target_provider_proposals: &'request [backend_plan::TerminalTargetProviderProposal],
 }
 
@@ -60,11 +59,11 @@ pub struct NativeCompileRequest<'request> {
 impl NativeCompileRequest<'_> {
     pub(crate) fn prepare_terminal<'input>(
         &mut self,
-        retained: &'input native_program_planning::RetainedTerminalArtifact,
+        retained: &'input artifact_lowering::RetainedTerminalArtifact,
     ) -> Result<
         (
             &'input std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
-            &'input native_program_planning::TerminalNativeRealizationProposal,
+            &'input artifact_lowering::TerminalNativeRealizationProposal,
         ),
         Vec<Diagnostic>,
     > {

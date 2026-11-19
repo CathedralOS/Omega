@@ -1012,8 +1012,7 @@ fn aarch64_callback_replay(
 #[cfg(test)]
 mod tests {
     use machine_code::{
-        SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingCounts,
-        SelectedFormEncodingIdentity,
+        SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     };
     use post_allocation_machine::PostAllocationMachineIdentity;
     use selected_instructions::SelectedInstructionPlanIdentity;
@@ -1028,7 +1027,7 @@ mod tests {
             post_allocation_machine_optimization: None,
             identity: SelectedFormEncodingIdentity::from_bytes([0; 32]),
             rows: vec![],
-            encoded: SelectedFormEncodedRowStore::new(),
+            encoded: Default::default(),
             frame: None,
             counts: SelectedFormEncodingCounts::default(),
         };

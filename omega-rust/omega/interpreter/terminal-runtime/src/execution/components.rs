@@ -34,7 +34,7 @@ pub(super) fn prepare<'host, 'artifact>(
         admit_target_layouts(artifact, &target_machines, &facts).map_err(|error| {
             TerminalRuntimeError::Requirements(TerminalInterpretError::TargetLayoutSelection(error))
         })?;
-    let mut imports = Vec::new();
+    let mut host_boundaries = host_imports::HostBoundarySelections::default();
     for provision in runtime.host_provisions().host() {
         if matches!(&provision.realization,
             target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding)
@@ -44,13 +44,7 @@ pub(super) fn prepare<'host, 'artifact>(
                 "nested component execution requires its own retained installed product roster",
             ));
         }
-        if !host_imports::executes_internally(&program, provision)
-            && program
-                .external_completion_requirement(provision.boundary)
-                .is_none()
-        {
-            imports.push(provision.boundary);
-        }
+        host_boundaries.add(&program, provision);
     }
     let supplies = program
         .admit_runtime_supplies(TerminalRuntimeSupplyRequest {
@@ -64,7 +58,8 @@ pub(super) fn prepare<'host, 'artifact>(
                 .scalar_applications()
                 .map(|completed| completed.primary().providers())
                 .or_else(|| runtime.host_provisions().installation()),
-            host_imports: &imports,
+            host_imports: &host_boundaries.imports,
+            external_completions: &host_boundaries.external_completions,
             target_machines: Some(&target_machines),
             target_layouts: Some(&target_layouts),
         })

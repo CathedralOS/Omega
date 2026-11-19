@@ -3,11 +3,11 @@
 // projects installed inputs, binds the physical entry adapter when requested,
 // and attaches target provider proposals without consulting checked source.
 
-use diagnostics::Diagnostic;
-use native_program_planning::{
+use artifact_lowering::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest,
     project_terminal_native_realization_proposal,
 };
+use diagnostics::Diagnostic;
 use provider_admission::provider_admission::TerminalAuthorityPermissionPolicy;
 use std::sync::Arc;
 

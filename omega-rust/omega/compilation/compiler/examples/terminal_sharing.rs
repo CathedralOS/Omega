@@ -149,7 +149,9 @@ fn main() {
     assert!(!reports.is_empty());
     let expected_kind = match product {
         RequestedCompileProduct::Check => CompileOutputKind::CheckOnly,
-        RequestedCompileProduct::TerminalArtifact => CompileOutputKind::TerminalArtifact,
+        RequestedCompileProduct::TerminalArtifact | RequestedCompileProduct::PublishedPsi => {
+            CompileOutputKind::TerminalArtifact
+        }
         RequestedCompileProduct::NativeArtifact => CompileOutputKind::RetainedNativeArtifact,
     };
     for report in &reports {

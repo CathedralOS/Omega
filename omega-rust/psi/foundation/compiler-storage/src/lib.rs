@@ -52,10 +52,23 @@ pub fn encode<T: Record>(value: &T, limits: RecordLimits) -> Result<Vec<u8>, Rec
     Ok(output.finish())
 }
 
-pub fn decode<T: Record>(bytes: &[u8], limits: RecordLimits) -> Result<T, RecordError> {
-    let mut input = RecordReader::<()>::new(bytes, limits)?;
+pub fn decode<T: Record>(bytes: &[u8], mut limits: RecordLimits) -> Result<T, RecordError> {
+    decode_with_budget(bytes, &mut limits)
+}
+
+/// Several nested records can draw from one allocation and element budget.
+/// The byte and depth limits apply to each framed record.
+pub fn decode_with_budget<T: Record>(
+    bytes: &[u8],
+    limits: &mut RecordLimits,
+) -> Result<T, RecordError> {
+    let mut input = RecordReader::<()>::new(bytes, *limits)?;
     let value = T::read(&mut input)?;
+    let allocation = input.remaining_allocation;
+    let elements = input.remaining_elements;
     input.finish()?;
+    limits.allocation = allocation;
+    limits.elements = elements;
     Ok(value)
 }
 

@@ -168,6 +168,9 @@ fn select_target_product(
     let package_inputs = target.package_inputs().cloned();
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
+        RequestedCompileProduct::PublishedPsi => {
+            CompilationProduct::PublishedPsi(target.optimization_rollback().clone())
+        }
         RequestedCompileProduct::TerminalArtifact => {
             CompilationProduct::Terminal(target.optimization_rollback().clone())
         }

@@ -3005,6 +3005,13 @@ pub(crate) mod program {
                     AdmittedBoundarySupply::HostImport,
                 )?;
             }
+            for &boundary in request.external_completions {
+                self.select_external_supply(
+                    &mut installation,
+                    boundary,
+                    AdmittedBoundarySupply::ExternalCompletion,
+                )?;
+            }
             Ok(installation)
         }
 
@@ -3059,7 +3066,16 @@ pub(crate) mod program {
                     "compiler primitive cannot be replaced by an external supply",
                 ));
             }
-            if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
+            if supply == AdmittedBoundarySupply::ExternalCompletion {
+                if !matches!(
+                    declaration.completion,
+                    terminal_psi::BoundaryCompletion::External(_)
+                ) {
+                    return Err(rejected(
+                        "selected external completion requires a declared external outcome",
+                    ));
+                }
+            } else if declaration.completion != terminal_psi::BoundaryCompletion::NormalReturn {
                 return Err(rejected(
                     "external completion requires separate domain admission",
                 ));
@@ -3590,6 +3606,7 @@ pub(crate) mod program {
                             entry: artifact.semantic_module().entry,
                             installation: None,
                             host_imports: &[],
+                            external_completions: &[],
                             target_machines: Some(&other_machines),
                             target_layouts: Some(&other_layouts),
                         },

@@ -6,8 +6,8 @@
 use crate::NativeCompileRequest;
 use crate::observations::{NativePipelineObservation, NativePipelineStage, NativePipelineUnit};
 use crate::preparation::PreparedNativeCompilation;
+use artifact_lowering::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 use diagnostics::Diagnostic;
-use native_program_planning::{RetainedNativeProviderInputs, RetainedTerminalArtifact};
 use target::ExecutableImageEmissionRequest;
 
 pub fn compile(
@@ -22,15 +22,17 @@ pub fn compile(
 }
 
 pub fn admit_runtime(
-    retained: &RetainedTerminalArtifact,
+    retained: RetainedTerminalArtifact,
     request: NativeCompileRequest<'_>,
 ) -> Result<
-    Option<native_artifact::TerminalRuntimeProvisions>,
+    native_artifact::AdmittedRuntimeProgram,
     (ExecutableImageEmissionRequest, Vec<Diagnostic>),
 > {
-    let prepared = crate::preparation::prepare(retained, request)?;
+    let prepared = crate::preparation::prepare(&retained, request)?;
+    let recovery = prepared.recovery.clone();
     match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
-        Produced::Runtime(provisions) => Ok(provisions),
+        Produced::Runtime(plan) => native_artifact::AdmittedRuntimeProgram::finish(retained, plan)
+            .map_err(|reason| (recovery, vec![Diagnostic::error(reason)])),
         Produced::Image(_) => unreachable!("runtime admission emitted an image"),
     }
 }
@@ -43,7 +45,7 @@ enum NativeProductionStop {
 
 enum Produced {
     Image(crate::RealizedNativeProduct),
-    Runtime(Option<native_artifact::TerminalRuntimeProvisions>),
+    Runtime(crate::runtime_provisions::NativeRuntimePlan<object_file::ForeignAdapterObject>),
 }
 
 fn produce(
@@ -60,9 +62,8 @@ fn produce(
         components: prepared_components,
     } = prepared;
     let result = (|| {
-        let scalar_input = || {
-            scalars.map(|completed| native_program_planning::NativeScalarApplications { completed })
-        };
+        let scalar_input =
+            || scalars.map(|completed| artifact_lowering::NativeScalarApplications { completed });
         let artifact = retained.shared_artifact();
         let proposal = retained.native_realization_proposal().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -90,7 +91,7 @@ fn produce(
             .collect::<Result<Vec<_>, _>>()?;
         let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
-            native_program_planning::lower_native_execution(
+            artifact_lowering::lower_native_execution(
                 proposal,
                 execution,
                 &private_entry_ram,
@@ -98,7 +99,7 @@ fn produce(
             )
         }?;
         let prepared = {
-            native_program_planning::prepare_native_providers(
+            artifact_lowering::prepare_native_providers(
                 proposal,
                 artifact,
                 RetainedNativeProviderInputs {
@@ -129,7 +130,6 @@ fn produce(
             image_request: request.image_request,
             elf_interpreter: proposal.application().elf_interpreter.as_ref(),
             optimization_selections: request.optimization_selections,
-            callback_thunks: &prepared.callback_thunks,
             target_provider_proposals: proposal.target_provider_proposals(),
         };
         if stop == NativeProductionStop::RuntimeAdmission {
@@ -138,30 +138,31 @@ fn produce(
             observation.complete();
             return Ok(Produced::Runtime(provisions));
         }
-        let mut produced = crate::realization::realize_native_artifact(
+        let (image, stage_replay) = crate::realization::prepare_program_image(
             std::sync::Arc::clone(artifact),
             input,
             realization,
         )?;
         drop(components);
-        let component_products = emitted_components
-            .into_iter()
-            .map(crate::components::EmittedComponent::into_product)
-            .collect::<Result<Vec<_>, _>>()?;
-        if !component_products.is_empty() {
-            let runtime = produced.runtime_provisions.take().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "component native production lost its admitted runtime companions",
-                )]
-            })?;
-            produced.runtime_provisions = Some(
-                runtime
-                    .with_component_products(component_products)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
-            );
+        let mut component_products = Vec::with_capacity(emitted_components.len());
+        let mut component_originals = Vec::new();
+        for component in emitted_components {
+            let component = component.into_product()?;
+            if let Some(originals) = component.originals {
+                component_originals.push((*component.product.image().slot_commitment(), originals));
+            }
+            component_products.push(component.product);
         }
+        let stage_replay = stage_replay
+            .with_components(component_originals)
+            .map_err(|error| vec![error])?;
+        observation.enter(NativePipelineStage::ImageEmission);
+        let image = image.emit(component_products)?;
         observation.complete();
-        Ok(Produced::Image(produced))
+        Ok(Produced::Image(crate::RealizedNativeProduct {
+            stage_replay,
+            image,
+        }))
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }

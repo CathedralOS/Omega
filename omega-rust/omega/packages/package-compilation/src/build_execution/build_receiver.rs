@@ -67,7 +67,7 @@ impl BuildReceiver {
         machine: &Machine,
     ) -> Result<Self, String> {
         let build = source_receiver(source.source(), machine)?;
-        let elaboration = &source.closure().elaboration;
+        let elaboration = &source.closure().elaboration();
         let module = &elaboration.module;
         let entry = source
             .entry()

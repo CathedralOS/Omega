@@ -67,7 +67,7 @@ pub(crate) fn complete_products<Owner: Send>(
 
 enum NativeStop {
     Image(native_compiler::RealizedNativeProduct),
-    RuntimeAdmission(Option<products::TerminalRuntimeProvisions>),
+    RuntimeAdmission(native_compiler::AdmittedRuntimeProgram),
 }
 
 pub(crate) fn complete_native(
@@ -156,7 +156,7 @@ pub(crate) fn complete_native(
                 .map(NativeStop::Image)
                 .map_err(|(_, diagnostics)| diagnostics),
             products::NativeImageDemand::RuntimeAdmissionOnly => {
-                native_compiler::admit_runtime(&terminal, request)
+                native_compiler::admit_runtime(terminal, request)
                     .map(NativeStop::RuntimeAdmission)
                     .map_err(|(_, diagnostics)| diagnostics)
             }
@@ -169,17 +169,16 @@ pub(crate) fn complete_native(
         )
     })?;
     let accounting = settlement.source_completion_accounting_mut().clone();
-    let report =
-        (|| -> Result<_, CompilationProductError> {
-            match produced {
-                NativeStop::Image(produced) => Ok(settlement
-                    .finish_native(produced.artifact, rollback.into_receipt())?
-                    .with_runtime_provisions(produced.runtime_provisions)
-                    .map_err(|message| vec![Diagnostic::error(message)])?),
-                NativeStop::RuntimeAdmission(provisions) => Ok(settlement
-                    .finish_terminal_runtime(terminal, provisions, rollback.into_receipt())?),
+    let report = (|| -> Result<_, CompilationProductError> {
+        match produced {
+            NativeStop::Image(produced) => Ok(settlement
+                .finish_native(produced.image, rollback.into_receipt())?
+                .with_native_stage_replay(produced.stage_replay)),
+            NativeStop::RuntimeAdmission(program) => {
+                Ok(settlement.finish_terminal_runtime(program, rollback.into_receipt())?)
             }
-        })()
-        .map_err(|error| error.with_source_completion_accounting(accounting))?;
+        }
+    })()
+    .map_err(|error| error.with_source_completion_accounting(accounting))?;
     Ok(CompilationOutput::Report(report.with_test_roster(roster)))
 }

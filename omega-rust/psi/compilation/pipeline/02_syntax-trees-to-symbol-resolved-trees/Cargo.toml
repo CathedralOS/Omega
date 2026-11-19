@@ -1,0 +1,38 @@
+[package]
+name = "syntax-trees-to-symbol-resolved-trees"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[features]
+test-support = ["symbol-resolved-trees/test-support"]
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+bundled-declarations = { path = "../../representations/bundled-declarations" }
+source-declarations = { path = "../../representations/source-declarations" }
+symbol-resolved-trees = { path = "../../representations/symbol-resolved-trees" }
+declaration-contracts = { path = "../../representations/declaration-contracts" }
+application-identity = { path = "../../representations/application-identity" }
+numeric-literals = { path = "../../representations/numeric-literals" }
+source-admission = { path = "../../representations/source-admission" }
+source-text = { path = "../../../foundation/source-text" }
+bignum = { path = "../../../foundation/bignum" }
+wire = { path = "../../../foundation/wire" }
+arena = { path = "../../../foundation/arena" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }
+diagnostics = { path = "../../../foundation/diagnostics" }
+language-core = { path = "../../representations/source-vocabulary" }
+numerics = { path = "../../representations/scalar-values" }
+symbols = { path = "../../representations/declaration-identity" }
+syntax-trees = { path = "../../representations/syntax-trees" }
+
+[dev-dependencies]
+source-parser = { path = "../01_tokens-to-syntax-trees" }
+source-lexer = { path = "../00_source-files-to-tokens" }
+tokens = { path = "../../representations/tokens" }

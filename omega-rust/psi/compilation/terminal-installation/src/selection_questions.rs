@@ -23,44 +23,61 @@ pub trait InvocationSelectionConsent {
     ) -> bool;
 }
 
-/// Product custody for the source declarations that own this program’s calling policies.
+/// The Product declaration that owns each requested entry or calling policy.
 #[derive(Debug)]
 pub struct ProductSchemaCustody {
     artifact: terminal_codec::TerminalExecutionIdentity,
-    declarations:
-        std::collections::BTreeMap<terminal_psi::TerminalIdentityIndex, Option<DeclarationCustody>>,
+    declarations: Vec<SchemaDeclaration>,
 }
+
+#[derive(Debug)]
+struct SchemaDeclaration {
+    identity: terminal_psi::TerminalIdentityIndex,
+    calling_policy: bool,
+    entry: bool,
+    owner: Option<DeclarationCustody>,
+    conflicting: bool,
+}
+
 impl ProductSchemaCustody {
     pub fn from_selections(
         artifact: terminal_codec::TerminalExecutionView<'_>,
         questions: &SelectionQuestions,
     ) -> Self {
         let module = artifact.module();
-        let mut names = std::collections::BTreeMap::new();
+        let mut requests = std::collections::BTreeMap::new();
         for request in &module.calling_policy_requests {
-            if let Ok(declaration) = request.declaration.as_ref()
-                && let Some(name) = module.identities.text(*declaration)
+            if let Ok(identity) = request.declaration.as_ref()
+                && let Some(name) = module.identities.text(*identity)
             {
-                names.insert(name, *declaration);
+                requests
+                    .entry(name)
+                    .or_insert_with(|| SchemaDeclaration::new(*identity))
+                    .calling_policy = true;
             }
         }
-        let mut declarations = std::collections::BTreeMap::new();
-        for (_, row) in questions
-            .declarations
-            .iter()
-            .filter(|(_, row)| row.purpose == SelectionPurpose::Product)
-        {
-            if let Some(&declaration) = names.get(row.identity.as_str()) {
-                declarations
-                    .entry(declaration)
-                    .and_modify(|prior| {
-                        if *prior != Some(row.custody) {
-                            *prior = None;
-                        }
-                    })
-                    .or_insert(Some(row.custody));
+        for contract in &module.program_entry_contracts {
+            let identity = contract.schema_declaration;
+            if let Some(name) = module.identities.text(identity) {
+                requests
+                    .entry(name)
+                    .or_insert_with(|| SchemaDeclaration::new(identity))
+                    .entry = true;
             }
         }
+        for (_, row) in questions.declarations.iter() {
+            if row.purpose == SelectionPurpose::Product
+                && let Some(schema) = requests.get_mut(row.identity.as_str())
+            {
+                if let Some(previous) = schema.owner {
+                    schema.conflicting |= previous != row.custody;
+                } else {
+                    schema.owner = Some(row.custody);
+                }
+            }
+        }
+        let mut declarations: Vec<_> = requests.into_values().collect();
+        declarations.sort_unstable_by_key(|row| row.identity);
         Self {
             artifact: artifact.custody_identity(),
             declarations,
@@ -72,15 +89,53 @@ impl ProductSchemaCustody {
         artifact: terminal_codec::TerminalExecutionView<'_>,
         schema: terminal_psi::TerminalIdentityIndex,
     ) -> Result<DeclarationCustody, String> {
+        self.owner(artifact, schema, |row| row.calling_policy)
+    }
+
+    pub fn entry_requester(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        schema: terminal_psi::TerminalIdentityIndex,
+    ) -> Result<DeclarationCustody, String> {
+        self.owner(artifact, schema, |row| row.entry)
+    }
+
+    fn owner(
+        &self,
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        identity: terminal_psi::TerminalIdentityIndex,
+        requested: impl FnOnce(&SchemaDeclaration) -> bool,
+    ) -> Result<DeclarationCustody, String> {
         if artifact.custody_identity() != self.artifact {
             return Err(
                 "source declaration custody belongs to another program or invocation".into(),
             );
         }
-        self.declarations
-            .get(&schema)
-            .ok_or("selected declaration has no authenticated source custody")?
-            .ok_or_else(|| "selected declaration has conflicting source package custody".to_owned())
+        let declaration = self
+            .declarations
+            .binary_search_by_key(&identity, |row| row.identity)
+            .ok()
+            .map(|index| &self.declarations[index])
+            .filter(|row| requested(row))
+            .ok_or("selected declaration has no authenticated source custody")?;
+        if declaration.conflicting {
+            return Err("selected declaration has conflicting source package custody".into());
+        }
+        declaration
+            .owner
+            .ok_or_else(|| "selected declaration has no authenticated source custody".into())
+    }
+}
+
+impl SchemaDeclaration {
+    fn new(identity: terminal_psi::TerminalIdentityIndex) -> Self {
+        Self {
+            identity,
+            calling_policy: false,
+            entry: false,
+            owner: None,
+            conflicting: false,
+        }
     }
 }
 

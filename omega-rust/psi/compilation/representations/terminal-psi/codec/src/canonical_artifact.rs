@@ -17,6 +17,15 @@ use crate::{
 
 const ARTIFACT_MAGIC: &[u8; 8] = b"PSIART\0\0";
 const ARTIFACT_FORMAT_MARKER: u16 = 3;
+const PUBLISHED_ARTIFACT_FORMAT_MARKER: u16 = 4;
+
+/// Facts needed to reopen a published program after the producing process exits.
+#[derive(Debug, Clone)]
+struct PublicationSection {
+    metadata: std::sync::Arc<terminal_psi::PublishedEntryMetadata>,
+    evidence: Option<std::sync::Arc<crate::EvidenceSeals>>,
+    bytes: std::sync::Arc<[u8]>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalArtifactView<'artifact> {
@@ -44,6 +53,7 @@ pub struct CanonicalTerminalArtifact {
     optimization: PsiOptimizationExecutionRecord,
     debug_bytes: Option<Vec<u8>>,
     manifest: TerminalArtifactManifest,
+    publication: Option<PublicationSection>,
     semantic_module: std::sync::Arc<ClosedTerminalModule>,
 }
 
@@ -114,8 +124,72 @@ impl CanonicalTerminalArtifact {
             optimization,
             debug_bytes,
             manifest,
+            publication: None,
             semantic_module: std::sync::Arc::new(closed),
         })
+    }
+
+    pub fn with_publication(
+        mut self,
+        metadata: std::sync::Arc<terminal_psi::PublishedEntryMetadata>,
+        evidence: Option<std::sync::Arc<crate::EvidenceSeals>>,
+    ) -> Result<Self, CanonicalTerminalArtifactError> {
+        if self.publication.is_some()
+            || !metadata.validate_declarations(self.semantic_module())
+            || evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.module != self.view().identity())
+        {
+            return Err(CanonicalTerminalArtifactEnvelopeError::InvalidPublication.into());
+        }
+        let metadata_bytes = compiler_storage::encode(metadata.as_ref(), Default::default())
+            .map_err(|error| CanonicalTerminalArtifactError::Publication(error.to_string()))?;
+        let evidence_bytes = evidence
+            .as_deref()
+            .map(crate::encode_operation_evidence)
+            .transpose()
+            .map_err(CanonicalTerminalArtifactError::Semantic)?;
+        let mut bytes = Vec::new();
+        encode_section_len(&mut bytes, metadata_bytes.len());
+        bytes.extend_from_slice(&metadata_bytes);
+        if let Some(evidence) = evidence_bytes {
+            bytes.extend_from_slice(&evidence);
+        }
+        self.manifest = self.manifest.with_publication(&bytes);
+        self.publication = Some(PublicationSection {
+            metadata,
+            evidence,
+            bytes: bytes.into(),
+        });
+        Ok(self)
+    }
+
+    pub fn publication_metadata(
+        &self,
+    ) -> Option<&std::sync::Arc<terminal_psi::PublishedEntryMetadata>> {
+        self.publication.as_ref().map(|section| &section.metadata)
+    }
+
+    pub fn calling_declaration_owner(
+        &self,
+        subject: crate::TerminalExecutionView<'_>,
+        declaration: terminal_psi::TerminalIdentityIndex,
+    ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, String> {
+        if !std::ptr::eq(subject.closed_module(), self.view().closed_module()) {
+            return Err(
+                "source declaration custody belongs to another program or invocation".into(),
+            );
+        }
+        self.publication_metadata()
+            .ok_or_else(|| {
+                "saved Psi lacks calling declaration owners; recompile it to publish them"
+                    .to_owned()
+            })?
+            .calling_schema_custody(declaration)
+    }
+
+    pub fn published_evidence(&self) -> Option<&std::sync::Arc<crate::EvidenceSeals>> {
+        self.publication.as_ref()?.evidence.as_ref()
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -125,12 +199,22 @@ impl CanonicalTerminalArtifact {
             .saturating_add(2)
             .saturating_add(16)
             .saturating_add(debug_header_bytes)
+            .saturating_add(
+                self.publication
+                    .as_ref()
+                    .map_or(0, |section| 8 + section.bytes.len()),
+            )
             .saturating_add(self.semantic_bytes().len())
             .saturating_add(self.optimization_bytes.len())
             .saturating_add(self.debug_bytes.as_ref().map_or(0, Vec::len));
         let mut bytes = Vec::with_capacity(capacity);
         bytes.extend_from_slice(ARTIFACT_MAGIC);
-        crate::codec_bytes::push_encoded(&mut bytes, ARTIFACT_FORMAT_MARKER.to_le_bytes());
+        let marker = if self.publication.is_some() {
+            PUBLISHED_ARTIFACT_FORMAT_MARKER
+        } else {
+            ARTIFACT_FORMAT_MARKER
+        };
+        crate::codec_bytes::push_encoded(&mut bytes, marker.to_le_bytes());
         encode_section_len(&mut bytes, self.semantic_bytes().len());
         encode_section_len(&mut bytes, self.optimization_bytes.len());
         match &self.debug_bytes {
@@ -140,10 +224,16 @@ impl CanonicalTerminalArtifact {
                 encode_section_len(&mut bytes, debug.len());
             }
         }
+        if let Some(section) = &self.publication {
+            encode_section_len(&mut bytes, section.bytes.len());
+        }
         bytes.extend_from_slice(self.semantic_bytes());
         bytes.extend_from_slice(&self.optimization_bytes);
         if let Some(debug) = &self.debug_bytes {
             bytes.extend_from_slice(debug);
+        }
+        if let Some(section) = &self.publication {
+            bytes.extend_from_slice(&section.bytes);
         }
         bytes
     }
@@ -154,7 +244,7 @@ impl CanonicalTerminalArtifact {
             return Err(CanonicalTerminalArtifactEnvelopeError::InvalidMagic.into());
         }
         let marker = cursor.u16()?;
-        if marker != ARTIFACT_FORMAT_MARKER {
+        if ![ARTIFACT_FORMAT_MARKER, PUBLISHED_ARTIFACT_FORMAT_MARKER].contains(&marker) {
             return Err(
                 CanonicalTerminalArtifactEnvelopeError::UnsupportedFormatMarker(marker).into(),
             );
@@ -166,9 +256,13 @@ impl CanonicalTerminalArtifact {
             1 => Some(section_len(&mut cursor, "debug")?),
             tag => return Err(CanonicalTerminalArtifactEnvelopeError::InvalidDebugTag(tag).into()),
         };
+        let publication_len = (marker == PUBLISHED_ARTIFACT_FORMAT_MARKER)
+            .then(|| section_len(&mut cursor, "publication"))
+            .transpose()?;
         let semantic_bytes = cursor.take(semantic_len)?;
         let optimization_bytes = cursor.take(optimization_len)?;
         let debug_bytes = debug_len.map(|len| cursor.take(len)).transpose()?;
+        let publication = publication_len.map(|len| cursor.take(len)).transpose()?;
         if cursor.remaining() != 0 {
             return Err(
                 CanonicalTerminalArtifactEnvelopeError::TrailingBytes(cursor.remaining()).into(),
@@ -186,7 +280,33 @@ impl CanonicalTerminalArtifact {
                     .map_err(CanonicalTerminalArtifactError::Debug)
             })
             .transpose()?;
-        let artifact = Self::from_closed_parts(closed, optimization, debug_map.as_ref())?;
+        let mut artifact = Self::from_closed_parts(closed, optimization, debug_map.as_ref())?;
+        if let Some(section) = publication {
+            let mut fields = Cursor::new(section);
+            let metadata_len = section_len(&mut fields, "publication declarations")?;
+            let metadata = compiler_storage::decode(fields.take(metadata_len)?, Default::default())
+                .map_err(|error| CanonicalTerminalArtifactError::Publication(error.to_string()))?;
+            let evidence = if fields.remaining() == 0 {
+                None
+            } else {
+                let evidence = crate::decode_operation_evidence(fields.take(fields.remaining())?)
+                    .map_err(CanonicalTerminalArtifactError::Semantic)?;
+                crate::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
+                    .validate_all()
+                    .map_err(|error| {
+                        CanonicalTerminalArtifactError::Publication(error.to_string())
+                    })?;
+                Some(std::sync::Arc::new(evidence))
+            };
+            artifact = artifact.with_publication(std::sync::Arc::new(metadata), evidence)?;
+            if artifact
+                .publication
+                .as_ref()
+                .is_none_or(|stored| stored.bytes.as_ref() != section)
+            {
+                return Err(CanonicalTerminalArtifactEnvelopeError::NonCanonicalSections.into());
+            }
+        }
         if artifact.semantic_bytes() != semantic_bytes
             || artifact.optimization_bytes() != optimization_bytes
             || artifact.debug_bytes() != debug_bytes
@@ -253,6 +373,7 @@ pub enum CanonicalTerminalArtifactError {
     Optimization(PsiOptimizationExecutionRecordDecodeError),
     Debug(DebugMapError),
     Manifest(ArtifactManifestError),
+    Publication(String),
     Envelope(CanonicalTerminalArtifactEnvelopeError),
 }
 
@@ -267,6 +388,7 @@ impl From<CanonicalTerminalArtifactEnvelopeError> for CanonicalTerminalArtifactE
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalTerminalArtifactEnvelopeError {
     InvalidMagic,
+    InvalidPublication,
     UnsupportedFormatMarker(u16),
     InvalidDebugTag(u8),
     SectionTooLong(&'static str),
@@ -487,6 +609,41 @@ mod tests {
             module.identity(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn host_identity_commits_to_the_exact_publication_section() {
+        let closed = closed_module(false);
+        let record = optimization_record(&closed);
+        let legacy = CanonicalTerminalArtifact::from_closed_parts(closed, record, None).unwrap();
+        let base = legacy.manifest();
+        let published = base.with_publication(b"declared owners");
+        assert_eq!(published.with_publication(b"declared owners"), published);
+        assert_ne!(published.identity(), base.identity());
+        for (section, expected) in [
+            (Some(&b"declared owners"[..]), true),
+            (Some(&b"different owners"[..]), false),
+            (None, false),
+        ] {
+            assert_eq!(
+                crate::validate_artifact_manifest_with_publication(
+                    legacy.semantic_module(),
+                    legacy.optimization(),
+                    None,
+                    None,
+                    section,
+                    published,
+                )
+                .is_ok(),
+                expected
+            );
+        }
+        assert_eq!(
+            CanonicalTerminalArtifact::from_bytes(&legacy.to_bytes())
+                .unwrap()
+                .manifest(),
+            base
+        );
     }
 
     #[test]

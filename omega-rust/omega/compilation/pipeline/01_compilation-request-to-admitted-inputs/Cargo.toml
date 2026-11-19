@@ -1,0 +1,19 @@
+[package]
+name = "compilation-inputs"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+backend-plan = { path = "../../representations/provider-plans" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+optimization-requests = { path = "../../products/optimization-requests" }
+provider-admission = { path = "../../verification/provider-admission" }
+target = { path = "../../target-description/target" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
+
+[dev-dependencies]
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

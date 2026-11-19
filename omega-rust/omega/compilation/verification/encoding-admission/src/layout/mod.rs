@@ -48,6 +48,35 @@ impl std::fmt::Display for OptimizedResolvedSelectedFormLayoutError {
 
 impl std::error::Error for OptimizedResolvedSelectedFormLayoutError {}
 
+fn check_control_alternatives(
+    program: &machine_code::ResolvedMachineProgram,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let functions = program.layout.functions();
+    let invalid = OptimizedResolvedSelectedFormLayoutError::RootMismatch;
+    if functions.len() != program.control_alternatives.len() {
+        return Err(invalid);
+    }
+    let mut rows = program.encoding.rows();
+    for (function, index) in functions.iter().zip(program.control_alternatives.iter()) {
+        let count = function
+            .blocks
+            .iter()
+            .map(|block| block.instructions.len())
+            .sum();
+        let Some((current, rest)) = rows.split_at_checked(count) else {
+            return Err(invalid);
+        };
+        if !index.matches_function_rows(current) {
+            return Err(invalid);
+        }
+        rows = rest;
+    }
+    if !rows.is_empty() {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 /// Explicit replay relates the current layout to its admitted original owners.
 pub struct ResolvedLayoutValidation<'source> {
     pub physical: &'source post_allocation_machine::PostAllocationMachineProgram,
@@ -67,6 +96,7 @@ pub fn validate_optimized_resolved_selected_form_layout(
     } = input;
     post_allocation_machine::program_validation::validate_current_program(physical, replay)
         .map_err(OptimizedResolvedSelectedFormLayoutError::CurrentProgram)?;
+    check_control_alternatives(artifact)?;
     if pre_layout != artifact.encoding.as_ref() {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -89,6 +119,26 @@ pub fn validate_optimized_resolved_selected_form_layout(
 pub fn validate_current_resolved_layout(
     program: &machine_code::ResolvedMachineProgram,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let allow_x86_short = program
+        .context
+        .publication
+        .selections()
+        .contains(optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1);
+    validate_layout_forms(program, allow_x86_short)
+}
+
+/// Stage 13 always publishes baseline forms, including when stage 14 may shorten them.
+pub fn validate_baseline_resolved_layout(
+    program: &machine_code::ResolvedMachineProgram,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    validate_layout_forms(program, false)
+}
+
+fn validate_layout_forms(
+    program: &machine_code::ResolvedMachineProgram,
+    allow_x86_short: bool,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    check_control_alternatives(program)?;
     crate::validate_encoded_integrity(&program.context, &program.frame, &program.encoding)
         .map_err(|_| OptimizedResolvedSelectedFormLayoutError::RootMismatch)?;
     if program.layout_requirements.machine != program.context.machine.identity
@@ -97,11 +147,6 @@ pub fn validate_current_resolved_layout(
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
-    let allow_x86_short = program
-        .context
-        .publication
-        .selections()
-        .contains(optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1);
     if allow_x86_short && program.context.target.architecture != target::Architecture::X86_64 {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }

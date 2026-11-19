@@ -1,0 +1,35 @@
+[package]
+name = "abstract-operations-to-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+abstract-operations = { path = "../../representations/abstract-operations" }
+application-identity = { path = "../../../../psi/compilation/representations/application-identity" }
+arena = { path = "../../../../psi/foundation/arena" }
+calling-conventions = { path = "../../target-description/calling-conventions" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+function-identity = { path = "../../representations/function-identity" }
+installation-evidence = { path = "../../representations/installation-evidence" }
+language-core = { path = "../../../../psi/compilation/representations/source-vocabulary" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+native-vocabulary = { path = "../../representations/native-vocabulary" }
+optimization-core = { path = "../../representations/optimization-contracts" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }
+provider-admission = { path = "../../verification/provider-admission" }
+runtime-abi = { path = "../../target-description/runtime-abi" }
+semantic-vocabulary = { path = "../../../../psi/compilation/representations/semantic-vocabulary" }
+target = { path = "../../target-description/target" }
+target-operations = { path = "../../representations/target-operations" }
+target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-optimization-input" }
+
+[dev-dependencies]
+instruction-selection = { package = "target-operations-to-selected-instructions", path = "../06_target-operations-to-selected-instructions", features = ["test-support"] }
+register-environment = { path = "../../target-description/register-environment" }
+selected-instructions = { path = "../../representations/selected-instructions" }

@@ -29,7 +29,7 @@ use diagnostics::Diagnostic;
 pub enum StageValidator {
     /// Rejoins each target's retained target operations to the optimized
     /// abstract operations they were lowered from
-    /// (`native_program_planning::replay::verify_target_operation_plan_with_closed_module`).
+    /// (`replay::verify_target_operation_plan_with_closed_module`).
     TargetOperationCorrespondence,
     /// Compare fixed-frame machine output with its original allocation,
     /// encoding and baseline layout inputs.
@@ -94,9 +94,12 @@ impl StageValidator {
             (Self::SelectedInstructionRewriteReplay, ProjectProduct::Check) => {
                 Some("--check produces no selected instructions")
             }
-            (_, ProjectProduct::Terminal | ProjectProduct::Inspection { .. }) => {
-                Some("this product stops at Terminal Psi before target operations")
-            }
+            (
+                _,
+                ProjectProduct::Terminal
+                | ProjectProduct::PublishedPsi(_)
+                | ProjectProduct::Inspection { .. },
+            ) => Some("this product stops at Terminal Psi before target operations"),
             (
                 Self::TargetOperationCorrespondence
                 | Self::FixedFrameCorrespondence
@@ -232,51 +235,67 @@ impl StageValidatorRequest {
 
 impl StageValidator {
     fn check(self, report: Option<&compiler::CompileReport>) -> StageValidationResult {
-        match self {
-            Self::TargetOperationCorrespondence
-            | Self::FixedFrameCorrespondence
-            | Self::SelectedInstructionRewriteReplay => {
-                let object = report.and_then(|report| {
+        let Some((object, report)) = report.and_then(|report| {
+            report
+                .retained_native_artifact()
+                .map(|artifact| artifact.object())
+                .or_else(|| {
                     report
-                        .retained_native_artifact()
+                        .retained_dynamic_elf_artifact()
                         .map(|artifact| artifact.object())
-                        .or_else(|| {
-                            report
-                                .retained_dynamic_elf_artifact()
-                                .map(|artifact| artifact.object())
-                        })
-                });
-                let Some(object) = object else {
-                    return StageValidationResult::Inapplicable(
-                        "this build produces no native executable",
-                    );
+                })
+                .map(|object| (object, report))
+        }) else {
+            return StageValidationResult::Inapplicable("this build produces no native executable");
+        };
+        let archive = report.native_stage_replay();
+        let checked = (|| {
+            use published_object_verification as verify;
+            let mut applicable = match self {
+                Self::TargetOperationCorrespondence => {
+                    verify::verify_retained_target_operations(object).map(|()| true)?
+                }
+                Self::FixedFrameCorrespondence => {
+                    verify::verify_retained_fixed_frame(object, archive).map(|()| true)?
+                }
+                Self::SelectedInstructionRewriteReplay => {
+                    verify::verify_retained_selected_optimization(object, archive)?
+                }
+            };
+            for component in report
+                .published_runtime_provisions()
+                .into_iter()
+                .flat_map(|runtime| runtime.component_products())
+            {
+                let image = component.image();
+                let originals = || {
+                    archive.component(image.slot_commitment()).ok_or_else(|| {
+                        Diagnostic::error(
+                            "component audit requires retained originals (ReplayUnavailable)",
+                        )
+                    })
                 };
-                let checked = match self {
+                applicable |= match self {
                     Self::TargetOperationCorrespondence => {
-                        published_object_verification::verify_retained_target_operations(object)
+                        verify::verify_retained_target_operations(image.body()).map(|()| true)?
                     }
                     Self::FixedFrameCorrespondence => {
-                        published_object_verification::verify_retained_fixed_frame(object)
+                        verify::verify_body_fixed_frame(image.body(), originals()?)
+                            .map(|()| true)?
                     }
                     Self::SelectedInstructionRewriteReplay => {
-                        match published_object_verification::verify_retained_selected_optimization(
-                            object,
-                        ) {
-                            Ok(true) => Ok(()),
-                            Ok(false) => {
-                                return StageValidationResult::Inapplicable(
-                                    "no selected-instruction rewrite rule ran",
-                                );
-                            }
-                            Err(error) => Err(error),
-                        }
+                        verify::verify_body_selected_optimization(image.body(), originals()?)?
                     }
                 };
-                match checked {
-                    Ok(()) => StageValidationResult::Passed,
-                    Err(error) => StageValidationResult::Failed(error.to_string()),
-                }
             }
+            Ok::<_, Diagnostic>(applicable)
+        })();
+        match checked {
+            Ok(true) => StageValidationResult::Passed,
+            Ok(false) => {
+                StageValidationResult::Inapplicable("no selected-instruction rewrite rule ran")
+            }
+            Err(error) => StageValidationResult::Failed(error.to_string()),
         }
     }
 }

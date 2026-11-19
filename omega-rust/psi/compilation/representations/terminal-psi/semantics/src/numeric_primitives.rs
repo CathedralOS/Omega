@@ -636,31 +636,17 @@ fn coordinates(
     use application_identity::type_identity::vocabulary::NameForm;
     use application_identity::type_identity::vocabulary::OwnerForm;
     use application_identity::type_identity::vocabulary::TypeForm;
-    use language_core::sealed_intrinsics::{
-        SealedDeclarationSite, SealedIntrinsic, SealedIntrinsicCatalog,
-    };
-    let (file, bytes) = language_core::sealed_intrinsics::float_operations_source();
-    if SealedIntrinsicCatalog::classify(SealedDeclarationSite {
-        file: std::path::Path::new(file),
+    use language_core::bundled_files::{BundledFile, core_revision};
+    use language_core::sealed_intrinsics::{SealedIntrinsic, SealedIntrinsicCatalog};
+    if SealedIntrinsicCatalog::match_declaration(
+        std::path::Path::new("float_operations.omg"),
         declaration,
-        source: bytes,
-    }) != Some(SealedIntrinsic::FloatOperationRequirement)
+        |file| file == BundledFile::CoreFloatOperations,
+    ) != Some(SealedIntrinsic::FloatOperationRequirement)
     {
         return Err("numeric primitive has no exact admitted catalog declaration");
     }
-    static SOURCE: std::sync::OnceLock<Result<[u8; 32], &'static str>> = std::sync::OnceLock::new();
-    let digest = SOURCE
-        .get_or_init(|| {
-            std::str::from_utf8(bytes).map_err(|_| "numeric catalog is not UTF-8")?;
-            declaration_contracts::source_identity::toolchain_owned_identity_digest(
-                "core",
-                file.split('/').map(str::to_owned).collect(),
-                bytes,
-            )
-            .map_err(|_| "numeric catalog source has no exact identity")
-        })
-        .as_ref()
-        .map_err(|reason| *reason)?;
+    let digest = &core_revision::FLOAT_OPERATIONS;
     let exact = |path: &str| {
         compound(
             NameForm::Nominal,

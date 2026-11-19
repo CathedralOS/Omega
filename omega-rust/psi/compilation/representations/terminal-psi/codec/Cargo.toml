@@ -10,6 +10,7 @@ name = "terminal_codec"
 path = "src/lib.rs"
 
 [dependencies]
+compiler-storage = { path = "../../../../foundation/compiler-storage" }
 wire = { path = "../../../../foundation/wire" }
 optimization = { path = "../../optimization-policy" }
 semantic-vocabulary = { path = "../../semantic-vocabulary" }

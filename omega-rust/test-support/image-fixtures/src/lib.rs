@@ -18,7 +18,7 @@ pub fn encode_imports(image: &mut image::FinalImage) {
             Some(identity)
         })
         .collect::<Vec<_>>();
-    let plan = physical_planning::imports::plan_import_program(image.target, identities)
+    let plan = entry_planning::imports::plan_import_program(image.target, identities)
         .expect("fixture import target supports common encoding");
     image.import_program = native_encoding::imports::encode_import_program(plan);
 }
@@ -26,7 +26,7 @@ pub fn encode_imports(image: &mut image::FinalImage) {
 pub fn encode_locator_import(
     locator: &target::NormalizedForeignLocator,
 ) -> machine_code::import_code::EncodedImportProgram {
-    let plan = physical_planning::imports::plan_import_program(
+    let plan = entry_planning::imports::plan_import_program(
         locator.target().native_target(),
         [machine_code::import_code::ImportCodeIdentity::Normalized(
             locator.clone().into(),
@@ -38,5 +38,5 @@ pub fn encode_locator_import(
 
 mod bridges;
 pub use bridges::{
-    emit_native_entry_bridge, emit_native_foreign_bridge, emit_native_foreign_bridge_object,
+    emit_native_entry_bridge, emit_native_foreign_bridge, prepare_foreign_adapter_object,
 };

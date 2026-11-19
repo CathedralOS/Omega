@@ -85,7 +85,8 @@ fn frontier_verdicts(
             supplies: &frontier.supplies,
         },
         terminal_codec::TerminalPublication::Portable,
-    );
+    )
+    .expect("fixture must lower to checker input");
     source_compiler::checking::judge_compilation(prepared.program)
         .into_iter()
         .map(|verdict| verdict.expect("source reaches judgment, not a formation defect"))
@@ -323,6 +324,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         compilation(),
         terminal_codec::TerminalPublication::Portable,
     )
+    .expect("fixture must lower to checker input")
     .program
     {
         TerminalCompilation::Prepared(prepared) => prepared,
@@ -1114,7 +1116,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
             .result
             .unwrap_or_else(|failure| panic!("named map source: {:?}", failure.into_diagnostics()));
             let accepted = checked.terminal_publication().accepted().unwrap();
-            assert!(accepted.closure().elaboration.generic_binders.is_empty());
+            assert!(accepted.closure().elaboration().generic_binders.is_empty());
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
             let source = accepted.source();
@@ -1276,7 +1278,7 @@ fn the_default_product_publishes_width_parameter_identity() {
             .result
             .unwrap_or_else(|failure| panic!("width source: {:?}", failure.into_diagnostics()));
             let accepted = checked.terminal_publication().accepted().unwrap();
-            assert!(accepted.closure().elaboration.generic_binders.is_empty());
+            assert!(accepted.closure().elaboration().generic_binders.is_empty());
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
             let (_, application) =

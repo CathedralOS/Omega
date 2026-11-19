@@ -28,6 +28,7 @@ modules to native code.
 pub mod access;
 pub mod body_services;
 pub mod bytes;
+pub mod call_projection;
 pub mod callable_envelopes;
 pub mod callable_values;
 pub mod calls;

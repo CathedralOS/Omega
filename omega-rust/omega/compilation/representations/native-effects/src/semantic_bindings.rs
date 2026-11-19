@@ -86,8 +86,7 @@ impl AcceptedSemanticBinding {
             normalized_schema_digest,
             selected_provider_plan_digest: Some(selected_provider_plan_digest),
             terminal_authority_permissions: Vec::new(),
-            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::from(
-                Vec::new(),
+            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::default(
             ),
         })
     }
@@ -122,8 +121,7 @@ impl AcceptedSemanticBinding {
             normalized_schema_digest,
             selected_provider_plan_digest: None,
             terminal_authority_permissions: Vec::new(),
-            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::from(
-                Vec::new(),
+            terminal_authority_permission_identities: terminal_psi::TerminalIdentityTable::default(
             ),
         })
     }
@@ -276,6 +274,19 @@ mod tests {
                 .clone()
                 .with_terminal_authority_permissions(vec![permission], &identities.build());
             assert_eq!(result.is_ok(), accepted, "authority class {class:?}");
+            if let Ok(binding) = result {
+                let encoded = compiler_storage::encode(&binding, Default::default()).unwrap();
+                let reopened: AcceptedSemanticBinding =
+                    compiler_storage::decode(&encoded, Default::default()).unwrap();
+                assert_eq!(binding, reopened);
+                let permission = &reopened.terminal_authority_permissions()[0];
+                assert_eq!(
+                    reopened
+                        .terminal_authority_permission_identities()
+                        .text(permission.requirement_identity()),
+                    Some("Console::operation")
+                );
+            }
         }
     }
 }

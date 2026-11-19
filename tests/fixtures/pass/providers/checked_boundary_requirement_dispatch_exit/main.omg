@@ -10,19 +10,19 @@ public boundary trait CheckedMath {
     reaches crashes none;
 }
 
-data CheckedMathProvider {}
-
-machine CheckedMathProvider::offset_zero_impl(value: i32) -> i32
-satisfies CheckedMath::offset_zero
-{
-    value
+public CheckedMathProvider satisfies CheckedMath {
+    machine offset_zero(value: i32) -> i32
+    reaches crashes none
+    {
+        value
+    }
 }
 
 machine length() -> i32 { CheckedMath::offset_zero(9) }
 
 data Main { bytes: [u8; length()]; }
 
-machine Main::main(main: @mut Main)
+machine run_checked_math(main: @mut Main)
 reaches ProcessExit + Console
 {
     // The same named requirement executes its checked provider during type
@@ -40,5 +40,5 @@ machine entry_start()
 reaches ProcessExit + Console
 {
     let mut entry_storage: Main;
-    Main::main(@mut entry_storage);
+    run_checked_math(@mut entry_storage);
 }

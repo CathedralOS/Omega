@@ -5,10 +5,11 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+published-program = { path = "../published-program" }
 published-runtime-input = { path = "../representations/published-runtime-input" }
-product-publication = { path = "../pipeline/10_product-publication" }
-portable-publication = { path = "../pipeline/02_portable-publication" }
-compilation-inputs = { path = "../pipeline/00_compilation-inputs" }
+product-publication = { path = "../pipeline/18_finished-products-to-installed-files" }
+portable-publication = { path = "source-publication" }
+compilation-inputs = { path = "../pipeline/01_compilation-request-to-admitted-inputs" }
 declaration-contracts = { path = "../../../psi/compilation/representations/declaration-contracts" }
 optimization-requests = { path = "optimization-requests" }
 source-text = { path = "../../../psi/foundation/source-text" }
@@ -25,7 +26,7 @@ native-compiler = { path = "../native-compiler" }
 provider-correspondence = { path = "../verification/provider-correspondence" }
 semantic-vocabulary = { path = "../../../psi/compilation/representations/semantic-vocabulary" }
 symbols = { path = "../../../psi/compilation/representations/declaration-identity" }
-source-compiler = { path = "../../../psi/compilation/pipeline/01_source-compilation" }
+source-compiler = { path = "../../../psi/compilation/pipeline/source-compilation" }
 task-plans = { path = "../representations/task-plans" }
 artifacts = { path = "measurements" }
 backend-plan = { path = "../representations/provider-plans" }

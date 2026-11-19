@@ -57,7 +57,7 @@ pub fn admit_build_machine(
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.source();
-    let elaboration = &prepared.closure().elaboration;
+    let elaboration = &prepared.closure().elaboration();
     if !prepared.is_invocation()
         || prepared
             .entry()

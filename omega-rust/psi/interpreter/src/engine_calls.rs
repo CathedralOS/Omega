@@ -1012,14 +1012,15 @@ pub(crate) mod boundary_calls {
         supply: Option<crate::boundary::effects::AdmittedBoundarySupply>,
         boundary: BoundaryMachineId,
     ) -> Result<Option<MachineId>, TerminalInterpretError> {
+        use crate::boundary::effects::AdmittedBoundarySupply;
         match supply {
-            Some(crate::boundary::effects::AdmittedBoundarySupply::CheckedProvider(callee)) => {
-                Ok(Some(callee))
-            }
+            Some(AdmittedBoundarySupply::CheckedProvider(callee)) => Ok(Some(callee)),
+            Some(AdmittedBoundarySupply::ExternalCompletion) => Ok(None),
             None if program.has_provider(&boundary) => Err(
                 TerminalInterpretError::ProviderInstallationMissing(boundary),
             ),
-            _ => Ok(None),
+            None => Ok(None),
+            Some(_) => Err(crate::boundary::errors::malformed()),
         }
     }
 }

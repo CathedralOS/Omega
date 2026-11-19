@@ -543,6 +543,9 @@ pub(crate) mod capabilities {
                             match installation
                                 .and_then(|installation| installation.supplies.get(boundary))
                             {
+                                Some(AdmittedBoundarySupply::ExternalCompletion) => {
+                                    return Err(malformed());
+                                }
                                 Some(AdmittedBoundarySupply::CheckedProvider(selected)) => {
                                     Some(*selected)
                                 }
@@ -1463,6 +1466,68 @@ pub(crate) mod capabilities {
                     scalar_applications: Vec::new(),
                     scalar_entry_conditions: Vec::new(),
                 })
+            );
+        }
+
+        #[test]
+        fn selected_external_exit_still_demands_process_domain_admission() {
+            let mut source = program();
+            let boundary = BoundaryMachineId::new(1).unwrap();
+            let kind = ExternalCompletionKind::ProcessExit;
+            mark_boundary_external_completion(&mut source, boundary, kind);
+            add_provider(&mut source, boundary);
+            let mut caller = machine(0, Vec::new());
+            caller.blocks[0].terminator = Terminator::ExternalCompletion {
+                edge: EdgeId::new(2).unwrap(),
+                boundary,
+                kind,
+                arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                requirement_obligations: Vec::new(),
+                frontier_lower_bound: Vec::new(),
+            };
+            set_machine(&mut source, MachineId::new(1).unwrap(), caller);
+            let program = crate::TerminalProgram::from_admitted(source);
+            assert_eq!(
+                program.execution_requirements(None),
+                Err(TerminalInterpretError::ProviderInstallationMissing(
+                    boundary
+                ))
+            );
+            let request = crate::TerminalRuntimeSupplyRequest {
+                entry: None,
+                installation: None,
+                host_imports: &[],
+                external_completions: &[boundary],
+                native_code_layouts: None,
+                x86_flags: None,
+                memory_ordering: None,
+                target_machines: None,
+                target_layouts: None,
+            };
+            assert!(
+                program
+                    .admit_runtime_supplies(crate::TerminalRuntimeSupplyRequest {
+                        host_imports: &[boundary],
+                        external_completions: &[],
+                        ..request
+                    })
+                    .is_err()
+            );
+            assert!(
+                program
+                    .admit_runtime_supplies(crate::TerminalRuntimeSupplyRequest {
+                        external_completions: &[boundary, boundary],
+                        ..request
+                    })
+                    .is_err()
+            );
+            let supplies = program.admit_runtime_supplies(request).unwrap();
+            let requirements = program.execution_requirements(Some(&supplies)).unwrap();
+            assert!(requirements.imports.is_empty());
+            assert_eq!(
+                requirements.external_completions,
+                [TerminalExternalCompletionDemand { boundary, kind }]
             );
         }
 

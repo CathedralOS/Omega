@@ -6,6 +6,8 @@
 //! a compiler producer. Sharing code never shares an execution or its work account.
 #![forbid(unsafe_code)]
 
+pub mod scalar_receipts;
+pub mod scalar_scopes;
 pub mod values;
 pub use build_time_values::BuildTimeValue;
 

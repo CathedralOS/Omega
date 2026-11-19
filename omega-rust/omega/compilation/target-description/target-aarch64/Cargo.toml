@@ -16,6 +16,6 @@ target = { path = "../target" }
 
 [dev-dependencies]
 isa-conformance = { path = "../../../../test-support/isa-conformance" }
-isa-aarch64 = { path = "../../pipeline/06_native-encoding/isa-aarch64" }
+isa-aarch64 = { path = "../../pipeline/12_bound-framed-machine-to-selected-form-encoding/isa-aarch64" }
 register-model = { path = "../register-model", features = ["test-support"] }
 selected-instructions = { path = "../../representations/selected-instructions", features = ["test-support"] }

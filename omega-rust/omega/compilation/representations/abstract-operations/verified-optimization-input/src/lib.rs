@@ -188,8 +188,7 @@ impl VerifiedPsiOptimizationInput {
             target_context,
             target_layout_selections: None,
             external_requirement_applications: Vec::new(),
-            selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
-                Vec::new(),
+            selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::default(
             ),
             evidence: ObligationEvidence::NoSeals,
         })
@@ -301,16 +300,14 @@ impl VerifiedPsiOptimizationInput {
         &self.admitted_assumed_bindings
     }
 
-    pub fn admitted_native_callbacks(
-        &self,
-    ) -> &[provider_admission::provider_admission::AdmittedNativeCallbackArgument] {
-        self.admitted_native_callbacks.callbacks()
-    }
-
-    pub const fn admitted_installed_interrupts(
-        &self,
-    ) -> &provider_admission::AdmittedInstalledInterruptCohort {
-        &self.admitted_installed_interrupts
+    pub fn into_optimized_body(
+        self,
+        program: optimization_unit::OptimizedAbstractProgram,
+    ) -> OptimizedAbstractBody {
+        OptimizedAbstractBody {
+            program,
+            lowering_facts: self.into_lowering_facts(),
+        }
     }
 
     pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
@@ -391,6 +388,32 @@ pub struct AdmittedLoweringFacts {
     target_context: Option<TerminalTargetContext>,
     native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
+}
+
+/// Target lowering consumes the optimized operations and the admitted facts that authorize them together.
+pub struct OptimizedAbstractBody {
+    program: optimization_unit::OptimizedAbstractProgram,
+    lowering_facts: AdmittedLoweringFacts,
+}
+
+impl OptimizedAbstractBody {
+    pub fn parts(
+        &self,
+    ) -> (
+        &optimization_unit::OptimizedAbstractProgram,
+        &AdmittedLoweringFacts,
+    ) {
+        (&self.program, &self.lowering_facts)
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        optimization_unit::OptimizedAbstractProgram,
+        AdmittedLoweringFacts,
+    ) {
+        (self.program, self.lowering_facts)
+    }
 }
 
 impl AdmittedLoweringFacts {

@@ -121,6 +121,7 @@ fn verdicts_beside(name: &str, machines: &str, beside: &[(&str, &str)]) -> Vec<S
             },
             terminal_codec::TerminalPublication::Portable,
         )
+        .expect("fixture must lower to checker input")
         .program,
     )
     .iter()

@@ -19,28 +19,43 @@ application preparation and package-permission admission, shared by artifact
 publication and native realization.
 */
 
+pub use native_artifact::AdmittedRuntimeProgram;
+pub use published_object_verification::NativeStageReplay;
+mod program_entry;
+pub use program_entry::PublishedNativeEntry;
+mod published_application;
+pub use backend_plan::{InstalledPackageProviders, TargetProviderInstallation};
+pub use published_application::{
+    PublishedApplicationInputs, SavedProgramTarget, prepare_published_application,
+    prepare_saved_program,
+};
 mod application;
+mod body_planning;
+pub mod bridge_replay;
+mod callable_planning;
 mod compile;
 mod components;
+mod handler_order;
 mod observations;
 mod pipeline;
 mod preparation;
 mod realization;
 mod request;
+mod runtime_provisions;
 mod scalar_completion;
 
 #[cfg(test)]
 mod physical_publication_tests;
 pub use application::{TerminalApplication, admit_package_permissions};
+pub use artifact_lowering::{
+    BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
+    NativeProgramEntrySettlement, TerminalNativeProposalRequest,
+};
 pub use compile::{admit_runtime, compile};
 pub use components::ComponentCompilation;
 pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
-};
-pub use native_program_planning::{
-    BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
-    NativeProgramEntrySettlement, TerminalNativeProposalRequest,
 };
 pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use provider_admission::provider_admission::{
@@ -54,18 +69,17 @@ pub use verified_optimization_input::{
     retain_native_derivation_inputs,
 };
 
-mod provider_selection;
-pub use provider_selection::{
+pub use provider_realization::{
     PublishedSelection, SelectedExecution, SelectedProviderRealization, SelectedProviderResult,
     select_published_providers,
 };
 
 // Published native entry selection and explicitly requested provider-input inspection.
-pub use native_program_planning::{
+pub use provider_realization::{
     plan_provider_execution_inputs, target_supply::TargetSupplyExecutionInputs,
 };
 
-pub use native_program_planning::program_entry::{
+pub use provider_realization::program_entry::{
     PublishedEntryNomination, SelectedCompilerProgramEntry,
     plan_published_entry_calling_conventions,
 };

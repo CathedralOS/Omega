@@ -1,0 +1,20 @@
+[package]
+name = "source-declarations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+bundled-declarations = { path = "../bundled-declarations" }
+declaration-contracts = { path = "../declaration-contracts" }
+application-identity = { path = "../application-identity" }
+numeric-literals = { path = "../numeric-literals" }
+source-admission = { path = "../source-admission" }
+source-text = { path = "../../../foundation/source-text" }
+wire = { path = "../../../foundation/wire" }
+arena = { path = "../../../foundation/arena" }
+compiler-storage = { path = "../../../foundation/compiler-storage" }
+language-core = { path = "../source-vocabulary" }
+numerics = { path = "../scalar-values" }
+semantic-vocabulary = { path = "../semantic-vocabulary" }
+symbols = { path = "../declaration-identity" }

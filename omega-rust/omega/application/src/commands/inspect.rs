@@ -15,15 +15,12 @@ file fails fast with an explicit size error.
 
 */
 
-use std::io::Read;
 use std::path::Path;
 
 use crate::arguments::InspectTerminalArguments;
 use crate::inspection::{
     InspectTerminalRequest, inspect_terminal, inspect_terminal_artifact, terminal_summary,
 };
-
-const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
 
 pub(crate) fn run(arguments: InspectTerminalArguments) {
     let (selected, result, output) = match arguments {
@@ -80,23 +77,8 @@ pub(crate) fn run(arguments: InspectTerminalArguments) {
 }
 
 fn read_artifact_or_exit(path: &Path) -> Vec<u8> {
-    let result = (|| -> std::io::Result<Vec<u8>> {
-        let file = std::fs::File::open(path)?;
-        let mut bytes = Vec::new();
-        file.take(MAX_ARTIFACT_BYTES + 1).read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAX_ARTIFACT_BYTES {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Terminal inspection artifact exceeds 64 MiB",
-            ));
-        }
-        Ok(bytes)
-    })();
-    match result {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            eprintln!("cannot read Terminal artifact: {error}");
-            std::process::exit(1);
-        }
-    }
+    crate::inspection::read_artifact(path).unwrap_or_else(|error| {
+        eprintln!("cannot read Psi artifact: {error}");
+        std::process::exit(1);
+    })
 }

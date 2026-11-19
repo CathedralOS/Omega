@@ -13,7 +13,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, NativeForeignBridgeRequest, ValueShape,
     evaluate_ordinary_boundary_entry_plan,
 };
-use image_fixtures::emit_native_foreign_bridge_object;
+use image_fixtures::prepare_foreign_adapter_object;
 use target::{ForeignLocatorCandidate, ObjectFormat, TargetProfile, normalize_foreign_locator};
 
 pub(super) fn compile(command: &mut Command) {
@@ -132,7 +132,7 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
                 export: function.as_bytes().to_vec(),
             },
         };
-        let bridge = emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
+        let request = NativeForeignBridgeRequest {
             target,
             scalar_parameters: vec![None; parameters.len()],
             foreign: evaluate_ordinary_boundary_entry_plan(
@@ -140,15 +140,10 @@ fn real_provider_retains_original_mapped_roots_and_faults_without_replay() {
                 &CallSignature { parameters, result },
             )
             .unwrap(),
-        })
-        .unwrap();
+        };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
-        let imports = image_fixtures::encode_locator_import(&locator);
         let product = image_emission::emit_native_foreign_adapter(
-            bridge,
-            locator,
-            [index as u8 + 1; 32],
-            imports,
+            prepare_foreign_adapter_object(request, locator, [index as u8 + 1; 32]).unwrap(),
         )
         .unwrap();
         installed.push(
@@ -393,7 +388,7 @@ fn guest_errno_survives_worker_housekeeping() {
         ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
     };
     let product = |library: &str, symbol: &str, parameters: Vec<ValueShape>, result, tag| {
-        let bridge = emit_native_foreign_bridge_object(NativeForeignBridgeRequest {
+        let request = NativeForeignBridgeRequest {
             target,
             scalar_parameters: vec![None; parameters.len()],
             foreign: evaluate_ordinary_boundary_entry_plan(
@@ -401,8 +396,7 @@ fn guest_errno_survives_worker_housekeeping() {
                 &CallSignature { parameters, result },
             )
             .unwrap(),
-        })
-        .unwrap();
+        };
         let candidate = match target.object_format {
             ObjectFormat::MachO => ForeignLocatorCandidate::MachODylibSymbol {
                 install_name: library.as_bytes().to_vec(),
@@ -424,8 +418,10 @@ fn guest_errno_survives_worker_housekeeping() {
             ObjectFormat::Coff => unreachable!("errno control targets POSIX hosts"),
         };
         let locator = normalize_foreign_locator(candidate, profile).unwrap();
-        let imports = image_fixtures::encode_locator_import(&locator);
-        image_emission::emit_native_foreign_adapter(bridge, locator, [tag; 32], imports).unwrap()
+        image_emission::emit_native_foreign_adapter(
+            prepare_foreign_adapter_object(request, locator, [tag; 32]).unwrap(),
+        )
+        .unwrap()
     };
     let word = ValueShape::integer(8, 8);
     let integer = ValueShape::integer(4, 4);

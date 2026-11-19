@@ -27,3 +27,39 @@ impl std::ops::Deref for EncodedProgramContext {
         &self.machine
     }
 }
+
+/// Program and frame identities carried from encoding to object verification.
+/// The contract digest covers the storage geometry, ABI, publication and execution facts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoundEncodingSubject {
+    pub contracts: [u8; 32],
+    pub target: target::NativeTarget,
+    pub physical: [u8; 32],
+    pub frame: crate::TargetFrameLayoutIdentity,
+}
+
+impl BoundEncodingSubject {
+    pub fn from_encoded(
+        encoded: &EncodedProgramContext,
+        frame: crate::TargetFrameLayoutIdentity,
+    ) -> Result<Self, &'static str> {
+        let roots = encoded
+            .contracts
+            .execution()
+            .ok_or("encoded program is missing its execution facts")?
+            .roots();
+        if roots.psi != encoded.psi
+            || roots.entry != encoded.entry
+            || roots.work_schedule != encoded.work_schedule
+            || roots.pre_physical != encoded.publication.record().pre_physical
+        {
+            return Err("bound body contracts differ from the encoded program or its frame");
+        }
+        Ok(Self {
+            contracts: encoded.contracts.identity_bytes(),
+            target: encoded.target,
+            physical: encoded.identity,
+            frame,
+        })
+    }
+}

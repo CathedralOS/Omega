@@ -68,6 +68,12 @@ pub(crate) fn compile(
                 &[][..],
                 Default::default(),
             ),
+            ProjectProduct::PublishedPsi(_) => (
+                RequestedCompileProduct::PublishedPsi,
+                &[][..],
+                &[][..],
+                Default::default(),
+            ),
             ProjectProduct::Terminal => (
                 RequestedCompileProduct::TerminalArtifact,
                 &[][..],
@@ -106,6 +112,9 @@ impl ProjectProduct {
     ) -> compiler::CompilationProduct {
         match self {
             Self::Check => compiler::CompilationProduct::Check,
+            Self::PublishedPsi(_) => {
+                compiler::CompilationProduct::PublishedPsi(optimization_rollback.clone())
+            }
             Self::Terminal => compiler::CompilationProduct::Terminal(optimization_rollback.clone()),
             Self::Inspection { machine } => {
                 compiler::CompilationProduct::Inspection(machine.clone())

@@ -60,6 +60,15 @@ pub struct RecordFileRoot {
 }
 
 impl RecordFileRoot {
+    /// Open the directory selected by the caller for this file operation.
+    pub fn open_directory(path: &Path) -> Result<Self, RecordFileError> {
+        let directory = io_at(
+            CapabilityDirectory::open_ambient_dir(path, cap_std::ambient_authority()),
+            path,
+        )?;
+        Self::from_directory(directory, path.to_owned())
+    }
+
     pub fn from_directory(
         directory: CapabilityDirectory,
         display_path: PathBuf,
