@@ -1052,13 +1052,27 @@ fn case_search_does_not_materialize_exhausted_or_active_cuts() {
     let Proposition::Disjunction(parts) = cut else {
         unreachable!("the test premise is a disjunction");
     };
+    let mut values = values.clone();
+    let flag = values.push(ValueRow {
+        scalar_type: ScalarType::Boolean,
+        origin: ValueOrigin::Operation(OperationId::new(1).unwrap()),
+        rigid: None,
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let definition = Proposition::Equal(
+        ScalarTerm::value(flag, ScalarType::Boolean),
+        ScalarTerm::Boolean(true),
+    );
     let wrapped = Proposition::Disjunction(vec![
-        Proposition::Conjunction(vec![parts[0].clone(), Proposition::Truth]),
+        Proposition::Conjunction(vec![parts[0].clone(), definition.clone()]),
         parts[1].clone(),
     ]);
     let assumptions = [wrapped.clone()];
+    let axioms = [definition];
     let mut activity = ProofSearchActivity::default();
-    let mut active = Prover::new(&context, &assumptions, &[], &values, &mut activity);
+    let mut active = Prover::new(&context, &assumptions, &axioms, &values, &mut activity);
     assert!(active.facts.iter().any(|fact| {
         matches!(fact.proposition, Proposition::Disjunction(_)) && fact.proposition != wrapped
     }));
