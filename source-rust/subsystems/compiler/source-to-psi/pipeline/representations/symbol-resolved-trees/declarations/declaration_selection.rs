@@ -3,7 +3,7 @@ We represent declaration selections, target and policy predicates (`product_targ
 operand bindings (`product_operands`, `product`).
 */
 
-use declaration_contracts::selection::ProductTarget;
+use semantic_vocabulary::source_selections::ProductTarget;
 use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -76,7 +76,9 @@ mod build_selection_origin {
 
 mod product {
     use super::BuildOperation;
-    use declaration_contracts::selection::{CompositionMode, NativeBindingProducer, ProductTarget};
+    use semantic_vocabulary::source_selections::{
+        CompositionMode, NativeBindingProducer, ProductTarget,
+    };
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum BuildSelectionRequest<Requirement> {
@@ -287,10 +289,10 @@ mod product {
         pub const fn product_recording_operation(
             self,
         ) -> Option<(
-            declaration_contracts::build_requests::SelectionProtocolOperation,
+            language_core::build_protocol::SelectionProtocolOperation,
             usize,
         )> {
-            use declaration_contracts::build_requests::SelectionProtocolOperation as Protocol;
+            use language_core::build_protocol::SelectionProtocolOperation as Protocol;
             match self {
                 Self::NativeBinding => Some((Protocol::BindNative, 3)),
                 Self::ParameterDescription => Some((Protocol::DescribeParameter, 0)),
@@ -338,7 +340,7 @@ mod product {
                 if self.operation.product_operand_role(position)
                     == Some(ProductOperandRole::WireCompatibilityFact)
                 {
-                    let fact = declaration_contracts::wire::WireCompatibilityFact::from_name(
+                    let fact = semantic_vocabulary::source_selections::WireCompatibilityFact::from_name(
                         &operand.path,
                     )
                     .ok_or_else(|| format!("unknown wire compatibility fact `{}`", operand.path))?;
@@ -348,7 +350,7 @@ mod product {
                         .any(|(index, previous)| {
                             self.operation.product_operand_role(index)
                                 == Some(ProductOperandRole::WireCompatibilityFact)
-                                && declaration_contracts::wire::WireCompatibilityFact::from_name(
+                                && semantic_vocabulary::source_selections::WireCompatibilityFact::from_name(
                                     &previous.path,
                                 ) == Some(fact)
                         })
@@ -1160,7 +1162,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     CarryPermission(language_core::CarryPermission),
     CollectionLength,
     CollectionCapacity,
-    ByteSequencePredicate(declaration_contracts::byte_predicates::ByteSequencePredicate),
+    ByteSequencePredicate(language_core::byte_predicates::ByteSequencePredicate),
     StorageAddress,
     BuildProductOperand {
         operation: BuildOperation,
@@ -1178,7 +1180,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,
     BuildWireCompatibilityRequest,
-    WireCompatibilityFact(declaration_contracts::wire::WireCompatibilityFact),
+    WireCompatibilityFact(semantic_vocabulary::source_selections::WireCompatibilityFact),
     BuildIncludedSourceHandoff,
     BuildLogWriteLine,
     WireEncode,
@@ -1189,7 +1191,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     QuotientLift,
     BuildParameterDescription,
     BuildFieldDescription,
-    CoreIntegerOperator(declaration_contracts::numeric_intrinsics::CoreIntegerOperatorSignature),
+    CoreIntegerOperator(numerics::intrinsics::CoreIntegerOperatorSignature),
     AtomicCellOperation(language_core::atomic::AtomicCellMember),
 }
 

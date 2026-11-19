@@ -16,7 +16,7 @@ path = "lib.rs"
 [dependencies]
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 bundled-declarations = { path = "bundled-declarations" }
-source-declarations = { path = "../../language/source-declarations" }
+source-declarations = { path = "../representations/symbol-resolved-trees/declarations" }
 source-symbol-table = { path = "symbol-table" }
 symbol-resolved-trees = { path = "../representations/symbol-resolved-trees" }
 declaration-contracts = { path = "../../language/declaration-contracts" }

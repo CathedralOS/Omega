@@ -2930,18 +2930,14 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "arena",
- "bundled-declarations",
- "declaration-contracts",
  "language-core",
  "numeric-literals",
  "numerics",
  "record-storage",
  "semantic-vocabulary",
  "source-admission",
- "source-symbol-table",
  "source-text",
  "symbols",
- "wire",
 ]
 
 [[package]]

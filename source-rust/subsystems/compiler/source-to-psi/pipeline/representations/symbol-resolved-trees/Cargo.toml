@@ -22,5 +22,5 @@ diagnostics = { path = "../../../../../../foundation/diagnostics" }
 language-core = { path = "../../../../foundation/language-core" }
 numerics = { path = "../../../../psi/semantics/numeric" }
 symbols = { path = "../../../../foundation/declaration-identity" }
-source-declarations = { path = "../../../language/source-declarations" }
+source-declarations = { path = "declarations" }
 source-symbol-table = { path = "../../02_syntax-trees-to-symbol-resolved-trees/symbol-table" }

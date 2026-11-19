@@ -136,6 +136,7 @@ members = [
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/source-files",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/source-files/custody",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees",
+    "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/symbol-resolved-trees/declarations",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/syntax-trees/derive",
     "source-rust/subsystems/compiler/source-to-psi/pipeline/representations/tokens",
