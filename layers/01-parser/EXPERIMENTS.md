@@ -41,7 +41,7 @@ Machine: Ryzen 9 7950X, one thread, Windows real-time protection on.
 
 ## Baseline, 2026-11-18
 
-Commit `ca8eec8`.
+Commit `883e0a0`.
 
 | Shape | Lex | Parse | Floor | Parse per meaningful token |
 | --- | --- | --- | --- | --- |
@@ -58,7 +58,7 @@ bytes. On one thread that is 140 million tokens a second.
 
 ## Where it stands, 2026-11-18
 
-After experiments 3, 4 and 5, commit `a569962`. Same tree as the baseline,
+After experiments 3, 4 and 5, commit `4b31150`. Same tree as the baseline,
 event for event.
 
 | Measure | Baseline | Now | Change |
@@ -67,6 +67,12 @@ event for event.
 | Per meaningful token | 7.08 ns | 6.48 ns | |
 | Parse alone on 32 threads | not measured | 8.1 GB/s | |
 | Lex, same bytes, one thread | 135 ms | 135 ms | not touched |
+
+These figures were taken before the branch was rebased onto the restyled
+lexer. After it, the same parser source measures 109 ms in three alternating
+runs against the pre-rebase binary's 111.5 ms, with the same fingerprint. The
+only change is the lexer's accessor names, so that 2% is the kind of
+difference a rebuilt binary shows, and the table is left as measured.
 
 Against the hardware: the drive reads a packed file at 6 to 9 GB/s (the
 lexer's experiment 6). Parsing alone on every thread is now inside that
