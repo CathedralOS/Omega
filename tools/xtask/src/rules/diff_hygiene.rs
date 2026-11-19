@@ -1,5 +1,6 @@
 //! Diff hygiene checks (retired corpus, frozen facts set, Python/swarm limits, measurements).
 
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use super::{FACTS_ROOT, show_git_file};
@@ -12,6 +13,13 @@ const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
 const MEASUREMENT_LINE_LIMIT: usize = 300;
 
 pub(super) fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
+    // Git reports moves as deletions and additions here. Moving a directory
+    // under tools/ may carry existing scripts with it.
+    let deleted_python_paths: BTreeSet<&str> = changes
+        .iter()
+        .filter(|(status, path)| *status == 'D' && path.ends_with(".py"))
+        .map(|(_, path)| path.as_str())
+        .collect();
     let mut violations = Vec::new();
     // `samples/cli/facts/` is a frozen finite set: it may not grow, but a
     // change may move its programs within it. A diff without rename
@@ -37,7 +45,10 @@ pub(super) fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String>
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
             ));
-        } else if path.starts_with("tools/") && path.ends_with(".py") {
+        } else if let Some(original_path) = path.strip_prefix("tools/")
+            && path.ends_with(".py")
+            && !deleted_python_paths.contains(original_path)
+        {
             violations.push(format!(
                 "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
             ));

@@ -372,6 +372,22 @@ fn retired_corpus_and_frozen_facts_accept_no_new_files() {
 }
 
 #[test]
+fn moving_scripts_under_tools_only_admits_the_removed_paths() {
+    let moved = [
+        ('A', "tools/atlas/build_pages.py".to_owned()),
+        ('D', "atlas/build_pages.py".to_owned()),
+    ];
+    assert!(diff_hygiene_violations(&moved).is_empty());
+    assert_eq!(diff_hygiene_violations(&moved[..1]).len(), 1);
+
+    let mut changes = moved.to_vec();
+    changes.push(('A', "tools/atlas/new_tool.py".to_owned()));
+    let violations = diff_hygiene_violations(&changes);
+    assert_eq!(violations.len(), 1);
+    assert!(violations[0].contains("tools/atlas/new_tool.py"));
+}
+
+#[test]
 fn frozen_facts_may_move_but_not_grow() {
     // A twin moved out of the program that contains it: one deletion
     // and one addition inside the set.
