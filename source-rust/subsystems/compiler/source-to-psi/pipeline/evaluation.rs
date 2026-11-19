@@ -38,3 +38,11 @@ pub fn build_requests_any(
             .iter()
             .any(|event| operations.contains(&event.request.operation))
 }
+
+#[path = "evaluation/demands.rs"]
+mod demands;
+pub(crate) use demands::demanded_declarations;
+
+#[path = "evaluation/constants.rs"]
+mod constants;
+pub use constants::validate_constant_evaluations;
