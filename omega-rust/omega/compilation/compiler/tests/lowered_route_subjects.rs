@@ -1319,7 +1319,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
     let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
         panic!("the checker must accept the library call: {verdict:?}");
     };
-    assert!(accepted.elaboration.names.iter().any(|(_, names)| {
+    assert!(accepted.elaboration().names.iter().any(|(_, names)| {
         names.machine == "signed_from_word"
             && names
                 .declared
