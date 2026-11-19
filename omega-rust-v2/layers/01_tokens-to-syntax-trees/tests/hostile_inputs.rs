@@ -107,6 +107,7 @@ fn nesting_inside_the_limit_parses() {
         format!("machine f() {{ _ = {}a{}; }}", "(".repeat(depth), ")".repeat(depth)),
         format!("machine f(a: {}u8{}) {{ }}", "V<".repeat(depth), ">".repeat(depth)),
         format!("{}{}", "machine f() { ".repeat(depth), "}".repeat(depth)),
+        format!("machine f() {}{} {{}}", "requires machine h() ".repeat(depth), ";".repeat(depth)),
     ];
 
     for source_text in sources {
@@ -114,12 +115,14 @@ fn nesting_inside_the_limit_parses() {
     }
 }
 
-/// Each nested data declaration consumes exactly one level, including the outermost one.
+/// Each nested data declaration or machine hypothesis consumes exactly one level.
 #[test]
 fn the_nesting_limit_accepts_128_levels_and_refuses_the_next() {
     for (depth, expected_error) in [(128, None), (129, Some(ParseErrorKind::NestingTooDeep))] {
         let source = format!("{}{}", "data D {".repeat(depth), "}".repeat(depth));
         assert_eq!(parse_on_small_stack(source), expected_error, "{depth} nested declarations");
+        let hypotheses = format!("machine f() {}{} {{}}", "requires machine h() ".repeat(depth), ";".repeat(depth));
+        assert_eq!(parse_on_small_stack(hypotheses), expected_error, "{depth} nested hypotheses");
     }
 }
 
@@ -436,4 +439,14 @@ fn fixtures_with_one_token_removed_never_break_the_parser() {
     assert!(mutant_count > 1000, "only {mutant_count} mutants were built; are the fixtures there?");
     println!("{refused_count} of {mutant_count} one-token-removed fixtures were refused");
     println!("tokens a fixture survived losing: {survivable_spellings:?}");
+}
+
+#[test]
+fn a_complete_dispatch_arm_still_requires_a_comma_or_closing_brace() {
+    let source = b"machine choose(x:bool)->u8 {match x {true->1";
+    let tokens = lex(source).unwrap();
+    let error = parse_file(source, &tokens).unwrap_err();
+    assert_eq!(error.get_kind(), ParseErrorKind::UnexpectedEnd);
+    assert_eq!(error.get_expected(), "`,` or `}`");
+    assert_eq!(error.get_span(), omega_lexer::SourceSpan::new(source.len(), source.len()));
 }

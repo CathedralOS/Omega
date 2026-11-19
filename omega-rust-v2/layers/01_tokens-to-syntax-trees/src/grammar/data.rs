@@ -35,9 +35,7 @@ impl SyntaxParser<'_> {
             self.parse_type(TypePosition::Plain)?;
             self.expect(Punctuation::Semicolon, "`;`")?;
         } else {
-            while self.at_keyword("requires") {
-                self.parse_clause(NodeKind::Requires, TypePosition::Plain)?;
-            }
+            self.parse_data_requirements()?;
 
             self.refuse_separator_before_body()?;
             self.expect(Punctuation::LeftBrace, "`{` or `=`")?;

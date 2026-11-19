@@ -1,5 +1,6 @@
 // GRAMMAR.md: generic arguments. Bare `<` in types, `::<` in expressions, and how each
-// argument is read as a type or as a value.
+// argument is read as a type or as a value. A type-shaped argument followed by `in` is a
+// qualified type; the resolver reads it as a membership test when its binder takes a value.
 machine arguments(
     a: Outcome<u32, Never>,
     b: ByteBuffer<64>,
@@ -14,11 +15,15 @@ machine arguments(
     k: Holder<'a, core::Level>,
     l: Chosen<(clear satisfies A::clear)>,
     m: Signed<-1, !flag>,
+    n: AccessReturn<Extent in Granted, C>,
+    o: Wrapper<[u8; 4] in D, u8 in A & B, core::u8 in P>,
+    p: Check<N + 1 in D>,
 ) {
     _ = apply::<set_time>(@mut e, 5);
     _ = integer::max::<i32>();
     _ = Sensor::<29u64>::read();
     _ = convert::<Outcome<u32, Never>, 64>(a);
+    _ = id::<u8 in P>(v);
     _ = a < b;
     _ = a < b && c > d;
 }

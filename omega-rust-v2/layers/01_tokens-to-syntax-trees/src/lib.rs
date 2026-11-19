@@ -161,6 +161,7 @@ pub use errors::parse_error::ParseError;
 pub use errors::parse_error_kind::ParseErrorKind;
 pub use parsing::entry_points::{parse_file, parse_fragment};
 pub use parsing::fragment_kind::FragmentKind;
+pub use tree::indexed_syntax::{IndexedSyntax, Leaf as SyntaxLeaf, MathBinding, Node as SyntaxNode, PauseFlag, RangeBounds, SyntaxOperator, TerminationClause};
 pub use tree::node_kind::NodeKind;
 pub use tree::syntax_tree::SyntaxTree;
 pub use tree::tree_event::TreeEvent;

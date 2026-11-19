@@ -232,6 +232,67 @@ File
               PathExpression 'flag'
             '>'
       ','
+      Param
+        'n'
+        ':'
+        PathType
+          'AccessReturn'
+          TypeArgs
+            '<'
+            QualifiedType
+              PathType 'Extent'
+              'in'
+              PathType 'Granted'
+            ','
+            PathType 'C'
+            '>'
+      ','
+      Param
+        'o'
+        ':'
+        PathType
+          'Wrapper'
+          TypeArgs
+            '<'
+            QualifiedType
+              ArrayType
+                '['
+                PathType 'u8'
+                ';'
+                Literal '4'
+                ']'
+              'in'
+              PathType 'D'
+            ','
+            QualifiedType
+              PathType 'u8'
+              'in'
+              PathType 'A'
+              '&'
+              PathType 'B'
+            ','
+            QualifiedType
+              PathType 'core' '::' 'u8'
+              'in'
+              PathType 'P'
+            '>'
+      ','
+      Param
+        'p'
+        ':'
+        PathType
+          'Check'
+          TypeArgs
+            '<'
+            Binary
+              Binary
+                PathExpression 'N'
+                '+'
+                Literal '1'
+              'in'
+              PathExpression 'D'
+            '>'
+      ','
       ')'
     Body
       '{'
@@ -309,6 +370,25 @@ File
           Args
             '('
             PathExpression 'a'
+            ')'
+        ';'
+      Discard
+        '_'
+        '='
+        Call
+          PathExpression
+            'id'
+            ExpressionArgs
+              '::'
+              '<'
+              QualifiedType
+                PathType 'u8'
+                'in'
+                PathType 'P'
+              '>'
+          Args
+            '('
+            PathExpression 'v'
             ')'
         ';'
       Discard

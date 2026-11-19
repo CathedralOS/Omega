@@ -1,11 +1,16 @@
 # L1 Parser grammar
 
+Named and structural machine signatures expose their ordered parameter names and annotations, plus the result annotation when present. A mathematical `let` exposes its parameter list, result annotation and optional defining expression as separate nodes.
+
+The indexed tree supplies declaration names, generic binders in source order, and a parent link for each nested node. Following these links visits every enclosing node, nearest first. The resolver selects the constructs that govern lexical scope. The indexed tree exposes the spelling and source span of each written operator. A right shift spans its adjacent tokens. An index exposes `[]` and the span between its opening and closing brackets.
+
 Status: **gate passed and signed off 2026-11-18.** All twelve decisions are
 made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
 Building it changed the grammar in seven places and raised two questions;
 both are listed under [What building it found](#what-building-it-found).
+A later review added qualified type arguments; that section records it too.
 
 The spec has no grammar, so this document is one. Its sources, in order of
 authority:
@@ -54,7 +59,7 @@ A file's namespace comes from its directory; there is no `module` header
     path       = word ( '::' word )*
     type_args  = '<' ( generic_arg % ',' ) '>'            in types and declarations
     expr_args  = '::' '<' ( generic_arg % ',' ) '>'       in expressions
-    generic_arg = lifetime | type | expression
+    generic_arg = lifetime | type_in | expression
 
 In a declaration or a type, `<` after a name can only open generic arguments,
 so it is written bare: `Outcome<u32, Never>`, `machine sort<T>(...)`. That
@@ -68,17 +73,26 @@ parser decides by looking ahead:
 1. Skip any `[` the argument opens with.
 2. `@`, `machine(`, or a named function binder such as `(n: u8) ->` there begins a type.
 3. A name there, with any `::name` parts, begins a type if the token after
-   it is `<` or `->`, or ends the argument: `,` or `>` at the top, `]` or `;`
-   inside brackets. So `[u8]` and `[u8; 4]` are types, and `[a, b]` and
-   `[f(x)]` are array literals.
+   it is `<`, `->` or, at the top, `in`, or ends the argument: `,` or `>` at
+   the top, `]` or `;` inside brackets. So `[u8]` and `[u8; 4]` are types,
+   and `[a, b]` and `[f(x)]` are array literals.
 4. Anything else is an expression. In it, `>` ends the argument, so a
    greater-than comparison there is written in parentheses.
 
+A type argument may be qualified, as a type annotation may:
+`Box<u8 in P>`, `Wrapper<[u8; 4] in D>`, `id::<u8 in P>(v)`, and the
+`AccessReturn<Extent in Granted, C>` that resources/access.md:337 writes.
+
 `Buffer<N>` therefore holds a type-shaped `N` that may turn out to name a
-value; the resolver tells which. Two shapes land on the wrong side and are
-written with parentheses: a value that begins with a generic type,
-`Buffer<(Other::<T>::SIZE + 1)>`, and an array literal of one bare name,
-`Routes<[(open_file)]>`.
+value, and `Check<N in D>` holds a qualified type that may turn out to be the
+membership test `N in D`. L2 binds the visible names and identifies the declaration
+that owns the argument list. L3 selects the type or value binding once it knows
+the parameter's bound. Three shapes land on the wrong side and are written with
+parentheses: a value that begins with a generic type,
+`Buffer<(Other::<T>::SIZE + 1)>`, a value that begins with a membership test
+of a name, `Check<(x in D && ready)>`, and an array literal of one bare name,
+`Routes<[(open_file)]>`. A value such as `Check<N + 1 in D>` does not begin
+with a name followed by `in`, so it stays an expression.
 
 In an expression, generic arguments are written with `::` first, and a bare
 `<` after a name is always less-than (decision 7). The parser never looks
@@ -274,7 +288,7 @@ mathematical declarations and in machine parameters
 
     clause = requires | hypothesis | 'ensures' expression
            | 'reaches' type
-           | 'crashes' type expression?
+           | 'crashes' path_type expression?
            | 'blocks' ( 'true' | 'false' )?
            | 'suspends' ( 'true' | 'false' )?
            | 'terminates' ( 'by' expression ( '->' expression )? ( 'in' bound )? )?
@@ -287,6 +301,9 @@ mathematical declarations and in machine parameters
     bound      = expression ( ( '..' | '..=' ) expression )?
 
 - A crash cause can be followed by a guard, as in `crashes Trap value == 0`. L3 checks that the guard is a total Boolean fact about the contract inputs. [Guarded crashes](../../wiki/spec/language/effects.md#guarded-crashes)
+- **A crash cause is a path type.** It names `Trap`, `Abort` or `none`, never a
+  family application, so a `(` after it opens the guard:
+  `crashes Trap (value == 0) || done` guards on the whole expression.
 - `none` after `reaches`, `crashes` and `clobbers` is an ordinary name to the
   parser; what it means is a later layer's question.
 - **A hypothesis is the one clause that ends in a semicolon.** It assumes a
@@ -298,6 +315,10 @@ mathematical declarations and in machine parameters
 - The bound of `terminates by ... in` may be a range, `in 0..=limit`
   (language/termination.md:35). A range is not an expression anywhere else
   except inside index brackets.
+- The indexed tree distinguishes bare `terminates` from a clause with a measure.
+  It exposes the measure, optional order and optional bound as separate expression nodes.
+  For `blocks` and `suspends`, it reports whether the author wrote `true`, wrote
+  `false`, or omitted the flag. L3 interprets omission for each declaration.
 
 - **Nothing separates a clause from what follows** (decision 4). A clause
   ends at the next clause word or at the `{`. A `;` or `,` between a clause
@@ -534,8 +555,14 @@ the word is an ordinary name.
 Two words in a row are never a legal expression, which is why "a name
 follows" is a safe test for a declaration.
 
-The cost is in one place. A machine named `match` or `transition` cannot be
-called as `match(x)`, because `(x)` could be a subject.
+The cost falls where a name followed by such a token would also be a legal
+expression. A `(`, `[` or `-` after `match` starts a subject, so a value
+named `match` cannot be called as `match(x)`, indexed as `match[0]` or
+subtracted from as `match - 1`, and a statement cannot start that way with
+`transition`. A statement that starts with `machine`, an operator and a name
+declares an operator machine, so `machine < limit;` is not a comparison.
+Parentheses around the name keep it a name: `(match)(x)`,
+`(machine) < limit;`.
 
 ## Limits
 
@@ -583,7 +610,7 @@ language/generics.md:636), and the many examples that are fragments
 
 Every fixture is a whole file under `fixtures/`, parsed with `parse_file`.
 An accept fixture's `.expected` is its tree; a reject fixture's is the one
-error it must produce. 23 accept, 102 reject.
+error it must produce. 23 accept, 103 reject.
 
 | Rule | Accept fixture | Reject fixtures |
 | --- | --- | --- |
@@ -595,7 +622,7 @@ error it must produce. 23 accept, 102 reject.
 | machine | `machines` | `missing_machine_params`, `missing_param_type`, `missing_result_type`, `machine_without_body_or_semicolon`, `operator_machine_with_unknown_operator`, `unclosed_params`, `unclosed_body` |
 | mathematical let | `math_let` | `math_let_without_type`, `public_math_let` |
 | generic parameters | `generic_params` | `generic_params_empty`, `generic_params_unclosed`, `const_param_without_type` |
-| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_greater_than`, `turbofish_in_type` |
+| generic arguments | `generic_arguments` | `generic_args_empty`, `generic_args_unclosed`, `generic_arg_value_starting_with_type`, `generic_arg_value_starting_with_membership`, `generic_arg_greater_than`, `turbofish_in_type` |
 | types | `types`, `reference_to_reference`, `job_queue` | `array_type_without_length`, `slice_type_unclosed`, `type_missing_after_reference`, `qualified_type_without_domain`, `logical_and_as_type`, `ampersand_reference_type` |
 | header clauses | `clauses` | `semicolon_before_body`, `comma_before_body`, `clause_without_predicate`, `terminates_by_without_measure`, `reaches_without_type`, `registers_without_value`, `clobbers_without_name`, `record_literal_in_clause` |
 | statements | `statements` | `if_statement`, `if_statement_parenthesized`, `return_statement`, `compound_assignment`, `crash_statement`, `empty_statement`, `let_with_literal_pattern`, `let_without_semicolon`, `statement_after_tail`, `statement_after_nested_machine`, `transition_not_last` |
@@ -667,6 +694,15 @@ answered, and are owner questions 5 and 6 in PLAN.md.
   132 examples was affected.
 - **Reference syntax.** Owner question 6 originally retained prefix `&` and
   required spacing for two layers. Decision 12 supersedes that spelling.
+
+A review after sign-off found one more gap. The rule for generic arguments
+said `type`, which excludes qualification, so `AccessReturn<Extent in Granted, C>`
+(resources/access.md:337) parsed its first argument as a membership test and
+`Wrapper<[u8; 4] in D>` was refused at `in`. The typer already inferred such
+arguments (`let v: u8 in P = pick(x); id(v)` gives `id` the argument
+`u8 in P`), so only the explicit spelling was missing. A generic argument is
+now `type_in`, and a name followed by `in` begins one. L3 interprets that form
+as a membership test when the parameter takes a value.
 
 ## Decisions
 

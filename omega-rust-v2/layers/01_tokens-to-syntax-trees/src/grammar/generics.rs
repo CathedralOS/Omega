@@ -116,7 +116,7 @@ impl SyntaxParser<'_> {
         }
 
         if self.generic_arg_is_type() {
-            self.parse_type(TypePosition::InsideAngles)?;
+            self.parse_type_in(TypePosition::InsideAngles)?;
         } else {
             self.parse_expression(ExpressionContext::INSIDE_ANGLES)?;
         }
@@ -137,18 +137,26 @@ impl SyntaxParser<'_> {
           - `@`, `machine(`, or a named binder `(name: type) ->` begins a type.
           - A name there, with any `::name` parts, begins a type if the token
             after it continues a type or ends the argument: `<`, `->`, and
-            `,` or `>` at the top, `]` or `;` inside brackets. So `[u8]` and
-            `[u8; 4]` are types, and `[a, b]` and `[f(x)]` are array literals.
+            `in`, `,` or `>` at the top, `]` or `;` inside brackets. So `[u8]`
+            and `[u8; 4]` are types, and `[a, b]` and `[f(x)]` are array
+            literals.
           - Everything else is an expression: a literal, a parenthesis, or a
             name followed by an operator, a call or `::<`.
 
+        A type argument may be qualified, `Box<u8 in P>` or
+        `Wrapper<[u8; 4] in D>`, exactly as a type annotation may.
+
         So `Buffer<N>` holds the type-shaped argument `N`, which may turn out to
-        name a value; telling which is the resolver's job. Two shapes land on
-        the wrong side and must be written with parentheses: a value that
-        begins with a generic type, `Buffer<(Other::<T>::SIZE + 1)>`, and an
-        array literal of one bare name, `Routes<[(open_file)]>`. Inside the
-        parentheses it is an expression, so its own generic arguments are
-        written `::<`.
+        name a value, and `Check<N in D>` holds the qualified type `N in D`,
+        which may turn out to be a membership test. L2 binds the visible names
+        and identifies the declaration that owns the argument list. L3 selects
+        the type or value binding once it knows the parameter's bound.
+        Three shapes land on the wrong side and must be written with
+        parentheses: a value that begins with a generic type,
+        `Buffer<(Other::<T>::SIZE + 1)>`, a value that begins with a membership
+        test of a name, `Check<(x in D && ready)>`, and an array literal of one
+        bare name, `Routes<[(open_file)]>`. Inside the parentheses it is an
+        expression, so its own generic arguments are written `::<`.
     */
     fn generic_arg_is_type(&self) -> bool {
         let mut ahead = 0;
@@ -180,6 +188,11 @@ impl SyntaxParser<'_> {
 
         while self.nth_at(ahead, Punctuation::ColonColon) && self.nth_at_word(ahead + 1) {
             ahead += 2;
+        }
+
+        // `u8 in P`: a qualified type. A slice or array element cannot be qualified.
+        if self.nth_at_keyword(ahead, "in") {
+            return !is_inside_brackets;
         }
 
         match self.nth_punctuation(ahead) {

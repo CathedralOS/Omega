@@ -240,6 +240,11 @@ stage budget and lockfile details with the existing driver questions below.
 
 ### L1 Parser
 
+**L1 is locked.** The parser owns grammatical structure and exposes the written
+parts of each construct with their source spans. L2 resolves names and L3
+interprets types and contracts. Changes to the accepted grammar or to what L1
+hands downstream require an explicit decision to reopen the parser contract.
+
 - **Spec owners:** none as a single document. The spec has no grammar; syntax
   is carried by examples spread across `wiki/spec/language/`.
 - **Contract:** [layers/01_tokens-to-syntax-trees/GRAMMAR.md](layers/01_tokens-to-syntax-trees/GRAMMAR.md),
