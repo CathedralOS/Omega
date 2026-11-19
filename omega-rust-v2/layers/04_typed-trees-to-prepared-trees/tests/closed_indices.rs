@@ -27,6 +27,76 @@ fn prepare(source: &str) -> Result<PreparedTrees<'_>, TypeError> {
     prepare_source_package(&resolve(source))
 }
 
+/// Emit just the closed FixedArray shape from the Psi structural type table.
+/// The caller supplies fixture type IDs. The only program input is L4's product.
+fn lower_array_parameter_shapes(
+    prepared: &PreparedTrees<'_>,
+    element_types: &[(ValueType, u64)],
+) -> Vec<Vec<u8>> {
+    let signature = prepared
+        .typed()
+        .signatures
+        .iter()
+        .find(|sig| sig.machine.path == "consume")
+        .unwrap();
+    signature
+        .parameters
+        .iter()
+        .map(|(_, ty)| {
+            let ValueType::Array(element, length) = ty else {
+                panic!("expected a closed fixed array, got {ty:?}")
+            };
+            let (_, element_id) = element_types
+                .iter()
+                .find(|(ty, _)| ty == element.as_ref())
+                .expect("fixture element declaration");
+            let mut shape = vec![2]; // FixedArray
+            shape.extend_from_slice(&element_id.to_le_bytes());
+            shape.push(0); // Concrete extent
+            shape.extend_from_slice(&length.to_le_bytes());
+            shape
+        })
+        .collect()
+}
+
+#[test]
+fn lowering_consumes_the_prepared_array_element_and_extent() {
+    let source = "machine width(n:u64)->u64 reaches none crashes none terminates {n + 1}
+                  const SIZE:u64=width(7);
+                  machine consume(direct:[u8; width(7)], named:[u8; SIZE], literal:[u8; 8], wide:[u16; 8]){}";
+    let element_types = [
+        (ValueType::Integer { signed: false, width: Some(8) }, 1),
+        (
+            ValueType::Integer {
+                signed: false,
+                width: Some(16),
+            },
+            2,
+        ),
+    ];
+    // FixedArray tag, element type id, concrete extent tag, u64 element count.
+    let bytes_of_8 = [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0];
+    let bytes_of_9 = [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0];
+    let words_of_8 = [2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0];
+    for (program, expected) in [
+        (source.to_owned(), bytes_of_8),
+        (source.replace("n + 1", "n + 2"), bytes_of_9),
+    ] {
+        let prepared = prepare(&program).unwrap();
+        assert_eq!(
+            lower_array_parameter_shapes(&prepared, &element_types),
+            [expected, expected, bytes_of_8, words_of_8]
+        );
+    }
+    let overflow = source.replace("n + 1", "n - 8");
+    let error = prepare(&overflow).unwrap_err();
+    assert_eq!(
+        error.message,
+        "static evaluation cannot admit this invocation: exact subtraction exceeds its selected integer carrier"
+    );
+    assert_eq!(error.span.slice(overflow.as_bytes()), Some(b"width(7)".as_slice()));
+}
+
 fn buffer_with_index(
     literal: &ValueType,
     expected: u8,

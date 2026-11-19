@@ -10,4 +10,6 @@ The evaluator handles plain signed and unsigned integer carriers 1 through 128 b
 
 A closed call may also take the enclosing machine’s single specialized integer parameter. General proof-backed invocation admission, target-dependent evaluation, other carriers and operations, and freezing the entire stage remain open. [Evaluator](src/integer_invocation.rs) · [Invocation admission](../../wiki/spec/language/evaluation.md#invocation-admission)
 
+For a closed fixed-array parameter, lowering needs the element type and concrete element count. The prepared signature carries both in `ValueType::Array`. A test consumer reads this signature and emits the Psi fixed-array shape using fixture element type IDs. Changing the selected body changes the emitted length for a direct extent and a named constant. An exact overflow prevents preparation from handing off a product. Production lowering and type ID assignment remain open. [Consumer test](tests/closed_indices.rs) · [Psi structural type encoding](../../wiki/spec/terminal-psi/encoding.md)
+
 Run `omega source prepare <files>` from the package root. The command reports an evaluation or typing refusal with the source location. Successful preparation exits silently.
