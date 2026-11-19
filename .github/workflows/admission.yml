@@ -25,6 +25,9 @@ on:
 permissions:
   contents: read
 
+env:
+  OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+
 concurrency:
   # Same-head PR events can arrive out of order. Canceling the newer run can
   # leave its required check canceled even after an older run succeeds.
@@ -62,7 +65,7 @@ jobs:
         run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/omega-mbx/artifacts
+          path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
           key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
       - name: Install verified mbx
         shell: bash

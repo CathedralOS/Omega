@@ -46,7 +46,8 @@ case "${RUNNER_OS:-$(uname -s)}-${RUNNER_ARCH:-$(uname -m)}" in
 esac
 exe=
 if [[ "$target" == *windows* ]]; then exe=.exe; fi
-cache="${XDG_CACHE_HOME:-$HOME/.cache}/omega-mbx"
+# Hosted jobs give Actions and this installer the same absolute cache path.
+cache="${OMEGA_MBX_INSTALL_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/omega-mbx}"
 if [ -n "$exe" ]; then
   cache=$(cygpath -u "$cache")
   install_dir=$(cygpath -u "$install_dir")
