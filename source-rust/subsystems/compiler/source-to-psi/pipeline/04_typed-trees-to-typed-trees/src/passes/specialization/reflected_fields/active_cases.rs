@@ -57,6 +57,7 @@ pub(super) fn expand(
     site: StatementHandle,
     call: &TableCall,
     access: ReferenceAccess,
+    proved_empty_sum_cases: crate::preparation::ProvedEmptySumCases,
 ) -> Served<Vec<StatementNode>> {
     let visitor = declaration(program, call.target_symbol)
         .ok_or(unserved("the sum visitor lost its declaration"))?;
@@ -101,11 +102,7 @@ pub(super) fn expand(
     let context = context_type(program, state, *context, written_context)?;
     let type_reference = named_type(program, subject, lexical_owner)?;
     let mut sum = sum_description(program, type_reference, lexical_owner)?;
-    if let Some(empty) = typed_trees_to_lowered_program::lowering::proved_empty_sum_cases(
-        program,
-        type_reference,
-        lexical_owner,
-    ) {
+    if let Some(empty) = proved_empty_sum_cases(program, type_reference, lexical_owner) {
         if empty.len() != sum.cases.len() {
             return Err(Stop::Defect(
                 "case coverage uses a different sum declaration",

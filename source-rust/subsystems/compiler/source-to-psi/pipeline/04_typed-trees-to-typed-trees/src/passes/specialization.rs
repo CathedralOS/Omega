@@ -80,7 +80,10 @@ mod callable_binder;
 mod named_conformances;
 mod reflected_fields;
 
-pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn prepare(
+    program: &mut TypedTrees,
+    proved_empty_sum_cases: crate::preparation::ProvedEmptySumCases,
+) -> Result<(), Vec<Diagnostic>> {
     let first_type = program.type_reference_table.type_reference_count();
     let mut generated = GeneratedMachines::default();
     let mut captures = crate::source_state::NamedConformanceCaptureIndex::new(program);
@@ -88,7 +91,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
-        match reflected_fields::elaborate(program, position) {
+        match reflected_fields::elaborate(program, position, proved_empty_sum_cases) {
             Ok(()) => {}
             Err((Stop::Unserved(detail), span)) => {
                 program.record_deferred_refusal_with_detail(

@@ -35,9 +35,11 @@ pub use lowered_program_to_checked_program::checking;
 #[cfg(any(test, feature = "test-support"))]
 pub use typed_trees_to_lowered_program::lowering;
 #[cfg(not(any(test, feature = "test-support")))]
-pub(crate) use typed_trees_to_typed_trees::preparation;
+#[path = "prepare_and_check/typed_preparation.rs"]
+pub(crate) mod preparation;
 #[cfg(any(test, feature = "test-support"))]
-pub use typed_trees_to_typed_trees::preparation;
+#[path = "prepare_and_check/typed_preparation.rs"]
+pub mod preparation;
 
 #[path = "prepare_and_check/source_judgment.rs"]
 mod source_judgment;

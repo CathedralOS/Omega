@@ -30,6 +30,7 @@ mod active_cases;
 pub(super) fn elaborate(
     program: &mut TypedTrees,
     position: usize,
+    proved_empty_sum_cases: crate::preparation::ProvedEmptySumCases,
 ) -> Result<(), (Stop, source_text::SourceSpan)> {
     let machine = program.machines()[position].clone();
     for state_index in 0..program.machine_states(&machine).len() {
@@ -53,9 +54,15 @@ pub(super) fn elaborate(
                 ReflectionOperation::Record(operation) => {
                     close(program, &machine, &state, site, &call, operation)
                 }
-                ReflectionOperation::ActiveCases(access) => {
-                    active_cases::expand(program, &machine, &state, site, &call, access)
-                }
+                ReflectionOperation::ActiveCases(access) => active_cases::expand(
+                    program,
+                    &machine,
+                    &state,
+                    site,
+                    &call,
+                    access,
+                    proved_empty_sum_cases,
+                ),
             };
             match replacement {
                 Ok(replacement) => {

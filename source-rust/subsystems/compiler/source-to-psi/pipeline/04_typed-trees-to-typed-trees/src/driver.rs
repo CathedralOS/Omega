@@ -11,10 +11,17 @@
 use crate::source_state::{FrozenTypedTrees, TypedTrees};
 use diagnostics::Diagnostic;
 
+/// Which cases of this exact typed application have been proved empty.
+pub type ProvedEmptySumCases = fn(
+    &TypedTrees,
+    crate::source_state::types::TypeReferenceHandle,
+    symbols::SymbolHandle,
+) -> Option<Vec<bool>>;
+
 /// One step of typed preparation and the name its refusals carry.
 struct Pass {
     name: &'static str,
-    run: fn(&mut TypedTrees) -> Result<(), Vec<Diagnostic>>,
+    run: fn(&mut TypedTrees, ProvedEmptySumCases) -> Result<(), Vec<Diagnostic>>,
 }
 
 /// The order is part of the stage's contract: a later pass may read what an
@@ -27,14 +34,14 @@ const PASSES: &[Pass] = &[
     },
     Pass {
         name: "domain applications",
-        run: |program| {
+        run: |program, _| {
             program.prepare_domain_applications();
             Ok(())
         },
     },
     Pass {
         name: "record patterns",
-        run: crate::preparation::passes::record_patterns::prepare,
+        run: |program, _| crate::preparation::passes::record_patterns::prepare(program),
     },
 ];
 
@@ -138,10 +145,11 @@ fn refusal(pass: &str, request: &str) -> Diagnostic {
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
+    proved_empty_sum_cases: ProvedEmptySumCases,
 ) -> Result<(FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
     request.require_served()?;
     for pass in PASSES {
-        (pass.run)(&mut program).map_err(|refused| {
+        (pass.run)(&mut program, proved_empty_sum_cases).map_err(|refused| {
             refused
                 .into_iter()
                 .map(|mut diagnostic| {
@@ -157,6 +165,15 @@ pub fn prepare_typed_trees(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn prepare_fixture(
+        program: TypedTrees,
+        request: &PreparationRequest<'_>,
+    ) -> Result<(FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
+        prepare_typed_trees(program, request, |_, _, _| {
+            unreachable!("these preparation fixtures have no reflected sum visitors")
+        })
+    }
 
     #[test]
     fn one_domain_family_prepares_each_retained_carrier_without_rewriting_the_source() {
@@ -246,7 +263,7 @@ mod tests {
             retained.push((carrier, identity));
         }
         assert_ne!(retained[0].1, retained[1].1);
-        let (prepared, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        let (prepared, _) = prepare_fixture(program, &PreparationRequest::settled()).unwrap();
         let prepared = &*prepared;
         for (carrier, identity) in retained {
             let theory = prepared
@@ -278,7 +295,7 @@ mod tests {
         let identity = program.identity;
         let request = PreparationRequest::preliminary();
         let expected = request.admission();
-        let (frozen, metadata) = prepare_typed_trees(program, &request).unwrap();
+        let (frozen, metadata) = prepare_fixture(program, &request).unwrap();
         assert_eq!(frozen.identity.get(), identity.get());
         assert!(metadata.admits_pending_inputs);
         assert_eq!(metadata, expected);
@@ -293,7 +310,7 @@ mod tests {
             .mathematical_definitions
             .insert(crate::source_state::mathematical::MathematicalDefinition::default());
         let before = program.clone();
-        let (frozen, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        let (frozen, _) = prepare_fixture(program, &PreparationRequest::settled()).unwrap();
         assert!(*frozen == before);
     }
 
@@ -304,7 +321,7 @@ mod tests {
             deferred_layout_applications: &deferred,
             ..PreparationRequest::settled()
         };
-        let Err(refused) = prepare_typed_trees(TypedTrees::default(), &request) else {
+        let Err(refused) = prepare_fixture(TypedTrees::default(), &request) else {
             panic!("requested layout work must not be dropped");
         };
         assert_eq!(
