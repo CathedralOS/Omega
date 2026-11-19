@@ -66,13 +66,12 @@ fn publish_stage(
 ) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
     let mut observer = UnmeasuredProduction;
     let parsed = lex_and_parse(&source, &mut observer)?;
-    let PreparedSource { typed, mut accounting } = parsed.resolve_and_type(&mut observer)?;
+    let (continuation, _) = parsed.prepare(&mut observer)?;
     let optimizations = source.selections.optimizations.clone();
     let checked = prepare_lower_and_check(
-        typed,
+        continuation,
         source.selections,
         &Default::default(),
-        &mut accounting,
         None,
         None,
         &mut observer,
