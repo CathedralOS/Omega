@@ -1224,7 +1224,6 @@ dependencies = [
  "layout-plans",
  "machine-code",
  "optimization-core",
- "physical-recipes",
  "post-allocation-machine",
  "register-environment",
  "register-homes",

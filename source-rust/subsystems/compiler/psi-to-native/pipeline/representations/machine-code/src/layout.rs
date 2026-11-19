@@ -38,6 +38,14 @@ use crate::{
     TargetFrameProtocolEncodingPlan,
 };
 
+/// The unresolved bridge call in its encoded instruction stream. x86 identifies
+/// the displacement field and AArch64 identifies the instruction containing it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdapterCallField {
+    X86Relative32 { field_offset: usize },
+    Aarch64Branch26 { instruction_offset: usize },
+}
+
 pub use evidence::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,

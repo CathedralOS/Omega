@@ -1,6 +1,7 @@
 //! An adapter fragment and its unresolved object-relative call relocation.
 use crate::RelocationKind;
-use function_layout::entry_placement::{AdapterCallField, ResolvedBridge, ResolvedCallableEntry};
+use function_layout::entry_placement::{ResolvedBridge, ResolvedCallableEntry};
+use machine_code::layout::AdapterCallField;
 use physical_recipes::{
     native_entry_bridge::NativeEntryBridgeCode, native_foreign_bridge::NativeForeignBridgeCode,
 };
