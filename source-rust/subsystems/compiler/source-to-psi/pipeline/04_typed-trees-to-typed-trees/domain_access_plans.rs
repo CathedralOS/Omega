@@ -31,27 +31,34 @@
 //! application already carries a deferred refusal stays refused where it is
 //! demanded.
 
+#[path = "domain_access_plans/reflection.rs"]
+mod reflection;
+use reflection::{
+    Description, authenticated_route, callable_descriptions, core_reflection_data, subject_schema,
+};
+
+#[path = "domain_access_plans/returned_plan.rs"]
+mod returned_plan;
+#[cfg(test)]
+#[path = "domain_access_plans/tests.rs"]
+mod tests;
+
 use std::sync::Arc;
 
 use crate::source_state::TypedTrees;
 use crate::source_state::domain::{
     AccessPlanJudgment, CheckedDomainAccessPlan, CheckedIssuance, DomainIssuance,
 };
-use crate::source_state::expression::ExpressionNode;
-use crate::source_state::references::StaticArgumentCall;
-use declaration_contracts::DomainEstablishmentRoute;
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
-use schema_reflection::CallableDescription;
-use schema_reflection::SemanticSchemaGraph;
 use symbols::SymbolHandle;
 
-use super::PreparedBuildMachineProgram;
-use crate::evaluation::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
+use crate::evaluation::PreparedBuildMachineProgram;
+use crate::evaluation::{InvocationTarget, SourceCompletionAccounting};
 
 /// Evaluates the access plan of every policy-governed domain `request`
 /// demands and records each checked result on that domain.
-pub fn evaluate(
+pub(super) fn evaluate(
     program: &mut TypedTrees,
     request: crate::production::TerminalSourceCompilation<'_>,
     authority: Option<Arc<dyn crate::evaluation::BuildTimeSelectionAuthority>>,
@@ -74,7 +81,7 @@ pub fn evaluate(
     if pending.is_empty() {
         return Ok(());
     }
-    let demanded = super::constant_jobs::demanded_declarations(program, request)
+    let demanded = crate::evaluation::demanded_declarations(program, request)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     pending.retain(|(_, domain)| demanded.contains(*domain));
     if pending.is_empty() {
@@ -194,7 +201,7 @@ fn evaluate_domain(
         return Err("the plan result belongs to another selected invocation".into());
     }
     let normalized =
-        super::access_plan_values::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
+        returned_plan::normalize_for_schema(receipt, schema_graph, &schema, &revision)?;
     // Complete data is retained by the common normalizer. Until operation
     // consumers enforce an axis, recording it as checked would drop a rule.
     if !normalized.observations.is_empty() {
@@ -239,176 +246,4 @@ fn policy_identity(
     )
     .and_then(|identity| typed.type_identity_text(identity))
     .ok_or_else(|| "the access policy lost its complete selected application identity".into())
-}
-
-/// The data the core reflection vocabulary names `which`.
-fn core_reflection_data(typed: &TypedTrees, which: ReflectionDeclaration) -> Option<SymbolHandle> {
-    typed
-        .data_definitions()
-        .iter()
-        .find(|data| typed.core_vocabulary(data.symbol) == Some(CoreVocabulary::Reflection(which)))
-        .map(|data| data.symbol)
-}
-
-/// The `TypeSchema` of the domain's subject, asked for by the domain's
-/// author: the same graph `reflect::schema<Subject>()` returns there.
-fn subject_schema(
-    typed: &TypedTrees,
-    definition: &crate::source_state::domain::DomainDefinition,
-    schema_type: SymbolHandle,
-) -> Result<(SemanticSchemaGraph, BuildTimeValue, Vec<u8>), String> {
-    let subject = crate::source_state::reflection::construction::schema_subject_symbol(
-        typed,
-        definition.target_type,
-    )?;
-    let authority = crate::source_state::reflection::construction::schema_query_authority(
-        typed,
-        definition.symbol,
-        subject,
-    )?;
-    let graph =
-        crate::source_state::reflection::construction::construct_semantic_schema_graph_for_type(
-            typed,
-            definition.target_type,
-            authority,
-        )?;
-    let revision =
-        crate::source_state::reflection::construction::schema_subject_revision(typed, subject)?;
-    // Ordinary result snapshots use the canonical record identity, not its
-    // short source name. Construct the input with that same identity so the
-    // complete returned value can be compared without discarding its type.
-    let schema_identity = typed
-        .normalized_nominal_type_identity(schema_type)
-        .and_then(|identity| typed.type_identity_text(identity))
-        .filter(|identity| !identity.is_empty())
-        .ok_or("the core TypeSchema has no canonical record identity")?;
-    let schema = BuildTimeValue::Struct {
-        type_name: schema_identity,
-        fields: vec![(
-            "storage".to_owned(),
-            BuildTimeValue::Text(graph.runtime_image()),
-        )],
-    };
-    Ok((graph, schema, revision))
-}
-
-/// One description a `reflect::callable(..)` query of this program returns,
-/// with the route it names.
-struct Description {
-    route: DomainEstablishmentRoute,
-    case: &'static str,
-    identities: [Vec<u8>; 3],
-}
-
-/// Every callable description the program's checked `reflect::callable`
-/// queries produce. A plan's route is accepted only as one of these: the
-/// bytes alone grant nothing (`reflect.omg`, `CallableInfo`).
-fn callable_descriptions(typed: &TypedTrees) -> Result<Vec<Description>, String> {
-    let mut descriptions = Vec::new();
-    for (expression, node) in typed.expression_table.iter_expressions() {
-        let ExpressionNode::Call(call) = node else {
-            continue;
-        };
-        let query = typed
-            .machine_by_symbol(call.target_symbol)
-            .or_else(|| typed.machine_holding_state(call.target_symbol));
-        if !query.is_some_and(|query| {
-            typed.core_vocabulary(query.symbol)
-                == Some(CoreVocabulary::Reflection(ReflectionDeclaration::Callable))
-        }) {
-            continue;
-        }
-        // Read the query as Psi 05 does (`read/reflection.rs`,
-        // `declaration_query`): one declaration path as its only argument,
-        // described for the call's lexical author.
-        let [operand] = typed.expression_table.expression_handles(call.arguments) else {
-            continue;
-        };
-        let Ok(selected) = typed.declaration_operand_from_expression(*operand) else {
-            continue;
-        };
-        let owner = StaticArgumentCall::Expression(expression, call).lexical_owner(typed);
-        let in_scope = typed
-            .symbols
-            .symbol_provenance_source_span(owner)
-            .is_some_and(|author| {
-                selected.symbol.is_valid()
-                    && typed
-                        .symbols
-                        .source_reference_may_select_symbol(author, selected.symbol)
-            });
-        // A query Psi 05 would refuse produces no description either.
-        let Ok((requirement, identities)) =
-            crate::source_state::reflection::construction::callable_description_identity(
-                typed, &selected, owner,
-            )
-        else {
-            continue;
-        };
-        if !in_scope {
-            continue;
-        }
-        let route = if requirement {
-            let (owner, _) = typed
-                .trait_machine_signature(selected.symbol)
-                .ok_or("a requirement description lost its trait")?;
-            if owner.is_boundary {
-                DomainEstablishmentRoute::BoundaryRequirement {
-                    boundary_trait: owner.symbol,
-                    requirement: selected.symbol,
-                }
-            } else {
-                DomainEstablishmentRoute::CheckedRequirement {
-                    trait_definition: owner.symbol,
-                    requirement: selected.symbol,
-                }
-            }
-        } else {
-            let machine = typed
-                .machine_by_symbol(selected.symbol)
-                .or_else(|| typed.machine_holding_state(selected.symbol))
-                .ok_or("a machine description lost its declaration")?;
-            DomainEstablishmentRoute::ExactMachine {
-                machine: machine.symbol,
-            }
-        };
-        descriptions.push(Description {
-            route,
-            case: if requirement {
-                "Requirement"
-            } else {
-                "Machine"
-            },
-            identities,
-        });
-    }
-    Ok(descriptions)
-}
-
-/// The declaration a returned `CallableInfo` names, matched on every byte
-/// it carries.
-fn authenticated_route(
-    descriptions: &[Description],
-    route: &CallableDescription,
-) -> Result<DomainEstablishmentRoute, String> {
-    let variant = if route.0 { "Requirement" } else { "Machine" };
-    let identities = route.1.each_ref().map(Vec::as_slice);
-    let mut routes = descriptions
-        .iter()
-        .filter(|description| {
-            description.case == variant
-                && description
-                    .identities
-                    .iter()
-                    .zip(identities)
-                    .all(|(expected, actual)| expected.as_slice() == actual)
-        })
-        .map(|description| description.route);
-    let route = routes
-        .next()
-        .ok_or("a plan route names no callable this program describes")?;
-    if routes.any(|other| other != route) {
-        return Err("a plan route names more than one declaration".into());
-    }
-    Ok(route)
 }

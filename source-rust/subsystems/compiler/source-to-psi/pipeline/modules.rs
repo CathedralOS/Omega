@@ -135,3 +135,9 @@ use source_files::LoadedSource;
 #[cfg(test)]
 #[path = "../../../../../tests/support/frontend_operations.rs"]
 pub(crate) mod frontend_fixture;
+#[cfg(test)]
+#[path = "../../../../../tests/support/fixture_repository.rs"]
+pub(crate) mod fixture_repository;
+#[cfg(test)]
+#[path = "../../tests/support/schema_customer_source.rs"]
+pub(crate) mod schema_customer_source;

@@ -3214,6 +3214,8 @@ dependencies = [
 name = "source-compiler"
 version = "0.1.0"
 dependencies = [
+ "access-admission",
+ "access-vocabulary",
  "application-identity",
  "arena",
  "behavior-exclusion-requests",
@@ -3241,6 +3243,7 @@ dependencies = [
  "psi-target-layouts",
  "rayon",
  "record-storage",
+ "schema-reflection",
  "semantic-vocabulary",
  "serde",
  "serde_json",
