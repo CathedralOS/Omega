@@ -13,12 +13,10 @@ machine build(builder: @mut Build) {
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);
     Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
     Build::bind(builder, alpha_bootstrap::ProgramEntry, entry_start);
-    let mut psi_dependency: DependencyDescription = dependency::from_source(Source::Path {
-        location: "../../../psi"
-    });
-    dependency::with_alias(@mut psi_dependency, "psi");
-    let psi_registration: DependencyRegistration = Build::dependency(builder, psi_dependency);
+    let request_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
+        location: "../../subsystems/compiler/request"
+    }));
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
-        location: "../../../library/std"
+        location: "../../library/std"
     }));
 }

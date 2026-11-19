@@ -1,0 +1,8 @@
+// Decode one wire word after the caller establishes that four bytes are available.
+public machine u32_from_le_bytes(b0: u8, b1: u8, b2: u8, b3: u8) -> u32 {
+    let w0: u32 = b0 as u32;
+    let w1: u32 = b1 as u32;
+    let w2: u32 = b2 as u32;
+    let w3: u32 = b3 as u32;
+    w0 + w1 * 256 + w2 * 65536 + w3 * 16777216
+}

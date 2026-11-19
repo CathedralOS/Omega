@@ -1,86 +1,14 @@
-// The sealed OCREQ V1 request (wiki/spec/build/compiler_request.md), staged
-// from stdin before any of it is interpreted. Staging is a private
-// provision: a request longer than its 65,536 bytes is the
-// `request_staging_bytes` Incomplete outcome, anchored at the first byte
-// that could not be staged and reporting the full observed length, so the
-// entry keeps counting after the buffer fills.
-public data Request
-requires
-    length <= 65536,
-{
-    bytes: [u8; 65536];
-    length: u64;
-    observed: u64 in Trapping;
-}
-
-public machine clear(request: @mut Request) {
-    request.length = 0;
-    request.observed = 0 as +Trapping;
-}
-
-// Stage one more stdin byte, or only count it past a full buffer.
-public machine request_stage(request: @mut Request, byte: u8)
-crashes Trap
-{
-    request.observed = request.observed + 1;
-    transition request.length < 65536 {
-        true -> store(request, byte),
-        _ -> counted()
-    }
-
-    machine store(request: @mut Request, byte: u8)
-    requires request.length < 65536
-    {
-        request.bytes[request.length] = byte;
-        request.length = request.length + 1;
-    }
-
-    machine counted() {}
-}
-
-// How many bytes were staged.
-machine staged(request: @Request) -> u64 in Trapping {
-    request.length as +Trapping
-}
-
-// The request byte at `offset`; callers have bounded it by `length`.
-machine request_byte(request: @Request, offset: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition offset < request.length {
-        true -> read(request, offset),
-        _ -> invalid()
-    }
-
-    // The staged length's range does not transport through the comparison,
-    // so the array bound is restated before the read.
-    machine read(request: @Request, offset: u64 in Trapping) -> u64 in Trapping {
-        transition offset < 65536 {
-            true -> element(request, offset),
-            _ -> invalid()
-        }
-    }
-
-    machine element(request: @Request, offset: u64 in Trapping) -> u64 in Trapping
-    requires offset < 65536
-    {
-        request.bytes[offset as -Trapping] as u64 +Trapping
-    }
-
-    machine invalid() -> u64 in Trapping {
-        crash Trap;
-    }
-}
+use wire::u32_from_le_bytes;
 
 // The little-endian `u32` at `offset`; callers have bounded `offset + 4`.
 machine u32_at(request: @Request, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let b0: u64 in Trapping = request_byte(request, offset);
-    let b1: u64 in Trapping = request_byte(request, offset + 1);
-    let b2: u64 in Trapping = request_byte(request, offset + 2);
-    let b3: u64 in Trapping = request_byte(request, offset + 3);
-    b0 + b1 * 256 + b2 * 65536 + b3 * 16777216
+    let b0: u8 = request_byte(request, offset);
+    let b1: u8 = request_byte(request, offset + 1);
+    let b2: u8 = request_byte(request, offset + 2);
+    let b3: u8 = request_byte(request, offset + 3);
+    u32_from_le_bytes(b0, b1, b2, b3) as u64 +Trapping
 }
 
 // The OCREQ identity `4F 43 52 45 51 01 00 00` by position.
@@ -150,7 +78,7 @@ crashes Trap
     }
 
     machine identity(request: @Request, length: u64 in Trapping, index: u64 in Trapping) -> Verdict {
-        let byte: u64 in Trapping = request_byte(request, index);
+        let byte: u64 in Trapping = request_byte(request, index) as u64 +Trapping;
         let expected: u64 in Trapping = identity_byte(index);
         transition byte == expected {
             true -> identity_next(request, length, index),
@@ -173,7 +101,7 @@ crashes Trap
     }
 
     machine subject_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
-        let high: u64 in Trapping = request_byte(request, 11 as +Trapping);
+        let high: u8 = request_byte(request, 11 as +Trapping);
         transition high < 128 {
             true -> invocation_high_bit(request, length),
             _ -> malformed(8 as +Trapping)
@@ -181,7 +109,7 @@ crashes Trap
     }
 
     machine invocation_high_bit(request: @Request, length: u64 in Trapping) -> Verdict {
-        let high: u64 in Trapping = request_byte(request, 15 as +Trapping);
+        let high: u8 = request_byte(request, 15 as +Trapping);
         transition high < 128 {
             true -> lengths(request, length),
             _ -> malformed(12 as +Trapping)
@@ -337,7 +265,7 @@ crashes Trap
     }
 
     machine high_bit(reader: @mut SectionReader, request: @Request) -> u64 in Trapping {
-        let high: u64 in Trapping = request_byte(request, reader.cursor + 3);
+        let high: u8 = request_byte(request, reader.cursor + 3);
         transition high < 128 {
             true -> value(reader, request),
             _ -> refused(reader)
@@ -597,5 +525,20 @@ crashes Trap
 
     machine semantics() -> Outcome {
         coverage_request_semantics()
+    }
+}
+
+// Run the OCREQ phases in contract order and return the first refusal.
+public machine compile_request(request: @Request) -> Outcome
+crashes Trap
+{
+    let verdict: Verdict = request_envelope(request);
+    transition verdict.complete {
+        true -> request_structure(request, verdict.sections),
+        _ -> refused(verdict.outcome)
+    }
+
+    machine refused(outcome: Outcome) -> Outcome {
+        outcome
     }
 }
