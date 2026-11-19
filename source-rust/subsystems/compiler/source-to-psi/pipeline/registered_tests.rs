@@ -98,18 +98,8 @@ impl<'a> RegisteredTests<'a> {
                 "test target is outside its Product deployment",
             )]);
         }
-        let mut observer = UnmeasuredProduction;
-        let parsed = lex_and_parse(&source, &mut observer)?;
-        let (continuation, _) = parsed.prepare(&mut observer)?;
-        let checked = prepare_lower_and_check(
-            continuation.clone(),
-            source.selections.clone(),
-            source.build_accounting.unwrap_or(&Default::default()),
-            None,
-            None,
-            None,
-            &mut observer,
-        )?;
+        let continuation = source.resolve()?;
+        let checked = source.judge(continuation.clone(), None, None)?;
         let typed = &checked.program;
         let retain = |symbol| {
             source_symbols::retain_declaration(&typed.symbols, symbol)
@@ -188,21 +178,8 @@ impl<'a> RegisteredTests<'a> {
         root: &TestRoot,
         target: &str,
     ) -> Result<PublishedTargetProgram, Vec<Diagnostic>> {
-        let mut observer = UnmeasuredProduction;
-        let checked = prepare_lower_and_check(
-            self.continuation.clone(),
-            self.source.selections.clone(),
-            self.source.build_accounting.unwrap_or(&Default::default()),
-            None,
-            Some((root, target)),
-            None,
-            &mut observer,
-        )?;
-        let psi = checked.terminal_publication.publish(
-            &self.source.selections.optimizations,
-            self.source.declaration_authority,
-            &mut observer,
-        )?;
-        published_target(Arc::clone(psi.artifact()), checked, target)
+        let checked = self.source.judge(self.continuation.clone(), None, Some((root, target)))?;
+        let psi = self.source.publish(&checked)?;
+        published_target(psi, checked, target)
     }
 }

@@ -114,27 +114,45 @@ fn publish_stage(
     inspection: Option<&str>,
     advisories: Option<&mut Vec<Diagnostic>>,
 ) -> Result<(PublishedPsi, product_source::CompletedProductSource), Vec<Diagnostic>> {
-    let mut observer = UnmeasuredProduction;
-    let parsed = lex_and_parse(&source, &mut observer)?;
-    let (continuation, _) = parsed.prepare(&mut observer)?;
-    let optimizations = source.selections.optimizations.clone();
-    let standalone = evaluation::SourceCompletionAccounting::default();
-    let checked = prepare_lower_and_check(
-        continuation,
-        source.selections,
-        source.build_accounting.unwrap_or(&standalone),
-        inspection,
-        None,
-        None,
-        &mut observer,
-    )?;
-    let psi = checked.terminal_publication.publish(
-        &optimizations, source.declaration_authority, &mut observer,
-    )?;
+    let continuation = source.resolve()?;
+    let checked = source.judge(continuation, inspection, None)?;
+    let psi = source.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
     }
-    Ok((Arc::clone(psi.artifact()), checked))
+    Ok((psi, checked))
+}
+
+impl StageSource<'_> {
+    fn resolve(&self) -> Result<SourceContinuation, Vec<Diagnostic>> {
+        let mut observer = UnmeasuredProduction;
+        let parsed = lex_and_parse(self, &mut observer)?;
+        parsed.prepare(&mut observer).map(|(continuation, _)| continuation)
+    }
+
+    fn judge(
+        &self,
+        continuation: SourceContinuation,
+        inspection: Option<&str>,
+        test: Option<(&registered_tests::TestRoot, &str)>,
+    ) -> Result<product_source::CompletedProductSource, Vec<Diagnostic>> {
+        prepare_lower_and_check(
+            continuation,
+            self.selections.clone(),
+            self.build_accounting.unwrap_or(&Default::default()),
+            inspection,
+            test,
+            None,
+            &mut UnmeasuredProduction,
+        )
+    }
+
+    fn publish(&self, checked: &product_source::CompletedProductSource) -> Result<PublishedPsi, Vec<Diagnostic>> {
+        let psi = checked.terminal_publication.publish(
+            &self.selections.optimizations, self.declaration_authority, &mut UnmeasuredProduction,
+        )?;
+        Ok(Arc::clone(psi.artifact()))
+    }
 }
 
 fn lex_and_parse(
