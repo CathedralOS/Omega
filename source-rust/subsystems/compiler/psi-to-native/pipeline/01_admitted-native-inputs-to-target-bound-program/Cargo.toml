@@ -20,7 +20,7 @@ build-time-values = { path = "../../../../psi/evaluation/build-time-values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 effects = { path = "../../installation/native-effects" }
-evaluation-accounting = { path = "../../../../psi/evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../../../build/evaluation/accounting" }
 evaluation-contracts = { path = "../../../build/evaluation/usage" }
 evaluation-receipts = { path = "../../../build/evaluation/receipts" }
 language-core = { path = "../../../foundation/language-core" }

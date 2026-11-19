@@ -22,7 +22,7 @@ source-admission = { path = "../compiler/source-to-psi/pipeline/representations/
 source-text = { path = "../../foundation/source-text" }
 wire = { path = "../../foundation/wire" }
 terminal-codec = { path = "../compiler/psi/codec" }
-evaluation-accounting = { path = "../../../psi/evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../compiler/build/evaluation/accounting" }
 terminal-work = { path = "../compiler/psi/work" }
 artifacts = { path = "../compiler/foundation/measurements" }
 build-declarations = { path = "../compiler/build/build-declarations" }

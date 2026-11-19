@@ -21,6 +21,7 @@ psi-authorization = { path = "psi/authorization" }
 terminal-installation = { path = "psi-admission" }
 
 [dev-dependencies]
+evaluation-accounting = { path = "build/evaluation/accounting" }
 service-surface = { path = "psi/service-surface" }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 native-scalar-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/scalar-applications" }

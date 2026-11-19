@@ -11,6 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 evaluation-contracts = { path = "../../build/evaluation/usage" }
 record-storage = { path = "../../../../foundation/record-storage" }
-evaluation-accounting = { path = "../../../source-to-psi/evaluation/evaluation-accounting" }
+evaluation-accounting = { path = "../../build/evaluation/accounting" }
 semantic-vocabulary = { path = "../../foundation/semantic-records" }
 terminal-psi = { path = ".." }
