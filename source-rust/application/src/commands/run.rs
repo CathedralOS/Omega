@@ -74,7 +74,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
     {
         Some(
-            crate::inspection::open_trusted_program(
+            crate::saved_program::input::open_trusted_program(
                 &arguments.main_path,
                 arguments.trusted_artifact.as_deref(),
             )

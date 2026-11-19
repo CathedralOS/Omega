@@ -157,7 +157,7 @@ pub(crate) fn run(arguments: CompileArguments, output: DiagnosticOutput) {
 }
 
 fn build_saved(arguments: CompileArguments) -> Result<Vec<PathBuf>, SavedProgramError> {
-    let authorization = crate::inspection::open_trusted_program(
+    let authorization = crate::saved_program::input::open_trusted_program(
         &arguments.root_path,
         arguments.trusted_artifact.as_deref(),
     )?;

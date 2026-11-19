@@ -1,5 +1,7 @@
 //! Compile a published Psi program under the receiving host's permissions.
 
+pub(crate) mod input;
+
 use compiler::{
     Artifact, CompileRequest, CompilerRequestOutcome, NativeTarget, Program,
     TargetProviderInstallation,
@@ -107,34 +109,14 @@ pub(crate) fn publish(
         let directory = directory
             .as_ref()
             .map_err(|error| SavedProgramError::Output(error.to_string()))?;
-        let target = NativeTarget {
+        let product = prepare(
+            program.clone(),
             profile,
-            installation: installation(&program, profile, packages.as_ref())?,
-            requested_boundaries: Vec::new(),
-            application: target::NativeApplicationMetadata {
-                intent: settings.application_intent,
-                identifier: settings.application_identifier.clone(),
-                subsystem: settings.subsystem,
-                elf_interpreter: settings.elf_interpreters.effective(profile),
-                name: None,
-            },
-            optimizations: &settings.optimizations,
-            behavior_exclusions: &[],
-            x86_scalar_fma_provider: settings
-                .x86_deployment_claim
-                .admit_for(Some(profile))
-                .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        };
-        let Artifact::Native(product) = compiler::compile(CompileRequest::Native {
-            program: Program::Psi(program.clone()),
-            target,
-            entry_memory: &[],
-        })?
-        else {
-            return Err(SavedProgramError::Internal(
-                "saved Psi compilation produced no native product",
-            ));
-        };
+            packages.as_ref(),
+            &settings,
+            &[],
+            ExecutionProduct::Native,
+        )?;
         let published = product
             .publish(root, directory.directory())
             .map_err(SavedProgramError::Output)?;
@@ -144,4 +126,59 @@ pub(crate) fn publish(
         paths.push(path.to_owned());
     }
     Ok(paths)
+}
+
+/// The execution engine determines whether the program needs a linked image.
+#[derive(Clone, Copy)]
+pub(crate) enum ExecutionProduct {
+    Native,
+    Runtime,
+}
+
+pub(crate) fn prepare(
+    program: AuthorizedTerminalArtifact,
+    profile: TargetProfile,
+    packages: Option<&ReviewedHostPackages>,
+    settings: &EvaluatedBuildSettings,
+    entry_memory: &[psi_entry_memory::PrivateEntryRamInitialization],
+    requested: ExecutionProduct,
+) -> Result<product_publication::CompletedProduct, SavedProgramError> {
+    let target = NativeTarget {
+        profile,
+        installation: installation(&program, profile, packages)?,
+        requested_boundaries: Vec::new(),
+        application: target::NativeApplicationMetadata {
+            intent: settings.application_intent,
+            identifier: settings.application_identifier.clone(),
+            subsystem: settings.subsystem,
+            elf_interpreter: settings.elf_interpreters.effective(profile),
+            name: None,
+        },
+        optimizations: &settings.optimizations,
+        behavior_exclusions: &[],
+        x86_scalar_fma_provider: settings
+            .x86_deployment_claim
+            .admit_for(Some(profile))
+            .map_err(|reason| vec![Diagnostic::error(reason)])?,
+    };
+    let program = Program::Psi(program);
+    let request = match requested {
+        ExecutionProduct::Native => CompileRequest::Native {
+            program,
+            target,
+            entry_memory,
+        },
+        ExecutionProduct::Runtime => CompileRequest::Runtime {
+            program,
+            target,
+            entry_memory,
+        },
+    };
+    match (requested, compiler::compile(request)?) {
+        (ExecutionProduct::Native, Artifact::Native(product))
+        | (ExecutionProduct::Runtime, Artifact::Runtime(product)) => Ok(product),
+        _ => Err(SavedProgramError::Internal(
+            "saved Psi compilation returned another product",
+        )),
+    }
 }

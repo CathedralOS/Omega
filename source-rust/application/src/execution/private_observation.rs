@@ -11,11 +11,8 @@ use std::process::{Command, Output};
 
 pub(super) fn capture(
     command: Command,
-    provisions: Option<&products::RuntimeExecutionProvisions>,
+    recipes: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
 ) -> io::Result<(Output, Vec<(u32, Vec<u8>)>, Vec<u8>)> {
-    let recipes = provisions
-        .map(|provisions| provisions.private_entry_ram())
-        .unwrap_or_default();
     if recipes.is_empty() {
         let mut command = command;
         return command

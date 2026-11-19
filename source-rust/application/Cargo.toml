@@ -11,6 +11,7 @@ path = "src/main.rs"
 test = true
 
 [dependencies]
+product-publication = { path = "../subsystems/compiler/build/build-output/product-publication" }
 psi-entry-memory = { path = "../subsystems/compiler/psi/access/entry-memory" }
 native-provider-sponsor = { path = "../subsystems/interpreter/host/native-sponsor" }
 worker-budget = { path = "../subsystems/compiler/foundation/worker-budget" }
