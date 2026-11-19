@@ -24,6 +24,7 @@ use evaluation_contracts::BuildEvaluationSponsorLimits;
 use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
+    predecessor: Option<terminal_codec::TerminalExecutionIdentity>,
     pub(crate) unbound_acquisition: Option<Arc<package_compilation::CapturedLocalSource>>,
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<source_compiler::ProducedTerminalProgram>,
@@ -87,6 +88,7 @@ impl PreparedBuildExecution {
             .begin_invocation(measurement, INVOCATION_WORK)
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
+            predecessor: None,
             unbound_acquisition,
             execution_purpose,
             accepted: prepared,
@@ -154,6 +156,7 @@ impl PreparedBuildExecution {
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
         let providers = providers.admit(produced.view())?;
         Ok(Self {
+            predecessor: Some(self.produced.view().custody_identity()),
             unbound_acquisition,
             execution_purpose: self.execution_purpose,
             produced,
@@ -180,8 +183,10 @@ impl PreparedBuildExecution {
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
-        if !self.account.same_invocation(&previous.host.account) {
-            return Err(self.refuse("Build stage belongs to another invocation"));
+        if !self.account.same_invocation(&previous.host.account)
+            || self.predecessor.as_ref() != Some(&previous.host.produced.view().custody_identity())
+        {
+            return Err(self.refuse("Build resume requires the preceding stage of this invocation"));
         }
         self.host_issued = true;
         let mut carried = previous.carry().map_err(|reason| self.refuse(&reason))?;
@@ -203,6 +208,9 @@ impl PreparedBuildExecution {
     }
 
     pub fn host(&mut self) -> Result<Arc<crate::TerminalBuildHost>, Vec<Diagnostic>> {
+        if self.predecessor.is_some() {
+            return Err(self.refuse("a later Build stage must resume its preceding activation"));
+        }
         if self.host_issued {
             return Err(self.refuse("Build invocation already issued its execution host"));
         }
