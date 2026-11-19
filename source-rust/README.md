@@ -6,7 +6,7 @@ self-hosted compiler and not a bootstrap language rung.
 
 - `application/` is the entry point for the `omega` command.
 - `subsystems/` contains the compiler, interpreter, and package manager.
-- `foundation/` provides arenas, exact arithmetic, record storage, and byte encoding across subsystems.
+- `foundation/` provides arenas, exact arithmetic, record storage, byte encoding, and [host filesystem operations](foundation/filesystem/src/lib.rs) across subsystems.
 
 These crates stay the working development compiler and a maintained
 comparison compiler while the Epsilon-evaluator bootstrap path grows. Delta implements the Epsilon evaluator; Epsilon is used to
@@ -81,7 +81,8 @@ Each directory owns one kind of work:
 | [compilation/](compilation/README.md) | The compilers and their machinery: pipeline, representations, realization and backend |
 | `interpreter/` | Hosted interpretation: the Terminal runtime that runs programs and the native-provider runtime it hosts |
 | [packages/](packages/README.md) | Package operations, acquisition, review and compilation inputs |
-| [host-support/](host-support/README.md) | Bounded processes, filesystem custody and publication mechanisms |
+| [foundation/bounded-process/](foundation/bounded-process/README.md) | Host child-process execution, output capture, termination and cleanup |
+| [foundation/filesystem/](foundation/filesystem/src/lib.rs) | Host file identity, access inspection, scratch directories, locking, and exact-byte publication |
 
 The application is Cargo package `omega` in `application/`; run it from the
 workspace root with `mbx run -p omega -- run <root.omg>`.

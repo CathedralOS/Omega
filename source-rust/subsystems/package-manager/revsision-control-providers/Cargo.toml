@@ -15,7 +15,7 @@ record-storage = { path = "../../../foundation/record-storage" }
 filesystem-authority = { path = "../../../psi/evaluation/filesystem-authority" }
 bounded-process = { path = "../../../foundation/bounded-process" }
 optimization-core = { path = "../../compiler/psi-to-native/optimization-contracts" }
-platform-custody = { path = "../../host-support/platform-custody" }
+platform-custody = { path = "../../../foundation/filesystem" }
 resolver-execution = { path = "../resolver-execution" }
 cap-fs-ext = "4.0.3"
 cap-std = "4.0.3"

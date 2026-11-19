@@ -34,4 +34,4 @@ application-identity = { path = "../../compiler/source-to-psi/language/applicati
 language-core = { path = "../../compiler/source-to-psi/language/source-vocabulary" }
 declaration-contracts = { path = "../../compiler/source-to-psi/language/declaration-contracts" }
 orchestration = { path = "../../build-system/orchestration" }
-platform-custody = { path = "../../host-support/platform-custody" }
+platform-custody = { path = "../../../foundation/filesystem" }
