@@ -14,12 +14,11 @@ pub use native_compiler::{SavedProgramTarget as NativeTarget, TargetProviderInst
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource};
 
-pub enum CompileRequest<'a> {
-    Psi(StageSource<'a>),
+pub enum CompileRequest<'a> {    Psi(StageSource<'a>),
     Native {
         program: Program<'a>,
         target: NativeTarget<'a>,
-        entry_memory: &'a [terminal_installation::PrivateEntryRamInitialization],
+        entry_memory: &'a [psi_entry_memory::PrivateEntryRamInitialization],
     },
 }
 

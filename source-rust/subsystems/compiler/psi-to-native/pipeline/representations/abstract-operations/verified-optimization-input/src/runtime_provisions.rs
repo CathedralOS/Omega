@@ -3,10 +3,10 @@
 use crate::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
 use backend_plan::TerminalTargetProviderProposal;
 use calling_conventions::BoundaryCallingApplication;
+use psi_entry_memory::CheckedPrivateEntryRamRecipe;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
 use std::sync::Arc;
 use terminal_installation::AdmittedScalarApplications;
-use terminal_installation::CheckedPrivateEntryRamRecipe;
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
 
 /// Canonical scalar formals for one admitted call. Runtime admission keeps

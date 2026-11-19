@@ -14,7 +14,7 @@ pub(crate) mod native_admission {
     #[derive(Clone, Copy)]
     pub struct NativeAdmissionRequest<'request, 'execution> {
         pub entry: terminal_psi::TargetMachineCallable,
-        pub private_entry_ram: &'request [terminal_installation::CheckedPrivateEntryRamRecipe],
+        pub private_entry_ram: &'request [psi_entry_memory::CheckedPrivateEntryRamRecipe],
         pub providers: ProviderAdmissionRequest<'request, 'execution>,
         pub boundary_application_coverage: Option<&'request TerminalBoundaryApplicationCoverage>,
         pub behavior_exclusions: &'request effects::BehaviorExclusions,

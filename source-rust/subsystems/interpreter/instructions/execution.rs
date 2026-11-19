@@ -248,7 +248,7 @@ pub(crate) mod capabilities {
     pub(crate) fn check_with_private_entry_ram(
         program: &AdmittedTerminalProgram,
         installation: Option<&TerminalRuntimeSupplies>,
-        private_entry_ram: &[terminal_installation::CheckedPrivateEntryRamRecipe],
+        private_entry_ram: &[psi_entry_memory::CheckedPrivateEntryRamRecipe],
         scalar_scope: Option<&terminal_installation::ScalarScopeInputs>,
     ) -> Result<TerminalExecutionRequirements, TerminalInterpretError> {
         let entry = program.resolve_entry(installation)?;

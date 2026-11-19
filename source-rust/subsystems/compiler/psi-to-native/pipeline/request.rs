@@ -41,7 +41,7 @@ pub(crate) fn native_optimization_budget() -> OptimizationWorkBudget {
 pub struct NativeCompileRequest<'request> {
     /// Retain original stage inputs for explicitly requested correspondence audits.
     pub retain_native_stage_inputs: bool,
-    pub private_entry_ram: &'request [terminal_installation::PrivateEntryRamInitialization],
+    pub private_entry_ram: &'request [psi_entry_memory::PrivateEntryRamInitialization],
     pub installation_assumptions:
         &'request [installation_conditions::InstallationEnvironmentAssumption],
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
