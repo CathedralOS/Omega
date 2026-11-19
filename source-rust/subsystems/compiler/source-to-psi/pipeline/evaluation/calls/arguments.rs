@@ -460,8 +460,7 @@ pub(crate) fn declaration_call(
         build_selection: Default::default(),
         arguments: Default::default(),
         evidence_arguments: Box::default(),
-        operational_acknowledgement: declaration_contracts::CallOperationalAcknowledgement::default(
-        ),
+        operational_acknowledgement: language_core::CallOperationalAcknowledgement::default(),
     }
 }
 
