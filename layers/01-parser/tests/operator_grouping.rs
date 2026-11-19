@@ -24,6 +24,33 @@ fn is_comparison(operator: &str) -> bool {
     matches!(operator, "<" | "<=" | ">" | ">=" | "==" | "!=")
 }
 
+#[test]
+fn machine_and_trait_heads_bind_the_fixed_declaration_operators() {
+    // V1's OperatorSpelling::ALL and the V2 machine production agree on these 13.
+    const BINDABLE: &[&str] = &[
+        "+", "-", "*", "/", "%", "<", ">", "<=", ">=", "==", "!=", "[]", "[..]",
+    ];
+    for &operator in BINDABLE.iter().chain(TIERS.iter().flat_map(|tier| tier.iter())) {
+        for source in [
+            format!("machine {operator} op(a: T, b: T) -> T {{ a }}"),
+            format!("trait Ops {{ machine {operator} op(a: T, b: T) -> T; }}"),
+        ] {
+            let tokens = lex(source.as_bytes()).unwrap();
+            let result = parse_file(source.as_bytes(), &tokens);
+            if BINDABLE.contains(&operator) {
+                let tree = result.unwrap_or_else(|error| panic!("{source}: {error}"));
+                assert!(
+                    tree.get_events()
+                        .contains(&TreeEvent::Open(NodeKind::OperatorToken)),
+                    "{source}"
+                );
+            } else {
+                assert!(result.is_err(), "{source}");
+            }
+        }
+    }
+}
+
 fn assert_grouping(
     expression: &str,
     groups_left: bool,

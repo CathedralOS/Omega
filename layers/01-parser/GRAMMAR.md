@@ -1,7 +1,7 @@
 # L1 Parser grammar
 
-Status: **built against this document on 2026-11-18; gate passed; waiting for
-Jarod's sign-off.** All twelve decisions are made. The parser in `src/` follows
+Status: **gate passed and signed off 2026-11-18.** All twelve decisions are
+made. The parser in `src/` follows
 this grammar, every rule below has fixtures (see [Rules and their
 fixtures](#rules-and-their-fixtures)), and all 132 spec examples parse.
 Building it changed the grammar in seven places and raised two questions;
@@ -192,8 +192,10 @@ conformance for a type named `public`.
 - Operator tokens: `machine + add(...)` (language/expressions.md:151),
   `machine > Small::greater(...)` (language/domains.md:910),
   `machine [] read<Element [copy]>(...)` (language/expressions.md:405). The
-  spec names `+`, `==`, `[]` and `[..]`; the rest of the list is the binary
-  operators, pending a check against the spec's operator families.
+  spec names `+`, `==`, `[]` and `[..]` and forbids binding suffixed
+  integer policy operators. V1's `OperatorSpelling::ALL` supplies the full
+  13-spelling list above. [Declaration-head tests](tests/operator_grouping.rs)
+  check both machine and trait requirement heads against that list.
 - A bodyless `boundary machine ...;` (build/boundary_shapes.md:52).
 - Nested machines come after the executable part of a body: "Once
   declarations begin, executable statements cannot resume"

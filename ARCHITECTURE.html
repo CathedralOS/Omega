@@ -108,7 +108,7 @@
     <h2><span>1</span>The layers</h2>
     <figure>
       <div class="scroll">
-      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. Source bytes enter the lexer, which is built and signed off; tokens go to the parser, a syntax tree to the resolver, a resolved tree to the typer, a typed tree to preparation, a prepared tree to lowering, Terminal Psi to the checker, checked Psi to publication, which produces the published Psi artifact. The parser is built and has passed its gate, and is waiting for sign-off; the six layers after it are not started.">
+      <svg viewBox="0 0 960 320" role="img" aria-label="Eight layers in a straight line. The lexer and parser are signed off. Source bytes enter the lexer, tokens go to the parser, and a syntax tree goes to the resolver. The resolver contract is in progress. Later layers take the resolved tree through typing, preparation, lowering, checking and publication.">
         <text x="120" y="30" text-anchor="middle" class="mono">source bytes</text>
         <path class="a" d="M120,40 V70"/>
 
@@ -117,12 +117,12 @@
         <text x="120" y="114" text-anchor="middle" class="ts">cuts bytes into tokens</text>
         <path class="a" d="M195,100 H285"/><text x="240" y="92" text-anchor="middle" class="tl">tokens</text>
 
-        <rect class="b-wip" x="285" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-done" x="285" y="70" width="150" height="60" rx="7"/>
         <text x="360" y="95" text-anchor="middle" class="th">L1 Parser</text>
         <text x="360" y="114" text-anchor="middle" class="ts">builds the tree</text>
         <path class="a" d="M435,100 H525"/><text x="480" y="92" text-anchor="middle" class="tl">syntax tree</text>
 
-        <rect class="b-todo" x="525" y="70" width="150" height="60" rx="7"/>
+        <rect class="b-wip" x="525" y="70" width="150" height="60" rx="7"/>
         <text x="600" y="95" text-anchor="middle" class="th">L2 Resolver</text>
         <text x="600" y="114" text-anchor="middle" class="ts">binds every name</text>
         <path class="a" d="M675,100 H765"/><text x="720" y="92" text-anchor="middle" class="tl">resolved tree</text>
@@ -361,7 +361,7 @@
         <path class="a" d="M285,160 V100"/><text x="295" y="135" class="tl">rule settled</text>
       </svg>
       </div>
-      <figcaption>The same loop for every layer. The lexer has been through it and is signed off; the parser has passed its gate and is waiting for sign-off.</figcaption>
+      <figcaption>The lexer and parser have completed the loop. The resolver has entered the contract and fixture steps.</figcaption>
     </figure>
   </section>
 

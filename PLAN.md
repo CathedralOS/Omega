@@ -4,7 +4,7 @@ Living document. Jarod edits it freely; Claude keeps the layer statuses, spec
 gaps and decision log current as work lands. Last updated 2026-11-18.
 
 For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
-nine diagrams and no prose beyond captions.
+ten diagrams and no prose beyond captions.
 
 Each statement below is marked by where it came from:
 
@@ -123,8 +123,8 @@ Psi to native code) are not planned yet.
 | Layer | Input → output | Status | Suite time |
 | --- | --- | --- | --- |
 | L0 Lexer | source bytes → tokens | done, signed off 2026-11-18 | 0.2 s |
-| L1 Parser | tokens → syntax tree | built, gate passed 2026-11-18; waiting for sign-off | 1.12 s |
-| L2 Resolver | syntax tree → names resolved | not started | — |
+| L1 Parser | tokens → syntax tree | done, signed off 2026-11-18 | 1.12 s |
+| L2 Resolver | syntax tree → names resolved | contract and first multi-file fixtures in progress | — |
 | L3 Typer | resolved tree → typed tree | not started | — |
 | L4 Preparation | typed tree → evaluated, frozen typed tree | not started | — |
 | L5 Lowering | typed tree → Terminal Psi | not started | — |
@@ -236,7 +236,7 @@ stage budget and lockfile details with the existing driver questions below.
   derived from the spec's prose and all 132 examples, each form citing the
   examples that show it. The parser in `layers/01-parser/src` was built
   against it on 2026-11-18.
-- **Gate (2026-11-18), waiting for Jarod's sign-off:**
+- **Gate passed and signed off 2026-11-18.**
 
   | Check | Result |
   | --- | --- |
@@ -272,6 +272,9 @@ stage budget and lockfile details with the existing driver questions below.
   Decision 12 assigns `@` to references and borrows.
 
 ### L2 to L4
+
+L2 begins with [directory namespaces and sibling declaration lookup](layers/02-resolver/CONTRACT.md).
+The first pair of fixtures changes only the declaring file's directory.
 
 Contracts are written when each layer starts. One thing is recorded now
 because it shapes what these layers' interfaces must look like.
@@ -573,7 +576,7 @@ before the layer that depends on it is signed off.
 
 | # | Gap | Evidence | Affects | Decision |
 | --- | --- | --- | --- | --- |
-| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all twelve decisions made, parser built against it. L1 sign-off pending. |
+| 1 | No formal grammar. | No grammar productions anywhere in `wiki/spec`. | L1 | Grammar written in `layers/01-parser/GRAMMAR.md`, all twelve decisions made and signed off. |
 | 11 | No limit on nesting is stated. | A parser that follows nesting without limit can be run out of stack by a small hostile file. | L1 | The parser follows 128 levels and refuses more; accepted with L1 sign-off |
 | 10 | The spec's examples disagree with each other and with V1's parser. | A `requires` before a body is punctuated three ways in one file; an `if` statement appears once and is defined nowhere; `match` is shown with tuple patterns V1 does not parse. Full list in the grammar. | L1 | Decided with the grammar; V2's copy of the spec's examples is rewritten to match, its prose is not yet |
 | 2 | Comment syntax is never defined. | `//` appears on 51 lines of spec examples; the only prose is that non-ASCII bytes may occur "in comments". No `/*` appears. | L0 | Accepted with L0 sign-off (G2): `//` and nesting `/* */` |
