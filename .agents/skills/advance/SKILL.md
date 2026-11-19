@@ -1,10 +1,7 @@
 ---
 name: advance
-description: >-
-  The step-by-step workflow for making one more Omega compiler capability
-  work: pick the work, reproduce the failure, fix it, test it and merge it.
-  Use for advance, continue the compiler, or pick the next compiler work.
-  Common rules and decision framing live in AGENTS.md.
+disable-model-invocation: true
+description: Use only when the user explicitly requests advance. Pick the next compiler capability, reproduce its failure, repair it, test it, and land the change.
 ---
 
 # Advance Workflow
@@ -144,8 +141,7 @@ for the checks that currently run after merge.
    cargo xtask check-rules --base origin/main --title "<title>" --body-file PR_BODY
    gh pr create --base main --head work/<lane>-<topic> --title "<title>" --body-file PR_BODY
    ```
-2. **Land it:** Review your own diff the way a careful reviewer would
-   ([coordinator-review](../coordinator-review/SKILL.md)), then squash-merge it
+2. **Land it:** Review your own diff for soundness, regression coverage and cost, then squash-merge it
    when `admission` passes. You already have permission; waiting for it only
    slows the project down.
 3. **Return to the original program in the same worktree:** After each merge,

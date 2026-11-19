@@ -38,7 +38,7 @@ different cloud executor.
    destination resolve to `CathedralOS/Omega`; do not print credential-bearing
    URLs. Record HEAD, branch, status and existing worktrees. Fetch successfully,
    reread current instructions, and acquire an isolated pool slot under
-   [advance](../../advance/SKILL.md#step-1-preflight-worktree--claim). Record its
+   [the worktree rules](../../../../AGENTS.md#hard-rules). Record its
    fixed base and applicable retained build; do not edit the primary checkout.
    A failed fetch stops a new launch; preserve unrelated and resumed work.
    The expected Linux path may be `/workspace/Omega`; discover it rather than

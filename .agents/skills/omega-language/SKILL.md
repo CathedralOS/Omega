@@ -1,6 +1,7 @@
 ---
 name: omega-language
-description: How to write, explain, or debug Omega (.omg) code without guessing. Use before writing any Omega example, sample, fixture, or doc snippet, or when answering what Omega syntax or semantics is. Routes to the repository files that define the language and to the commands that prove an example compiles.
+disable-model-invocation: true
+description: Use only when the user explicitly requests omega-language. Find the governing Omega syntax and semantics and check an example against the compiler.
 ---
 
 # Omega Language

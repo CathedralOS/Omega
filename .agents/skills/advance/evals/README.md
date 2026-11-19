@@ -68,7 +68,7 @@ to load it through aliases or global discovery; keep AGENTS.md and the other
 skills. For before/after trials, use complete snapshots of each revision, not
 one SKILL.md with mismatched references.
 
-Give both arms the same prompt and acceptance; only paths and skills differ. Give each worker its own scratch directory. Follow AGENTS.md model routing.
+For trials of the skill itself, explicitly request `$advance` in the skill-enabled arm. Give both arms the same task and acceptance. For invocation controls, send the task alone to both arms and check that neither loads the skill. Give each worker its own scratch directory. Follow AGENTS.md model routing.
 Do not run simultaneous compiler builds on one host. Shared caches and cold
 builds distort timing; record how you handled them before comparing times.
 

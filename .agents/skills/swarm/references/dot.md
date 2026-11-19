@@ -4,8 +4,7 @@ These tools start agents on the current computer, including a local Windows
 workstation. Their presence does not identify the product as Dot, provision a
 cloud machine, or require a remote-artifact recovery workflow.
 
-Execution and publication follow [advance](../../advance/SKILL.md),
-[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/docs/landing.md).
+Execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing](../../../../tools/docs/landing.md).
 
 ## Tools and capacity
 
@@ -21,7 +20,7 @@ Execution and publication follow [advance](../../advance/SKILL.md),
 - `send_message` does not restart an idle worker; use `followup_task` to resume a settled worker.
 - Use the capacity actually exposed by the runtime, including the coordinator;
   do not assume a fixed agent count or change user configuration to obtain more.
-- Each editing worker gets an isolated `worker-N` pool slot through `/advance`.
+- Each editing worker gets an isolated `worker-N` pool slot using `mbx xtask worktree acquire`.
   Preserve its fixed path and warm target across successive repairs.
 - Workers share this host's CPU, memory and disk. Set the current
   [host build budget](../../../../tools/docs/build_slot.md) before builds and include
@@ -30,7 +29,7 @@ Execution and publication follow [advance](../../advance/SKILL.md),
 
 ## Dispatch and continuation
 
-The coordinator performs `/advance` Step 1, then dispatches an outcome with its
+The coordinator checks live work, acquires a worktree and registers the claim, then dispatches an outcome with its
 worktree, fixed base, claim result, witness, acceptance and build budget. The
 worker owns investigation, repair, focused checks, self-review and verified PR
 landing. Claims are informational; an overlap is reconciled, not permission to

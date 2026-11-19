@@ -2,3 +2,6 @@ interface:
   display_name: "Omega swarm"
   short_description: "Coordinate Omega local or cloud workers"
   default_prompt: "Use $swarm to coordinate a bounded Omega wave in the environment and program or board scope I specify."
+
+policy:
+  allow_implicit_invocation: false

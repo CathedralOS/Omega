@@ -8,6 +8,8 @@ Code, create an ignored checkout-local link when `.claude/skills` is absent:
 - Windows PowerShell: `New-Item -ItemType Directory -Force .claude; New-Item -ItemType Junction -Path .claude/skills -Target (Resolve-Path .agents/skills)`
 - macOS/Linux shell: `mkdir -p .claude && ln -s ../.agents/skills .claude/skills`
 
+**Skill invocation.** Use a repository skill only when the user explicitly asks for that skill in chat. This also applies to workers and to links between skills. Otherwise carry out the task using the project instructions and ordinary tools.
+
 Omega is a proof-checked systems language whose programs are data-oriented
 state machines:
 - `omega-rust/` — the Rust reference producer and differential comparator.
@@ -42,9 +44,7 @@ plain wording over the shorthand:
 - **Lane**: the area prefix of a commit title, such as `psi:` or `docs:`
   (see [commit naming](#commit-naming)).
 
-**The goal is a complete compiler that ships.** Follow `.agents/skills/advance/SKILL.md`
-(`/advance`) to execute work, `.agents/skills/coordinator-review/SKILL.md` to
-review candidate diffs, and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
+**The goal is a complete compiler that ships.** Follow the work and review rules below and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
 for the six release gates (`repository`, `source semantics`, `build and packages`,
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
@@ -90,9 +90,8 @@ Three faults make agent writing hard to read. Check every sentence for them:
   result, so I'll report when it returns" but "I'll report when the test
   finishes."
 
-To rewrite existing text in plain language, follow
-[plain-writing](.agents/skills/plain-writing/SKILL.md); its script checks that
-the rewrite kept every identifier and grew no longer.
+When rewriting existing text, preserve its meaning and identifiers. The
+[rewrite checker](.agents/skills/plain-writing/scripts/check_rewrite.py) checks identifiers and length.
 
 Check claims against the actual submitted or landed diff and observed behavior;
 inspect unclear code or examples instead of inventing a plausible benefit.
@@ -249,12 +248,11 @@ beside that test.
      `BUILD-OWNED-TARGET-SELECTION`, `BUILD-OWNED-NATIVE-BINDINGS`,
      `TOP-LEVEL-BOUNDARY-REQUIREMENTS`).
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
-2. **Execute `/advance` and chain on the warm worktree:** Follow the 5-step
-   workflow in [.agents/skills/advance/SKILL.md](.agents/skills/advance/SKILL.md).
-   When running with subagents, the coordinator runs Step 1 (triage from
-   `TASKS.md`, worktree creation, and claim registration) and dispatches workers immediately so each worker owns
-   Steps 2–5 (all `omega-rust/` source reading, root-cause tracing, repair,
-   validation, and PR) in its own context window. After landing a checkpoint,
+2. **Keep the assigned outcome on the warm worktree:** Reproduce the failure,
+   repair its cause, test and review the change, and verify it after landing.
+   When running with subagents, the coordinator chooses work from `TASKS.md`,
+   acquires worktrees and registers claims. Each worker traces the failure,
+   repairs and validates the change, and lands its PR in its own context window. After landing a checkpoint,
    return to the original program and follow its next failure on
    the warm worktree. An unfinished handoff preserves the original acceptance
    and names the receiving session when one has accepted it.
@@ -429,8 +427,7 @@ refuses a second build or test run while one is active.
 
 - **Coordinator and workers:** The coordinator chooses work and starts
   workers, each in its own worktree. You are trusted with your task end to
-  end: review your own diff the way a careful reviewer would
-  ([coordinator-review](.agents/skills/coordinator-review/SKILL.md)), then
+  end: review your own diff for soundness, regression coverage and cost, then
   squash-merge it when `admission` passes. Waiting for permission you already
   have only slows the project down. A coordinator may look at any diff; workers
   do not wait for it. A single-agent session works the same way.

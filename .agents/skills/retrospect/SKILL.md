@@ -1,10 +1,7 @@
 ---
 name: retrospect
-description: >-
-  Review a batch of agent work histories and what they left on main for recurring
-  friction, costly patterns, and evidence-backed improvements to how agents work. Use when asked to retrospect on multiple
-  runs, find recurring workflow problems, or evaluate a previous process change.
-  Not a routine step within advance, a single-run bug fix, or a compiler optimization.
+disable-model-invocation: true
+description: Use only when the user explicitly requests retrospect. Review several agent work histories and their landed changes for recurring workflow problems.
 ---
 
 # Learn from repeated work

@@ -1,6 +1,6 @@
 # Tasks
 
-Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
+Follow the [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
 The fixture corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13 ([tests/README.md](tests/README.md#the-former-corpus)). When an acceptance below names a fixture or fixture family (`runtime_dutch_flag_partition_exit`, `pass/wire/*_exit`, `modules/`), it means programs of that corpus: those kept are under `tests/fixtures/` at the same `<tier>/<group>/<name>`; recover the rest from history. The acceptance is met when the named programs pass `omega run --both`, restored beside the tests that prove the item. There is no corpus run and no ledger to consult.
 
