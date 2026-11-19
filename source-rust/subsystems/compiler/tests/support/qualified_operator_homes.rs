@@ -1,5 +1,6 @@
 //! Normal package preparation must retain operator homes through publication.
 
+use verified_optimization_input::RetainedTerminalArtifact;
 use std::path::{Path, PathBuf};
 
 const FILES: &[&str] = &[
@@ -55,7 +56,7 @@ impl Drop for Project {
 
 fn terminal_product(
     main: &Path,
-) -> Result<artifact_lowering::RetainedTerminalArtifact, Vec<diagnostics::Diagnostic>> {
+) -> Result<RetainedTerminalArtifact, Vec<diagnostics::Diagnostic>> {
     // The public application owner settles the authored graph, admits its real
     // Product and services, and publishes the selected entry. Fixture-specific
     // semantic-role discovery supplies no alternative acceptance here.

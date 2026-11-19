@@ -4,7 +4,8 @@
 // application, and emits a shared component image keyed by the component
 // version and calling application commitment (`component_export_slot`).
 
-use artifact_lowering::ComponentNativeInputs;
+use verified_optimization_input::{AdmittedNativeComponentCall, PreparedNativeExecution};
+use verified_optimization_input::ComponentNativeInputs;
 use artifact_lowering::admit_prepared_native_realization;
 use calling_conventions::{BoundaryCallingApplication, BoundaryNativeParameterOrigin};
 use diagnostics::Diagnostic;
@@ -49,7 +50,7 @@ pub struct ComponentExportImage<'input> {
 impl<'input> ComponentExportImage<'input> {
     pub fn into_product(
         self,
-        call: &artifact_lowering::AdmittedNativeComponentCall<'_>,
+        call: &AdmittedNativeComponentCall<'_>,
     ) -> Result<native_artifact::NativeComponentProduct, String> {
         if self.component.artifact() != call.component().artifact()
             || self.candidate.candidate != call.selection().candidate()
@@ -134,7 +135,7 @@ pub fn component_export_slot(
 
 pub fn emit_component_exports<'input>(
     inputs: &ComponentNativeInputs<'input>,
-    executions: Vec<artifact_lowering::PreparedNativeExecution>,
+    executions: Vec<PreparedNativeExecution>,
     scalars: Option<artifact_lowering::NativeScalarApplications<'_>>,
     request: ComponentExportRequest<'_>,
 ) -> Result<Vec<ComponentNativeExport<'input>>, Vec<Diagnostic>> {

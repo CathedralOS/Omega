@@ -1,4 +1,5 @@
 //! Plan every reachable private native body before physical resource planning begins.
+use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal};
 use super::lower_body::NativeBodyPlanningError;
 use artifact_lowering::admit_prepared_native_realization;
 use diagnostics::Diagnostic;
@@ -7,8 +8,8 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 use std::sync::Arc;
 
 pub struct NativeProgramPlanningRequest<'request, 'contract> {
-    pub proposal: &'contract artifact_lowering::TerminalNativeRealizationProposal,
-    pub execution: &'contract artifact_lowering::PreparedNativeExecution,
+    pub proposal: &'contract TerminalNativeRealizationProposal,
+    pub execution: &'contract PreparedNativeExecution,
     pub scalar_applications: Option<&'contract psi_scalar_applications::AdmittedScalarApplications>,
     pub admission: &'request artifact_lowering::NativeAdmissionRequest<'contract, 'contract>,
     pub optimization_selections: &'contract optimization_core::PostTerminalOptimizationSelections,

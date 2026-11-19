@@ -22,6 +22,7 @@ pub(crate) use component_exports::{
 };
 mod object_emission;
 
+use verified_optimization_input::{PreparedNativeExecution, TerminalNativeRealizationProposal, ValidatedNativeProgramEntrySettlement};
 use crate::pipeline::observations::NativePipelineObservation;
 use crate::pipeline::request::native_optimization_budget;
 use diagnostics::Diagnostic;
@@ -33,7 +34,7 @@ use provider_admission::realization_error;
 
 pub(super) struct AdmittedRealization<'request> {
     admitted: AdmittedNativeRealization<'request>,
-    entry_settlement: Option<artifact_lowering::ValidatedNativeProgramEntrySettlement>,
+    entry_settlement: Option<ValidatedNativeProgramEntrySettlement>,
     runtime_provisions: Option<
         self::runtime_provisions::NativeRuntimePlan<
             self::runtime_provisions::NativeForeignAdapterRequest,
@@ -44,8 +45,8 @@ pub(super) struct AdmittedRealization<'request> {
 pub(super) fn admit_realization<'execution>(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: artifact_lowering::VerifiedNativeArtifactInput,
-    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
-    execution: &artifact_lowering::PreparedNativeExecution,
+    proposal: &TerminalNativeRealizationProposal,
+    execution: &PreparedNativeExecution,
     admission: &artifact_lowering::NativeAdmissionRequest<'_, 'execution>,
 ) -> Result<AdmittedRealization<'execution>, Vec<Diagnostic>> {
     let admitted = admit_prepared_native_realization(input, artifact, admission)?;

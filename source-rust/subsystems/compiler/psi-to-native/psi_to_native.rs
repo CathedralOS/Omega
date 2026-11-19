@@ -7,6 +7,7 @@ pub use host_provider_inputs::{InstalledPackageProviders, TargetProviderInstalla
 pub use native_artifact::AdmittedRuntimeProgram;
 pub use pipeline::prepare::published_application::SavedProgramTarget;
 
+use verified_optimization_input::RetainedTerminalArtifact;
 use diagnostics::Diagnostic;
 use pipeline::prepare::published_application::{complete_entry_scalars, prepare_saved_program};
 use pipeline::request::NativeCompileRequest;
@@ -64,7 +65,7 @@ fn with_published_request<T>(
     private_entry_ram: &[PrivateEntryRamInitialization],
     accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
     finish: impl FnOnce(
-        artifact_lowering::RetainedTerminalArtifact,
+        RetainedTerminalArtifact,
         NativeCompileRequest<'_>,
     ) -> Result<T, (target::ExecutableImageEmissionRequest, Vec<Diagnostic>)>,
 ) -> Result<T, Vec<Diagnostic>> {

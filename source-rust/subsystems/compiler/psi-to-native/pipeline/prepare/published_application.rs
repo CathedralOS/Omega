@@ -1,9 +1,8 @@
 //! Prepare native execution from the host-admitted publication and its selected providers.
+use verified_optimization_input::{NativeProgramEntrySettlement, RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal};
+use verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement;
 use super::application::{TerminalApplication, admit_package_permissions};
 use super::program_entry::PublishedNativeEntry;
-use artifact_lowering::{
-    BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
-};
 use diagnostics::Diagnostic;
 use provider_admission::{
     CompilerIntrinsicPlanProvenance, TerminalAuthorityPermissionPolicy,
@@ -30,7 +29,7 @@ fn prepare_published_application<Publisher>(
     inputs: PublishedApplicationInputs<'_, Publisher>,
 ) -> Result<
     (
-        artifact_lowering::RetainedTerminalArtifact,
+        RetainedTerminalArtifact,
         TerminalAuthorityPermissionPolicy,
     ),
     Vec<Diagnostic>,
@@ -272,7 +271,7 @@ pub(crate) fn prepare_saved_program(
     mut target: SavedProgramTarget<'_>,
 ) -> Result<
     (
-        artifact_lowering::RetainedTerminalArtifact,
+        RetainedTerminalArtifact,
         TerminalAuthorityPermissionPolicy,
     ),
     Vec<Diagnostic>,
@@ -343,7 +342,7 @@ pub(crate) fn prepare_saved_program(
 /// Complete exactly the scalar applications required by the authorized native entry.
 pub fn complete_entry_scalars(
     authorization: &psi_authorization::AuthorizedTerminalArtifact,
-    proposal: &artifact_lowering::TerminalNativeRealizationProposal,
+    proposal: &TerminalNativeRealizationProposal,
     accounting: &mut impl Extend<native_scalar_inputs::EvaluationReceipt>,
 ) -> Result<Option<psi_scalar_applications::AdmittedScalarApplications>, Vec<Diagnostic>> {
     let Some(demand) = proposal.entry_scalar_demand(authorization)? else {

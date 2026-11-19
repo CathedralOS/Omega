@@ -17,8 +17,10 @@ retires it.
 The build's starting function, implementations and callbacks are joined before
 lowering. The [shared input owner](../representations/abstract-operations/verified-optimization-input/src/lib.rs)
 keeps that checked record with the lowered program, so later stages read it
-without depending on this stage. Start at [lower.rs](lower.rs), which re-exports the
-established public names.
+without depending on this stage. The [stage entry](lower.rs) exposes selected
+execution and callable lowering, provider preparation and entry admission.
+Callers obtain retained programs, proposals and entry settlements directly from
+the shared input owner.
 
 - The [shared proposal owner](../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
   checks the chosen target, program entry, provider rows and callback

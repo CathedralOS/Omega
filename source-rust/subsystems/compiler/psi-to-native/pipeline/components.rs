@@ -5,10 +5,10 @@
 // `emit_components` emits shared component images and verifies that the emitted
 // export roster matches the admitted call roster 1-for-1.
 
+use verified_optimization_input::{AdmittedNativeComponentCall, ComponentNativeInputs, PreparedNativeExecution};
 use crate::pipeline::realization::{
     ComponentExportImage, ComponentExportRequest, ComponentNativeCall,
 };
-use artifact_lowering::{AdmittedNativeComponentCall, ComponentNativeInputs};
 use diagnostics::Diagnostic;
 use provider_plans::ProviderPlan;
 use native_artifact::NativeComponentProduct;
@@ -31,7 +31,7 @@ pub(crate) struct PreparedComponent<'input> {
     compilation: &'input ComponentCompilation<'input>,
     pub(crate) calls: Vec<AdmittedNativeComponentCall<'input>>,
     pub(crate) scalars: Option<&'input psi_scalar_applications::AdmittedScalarApplications>,
-    exports: Vec<artifact_lowering::PreparedNativeExecution>,
+    exports: Vec<PreparedNativeExecution>,
 }
 
 pub(crate) fn prepare_components<'input>(

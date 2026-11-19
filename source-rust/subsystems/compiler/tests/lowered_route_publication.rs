@@ -18,6 +18,7 @@ mod fixture_repository;
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
+use verified_optimization_input::RetainedTerminalArtifact;
 use source_compiler::checking::RoutePublication;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -366,7 +367,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
 }
 
 /// The Terminal product the default compile builds for `fixture`.
-fn default_product(fixture: &str) -> artifact_lowering::RetainedTerminalArtifact {
+fn default_product(fixture: &str) -> RetainedTerminalArtifact {
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
