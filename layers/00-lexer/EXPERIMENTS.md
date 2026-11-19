@@ -831,6 +831,60 @@ lexer. [Parser experiment 9](../01-parser/EXPERIMENTS.md#9-size-the-index-and-to
 combined density sampling with an indexed handoff. Its regression cannot
 by itself tell us the cost of sampling alone.
 
+## 14. Estimate token density on large files (2026-11-18)
+
+Experiment 13 found that a fixed cap caused extra copies on dense inputs.
+This trial changed only the standalone lexer in an isolated build. For files
+under 128 KiB it requested the production capacity. For larger files it lexed
+the first sixteenth of the source, finishing any token crossing the boundary.
+It kept those tokens, projected the rest from tokens per byte seen, and
+requested that many additional slots plus one eighth of headroom, limited to
+one slot per remaining byte. Scanning then resumed at the next token.
+
+The table repeats experiment 13's Windows process measurements. Capacity
+comes from the vector. Private commit and peak working set are median process
+counter increases across five fresh processes per input and implementation,
+relative to a reading after the source was filled.
+
+| Approximately 8 MiB of source | Token capacity, production → sampled | Private commit, production → sampled | Peak working set increase, production → sampled |
+| --- | ---: | ---: | ---: |
+| One block comment | 85.33 MiB → 128 bytes | 85.50 MiB → under 0.01 MiB | 0.01 MiB → under 0.01 MiB |
+| 64-byte comment lines | 85.33 → 8.94 MiB | 85.50 → 9.98 MiB | 8.05 → 9.05 MiB |
+| Repeated V2 accept fixtures | 170.69 → 117.52 MiB | 171.03 → 118.78 MiB | 170.71 → 106.21 MiB |
+| Repeated short machines | 170.67 → 190.66 MiB | 171.01 → 192.07 MiB | 170.71 → 171.68 MiB |
+| 4 MiB of `@` tokens, then one 4 MiB comment | 170.67 → 256.00 MiB | 171.01 → 257.53 MiB | 170.70 → 129.02 MiB |
+| One 4 MiB comment, then 4 MiB of `@` tokens | 170.67 → 256.00 MiB | 171.00 → 257.53 MiB | 170.70 → 257.02 MiB |
+
+Both mixed files emit 4,194,305 tokens. With the dense half first, the
+sample predicted dense code throughout and reserved 8,388,608 slots. With
+the comment first, the sample finished that one token halfway through the
+file and predicted one more token. Ordinary vector growth then doubled
+capacity when the last token exceeded 4,194,304 slots. These paths reached
+the same final capacity with substantially different resident peaks.
+
+The repeated V2 fixtures took 24.2% less lexer time with sampling. Comment
+lines took 23.9% less and repeated short machines took 10.3% less. On the
+mixed input with code first, time fell 14.5%. Reversing those halves raised
+time **64.0%**, from a median of 40.22 ms to 66.76 ms. All six paired rounds
+showed the regression (61.6–71.0%). The second invocation of the stock binary
+differed by −1.4% in the median on that workload. Timing used the release
+probe, rotated order, two warmups and four measured lexes per invocation,
+with fresh token storage and destruction outside the timed region.
+
+The candidate passed all 49 lexer tests, including the spec corpus. For
+eight source shapes and four requested sizes around the 128 KiB cutoff and
+at 8 MiB, both builds produced matching token kind-and-span fingerprints
+or matching lexical errors. The fixture workload rounds up to whole bundles.
+
+All 19,442 V1 files fell below the cutoff and received the original
+reservation. Even so, file-by-file throughput fell 2.5–6.7% across the three
+release build layouts in `compare-builds` (two rounds, five timed passes).
+All 12 runs produced the same token fingerprint, `389ed15fa61d1f87`.
+
+**Decision.** Keep the production reservation. Sampling a single prefix
+made performance depend too heavily on where the dense tokens appeared.
+Reordering the same two halves turned a speedup into a 64% slowdown.
+
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
