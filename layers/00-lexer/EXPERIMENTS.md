@@ -754,6 +754,83 @@ start of every run.
 layer's tool has to end with a RESULT line from the `measure` crate, so the
 oldest commit this layer can be compared against is the one that adds it.
 
+## 13. What the token reservation costs on Windows (2026-11-18)
+
+On commit `3badc18`, a fresh token buffer requests one slot per three input
+bytes plus 16. An 8 MiB block comment requests 2,796,218 slots before the
+scanner knows that the entire file is one token. On this 64-bit build each
+slot is 32 bytes, so the vector reports 85.33 MiB of capacity.
+
+**What Windows charged.** The release probe filled and touched the source
+before the first reading. It then called the public `lex_into`, reused the
+same vector for `machine f() {}`, and dropped it while keeping the source
+alive. At each boundary the child paused on stdin while a parent refreshed
+its Windows process counters. Across five fresh processes on Windows 11
+build 26300, the median private-byte increase for the comment was **85.50
+MiB**. The median working-set increase was **8 KiB** in the first batch and
+**12 KiB** in a second five-process batch. The small follow-up
+file retained the commit. After dropping the vector the median private-byte
+delta returned to zero. An unterminated comment retained the same capacity
+in the caller's empty output vector after refusal. The CLI uses `lex` with
+a fresh vector, so its buffer lifetime ends with the file operation.
+
+**How often the estimate misses.** Lexing each V1 file separately with a
+fresh buffer accepted all 19,442 files (26,441,134 bytes). The initial
+estimate was too small on 2,650 files and at least twice the emitted count
+on 319 nonempty token lists. Final unused capacity, including any growth,
+was 1,568 bytes at the median, 19,264 at p95 and 48,576 at p99. The maximum
+was 301,152 bytes: the initial guess on `samples/cli/simulation/game_of_life/main.omg`
+was 9,516 slots for 9,621 tokens, so the buffer grew to 19,032. All 23 V2
+parser accept fixtures also lexed. Their median unused capacity was 3,168
+bytes and their maximum was 12,320 bytes. These are per-file counts, with
+one file live at a time.
+
+**Two bounded reservations.** In isolated builds the scanner used either
+`min(estimate, 32768)` or a smaller initial count chosen to grow back to
+approximately the original estimate by doubling. For the latter, when the
+estimate exceeded 32,768 slots, we divided it by the smallest power of two
+that brought it under the cap, rounding up. Both changed only the initial
+reservation. Everything else used the production lexer.
+
+| Input | Production token capacity | Flat cap | Scaled cap |
+| --- | ---: | ---: | ---: |
+| One 8 MiB block comment, one token | 85.33 MiB | 1.00 MiB | 0.67 MiB |
+| 8 MiB of 64-byte comment lines, 262,144 tokens including whitespace | 85.33 MiB | 8.00 MiB | 10.67 MiB |
+| 8 MiB of repeated short machines, 5,592,404 tokens | 170.67 MiB | 256.00 MiB | 170.67 MiB |
+| Repeated V2 accept fixtures, 8.00 MiB and 3,446,976 tokens | 170.69 MiB | 128.00 MiB | 170.70 MiB |
+
+On the repeated short machines, the flat cap grew through powers of two to
+8,388,608 slots. Its peak working set above the pre-lex reading was 256.05
+MiB, versus 170.72 MiB in production and 171.38 MiB with the scaled cap.
+Matching the final capacity did not recover the time spent growing the
+vector. On the repeated V2 fixtures, lexing took **18.3% longer** with the
+flat cap and **31.9% longer** with the scaled cap. On repeated short machines
+the increases were 48.9% and 25.9%. Each timing is the median within-round
+change across six rotated rounds, four timed lexes per process after two
+warmups, using fresh token storage and excluding destruction. A second copy
+of the same baseline invocation differed by −0.8% and −1.1% respectively
+in the median. All six stress inputs that lexed had matching kind-and-span
+fingerprints across the three builds; the unterminated comment produced the
+same error and span.
+
+On the V1 corpus, the largest file was 97,788 bytes, just below the flat
+cap's cutoff. The allocation request was identical for every individual file.
+`compare-builds` (three rounds, five passes, three layouts) found no
+file-by-file throughput difference above the 2% threshold across all layouts.
+On the same sources joined into one buffer, the flat cap reduced throughput
+by 37.1–39.3% across all three layouts. The V1 fingerprint matched in all
+18 runs (`389ed15fa61d1f87`).
+
+**Decision.** Keep the production policy during this investigation. A large
+sparse file consumes Windows commit even when almost none of its token
+storage becomes resident. A reusable buffer can keep that charge between
+files. Both tested caps address the sparse case at a substantial cost on
+large dense inputs. The next candidate is estimating density from tokens
+already emitted on large inputs, tested on its own against the standalone
+lexer. [Parser experiment 9](../01-parser/EXPERIMENTS.md#9-size-the-index-and-token-buffers-from-observed-work-2026-11-18)
+combined density sampling with an indexed handoff. Its regression cannot
+by itself tell us the cost of sampling alone.
+
 ## How the estimates have done
 
 | Experiment | Estimated | Measured |
