@@ -24,6 +24,10 @@ install a handler. Their callers need the checked records during compilation.
   [Bound installations](installation-admission/bound-installations/src/lib.rs)
   carry the installed interrupt and callback entries, helper associations and
   measured stacks read by instruction selection and frame binding.
+- [Runtime publication](runtime-publication/publication.rs) compares the admitted
+  component call, authority and exact ABI to the emitted image's export slot and
+  [measured stack](../pipeline/representations/machine-code/stack-demand/physical_stack.rs).
+  The interpreter receives the checked component roster and host provisions.
 
 [Machine-code checks](../pipeline/representations/machine-code/) compare a
 frame, instruction encoding or layout with its contract. [Object replay](../replay/)

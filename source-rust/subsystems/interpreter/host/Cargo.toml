@@ -7,7 +7,7 @@ version.workspace = true
 [dependencies]
 psi-entry-memory = { path = "../../compiler/psi/access/entry-memory" }
 psi-target-layouts = { path = "../../compiler/psi/layout/admission" }
-published-runtime-input = { path = "../../compiler/psi-to-native/installation/published-runtime-input" }
+published-runtime-input = { path = "../../compiler/psi-to-native/verification/runtime-publication" }
 access-vocabulary = { path = "../../compiler/psi/access" }
 storage-access = { path = "../memory/storage-access" }
 extent-contracts = { path = "../../compiler/psi/extent-contracts" }

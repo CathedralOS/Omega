@@ -77,3 +77,6 @@ pub struct PhysicalStackProgram {
 
 mod demand;
 pub use demand::{StackDemand, StackDemandError, derive_physical_stack_demand};
+
+#[cfg(test)]
+mod tests;

@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use calling_conventions::BoundaryCallingApplication;
-use machine_code::physical_stack::StackDemand;
+use native_stack_demand::StackDemand;
 use semantic_vocabulary::MachineId;
 use std::sync::Arc;
 use terminal_psi::TerminalPsiIdentity;
@@ -26,7 +26,7 @@ pub struct RuntimeComponent {
     runtime: TerminalCallableRuntimeProvisions<RuntimeAdapterIdentity>,
     authority: provider_admission::provider_admission::AdmittedNativeCallableAuthority,
     locator: target::NormalizedComponentLocator,
-    plan: effects::provider_plan::ProviderPlanDigest,
+    plan: provider_stack_contribution::SameStackProviderPlanCommitment,
     stack_bytes: u64,
     stack_alignment: u32,
 }
@@ -84,7 +84,9 @@ impl RuntimeComponent {
             runtime,
             authority,
             locator,
-            plan: *call.plan_digest(),
+            plan: provider_stack_contribution::SameStackProviderPlanCommitment::from_digest(
+                *call.plan_digest().as_bytes(),
+            ),
             stack_bytes,
             stack_alignment,
         })
@@ -110,12 +112,19 @@ impl RuntimeComponent {
     ) -> &provider_admission::provider_admission::AdmittedNativeCallableAuthority {
         &self.authority
     }
+    pub const fn stack_bytes(&self) -> u64 {
+        self.stack_bytes
+    }
+
+    pub const fn stack_alignment(&self) -> u32 {
+        self.stack_alignment
+    }
+
     pub fn validate_same_stack(
         &self,
-        contribution: &task_plans::AdmittedSameStackContribution,
+        contribution: &provider_stack_contribution::AdmittedSameStackContribution,
     ) -> Result<(), &'static str> {
-        if contribution.provider_plan_commitment()
-            != task_plans::SameStackProviderPlanCommitment::from_digest(*self.plan.as_bytes())
+        if contribution.provider_plan_commitment() != self.plan
             || contribution.bytes() != self.stack_bytes
             || contribution.alignment() != u64::from(self.stack_alignment)
         {
@@ -171,7 +180,7 @@ impl RuntimeExecutionProvisions {
     pub fn host(&self) -> &[TerminalRuntimeHostProvision] {
         self.plan.host()
     }
-    pub fn private_entry_ram(&self) -> &[terminal_installation::CheckedPrivateEntryRamRecipe] {
+    pub fn private_entry_ram(&self) -> &[psi_entry_memory::CheckedPrivateEntryRamRecipe] {
         self.plan.private_entry_ram()
     }
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
@@ -187,12 +196,12 @@ pub fn validate_component_roster<'a, A>(
 ) -> Result<(), &'static str> {
     let mut expected = 0;
     for provision in plan.host() {
-        let target_operations::BoundarySettlementRealization::NormalizedForeignCall(binding) =
+        let target_vocabulary::BoundarySettlementRealization::NormalizedForeignCall(binding) =
             &provision.realization
         else {
             continue;
         };
-        let target_operations::NormalizedForeignCallMechanism::Component {
+        let target_vocabulary::NormalizedForeignCallMechanism::Component {
             locator,
             provider,
             candidate,

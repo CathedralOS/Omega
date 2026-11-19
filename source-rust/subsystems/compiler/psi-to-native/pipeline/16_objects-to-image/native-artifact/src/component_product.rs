@@ -37,40 +37,15 @@ impl NativeComponentProduct {
         selected_provider_plans: &effects::SelectedProviderPlanFacts,
     ) -> Result<Self, String> {
         let selection = call.selection();
-        let application = call.application();
-        if selection.provider() != authority.subject()
-            || selection.provider() != runtime.identity()
-            || selection.candidate() != authority.entry()
-            || selection.candidate() != runtime.entry()
+        if image.body().psi() != selection.provider()
             || image.body().entry() != selection.candidate()
-            || authority.review().terminal_artifact_identity()
-                != *call.component().artifact().manifest().identity().as_bytes()
-            || authority.review().target() != application.target
-            || runtime.target().native_target() != application.target
-            || application.recomputed_commitment().ok() != Some(application.commitment)
-            || image.slot_commitment()
-                != &target::component_export_slot(
-                    selection.provider().vocabulary_marker.get(),
-                    selection.provider().program_fingerprint.as_bytes(),
-                    &application.commitment,
-                )
+            || image.body().target() != call.application().target
         {
-            return Err(
-                "component publication product lost its admitted artifact, entry, target or complete ABI application".into(),
-            );
+            return Err("component image body belongs to another artifact or native target".into());
         }
         let demand = image
             .stack_demand()
             .map_err(|error| format!("component publication stack evidence: {error:?}"))?;
-        if demand.psi() != selection.provider()
-            || demand.entry() != selection.candidate()
-            || demand.target() != application.target
-        {
-            return Err("component image body belongs to another artifact or native target".into());
-        }
-        let stack_bytes = demand
-            .ceiling_bytes()
-            .ok_or("component calls require a finite stack demand without hosted imports")?;
         let runtime_record = published_runtime_input::RuntimeComponent::admit(
             call,
             runtime
@@ -86,9 +61,9 @@ impl NativeComponentProduct {
                 artifact: call.component().artifact(),
                 selected_provider_plans,
                 stack_demand: Some(StackDemandFacts {
-                    entry: demand.entry(),
-                    ceiling_bytes: stack_bytes,
-                    stack_alignment: demand.stack_alignment(),
+                    entry: selection.candidate(),
+                    ceiling_bytes: runtime_record.stack_bytes(),
+                    stack_alignment: runtime_record.stack_alignment(),
                 }),
                 realization_identity: Some(*runtime_record.locator().identity_digest()),
             },

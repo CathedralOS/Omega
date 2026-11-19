@@ -1,0 +1,24 @@
+[package]
+name = "published-runtime-input"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "publication.rs"
+
+[dependencies]
+calling-conventions = { path = "../../targets/calling-conventions" }
+native-stack-demand = { path = "../../pipeline/representations/machine-code/stack-demand" }
+provider-admission = { path = "../provider-admission" }
+provider-stack-contribution = { path = "../provider-admission/same-stack" }
+psi-entry-memory = { path = "../../../psi/access/entry-memory" }
+runtime-abi = { path = "../../targets/runtime-abi" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+target = { path = "../../targets/target" }
+target-vocabulary = { path = "../../pipeline/representations/target-operations/target-vocabulary" }
+terminal-codec = { path = "../../../psi/codec" }
+terminal-installation = { path = "../../../psi-admission" }
+terminal-psi = { path = "../../../psi" }
+verified-optimization-input = { path = "../../pipeline/representations/abstract-operations/verified-optimization-input" }
