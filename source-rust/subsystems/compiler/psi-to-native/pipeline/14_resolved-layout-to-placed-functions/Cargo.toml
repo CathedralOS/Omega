@@ -10,7 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 relaxation = { package = "resolved-layout-to-resolved-layout", path = "../13_resolved-layout-to-resolved-layout" }
-physical-recipes = { path = "../representations/selected-instructions/physical-recipes" }
 target-x86_64 = { path = "../../targets/target-x86_64" }
 target-aarch64 = { path = "../../targets/target-aarch64" }
 frame-admission = { path = "../representations/machine-code/frame-admission" }

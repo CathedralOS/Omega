@@ -243,7 +243,7 @@ mod tests {
 
 pub mod entry_layout {
     pub use placement::entry_layout::{
-        AdapterCallField, ResolvedBridge, ResolvedCallableEntry, ResolvedForeignAdapter,
+        ResolvedBridge, ResolvedCallableEntry, ResolvedForeignAdapter,
         ResolvedPrivateEntry,
     };
 }

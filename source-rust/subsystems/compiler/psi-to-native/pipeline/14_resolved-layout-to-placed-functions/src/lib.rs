@@ -5,7 +5,7 @@ pub(crate) use ::wire::codec_bytes;
 
 pub mod code_layout;
 pub mod entry_placement {
-    pub use relaxation::entry_layout::{AdapterCallField, ResolvedBridge, ResolvedCallableEntry};
+    pub use relaxation::entry_layout::{ResolvedBridge, ResolvedCallableEntry};
     use relaxation::entry_layout::{ResolvedForeignAdapter, ResolvedPrivateEntry};
 
     pub type PlacedForeignAdapter = super::PlacedEntry<ResolvedForeignAdapter>;
