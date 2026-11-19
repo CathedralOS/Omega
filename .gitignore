@@ -26,9 +26,6 @@
 # cloud-only SessionStart hook in tools/warm_build.sh.
 !.claude/settings.json
 
-# Codex temporary worktrees are repository-local and never versioned
-.codex/worktrees/
-
 # Local agent worktrees are repository-local and never versioned
 .agents/worktree/
 
