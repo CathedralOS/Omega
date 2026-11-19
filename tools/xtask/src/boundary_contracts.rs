@@ -10,6 +10,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 
+pub const MANIFEST: &str = "source-rust/subsystems/compiler/pipeline-contracts.json";
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ContractAudit {
@@ -412,7 +414,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             })
         }
         [command] if command == "check" => {
-            violations(&root, &root.join("omega-rust/pipeline-contracts.json"))
+            violations(&root, &root.join(MANIFEST))
         }
         [command, path] if command == "check" => violations(&root, &root.join(path)),
         _ => {

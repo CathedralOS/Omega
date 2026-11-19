@@ -176,7 +176,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
     for start in names.keys() {
         let phase = stage(start);
         if under(start, &RETIRED)
-            || (under(start, &[super::PSI_PIPELINE, super::OMEGA_PIPELINE]) && phase.is_none())
+            || (under(start, &["omega-rust/psi/compilation/pipeline", "omega-rust/omega/compilation/pipeline"]) && phase.is_none())
         {
             errors.push(format!(
                 "pipeline package is outside its declared numbered owner: {start}"

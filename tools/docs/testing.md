@@ -462,10 +462,15 @@ of numbered-stage dependencies through shared crates, the lexer and parser
 boundaries, and the source, package and interpreter dependencies reachable
 from `native-compiler`. Package dependency editing uses a scoped allowance
 for the Build text reader. The same command checks restricted program access
-and the reviewed field and export inventory. The post-merge workflow runs
-the audit on main. [Dependency rules](../xtask/src/boundary.rs)
+and the reviewed field and export inventory. Run `mbx xtask check-boundary
+--ownership` to isolate package and Build invocation routing from the full
+representation audit. The inventory retains the reviewed signatures for the
+maintained successors of V1 files. Retired orchestration, driver, product and
+package-review capture implementations and the deleted provider-planner façade
+have their historical judgments under `source-rust/_recycling/`. Changes to a
+maintained signature still require review. [Dependency rules](../xtask/src/boundary.rs)
 · [Transitive graph checks](../xtask/src/boundary/linear_pipeline.rs)
-· [Reviewed inventory](../../omega-rust/pipeline-contracts.json)
+· [Reviewed inventory](../../source-rust/subsystems/compiler/pipeline-contracts.json)
 · [Post-merge workflow](../../.github/workflows/post-merge-check.yml)
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
