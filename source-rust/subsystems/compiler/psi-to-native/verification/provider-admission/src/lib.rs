@@ -78,6 +78,7 @@ pub(crate) use terminal_authority_policy::{
 
 pub mod terminal_authority_permissions {
     pub use super::terminal_authority_permission_policy::{
+        admit_package_terminal_authority_permissions,
         validate_package_terminal_authority_permission_custody,
         validate_retained_package_terminal_authority_permissions,
     };

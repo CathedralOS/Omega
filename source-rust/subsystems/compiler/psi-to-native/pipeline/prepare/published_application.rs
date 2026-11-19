@@ -1,7 +1,8 @@
 //! Prepare native execution from the host-admitted publication and its selected providers.
 use verified_optimization_input::{NativeProgramEntrySettlement, RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal};
 use verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement;
-use super::application::{TerminalApplication, admit_package_permissions};
+use verified_optimization_input::native_proposal::project_terminal_native_realization_proposal;
+use provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions;
 use super::program_entry::PublishedNativeEntry;
 use diagnostics::Diagnostic;
 use provider_admission::{
@@ -150,11 +151,12 @@ fn prepare_published_application<Publisher>(
             }
         })
         .collect();
-    let permissions = admit_package_permissions(
+    let permissions = admit_package_terminal_authority_permissions(
         realization.terminal_authority_permissions().to_vec(),
         realization
             .terminal_authority_permission_identities()
             .clone(),
+        "checked package terminal-authority permissions are invalid",
     )?;
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: realization.evaluated_binding_identities(),
@@ -187,8 +189,6 @@ fn prepare_published_application<Publisher>(
             .clone(),
         x86_scalar_fma_provider: inputs.x86_scalar_fma_provider,
     };
-    let proposals = vec![provider_proposal];
-    let physical_entry_adapter = entry.physical_adapter().is_some();
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
     } else {
@@ -198,14 +198,21 @@ fn prepare_published_application<Publisher>(
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
-    let terminal = TerminalApplication {
-        artifact: authorized,
-        receipt: receipt.clone(),
-        provider_proposals: proposals,
-        physical_entry_adapter,
-        evidence: artifact.published_evidence().cloned(),
+    let mut proposal = project_terminal_native_realization_proposal(
+        authorized.shared_artifact(),
+        receipt.clone(),
+        native,
+    )?;
+    if entry.physical_adapter().is_some() {
+        proposal
+            .bind_physical_adapter(authorized.artifact())
+            .map_err(|message| vec![Diagnostic::error(message)])?;
     }
-    .prepare(native)?;
+    let terminal = RetainedTerminalArtifact::new_with_native_realization_proposal(
+        authorized,
+        proposal.with_target_provider_proposals(vec![provider_proposal]),
+    )
+    .with_evidence(artifact.published_evidence().cloned())?;
     Ok((terminal, permissions))
 }
 

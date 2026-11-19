@@ -6,7 +6,6 @@
 // step reads the retained Terminal product, its native proposal and the
 // request; `compile` then runs Omega 00 to 09 once, front to back.
 
-mod application;
 mod program_entry;
 pub(crate) mod published_application;
 pub(in crate::pipeline) mod required_scalars;
