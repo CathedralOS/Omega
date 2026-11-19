@@ -17,6 +17,7 @@ pub fn judge_terminal_source(
     AcceptedTerminalSource::from_judgment(judge_publication(input)?)
 }
 
+#[cfg(any(test, feature = "test-support"))]
 pub fn judge_source_roster(
     roster: SourceCompilationRoster,
     source: Arc<FrozenTypedTrees>,

@@ -41,7 +41,11 @@ pub use typed_trees_to_typed_trees::preparation;
 
 #[path = "prepare_and_check/source_judgment.rs"]
 mod source_judgment;
-pub use source_judgment::{judge_source_roster, judge_terminal_source, SourcePublication};
+pub use source_judgment::SourcePublication;
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) use source_judgment::judge_terminal_source;
+#[cfg(any(test, feature = "test-support"))]
+pub use source_judgment::{judge_source_roster, judge_terminal_source};
 
 #[path = "prepare_and_check/provider_settlement.rs"]
 pub(crate) mod source_supply;
@@ -73,16 +77,27 @@ pub(crate) mod source_parsing;
 pub(crate) mod target_helpers;
 
 pub use ::source_syntax::{ParsedText, SourceParseError, parse_text};
-pub use source_checking::{
-    FrozenSource, JudgedSource, ProductRepresentationInput, SourceAdmission,
-    SourcePreparationFailure, SourcePreparationRequest,
-};
+pub use source_checking::{ProductRepresentationInput, SourcePreparationFailure};
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) use source_checking::{SourceAdmission, SourcePreparationRequest};
+#[cfg(any(test, feature = "test-support"))]
+pub use source_checking::{FrozenSource, JudgedSource, SourceAdmission, SourcePreparationRequest};
 
 pub use source_compilation::{
     AdmittedProductPolicy, CompletedSource, PreparedSource, ProductPolicyRequest,
-    ResolveAndTypeRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
+    SourceContinuation, SourceExtensionRequest, SourceFrontends,
     SourcePreparation,
 };
+
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) use source_compilation::ResolveAndTypeRequest;
+#[cfg(any(test, feature = "test-support"))]
+pub use source_compilation::ResolveAndTypeRequest;
+
+#[cfg(not(any(test, feature = "test-support")))]
+pub(crate) use crate::production::{TerminalProductionCustody, TerminalSourceCompilation};
+#[cfg(any(test, feature = "test-support"))]
+pub use crate::production::{TerminalProductionCustody, TerminalSourceCompilation};
 
 pub use crate::production::{
     AcceptedTerminalSource, BuildCallSite, CallableBoundaryImplementation, ConstantRead,
@@ -97,8 +112,8 @@ pub use crate::production::{
     TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
     TerminalCallingPolicySelections, TerminalCompositionRoots, TerminalMachineSelection,
-    TerminalProductionCustody, TerminalProgramEntryContractSelection, TerminalProgramRoots,
-    TerminalProviderSelectionInput, TerminalProviderSelections, TerminalSourceCompilation,
+    TerminalProgramEntryContractSelection, TerminalProgramRoots,
+    TerminalProviderSelectionInput, TerminalProviderSelections,
     TerminalSourceSupply, TerminalSuppliedRequirement, UnmeasuredProduction,
 };
 

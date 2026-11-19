@@ -5,6 +5,10 @@
 use diagnostics::Diagnostic;
 use source_files::{LoadedSource, LoadedSources};
 
+#[path = "pipeline/build_invocation.rs"]
+mod authored_build;
+pub use authored_build::{BuildInvocationJudgment, BuildStageSource, CheckedBuildInvocation};
+
 #[path = "pipeline/modules.rs"]
 mod stages;
 pub use stages::*;

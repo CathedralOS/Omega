@@ -25,6 +25,7 @@ psi-authorization = { path = "psi/authorization" }
 wire = { path = "../../foundation/wire" }
 
 [dev-dependencies]
+source-compiler = { path = "source-to-psi", features = ["test-support"] }
 provider-demand = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand" }
 host-provider-inputs = { path = "psi-to-native/pipeline/00_psi-to-admitted-native-inputs/host-providers" }
 verified-optimization-input = { path = "psi-to-native/pipeline/representations/abstract-operations/verified-optimization-input" }

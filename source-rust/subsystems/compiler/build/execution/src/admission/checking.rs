@@ -1,36 +1,5 @@
-/*
-Admit the `Build` program that a `TerminalBuildActivation` will run
-(`prepare_admitted_build`). The lowered-form checker judges it, and the
-activation runs the module that judgment publishes; nothing here decides
-whether the program is valid.
-
-A package's Build sources and its Product sources are two programs checked
-under two contexts (`wiki/spec/build/scoped_execution.md`, "Two checked
-contexts"). The retired checker separated them by copying the Build
-declarations into a second typed tree. That copy is gone. Each of the three
-things it did now has one owner, and this file only sequences them:
-
-1. Which declarations the Build program is. The request states it as a
-   roster (`TerminalSourceCompilation`): the Build entry, the Build purpose,
-   and the subject package. Structural elaboration owns the closure of that
-   roster, claims the subject's Build declarations and refuses an entry that
-   is not a Build declaration. The judged source is a frozen snapshot of the
-   typed frontier taken here, prepared by the same owner that prepares
-   Product source (`SourcePreparationRequest`), and it stays with the
-   accepted module. The Build gets no private way past that preparation:
-   while it serves no program, no Build program reaches the checker.
-2. Which packages' declarations the Build may select. That is decided on the
-   accepted module, whose declarations carry their package custody, by
-   Terminal installation before execution. The provider preparation retains
-   the package authority and admits the actual invocation closure against it;
-   host effects remain a separate admission, not a pure-evaluation exemption.
-3. Constants and provider plans. Source preparation evaluates demanded Build
-   constants through their accepted invocations. Their charges stay with the
-   prepared and evaluated Build, separately from Product materialization proof.
-   A retyped Build evaluates its own demanded constants under its own request.
-   The original Product pending work stays whole. No provider plan is selected here; `BuildProviderPlans::admit` holds
-   the published module's actual demand against that selection before it runs.
-*/
+//! Check an authored Build under its package scope, retain its costs, and compare
+//! its actual constant reads when a returned Build rejoins the Product.
 
 use artifacts::compile_timings::StageMeta;
 use build_evaluation_result::{BuildConstants, BuildSubjectValidation, CompileFailure};
@@ -90,7 +59,7 @@ pub fn settle_rejoined_build_slice(
         subject_validation != BuildSubjectValidation::EntryOnly,
         timings,
     )?;
-    let result = compare_rejoined_constants(constants, &current, accepted.source());
+    let result = compare_rejoined_constants(constants, &current, accepted.accepted().source());
     result
         .map(|()| accounting.clone())
         .map_err(|diagnostics| CompileFailure::source_completion(diagnostics, accounting))
@@ -174,77 +143,40 @@ pub(crate) fn prepare_admitted_build(
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
     (
-        Arc<source_compiler::AcceptedTerminalSource>,
+        source_compiler::CheckedBuildInvocation,
         super::provider_execution::BuildProviderPlans,
         BuildConstants,
         source_compiler::evaluation::SourceCompletionAccounting,
     ),
     CompileFailure,
 > {
-    let mut accounting = source_compiler::evaluation::SourceCompletionAccounting::default();
-    let result = (|| -> Result<_, Vec<Diagnostic>> {
-        if packages.is_some() && anonymous_source.is_some() {
-            return Err(vec![Diagnostic::error(
+    if packages.is_some() && anonymous_source.is_some() {
+        return Err(CompileFailure::source_completion(
+            vec![Diagnostic::error(
                 "Build scope cannot combine anonymous source custody with supplied package inputs",
-            )]);
-        }
-        let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
-        let (accepted, read) = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-            let compilation = source_compiler::TerminalSourceCompilation {
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: subject.as_slice(),
-                purpose: source_provenance::DependencyScope::Build,
-                selected: &[],
-                calling: None,
-                providers: None,
-                bindings: &[],
-                supplies: &[],
-            };
-            let source = source_compiler::SourcePreparationRequest {
-                program: typed.clone(),
-                accounting: Default::default(),
-                admission: source_compiler::SourceAdmission {
-                    invocation_sources: anonymous_source.map(|capture| {
-                        Arc::new(capture.clone())
-                            as Arc<dyn source_compiler::evaluation::InvocationSourceConsent>
-                    }),
-                    ..Default::default()
-                },
-                compilation,
-            }
-            .judge(terminal_codec::TerminalPublication::Invocation);
-            match source {
-                Ok(source) => {
-                    accounting = source.accounting;
-                    Ok((source.accepted, source.constants))
-                }
-                Err(failure) => {
-                    accounting = failure.accounting;
-                    Err(failure.diagnostics)
-                }
-            }
-        })?;
-        // Source preparation retains the demanded family before literal
-        // substitution. Its genuine receipts travel as Build costs, while
-        // the declaration/value ledger describes a later independent rejoin.
-        let constants = BuildConstants {
-            folded_under_providers: false,
-            read,
-        };
-        Ok((
-            Arc::new(accepted),
-            super::provider_execution::BuildProviderPlans::for_packages(packages),
-            constants,
-        ))
-    })();
-    match result {
-        Ok((accepted, providers, constants)) => Ok((accepted, providers, constants, accounting)),
-        Err(diagnostics) => Err(CompileFailure::source_completion(
-            diagnostics,
-            accounting,
-        )),
+            )],
+            Default::default(),
+        ));
     }
+    let subject = check_subject.then(|| packages.map(PackageCompilationInputs::root));
+    let judged = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
+        source_compiler::CheckedBuildInvocation::judge(
+            typed,
+            entry,
+            subject.as_slice(),
+            anonymous_source.map(|capture| Arc::new(capture.clone()) as Arc<_>),
+        )
+    })
+    .map_err(|failure| CompileFailure::source_completion(failure.diagnostics, failure.accounting))?;
+    Ok((
+        judged.invocation,
+        super::provider_execution::BuildProviderPlans::for_packages(packages),
+        BuildConstants {
+            folded_under_providers: false,
+            read: judged.constants,
+        },
+        judged.accounting,
+    ))
 }
 
 #[cfg(test)]

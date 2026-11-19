@@ -110,12 +110,11 @@ impl PreparedBuildExecution {
     /// execution profile the activation already has.
     pub(crate) fn admit_stage(
         &self,
-        prepared: Arc<source_compiler::AcceptedTerminalSource>,
+        prepared: source_compiler::CheckedBuildInvocation,
         providers: crate::admission::provider_execution::BuildProviderPlans,
         machine: symbols::SymbolHandle,
         source: package_compilation::BuildSourceSelection,
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-        anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
         crate::admit_build_program(
             prepared,
@@ -127,7 +126,6 @@ impl PreparedBuildExecution {
             false,
             source,
             package_inputs,
-            anonymous_source,
         )
     }
 

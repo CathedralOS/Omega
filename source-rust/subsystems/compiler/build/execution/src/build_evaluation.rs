@@ -156,7 +156,6 @@ impl PreparedBuildEvaluation {
                 selected_machine,
                 build_source,
                 package_inputs,
-                anonymous_source,
             )?;
             for request in admitted.restricted_build_requests() {
                 if self.restricted_build_requests.contains(&request) {
@@ -398,7 +397,6 @@ pub fn prepare_build_evaluation(
             artifact_only,
             build_source,
             package_inputs,
-            anonymous_source,
         )?;
         let restricted_build_requests = admitted.restricted_build_requests();
         if let Some(grants) = restricted_build_grants.as_mut() {

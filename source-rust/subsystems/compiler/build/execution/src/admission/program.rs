@@ -41,7 +41,7 @@ impl AdmittedBuildProgram {
 }
 
 pub(crate) fn admit_build_program(
-    prepared: std::sync::Arc<source_compiler::AcceptedTerminalSource>,
+    invocation: source_compiler::CheckedBuildInvocation,
     providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -50,8 +50,8 @@ pub(crate) fn admit_build_program(
     artifact_only: bool,
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
-    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
+    let prepared = invocation.accepted();
     let typed = prepared.source();
     if !typed
         .symbols
@@ -63,19 +63,8 @@ pub(crate) fn admit_build_program(
         )]);
     }
     let mut filesystem_scope = filesystem_scope.clone();
-    let machine = admit_build_machine(&prepared, machine_symbol, &mut filesystem_scope)?;
-    // Produce one invocation. Its companion and the code later passed to the
-    // host retain the same execution identity; preparing again would issue a
-    // different invocation rather than replay this admission.
-    let produced = prepared.produce(
-        source_compiler::TerminalProductionCustody {
-            invocation_sources: anonymous_source.map(|capture| {
-                capture as &dyn source_compiler::source_inputs::InvocationSourceConsent
-            }),
-            ..Default::default()
-        },
-        &mut source_compiler::UnmeasuredProduction,
-    )?;
+    let machine = admit_build_machine(prepared, machine_symbol, &mut filesystem_scope)?;
+    let (prepared, produced) = invocation.publish()?;
     let build_authority = package_inputs
         .map(|inputs| inputs.declaration_selection_authority(DependencyPurpose::Build));
     let product_authority = package_inputs
@@ -103,7 +92,7 @@ pub(crate) fn admit_build_program(
             ))]
         })?;
     Ok(AdmittedBuildProgram {
-        prepared,
+        prepared: std::sync::Arc::new(prepared),
         produced: std::sync::Arc::new(produced),
         providers,
         machine,

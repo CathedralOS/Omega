@@ -12,9 +12,7 @@ use package_compilation::source_assembly::{
 };
 use package_compilation::source_imports::{ProductQueryDependency, ProductQueryInputs};
 use package_compilation::{BuildExecutionInputs, CapturedLocalSource, PackageCompilationInputs};
-use source_compiler::{
-    ResolveAndTypeRequest, SourceContinuation, SourcePreparation, UnmeasuredProduction,
-};
+use source_compiler::{BuildStageSource, SourceContinuation, SourcePreparation};
 use source_declarations::build_stage::BuildStage;
 use std::{path::Path, sync::Arc};
 use target::TargetProfile;
@@ -142,19 +140,21 @@ fn resolve(
     let entry = assembled
         .build_source
         .ok_or_else(|| vec![Diagnostic::error("project Build has no source-owned entry")])?;
-    Ok(ResolveAndTypeRequest {
+    Ok(BuildStageSource {
         syntax: std::mem::take(&mut assembled.syntax_trees),
         source_items: std::mem::take(&mut assembled.source_items),
-        root_sources: std::mem::take(&mut assembled.root_sources),
-        frontends: preparation.frontends.clone(),
-        build_helper_identity: profile.target_name(),
+        roots: std::mem::take(&mut assembled.root_sources),
         build_sources: std::mem::take(&mut assembled.build_scope_sources),
-        build_stage: Some((entry.source_id(), index)),
+        entry: entry.source_id(),
         sources: Arc::clone(&assembled.sources),
-        top_level_bindings: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
-        selection_authority: inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+        imports: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
     }
-    .prepare(&mut UnmeasuredProduction)?)
+    .prepare(
+        index,
+        preparation,
+        profile.target_name(),
+        inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+    )?)
 }
 
 fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, CompileFailure> {
