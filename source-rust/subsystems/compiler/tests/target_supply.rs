@@ -1186,7 +1186,7 @@ fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalT
 /// The target-local conditions of `artifact`, checked against `proposal`.
 fn check_conditions(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
-    proposal: &backend_plan::TerminalTargetProviderProposal,
+    proposal: &target_provider_admission::TerminalTargetProviderProposal,
 ) -> Result<(), String> {
     native_scalar_inputs::complete(
         artifact,
@@ -1692,7 +1692,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     }
     let artifact = produced(accepted);
     let refused =
-        backend_plan::TerminalTargetProviderSelection::from_plans(crossed, artifact.view())
+        target_provider_admission::TerminalTargetProviderSelection::from_plans(crossed, artifact.view())
             .unwrap_err();
     assert!(
         refused.contains("no emitted exact declaration candidate"),

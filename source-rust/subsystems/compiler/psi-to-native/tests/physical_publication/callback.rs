@@ -36,7 +36,7 @@ const OWNER: &str = "PhysicalCalling";
 
 struct Fixture {
     artifact: Arc<CanonicalTerminalArtifact>,
-    selected: effects::SelectedProviderPlanFacts,
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
     external: Vec<ExternalBindingRow>,
     calling: Vec<BoundaryCallingApplication>,
     callbacks: Vec<provider_admission::NativeCallbackArgumentProposal>,
@@ -332,7 +332,7 @@ fn build_fixture() -> Fixture {
             },
         });
     let provider_type = plan.provider_type.clone();
-    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+    let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
     let identity =
         function_identity::MachineFunctionIdentity::callback_thunk(artifact.view().identity(), 0)
             .unwrap();
@@ -473,7 +473,7 @@ fn check_callback_publication(retain_body_source: bool) {
             .expect("admit callback registrar with exact selected foreign contract")
     };
     if !retain_body_source {
-        let substituted = effects::SelectedProviderPlanFacts::default();
+        let substituted = selected_provider_plans::SelectedProviderPlanFacts::default();
         let Err(errors) =
             native_artifact::NativeImageProviders::from_admission(admit().providers, &substituted)
         else {

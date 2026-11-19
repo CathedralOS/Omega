@@ -432,7 +432,7 @@ fn admit_checked_provider_installation(
 ) -> Result<Option<AdmittedProviderInstallation>, Vec<Diagnostic>> {
     let plan = input.plan();
     let view = artifact.view();
-    let dependencies = backend_plan::matching_folded_constant_dependencies(
+    let dependencies = target_provider_admission::matching_folded_constant_dependencies(
         view,
         request.profile.target_name(),
         request.selected_provider_plans.plans().iter(),
@@ -488,7 +488,7 @@ fn admit_checked_provider_installation(
 fn require_reached_providers(
     input: &crate::AdmissionSource<'_>,
     target_profile: target::TargetProfile,
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &selected_provider_plans::SelectedProviderPlanFacts,
     installed_interrupts: &crate::AdmittedInstalledInterruptCohort,
     interrupt_mechanisms: &[AdmittedTerminalMechanism],
     native_settlements: &[AdmittedBoundarySettlement<'_>],

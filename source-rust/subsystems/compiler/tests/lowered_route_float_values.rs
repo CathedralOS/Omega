@@ -531,7 +531,7 @@ fn canonical_float_calls_keep_their_full_contract_and_reject_format_conversion()
             assert!(provider_realization::direct_compiler_primitive_leaves(module, &schemas, "macos_arm64", [semantic_vocabulary::BoundaryMachineId::new(u64::MAX).unwrap()]).is_err(), "a request cannot name another module's declaration");
             let unsupported = provider_realization::direct_compiler_primitive_leaves(module, &schemas, "uefi_x86_64", module.boundary_machines.iter().map(|boundary| boundary.id)).unwrap_err();
             assert!(format!("{unsupported:?}").contains("the target declares no floating-point realization table"), "{unsupported:?}");
-            let selection = effects::SelectedProviderPlanFacts::default()
+            let selection = selected_provider_plans::SelectedProviderPlanFacts::default()
                 .with_direct_boundary_plans(leaves.iter().map(|leaf| leaf.plan.clone()).collect()).unwrap();
             let executions = selection.plans().iter().map(|plan| {
                 let leaf = leaves.iter().find(|leaf| leaf.plan == *plan).unwrap();

@@ -19,8 +19,8 @@ pub struct NormalizedNativeSupply {
 pub(super) fn resolve_installation_reach(
     module: &TerminalModule,
     installation_requirements: &[BoundaryMachineId],
-    selected: effects::SelectedProviderPlanFacts,
-) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
+) -> Result<selected_provider_plans::SelectedProviderPlanFacts, Vec<Diagnostic>> {
     let fail = |reason: String| vec![Diagnostic::error(reason)];
     if installation_requirements.is_empty() {
         return if module
@@ -53,7 +53,7 @@ pub(super) fn resolve_installation_reach(
     let graph = terminal_semantics::synchronous_calls::SynchronousCallGraph::new(module, None).map_err(fail)?;
     let mut rows = Vec::new();
     for row in
-        backend_plan::selected_checked_invocation_rows(selected.plans(), module).map_err(fail)?
+        target_provider_admission::selected_checked_invocation_rows(selected.plans(), module).map_err(fail)?
     {
         for candidate in row.candidates {
             let supplied = candidate.conformance;

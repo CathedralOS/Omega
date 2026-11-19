@@ -58,7 +58,7 @@ pub fn reconstruct_trust_obligations(
     declarations: &TrustDeclarations,
     root_grants: &[AuthoredRootGrant],
     provider_plans: &[&provider_plans::ProviderPlan],
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     native_grants: &[Result<backend_plan::NativeRequirementTrust, String>],
     policy: RootTrustPolicy,
 ) -> Result<Vec<TrustAdmission>, Vec<Diagnostic>> {

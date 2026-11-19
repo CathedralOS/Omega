@@ -103,7 +103,7 @@ fn selected_boundary_implementations(
         }) {
             continue;
         }
-        let selected = backend_plan::selected_provider_candidate_rows(declaration, module)
+        let selected = target_provider_admission::selected_provider_candidate_rows(declaration, module)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         for row in selected {
             for position in row.candidate_positions {

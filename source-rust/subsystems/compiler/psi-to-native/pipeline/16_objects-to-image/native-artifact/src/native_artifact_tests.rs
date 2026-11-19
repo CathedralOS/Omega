@@ -18,7 +18,7 @@ use provider_plans::{
     ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceMethod,
     ServiceSchema,
 };
-use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
+use selected_provider_plans::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
 use semantic_vocabulary::OperationId;
 use std::collections::BTreeSet;
 use std::slice::from_ref;
@@ -311,7 +311,7 @@ fn closed_import_reports_rejoin_original_execution_and_reject_plan_substitution(
     );
     plan.identities = identities.clone();
     plan.external_requirement_applications
-        .push(effects::SelectedExternalRequirementApplication {
+        .push(selected_provider_plans::SelectedExternalRequirementApplication {
             provider_plan_report_identity: 7,
             provider_plan_digest: digest,
             selected_requirement_identity: identities.index_of(selected).unwrap(),

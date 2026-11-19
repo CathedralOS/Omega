@@ -12,10 +12,11 @@ artifact identities (`NativeArtifactIdentity`).
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use diagnostics::Diagnostic;
 use effects::{
-    SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
-    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
+    TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityPermissionPolicyIdentity,
     TerminalAuthorityPolicyIdentity,
 };
+use selected_provider_plans::{SelectedExternalRequirementApplication, SelectedProviderPlanFacts};
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use provider_admission::ProviderExecutionEvidence;
 use provider_admission::provider_admission::AdmittedNativeProviders;
@@ -971,7 +972,7 @@ pub struct NativeSelectedProviderPlan {
     identities: TerminalIdentityTable,
     closed_requirement_rows: Vec<(String, String)>,
     assumed_requirement_rows: Vec<(String, String)>,
-    assumed_relationships: Vec<effects::AssumedBindingContractSelection>,
+    assumed_relationships: Vec<selected_provider_plans::AssumedBindingContractSelection>,
     assumed_closure: Option<[u8; 32]>,
 }
 

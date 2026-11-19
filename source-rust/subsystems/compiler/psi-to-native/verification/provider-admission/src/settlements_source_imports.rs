@@ -49,7 +49,7 @@ struct ImportCoverageRows<'input> {
 
 pub(super) fn derive_source_evaluated_mechanisms(
     input: &crate::AdmissionSource<'_>,
-    selected_plans: &effects::SelectedProviderPlanFacts,
+    selected_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     native_callbacks: &[crate::NativeCallbackArgumentProposal],
 ) -> Result<
@@ -243,7 +243,7 @@ fn settled_host_cohort_row(
 
 fn join_import_coverage_rows<'input>(
     plan: &'input abstract_operations::AbstractOperationPlan,
-    selected_plans: &'input effects::SelectedProviderPlanFacts,
+    selected_plans: &'input selected_provider_plans::SelectedProviderPlanFacts,
     external_binding_rows: &'input [calling_conventions::ExternalBindingRow],
     native_callbacks: &'input [NativeCallbackArgumentProposal],
 ) -> Result<BTreeMap<BoundaryMachineId, ImportCoverageRows<'input>>, Vec<Diagnostic>> {
@@ -412,7 +412,7 @@ fn authenticate_callback_application(
     requirement: &str,
     rows: &ImportCoverageRows<'_>,
     callback: &NativeCallbackArgumentProposal,
-    selected: &effects::SelectedProviderPlanFacts,
+    selected: &selected_provider_plans::SelectedProviderPlanFacts,
 ) -> Result<(), String> {
     let (plan, row) = rows
         .selected_external

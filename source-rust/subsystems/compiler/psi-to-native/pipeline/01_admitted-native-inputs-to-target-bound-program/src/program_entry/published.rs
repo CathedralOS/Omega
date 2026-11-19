@@ -89,7 +89,7 @@ pub fn plan_published_entry_calling_conventions(
         .root_application_identity()
         .ok_or_else(|| refuse("entry schema has no exact root application identity".into()))?;
     let policy = super::entry_calling_policy(module, declaring_schema, owner).map_err(refuse)?;
-    let admitted_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+    let admitted_providers = target_provider_admission::TerminalTargetProviderSelection::from_plans(
         providers.to_vec(),
         artifact.view(),
     )

@@ -928,7 +928,7 @@ fn check_canonical_publication(
             .unwrap();
     let realizations = TerminalBoundaryApplicationRealizations::new(&demands, Vec::new()).unwrap();
     let coverage = TerminalBoundaryApplicationCoverage::new(demands, realizations).unwrap();
-    let selected = effects::SelectedProviderPlanFacts::from_selected_plans(if through_boundary {
+    let selected = selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(if through_boundary {
         vec![checked_value_plan()]
     } else {
         Vec::new()

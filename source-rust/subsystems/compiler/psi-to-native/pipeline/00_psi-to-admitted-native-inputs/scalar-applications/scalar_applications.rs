@@ -16,7 +16,7 @@ target-dependent operations must still resolve a deployment.
 */
 
 pub use build_scalar_evaluation::CanonicalScalarEvaluationReceipt as EvaluationReceipt;
-use backend_plan::TerminalTargetProviderProposal;
+use target_provider_admission::TerminalTargetProviderProposal;
 use psi_target_layouts::terminal_target_context;
 use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ use std::sync::Arc;
 /// It is never encoded in saved native inputs.
 pub struct ProductScalarCompletion {
     pub completed: build_scalar_evaluation::ScalarApplicationCompletion,
-    pub proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    pub proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
 }
 
 /// The scalar values native compilation of `retained`'s program entry reads,
@@ -244,16 +244,16 @@ pub fn extend_native(
 /// never sees a value the target's own realization would not produce.
 struct TargetRealizedIntrinsics {
     artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
-    selected: effects::SelectedProviderPlanFacts,
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
 }
 
 impl TargetRealizedIntrinsics {
     fn retain(
         artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
-        selection: &backend_plan::TerminalTargetProviderSelection,
+        selection: &target_provider_admission::TerminalTargetProviderSelection,
     ) -> Result<Self, String> {
         let selected =
-            effects::SelectedProviderPlanFacts::from_selected_plans(selection.plans.clone())?
+            selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(selection.plans.clone())?
                 .with_assumed_bindings(selection.assumed_bindings.clone());
         Ok(Self {
             artifact: Arc::clone(artifact),

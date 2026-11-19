@@ -546,7 +546,7 @@ pub(crate) fn declare(
 ///
 /// A provider plan selects its checked adapters among these rows by the
 /// provider's declaration identity and each requirement's identity
-/// (`backend_plan::TerminalTargetProviderSelection::from_plans`), so a row
+/// (`target_provider_admission::TerminalTargetProviderSelection::from_plans`), so a row
 /// carries the identities this module already states: the boundary's
 /// callable identity, the machine's callable identity and package, the
 /// provider's exact-owner identity, and its path for reports. The machine is

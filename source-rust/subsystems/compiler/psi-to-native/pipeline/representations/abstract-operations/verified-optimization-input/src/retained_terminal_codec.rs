@@ -1024,7 +1024,7 @@ mod selection {
     use super::records::record_fields;
     use super::value::{RecordError, RecordReader, RecordValue, RecordWriter};
 
-    record_fields!(effects::SelectedProviderPlanCandidate {
+    record_fields!(selected_provider_plans::SelectedProviderPlanCandidate {
         plans,
         assumed_bindings,
         report_fingerprint,
@@ -1035,12 +1035,12 @@ mod selection {
         identities,
     });
 
-    impl RecordValue for effects::SelectedProviderPlanFacts {
+    impl RecordValue for selected_provider_plans::SelectedProviderPlanFacts {
         fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
             self.recovery_candidate().write(output)
         }
         fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
-            effects::SelectedProviderPlanCandidate::read(input)?
+            selected_provider_plans::SelectedProviderPlanCandidate::read(input)?
                 .validate()
                 .map_err(|reason| input.error(reason))
         }
@@ -1606,7 +1606,7 @@ mod tests {
     fn saved_selected_provider_closure_preserves_retained_identity_coordinates() {
         // Stripping specialization rows leaves their identity coordinates in
         // the retained table. Recovery must preserve that table's numbering.
-        let mut candidate = effects::SelectedProviderPlanFacts::default().recovery_candidate();
+        let mut candidate = selected_provider_plans::SelectedProviderPlanFacts::default().recovery_candidate();
         let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
         for text in [
             "trait-application(test::ProgramStorageEntry)",
@@ -1622,7 +1622,7 @@ mod tests {
         selected.write(&mut output).unwrap();
         let bytes = output.finish();
         let mut input = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
-        let recovered = effects::SelectedProviderPlanFacts::read(&mut input).unwrap();
+        let recovered = selected_provider_plans::SelectedProviderPlanFacts::read(&mut input).unwrap();
         input.finish().unwrap();
         assert_eq!(
             recovered.identities().entries(),
@@ -1737,7 +1737,7 @@ mod tests {
 pub fn retain_native_derivation_inputs(
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
-    provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
+    provider_proposals: &[target_provider_admission::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
     installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
@@ -1758,7 +1758,7 @@ pub fn retain_native_derivation_inputs(
 fn capture(
     checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
-    provider_proposals: &[backend_plan::TerminalTargetProviderProposal],
+    provider_proposals: &[target_provider_admission::TerminalTargetProviderProposal],
     request: &TerminalNativeProposalRequest<'_>,
     accepted_package_permissions: &TerminalAuthorityPermissionPolicy,
     installation_assumptions: &[installation_conditions::InstallationEnvironmentAssumption],
@@ -1954,10 +1954,10 @@ struct DerivationInputs {
     evaluated_binding_identities: Arc<terminal_psi::TerminalIdentityTable>,
     checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical_adapter_requested: bool,
-    provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
+    provider_proposals: Vec<target_provider_admission::TerminalTargetProviderProposal>,
     leaves: Vec<backend_plan::DirectBoundaryLeaf>,
     profile: Option<target::TargetProfile>,
-    selected: effects::SelectedProviderPlanFacts,
+    selected: selected_provider_plans::SelectedProviderPlanFacts,
     intrinsic_provenance: Vec<IntrinsicPlanRecord>,
     calling: Vec<calling_conventions::BoundaryCallingApplication>,
     native: Option<target::NativeTarget>,

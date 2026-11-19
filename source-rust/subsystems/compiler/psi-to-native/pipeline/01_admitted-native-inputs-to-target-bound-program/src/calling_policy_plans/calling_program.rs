@@ -170,7 +170,7 @@ impl CallingProgram {
             let providers = match &scope {
                 CallingStorageScope::Policy { admission, .. } => admission.providers(),
                 CallingStorageScope::Description => {
-                    default_providers = backend_plan::TerminalTargetProviderSelection::from_plans(
+                    default_providers = target_provider_admission::TerminalTargetProviderSelection::from_plans(
                         providers.to_vec(),
                         self.artifact.view(),
                     )?

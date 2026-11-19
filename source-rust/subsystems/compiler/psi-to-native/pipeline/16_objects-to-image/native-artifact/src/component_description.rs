@@ -66,7 +66,7 @@ fn component_references_requirement(
 #[derive(Debug, Clone, Copy)]
 pub(super) struct ComponentDescriptionFacts<'a> {
     pub artifact: &'a terminal_codec::CanonicalTerminalArtifact,
-    pub selected_provider_plans: &'a effects::SelectedProviderPlanFacts,
+    pub selected_provider_plans: &'a selected_provider_plans::SelectedProviderPlanFacts,
     pub stack_demand: Option<StackDemandFacts>,
     pub realization_identity: Option<[u8; 32]>,
 }

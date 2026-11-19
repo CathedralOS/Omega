@@ -80,7 +80,7 @@ pub struct TerminalRuntimeRequest<'program> {
     pub artifact: &'program terminal_codec::CanonicalTerminalArtifact,
     pub target: Option<&'program str>, // Exact deployment tag admitted by this invocation.
     pub provisions: Option<&'program TerminalRuntimeProvisions>,
-    pub provider_proposal: Option<&'program backend_plan::TerminalTargetProviderProposal>, // Checked candidate selection from the Build companion.
+    pub provider_proposal: Option<&'program target_provider_admission::TerminalTargetProviderProposal>, // Checked candidate selection from the Build companion.
     pub work_budget: u64,
     pub domain_exit: TerminalDomainExitDelegation,
     pub standard_input: Option<Box<dyn std::io::Read + Send + 'program>>, // Explicit finite replay stream; `None` supplies no stdin capability.

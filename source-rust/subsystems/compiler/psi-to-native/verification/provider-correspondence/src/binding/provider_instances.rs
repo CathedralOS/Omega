@@ -6,7 +6,7 @@
 use declaration_contracts::provider_declarations::ClosedProviderInstance;
 use declaration_contracts::provider_declarations::ProviderInstanceApplication;
 use diagnostics::Diagnostic;
-use effects::SelectedProviderPlanFacts;
+use selected_provider_plans::SelectedProviderPlanFacts;
 use provider_plans::{ProviderBinding, ProviderIdentityId, ProviderPlan, ProviderPlanRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,10 +197,10 @@ fn append_instance(
     row: &ProviderPlanRow,
     selected_machine: ProviderIdentityId,
     instance: &ClosedProviderInstance<String>,
-    rows: &mut Vec<effects::SelectedRequirementSpecialization>,
+    rows: &mut Vec<selected_provider_plans::SelectedRequirementSpecialization>,
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
 ) {
-    rows.push(effects::SelectedRequirementSpecialization {
+    rows.push(selected_provider_plans::SelectedRequirementSpecialization {
         provider_plan_report_identity: plan.report_fingerprint(),
         selected_requirement_identity: identities
             .intern(plan.identities.text(row.requirement_identity)),

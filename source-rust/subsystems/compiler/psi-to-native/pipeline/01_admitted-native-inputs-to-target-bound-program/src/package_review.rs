@@ -85,7 +85,7 @@ impl PreparedReview {
                 .numeric
                 .and_then(|demand| numeric(module, target, execution, demand)),
             bindings: self.bindings,
-            provider_candidates: backend_plan::selected_checked_invocation_rows(
+            provider_candidates: target_provider_admission::selected_checked_invocation_rows(
                 execution.plans().plans(),
                 module,
             )

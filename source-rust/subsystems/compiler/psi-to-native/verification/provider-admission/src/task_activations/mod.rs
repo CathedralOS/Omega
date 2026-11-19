@@ -18,7 +18,7 @@ use storage::TaskStorage;
 pub fn validate_task_activations(
     demands: &TerminalTaskActivationDemands,
     identities: &TerminalIdentityTable,
-    selected_provider_plans: &effects::SelectedProviderPlanFacts,
+    selected_provider_plans: &selected_provider_plans::SelectedProviderPlanFacts,
     profile: target::TargetProfile,
 ) -> Result<(), Vec<Diagnostic>> {
     if demands.demands.is_empty() {
