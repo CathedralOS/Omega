@@ -86,6 +86,14 @@ impl ProductStage<'_> {
             Some(BuildDeclaration::Application(application)) if application.artifact_only)
     }
 
+    pub fn produce_build_provider(
+        self,
+        profile: TargetProfile,
+        declaration_path: &str,
+    ) -> Result<source_compiler::ProducedBuildProvider, Vec<Diagnostic>> {
+        self.source().produce_build_provider(profile.target_name(), declaration_path)
+    }
+
     pub fn source(&self) -> StageSource<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;

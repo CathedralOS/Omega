@@ -1,6 +1,9 @@
 //! Prepare and resume Build against one package capture. Its Product roots stay deferred until settlement.
 
 use super::{PlanningServices, refusal};
+
+#[path = "product_queries.rs"]
+mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
     BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
@@ -38,6 +41,8 @@ pub struct PreparedPlanningStage {
 
 #[derive(Clone)]
 pub(super) struct PlanningSource {
+    initial: SourceContinuation,
+    query_frontier: Option<(ProductQueryInputs, SourceContinuation)>,
     pub(super) stage: BuildStage,
     pub(super) deferred: DeferredProductSources,
     pub(super) preparation: SourcePreparation,
@@ -153,6 +158,8 @@ pub fn prepare(
         evaluation,
         source: PlanningSource {
             stage,
+            initial: source,
+            query_frontier: None,
             deferred: deferred(assembled)?,
             preparation,
             timings,
@@ -169,6 +176,15 @@ fn resolve(
     profile: TargetProfile,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<(SourceContinuation, BuildStage), CompileFailure> {
+    Ok(stage_source(assembled)?.prepare(
+        index,
+        preparation,
+        profile.target_name(),
+        inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
+    )?)
+}
+
+fn stage_source(assembled: &mut AssembledSyntax) -> Result<BuildStageSource, CompileFailure> {
     let entry = assembled
         .build_source
         .ok_or_else(|| vec![Diagnostic::error("project Build has no source-owned entry")])?;
@@ -180,13 +196,7 @@ fn resolve(
         entry: entry.source_id(),
         sources: Arc::clone(&assembled.sources),
         imports: std::mem::take(&mut assembled.source_scoped_top_level_bindings),
-    }
-    .prepare(
-        index,
-        preparation,
-        profile.target_name(),
-        inputs.map(|inputs| Arc::new(inputs.clone()) as Arc<_>),
-    )?)
+    })
 }
 
 fn deferred(assembled: AssembledSyntax) -> Result<DeferredProductSources, CompileFailure> {
@@ -214,25 +224,7 @@ impl PlanningSource {
                         | build_declarations::BuildRequest::Application(_)
                 )
             }) {
-            let graph = services.declared_source(&previous)?.ok_or_else(|| {
-                refusal("named Build continuation requires its acquired root".into())
-            })?;
-            let declaration = previous.project_declaration().map_err(refusal)?;
-            let name = match &declaration {
-                build_declarations::BuildDeclaration::Package(package) => &package.name,
-                build_declarations::BuildDeclaration::Application(application) => &application.name,
-                build_declarations::BuildDeclaration::Workspace(_) => {
-                    return Err(refusal("workspace has no named Product root".into()));
-                }
-            };
-            if graph.package_name(graph.root()) != Some(name.as_str())
-                || graph.root_role() != declaration.kind()
-            {
-                return Err(refusal(
-                    "continuation source differs from the executed Build declaration".into(),
-                ));
-            }
-            Some(graph)
+            Some(self.named_source(&previous, services)?)
         } else {
             None
         };
@@ -273,6 +265,8 @@ impl PlanningSource {
         )?;
         self.deferred = deferred(assembled)?;
         self.stage = stage;
+        self.initial = source;
+        self.query_frontier = None;
         evaluation
             .execution()
             .ok_or_else(|| {
@@ -282,6 +276,35 @@ impl PlanningSource {
             })?
             .resume(previous)
             .map_err(Into::into)
+    }
+
+    fn named_source(
+        &self,
+        activation: &TerminalBuildActivation,
+        services: &mut impl PlanningServices,
+    ) -> Result<PackageCompilationInputs, CompileFailure> {
+        let graph = match &self.original {
+            Some(original) => original.clone(),
+            None => services.declared_source(activation)?.ok_or_else(|| {
+                refusal("named Build requires its acquired root".into())
+            })?,
+        };
+        let declaration = activation.project_declaration().map_err(refusal)?;
+        let name = match &declaration {
+            build_declarations::BuildDeclaration::Package(package) => &package.name,
+            build_declarations::BuildDeclaration::Application(application) => &application.name,
+            build_declarations::BuildDeclaration::Workspace(_) => {
+                return Err(refusal("workspace has no named Product root".into()));
+            }
+        };
+        if graph.package_name(graph.root()) != Some(name.as_str())
+            || graph.root_role() != declaration.kind()
+        {
+            return Err(refusal(
+                "acquired source differs from the executed Build declaration".into(),
+            ));
+        }
+        Ok(graph)
     }
 
     pub(super) fn open_product(

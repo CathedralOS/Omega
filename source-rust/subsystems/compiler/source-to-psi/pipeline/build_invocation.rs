@@ -39,6 +39,30 @@ impl BuildStageSource {
         host: &'static str,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<(SourceContinuation, BuildStage), Vec<Diagnostic>> {
+        let entry = self.entry;
+        self.request(preparation, host, authority, Some((entry, index)))
+            .prepare(&mut UnmeasuredProduction)
+    }
+
+    /// Product descriptions use the complete declarations visible at the paused Build call.
+    pub fn prepare_product_query(
+        self,
+        preparation: &SourcePreparation,
+        host: &'static str,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    ) -> Result<SourceContinuation, Vec<Diagnostic>> {
+        self.request(preparation, host, authority, None)
+            .prepare(&mut UnmeasuredProduction)
+            .map(|(declarations, _)| declarations)
+    }
+
+    fn request(
+        self,
+        preparation: &SourcePreparation,
+        host: &'static str,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        build_stage: Option<(SourceId, usize)>,
+    ) -> ResolveAndTypeRequest {
         ResolveAndTypeRequest {
             syntax: self.syntax,
             source_items: self.source_items,
@@ -46,12 +70,11 @@ impl BuildStageSource {
             frontends: preparation.frontends.clone(),
             build_helper_identity: host,
             build_sources: self.build_sources,
-            build_stage: Some((self.entry, index)),
+            build_stage,
             sources: self.sources,
             top_level_bindings: self.imports,
             selection_authority: authority,
         }
-        .prepare(&mut UnmeasuredProduction)
     }
 }
 
@@ -119,5 +142,45 @@ impl CheckedBuildInvocation {
             &mut UnmeasuredProduction,
         )?;
         Ok((self.accepted, produced))
+    }
+}
+
+impl crate::StageSource<'_> {
+    /// Check the selected package and the declared implementation before installing its code in Build.
+    pub fn produce_build_provider(
+        &self,
+        deployment: &str,
+        declaration_path: &str,
+    ) -> Result<crate::ProducedBuildProvider, Vec<Diagnostic>> {
+        let package = self.selections.subject.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "Build provider production requires an acquired package",
+            )]
+        })?;
+        if !self.selections.calling_targets.contains(&deployment) {
+            return Err(vec![Diagnostic::error(format!(
+                "Build provider source did not select deployment target `{deployment}`"
+            ))]);
+        }
+        let checked = self.judge(self.resolve()?, None, None)?;
+        let publication = checked.terminal_publication();
+        let accepted = publication.accepted()?;
+        let supply = AcceptedTerminalSource::build_backing_supply(
+            accepted.source(),
+            package,
+            declaration_path,
+        )?;
+        let mut roster = publication.unpublished_roster()?.clone();
+        if !roster.supplies.contains(&supply) {
+            roster.supplies.push(supply);
+        }
+        let supplied = crate::SourcePublication::judge(
+            Arc::clone(accepted.source()),
+            roster,
+            publication.optimizations().clone(),
+        )?;
+        supplied
+            .accepted()?
+            .produce_build_provider(package, declaration_path)
     }
 }

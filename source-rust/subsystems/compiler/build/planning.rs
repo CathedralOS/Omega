@@ -10,7 +10,7 @@ pub use source::{
 
 use build_declarations::BuildRequest;
 use build_execution::host::bindings::{
-    BuildProductDescription, BuildProductQuery, BuildProviderRequest,
+    BuildProductQuery, BuildProviderRequest,
 };
 use build_execution::host::requests::BuildDependencyPreparation;
 use build_execution::{
@@ -25,11 +25,11 @@ use package_compilation::source_imports::ProductQueryDependency;
 /// The coordinator resolves each request against the services granted to this stage.
 /// The activation checks the answer against its own pending call before execution resumes.
 pub trait PlanningServices {
-    fn describe_product(
+    fn query_dependencies(
         &mut self,
         _activation: &TerminalBuildActivation,
         _request: &BuildProductQuery,
-    ) -> Result<(BuildProductDescription, Vec<BuildDependencySelection>), CompileFailure> {
+    ) -> Result<Vec<ProductQueryDependency>, CompileFailure> {
         Err(vec![Diagnostic::error(
             "Build requested a Product description without a granted query service",
         )]
@@ -209,7 +209,7 @@ pub fn interpret(
         let mut activation = host.start().map_err(refusal)?;
         let mut prepared = Vec::new();
         loop {
-            let ran = run(&mut activation, services, &mut prepared);
+            let ran = run(&mut activation, &mut source, services, &mut prepared);
             let spent = activation.helper_evaluation_accounting().clone();
             ran.map_err(|failure| failure.with_source_completion_accounting(spent.clone()))?;
             if source.stage.is_last() {
@@ -236,13 +236,15 @@ pub fn interpret(
 
 fn run(
     activation: &mut TerminalBuildActivation,
+    source: &mut source::PlanningSource,
     services: &mut impl PlanningServices,
     prepared: &mut Vec<ProductQueryDependency>,
 ) -> Result<(), CompileFailure> {
     loop {
         let step = activation.advance(1024).map_err(refusal)?;
         if let Some(query) = step.awaiting_query {
-            let (description, selections) = services.describe_product(activation, &query)?;
+            let (description, selections) =
+                source.describe_product(activation, &query, prepared, services)?;
             activation
                 .answer_query(&query, description, &selections)
                 .map_err(refusal)?;
