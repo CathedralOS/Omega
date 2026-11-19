@@ -160,7 +160,8 @@ mod native {
         pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
         pub providers: &'request [crate::artifact_lowering::SelectedProviderAdapter],
         pub plans: &'request effects::SelectedProviderPlanFacts,
-        pub callbacks: &'request [backend_plan::TerminalCallbackOccurrenceProposal],
+        pub callbacks:
+            &'request [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
         pub entry_call: Option<&'request crate::artifact_lowering::SelectedProgramEntryCall>,
     }
 

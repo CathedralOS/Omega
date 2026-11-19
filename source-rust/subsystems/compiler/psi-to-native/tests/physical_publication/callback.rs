@@ -40,7 +40,7 @@ struct Fixture {
     external: Vec<ExternalBindingRow>,
     calling: Vec<BoundaryCallingApplication>,
     callbacks: Vec<provider_admission::NativeCallbackArgumentProposal>,
-    occurrences: Vec<backend_plan::TerminalCallbackOccurrenceProposal>,
+    occurrences: Vec<provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal>,
 }
 
 fn calling_application(requirement_identity: &str, callback: bool) -> BoundaryCallingApplication {
@@ -336,12 +336,12 @@ fn build_fixture() -> Fixture {
     let identity =
         function_identity::MachineFunctionIdentity::callback_thunk(artifact.view().identity(), 0)
             .unwrap();
-    let occurrence = backend_plan::TerminalCallbackOccurrenceProposal::new(
+    let occurrence = provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal::new(
         0,
         0,
         OperationId::new(1).unwrap(),
         identity,
-        backend_plan::TerminalCallbackThunkArtifact::for_application(Arc::clone(&artifact), 0)
+        provider_correspondence::callbacks::TerminalCallbackThunkArtifact::for_application(Arc::clone(&artifact), 0)
             .unwrap(),
         inbound.plan.plan().clone(),
         Vec::new(),
@@ -505,7 +505,7 @@ fn check_callback_publication(retain_body_source: bool) {
                 .contains("referenced private function has no original placement")
         }));
         let occurrence = &fixture.occurrences[0];
-        let substituted = backend_plan::TerminalCallbackOccurrenceProposal::new(
+        let substituted = provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal::new(
             occurrence.placement_index(),
             occurrence.application_index(),
             OperationId::new(99).unwrap(),

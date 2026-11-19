@@ -5,6 +5,7 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+provider-correspondence = { path = "../../verification/provider-correspondence" }
 psi-entry-memory = { path = "../../../psi/access/entry-memory" }
 psi-target-layouts = { path = "../../../psi/layout/admission" }
 abstract-operations = { path = "../representations/abstract-operations" }

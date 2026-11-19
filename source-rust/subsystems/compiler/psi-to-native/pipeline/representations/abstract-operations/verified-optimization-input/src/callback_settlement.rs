@@ -102,14 +102,14 @@ mod operations {
 }
 mod placement {
     use super::CallbackTerminalOperations;
-    use backend_plan::{
-        BoundCallbackPrivateMaterialization, NativeCallbackEntryParameter, NativeCallbackPlacement,
-        PrivateCallbackDestinationApplication,
-    };
     use calling_conventions::{
         BoundaryCallingApplication, BoundaryNativeParameterGeometry, BoundaryNativeParameterOrigin,
         BoundaryNativeParameterShape, NativeParameterApplication, NativePlace,
         TerminalCallingTelescope, ValueShape,
+    };
+    use provider_correspondence::callbacks::{
+        BoundCallbackPrivateMaterialization, NativeCallbackEntryParameter, NativeCallbackPlacement,
+        PrivateCallbackDestinationApplication,
     };
     use terminal_psi::{TerminalCallbackApplication, TerminalModule};
 
@@ -416,8 +416,8 @@ mod placement {
 pub use placement::settle_native_callback_placements;
 mod installed_placement {
     use application_identity::callback_declarations::PrivateCallbackSlotSelection;
-    use backend_plan::NativeCallbackPlacement;
     use calling_conventions::{BoundaryCallingApplication, NativePlace};
+    use provider_correspondence::callbacks::NativeCallbackPlacement;
     use terminal_psi::{TerminalInstalledInterruptRegistration, TerminalModule};
 
     use super::placement::{calling_application, inbound_application, place_callback};
@@ -515,9 +515,9 @@ mod installed_placement {
 pub use installed_placement::settle_installed_callback_placements;
 mod registrar_imports {
     use super::CallbackTerminalOperations;
-    use backend_plan::NativeCallbackPlacement;
     use calling_conventions::BoundaryCallingApplication;
     use calling_conventions::ExternalBindingRow;
+    use provider_correspondence::callbacks::NativeCallbackPlacement;
     use semantic_vocabulary::{MachineId, OperationId};
     use terminal_psi::TerminalModule;
 
