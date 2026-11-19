@@ -21,7 +21,6 @@ native-inputs = { package = "psi-to-admitted-native-inputs", path = "../00_psi-t
 declaration-scope = { path = "../../../foundation/declaration-scope" }
 application-identity = { path = "../../../psi/application-identity" }
 arena = { path = "../../../../../foundation/arena" }
-artifact-evaluation = { path = "../../../../psi/evaluation/artifact-evaluation" }
 backend-plan = { path = "../../installation/provider-plans" }
 build-time-values = { path = "../../../build/evaluation/values" }
 calling-conventions = { path = "../../targets/calling-conventions" }
@@ -43,7 +42,6 @@ semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 target = { path = "../../targets/target" }
 terminal-codec = { path = "../../../psi/codec" }
 psi-authorization = { path = "../../../psi/authorization" }
-terminal-installation = { path = "../../../psi-admission" }
 terminal-interpreter = { path = "../../../../interpreter" }
 terminal-psi = { path = "../../../psi" }
 terminal-semantics = { path = "../../../psi/semantics" }
