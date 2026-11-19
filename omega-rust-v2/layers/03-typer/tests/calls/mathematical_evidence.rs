@@ -318,6 +318,8 @@ fn transparent_binder_kinds_preserve_argument_roles_and_universe_levels() {
 
 #[test]
 fn generated_alias_compositions_select_the_expected_binding() {
+    use std::fmt::Write;
+
     // Both meanings of X are in scope. First and Last can nest, so two wrong
     // selections can cancel each other. Compare each tree to its selected leaf.
     let leaves = [("core::Type<0>".to_owned(), true), ("u8".to_owned(), false)];
@@ -333,16 +335,31 @@ fn generated_alias_compositions_select_the_expected_binding() {
         }
     }
     kinds.sort_by_key(|(bound, _)| bound.len());
-    for (bound, takes_type) in kinds {
-        let source = format!("data X{{}} data First<A,B> = A; data Last<A,B> = B; machine pick<T:{bound}>(){{}} machine caller<X:u8>(){{pick::<X>()}}");
-        let stage = check(&[("rule.omg", &source)]).unwrap_or_else(|error| panic!("{source}\n{error:?}"));
-        let [call] = stage.calls.as_slice() else { panic!("{source}\nexpected one call") };
-        let [argument] = call.type_arguments.as_slice() else { panic!("{source}\nexpected one argument") };
-        let correct = if takes_type {
-            matches!(argument, ValueType::Nominal(id) if id.path == "X")
-        } else {
-            matches!(argument, ValueType::Parameter {owner, index:0} if owner.path == "caller")
-        };
-        assert!(correct, "{source}\nexpected type role = {takes_type}, selected {argument:?}");
+    // Each call must resolve X independently, even when neighboring calls use the other meaning.
+    let definitions = "data X{} data First<A,B> = A; data Last<A,B> = B;";
+    for batch in kinds.chunks(32) {
+        let mut source = definitions.to_owned();
+        let mut body = String::from("machine caller<X:u8>(){");
+        for (i, (bound, _)) in batch.iter().enumerate() {
+            write!(&mut source, "\nmachine pick_{i}<T:{bound}>(){{}}").unwrap();
+            write!(&mut body, "\npick_{i}::<X>();").unwrap();
+        }
+        source.push('\n');
+        source.push_str(&body);
+        source.push('}');
+        let stage = check(&[("rule.omg", &source)]).unwrap_or_else(|e| panic!("{e:?}\n{source}"));
+        assert_eq!(stage.calls.len(), batch.len());
+        for (i, (call, (bound, takes_type))) in stage.calls.iter().zip(batch).enumerate() {
+            assert_eq!(call.machine.path, format!("pick_{i}"), "{bound}");
+            let [argument] = call.type_arguments.as_slice() else {
+                panic!("{bound}\nexpected one argument")
+            };
+            let correct = if *takes_type {
+                matches!(argument, ValueType::Nominal(id) if id.path == "X")
+            } else {
+                matches!(argument, ValueType::Parameter {owner, index:0} if owner.path == "caller")
+            };
+            assert!(correct, "{bound}\nexpected type role = {takes_type}, selected {argument:?}");
+        }
     }
 }
