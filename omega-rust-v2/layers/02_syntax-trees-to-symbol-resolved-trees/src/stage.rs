@@ -427,8 +427,8 @@ pub fn resolve_stage_with_exports<'text>(
             }
         }
         let first_use = uses.len();
-        catalog.bind(file, file_number, context, &mut uses, &mut applications)?;
-        catalog.collect_operators(file, file_number, context, &uses[first_use..], &mut operators, &mut operator_declarations)?;
+        catalog.bind(file, file_number, context, &mut uses, &mut applications, &mut operators)?;
+        catalog.collect_operator_declarations(file, file_number, context, &uses[first_use..], &mut operator_declarations)?;
     }
     let mut definitions = vec![Vec::new(); files.len()];
     for (slot, entry) in entries.iter().enumerate() {

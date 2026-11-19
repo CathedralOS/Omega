@@ -178,21 +178,26 @@ impl BodyTyper<'_, '_> {
     ) -> Result<ValueType, TypeError> {
         let source = self.unit.file;
         let mut pending = Vec::new();
-        while source.nodes[node_index].kind == NodeKind::Binary {
-            let [left, right] = *source.nodes[node_index].children.as_slice() else {
-                return Err(TypeError::unsupported(source, node_index));
-            };
-            let token = self.unit.operator_token(node_index)?;
-            if token == "==" && self.type_term(left) {
-                break;
+        let mut left_type = loop {
+            if source.nodes[node_index].kind != NodeKind::Binary {
+                break self.type_expression(node_index)?;
             }
-            pending.push((node_index, left, right, token));
-            node_index = left;
-        }
-        let mut left_type = if source.nodes[node_index].kind == NodeKind::Binary {
-            self.type_equality(node_index)?
-        } else {
-            self.type_expression(node_index)?
+            let operator = self
+                .unit
+                .operator(node_index)
+                .ok_or_else(|| TypeError::at(source, node_index, "missing resolved operator"))?;
+            match operator.role {
+                omega_resolver::OperatorRole::TypeEquality { left, right } => {
+                    break self.type_equality(node_index, left, right)?;
+                }
+                omega_resolver::OperatorRole::Value => {
+                    let [left, right] = *source.nodes[node_index].children.as_slice() else {
+                        return Err(TypeError::unsupported(source, node_index));
+                    };
+                    pending.push((node_index, left, right, operator.token.as_str()));
+                    node_index = left;
+                }
+            }
         };
         for (node_index, left, right, token) in pending.into_iter().rev() {
             let ty = if token == "in" {

@@ -266,11 +266,7 @@ impl<'a> ResolvedSourceFile<'a> {
                     continue;
                 }
                 let term = self.single_child(clause)?;
-                let predicate = &source.nodes[term];
-                if predicate.kind != NodeKind::Binary || self.operator_token(term)? != "==" {
-                    continue;
-                }
-                let [l, r] = *predicate.children.as_slice() else {
+                let Some(omega_resolver::OperatorRole::TypeEquality { left: l, right: r }) = self.operator(term).map(|operator| operator.role) else {
                     continue;
                 };
                 let binding = |node_index| match self.symbol(node_index) {

@@ -1,42 +1,73 @@
-use super::{Catalog, Context, NameError, NameUse, OperatorDeclaration, OperatorUse, Symbol};
+use super::{Catalog, Context, NameError, NameUse, OperatorDeclaration, OperatorRole, OperatorUse, Symbol};
 use crate::syntax::File;
 use omega_lexer::SourceSpan;
 use omega_parser::NodeKind;
 
+pub(super) fn collect_operator_uses(
+    file: &File<'_>,
+    type_operands: &std::collections::BTreeSet<usize>,
+    operators: &mut Vec<OperatorUse>,
+) -> Result<(), NameError> {
+    use NodeKind::*;
+    for (n, node) in file.nodes.iter().enumerate() {
+        if matches!(node.kind, Binary | Unary | Index | Range) {
+            let (Some(first), Some(last)) = (node.leaves.first(), node.leaves.last()) else {
+                continue;
+            };
+            let token = match node.kind {
+                Index => "[]".into(),
+                Range => node
+                    .leaves
+                    .iter()
+                    .find(|t| t.text.starts_with(".."))
+                    .map_or("[..]", |t| t.text)
+                    .into(),
+                _ => node.leaves.iter().map(|t| t.text).collect(),
+            };
+            let role = if node.kind == Binary && token == "==" {
+                let [left, right] = *node.children.as_slice() else {
+                    return Err(file.error(file.span(n), "equality requires two operands"));
+                };
+                let ungroup = |mut operand: usize| {
+                    while file.nodes[operand].kind == Paren {
+                        let [inner] = *file.nodes[operand].children.as_slice() else { break };
+                        operand = inner;
+                    }
+                    operand
+                };
+                let (left, right) = (ungroup(left), ungroup(right));
+                match (type_operands.contains(&left), type_operands.contains(&right)) {
+                    (true, true) => OperatorRole::TypeEquality { left, right },
+                    (false, false) => OperatorRole::Value,
+                    _ => return Err(file.error(file.span(n), "type equality mixes a type and a value")),
+                }
+            } else {
+                OperatorRole::Value
+            };
+            operators.push(OperatorUse {
+                role,
+                node: file.node_id(n),
+                package: file.package.into(),
+                file: file.path.into(),
+                span: SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()),
+                token,
+            });
+        }
+    }
+    Ok(())
+}
+
 impl Catalog<'_> {
-    pub(super) fn collect_operators(
+    pub(super) fn collect_operator_declarations(
         &self,
         file: &File<'_>,
         file_number: usize,
         ctx: &Context<'_>,
         uses: &[NameUse],
-        operators: &mut Vec<OperatorUse>,
         declarations: &mut Vec<OperatorDeclaration>,
     ) -> Result<(), NameError> {
         use NodeKind::*;
         for (n, node) in file.nodes.iter().enumerate() {
-            if matches!(node.kind, Binary | Unary | Index | Range) {
-                let (Some(first), Some(last)) = (node.leaves.first(), node.leaves.last()) else {
-                    continue;
-                };
-                let token = match node.kind {
-                    Index => "[]".into(),
-                    Range => node
-                        .leaves
-                        .iter()
-                        .find(|t| t.text.starts_with(".."))
-                        .map_or("[..]", |t| t.text)
-                        .into(),
-                    _ => node.leaves.iter().map(|t| t.text).collect(),
-                };
-                operators.push(OperatorUse {
-                    node: file.node_id(n),
-                    package: file.package.into(),
-                    file: file.path.into(),
-                    span: SourceSpan::new(first.span.get_start_offset(), last.span.get_end_offset()),
-                    token,
-                });
-            }
             if node.kind != OperatorToken {
                 continue;
             }

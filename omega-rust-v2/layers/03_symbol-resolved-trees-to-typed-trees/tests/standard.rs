@@ -332,3 +332,200 @@ fn declared_operand_type_selects_the_overload_across_numeric_widths_and_results(
         }
     }
 }
+
+#[test]
+fn grouping_preserves_the_typed_equality_operation() {
+    for (left, right, operation) in [
+        ("T", "u32", "type =="),
+        ("addr", "addr", "type =="),
+        ("x", "x", "=="),
+    ] {
+        let mut baseline = None;
+        for predicate in [
+            format!("{left} == {right}"),
+            format!("({left}) == {right}"),
+            format!("{left} == ({right})"),
+            format!("(({left})) == (({right}))"),
+        ] {
+            let source = format!("machine f<T>(x:u32) requires {predicate} {{}}");
+            let typed = check(&source).unwrap();
+            let [op] = typed.operations.as_slice() else {
+                panic!("expected one operation: {predicate}")
+            };
+            assert_eq!(op.token, operation);
+            assert_eq!(op.result, omega_typer::ValueType::Bool);
+            assert_eq!(op.site.span.slice(source.as_bytes()), Some(predicate.as_bytes()));
+            assert_eq!(baseline.get_or_insert_with(|| op.operands.clone()), &op.operands);
+        }
+    }
+}
+
+#[test]
+fn receipt_admission_rejects_an_open_parameter_in_each_type_child() {
+    use ValueType as T;
+    use omega_typer::{
+        Access, CallableType, DomainApplication, IntegerIndex, RequirementSlot, ServiceApplication, Site, SpecializedIndexValue, TypingEnvironment, ValueType,
+        type_stage_in_environment,
+    };
+    let source = "data B<const N:u8>{} machine plus(x:u8)->u8{x+1}";
+    let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+    let resolved = omega_resolver::resolve_stage(
+        &[StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: "app.omg",
+                text: source,
+                tokens: &tokens,
+                tree: &tree,
+            },
+        }],
+        &[],
+    )
+    .unwrap();
+    let owner = resolved.declarations.iter().find(|id| id.path == "B").unwrap();
+    let start = source.find("x+1").unwrap();
+    let site = Site {
+        package: "app".into(),
+        file: "app.omg".into(),
+        span: omega_lexer::SourceSpan::new(start, start + 3),
+    };
+    let callable = CallableType {
+        parameters: vec![T::Bool],
+        result: T::Bool,
+        requirement: None,
+        reach: None,
+        contract: site.clone(),
+        closed_runtime: false,
+        pause: Default::default(),
+        has_guarantee: false,
+        terminates: false,
+        crash_ceiling: None,
+    };
+    let shapes = |child: T| {
+        let boxed = || Box::new(child.clone());
+        let children = || vec![T::Bool, child.clone()];
+        let slot = || RequirementSlot {
+            declaration: owner.clone(),
+            trait_arguments: children(),
+        };
+        let domain = || DomainApplication {
+            declaration: owner.clone(),
+            arguments: children(),
+        };
+        vec![
+            ("direct", child.clone()),
+            ("squash", T::Squash(boxed())),
+            ("level of", T::LevelOf(boxed())),
+            ("universe level", T::Universe { strict: false, level: boxed() }),
+            ("integer width", T::IndexedInteger { signed: false, width: boxed() }),
+            ("reference", T::Reference(Access::Shared, boxed())),
+            ("array", T::Array(boxed(), 1)),
+            ("slice", T::Slice(boxed())),
+            (
+                "integer carrier",
+                T::StaticInteger {
+                    carrier: boxed(),
+                    value: 1.into(),
+                },
+            ),
+            ("function input", T::Function(boxed(), Box::new(T::Bool))),
+            ("function output", T::Function(Box::new(T::Bool), boxed())),
+            ("value at lifetime", T::AtLifetime(boxed(), Box::new(T::Bool))),
+            ("lifetime", T::AtLifetime(Box::new(T::Bool), boxed())),
+            ("indexed array element", T::IndexedArray(boxed(), Box::new(T::Bool))),
+            ("array index", T::IndexedArray(Box::new(T::Bool), boxed())),
+            (
+                "mathematical subject",
+                T::MathematicalValue {
+                    definition: Box::new(owner.clone()),
+                    subjects: children(),
+                },
+            ),
+            (
+                "family",
+                T::FamilyApplication {
+                    family: boxed(),
+                    subjects: vec![],
+                },
+            ),
+            (
+                "family subject",
+                T::FamilyApplication {
+                    family: Box::new(T::Bool),
+                    subjects: children(),
+                },
+            ),
+            ("tuple", T::Tuple(children())),
+            ("type argument", T::Applied(Box::new(owner.clone()), children())),
+            ("domain carrier", T::Qualified(boxed(), vec![])),
+            ("domain argument", T::Qualified(Box::new(T::Bool), vec![domain()])),
+            ("evidence", T::Evidence(Box::new(slot()))),
+            (
+                "callable input",
+                T::Callable(Box::new(CallableType {
+                    parameters: children(),
+                    ..callable.clone()
+                })),
+            ),
+            (
+                "callable result",
+                T::Callable(Box::new(CallableType {
+                    result: child.clone(),
+                    ..callable.clone()
+                })),
+            ),
+            (
+                "callable requirement",
+                T::Callable(Box::new(CallableType {
+                    requirement: Some(slot()),
+                    ..callable.clone()
+                })),
+            ),
+            (
+                "callable reach",
+                T::Callable(Box::new(CallableType {
+                    reach: Some(vec![ServiceApplication {
+                        service: owner.clone(),
+                        arguments: children(),
+                    }]),
+                    ..callable.clone()
+                })),
+            ),
+        ]
+    };
+    let admit = |arg| {
+        let receipt = SpecializedIndexValue {
+            expression: site.clone(),
+            arguments: vec![arg],
+            value: 1.into(),
+        };
+        type_stage_in_environment(
+            &resolved,
+            &TypingEnvironment {
+                specialized_indices: std::slice::from_ref(&receipt),
+                ..Default::default()
+            },
+        )
+        .map(|_| ())
+    };
+    let parameter = T::Parameter {
+        owner: Box::new(owner.clone()),
+        index: 0,
+    };
+    for ((position, open), (_, closed)) in shapes(parameter.clone()).into_iter().zip(shapes(T::Bool)) {
+        let refusal = admit(open).expect_err(position);
+        assert_eq!(refusal.message, "evaluation requires closed arguments", "{position}");
+        assert_eq!(refusal.span, site.span, "{position}");
+        admit(closed).expect(position);
+    }
+    // A formula remains deferred until evaluation materializes its static integer.
+    let deferred = T::StaticFormula {
+        term: IntegerIndex::Binder {
+            owner: Box::new(owner.clone()),
+            index: 0,
+        },
+        carrier: Box::new(T::Bool),
+    };
+    assert_eq!(admit(deferred).unwrap_err().message, "evaluation requires closed arguments");
+}

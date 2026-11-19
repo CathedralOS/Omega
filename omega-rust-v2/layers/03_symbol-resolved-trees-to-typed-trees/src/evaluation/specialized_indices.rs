@@ -36,9 +36,24 @@ impl SyntaxKey {
         }
     }
 }
+/// Only fully substituted arguments may index an admitted evaluation result.
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub(super) struct ClosedArguments(Vec<ValueType>);
+
+impl TryFrom<Vec<ValueType>> for ClosedArguments {
+    type Error = Vec<ValueType>;
+
+    fn try_from(arguments: Vec<ValueType>) -> Result<Self, Self::Error> {
+        if arguments.iter().any(ValueType::contains_parameter) {
+            Err(arguments)
+        } else {
+            Ok(Self(arguments))
+        }
+    }
+}
 #[derive(Default)]
 pub(crate) struct IndexSpecializations {
-    values: HashMap<SyntaxKey, Arc<HashMap<Vec<ValueType>, BigInt>>>,
+    values: HashMap<SyntaxKey, Arc<HashMap<ClosedArguments, BigInt>>>,
 }
 impl IndexSpecializations {
     pub fn build(
@@ -71,15 +86,13 @@ impl IndexSpecializations {
                 .enclosing_contexts(n)
                 .find_map(|i| unit.declaration_at(i))
                 .ok_or_else(|| fail("evaluation result has no owning declaration"))?;
-            if receipt.arguments.iter().any(ValueType::contains_parameter) {
-                return Err(fail("evaluation requires closed arguments"));
-            }
+            let arguments = ClosedArguments::try_from(receipt.arguments.clone()).map_err(|_| fail("evaluation requires closed arguments"))?;
             let entry = prepared
                 .values
                 .entry(SyntaxKey::new(unit, n, owner))
                 .or_default();
             if Arc::make_mut(entry)
-                .insert(receipt.arguments.clone(), receipt.value.clone())
+                .insert(arguments, receipt.value.clone())
                 .is_some_and(|v| v != receipt.value)
             {
                 return Err(fail("conflicting evaluations of the same specialized expression"));

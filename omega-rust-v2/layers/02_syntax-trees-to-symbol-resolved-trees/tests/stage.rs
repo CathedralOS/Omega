@@ -926,3 +926,38 @@ fn published_type_equality_rejects_a_shadowing_value() {
     assert_eq!(error.message, "type equality mixes a type and a value");
     assert_eq!(error.span.slice(shadow.as_bytes()), Some(b"T == u32".as_slice()));
 }
+
+#[test]
+fn equality_keeps_its_resolved_operand_role_through_grouping() {
+    use omega_resolver::OperatorRole;
+    for (left, right, types) in [("T", "u32", true), ("addr", "addr", true), ("x", "x", false)] {
+        for (l, r) in [
+            (left.to_owned(), right.to_owned()),
+            (format!("({left})"), right.to_owned()),
+            (left.to_owned(), format!("({right})")),
+            (format!("(({left}))"), format!("(({right}))")),
+        ] {
+            let text = format!("machine f<T>(x:u32) requires {l} == {r} {{}}");
+            let resolved = run(&[("app", "f.omg", &text)], &[]).unwrap();
+            let tree = resolved.trees().next().unwrap();
+            let [operator] = resolved.operators.as_slice() else {
+                panic!("expected exactly one operator")
+            };
+            assert_eq!(operator.token, "==");
+            match operator.role {
+                OperatorRole::TypeEquality { left: lhs, right: rhs } => {
+                    assert!(types);
+                    assert_eq!(tree.file.span(lhs).slice(text.as_bytes()), Some(left.as_bytes()));
+                    assert_eq!(tree.file.span(rhs).slice(text.as_bytes()), Some(right.as_bytes()));
+                }
+                OperatorRole::Value => assert!(!types),
+            }
+        }
+    }
+    for predicate in ["(T) == x", "x == (T)"] {
+        let text = format!("machine f<T>(x:u32) requires {predicate} {{}}");
+        let refusal = run(&[("app", "f.omg", &text)], &[]).unwrap_err();
+        assert_eq!(refusal.message, "type equality mixes a type and a value");
+        assert_eq!(refusal.span.slice(text.as_bytes()), Some(predicate.as_bytes()));
+    }
+}
