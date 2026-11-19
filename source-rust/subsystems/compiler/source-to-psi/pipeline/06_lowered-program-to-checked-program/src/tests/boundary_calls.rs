@@ -3801,11 +3801,12 @@ fn generic_named_map_captures_keep_every_unused_binder() {
     missing
         .captured_machine_applications
         .insert(captures[1].clone());
-    let verdicts = compilation_verdicts_of(&crate::prepare_fixture(missing));
+    // A second preparation would reconstruct the deliberately deleted capture.
+    let verdict = judge(invocation(missing)).unwrap();
     assert!(
-        matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
+        matches!(&verdict, RouteVerdict::FallBack(refusal)
         if refusal.detail.contains("named map body has no prepared capture")),
-        "{verdicts:?}"
+        "{verdict:?}"
     );
 }
 
