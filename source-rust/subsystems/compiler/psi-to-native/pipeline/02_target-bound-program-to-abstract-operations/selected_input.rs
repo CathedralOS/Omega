@@ -1,7 +1,7 @@
 //! Retain the authorized program and its selected execution scope through native lowering.
 //! The checked access establishments belong to the same entry as the lowered plan.
 mod error {
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     #[derive(Debug)]
     pub enum ArtifactLoweringError {
@@ -191,13 +191,13 @@ mod native {
     }
 
     pub struct NativeExecutionSelection<'request> {
-        pub scope: Option<&'request crate::artifact_lowering::NativeExecutionScope>,
+        pub scope: Option<&'request crate::NativeExecutionScope>,
         pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
-        pub providers: &'request [crate::artifact_lowering::SelectedProviderAdapter],
+        pub providers: &'request [crate::SelectedProviderAdapter],
         pub plans: &'request selected_provider_plans::SelectedProviderPlanFacts,
         pub callbacks:
             &'request [provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal],
-        pub entry_call: Option<&'request crate::artifact_lowering::SelectedProgramEntryCall>,
+        pub entry_call: Option<&'request crate::SelectedProgramEntryCall>,
     }
 
     pub(crate) struct NativeScopePreparation {
@@ -206,7 +206,7 @@ mod native {
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: TerminalTargetContext,
         pub(crate) layouts: psi_target_layouts::AdmittedTargetLayouts,
-        pub(crate) scope: Option<crate::artifact_lowering::NativeExecutionScope>,
+        pub(crate) scope: Option<crate::NativeExecutionScope>,
         pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
     }
 
@@ -265,7 +265,7 @@ mod native {
             };
             let scalar_demand = match scope.as_ref() {
                 Some(scope) => scope.scalar_application_demand(module, &layouts),
-                None => crate::artifact_lowering::NativeExecutionScope::full_module_scalar_demand(
+                None => crate::NativeExecutionScope::full_module_scalar_demand(
                     module, &layouts,
                 ),
             }
@@ -353,7 +353,7 @@ mod native {
                     })?;
                 *declaration = resolved.clone();
             }
-            let plan = crate::artifact_lowering::lowering::lower_selected_module(
+            let plan = crate::operations::lower_selected_module(
                 module,
                 entry,
                 structural_types,
@@ -390,7 +390,7 @@ mod native {
                         .map(|scope| std::sync::Arc::new(scope.clone())),
                     scope.as_ref().map_or_else(
                         || *selection.plans.identity_digest().as_bytes(),
-                        crate::artifact_lowering::NativeExecutionScope::selected_provider_closure,
+                        crate::NativeExecutionScope::selected_provider_closure,
                     ),
                 )
                 .map_err(|reason| ArtifactLoweringError::TargetContext(reason.into()))?;
@@ -879,7 +879,7 @@ mod native {
             assert!(matches!(
                 prepare(graph()),
                 Err(ArtifactLoweringError::Lowering(
-                    crate::artifact_lowering::lowering::LoweringError::UnclosedScalarApplication(_)
+                    crate::operations::LoweringError::UnclosedScalarApplication(_)
                 ))
             ));
             let mut module = graph();

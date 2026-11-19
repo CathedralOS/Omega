@@ -8,7 +8,16 @@
   operations.
 */
 
-use super::{LoweredAffineLocal, StructuralLiteral, structural_result, unique_row};
+use super::{LoweredAffineLocal, StructuralLiteral, structural_result};
+
+fn unique_row<T>(
+    rows: impl IntoIterator<Item = T>,
+    mut accepts: impl FnMut(&T) -> bool,
+) -> Option<T> {
+    let mut matches = rows.into_iter().filter(|row| accepts(row));
+    let row = matches.next()?;
+    matches.next().is_none().then_some(row)
+}
 pub(crate) mod atomic_events {
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -22,7 +31,7 @@ pub(crate) mod atomic_events {
         StructuralTypeDeclaration, TerminalMachine,
     };
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
@@ -432,7 +441,7 @@ pub(crate) mod borrowed_windows {
         StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     };
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     use super::structural_scalar_fields::{exact_parameter, owned_storage_destination};
 
@@ -906,7 +915,7 @@ pub(crate) mod primitive_storage {
         StructuralOperationResult, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     };
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     use super::unique_row;
 
@@ -1063,7 +1072,7 @@ pub(crate) mod structural_establishment {
     };
 
     use super::{LoweredAffineLocal, StructuralLiteral};
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn lower(
@@ -1266,7 +1275,7 @@ pub(crate) mod structural_leaf_copy {
         StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
     };
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     use super::borrowed_windows::{block_parameter, source_signature};
 
@@ -1430,7 +1439,7 @@ pub(crate) mod structural_scalar_fields {
         find_structural_type,
     };
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     use super::unique_row;
 

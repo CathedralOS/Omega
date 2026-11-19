@@ -121,21 +121,37 @@ mod error {
 
     impl std::error::Error for LoweringError {}
 }
-#[path = "."]
+type StructuralLiteral<'a> = (
+    &'a terminal_psi::StructuralPlaceDeclaration,
+    u32,
+    semantic_vocabulary::StructuralTypeId,
+);
+type LoweredAffineLocal = (
+    semantic_vocabulary::OperationId,
+    terminal_psi::StructuralPlaceDeclaration,
+    terminal_psi::StructuralTypeDeclaration,
+);
+
+fn structural_result(
+    operation: &terminal_psi::Operation,
+    invalid: fn(semantic_vocabulary::OperationId) -> LoweringError,
+) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
+    let result = operation.result.structural().cloned();
+    result.ok_or(invalid(operation.id))
+}
+
+mod scalars;
+mod storage;
+
 mod machine {
-    use crate::artifact_lowering::lowering::LoweringError;
-    use semantic_vocabulary::OperationId;
-    #[path = "."]
+    use super::{LoweredAffineLocal, StructuralLiteral};
+    use crate::operations::LoweringError;
     mod operation {
-        #[path = "lowering_scalars.rs"]
-        mod scalars;
-        pub(super) use scalars::{
+        pub(super) use crate::operations::scalars::{
             arithmetic, boolean, ieee_float, integer_bitwise, integer_constants_and_relations,
             integer_conversion, scalar_applications, shifts, trapping_integer,
         };
-        #[path = "lowering_storage.rs"]
-        mod storage;
-        pub(super) use storage::{
+        pub(super) use crate::operations::storage::{
             atomic_events, borrowed_windows, primitive_projection, primitive_storage,
             structural_establishment, structural_leaf_copy, structural_scalar_fields,
         };
@@ -146,7 +162,7 @@ mod machine {
             };
             use terminal_psi::{Operation, OperationKind, TerminalMachine};
 
-            use crate::artifact_lowering::lowering::LoweringError;
+            use crate::operations::LoweringError;
 
             pub(super) fn lower(
                 operation: &Operation,
@@ -416,7 +432,7 @@ mod machine {
                 Operation, OperationKind, StructuralTypeDeclaration, TerminalMachine,
             };
 
-            use crate::artifact_lowering::lowering::LoweringError;
+            use crate::operations::LoweringError;
 
             pub(super) fn lower(
                 operation: &Operation,
@@ -605,7 +621,7 @@ mod machine {
                 structural_establishment, structural_leaf_copy, structural_result,
                 structural_scalar_fields, trapping_integer, unsigned_scalar,
             };
-            use crate::artifact_lowering::lowering::LoweringError;
+            use crate::operations::LoweringError;
 
             #[allow(clippy::too_many_arguments)]
             pub(super) fn lower(
@@ -1351,17 +1367,9 @@ mod machine {
         use terminal_psi::TerminalMachine;
 
         use super::{LoweredAffineLocal, StructuralLiteral};
-        use crate::artifact_lowering::lowering::LoweringError;
+        use crate::operations::structural_result;
+        use crate::operations::LoweringError;
         use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType};
-
-        pub(super) fn unique_row<T>(
-            rows: impl IntoIterator<Item = T>,
-            mut accepts: impl FnMut(&T) -> bool,
-        ) -> Option<T> {
-            let mut matches = rows.into_iter().filter(|row| accepts(row));
-            let row = matches.next()?;
-            matches.next().is_none().then_some(row)
-        }
 
         fn unsigned_scalar(
             operation: &terminal_psi::Operation,
@@ -1374,14 +1382,6 @@ mod machine {
                 return Err(invalid(operation.id));
             }
             Ok(result)
-        }
-
-        fn structural_result(
-            operation: &terminal_psi::Operation,
-            invalid: fn(OperationId) -> LoweringError,
-        ) -> Result<terminal_psi::StructuralOperationResult, LoweringError> {
-            let result = operation.result.structural().cloned();
-            result.ok_or(invalid(operation.id))
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -1717,17 +1717,10 @@ mod machine {
         AbstractBlock, AbstractFunction, AbstractFunctionResult, AbstractParameter,
     };
     use operation::lower_operation;
-    use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
+    use semantic_vocabulary::StructuralPlaceKind;
     use std::collections::BTreeMap;
-    use terminal_psi::{StructuralPlaceDeclaration, StructuralTypeDeclaration, TerminalMachine};
+    use terminal_psi::{StructuralTypeDeclaration, TerminalMachine};
     use terminator::lower_terminator;
-
-    type StructuralLiteral<'a> = (&'a StructuralPlaceDeclaration, u32, StructuralTypeId);
-    type LoweredAffineLocal = (
-        OperationId,
-        StructuralPlaceDeclaration,
-        StructuralTypeDeclaration,
-    );
 
     pub(super) fn lower_machine(
         module: &terminal_psi::TerminalModule,
@@ -1853,7 +1846,7 @@ pub(crate) fn lower_selected_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
-    scope: Option<&crate::artifact_lowering::NativeExecutionScope>,
+    scope: Option<&crate::NativeExecutionScope>,
     scalar_applications: Option<&psi_scalar_applications::AdmittedScalarApplications>,
     layouts: Option<&psi_target_layouts::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {
@@ -1899,7 +1892,7 @@ pub(crate) fn lower_selected_module(
     }
     let owned_sequence_bounds = match scope {
         Some(scope) => scope.owned_sequence_bounds().to_vec(),
-        None => crate::artifact_lowering::NativeExecutionScope::full_module_owned_sequence_bounds(
+        None => crate::NativeExecutionScope::full_module_owned_sequence_bounds(
             module,
         )
         .map_err(|reason| {

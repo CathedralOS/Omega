@@ -97,7 +97,7 @@ Runtime provision capture reads
 the authorized artifact, selected entry and target, admitted boundary roster,
 and completed scalar applications. The verified input lends those exact rows
 without lending its executable abstract graph. The initial lowering stage owns
-the [entry correspondence check](../../02_target-bound-program-to-abstract-operations/src/artifact_lowering/entry_receiver.rs)
+the [entry correspondence check](../../02_target-bound-program-to-abstract-operations/entry_receiver.rs)
 before object construction; this crate consumes the resulting entry settlement.
 
 ## Physical evidence scope

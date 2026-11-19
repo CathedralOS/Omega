@@ -1,9 +1,9 @@
 # Terminal Psi to abstract operations
 
-The public contracts cover the [Terminal product](../../../../../../../../wiki/spec/terminal-psi/product.md)
-and [boundary realization](../../../../../../../../wiki/spec/terminal-psi/boundary_calls.md).
+The public contracts cover the [Terminal product](../../../../../../wiki/spec/terminal-psi/product.md)
+and [boundary realization](../../../../../../wiki/spec/terminal-psi/boundary_calls.md).
 
-This stage lowers checked Psi for native execution. The build's checked
+The [stage entry](lower.rs) lowers checked Psi for native execution. The build's checked
 selection names the functions that need target support. Test fixtures can exercise whole-module lowering through the opt-in test support API. Unused library helpers thus demand no
 unavailable target operations.
 
@@ -11,16 +11,16 @@ Public entry needs host-authorized producer trust bound to the complete
 canonical artifact. Decoding bytes establishes their identity, not permission
 to run them. The authorization travels with the native input through lowering
 and optimization; reloading a saved product needs a fresh receiving-host
-decision. There is no native component disk cache; [compiler storage](../../../../../wiki/spec/build/record_storage.md)
+decision. There is no native component disk cache; [compiler storage](../../../../../../wiki/spec/build/compiler_storage.md)
 retires it.
 
 The build's starting function, implementations and callbacks are joined before
-lowering. The [shared input owner](../lib.rs)
+lowering. The [shared input owner](../representations/abstract-operations/verified-optimization-input/src/lib.rs)
 keeps that checked record with the lowered program, so later stages read it
-without depending on this stage. Start at [lib.rs](../lib.rs), which re-exports the
+without depending on this stage. Start at [lower.rs](lower.rs), which re-exports the
 established public names.
 
-- The [shared proposal owner](../../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
+- The [shared proposal owner](../representations/abstract-operations/verified-optimization-input/src/native_proposal.rs)
   checks the chosen target, program entry, provider rows and callback
   occurrences against the canonical artifact, then publishes an immutable native
   proposal. It compiles no source and grants no native authority. The target
@@ -30,40 +30,40 @@ established public names.
   backend target owner; package permissions and behavior exclusions are
   separate. Selected exclusions map to the artifact's local service IDs
   without reopening a typed or checked program or a source resolver.
-- The [shared execution owner](../../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
+- The [shared execution owner](../representations/abstract-operations/verified-optimization-input/src/native_execution.rs)
   follows calls from the proposal's entry, implementations and callbacks. It
-  validates component replacements before excluding their local implementations. The [scope walk](native_execution_scope.rs)
+  validates component replacements before excluding their local implementations. The [scope walk](admit_providers.rs)
   also keeps cleanup, installed-interrupt and code-layout requirements, and
   functions that dynamic dispatch tables reference. Reached calls can need more
   direct or Build-selected provider implementations; demand completion checks
   them, then binds the final choices. Original build choices stay
   separate from it.
-- [retained_terminal.rs](retained_terminal.rs) runs lowering and native
+- [retained_terminal.rs](selected_execution.rs) runs lowering and native
   provider preparation from the shared proposal and execution records. It joins
   package permissions and prepares callbacks, imports and builtins for
   admission. Derived import evidence stays invocation-owned through admission
   and emission; the compiler forwards this stage's request rather than copying
-  its fields. The [codec](../../representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs)
+  its fields. The [codec](../representations/abstract-operations/verified-optimization-input/src/retained_terminal_codec.rs)
   that saves derivation inputs, which contain no source, lives beside
   `RetainedTerminalArtifact` in the shared input owner, so a saved product is
   recovered without running this stage. Recovery runs them through the same
   shared proposal operation without source. The in-memory retained product
   encodes no separate native authority record.
-- [native_execution_scope.rs](native_execution_scope.rs) is the complete
+- [native_execution_scope.rs](admit_providers.rs) is the complete
   native entry point. Canonical input preparation, provider settlement and
   installation, and mechanism and exclusion review produce one admitted input
   before stage 03.
-  [Provider admission](../../../../verification/provider-admission/src/lib.rs)
+  [Provider admission](../../verification/provider-admission/src/lib.rs)
   derives each demanded leaf's mechanism and admits builtins through the
   receiving policy and target catalog; it reads the bindings the proposal
   derived instead of joining them again. stage 04 consumes these facts; neither
   it nor the compiler repeats admission.
-- [artifact_admission.rs](artifact_admission.rs) does canonical
+- [Selected input admission](selected_input.rs) does canonical
   preparation, optional obligation-ledger replay, and separate ordinary,
   optimizer and native admission. Every admitted result keeps the exact
   access-view input roster. Extracting into a consumer without the roster
   rejects nonempty inputs, after verification and lowering, not at decode.
-  [Native preparation](artifact_admission.rs) receives the complete checked
+  [Native preparation](selected_input.rs) receives the complete checked
   selection from the shared owner, verifies its artifact, entry, target and
   original choices, applies the selected geometry, then lowers those functions.
   Raw requests without it check the whole module and keep no selected scope. No partly lowered native input is pruned by a later public step.
@@ -71,9 +71,9 @@ established public names.
   dynamic-table address roots keep their existing demand and per-block
   diagnostic order. Explicit artifact inspection and independent ownership
   validation cover the full catalog.
-- The admitted handoff to stage 03 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../lib.rs); stage 03 builds its optimization unit from it.
+- The admitted handoff to stage 03 is `VerifiedPsiOptimizationInput` in [verified-optimization-input](../representations/abstract-operations/verified-optimization-input/src/lib.rs); stage 03 builds its optimization unit from it.
 - `provider_installation` holds the exact selected adapter and installation.
-- [shared callback settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
+- [shared callback settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins a produced callback's Terminal interface to its exact selected calling
   application. Native placement reads each reached boundary's canonical calling
   parameter list: semantic and native-only argument identities and order,
@@ -87,11 +87,11 @@ established public names.
   channel's import exclusion live here, beside program-entry settlement. The
   coordinator supplies the artifact, placement and calling-plan roster, with no
   checked-compilation wrapper or new stage.
-  Its [registrar-import settlement](../../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
+  Its [registrar-import settlement](../representations/abstract-operations/verified-optimization-input/src/callback_settlement.rs)
   joins each ordered callback occurrence to the registrar's separate outbound
   plan and selected import row. Retained-Terminal and direct-native routes
   share it; exact operation counts and check-only import absence stay explicit.
-- [Shared boundary settlement](../../representations/abstract-operations/verified-optimization-input/src/settlement.rs)
+- [Shared boundary settlement](../representations/abstract-operations/verified-optimization-input/src/settlement.rs)
   binds calls and comparisons to implementations the build already chose. It
   selects from canonical requirements and checked body candidates using the
   target's Build rows. Provider review already establishes intrinsic
@@ -108,10 +108,10 @@ established public names.
   exact selected Psi member, receiver and parameter declarations before object
   construction. It retains the checked receiver settlement for publication.
 
-[Module lowering](lowering.rs) checks the entry and structural block
-bindings, then calls [machine lowering](lowering.rs) directly. It
+[Module lowering](operations.rs) checks the entry and structural block
+bindings, then calls [machine lowering](operations.rs) directly. It
 prepares block and value rosters, visits blocks in order, dispatches
-[operations](lowering.rs) and [terminators](lowering.rs), and assembles
+[operations](operations.rs) and [terminators](operations.rs), and assembles
 the abstract function. Each abstract block owns its operations and its final
 control transfer; there is no flat body with a separate table of block offsets.
 Scalar, Unit and structural results share this walk; there is no separate
@@ -154,13 +154,13 @@ Current-IR validation separately checks shape, leaf type and availability, and
 call and return ownership; scalar rewrites keep every
 leaf occurrence. Native storage and direct result fragments use the later
 aggregate graph; its
-[instruction-selection owner](../../../05_target-operations-to-selected-instructions/src/instruction_selection/README.md#ordinary-selected-control-flow)
+[instruction-selection owner](../05_target-operations-to-selected-instructions/src/instruction_selection/README.md#ordinary-selected-control-flow)
 lists the remaining limits on owned arguments, empty values and indirect results.
 
 Verified branches, calls and crash exits keep operation identities and
 ownership transfers for every result category. Local establishments are
 ordinary operations, not hidden in a structural return. The
-[ownership contract](../../../../../../../../wiki/spec/terminal-psi/ownership.md) requires
+[ownership contract](../../../../../../wiki/spec/terminal-psi/ownership.md) requires
 replay of actual moves and maximal residual subtrees, independent of producer
 rows. Parameter and result sources stay apart from unrelated live roots.
 
@@ -178,15 +178,15 @@ checks the outgoing area, alignment, return-link preservation, source places,
 field widths, calls and relocations. Padding is not observable payload,
 and a borrowed referent must not become a private copy.
 
-The [target stage](../../../04_abstract-operations-to-target-operations/src/target_lowering/README.md) and
-[instruction-selection stage](../../../05_target-operations-to-selected-instructions/src/instruction_selection/README.md)
+The [target stage](../04_abstract-operations-to-target-operations/src/target_lowering/README.md) and
+[instruction-selection stage](../05_target-operations-to-selected-instructions/src/instruction_selection/README.md)
 own their operation coverage. Admission here, source production and
 successful optimization do not claim native publication.
 
 ## Ranked native admission
 
-Contract: [control flow and ranking](../../../../../../../../wiki/spec/terminal-psi/control_flow.md).
-[artifact_admission.rs](artifact_admission.rs) sends natural-ranked
+Contract: [control flow and ranking](../../../../../../wiki/spec/terminal-psi/control_flow.md).
+[Selected input admission](selected_input.rs) sends natural-ranked
 modules through ordinary Terminal verification and abstract lowering.
 That verifier checks the exact grouped control-cycle evidence, including
 slice-decrease proofs; the route neither requires nor invents a fixed-work
@@ -237,7 +237,7 @@ unchanged payload bits.
 
 Unranked modules take the same ordinary verification and abstract route without
 claiming progress. Scalar cycles go through the shared
-[target control graph](../../../04_abstract-operations-to-target-operations/src/target_lowering/README.md)
+[target control graph](../04_abstract-operations-to-target-operations/src/target_lowering/README.md)
 and the native physical pipeline. Exact verified-source custody, not ranking
 metadata, authorizes later cyclic safety checking.
 
@@ -247,7 +247,7 @@ to ordinary verification. There is no dedicated countdown target, selected or
 machine-code form. Natural ranking and its grouped certificates are still
 checked on the ordinary path.
 
-The [projected-receiver contract](../../../../../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
+The [projected-receiver contract](../../../../../../wiki/spec/language/termination.md#ranked-callees-on-projected-receivers)
 still requires composed argument references, call and return, cleanup, checking
 of the callee's measure, and resource evidence. A graph alone does not provide
 them; unsupported transfers are rejected until their operation and proof joins
@@ -256,11 +256,11 @@ exist.
 ## Dynamic dispatch
 
 This is the legacy selector implementation, to be replaced by
-[runtime machine values and some packages](../../../../../../../../wiki/drafts/designs/machine_values_some.md). Source `dyn` and whole-trait runtime tables are retired. Keep the
+[runtime machine values and some packages](../../../../../../wiki/drafts/designs/machine_values_some.md). Source `dyn` and whole-trait runtime tables are retired. Keep the
 argument, contract, result and ownership behavior below while migrating; these
 notes do not authorize the old source form.
 
-The [dynamic-dispatch contract](../../../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
+The [dynamic-dispatch contract](../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
 owns the replacement descriptor and package evidence. The legacy implementation
 selects named implementations, with data arguments supplied separately.
 `SelectImplementation` keeps its exact table and a scalar result home;

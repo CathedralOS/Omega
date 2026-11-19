@@ -1,6 +1,6 @@
 //! Direct lowering of controlled fixtures without a published deployment selection.
-pub use super::NativeExecutionSelection;
-use super::native_admission::artifact_lowering_error;
+pub use crate::selected_input::NativeExecutionSelection;
+use super::admit_providers::artifact_lowering_error;
 use super::{
     AdmittedNativeRealization, ArtifactLoweringError, NativeAdmissionRequest,
     VerifiedNativeArtifactInput, admit_prepared_native_realization,
@@ -18,7 +18,7 @@ pub fn lower_artifact(
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         return Err(ArtifactLoweringError::TargetSelectionRequired);
     };
-    let plan = super::lowering::lower_selected_module(
+    let plan = super::operations::lower_selected_module(
         module,
         entry,
         module.structural_types.clone(),

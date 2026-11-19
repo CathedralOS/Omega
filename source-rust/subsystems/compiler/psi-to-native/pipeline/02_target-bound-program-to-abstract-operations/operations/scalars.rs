@@ -13,7 +13,7 @@ pub(crate) mod arithmetic {
     use semantic_vocabulary::OperationId;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
         use IntegerArithmeticOperator as Operator;
@@ -157,7 +157,7 @@ pub(crate) mod boolean {
     use semantic_vocabulary::ScalarType;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
         Ok(match operation.kind.clone() {
@@ -201,7 +201,7 @@ pub(crate) mod ieee_float {
     use semantic_vocabulary::ScalarType;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
@@ -282,7 +282,7 @@ pub(crate) mod integer_bitwise {
     use abstract_operations::AbstractOperation;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
         Ok(match operation.kind.clone() {
@@ -343,7 +343,7 @@ pub(crate) mod integer_constants_and_relations {
     use abstract_operations::AbstractOperation;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(operation: &Operation) -> Result<AbstractOperation, LoweringError> {
         Ok(match operation.kind.clone() {
@@ -385,7 +385,7 @@ pub(crate) mod integer_conversion {
     use semantic_vocabulary::ScalarType;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
@@ -466,7 +466,7 @@ pub(crate) mod scalar_applications {
     use psi_scalar_applications::AdmittedScalarApplications;
     use terminal_psi::Operation;
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
@@ -525,7 +525,7 @@ pub(crate) mod shifts {
     use semantic_vocabulary::ScalarType;
     use terminal_psi::{Operation, OperationKind};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
@@ -600,7 +600,7 @@ pub(crate) mod trapping_integer {
     use semantic_vocabulary::ScalarType;
     use terminal_psi::{Operation, OperationKind, TrappingIntegerOperation};
 
-    use crate::artifact_lowering::lowering::LoweringError;
+    use crate::operations::LoweringError;
 
     pub(crate) fn lower(
         operation: &Operation,
