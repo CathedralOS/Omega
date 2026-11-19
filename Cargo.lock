@@ -2270,6 +2270,7 @@ dependencies = [
  "evaluation-receipts",
  "filesystem-authority",
  "host-provider-inputs",
+ "installation-conditions",
  "language-core",
  "package-compilation",
  "platform-custody",

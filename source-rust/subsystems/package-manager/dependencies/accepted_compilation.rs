@@ -40,6 +40,7 @@ use compiler::{
     PackageProductSourceRequest, PackageSourceRequest,
 };
 use diagnostics::Diagnostic;
+use installation_conditions::InstallationEnvironmentAssumption;
 use std::path::Path;
 
 type Error = CompileResolvedPackageReviewsError;
@@ -61,6 +62,29 @@ fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
             failure: products::CompileFailure::Diagnostics(vec![Diagnostic::error(message.into())]),
         },
     )
+}
+
+/// Distribute reviewed premises in caller order before any package is scheduled.
+fn partition_installation_assumptions(
+    assumptions: Vec<InstallationEnvironmentAssumption>,
+    profiles: &[target::TargetProfile],
+) -> Result<Vec<Vec<InstallationEnvironmentAssumption>>, String> {
+    let mut groups = vec![Vec::new(); profiles.len()];
+    for row in assumptions {
+        row.validate_description()?;
+        let profile = row.profile();
+        let position = profiles
+            .iter()
+            .position(|candidate| *candidate == profile)
+            .ok_or_else(|| {
+                format!(
+                    "installation assumption names unrequested target {}",
+                    profile.target_name()
+                )
+            })?;
+        groups[position].push(row);
+    }
+    Ok(groups)
 }
 
 fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationKind) -> bool {
@@ -326,12 +350,10 @@ fn admit_project(
         .collect::<Vec<_>>();
     let mut product = request.product;
     let groups = match &mut product {
-        CompilationProduct::Native(native) => {
-            products::compile_request::partition_installation_assumptions(
-                std::mem::take(&mut native.installation_assumptions),
-                &profiles,
-            )
-        }
+        CompilationProduct::Native(native) => partition_installation_assumptions(
+            std::mem::take(&mut native.installation_assumptions),
+            &profiles,
+        ),
         _ => Ok(vec![Vec::new(); profiles.len()]),
     };
     let groups = match groups {
