@@ -621,7 +621,7 @@ fn an_owned_whole_referent_cannot_be_taken_through_a_shared_loan() {
 
 const ROOT_RESTORATION: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tests/fixtures/run/ownership/borrowed_root_restoration/main.omg"
+    "/../../../../../../tests/fixtures/run/ownership/borrowed_root_restoration/main.omg"
 ));
 
 fn execute_restoration(source: &str) {
@@ -656,7 +656,7 @@ fn a_whole_borrowed_window_publishes_and_executes_the_original_storage() {
 fn an_owned_field_window_publishes_and_executes_the_original_local_storage() {
     execute_restoration(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/ownership/owned_borrowed_field_restoration/main.omg"
+        "/../../../../../../tests/fixtures/run/ownership/owned_borrowed_field_restoration/main.omg"
     )));
 }
 
@@ -664,7 +664,7 @@ fn an_owned_field_window_publishes_and_executes_the_original_local_storage() {
 fn a_whole_local_owned_window_publishes_and_executes_the_original_storage() {
     execute_restoration(include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/ownership/owned_borrowed_root_restoration/main.omg"
+        "/../../../../../../tests/fixtures/run/ownership/owned_borrowed_root_restoration/main.omg"
     )));
 }
 
@@ -747,7 +747,7 @@ fn a_retained_exclusive_window_executes_the_original_caller_storage() {
 
 const RETAINED_ROOT_RESTORATION: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tests/fixtures/run/ownership/retained_borrowed_root_restoration/main.omg"
+    "/../../../../../../tests/fixtures/run/ownership/retained_borrowed_root_restoration/main.omg"
 ));
 
 #[test]

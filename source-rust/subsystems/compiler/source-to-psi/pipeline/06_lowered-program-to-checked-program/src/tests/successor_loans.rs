@@ -658,7 +658,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     };
     let program = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+        "/../../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
     ));
     let typed = super::rankings::typed_with_ranking_catalog(program);
     let checksum = typed

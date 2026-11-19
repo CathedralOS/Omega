@@ -82,7 +82,7 @@ pub(super) fn frontier_with_core(
     }
     let mut syntax = syntax.unwrap();
     let root =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library/core");
     let mut bindings = Vec::with_capacity(core.len());
     let importing_source = match core_scope {
         DependencyScope::Product => product_source.unwrap(),
@@ -127,7 +127,7 @@ fn bundled_core_imports_keep_the_callers_checked_purpose() {
         "byte_observation",
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/byte_observation.omg"
+            "/../../../../../../source/library/core/byte_observation.omg"
         )),
     )];
     let imports = "use omega::language::core::byte_observation; machine importer() {}";

@@ -13,7 +13,4 @@ mod checking {
 }
 
 const COUNT_ALLOCATIONS: bool = true;
-include!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../../../../../tools/benchmark/proof-preparation/harness.rs"
-));
+include!("../../../../../../../tools/benchmark/proof-preparation/harness.rs");

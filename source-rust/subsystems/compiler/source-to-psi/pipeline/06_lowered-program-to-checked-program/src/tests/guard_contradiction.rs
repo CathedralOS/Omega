@@ -199,7 +199,7 @@ fn a_literal_argument_disproves_an_equality_crash_guard() {
 #[test]
 fn a_contradiction_through_a_closed_term_reaches_the_kernel_at_literals() {
     const SOURCE: &str = include_str!(
-        "../../../../../../../samples/cli/facts/wrapping_integer_arithmetic/local/main.omg"
+        "../../../../../../../../samples/cli/facts/wrapping_integer_arithmetic/local/main.omg"
     );
     let source = format!("{SOURCE}\nmachine build_entry() crashes Trap {{ main(); }}\n");
     let verdict = super::build_purpose::judge_build(&source).unwrap();

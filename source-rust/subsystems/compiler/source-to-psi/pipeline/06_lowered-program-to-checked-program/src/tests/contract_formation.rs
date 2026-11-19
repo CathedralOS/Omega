@@ -616,7 +616,7 @@ machine build_entry() {{ let value: u32 = divide(31, 3); }}
 fn nested_summary_arithmetic_keeps_each_inner_formation_obligation() {
     let source = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"
+        "/../../../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg"
     ))
     .replace("machine main()", "machine build_entry()");
     executed_source(&source);
